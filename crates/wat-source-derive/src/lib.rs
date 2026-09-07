@@ -72,19 +72,60 @@ use quote::quote;
 
 /// The declared BASE name and the index of the first payload item — the `:-` binder
 /// peeled off when present. `None` when `items[1]` is not a name keyword at all.
+/// THIS CRATE'S ONE `:-` RECOGNISER. Every reader of a declaration's binder in
+/// `wat-source-derive` goes through here — `declared_name` for the payload offset,
+/// `binder_type_params` for the names. Two callers, ONE test, which is the whole point:
+/// `src/types.rs`'s `peel_param_spec` is the substrate's door and this is the local
+/// stand-in a dependency cycle forces, not a licence for a second reading.
+///
+/// `:-` lexes as a KEYWORD, not a symbol — measured against the reader, not assumed
+/// (`src/types.rs::is_binder_marker` matches the same way). Arc 109 "reap the twelve"
+/// retired the name-embedded `:Name<I,O,A>` spelling `declared_name` used to ALSO peel
+/// (see the module doc above), so `:-` is the only spelling a declaration name wears.
+///
+/// Returns the binder's `[T …]` vector when present. `None` means NO binder — never
+/// "an empty one"; `:- []` returns `Some(&[])`, matching `peel_param_spec`'s rule that
+/// the empty binder is EXPRESSED, not absent.
+fn binder_vector(items: &[wat_reader::WatAST]) -> Option<&[wat_reader::WatAST]> {
+    let is_marker = matches!(items.get(2), Some(wat_reader::WatAST::Keyword(k, _)) if k == ":-"); // rune:lint(one-param-spec) — this crate depends only on wat-reader (cycle: wat-macros -> wat-doc -> this), so it cannot reach `crate::types::peel_param_spec` in the `wat` crate; re-derives the identical test wat_reader-only, at THE crate's single recogniser which both readers call.
+    if !is_marker {
+        return None;
+    }
+    match items.get(3) {
+        Some(wat_reader::WatAST::Vector(params, _)) => Some(params.as_slice()),
+        _ => None,
+    }
+}
+
 fn declared_name(items: &[wat_reader::WatAST]) -> Option<(&str, usize)> {
     let wat_reader::WatAST::Keyword(name, _) = items.get(1)? else { return None };
-    // `:-` lexes as a KEYWORD, not a symbol — measured against the reader, not assumed
-    // (`src/types.rs::is_binder_marker` matches the same way). This crate cannot reach
-    // `crate::types::peel_param_spec` / `is_binder_marker` in the `wat` crate (cycle:
-    // wat-macros -> wat-doc -> this), so the marker test below re-derives that door's
-    // check, wat_reader-only. Arc 109 "reap the twelve" retired the name-embedded
-    // `:Name<I,O,A>` spelling this fn used to ALSO peel (see the module doc above); `:-`
-    // is now the only spelling a declaration name wears, so this is the one hand-roll
-    // this exemption covers, not one of two.
-    let has_binder = matches!(items.get(2), Some(wat_reader::WatAST::Keyword(k, _)) if k == ":-") // rune:lint(one-param-spec) — this crate depends only on wat-reader (cycle: wat-macros -> wat-doc -> this), so it cannot reach `crate::types::peel_param_spec` in the `wat` crate; re-derives the identical test wat_reader-only.
-        && matches!(items.get(3), Some(wat_reader::WatAST::Vector(_, _)));
+    let has_binder = binder_vector(items).is_some();
     Some((name.as_str(), if has_binder { 4 } else { 2 }))
+}
+
+/// Type-parameter names from a `:- [T …]` binder, in declaration order.
+/// Empty when there is no binder. Errors if a binder is present but an entry
+/// is not a bare (un-namespaced) symbol — the same rule `take_declared_binder`
+/// enforces at load time. Detecting the binder and discarding the vector was
+/// the unbuilt capability: the offset shifted, the names vanished.
+fn binder_type_params(items: &[wat_reader::WatAST]) -> Result<Vec<String>, String> {
+    let Some(params) = binder_vector(items) else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::with_capacity(params.len());
+    for p in params {
+        match p {
+            wat_reader::WatAST::Symbol(id, _) if !id.is_reference() => {
+                out.push(id.as_str().to_string());
+            }
+            other => {
+                return Err(format!(
+                    "binder entry must be a bare type-parameter name (a Symbol with no `/`); got {other:?}"
+                ));
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// The exact source text a node spans, sliced from the file it was read from.
@@ -389,6 +430,7 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
 
     let mut nature: Option<&'static str> = None;
     let mut fields: Vec<(String, String)> = Vec::new();
+    let mut type_params: Vec<String> = Vec::new();
     let mut found = false;
 
     for form in &forms {
@@ -401,6 +443,9 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
         };
         let Some((tp, payload)) = declared_name(items) else { continue };
         if tp != want { continue }
+        type_params = binder_type_params(items).map_err(|m| {
+            syn::Error::new_spanned(&args.type_path, format!("`{want}`: {m}"))
+        })?;
 
         let Some(wat_reader::WatAST::Vector(items3, _)) = items.get(payload) else {
             return Err(syn::Error::new_spanned(
@@ -486,6 +531,7 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
     let nature_ident = syn::Ident::new(nature.unwrap(), proc_macro2::Span::call_site());
     let fnames: Vec<&String> = fields.iter().map(|(n, _)| n).collect();
     let ftypes: Vec<&String> = fields.iter().map(|(_, t)| t).collect();
+    let tparams: Vec<&String> = type_params.iter().collect();
 
     Ok(quote! {
         {
@@ -494,7 +540,7 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
             const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
             #env.register_builtin(crate::types::TypeDef::Aggregate(crate::types::AggregateDef {
                 name: #type_path.into(),
-                type_params: ::std::vec::Vec::new(),
+                type_params: ::std::vec![ #( #tparams.into() ),* ],
                 nature: crate::types::Nature::#nature_ident,
                 restrictions: ::core::option::Option::None,
                 fields: ::std::vec![
@@ -561,6 +607,7 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
 
     let mut purity_kw: Option<String> = None;
     let mut variants: Vec<EnumRegVariant> = Vec::new();
+    let mut type_params: Vec<String> = Vec::new();
     let mut found = false;
 
     for form in &forms {
@@ -574,6 +621,9 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
             continue;
         }
         found = true;
+        type_params = binder_type_params(items).map_err(|m| {
+            syn::Error::new_spanned(&args.type_path, format!("`{want}`: {m}"))
+        })?;
 
         let Some(wat_reader::WatAST::Keyword(marker, _)) = items.get(payload) else {
             return Err(syn::Error::new_spanned(
@@ -718,13 +768,14 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
 
     let env = &args.env;
     let type_path = &args.type_path;
+    let tparams: Vec<&String> = type_params.iter().collect();
 
     Ok(quote! {
         {
             const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
             #env.register_builtin(crate::types::TypeDef::Enum(crate::types::EnumDef {
                 name: #type_path.into(),
-                type_params: ::std::vec::Vec::new(),
+                type_params: ::std::vec![ #( #tparams.into() ),* ],
                 purity: crate::types::Purity::#purity_ident,
                 variants: ::std::vec![ #( #variant_tokens ),* ],
             }));

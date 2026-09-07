@@ -2110,6 +2110,25 @@
 ;; a panic carries a PanicInfo location, and by assertion primitives whose
 ;; failure-payload needs to cite file:line:col.
 ;;
+;; ─── Arc 296 H-3: :wat::core::Option / :wat::core::Result ────────────────────
+;;
+;; Named as this file's builtins by `src/load/stdlib.rs` ("Result/Option") long
+;; before this stone; the territory now matches the map. Parametric `defenum`s
+;; (`:- [T]`, `:- [T E]`), purity Pure — a decision, not a transcription, argued
+;; at `src/types.rs` (wire-crossing and `:durable`; Impure would wall
+;; `(Option :- [String])` in `:durable`). Field names on the wire (H-2):
+;; `#wat.core/Option.Some {:value …}` / `#wat.core/Result.Err {:error …}`.
+;;
+;; Rust sources from these forms via `wat_enum_register_from!`. There is no
+;; second list. Do not add a `wat_enum_from!` generated Rust enum: Option/Result
+;; are `Value::Option` / `Value::Result`, not a matched generated enum.
+(:wat::core::defenum :wat::core::Option :- [T] :wat::enum::Pure
+  :Some [value <- :T]
+  :None)
+(:wat::core::defenum :wat::core::Result :- [T E] :wat::enum::Pure
+  :Ok  [value <- :T]
+  :Err [error <- :E])
+
 ;; Placed here, near the top of core.wat and before :wat::core::Error below:
 ;; the :wat::core::Error surface's `location` feature is typed
 ;; :wat::kernel::Location, so core.wat genuinely depends on this type — that

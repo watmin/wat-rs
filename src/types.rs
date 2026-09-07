@@ -1240,33 +1240,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Field names ARE on the wire (arc 296 H-2): measured,
     // `(:wat::core::Some 42)` prints `#wat.core/Option.Some {:value 42}`.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::core::Option".into(),
-        type_params: vec!["T".into()],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Some".into(),
-                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
-            },
-            EnumVariant::Unit("None".into()),
-        ],
-    }));
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::core::Result".into(),
-        type_params: vec!["T".into(), "E".into()],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Ok".into(),
-                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Err".into(),
-                fields: vec![("error".into(), TypeExpr::Path("E".into()))],
-            },
-        ],
-    }));
+    //
+    // ⛔ ARC 296 H-3 — GENERATED FROM WAT. The hand-written `EnumDef` literals that
+    // stood here are DELETED; these rows are now emitted from
+    // `(:wat::core::defenum :wat::core::Option :- [T] …)` and
+    // `(:wat::core::defenum :wat::core::Result :- [T E] …)` in `wat/core.wat`.
+    // Purity::Pure is carried verbatim (the decision above). Param order is the
+    // binder: Option `["T"]`, Result `["T","E"]`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::Option");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::Result");
 
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::core::ReadOutcome".into(),
@@ -6399,6 +6381,29 @@ mod tests {
             assert_eq!(e.type_params, vec!["T".to_string()]);
         } else {
             panic!();
+        }
+    }
+
+    #[test]
+    fn wat_enum_register_from_captures_binder_at_arity_3() {
+        // H-3 STOP-2: a fixed-offset binder bug can pass at arity 1 and fail at 3.
+        // ServiceEvent `:- [I O A]` is the live 3-param case.
+        let mut env = TypeEnv::new();
+        ::wat_source_derive::wat_enum_register_from!(
+            env,
+            "wat/spawn.wat",
+            ":wat::spawn::ServiceEvent"
+        );
+        match env.get(":wat::spawn::ServiceEvent") {
+            Some(TypeDef::Enum(e)) => {
+                assert_eq!(
+                    e.type_params,
+                    vec!["I".to_string(), "O".to_string(), "A".to_string()],
+                    "binder capture must preserve declaration order at arity 3"
+                );
+                assert_eq!(e.purity, Purity::Impure, "ServiceEvent purity is Impure");
+            }
+            other => panic!("expected Enum ServiceEvent; got {other:?}"),
         }
     }
 
