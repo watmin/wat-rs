@@ -163,3 +163,51 @@ stones ago, one level down: **I checked what I was touching, not what had to hol
 and adds the enabling change first: **the three waiter-fold accumulators become a `defstruct`.** That
 is also, directly, the "less massive exprs" the builder asked for — applied where the massiveness
 actually bites.
+
+---
+
+# CORRECTION — the builder, 2026-09-07
+
+> *"make a struct or record — **this is on purpose, wide tuples are unwieldy**. structs may hold
+> impure bindings, records may only hold pure data bindings (must be edn expressible, a file handle
+> or socket is not edn expressable)"*
+
+**My GRADING above called this a "defect class." It is not.** `Tuple`'s three-element limit is a
+deliberate constraint, and the aggregate split is the design:
+
+| | holds | why |
+|---|---|---|
+| `Tuple` | ≤3 of anything | wide tuples are unwieldy — the limit **is** the push toward a named aggregate |
+| `defrecord` | pure, **EDN-expressible** fields only | it must be reconstructible across a comms boundary |
+| `defstruct` | impure bindings too (a `Peer`, a socket, a file handle) | it never crosses |
+
+★ So the language was **telling** sqs.wat to use a struct, and the code fought it with nested
+Tuples. The failure was ours, not the substrate's. Every one of my three probes this session
+re-derived a rule that already had a reason.
+
+## THE CENSUS THAT FOLLOWS FROM IT
+
+Where does the corpus fight the three-element limit?
+
+```
+nested-Tuple ACCESS chains   (first/second of a first/second)
+    36   wat-scripts/fanout/circuit.wat
+     2   wat/service.wat
+     0   everything else
+
+lines CONSTRUCTING 2+ Tuples
+    33   wat-scripts/fanout/circuit.wat
+     5   wat-scripts/queue/sqs.wat
+    ≤4   everything else
+```
+
+★★★★ **69 sites in `circuit.wat`, and the rest of the corpus is clean.** This is a far better
+metric than the sustained-indentation one I used earlier — which ranked files by a symptom and put
+`sqs.wat` third in the very strike it killed.
+
+★★★★★ **And it merges the builder's two observations into one problem.** The mega-expressions are
+not arbitrary sprawl: they are the *shape* of packing four-plus values into three-slot Tuples.
+Replace the packing with named aggregates and the nesting collapses with it — and the "less massive
+exprs" ask and the `store-ns` blocker have the same fix.
+
+⚠ The metric is also the acceptance test: **count nested-Tuple sites before and after.**
