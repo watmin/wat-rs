@@ -217,3 +217,37 @@ The note has been amended with a warrant that recomputes itself — *the vec mir
 not the wire* — which holds under arc 258's vector body, under this stone's map body, and under
 251's flip. **No change is owed by H here**; this line exists so that whichever of the two ships
 second does not discover it the expensive way.
+
+---
+
+## ★ AMENDMENT 2026-09-06 — the READ side follows, and H's thesis is what carries it
+
+H is still DRAWN, NOT BUILT. This records a ruling made about the arm, not about this stone's work.
+
+**The match arm becomes a map pattern**, mirroring the wire this stone creates:
+
+```clojure
+#wat.core/Option.Some {:val 42}
+
+(wat.core/match option
+  [wat.core/Option.Some {:val val} (wat.core/+ 0 val)]
+  [wat.core/Option.None {}         -1])
+```
+
+Ruled by the builder 2026-09-06; the derivation and the measured costs live in
+`[[docs/arc/2026/04/109-kill-std/NOTE-match-cond-clause-brackets]]`'s amendment of the same date,
+which retires the flat positional clause `[<Variant> [d0 d1 …] <body>]`.
+
+**Why it belongs in H's record:** this stone's own argument is *"it declares binders … then throws
+them away into a positional vector. This stone removes the exception. One rule for named data, both
+kinds, both directions."* The positional match arm was that exception surviving on the READ side —
+so H's thesis, taken to its end, is what retires it. `dd35875d8` ruled the positional arm survives H;
+that remains TRUE (it does still work), but the arm is being replaced for a different reason: it
+binds by POSITION against data that is NAMED.
+
+**Sequencing:** the arm flip depends on this stone's wire, not the reverse. H-2 can land first and
+alone; the arm is a separate strike with its own cost (a map-pattern reader in match position —
+measured absent: `"map/set literal is not a valid match sub…"`).
+
+**Still open, named here so it is not lost:** whether a variant CONSTRUCTOR takes the map literal
+`(usr/Container.X {:x 42})` in place of today's kwargs/positional pair. Not H-2's, not the arm's.

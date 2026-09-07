@@ -182,3 +182,94 @@ its subject — *fields are declared in order* — cannot rot this way.
 
 Whether H ships at all. This amendment says only that **if** it ships, this note's form stands and its
 warrant is the above. H remains DRAWN, NOT BUILT.
+
+---
+
+## ★ AMENDMENT 2026-09-06 — THE ARM'S MIDDLE ELEMENT IS A MAP PATTERN, NOT A DESTRUCTURE VEC
+
+**The flat positional clause `[<Variant> [d0 d1 …] <body>]` ruled above is RETIRED.** The arm is now:
+
+```clojure
+;; the wire (arc 296 stone H)
+#wat.core/Option.Some {:val 42}
+
+;; the arm — NEARLY THE WIRE ITSELF
+(wat.core/match option
+  [wat.core/Option.Some {:val val} (wat.core/+ 0 val)]
+  [wat.core/Option.None {}         -1])
+```
+
+Builder, 2026-09-06: *"seeing them in the match form as nearly identical as their wire form… is quite
+compelling"* — and, on the migration cost: *"it will be a rough migration.. but i do not care - i want
+my language to be coherent."*
+
+### Why the positional vec had to go — its warrant failed TWICE
+
+1. **Original warrant (2026-07-22, in this NOTE above):** *"the wire still reads this way (R45/R46) …
+   the WRITER of a variant and the READER of an arm see the same body-shape discriminator."* Stone H
+   deletes the vector wire; body shape "stops carrying any burden at all."
+2. **Re-warrant (`dd35875d8`, 2026-08-25):** *"the vec mirrors the DECLARATION, not the wire"*, resting
+   on *"Clojure destructures a map positionally-by-declaration in exactly this way."* **That clause is
+   not true of Clojure** — map destructuring there is by key; positional destructuring is for
+   sequences, and records destructure as maps. The re-warrant re-grounded onto a false premise.
+
+A form whose justification has been rebuilt once and then rests on a wrong claim about the language
+we are becoming was never a settled ruling.
+
+### The deciding property — POSITION vs NAME
+
+The positional vec binds **by position** against data that is **named**. Reorder a declaration's
+fields and every arm of arity ≥ 2 silently rebinds, with nothing to catch it. That is exactly the
+`field-N` fragility arc 296 G/G′ removed from the wire, surviving one layer up on the READ side. H's
+own thesis — *"it declares binders … then throws them away into a positional vector. This stone
+removes the exception. One rule for named data, both kinds, both directions"* — is unfinished while
+the arm stays positional.
+
+### The order is KEY-FIRST, and the reason is which operation this is
+
+Measured 2026-09-06 against a live record:
+
+```
+{a :x  b :y}   binding-first   EXIT=0   ← Clojure's LET-destructure order; what wat accepts today
+{:x a  :y b}   key-first       EXIT=3   "let binder must be a bare symbol, a vector of…"
+```
+
+Both orders exist in Clojure and they belong to **different operations**: `let` destructuring is
+binding-first (`{a :x}`); **pattern matching is key-first** (`core.match`'s `{:x x}` — "has key `:x`,
+bind it as `x`"). A match arm is a PATTERN, so it takes the pattern order. The first draft of this
+amendment proposed `{val :val}` by reaching for the `let` relative — the identical "wrong relative"
+error that made the `fn`-rhyme argument attractive for the positional vec.
+
+### The unit variant is `{}`
+
+Empty map, mirroring `#wat.core/Option.None {}` — visible proof the variant carries nothing, the same
+role the empty `[]` played in the retired form.
+
+### The grammar assertion is UNCHANGED
+
+An arm is still exactly one of `[_ body]` · `[<bare-symbol> body]` · `[<Variant> <pattern> body]`, and
+the **head is still the context-free discriminator** (namespaced head → 3-element). Only the middle
+element's shape changes, from a destructure vec to a map pattern.
+
+### COST, measured — this does not exist yet
+
+```
+((usr/Container.X x)      body)   today's arm: pattern-call, BARE positional binding   EXIT=0
+((usr/Container.X {:x v}) body)   a map pattern in an arm                              EXIT=3
+                                  "malformed match form: map/set literal is not a valid match sub…"
+```
+
+One map-pattern reader in match position, plus per-arm name/arity validation against the declaration.
+Distinct from `let`'s binder-first destructure (arc 257.2) — same delimiter, different operation,
+different order; do NOT route the arm through the `let` path.
+
+### OPEN — the constructor form, deliberately NOT decided here
+
+A variant constructor today takes **kwargs** `(usr/Container.X :x 42)` or **positional**
+`(usr/Container.X 42)`. The builder's example writes `(usr/Container.X {:x 42})` — a map literal,
+which would complete the symmetry writer → wire → reader as ONE shape. Whether that map form
+*replaces* kwargs or joins it is undecided. If it replaces them, it deletes the five-way duplicated
+kwargs-vs-positional predicate catalogued in
+`[[NOTE-kwargs-or-positional-is-decided-in-five-places]]` — which has ALREADY drifted (two sites
+spell the parity check `is_multiple_of(2)`, three spell it `% 2 == 0`). That would make this a far
+larger win than a spelling change, and it is the builder's call.
