@@ -2207,9 +2207,10 @@
                                   (request-fields-or-fallback page-req-want))
                               page-clamped  (:wat::core::if (:wat::core::= page-field "")
                                               outcome-match
-                                              `(:wat::core::if (:wat::i64::> (~page-limit-acc ~req-binder) ~page-cap-kw)
-                                                 (:wat::core::let [~req-binder (~page-req-ctor ~@page-ctor-args)]
-                                                   ~outcome-match)
+                                              `(:wat::core::let
+                                                 [~req-binder (:wat::core::if (:wat::i64::> (~page-limit-acc ~req-binder) ~page-cap-kw)
+                                                                (~page-req-ctor ~@page-ctor-args)
+                                                                ~req-binder)]
                                                  ~outcome-match))
                               shape-guarded `(:wat::core::match (:wat::edn::validate ~req-binder ~req-ty-kw)
                                                (:wat::edn::Validation::Valid ~page-clamped)
