@@ -690,5 +690,6 @@ mod node_share_cost;
 mod rank_and_instrument;
 mod strat_cost;
 mod termination_verdict;
+mod stratify_numbers;
 mod right_index_counter_invariant;
 mod where_tree_branch_differential;
