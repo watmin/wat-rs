@@ -48,7 +48,11 @@ silently emptied of its purpose.
 
 1. **The 119 inline-wat arms** — hand edits are correct here (a string is not a form; R21 governs
    FORM rewrites). `src/runtime.rs`'s 79 are the bulk.
-2. **The 17 `.wat.bad` arms** — arm only, per the wall above.
+2. **The 17 `.wat.bad` arms — BY CODEMOD, not by hand.** ⛔ AMENDED: the driver takes an explicit
+   path list on stdin and `read-file`s each entry (`match-arm-to-bracket-map-pattern.wat:165-173`);
+   it is **extension-agnostic**. These 17 were skipped only because the path list was built by
+   globbing `*.wat`. Pass their paths and R21 holds unchanged. The wall above is about
+   VERIFICATION, not about the edit mechanism.
 3. **The 1 rotted script** — diagnose the UnresolvedReference; it may be unrelated to this stone,
    in which case say so and report it rather than folding it in.
 
@@ -61,8 +65,11 @@ silently emptied of its purpose.
 - **STOP-3 — the 1 rotted script is "fixed" by touching its arms.** Its error is
   `UnresolvedReference`, not a clause shape. If the arms are already correct there, the rot is a
   separate finding.
-- **STOP-4 — a `.wat` (not `.rs`, not `.bad`) arm turns up.** That would mean the codemod missed a
-  form-tree case after all; report it, do not hand-edit (R21).
+- **STOP-4 — ANY form-tree arm is hand-edited.** R21 covers `.wat.bad` exactly as it covers `.wat`
+  — same reader, same tool, only the path list differed. Hand-editing is correct for ONE population
+  and one only: wat inside a Rust STRING, which is not a form and which no form-tree tool can see.
+- **STOP-5 — a `.wat` arm the codemod still misses.** That would mean a form-tree case remains;
+  report the shape rather than working around it.
 
 ## EXPECTATIONS
 
