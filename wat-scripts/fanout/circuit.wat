@@ -1654,12 +1654,13 @@
    mx <- :wat::core::i64])
 
 (:wat::core::defrecord :fanout::Traces
-  [outbox  <- :fanout::Hist
-   hop12   <- :fanout::Hist
-   hop23   <- :fanout::Hist
-   pending <- :fanout::Hist
-   e2e     <- :fanout::Hist
-   sample  <- :wat::core::String])
+  [pub-work    <- :fanout::Hist
+   inbox-wait  <- :fanout::Hist
+   worker-proc <- :fanout::Hist
+   fanout-work <- :fanout::Hist
+   subq-wait   <- :fanout::Hist
+   e2e         <- :fanout::Hist
+   sample      <- :wat::core::String])
 
 (:wat::core::defn :fanout::parse-i64 [s <- :wat::core::String] -> :wat::core::i64
   (:wat::edn::read s))
@@ -1701,24 +1702,26 @@
   -> :fanout::Traces
   (:wat::core::let
     [parts (:wat::string::split (:fanout::Outcome/body o) "|")]
-    (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::count parts) 6))
+    (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::count parts) 7))
       tr
       (:wat::core::let
-        [t0 (:fanout::parse-i64 (:wat::core::nth parts 1))
-         t1 (:fanout::parse-i64 (:wat::core::nth parts 2))
-         t2 (:fanout::parse-i64 (:wat::core::nth parts 3))
-         t3 (:fanout::parse-i64 (:wat::core::nth parts 4))
-         t4 (:fanout::parse-i64 (:wat::core::nth parts 5))
+        [t0  (:fanout::parse-i64 (:wat::core::nth parts 1))
+         t0b (:fanout::parse-i64 (:wat::core::nth parts 2))
+         t1  (:fanout::parse-i64 (:wat::core::nth parts 3))
+         t3  (:fanout::parse-i64 (:wat::core::nth parts 4))
+         t3b (:fanout::parse-i64 (:wat::core::nth parts 5))
+         t4  (:fanout::parse-i64 (:wat::core::nth parts 6))
          sample (:wat::core::if (:wat::core::= (:fanout::Traces/sample tr) "")
                   (:fanout::Outcome/body o)
                   (:fanout::Traces/sample tr))]
         (:fanout::Traces
-          :outbox  (:fanout::hist-add (:fanout::Traces/outbox tr)  (:fanout::ns->ms t0 t1))
-          :hop12   (:fanout::hist-add (:fanout::Traces/hop12 tr)   (:fanout::ns->ms t1 t2))
-          :hop23   (:fanout::hist-add (:fanout::Traces/hop23 tr)   (:fanout::ns->ms t2 t3))
-          :pending (:fanout::hist-add (:fanout::Traces/pending tr) (:fanout::ns->ms t3 t4))
-          :e2e     (:fanout::hist-add (:fanout::Traces/e2e tr)     (:fanout::ns->ms t0 t4))
-          :sample  sample)))))
+          :pub-work    (:fanout::hist-add (:fanout::Traces/pub-work tr)    (:fanout::ns->ms t0 t0b))
+          :inbox-wait  (:fanout::hist-add (:fanout::Traces/inbox-wait tr)  (:fanout::ns->ms t0b t1))
+          :worker-proc (:fanout::hist-add (:fanout::Traces/worker-proc tr) (:fanout::ns->ms t1 t3))
+          :fanout-work (:fanout::hist-add (:fanout::Traces/fanout-work tr) (:fanout::ns->ms t3 t3b))
+          :subq-wait   (:fanout::hist-add (:fanout::Traces/subq-wait tr)   (:fanout::ns->ms t3b t4))
+          :e2e         (:fanout::hist-add (:fanout::Traces/e2e tr)         (:fanout::ns->ms t0 t4))
+          :sample      sample)))))
 
 (:wat::core::defn :fanout::traces-of
   [outs <- (:wat::core::Vector :- [:fanout::Outcome])]
@@ -1726,23 +1729,25 @@
   (:wat::core::foldl
     :fanout::traces-add
     (:fanout::Traces
-      :outbox  (:fanout::empty-hist)
-      :hop12   (:fanout::empty-hist)
-      :hop23   (:fanout::empty-hist)
-      :pending (:fanout::empty-hist)
-      :e2e     (:fanout::empty-hist)
-      :sample  "")
+      :pub-work    (:fanout::empty-hist)
+      :inbox-wait  (:fanout::empty-hist)
+      :worker-proc (:fanout::empty-hist)
+      :fanout-work (:fanout::empty-hist)
+      :subq-wait   (:fanout::empty-hist)
+      :e2e         (:fanout::empty-hist)
+      :sample      "")
     outs))
 
 (:wat::core::defn :fanout::traces-report [tr <- :fanout::Traces] -> :wat::core::String
   (:wat::core::format
-    "sample={s} ;; {o} ;; {a} ;; {b} ;; {c} ;; {e}"
+    "sample={s} ;; {pw} ;; {iw} ;; {wp} ;; {fw} ;; {sq} ;; {e}"
     :s (:fanout::Traces/sample tr)
-    :o (:fanout::hist-line "outbox  " (:fanout::Traces/outbox tr))
-    :a (:fanout::hist-line "t1->t2  " (:fanout::Traces/hop12 tr))
-    :b (:fanout::hist-line "t2->t3  " (:fanout::Traces/hop23 tr))
-    :c (:fanout::hist-line "t3->t4  " (:fanout::Traces/pending tr))
-    :e (:fanout::hist-line "e2e     " (:fanout::Traces/e2e tr))))
+    :pw (:fanout::hist-line "pub-work" (:fanout::Traces/pub-work tr))
+    :iw (:fanout::hist-line "inbox   " (:fanout::Traces/inbox-wait tr))
+    :wp (:fanout::hist-line "worker  " (:fanout::Traces/worker-proc tr))
+    :fw (:fanout::hist-line "fanout  " (:fanout::Traces/fanout-work tr))
+    :sq (:fanout::hist-line "subq    " (:fanout::Traces/subq-wait tr))
+    :e  (:fanout::hist-line "e2e     " (:fanout::Traces/e2e tr))))
 
 (:wat::core::defn :fanout::summarize
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64

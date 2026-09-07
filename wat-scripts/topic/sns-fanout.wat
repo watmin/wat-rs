@@ -80,6 +80,11 @@
        [msgs  (:demo::Topic::PublishRequest/msgs req)
         nsubs (:demo::topic::Record/nsubs (:demo::topic::State/durable s))
         now   (:wat::time::epoch-nanos (:wat::time::now))
+        ;; t0b rides in the payload. The instant send-all *returns* is after
+        ;; persist, so it cannot. This is the last moment the body can carry,
+        ;; still inside Topic::publish (not the publisher — that would fold
+        ;; the reply hop into "durable work").
+        t0b   (:wat::time::epoch-nanos (:wat::time::now))
         bodies (:wat::core::foldl
                  (:wat::core::fn
                    [acc <- (:wat::core::Vector :- [:wat::core::String])
@@ -91,7 +96,7 @@
                         i    <- :wat::core::i64]
                        -> (:wat::core::Vector :- [:wat::core::String])
                        (:wat::core::conj acc2
-                         (:wat::core::format "{i}|{m}" :i i :m msg)))
+                         (:wat::core::format "{i}|{m}|{t0b}" :i i :m msg :t0b t0b)))
                      acc
                      (:wat::core::range 0 nsubs)))
                  (:wat::core::Vector :- [:wat::core::String])
@@ -117,16 +122,16 @@
                    (:wat::core::let
                      [need (:wat::i64::- nsubs rem)
                       msg  (:wat::core::nth msgs floor)
+                      now2 (:wat::time::epoch-nanos (:wat::time::now))
                       tail (:wat::core::foldl
                              (:wat::core::fn
                                [acc <- (:wat::core::Vector :- [:wat::core::String])
                                 i   <- :wat::core::i64]
                                -> (:wat::core::Vector :- [:wat::core::String])
                                (:wat::core::conj acc
-                                 (:wat::core::format "{i}|{m}" :i i :m msg)))
+                                 (:wat::core::format "{i}|{m}|{t0b}" :i i :m msg :t0b now2)))
                              (:wat::core::Vector :- [:wat::core::String])
                              (:wat::core::range rem nsubs))
-                      now2 (:wat::time::epoch-nanos (:wat::time::now))
                       tr (:queue::Queue/send (:demo::topic::State/inbox s)
                            (:queue::Queue::SendRequest :queue "inbox" :bodies tail :now-ns now2))]
                      (:wat::core::match tr
@@ -478,7 +483,7 @@
                                             ""
                                             (:wat::core::range 1 nparts))
                                      t3 (:wat::time::epoch-nanos (:wat::time::now))
-                                     stamped (:wat::core::format "{b}|{t1}|{t2}|{t3}" :b rest :t1 t1 :t2 t1 :t3 t3)
+                                     stamped (:wat::core::format "{b}|{t1}|{t3}" :b rest :t1 t1 :t3 t3)
                                      pair (:wat::core::Tuple eid stamped)]
                                     (:wat::core::foldl
                                       (:wat::core::fn
@@ -506,12 +511,15 @@
                           (:wat::core::if (:wat::core::empty? bucket)
                             acc
                             (:wat::core::let
-                              [bodies (:wat::core::foldl
+                              [t3b (:wat::time::epoch-nanos (:wat::time::now))
+                               bodies (:wat::core::foldl
                                         (:wat::core::fn
                                           [bacc <- (:wat::core::Vector :- [:wat::core::String])
                                            p    <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
                                           -> (:wat::core::Vector :- [:wat::core::String])
-                                          (:wat::core::conj bacc (:wat::core::second p)))
+                                          (:wat::core::conj bacc
+                                            (:wat::core::format "{b}|{t3b}"
+                                              :b (:wat::core::second p) :t3b t3b)))
                                         (:wat::core::Vector :- [:wat::core::String])
                                         bucket)
                                qpeer (:wat::core::nth ss i)
