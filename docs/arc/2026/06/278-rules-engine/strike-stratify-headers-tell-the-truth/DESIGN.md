@@ -6,6 +6,14 @@ L2-3 (`aa10ef8bd`) drove it and the `accum-over-derived` axis (`05d33d022`) conf
 agree at depth with Clara live. What is left is prose that is false, in the file whose whole
 subject it is.
 
+> ⚠ **EVERY LINE NUMBER IN THIS FILE IS PRE-EDIT.** The fix inserted ~17 comment lines into
+> `stratify.rs`, so the citations below no longer resolve — this file is the record of what was
+> true when the strike was drawn, not a map of the tree today. **Post-edit anchors:** the divergent
+> `+1` term is `stratify.rs:247-253`; `consume_types`' `:exists` / accumulate-`:from` arms are
+> `:195-196`; `produced_type` is `:65`. Landed prose carries the post-edit addresses; the
+> executor recomputed them rather than transcribing the BRIEF's verbatim ones, which is the
+> deviation its SCORE names first.
+
 ## The audit — ALL EIGHT claims, not the two the builder asked for
 
 `grep -i 'mirror\|lockstep'` over both files returns **eight** claims. Fixing two while six

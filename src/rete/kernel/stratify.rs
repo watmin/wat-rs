@@ -13,7 +13,24 @@ use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Val
 // `rule-produces` / `rule-negates` / `stratify-sweep` / `stratify-fix` / `rule-stratum` /
 // `stratify` / `fire-stratified-loop` / `fire-stratified`. The oracle is the reference and
 // does NOT change (`DESIGN-STONE-7strat-native.md`); this is a SEPARATE, self-contained Rust
-// impl that moves in lockstep with it (the dual-impl doctrine — no `native?` flag anywhere).
+// impl (the dual-impl doctrine — no `native?` flag anywhere).
+//
+// ⛔ IT IS NOT IN LOCKSTEP, AND THIS HEADER CLAIMED IT WAS FOR THE WHOLE ARC — while listing
+// `stratify-sweep` among the faithfully ported functions. `native_stratify_sweep` carries a
+// term `stratify-sweep` has no counterpart for: a type bagged by `:exists` / accumulate
+// `:from` that THIS rule set also derives gets +1 (`:247-253`). The oracle folds those into
+// `rule-consumes`, where `req-pos` is explicitly NOT +1 (`stratify.wat:241-242`).
+//
+// DRIVEN 2026-09-07, both engines in one process, one binary: for `tally :- Seed, [?n <-
+// (acc::count) :from Ok]` with `Ok` derived, native gives `Tally` stratum 1 and the oracle
+// gives 0. Gate: `kernel/tests/stratify_numbers.rs`. Every OTHER function in the list above
+// was re-read against its oracle twin the same day and DOES mirror.
+//
+// THE FACTS AGREE — `probe_arc278_derived_exists_acc`, and the `accum-over-derived` grid axis
+// at depth 9 with Clara live. The two engines reach that agreement by DIFFERENT routes: native
+// stratifies, so the bag is closed before it is counted; the oracle counts early and supersedes
+// (`fire-support-fixpoint`, `wat/rete/oracle/fire.wat`). Do not "fix" either side into the
+// other — the divergence is in the numbers, and each side's correctness argument is its own.
 
 /// A fact-form's type head, colon-stripped: `(:Type ...)` → `"Type"`.
 /// Mirrors the inline `ast-name` + colon-strip done identically in both `rule-produces`
@@ -199,10 +216,19 @@ pub(crate) fn consume_types(form: &WatAST, out: &mut Vec<String>) {
     }
 }
 
-/// One sweep over all rules' (produced, negated, consumed) triples, raising `type_strata` entries.
-/// For each rule: `required = max(stratum[n]+1 for n in negated, default 0)`; for each produced
-/// type `p`: `stratum[p] = max(stratum[p], required)`. Returns `true` iff any stratum rose.
-/// Mirrors `stratify-sweep` (`wat/rete/oracle/stratify.wat`).
+/// One sweep over all rules' (produced, negated, consumed, bagged) views, raising `type_strata`.
+/// For each rule, `required` is the max of THREE terms, not one:
+///   * `stratum[n] + 1` for every negated `n`            (the oracle has this)
+///   * `stratum[b] + 1` for every bagged `b` THIS SET DERIVES, else `+ 0`  (the oracle does NOT)
+///   * `stratum[c]`, NO `+1`, for every positively consumed `c`  (the oracle has this)
+///
+/// then for each produced `p`: `stratum[p] = max(stratum[p], required)`. Only RAISED strata are
+/// recorded, so an all-zero map comes back EMPTY. Returns `true` iff any stratum rose.
+///
+/// ⛔ DOES NOT MIRROR `stratify-sweep` — the second term is the whole divergence, and this
+/// docstring used to state the first term ALONE as the formula while the code folded all three.
+/// See the ⛔ block at the head of this file; driven, both engines, one process, native 1 /
+/// oracle 0 (`kernel/tests/stratify_numbers.rs`).
 pub(crate) fn native_stratify_sweep(rule_parts: &[StratifyView], type_strata: &mut HashMap<String, i64>) -> bool {
     let mut changed = false;
     for view in rule_parts {

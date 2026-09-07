@@ -157,6 +157,14 @@
 ;; Engine forms :not / :where are NOT positive reads. :exists inner and
 ;; accumulate :from ARE — lockstep with native `rule_consumes`. A `?n`
 ;; accumulate head is not a type.
+;;
+;; ⛔ THAT SENTENCE IS TRUE AND IT IS NOT THE WHOLE STORY — it is why the divergence below
+;; went unnoticed. Native ALSO routes those same `:exists`-inner / acc-`:from` types into a
+;; SECOND list, `rule_bag_consumes`, and its sweep gives that list a +1 when the bagged type
+;; is one THIS rule set derives (`src/rete/kernel/stratify.rs:247-253`). Here they are only
+;; ever positive reads, and `req-pos` below is NOT +1. So the two engines number such a rule
+;; differently — driven 2026-09-07, native 1 / oracle 0, gate
+;; `src/rete/kernel/tests/stratify_numbers.rs`. The facts agree; the strata do not.
 (:wat::core::defn :wat::rete::rule-consumes
   [rule <- :wat::rete::Rule]
   -> (:wat::core::PersistentVector :- [:wat::core::String])
