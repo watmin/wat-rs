@@ -18,7 +18,7 @@
      again (:wat::fmt::format-source path out rules)
      same? (:wat::core::= out again)]
     (:wat::core::match (:wat::core::read-string-with-comments src)
-      ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
+      [:wat::core::ReadWithCommentsOutcome::Forms {:forms forms :comments comments}
         (:wat::core::do
           (:wat::kernel::println
             (:wat::string::interpolate
@@ -26,6 +26,6 @@
               :f (:wat::i64::to-string (:wat::core::length (:wat::core::ast->children forms)))
               :c (:wat::i64::to-string (:wat::core::length comments))
               :i (:wat::core::if same? "true" "false")))
-          (:wat::kernel::println out)))
-      ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
-        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)))))
+          (:wat::kernel::println out))]
+      [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)])))

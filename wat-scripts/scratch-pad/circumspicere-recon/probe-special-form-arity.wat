@@ -7,7 +7,7 @@
   (:wat::core::let
     [m (:wat::runtime::metadata-of :wat::core::if)]
     (:wat::core::match m
-      ((:wat::core::Some hm)
+      [:wat::core::Some {:value hm}
         (:wat::kernel::println
-          (:wat::string::concat "if arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "NONE")))))
+          (:wat::string::concat "if arity=" (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "NONE")])))

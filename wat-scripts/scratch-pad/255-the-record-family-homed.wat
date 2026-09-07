@@ -95,65 +95,65 @@
     (:wat::kernel::println
       (:wat::string::concat "Record/field-at    :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::Record/field-at)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     (:wat::kernel::println
       (:wat::string::concat "to-record          :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::to-record)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     (:wat::kernel::println
       (:wat::string::concat "record->map        :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::record->map)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     (:wat::kernel::println
       (:wat::string::concat "Record/assoc       :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::Record/assoc)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     (:wat::kernel::println
       (:wat::string::concat "Record/same-data?  :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::Record/same-data?)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     (:wat::kernel::println
       (:wat::string::concat "struct-field       :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::struct-field)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     (:wat::kernel::println
       (:wat::string::concat "struct-new         :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::struct-new)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     (:wat::kernel::println
       (:wat::string::concat "variant            :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::variant)
-          ((:wat::core::Some hm)
+          [:wat::core::Some {:value hm}
            (:wat::core::match (:wat::hashmap::get hm :totality)
-             ((:wat::core::Some t) (:wat::edn::write t))
-             (:None "registered, but no :totality key (unexpected)")))
-          (:None "None (not registered in this binary)"))))
+             [:wat::core::Some {:value t} (:wat::edn::write t)]
+             [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+          [:wat::core::None {} "None (not registered in this binary)"])))
     nil))

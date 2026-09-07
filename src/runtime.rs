@@ -1325,7 +1325,7 @@ fn eval_match_tail(
     if args.len() >= 2 && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->") {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut (pat body) ...)".into()
+            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut [pat body] ...)".into()
         }).into());
     }
     if args.len() < 2 {
@@ -1338,41 +1338,8 @@ fn eval_match_tail(
         }).into());
     }
     let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
-    for arm in &args[1..] {
-        let arm_items = match arm {
-            WatAST::List(items, _) => items,
-            other => {
-                return Err(RuntimeError::new(
-                    other.span().clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::match".into(),
-                        reason: format!(
-                            "each arm must be a list `(pattern body)`, got {}",
-                            other.variant_name()
-                        ),
-                    },
-                )
-                .into());
-            }
-        };
-        if arm_items.len() != 2 {
-            return Err(RuntimeError::new(
-                arm.span().clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::match".into(),
-                    reason: format!(
-                        "each arm must have exactly (pattern body); got {} elements",
-                        arm_items.len()
-                    ),
-                },
-            )
-            .into());
-        }
-        let pattern = &arm_items[0];
-        let body = &arm_items[1];
-        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env, sym)? {
-            return eval_tail(body, &arm_env, sym);
-        }
+    if let Some((body, arm_env)) = first_matching_arm(&args[1..], &scrutinee, env, sym)? {
+        return eval_tail(body, &arm_env, sym);
     }
     Err(RuntimeError::new(
         args[0].span().clone(),
@@ -3303,21 +3270,23 @@ fn dispatch_keyword_head_value(
                                             WatAST::Symbol(Identifier::bare("__r"), span.clone()),
                                             // ::Message arm — unwrap the reply variant to its
                                             // Response, re-wrap in RecvOutcome::Message.
-                                            WatAST::List(vec![
-                                                WatAST::List(vec![
-                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                            WatAST::Vector(vec![
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                WatAST::Map(vec![(
+                                                    WatAST::Keyword(":msg".into(), span.clone()),
                                                     WatAST::Symbol(Identifier::bare("__m"), span.clone()),
-                                                ], span.clone()),
+                                                )], span.clone()),
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
                                                     WatAST::List(vec![
                                                         WatAST::Keyword(":wat::core::match".into(), span.clone()),
                                                         WatAST::Symbol(Identifier::bare("__m"), span.clone()),
-                                                        WatAST::List(vec![
-                                                            WatAST::List(vec![
-                                                                WatAST::Keyword(reply_ctor, span.clone()),
+                                                        WatAST::Vector(vec![
+                                                            WatAST::Keyword(reply_ctor, span.clone()),
+                                                            WatAST::Map(vec![(
+                                                                WatAST::Keyword(":resp".into(), span.clone()),
                                                                 WatAST::Symbol(Identifier::bare("resp"), span.clone()),
-                                                            ], span.clone()),
+                                                            )], span.clone()),
                                                             WatAST::Symbol(Identifier::bare("resp"), span.clone()),
                                                         ], span.clone()),
                                                     ], span.clone()),
@@ -3331,11 +3300,12 @@ fn dispatch_keyword_head_value(
                                             // `:wat::core::struct-new` (wrong nature: Struct, not Record —
                                             // Failure/message couldn't read it back); the helper mints the
                                             // canonical Record.
-                                            WatAST::List(vec![
-                                                WatAST::List(vec![
-                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                            WatAST::Vector(vec![
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                WatAST::Map(vec![(
+                                                    WatAST::Keyword(":cause".into(), span.clone()),
                                                     WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
-                                                ], span.clone()),
+                                                )], span.clone()),
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
                                                     // Arc 170 — SCRUB THE DEATH, PASS THE STOP.
@@ -3359,11 +3329,12 @@ fn dispatch_keyword_head_value(
                                                     WatAST::List(vec![
                                                         WatAST::Keyword(":wat::core::match".into(), span.clone()),
                                                         WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
-                                                        WatAST::List(vec![
+                                                        WatAST::Vector(vec![
                                                             WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
+                                                            WatAST::Map(vec![], span.clone()),
                                                             WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
                                                         ], span.clone()),
-                                                        WatAST::List(vec![
+                                                        WatAST::Vector(vec![
                                                             WatAST::Symbol(Identifier::bare("_"), span.clone()),
                                                             WatAST::Keyword(":wat::kernel::LociDiedError::Disconnected".into(), span.clone()),
                                                         ], span.clone()),
@@ -3383,13 +3354,15 @@ fn dispatch_keyword_head_value(
                                             // primary path is direct, collapsing that dig is a
                                             // follow-up worth its own grounding, not a change to
                                             // make in passing.
-                                            WatAST::List(vec![
+                                            WatAST::Vector(vec![
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::Stopped".into(), span.clone()),
+                                                WatAST::Map(vec![], span.clone()),
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::Stopped".into(), span.clone()),
                                             ], span.clone()),
                                             // ::Closed arm — pass the reason-free terminal through.
-                                            WatAST::List(vec![
+                                            WatAST::Vector(vec![
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
+                                                WatAST::Map(vec![], span.clone()),
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
@@ -7346,8 +7319,8 @@ fn doc_contract_from_comment(doc: &wat_doc::DocComment) -> DocContractEmit {
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
 /// @ret     (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])]) the metadata map, or `:None` when the binding is unregistered or carries no metadata
-/// @example (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::lookup-define) ((:wat::core::Some _) true) (:wat::core::None false)) #=> true
-/// @example (:wat::core::match (:wat::runtime::metadata-of :probe::totally-unknown-xyz) ((:wat::core::Some _) true) (:wat::core::None false)) #=> false
+/// @example (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::lookup-define) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> true
+/// @example (:wat::core::match (:wat::runtime::metadata-of :probe::totally-unknown-xyz) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> false
 /// @see     :wat::runtime::lookup-define
 /// @see     :wat::runtime::field-names-of
 #[wat_intrinsic(":wat::runtime::metadata-of")]
@@ -8391,31 +8364,230 @@ fn eval_hashset(
 // Arc 109 Stone — the record home — `eval_struct_field` moved to `src/record/access.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// `(:wat::core::match <scrutinee> <arm>...)` — pattern-match over
-/// enum values. MVP-scoped to `(:Option :- [T])` (the only built-in enum);
-/// user-declared enums graduate in a later slice.
-///
-/// Each arm is `(pattern body)`. Pattern forms:
-/// - `:None` — matches `Value::Option(None)`, no binding.
-/// - `(Some binder)` — matches `Value::Option(Some(v))`, binds `binder`
-///   to `v` in the body's scope. Exactly one binder; further pattern
-///   nesting is a future slice.
-/// - bare identifier — wildcard that binds the scrutinee as that name.
-/// - `_` — wildcard, no binding.
-///
-/// Arms are tried in order; the first match fires. If no arm matches
-/// the scrutinee, returns `PatternMatchFailed`. (Exhaustiveness is
-/// enforced statically by the type checker; this runtime error fires
-/// only when the type check hasn't run.)
-/// `(:wat::core::match scrutinee arm1 arm2 ...)` — typed
-/// pattern match per the 2026-04-20 INSCRIPTION. Every arm body must
-/// produce `:T`; mismatches are reported per-arm. The annotation is
-/// check-time only at runtime (validated for shape, ignored for
-/// dispatch).
-///
-/// Arity: at least 4 args (scrutinee, `->`, `:T`, one arm). The old
-/// no-annotation form — `(match scrutinee arm1 ...)` — is refused
-/// with a migration-hint MalformedForm. Hard break, no deprecation.
+fn match_arm_err(e: crate::match_arm::MatchArmError) -> EvalBreak {
+    RuntimeError::new(
+        e.span,
+        RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: e.reason,
+        },
+    )
+    .into()
+}
+
+fn bind_map_value(
+    pat: &WatAST,
+    value: &Value,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Option<Environment>, EvalBreak> {
+    match pat {
+        WatAST::Symbol(s, _) if s.as_str() == "_" => Ok(Some(env.clone())),
+        WatAST::Symbol(s, _) => Ok(Some(
+            env.child()
+                .bind_unknown_span(
+                    crate::scope::env_key(s),
+                    TrackedValue::from(value.clone()),
+                )
+                .build(),
+        )),
+        WatAST::List(items, span) => match items.first() {
+            Some(WatAST::Keyword(_, _)) => Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: "retired nested `(Variant binders…)` pattern; a nested variant \
+                             is `[Variant {:k v}]` (no body) or bind the field and match it"
+                        .into(),
+                },
+            )
+            .into()),
+            _ => try_match_pattern(pat, value, env, sym),
+        },
+        WatAST::Vector(items, span) => match items.as_slice() {
+            [WatAST::Keyword(k, kspan), WatAST::Map(pairs, _)]
+                if crate::match_arm::is_namespaced_variant(k) =>
+            {
+                match_variant_map(k, kspan, pairs, value, env, sym, span)
+            }
+            _ => Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: "nested variant pattern is `[<Variant> {:k v}]`".into(),
+                },
+            )
+            .into()),
+        },
+        other => try_match_pattern(other, value, env, sym),
+    }
+}
+
+fn bind_named_fields(
+    pairs: &[(WatAST, WatAST)],
+    names: &[String],
+    fields: &[Value],
+    outer: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Option<Environment>, EvalBreak> {
+    let parsed = crate::match_arm::parse_key_first_pairs(pairs, span).map_err(match_arm_err)?;
+    if parsed.len() != names.len() {
+        return Err(match_arm_err(crate::match_arm::MatchArmError {
+            span: span.clone(),
+            reason: format!(
+                "map pattern has {} key(s), variant declares {}",
+                parsed.len(),
+                names.len()
+            ),
+        }));
+    }
+    let mut env = outer.clone();
+    for (key, pat) in parsed {
+        let idx = names.iter().position(|n| n == &key).ok_or_else(|| {
+            match_arm_err(crate::match_arm::MatchArmError {
+                span: span.clone(),
+                reason: format!("map-pattern key `:{key}` is not a field of this variant"),
+            })
+        })?;
+        match bind_map_value(pat, &fields[idx], &env, sym)? {
+            Some(next) => env = next,
+            None => return Ok(None),
+        }
+    }
+    Ok(Some(env))
+}
+
+fn match_variant_map(
+    path: &str,
+    path_span: &Span,
+    pairs: &[(WatAST, WatAST)],
+    value: &Value,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Option<Environment>, EvalBreak> {
+    use crate::match_arm::BuiltinVariant;
+    match crate::match_arm::builtin_variant(path) {
+        Some(BuiltinVariant::OptionSome) => match value {
+            Value::Option(opt) => match &**opt {
+                Some(inner) => bind_named_fields(
+                    pairs,
+                    &[String::from("value")],
+                    std::slice::from_ref(inner),
+                    env,
+                    sym,
+                    span,
+                ),
+                None => Ok(None),
+            },
+            _ => Ok(None),
+        },
+        Some(BuiltinVariant::OptionNone) => match value {
+            Value::Option(opt) if opt.is_none() => {
+                bind_named_fields(pairs, &[], &[], env, sym, span)
+            }
+            _ => Ok(None),
+        },
+        Some(BuiltinVariant::ResultOk) => match value {
+            Value::Result(r) => match &**r {
+                Ok(inner) => bind_named_fields(
+                    pairs,
+                    &[String::from("value")],
+                    std::slice::from_ref(inner),
+                    env,
+                    sym,
+                    span,
+                ),
+                Err(_) => Ok(None),
+            },
+            _ => Ok(None),
+        },
+        Some(BuiltinVariant::ResultErr) => match value {
+            Value::Result(r) => match &**r {
+                Err(inner) => bind_named_fields(
+                    pairs,
+                    &[String::from("error")],
+                    std::slice::from_ref(inner),
+                    env,
+                    sym,
+                    span,
+                ),
+                Ok(_) => Ok(None),
+            },
+            _ => Ok(None),
+        },
+        None => match value {
+            Value::Enum(ev) => {
+                let composed = format!("{}::{}", ev.type_path, ev.variant_name);
+                if composed != path {
+                    return Ok(None);
+                }
+                bind_named_fields(pairs, ev.names.as_slice(), &ev.fields, env, sym, span)
+            }
+            Value::ForeignVariant(fv) => {
+                let composed = format!(":{}::{}", fv.enum_class, fv.variant);
+                if composed != path {
+                    return Ok(None);
+                }
+                bind_named_fields(pairs, &fv.names, &fv.fields, env, sym, span)
+            }
+            _ => {
+                let _ = path_span;
+                Ok(None)
+            }
+        },
+    }
+}
+
+fn eval_parsed_arm(
+    parsed: &crate::match_arm::MatchArm<'_>,
+    scrutinee: &Value,
+    env: &Environment,
+    sym: &SymbolTable,
+    arm_span: &Span,
+) -> Result<Option<Environment>, EvalBreak> {
+    match parsed {
+        crate::match_arm::MatchArm::Wildcard { .. } => Ok(Some(env.clone())),
+        crate::match_arm::MatchArm::Binding { ident, .. } => Ok(Some(
+            env.child()
+                .bind_unknown_span(
+                    crate::scope::env_key(ident),
+                    TrackedValue::from(scrutinee.clone()),
+                )
+                .build(),
+        )),
+        crate::match_arm::MatchArm::HashDestructure { pairs, .. } => {
+            let map = WatAST::Map(pairs.to_vec(), arm_span.clone());
+            try_match_pattern(&map, scrutinee, env, sym)
+        }
+        crate::match_arm::MatchArm::Variant {
+            path,
+            path_span,
+            pairs,
+            ..
+        } => match_variant_map(path, path_span, pairs, scrutinee, env, sym, arm_span),
+    }
+}
+
+fn first_matching_arm<'a>(
+    arms: &'a [WatAST],
+    scrutinee: &Value,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Option<(&'a WatAST, Environment)>, EvalBreak> {
+    for arm in arms {
+        let parsed = crate::match_arm::parse_match_arm(arm).map_err(match_arm_err)?;
+        if let Some(arm_env) = eval_parsed_arm(&parsed, scrutinee, env, sym, arm.span())? {
+            return Ok(Some((parsed.body(), arm_env)));
+        }
+    }
+    Ok(None)
+}
+
+/// `(:wat::core::match scrutinee arm…)` — bracket-clause match.
+/// Each arm is a vector: `[_ body]`, `[<binder> body]`, or
+/// `[<Variant> {:k v} body]`. The retired `(pattern body)` list is refused.
 #[wat_special_form_impl(":wat::core::match", role = eval)]
 fn eval_match(
     args: &[WatAST],
@@ -8429,7 +8601,7 @@ fn eval_match(
     if args.len() >= 2 && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->") {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut (pat body) ...)".into()
+            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut [pat body] ...)".into()
         }).into());
     }
     if args.len() < 2 {
@@ -8442,41 +8614,8 @@ fn eval_match(
         }).into());
     }
     let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
-    for arm in &args[1..] {
-        let arm_items = match arm {
-            WatAST::List(items, _) => items,
-            other => {
-                return Err(RuntimeError::new(
-                    other.span().clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::match".into(),
-                        reason: format!(
-                            "each arm must be a list `(pattern body)`, got {}",
-                            other.variant_name()
-                        ),
-                    },
-                )
-                .into());
-            }
-        };
-        if arm_items.len() != 2 {
-            return Err(RuntimeError::new(
-                arm.span().clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::match".into(),
-                    reason: format!(
-                        "each arm must have exactly (pattern body); got {} elements",
-                        arm_items.len()
-                    ),
-                },
-            )
-            .into());
-        }
-        let pattern = &arm_items[0];
-        let body = &arm_items[1];
-        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env, sym)? {
-            return eval_inner(body, &arm_env, sym).map(|tv| tv.value_owned());
-        }
+    if let Some((body, arm_env)) = first_matching_arm(&args[1..], &scrutinee, env, sym)? {
+        return eval_inner(body, &arm_env, sym).map(|tv| tv.value_owned());
     }
     Err(RuntimeError::new(
         args[0].span().clone(),
@@ -8757,17 +8896,24 @@ pub(crate) fn try_match_pattern(
                 },
             }
         }
-        // Arc 167 slice 1 — vector sub-patterns are not admitted
-        // in arc 167. Slice 2 wires fn / defn signature consumers;
-        // pattern-match positions are not legal Vector consumers.
-        WatAST::Vector(_, _) => Err(RuntimeError::new(
-            pattern.span().clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: "vector sub-patterns are not supported in arc 167".into(),
-            },
-        )
-        .into()),
+        // Nested variant `[Variant {:k v}]` (no body) — same path
+        // `bind_map_value` already uses. Other vectors stay illegal
+        // (arc 167: pattern position is not a Vector consumer).
+        WatAST::Vector(items, span) => match items.as_slice() {
+            [WatAST::Keyword(k, kspan), WatAST::Map(pairs, _)]
+                if crate::match_arm::is_namespaced_variant(k) =>
+            {
+                match_variant_map(k, kspan, pairs, value, outer, sym, span)
+            }
+            _ => Err(RuntimeError::new(
+                pattern.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: "vector sub-patterns are not supported in arc 167".into(),
+                },
+            )
+            .into()),
+        },
         // Arc 257.2 — Map brace-forms in match-arm pattern position.
         // classify_map_destructure detects hash-destructure ({var :field ...});
         // keys-destructure ({:keys [x y z]}) is not a valid match sub-pattern
@@ -13210,34 +13356,16 @@ fn step_match(
         new_items.extend(args[1..].iter().cloned());
         return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
     }
-    for arm in &args[1..] {
-        let arm_items = match arm {
-            WatAST::List(p, _) if p.len() == 2 => p,
-            _ => {
-                return Err(RuntimeError::new(
-                    arm.span().clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::match".into(),
-                        reason: "arm shape must be (pattern body)".into(),
-                    },
-                )
-                .into());
-            }
-        };
-        let pattern = &arm_items[0];
-        let body = &arm_items[1];
-        if let Some(binds) = try_match_pattern_ast(pattern, scrut)? {
-            let new_body = substitute_many(body, &binds);
-            return Ok(StepValue::Next(new_body));
-        }
-    }
-    Err(RuntimeError::new(
-        scrut.span().clone(),
-        RuntimeErrorKind::PatternMatchFailed {
-            value_type: scrut.variant_name(),
-        },
-    )
-    .into())
+    // Scrutinee is a value. Fire the same matcher eval uses — the arm is a
+    // key-first map pattern, so AST-level positional zip would reintroduce
+    // the retired binding-by-position. One rewrite: the match reduces to
+    // its result.
+    let v = eval_match(args, list_span, env, sym)?;
+    Ok(StepValue::Terminal(value_to_watast(
+        ":wat::eval-step!",
+        v,
+        list_span.clone(),
+    )?))
 }
 
 /// Match canonicity — Phase 2 admits primitive literals, keyword
@@ -13380,17 +13508,24 @@ fn try_match_pattern_ast(
             }
             Ok(Some(binds))
         }
-        // Arc 167 slice 1 — vector sub-patterns are not admitted
-        // in arc 167. Slice 2 wires fn / defn signature consumers;
-        // pattern positions remain illegal.
-        WatAST::Vector(_, _) => Err(RuntimeError::new(
-            pattern.span().clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: "vector sub-patterns are not supported in arc 167".into(),
-            },
-        )
-        .into()),
+        // Nested variant `[Variant {:k v}]` at AST level cannot
+        // dispatch on runtime Value types (same as hash-destructure
+        // Map below). Other vectors stay illegal (arc 167).
+        WatAST::Vector(items, _) => match items.as_slice() {
+            [WatAST::Keyword(k, _), WatAST::Map(_, _)]
+                if crate::match_arm::is_namespaced_variant(k) =>
+            {
+                Ok(None)
+            }
+            _ => Err(RuntimeError::new(
+                pattern.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: "vector sub-patterns are not supported in arc 167".into(),
+                },
+            )
+            .into()),
+        },
         // Arc 244 — NilLit pattern at AST level: matches another NilLit.
         WatAST::NilLit(_) => Ok(match scrutinee {
             WatAST::NilLit(_) => Some(Vec::new()),
@@ -15936,8 +16071,8 @@ mod tests {
         let present = eval_with_ctx(
             &format!(
                 r#"(:wat::core::match {bundle}
-                     ((:wat::core::Ok h) (:wat::holon::presence? (:wat::holon::to-holon "a") h))
-                     ((:wat::core::Err _) false))"#,
+                     [:wat::core::Ok {{:value h}} (:wat::holon::presence? (:wat::holon::to-holon "a") h)]
+                     [:wat::core::Err {{:error _}} false])"#,
                 bundle = bundle_src
             ),
             1024,
@@ -15950,8 +16085,8 @@ mod tests {
         let coincident = eval_with_ctx(
             &format!(
                 r#"(:wat::core::match {bundle}
-                     ((:wat::core::Ok h) (:wat::holon::coincident? (:wat::holon::to-holon "a") h))
-                     ((:wat::core::Err _) false))"#,
+                     [:wat::core::Ok {{:value h}} (:wat::holon::coincident? (:wat::holon::to-holon "a") h)]
+                     [:wat::core::Err {{:error _}} false])"#,
                 bundle = bundle_src
             ),
             1024,
@@ -17385,8 +17520,8 @@ mod tests {
             (:wat::core::let
               [m (:wat::core::HashMap :- [:String :i64] "a" 10 "b" 20)]
               (:wat::core::match (:wat::core::get m "a")
-                ((:wat::core::Some n) n)
-                (:wat::core::None 0)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} 0]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(10) => {}
@@ -17400,8 +17535,8 @@ mod tests {
             (:wat::core::let
               [m (:wat::core::HashMap :- [:String :i64] "a" 10)]
               (:wat::core::match (:wat::core::get m "missing")
-                ((:wat::core::Some n) n)
-                (:wat::core::None -1)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(-1) => {}
@@ -17488,8 +17623,8 @@ mod tests {
                m1
                 (:wat::core::assoc m0 "count" 1)]
               (:wat::core::match (:wat::core::get m1 "count")
-                ((:wat::core::Some n) n)
-                (:wat::core::None 0)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} 0]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(1) => {}
@@ -17506,8 +17641,8 @@ mod tests {
                m1
                 (:wat::core::assoc m0 "count" 2)]
               (:wat::core::match (:wat::core::get m1 "count")
-                ((:wat::core::Some n) n)
-                (:wat::core::None 0)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} 0]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
@@ -17525,8 +17660,8 @@ mod tests {
                m1
                 (:wat::core::assoc m0 "b" 20)]
               (:wat::core::match (:wat::core::get m0 "b")
-                ((:wat::core::Some n) n)
-                (:wat::core::None -1)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} -1]))
         "#;
         // Original m0 doesn't have "b" — assoc returned a new map,
         // m0 stays as {a: 10}.
@@ -17635,8 +17770,8 @@ mod tests {
                     (:wat::core::Vector :- [:i64] 20)
                     (:wat::core::Vector :- [:i64] 30)))
                 0)
-              ((:wat::core::Some n) n)
-              (:wat::core::None -1))
+              [:wat::core::Some {:value n} n]
+              [:wat::core::None {} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(10) => {}
@@ -17672,8 +17807,8 @@ mod tests {
                m1
                 (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m1 "a")
-                ((:wat::core::Some n) n)
-                (:wat::core::None -1)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(-1) => {}
@@ -17690,8 +17825,8 @@ mod tests {
                m1
                 (:wat::core::dissoc m0 "missing")]
               (:wat::core::match (:wat::core::get m1 "a")
-                ((:wat::core::Some n) n)
-                (:wat::core::None -1)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(1) => {}
@@ -17709,8 +17844,8 @@ mod tests {
                _m1
                 (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m0 "a")
-                ((:wat::core::Some n) n)
-                (:wat::core::None -1)))
+                [:wat::core::Some {:value n} n]
+                [:wat::core::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(1) => {}
@@ -17936,8 +18071,8 @@ mod tests {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :- [:i64] 10 20 30)]
             (:wat::core::match (:wat::core::get xs 1)
-              ((:wat::core::Some v) v)
-              (:wat::core::None    -1)))"#;
+              [:wat::core::Some {:value v} v]
+              [:wat::core::None {} -1]))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(20)));
     }
 
@@ -17946,8 +18081,8 @@ mod tests {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :- [:i64] 10 20 30)]
             (:wat::core::match (:wat::core::get xs 5)
-              ((:wat::core::Some _) false)
-              (:wat::core::None    true)))"#;
+              [:wat::core::Some {:value _} false]
+              [:wat::core::None {} true]))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
@@ -17956,8 +18091,8 @@ mod tests {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :- [:i64] 10 20 30)]
             (:wat::core::match (:wat::core::get xs -1)
-              ((:wat::core::Some _) false)
-              (:wat::core::None    true)))"#;
+              [:wat::core::Some {:value _} false]
+              [:wat::core::None {} true]))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
@@ -18405,15 +18540,15 @@ mod tests {
                 (:wat::holon::bytes-vector bs)
                v2
                 (:wat::core::match decode-outcome
-                  ((:wat::holon::VectorDecodeOutcome::Decoded v2) v2)
-                  ((:wat::holon::VectorDecodeOutcome::DimensionMismatch _e _g)
-                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel")))
-                  ((:wat::holon::VectorDecodeOutcome::TruncatedHeader _g)
-                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel")))
-                  ((:wat::holon::VectorDecodeOutcome::LengthMismatch _e _g)
-                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel")))
-                  ((:wat::holon::VectorDecodeOutcome::InvalidCell _at)
-                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))))]
+                  [:wat::holon::VectorDecodeOutcome::Decoded {:vector v2} v2]
+                  [:wat::holon::VectorDecodeOutcome::DimensionMismatch {:expected _e :got _g}
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))]
+                  [:wat::holon::VectorDecodeOutcome::TruncatedHeader {:got _g}
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))]
+                  [:wat::holon::VectorDecodeOutcome::LengthMismatch {:expected _e :got _g}
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))]
+                  [:wat::holon::VectorDecodeOutcome::InvalidCell {:at _at}
+                    (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))])]
               (:wat::holon::cosine v v2))
         "#;
         let c = expect_cosine_similarity(eval_with_ctx(src, 1024).unwrap());
@@ -18459,11 +18594,11 @@ mod tests {
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)))
-              ((:wat::holon::VectorDecodeOutcome::Decoded _v) false)
-              ((:wat::holon::VectorDecodeOutcome::DimensionMismatch _e _g) false)
-              ((:wat::holon::VectorDecodeOutcome::TruncatedHeader _g) true)
-              ((:wat::holon::VectorDecodeOutcome::LengthMismatch _e _g) false)
-              ((:wat::holon::VectorDecodeOutcome::InvalidCell _at) false))
+              [:wat::holon::VectorDecodeOutcome::Decoded {:vector _v} false]
+              [:wat::holon::VectorDecodeOutcome::DimensionMismatch {:expected _e :got _g} false]
+              [:wat::holon::VectorDecodeOutcome::TruncatedHeader {:got _g} true]
+              [:wat::holon::VectorDecodeOutcome::LengthMismatch {:expected _e :got _g} false]
+              [:wat::holon::VectorDecodeOutcome::InvalidCell {:at _at} false])
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
             Value::bool(true) => {}
@@ -18486,11 +18621,11 @@ mod tests {
                   (:wat::core::u8 39)
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)))
-              ((:wat::holon::VectorDecodeOutcome::Decoded _v) false)
-              ((:wat::holon::VectorDecodeOutcome::DimensionMismatch _e _g) false)
-              ((:wat::holon::VectorDecodeOutcome::TruncatedHeader _g) false)
-              ((:wat::holon::VectorDecodeOutcome::LengthMismatch _e _g) true)
-              ((:wat::holon::VectorDecodeOutcome::InvalidCell _at) false))
+              [:wat::holon::VectorDecodeOutcome::Decoded {:vector _v} false]
+              [:wat::holon::VectorDecodeOutcome::DimensionMismatch {:expected _e :got _g} false]
+              [:wat::holon::VectorDecodeOutcome::TruncatedHeader {:got _g} false]
+              [:wat::holon::VectorDecodeOutcome::LengthMismatch {:expected _e :got _g} true]
+              [:wat::holon::VectorDecodeOutcome::InvalidCell {:at _at} false])
         "#;
         match eval_with_ctx(src, 1024).unwrap() {
             Value::bool(true) => {}
@@ -18585,9 +18720,8 @@ mod tests {
                 (:wat::core::Bytes::from-hex hex)
                bs2
                 (:wat::core::match maybe-bs2
-                  ((:wat::core::Some b) b)
-                  (:wat::core::None
-                    (:wat::core::Vector :- [:u8] (:wat::core::u8 0))))]
+                  [:wat::core::Some {:value b} b]
+                  [:wat::core::None {} (:wat::core::Vector :- [:u8] (:wat::core::u8 0))])]
               (:wat::core::= bs1 bs2))
         "#;
         match eval_expr(src).unwrap() {
@@ -18618,8 +18752,8 @@ mod tests {
         // "" → :Some(empty Bytes); to-hex of empty Bytes → "".
         let empty_decode = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "")
-              ((:wat::core::Some b) (:wat::core::length b))
-              (:wat::core::None -1))
+              [:wat::core::Some {:value b} (:wat::core::length b)]
+              [:wat::core::None {} -1])
         "#;
         match eval_expr(empty_decode).unwrap() {
             Value::i64(0) => {}
@@ -18638,8 +18772,8 @@ mod tests {
     fn bytes_from_hex_rejects_odd_length() {
         let src = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "abc")
-              ((:wat::core::Some _) false)
-              (:wat::core::None true))
+              [:wat::core::Some {:value _} false]
+              [:wat::core::None {} true])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -18652,8 +18786,8 @@ mod tests {
         // "zz" — z is not a hex character.
         let src = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "zz")
-              ((:wat::core::Some _) false)
-              (:wat::core::None true))
+              [:wat::core::Some {:value _} false]
+              [:wat::core::None {} true])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -18666,8 +18800,8 @@ mod tests {
         // Per DESIGN Q6: no `0x` tolerance in v1.
         let src = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "0xdead")
-              ((:wat::core::Some _) false)
-              (:wat::core::None true))
+              [:wat::core::Some {:value _} false]
+              [:wat::core::None {} true])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -18990,8 +19124,8 @@ mod tests {
                     (:wat::core::Vector :- [:wat::holon::HolonAST]
                       (:wat::holon::leaf "role")
                       (:wat::holon::leaf "filler")))
-                  ((:wat::core::Ok h) h)
-                  ((:wat::core::Err _) (:wat::holon::leaf "unreachable")))
+                  [:wat::core::Ok {:value h} h]
+                  [:wat::core::Err {:error _} (:wat::holon::leaf "unreachable")])
                ast (:wat::holon::to-wat h1)
                h2 (:wat::holon::from-wat ast)]
               (:wat::holon::cosine h1 h2))
@@ -19033,8 +19167,8 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::i64::+ 2 2)))
-              ((:wat::core::Ok n) n)
-              ((:wat::core::Err _) -1))
+              [:wat::core::Ok {:value n} n]
+              [:wat::core::Err {:error _} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(4) => {}
@@ -19049,8 +19183,8 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::i64::> 5 3)))
-              ((:wat::core::Ok b) b)
-              ((:wat::core::Err _) false))
+              [:wat::core::Ok {:value b} b]
+              [:wat::core::Err {:error _} false])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -19065,8 +19199,8 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::string::concat "hello, " "world")))
-              ((:wat::core::Ok s) s)
-              ((:wat::core::Err _) "fail"))
+              [:wat::core::Ok {:value s} s]
+              [:wat::core::Err {:error _} "fail"])
         "#;
         match eval_expr(src).unwrap() {
             Value::String(s) => assert_eq!(&*s, "hello, world"),
@@ -19086,8 +19220,8 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::holon::leaf 42)))
-              ((:wat::core::Ok h) (:wat::holon::from-holon h))
-              ((:wat::core::Err _) -1))
+              [:wat::core::Ok {:value h} (:wat::holon::from-holon h)]
+              [:wat::core::Err {:error _} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}
@@ -19105,8 +19239,8 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::Vector :- [:i64] 1 2 3)))
-              ((:wat::core::Ok xs) (:wat::core::length xs))
-              ((:wat::core::Err _) -1))
+              [:wat::core::Ok {:value xs} (:wat::core::length xs)]
+              [:wat::core::Err {:error _} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(3) => {}
@@ -19122,8 +19256,8 @@ mod tests {
     fn step_to_show(quoted_src: &str) -> String {
         let src = format!(
             "(:wat::core::match {} \
-                ((:wat::core::Ok r) (:wat::core::show r)) \
-                ((:wat::core::Err e) (:wat::core::show e)))",
+                [:wat::core::Ok {{:value r}} (:wat::core::show r)] \
+                [:wat::core::Err {{:error e}} (:wat::core::show e)])",
             quoted_src
         );
         match eval_expr(&src).unwrap() {
@@ -19195,19 +19329,19 @@ mod tests {
                 (:wat::core::quote (:wat::i64::+ (:wat::i64::+ 1 2) 3))
                 0
                 :my::test::count-visit)
-              ((:wat::core::Ok pair)
+              [:wat::core::Ok {{:value pair}}
                 (:wat::core::let
                   [terminal (:wat::core::first pair)
                    count (:wat::core::second pair)]
                   (:wat::core::match (:wat::eval-ast! terminal)
-                    ((:wat::core::Ok value)
+                    [:wat::core::Ok {{:value value}}
                       ;; encode (value, count) as one i64: value * 1000 + count.
                       ;; sufficient for a chain of length < 1000.
                       (:wat::i64::+
                         (:wat::i64::* value 1000)
-                        count))
-                    ((:wat::core::Err _) -1))))
-              ((:wat::core::Err _) -1))
+                        count)]
+                    [:wat::core::Err {{:error _}} -1]))]
+              [:wat::core::Err {{:error _}} -1])
             "#,
             walk_count_prelude()
         );
@@ -19240,9 +19374,9 @@ mod tests {
                     (:wat::holon::to-holon "v")))
                 0
                 :my::test::count-visit)
-              ((:wat::core::Ok pair)
-                (:wat::core::second pair))
-              ((:wat::core::Err _) -1))
+              [:wat::core::Ok {{:value pair}}
+                (:wat::core::second pair)]
+              [:wat::core::Err {{:error _}} -1])
             "#,
             walk_count_prelude()
         );
@@ -19286,13 +19420,13 @@ mod tests {
             (:wat::core::quote (:wat::i64::+ (:wat::i64::+ 1 2) 3))
             0
             :my::test::skip-on-first)
-          ((:wat::core::Ok pair)
+          [:wat::core::Ok {:value pair}
             (:wat::core::let
               [terminal (:wat::core::first pair)]
               (:wat::core::match (:wat::eval-ast! terminal)
-                ((:wat::core::Ok value) value)
-                ((:wat::core::Err _) -1))))
-          ((:wat::core::Err _) -1))
+                [:wat::core::Ok {:value value} value]
+                [:wat::core::Err {:error _} -1]))]
+          [:wat::core::Err {:error _} -1])
         "#;
         match run(src).unwrap() {
             Value::i64(value) => {
@@ -19318,14 +19452,14 @@ mod tests {
                     (:wat::core::quote 42)))
                 0
                 :my::test::count-visit)
-              ((:wat::core::Ok _) -2)
-              ((:wat::core::Err e)
+              [:wat::core::Ok {{:value _}} -2]
+              [:wat::core::Err {{:error e}}
                 ;; struct-field 0 is the kind tag.
                 (:wat::core::if
                   (:wat::core::= "no-step-rule"
                                  (:wat::core::struct-field e 0))
                   1
-                  -3)))
+                  -3)])
             "#,
             walk_count_prelude()
         );
@@ -19459,14 +19593,14 @@ mod tests {
         r#"
         (:wat::core::defn :my::test::step-to-terminal [form <- :wat::WatAST] -> :wat::WatAST
           (:wat::core::match (:wat::eval-step! form)
-                      ((:wat::core::Ok r)
+                      [:wat::core::Ok {:value r}
                         (:wat::core::match r
-                          ((:wat::eval::StepResult::StepNext next)
-                            (:my::test::step-to-terminal next))
-                          ((:wat::eval::StepResult::StepTerminal h) h)
-                          ((:wat::eval::StepResult::AlreadyTerminal h) h)))
-                      ((:wat::core::Err e)
-                        (:wat::holon::to-wat (:wat::holon::leaf (:wat::core::struct-field e 1))))))
+                          [:wat::eval::StepResult::StepNext {:form next}
+                            (:my::test::step-to-terminal next)]
+                          [:wat::eval::StepResult::StepTerminal {:value h} h]
+                          [:wat::eval::StepResult::AlreadyTerminal {:value h} h])]
+                      [:wat::core::Err {:error e}
+                        (:wat::holon::to-wat (:wat::holon::leaf (:wat::core::struct-field e 1)))]))
         "#
     }
 
@@ -19606,7 +19740,7 @@ mod tests {
         // scrutinee match-canonical (Some + canonical inner); arm
         // selection binds n→5; substituted body reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::match (:wat::core::Some 5) ((:wat::core::Some n) n) (:wat::core::None 0))",
+            "(:wat::core::match (:wat::core::Some 5) [:wat::core::Some {:value n} n] [:wat::core::None {} 0])",
         );
         assert_eq!(watast_as_i64(&h), Some(5));
     }
@@ -19615,7 +19749,7 @@ mod tests {
     fn step_match_scrutinee_reduces() {
         // `(match (+ 1 1) -> :wat::core::i64 (n n))` — scrutinee is arithmetic,
         // descend until canonical, then arm selection.
-        let h = step_drive_to_terminal("(:wat::core::match (:wat::i64::+ 1 1) (n n))");
+        let h = step_drive_to_terminal("(:wat::core::match (:wat::i64::+ 1 1) [n n])");
         assert_eq!(watast_as_i64(&h), Some(2));
     }
 
@@ -19665,7 +19799,7 @@ mod tests {
             ("(:wat::i64::* 3 7)", 21),
             ("(:wat::core::if true 10 20)", 10),
             ("(:wat::core::let [x 5] (:wat::i64::+ x 1))", 6),
-            ("(:wat::core::match (:wat::core::Some 7) ((:wat::core::Some n) n) (:wat::core::None 0))", 7),
+            ("(:wat::core::match (:wat::core::Some 7) [:wat::core::Some {:value n} n] [:wat::core::None {} 0])", 7),
         ];
         for (form, expected) in forms {
             let h = step_drive_to_terminal(form);
@@ -19682,7 +19816,7 @@ mod tests {
             // scheme; no atom-value extraction needed.
             let eval_src = format!(
                 "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) \
-                  ((:wat::core::Ok n) n) ((:wat::core::Err _) -1))",
+                  [:wat::core::Ok {{:value n}} n] [:wat::core::Err {{:error _}} -1])",
                 form
             );
             match eval_expr(&eval_src).unwrap() {
@@ -19713,13 +19847,13 @@ mod tests {
                                                  (:wat::i64::+ acc n))))
             (:wat::core::defn :my::test::step-count [form <- :wat::WatAST n <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::match (:wat::eval-step! form)
-                              ((:wat::core::Ok r)
+                              [:wat::core::Ok {{:value r}}
                                 (:wat::core::match r
-                                  ((:wat::eval::StepResult::StepNext next)
-                                    (:my::test::step-count next (:wat::i64::+ n 1)))
-                                  ((:wat::eval::StepResult::StepTerminal h) n)
-                                  ((:wat::eval::StepResult::AlreadyTerminal h) n)))
-                              ((:wat::core::Err e) -1)))
+                                  [:wat::eval::StepResult::StepNext {{:form next}}
+                                    (:my::test::step-count next (:wat::i64::+ n 1))]
+                                  [:wat::eval::StepResult::StepTerminal {{:value h}} n]
+                                  [:wat::eval::StepResult::AlreadyTerminal {{:value h}} n])]
+                              [:wat::core::Err {{:error e}} -1]))
             {}
             (:wat::core::let
               [sum
@@ -19946,8 +20080,8 @@ mod tests {
                   (:wat::core::quote (:wat::i64::+ 40 2)))
                ast (:wat::holon::to-wat form)]
               (:wat::core::match (:wat::eval-ast! ast)
-                ((:wat::core::Ok n) n)
-                ((:wat::core::Err _) -1)))
+                [:wat::core::Ok {:value n} n]
+                [:wat::core::Err {:error _} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}

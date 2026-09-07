@@ -90,6 +90,7 @@ pub mod scope;
 pub mod io;
 pub mod lexer;
 pub mod load;
+pub(crate) mod match_arm;
 pub mod lower;
 pub mod macros;
 pub mod parser;

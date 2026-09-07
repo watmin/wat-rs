@@ -505,16 +505,16 @@
                  ;; here just needs to proceed regardless (never a `_`-swallow).
                  _  (:wat::core::match (:wat::kernel::send self-peer
                         (:wat::core::apply  lu-mk-kw (:wat::spawn::Bound/address b) []))
-                      (:wat::kernel::SendOutcome::Sent   nil)
-                      (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces this
+                      [:wat::kernel::SendOutcome::Sent {}   nil]
+                      [:wat::kernel::SendOutcome::Closed {} nil]   ;; parent's recv' already faces this
                       ;; arc 278 #73 — a stop arrived mid-handshake. Same body as the two
                       ;; above, and the PRECONDITION is why that is legal here rather than a
                       ;; discard: this is the CHILD announcing readiness, and the parent's
                       ;; crash-aware `recv' sp` below faces every terminal outcome of this
                       ;; handshake — including its own Stopped. Deciding here would decide it
                       ;; twice. The child proceeds into `serve`, whose poll' faces the stop.
-                      (:wat::kernel::SendOutcome::Stopped nil)
-                      ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                      [:wat::kernel::SendOutcome::Stopped {} nil]
+                      [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
                 ;; arc 278 the call context — `serve`'s wiring contract is now 5 args, not 4:
                 ;; `(serve self-peer listener clients next-id state) -> nil`. The extra `0` is
                 ;; the initial monotonic conn-id counter (defservice's serve loop threads it as
@@ -529,14 +529,14 @@
        ;; child reached readiness (discard + proceed); ::Lost (an :init crash) → eprintln the
        ;; cause (loud, terminal); ::Closed (the child exited before Started) → eprintln (terminal).
        _  (:wat::core::match (:wat::kernel::recv sp)
-            ((:wat::kernel::RecvOutcome::Message _m) nil)
-            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+            [:wat::kernel::RecvOutcome::Message {:msg _m} nil]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
             ;; arc 278 #73 — the substrate began stopping before the child reached
             ;; readiness. Terminal, but NOT the same fact as the two arms around it: no
             ;; crash (Lost) and no premature exit (Closed). The launch simply cannot
             ;; complete, and the message says so instead of blaming the child.
-            (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "spawn (thread): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None))
-            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (thread): child exited before readiness" :wat::core::None :wat::core::None)))]
+            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "spawn (thread): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None)]
+            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "spawn (thread): child exited before readiness" :wat::core::None :wat::core::None)])]
       (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
@@ -574,26 +574,26 @@
        ;; arc 278 the send'-outcome wall — the crash-aware `recv' svc` right below faces
        ;; Closed/Lost on this handshake; the send' here just needs to proceed regardless.
        _    (:wat::core::match (:wat::kernel::send svc ship)
-              (:wat::kernel::SendOutcome::Sent   nil)
-              (:wat::kernel::SendOutcome::Closed nil)   ;; the recv' below already faces this
+              [:wat::kernel::SendOutcome::Sent {}   nil]
+              [:wat::kernel::SendOutcome::Closed {} nil]   ;; the recv' below already faces this
               ;; arc 278 #73 — same body, same precondition as the thread arm above: the
               ;; crash-aware `recv' svc` on the next line faces this handshake's terminal
               ;; outcomes, Stopped included. One decision point, not two.
-              (:wat::kernel::SendOutcome::Stopped nil)
-              ((:wat::kernel::SendOutcome::Lost _c) nil))
+              [:wat::kernel::SendOutcome::Stopped {} nil]
+              [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
        ;; arc 278 the recv'-outcome wall — recv' returns a matchable (RecvOutcome :- [Lu]). ::Message →
        ;; the child-minted launch status (extract-addr consumes it); ::Lost (the child crashed
        ;; before Started — the ProcessPanics envelope) → eprintln the cause (loud, terminal);
        ;; ::Closed (the child exited before Started) → eprintln (terminal).
        lu   (:wat::core::match (:wat::kernel::recv svc)
-              ((:wat::kernel::RecvOutcome::Message m) m)
-              ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+              [:wat::kernel::RecvOutcome::Message {:msg m} m]
+              [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
               ;; arc 278 #73 — the process-tier twin of the thread arm above. Note this arm
               ;; was UNREACHABLE before today on this tier: `classify_peer_error`'s wildcard
               ;; folded the stop into Closed, so a stopped process launch blamed the child
               ;; for exiting. `spawn.rs` now carries `PeerDeath::Shutdown` and it arrives here.
-              (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "spawn (process): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None))
-              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)))
+              [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "spawn (process): stop requested before the child reached readiness — launch abandoned, the child was alive" :wat::core::None :wat::core::None)]
+              [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)])
        addr (:wat::core::apply  lu-addr-kw lu [])]
       (:wat::spawn::Launched :handle svc :address addr))))
 
@@ -617,10 +617,10 @@
    acc <- (:wat::core::Vector :- [O])]
   -> (:wat::core::Result :- [(:wat::core::Vector :- [O]) :wat::kernel::LociDiedError])
   (:wat::core::match (:wat::kernel::recv p)
-    ((:wat::kernel::RecvOutcome::Message v)
-      (:wat::kernel::recv-all-loop p (:wat::core::conj acc v)))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::core::Err cause))
+    [:wat::kernel::RecvOutcome::Message {:msg v}
+      (:wat::kernel::recv-all-loop p (:wat::core::conj acc v))]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::core::Err cause)]
     ;; arc 278 #73 — THE ARM THIS DRAIN EXISTS TO GET RIGHT. A stop cut the drain
     ;; short: the peer is ALIVE, more values may be pending, and `acc` is a PARTIAL
     ;; collection. Returning `(Ok acc)` here would be this fn's original sin restored —
@@ -632,10 +632,10 @@
     ;; That enum has already outgrown its name — it also carries StartupError, BadReturn
     ;; and MainSignature, none of them deaths. Renaming it is its own stone, not this one;
     ;; the VARIANT here is exact.)
-    (:wat::kernel::RecvOutcome::Stopped
-      (:wat::core::Err :wat::kernel::LociDiedError::Stopped))
+    [:wat::kernel::RecvOutcome::Stopped {}
+      (:wat::core::Err :wat::kernel::LociDiedError::Stopped)]
     ;; the drain's SUCCESS path: a genuine clean EOF, everything collected.
-    (:wat::kernel::RecvOutcome::Closed (:wat::core::Ok acc))))
+    [:wat::kernel::RecvOutcome::Closed {} (:wat::core::Ok acc)]))
 
 (:wat::core::defn :wat::kernel::recv-all :- [I O]
   [p <- (:wat::kernel::Peer :- [I O])]

@@ -113,20 +113,20 @@
     ;; (:wat::verify::string — DESIGN's "not a verb"; its guard stays untouched, so metadata-of
     ;; must read :None both before AND after, since it is never registered).
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::aggregate-new)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "aggregate-new meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality)))))
-      (:None (:wat::kernel::println "aggregate-new meta: NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "aggregate-new meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality))))]
+      [:wat::core::None {} (:wat::kernel::println "aggregate-new meta: NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::kwargs-construct)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "kwargs-construct meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality)))))
-      (:None (:wat::kernel::println "kwargs-construct meta: NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "kwargs-construct meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality))))]
+      [:wat::core::None {} (:wat::kernel::println "kwargs-construct meta: NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::write-forms)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "write-forms meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality)))))
-      (:None (:wat::kernel::println "write-forms meta: NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "write-forms meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality))))]
+      [:wat::core::None {} (:wat::kernel::println "write-forms meta: NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::with-children)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "with-children meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality)))))
-      (:None (:wat::kernel::println "with-children meta: NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "with-children meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality))))]
+      [:wat::core::None {} (:wat::kernel::println "with-children meta: NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::macro-error)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "macro-error meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality)))))
-      (:None (:wat::kernel::println "macro-error meta: NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "macro-error meta: arity=" (:wat::edn::write (:wat::hashmap::get hm :arity)) " purity=" (:wat::edn::write (:wat::hashmap::get hm :purity)) " determinism=" (:wat::edn::write (:wat::hashmap::get hm :determinism)) " totality=" (:wat::edn::write (:wat::hashmap::get hm :totality))))]
+      [:wat::core::None {} (:wat::kernel::println "macro-error meta: NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::verify::string)
-      ((:wat::core::Some hm) (:wat::kernel::println "verify::string (control) meta: SOME -- unexpected, a finding"))
-      (:None (:wat::kernel::println "verify::string (control) meta: NONE")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::println "verify::string (control) meta: SOME -- unexpected, a finding")]
+      [:wat::core::None {} (:wat::kernel::println "verify::string (control) meta: NONE")])))

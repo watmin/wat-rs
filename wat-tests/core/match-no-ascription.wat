@@ -12,6 +12,6 @@
   
   (:wat::test::assert-eq
     (:wat::core::match (:wat::core::Some 5)
-      ((:wat::core::Some v) v)
-      (:wat::core::None 0))
+      [:wat::core::Some {:value v} v]
+      [:wat::core::None {} 0])
     5))

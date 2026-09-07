@@ -31,41 +31,41 @@
      ;; unwound and dropped its ends (deterministic, no race).
      r1 (:wat::kernel::recv p)
      _  (:wat::core::match r1
-          ((:wat::kernel::RecvOutcome::Message _m)
+          [:wat::kernel::RecvOutcome::Message {:msg _m}
             (:wat::kernel::assertion-failed!
               "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Message"
-              :wat::core::None :wat::core::None))
-          ((:wat::kernel::RecvOutcome::Lost _cause) nil)
-          (:wat::kernel::RecvOutcome::Stopped
+              :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
+          [:wat::kernel::RecvOutcome::Stopped {}
             (:wat::kernel::assertion-failed!
               "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Stopped"
-              :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed
+              :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Closed {}
             (:wat::kernel::assertion-failed!
               "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed"
-              :wat::core::None :wat::core::None)))
+              :wat::core::None :wat::core::None)])
      ;; the worker is now guaranteed dead. Pre-strike this send' RAISED "send failed:
      ;; channel disconnected"; post-strike it returns a matchable SendOutcome value.
      outcome (:wat::kernel::send p 42)]
     (:wat::core::match outcome
-      (:wat::kernel::SendOutcome::Sent
+      [:wat::kernel::SendOutcome::Sent {}
         (:wat::kernel::assertion-failed!
           "PROBE-FAIL: got SendOutcome::Sent to a dead peer — expected Closed/Lost"
-          :wat::core::None :wat::core::None))
-      (:wat::kernel::SendOutcome::Closed
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::SendOutcome::Closed {}
         (:wat::kernel::println
-          "PROBE-PASS: SendOutcome::Closed (a VALUE, not a raise) after send' to a dead peer"))
+          "PROBE-PASS: SendOutcome::Closed (a VALUE, not a raise) after send' to a dead peer")]
       ;; arc 278 #73 judgment call (flagged, not silently decided): the design's own
       ;; framing generalizes past "Closed or Lost" — EVERY terminal send' outcome is a
       ;; matchable value, never a raise, and Stopped is no exception. No stop is ever
       ;; requested in this probe (it only forces a worker crash), so this arm is
       ;; unreached in practice; it is accepted here on the same "a value, not a raise"
       ;; principle the other two arms assert, not re-litigated as a new PASS criterion.
-      (:wat::kernel::SendOutcome::Stopped
+      [:wat::kernel::SendOutcome::Stopped {}
         (:wat::kernel::println
-          "PROBE-PASS: SendOutcome::Stopped (a VALUE, not a raise) after send' to a dead peer"))
-      ((:wat::kernel::SendOutcome::Lost cause)
+          "PROBE-PASS: SendOutcome::Stopped (a VALUE, not a raise) after send' to a dead peer")]
+      [:wat::kernel::SendOutcome::Lost {:cause cause}
         (:wat::kernel::println
           (:wat::string::concat
             "PROBE-PASS: SendOutcome::Lost (a VALUE, not a raise): "
-            (:wat::kernel::LociDiedError/message cause)))))))
+            (:wat::kernel::LociDiedError/message cause)))])))

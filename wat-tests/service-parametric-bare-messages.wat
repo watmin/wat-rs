@@ -59,8 +59,8 @@
            ;; read the T-typed durable field generically — `v` is bound at type T
            (:wat::core::match
                (:wat-tests::barebox-svc::Record/held (:wat-tests::barebox-svc::State/durable s))
-             ((:wat::core::Some v) 1)
-             (:wat::core::None 0))))))])
+             [:wat::core::Some {:value v} 1]
+             [:wat::core::None {} 0])))))])
 
 ;; ── the gate: stand it up, dial it, round-trip one call ──────────────────────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)`.
@@ -70,30 +70,30 @@
     [h (:wat-tests::barebox-svc/start :locus locus
          :record (:wat-tests::barebox-svc::Record :held (:wat::core::Some 42)))
      c (:wat::core::match (:wat::kernel::connect (:wat-tests::barebox-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused cz)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected cz)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed cz)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)))
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause cz}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause cz}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)])
      r (:wat-tests::barebox-svc/put c (:wat-tests::BareBox::PutRequest :item 7))
      out (:wat::core::match r
-           ((:wat::kernel::RecvOutcome::Message __recv)
+           [:wat::kernel::RecvOutcome::Message {:msg __recv}
              (:wat::core::match __recv
-               ((:wat-tests::BareBox::PutResponse::Ok echo) echo)
+               [:wat-tests::BareBox::PutResponse::Ok {:echo echo} echo]
                ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-               ((:wat-tests::BareBox::PutResponse::RequestTooLarge bytes cap)
+               [:wat-tests::BareBox::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
                  (:wat::kernel::assertion-failed! "barebox-svc put: unexpected RequestTooLarge"
-                   :wat::core::None :wat::core::None))
-               ((:wat-tests::BareBox::PutResponse::RequestMalformed mpath mexpected mgot)
-                 (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-           ((:wat::kernel::RecvOutcome::Lost __cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+                   :wat::core::None :wat::core::None)]
+               [:wat-tests::BareBox::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+                 (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+           [:wat::kernel::RecvOutcome::Lost {:cause __cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])
      _ (:wat-tests::barebox-svc/stop h)]
     out))
 

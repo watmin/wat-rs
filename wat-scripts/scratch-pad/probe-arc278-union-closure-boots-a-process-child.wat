@@ -51,8 +51,8 @@
      (:wat::core::let
        [t  (:probe::ffx::Record/tag (:probe::ffx::State/durable s))
         ok (:wat::core::match t
-             ((:probe::FFXTag::Alpha) true)
-             ((:probe::FFXTag::Beta)  false))]
+             [:probe::FFXTag::Alpha {} true]
+             [:probe::FFXTag::Beta {}  false])]
        (:wat::service::Outcome::Reply s (:probe::FFX::PingResponse::Ok ok))))])
 
 ;; ── the DECLARED NAME of a top-level form ────────────────────────────────────────────────
@@ -145,8 +145,8 @@
        [st (:user::root-init (:probe::ffx::Record :tag (:probe::FFXTag::Alpha)))
         t  (:probe::ffx::Record/tag (:probe::ffx::State/durable st))
         ok (:wat::core::match t
-             ((:probe::FFXTag::Alpha) 0)
-             ((:probe::FFXTag::Beta)  1))]
+             [:probe::FFXTag::Alpha {} 0]
+             [:probe::FFXTag::Beta {}  1])]
        (:wat::kernel::println ok))))
 
 ;; ── dump every form declaring `target`, WITH ITS SOURCE, in order ────────────────────────
@@ -221,17 +221,17 @@
      _d    (:wat::kernel::println (:user::decl-names forms 0 (:wat::core::Vector :- [:wat::core::String])))
      p     (:wat::test::spawn-peer (:wat::spawn::process) forms)]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m)
-        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " BOOTED-AND-RAN")) true))
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
+        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " BOOTED-AND-RAN")) true)]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::do
           (:wat::kernel::println (:wat::string::concat label " DIED "
             (:wat::kernel::LociDiedError/message cause)))
-          false))
-      (:wat::kernel::RecvOutcome::Stopped
-        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " STOPPED")) false))
-      (:wat::kernel::RecvOutcome::Closed
-        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER")) false)))))
+          false)]
+      [:wat::kernel::RecvOutcome::Stopped {}
+        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " STOPPED")) false)]
+      [:wat::kernel::RecvOutcome::Closed {}
+        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER")) false)])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

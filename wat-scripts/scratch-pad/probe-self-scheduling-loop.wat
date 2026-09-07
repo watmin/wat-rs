@@ -26,10 +26,10 @@
    armed <- :wat::core::bool]
   -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::match (:wat::kernel::select peers) 
-    ((:wat::spawn::ServiceEvent::Message idx sig)
+    [:wat::spawn::ServiceEvent::Message {:idx idx :msg sig}
       (:wat::core::match sig 
         ;; :Item → buffer it; if no flush armed, ARM one (INSERT a fresh Timer' into the set):
-        ((:probe::SinkSig::Item v)
+        [:probe::SinkSig::Item {:v v}
           (:wat::core::let
             [peers0 (:wat::seq::remove-at peers idx)       ;; drop the fired one-shot item-timer
              buf'   (:wat::core::conj buf v)]
@@ -39,17 +39,17 @@
                 (:wat::core::conj peers0                          ;; <-- arm: insert a FlushTick timer
                   (:wat::kernel::after :wat::program::PeerKind::thread
                     (:wat::time::Millisecond 50) (:probe::SinkSig::FlushTick)))
-                buf' true))))
+                buf' true)))]
         ;; :FlushTick → flush: return the buffered batch (survived to the tick):
-        ((:probe::SinkSig::FlushTick) buf)))
+        [:probe::SinkSig::FlushTick {} buf])]
     ;; timers never Close/Lost/etc — but the match is exhaustive (no-hidden-failures):
-    ((:wat::spawn::ServiceEvent::Closed _idx) buf)
-    ((:wat::spawn::ServiceEvent::Lost _idx _c) buf)
-    ((:wat::spawn::ServiceEvent::Malformed _idx _c) buf)
-    ((:wat::spawn::ServiceEvent::Rejected _idx _c) buf)
-    (:wat::spawn::ServiceEvent::Shutdown buf)
-    ((:wat::spawn::ServiceEvent::Connection _p) buf)
-    ((:wat::spawn::ServiceEvent::Admin _m) buf)))
+    [:wat::spawn::ServiceEvent::Closed {:idx _idx} buf]
+    [:wat::spawn::ServiceEvent::Lost {:idx _idx :cause _c} buf]
+    [:wat::spawn::ServiceEvent::Malformed {:idx _idx :cause _c} buf]
+    [:wat::spawn::ServiceEvent::Rejected {:idx _idx :cause _c} buf]
+    [:wat::spawn::ServiceEvent::Shutdown {} buf]
+    [:wat::spawn::ServiceEvent::Connection {:peer _p} buf]
+    [:wat::spawn::ServiceEvent::Admin {:msg _m} buf]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

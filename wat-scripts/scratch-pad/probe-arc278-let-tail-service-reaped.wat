@@ -47,23 +47,23 @@
 (:wat::core::defn :tl::try [c <- (:wat::kernel::Peer :- [:tl::Bag::Op :tl::Bag::Reply])
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tl::Bag/put c (:tl::Bag::PutRequest :n 1))
-    ((:wat::kernel::RecvOutcome::Message resp)
-      (:wat::kernel::println (:wat::string::concat label " => Message (served)")))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::println (:wat::string::concat label " => LOST")))
-    (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
+    [:wat::kernel::RecvOutcome::Message {:msg resp}
+      (:wat::kernel::println (:wat::string::concat label " => Message (served)"))]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::println (:wat::string::concat label " => LOST"))]
+    [:wat::kernel::RecvOutcome::Stopped {}
+      (:wat::kernel::println (:wat::string::concat label " => STOPPED"))]
+    [:wat::kernel::RecvOutcome::Closed {}
+      (:wat::kernel::println (:wat::string::concat label " => CLOSED"))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [h (:tl::bag-svc/start :locus (:wat::spawn::thread) :record (:tl::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tl::bag-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)])
      ;; CONTROL — the same call from a BINDING slot: served.
      _ (:tl::try c "from let-BINDING")]
     ;; THE VIOLATION — the same call from the TAIL: closed.

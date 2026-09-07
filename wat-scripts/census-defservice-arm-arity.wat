@@ -116,9 +116,9 @@
     (:wat::core::let
       [path (:wat::core::nth paths i)
        tree (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
-              ((:wat::core::ReadOutcome::Forms __forms) __forms)
-              ((:wat::core::ReadOutcome::Malformed __cause)
-                (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))]
+              [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
+              [:wat::core::ReadOutcome::Malformed {:cause __cause}
+                (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])]
       (:wat::core::do
         (:user::census-forms (:wat::core::ast->children tree) path 0)
         (:user::census-each paths (:wat::i64::+ i 1))))))
@@ -126,6 +126,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::census-each
     (:wat::core::match (:wat::kernel::readln )
-      ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-      (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None))
-      (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None))) 0))
+      [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+      [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+      [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)]) 0))

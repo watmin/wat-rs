@@ -50,20 +50,20 @@
   [k <- :user::NodeKind]
   -> :wat::core::String
   (:wat::core::match k
-    ((:user::NodeKind::IntLit) "int")
-    ((:user::NodeKind::FloatLit) "float")
-    ((:user::NodeKind::RationalLit) "rational")
-    ((:user::NodeKind::BigIntLit) "bigint")
-    ((:user::NodeKind::CharLit) "char")
-    ((:user::NodeKind::BoolLit) "bool")
-    ((:user::NodeKind::StringLit) "string")
-    ((:user::NodeKind::NilLit) "nil")
-    ((:user::NodeKind::Keyword) "keyword")
-    ((:user::NodeKind::Symbol) "symbol")
-    ((:user::NodeKind::List) "list")
-    ((:user::NodeKind::Vector) "vector")
-    ((:user::NodeKind::Set) "set")
-    ((:user::NodeKind::Map) "map")
+    [:user::NodeKind::IntLit {} "int"]
+    [:user::NodeKind::FloatLit {} "float"]
+    [:user::NodeKind::RationalLit {} "rational"]
+    [:user::NodeKind::BigIntLit {} "bigint"]
+    [:user::NodeKind::CharLit {} "char"]
+    [:user::NodeKind::BoolLit {} "bool"]
+    [:user::NodeKind::StringLit {} "string"]
+    [:user::NodeKind::NilLit {} "nil"]
+    [:user::NodeKind::Keyword {} "keyword"]
+    [:user::NodeKind::Symbol {} "symbol"]
+    [:user::NodeKind::List {} "list"]
+    [:user::NodeKind::Vector {} "vector"]
+    [:user::NodeKind::Set {} "set"]
+    [:user::NodeKind::Map {} "map"]
 ))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

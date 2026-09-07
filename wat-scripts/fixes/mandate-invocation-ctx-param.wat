@@ -144,9 +144,9 @@
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
-             ((:wat::core::ReadOutcome::Forms __forms) __forms)
-             ((:wat::core::ReadOutcome::Malformed __cause)
-               (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+             [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
+             [:wat::core::ReadOutcome::Malformed {:cause __cause}
+               (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
      forms (:wat::core::ast->children tree)
      eds   (:user::seq-edits forms lines)
      ;; sort by offset ascending, then reverse for right-to-left application (the recursive walk
@@ -169,6 +169,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln )
-      ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-      (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None))
-      (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))))
+      [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+      [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+      [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])))

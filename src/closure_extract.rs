@@ -1344,25 +1344,39 @@ fn walk_match_form(
     }
     // Walk scrutinee in outer scope.
     walk_free_symbols(&args[0], outer_locals, state)?;
-    // For each arm: the arm is a 2-list `(pattern body)`. Bindings
-    // collected from the pattern enter the arm's body scope.
     for arm in &args[1..] {
-        let arm_items = match arm {
-            WatAST::List(items, _) if items.len() == 2 => items,
-            _ => {
-                // Malformed arm — defensive recurse.
-                walk_free_symbols(arm, outer_locals, state)?;
-                continue;
+        match crate::match_arm::parse_match_arm(arm) {
+            Ok(parsed) => {
+                let mut arm_locals = outer_locals.clone();
+                match &parsed {
+                    crate::match_arm::MatchArm::Wildcard { .. } => {}
+                    crate::match_arm::MatchArm::Binding { ident, .. } => {
+                        arm_locals.insert(ident.as_str().to_string());
+                    }
+                    crate::match_arm::MatchArm::HashDestructure { pairs, .. } => {
+                        collect_pattern_bindings(
+                            &WatAST::Map(pairs.to_vec(), arm.span().clone()),
+                            &mut arm_locals,
+                            state,
+                        )?;
+                    }
+                    crate::match_arm::MatchArm::Variant { path, pairs, .. } => {
+                        collect_pattern_bindings(
+                            &WatAST::Keyword((*path).into(), arm.span().clone()),
+                            &mut arm_locals,
+                            state,
+                        )?;
+                        for (_k, v) in *pairs {
+                            collect_pattern_bindings(v, &mut arm_locals, state)?;
+                        }
+                    }
+                }
+                walk_free_symbols(parsed.body(), &arm_locals, state)?;
             }
-        };
-        let pattern = &arm_items[0];
-        let body = &arm_items[1];
-        let mut arm_locals = outer_locals.clone();
-        // Collect pattern bindings AND record type deps for any
-        // user-enum-variant keywords found inside.
-        collect_pattern_bindings(pattern, &mut arm_locals, state)?;
-        // Walk the body under the augmented scope.
-        walk_free_symbols(body, &arm_locals, state)?;
+            Err(_) => {
+                walk_free_symbols(arm, outer_locals, state)?;
+            }
+        }
     }
     Ok(())
 }

@@ -22,7 +22,7 @@
     (:wat::core::do
       (:wat::kernel::println "── round trip ──")
       (:wat::core::match decoded
-        ((:wat::holon::VectorDecodeOutcome::Decoded v2)
+        [:wat::holon::VectorDecodeOutcome::Decoded {:vector v2}
           (:wat::core::let
             [bs2 (:wat::holon::vector-bytes v2)]
             (:wat::core::do
@@ -31,11 +31,11 @@
               (:wat::kernel::println "decoded-vector-equal-original:")
               (:wat::kernel::println (:wat::core::= v v2))
               (:wat::kernel::println "re-encoded-bytes-equal-original:")
-              (:wat::kernel::println (:wat::core::= bs bs2)))))
-        (_
+              (:wat::kernel::println (:wat::core::= bs bs2))))]
+        [_
           (:wat::core::do
             (:wat::kernel::println "UNEXPECTED:")
-            (:wat::kernel::println decoded))))
+            (:wat::kernel::println decoded))])
 
       (:wat::kernel::println "── failure path 1: TruncatedHeader (3 bytes) ──")
       (:wat::core::let
@@ -43,14 +43,14 @@
           (:wat::holon::bytes-vector
             (:wat::core::Vector :- [:wat::core::u8] (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3)))]
         (:wat::core::match outcome1
-          ((:wat::holon::VectorDecodeOutcome::TruncatedHeader got)
+          [:wat::holon::VectorDecodeOutcome::TruncatedHeader {:got got}
             (:wat::core::do
               (:wat::kernel::println "TruncatedHeader got:")
-              (:wat::kernel::println got)))
-          (_
+              (:wat::kernel::println got))]
+          [_
             (:wat::core::do
               (:wat::kernel::println "UNEXPECTED:")
-              (:wat::kernel::println outcome1)))))
+              (:wat::kernel::println outcome1))]))
 
       (:wat::kernel::println "── failure path 2: LengthMismatch (dim=8 header, 1 data byte instead of 2) ──")
       (:wat::core::let
@@ -60,16 +60,16 @@
               (:wat::core::u8 8) (:wat::core::u8 0) (:wat::core::u8 0) (:wat::core::u8 0)
               (:wat::core::u8 0)))]
         (:wat::core::match outcome2
-          ((:wat::holon::VectorDecodeOutcome::LengthMismatch expected got)
+          [:wat::holon::VectorDecodeOutcome::LengthMismatch {:expected expected :got got}
             (:wat::core::do
               (:wat::kernel::println "LengthMismatch expected:")
               (:wat::kernel::println expected)
               (:wat::kernel::println "LengthMismatch got:")
-              (:wat::kernel::println got)))
-          (_
+              (:wat::kernel::println got))]
+          [_
             (:wat::core::do
               (:wat::kernel::println "UNEXPECTED:")
-              (:wat::kernel::println outcome2))))))))
+              (:wat::kernel::println outcome2))])))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:probe::run))

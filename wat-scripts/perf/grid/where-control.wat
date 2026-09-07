@@ -202,10 +202,10 @@
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::rete::core::match ?a
-                                   (0 false)
-                                   (1 true)
-                                   (2 false)
-                                   (3 true)))]
+                                   [0 false]
+                                   [1 true]
+                                   [2 false]
+                                   [3 true]))]
   :then
   [(:wsc::Hit ?k)])
 
@@ -217,8 +217,8 @@
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::rete::core::match ?o
-                                   ((:wat::core::Some v) (:wat::rete::i64::> v 90))
-                                   (:wat::core::None false)))]
+                                   [:wat::core::Some {:value v} (:wat::rete::i64::> v 90)]
+                                   [:wat::core::None {} false]))]
   :then
   [(:wsc::Hit ?k)])
 

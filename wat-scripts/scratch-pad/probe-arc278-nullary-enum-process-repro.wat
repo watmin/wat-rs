@@ -26,14 +26,14 @@
      (:wat::core::let
        [t (:probe::mini::Record/tag (:probe::mini::State/durable s))
         ok (:wat::core::match t
-             ((:probe::Mini::Tag::Closed) true)
-             ((:probe::Mini::Tag::Lost) false)
-             ((:probe::Mini::Tag::Rejected) false))]
+             [:probe::Mini::Tag::Closed {} true]
+             [:probe::Mini::Tag::Lost {} false]
+             [:probe::Mini::Tag::Rejected {} false])]
        (:wat::service::Outcome::Reply s (:probe::Mini::PingResponse::Ok ok))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [h (:probe::mini/start :locus (:wat::spawn::process) :record (:probe::mini::Record :tag (:probe::Mini::Tag::Closed)))
-     c (:wat::core::match (:wat::kernel::connect (:probe::mini::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     c (:wat::core::match (:wat::kernel::connect (:probe::mini::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      r (:probe::Mini/ping c (:probe::Mini::PingRequest))]
     (:wat::kernel::println "ok")))

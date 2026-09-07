@@ -60,8 +60,8 @@
           (:wat::holon::to-holon "c")))
      bundle
       (:wat::core::match bundled 
-        ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::to-holon "unreachable")))
+        [:wat::core::Ok {:value h}  h]
+        [:wat::core::Err {:error _} (:wat::holon::to-holon "unreachable")])
      atom (:wat::holon::to-holon "a")]
     ;; presence? fires (atom's signal IS in the bundle).
     (:wat::test::assert-eq

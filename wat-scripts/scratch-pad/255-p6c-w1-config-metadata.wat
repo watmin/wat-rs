@@ -11,14 +11,14 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::config::dim-count)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "dim-count :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "dim-count :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "dim-count :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "dim-count :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::config::dim-capacity)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "dim-capacity :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "dim-capacity :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "dim-capacity :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "dim-capacity :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::config::global-seed)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "global-seed :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "global-seed :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "global-seed :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "global-seed :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::config::noise-floor)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "noise-floor :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "noise-floor :arity= NONE")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "noise-floor :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "noise-floor :arity= NONE")])))

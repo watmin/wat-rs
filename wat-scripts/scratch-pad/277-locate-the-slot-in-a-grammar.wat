@@ -20,7 +20,7 @@
 
 (:wat::core::defn :s::walk [name <- :wat::core::String  syntax <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:wat::core::read-string syntax)
-    ((:wat::core::ReadOutcome::Forms forms)
+    [:wat::core::ReadOutcome::Forms {:forms forms}
       (:wat::core::let
         [form (:wat::core::first (:wat::core::ast->children forms))
          kids (:wat::core::ast->children form)
@@ -32,9 +32,9 @@
                   kids))]
         (:wat::core::do
           (:wat::kernel::println (:wat::string::concat "GRAMMAR OF " name))
-          (:wat::core::run! :s::show-kid idx))))
-    ((:wat::core::ReadOutcome::Malformed c)
-      (:wat::kernel::println "unreadable"))))
+          (:wat::core::run! :s::show-kid idx)))]
+    [:wat::core::ReadOutcome::Malformed {:cause c}
+      (:wat::kernel::println "unreadable")]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

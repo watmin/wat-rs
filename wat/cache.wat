@@ -89,10 +89,10 @@
    v     <- :V]
   -> (:wat::core::Option :- [(:wat::cache::Entry :- [K V])])
   (:wat::core::match (:rust::cache::Lru::put cache k v)
-    ((:wat::core::Some pair)
+    [:wat::core::Some {:value pair}
       (:wat::core::Some
-        (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair))))
-    (:wat::core::None :wat::core::None)))
+        (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair)))]
+    [:wat::core::None {} :wat::core::None]))
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
 ;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss.
@@ -218,8 +218,8 @@
              -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s) k)
-                 ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
-                 (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
+                 [:wat::core::Some {:value v} (:wat::cache::Cache::GetResult::Hit v)]
+                 [:wat::core::None {} (:wat::cache::Cache::GetResult::Miss)])))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
            (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s ctx req]
@@ -302,11 +302,11 @@
      _ (:wat::holon::Hologram/put hologram key val)
      evicted (:wat::cache::Lru::put lru key nil)]
     (:wat::core::match evicted
-      ((:wat::core::Some entry)
+      [:wat::core::Some {:value entry}
         (:wat::core::let
           [_ (:wat::holon::Hologram/remove hologram (:wat::cache::Entry/key entry))]
-          nil))
-      (:wat::core::None nil))))
+          nil)]
+      [:wat::core::None {} nil])))
 
 ;; ─── get — similarity lookup + LRU bump on hit ─────────────────────────────────────────────────
 ;; `Hologram/find`
@@ -323,13 +323,13 @@
     [hologram (:wat::cache::HolographicLru/hologram store)
      lru (:wat::cache::HolographicLru/lru store)]
     (:wat::core::match (:wat::holon::Hologram/find hologram probe)
-      ((:wat::core::Some m)
+      [:wat::core::Some {:value m}
         (:wat::core::let
           [matched-key (:wat::holon::Match/key m)
            val (:wat::holon::Match/value m)
            _ (:wat::cache::Lru::put lru matched-key nil)]
-          (:wat::core::Some val)))
-      (:wat::core::None :wat::core::None))))
+          (:wat::core::Some val))]
+      [:wat::core::None {} :wat::core::None])))
 
 ;; ─── len — total entries, read via the Hologram (the value-holding half) ──────────────────────
 (:wat::core::defn :wat::cache::HolographicLru::len
@@ -391,9 +391,9 @@
             :durable record
             :cache (:wat::cache::HolographicLru::new
                      (:wat::core::match (:wat::cache::hologram-svc::Record/filter record)
-                       ((:wat::cache::HologramFilterKind::Coincident) (:wat::holon::filter-coincident))
-                       ((:wat::cache::HologramFilterKind::Present)    (:wat::holon::filter-present))
-                       ((:wat::cache::HologramFilterKind::AcceptAny)  (:wat::holon::filter-accept-any)))
+                       [:wat::cache::HologramFilterKind::Coincident {} (:wat::holon::filter-coincident)]
+                       [:wat::cache::HologramFilterKind::Present {}    (:wat::holon::filter-present)]
+                       [:wat::cache::HologramFilterKind::AcceptAny {}  (:wat::holon::filter-accept-any)])
                      (:wat::cache::hologram-svc::Record/capacity record))))
   :impls
   ;; Batch folds, same discipline as `lru-svc` above. `HolographicLru::put` returns `nil` (Stone 3
@@ -411,8 +411,8 @@
              -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s) probe)
-                 ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
-                 (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
+                 [:wat::core::Some {:value v} (:wat::cache::Cache::GetResult::Hit v)]
+                 [:wat::core::None {} (:wat::cache::Cache::GetResult::Miss)])))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
            (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s ctx req]

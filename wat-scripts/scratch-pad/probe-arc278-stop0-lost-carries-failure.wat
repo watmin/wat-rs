@@ -15,12 +15,12 @@
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            (:wat::kernel::assertion-failed! "BOOM-SENTINEL-9173" :wat::core::None :wat::core::None)))]
     (:wat::core::match (:wat::kernel::recv p) 
-      ((:wat::kernel::RecvOutcome::Message _m)
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Message, expected ::Lost"))
-      ((:wat::kernel::RecvOutcome::Lost cause)
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
+        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Message, expected ::Lost")]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::kernel::println
-          (:wat::string::concat "STOP0-LOST-MESSAGE: " (:wat::kernel::LociDiedError/message cause))))
-      (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Stopped, expected ::Lost"))
-      (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")))))
+          (:wat::string::concat "STOP0-LOST-MESSAGE: " (:wat::kernel::LociDiedError/message cause)))]
+      [:wat::kernel::RecvOutcome::Stopped {}
+        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Stopped, expected ::Lost")]
+      [:wat::kernel::RecvOutcome::Closed {}
+        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")])))

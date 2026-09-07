@@ -8,5 +8,5 @@
   (:wat::core::let
     [m (:wat::runtime::metadata-of :my::f)]
     (:wat::core::match m
-      ((:wat::core::Some _) (:wat::kernel::println "SOME (user defn carries baseline)"))
-      (:wat::core::None (:wat::kernel::println "NONE (ignore reason still true)")))))
+      [:wat::core::Some {:value _} (:wat::kernel::println "SOME (user defn carries baseline)")]
+      [:wat::core::None {} (:wat::kernel::println "NONE (ignore reason still true)")])))

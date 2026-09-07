@@ -70,10 +70,10 @@
 ;; ── a helper: drive one `observe` round trip, facing every RecvOutcome arm. ──────────────────
 (:wat::core::defn :wat-tests::signal-observer::observe! [c <- :wat-tests::SignalObserver] -> :wat-tests::SignalObserver::ObserveResponse
   (:wat::core::match (:wat-tests::SignalObserver/observe c (:wat-tests::SignalObserver::ObserveRequest))
-    ((:wat::kernel::RecvOutcome::Message m) m)
-    ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "observe!: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "observe!: peer closed" :wat::core::None :wat::core::None))))
+    [:wat::kernel::RecvOutcome::Message {:msg m} m]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "observe!: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "observe!: peer closed" :wat::core::None :wat::core::None)]))
 
 ;; ── the sequence: one process, all four handlers, three user signals discriminated ──────────
 ;; Every step is faced individually (RequestTooLarge/RequestMalformed each get their own
@@ -86,64 +86,64 @@
       [h    (:wat-tests::signal-observer/start :locus (:wat::spawn::process)
               :record (:wat-tests::signal-observer::Record :requests 0 :sighup false :user1 false :user2 false))
        c    (:wat::core::match (:wat::kernel::connect (:wat-tests::signal-observer::Handle/addr h))
-              ((:wat::kernel::ConnectOutcome::Connected p) p)
-              ((:wat::kernel::ConnectOutcome::Refused cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
-              ((:wat::kernel::ConnectOutcome::Rejected cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
-              ((:wat::kernel::ConnectOutcome::Failed cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))
+              [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+              [:wat::kernel::ConnectOutcome::Refused {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)]
+              [:wat::kernel::ConnectOutcome::Rejected {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)]
+              [:wat::kernel::ConnectOutcome::Failed {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)])
        proc (:wat::core::match (:wat::kernel::peer-process (:wat-tests::signal-observer::Handle/handle h))
-              ((:wat::core::Some p) p)
-              (:wat::core::None (:wat::kernel::assertion-failed! "signal-observer-measures-itself: expected a process locus" :wat::core::None :wat::core::None)))
+              [:wat::core::Some {:value p} p]
+              [:wat::core::None {} (:wat::kernel::assertion-failed! "signal-observer-measures-itself: expected a process locus" :wat::core::None :wat::core::None)])
 
        ;; ── sighup: a bitflip only, no wake — drive `observe` to see it. ─────────────────────
        sighup-delivered
        (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal::Hangup)
-         (:wat::kernel::SignalOutcome::Delivered true)
-         ((:wat::kernel::SignalOutcome::Failed cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))
+         [:wat::kernel::SignalOutcome::Delivered {} true]
+         [:wat::kernel::SignalOutcome::Failed {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)])
        after-hangup
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
-         ((:wat-tests::SignalObserver::ObserveResponse::Ok reqs hup u1 u2)
+         [:wat-tests::SignalObserver::ObserveResponse::Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
            (:wat::core::Vector :- [:wat::core::bool]
-             (:wat::core::= reqs 1) hup (:wat::core::not u1) (:wat::core::not u2)))
-         ((:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge bytes cap)
-           (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after sighup" :wat::core::None :wat::core::None))
-         ((:wat-tests::SignalObserver::ObserveResponse::RequestMalformed mpath mexpected mgot)
-           (:wat::kernel::assertion-failed! "unexpected RequestMalformed after sighup" :wat::core::None :wat::core::None)))
+             (:wat::core::= reqs 1) hup (:wat::core::not u1) (:wat::core::not u2))]
+         [:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge {:bytes bytes :cap cap}
+           (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after sighup" :wat::core::None :wat::core::None)]
+         [:wat-tests::SignalObserver::ObserveResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+           (:wat::kernel::assertion-failed! "unexpected RequestMalformed after sighup" :wat::core::None :wat::core::None)])
 
        ;; ── user1 — independent of sighup, which must stay observed true. ───────────────────
        user1-delivered
        (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal::User1)
-         (:wat::kernel::SignalOutcome::Delivered true)
-         ((:wat::kernel::SignalOutcome::Failed cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))
+         [:wat::kernel::SignalOutcome::Delivered {} true]
+         [:wat::kernel::SignalOutcome::Failed {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)])
        after-user1
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
-         ((:wat-tests::SignalObserver::ObserveResponse::Ok reqs hup u1 u2)
+         [:wat-tests::SignalObserver::ObserveResponse::Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
            (:wat::core::Vector :- [:wat::core::bool]
-             (:wat::core::= reqs 2) hup u1 (:wat::core::not u2)))
-         ((:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge bytes cap)
-           (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after user1" :wat::core::None :wat::core::None))
-         ((:wat-tests::SignalObserver::ObserveResponse::RequestMalformed mpath mexpected mgot)
-           (:wat::kernel::assertion-failed! "unexpected RequestMalformed after user1" :wat::core::None :wat::core::None)))
+             (:wat::core::= reqs 2) hup u1 (:wat::core::not u2))]
+         [:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge {:bytes bytes :cap cap}
+           (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after user1" :wat::core::None :wat::core::None)]
+         [:wat-tests::SignalObserver::ObserveResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+           (:wat::kernel::assertion-failed! "unexpected RequestMalformed after user1" :wat::core::None :wat::core::None)])
 
        ;; ── user2 — independent of both sighup AND user1, which must stay observed true. ─────
        user2-delivered
        (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal::User2)
-         (:wat::kernel::SignalOutcome::Delivered true)
-         ((:wat::kernel::SignalOutcome::Failed cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))
+         [:wat::kernel::SignalOutcome::Delivered {} true]
+         [:wat::kernel::SignalOutcome::Failed {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)])
        after-user2
        (:wat::core::match (:wat-tests::signal-observer::observe! c)
-         ((:wat-tests::SignalObserver::ObserveResponse::Ok reqs hup u1 u2)
+         [:wat-tests::SignalObserver::ObserveResponse::Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
            (:wat::core::Vector :- [:wat::core::bool]
-             (:wat::core::= reqs 3) hup u1 u2))
-         ((:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge bytes cap)
-           (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after user2" :wat::core::None :wat::core::None))
-         ((:wat-tests::SignalObserver::ObserveResponse::RequestMalformed mpath mexpected mgot)
-           (:wat::kernel::assertion-failed! "unexpected RequestMalformed after user2" :wat::core::None :wat::core::None)))
+             (:wat::core::= reqs 3) hup u1 u2)]
+         [:wat-tests::SignalObserver::ObserveResponse::RequestTooLarge {:bytes bytes :cap cap}
+           (:wat::kernel::assertion-failed! "unexpected RequestTooLarge after user2" :wat::core::None :wat::core::None)]
+         [:wat-tests::SignalObserver::ObserveResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+           (:wat::kernel::assertion-failed! "unexpected RequestMalformed after user2" :wat::core::None :wat::core::None)])
 
        ;; ── terminate: the child dies, no notification — there is no admin ask (ruled). ─────
        terminate-delivered
        (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal::Terminate)
-         (:wat::kernel::SignalOutcome::Delivered true)
-         ((:wat::kernel::SignalOutcome::Failed cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))]
+         [:wat::kernel::SignalOutcome::Delivered {} true]
+         [:wat::kernel::SignalOutcome::Failed {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)])]
 
       (:wat::core::concat
         (:wat::core::Vector :- [:wat::core::bool] sighup-delivered user1-delivered user2-delivered terminate-delivered)
@@ -161,6 +161,6 @@
       [h (:wat-tests::signal-observer/start :locus (:wat::spawn::thread)
            :record (:wat-tests::signal-observer::Record :requests 0 :sighup false :user1 false :user2 false))]
       (:wat::core::match (:wat::kernel::peer-process (:wat-tests::signal-observer::Handle/handle h))
-        ((:wat::core::Some _p) false)
-        (:wat::core::None true)))
+        [:wat::core::Some {:value _p} false]
+        [:wat::core::None {} true]))
     true))

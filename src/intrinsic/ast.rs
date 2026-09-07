@@ -88,7 +88,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue};
 /// @Category      Transform
 /// @arg     s :wat::core::String the wat source text parsed
 /// @ret     :wat::core::ReadOutcome `Forms[ast]` on success, `Malformed[cause]` otherwise
-/// @example (:wat::core::match (:wat::core::read-string "foo") ((:wat::core::ReadOutcome::Forms ast) (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ast)))) ((:wat::core::ReadOutcome::Malformed _) "parse failed")) #=> "foo"
+/// @example (:wat::core::match (:wat::core::read-string "foo") [:wat::core::ReadOutcome::Forms {:forms ast} (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ast)))] [:wat::core::ReadOutcome::Malformed {:cause _} "parse failed"]) #=> "foo"
 /// @see     :wat::core::ast->source
 /// @see     :wat::core::ast->children
 #[wat_intrinsic(":wat::core::read-string")]
@@ -116,7 +116,7 @@ pub(crate) fn eval_read_string_home(
 /// @Category      Transform
 /// @arg     s :wat::core::String the wat source text parsed
 /// @ret     :wat::core::ReadWithCommentsOutcome `Forms[ast comments]` on success, `Malformed[cause]` otherwise
-/// @example (:wat::core::match (:wat::core::read-string-with-comments ";; c\n(a b)") ((:wat::core::ReadWithCommentsOutcome::Forms _ast cs) (:wat::core::length cs)) ((:wat::core::ReadWithCommentsOutcome::Malformed _) 0)) #=> 1
+/// @example (:wat::core::match (:wat::core::read-string-with-comments ";; c\n(a b)") [:wat::core::ReadWithCommentsOutcome::Forms {:forms _ast :comments cs} (:wat::core::length cs)] [:wat::core::ReadWithCommentsOutcome::Malformed {:cause _} 0]) #=> 1
 /// @see     :wat::core::read-string
 #[wat_intrinsic(":wat::core::read-string-with-comments")]
 pub(crate) fn eval_read_string_with_comments_home(

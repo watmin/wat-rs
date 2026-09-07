@@ -900,8 +900,8 @@ mod tests {
     ///   simhash, to-record
     /// - `:wat::core::` 6 of 18 — List, fresh-symbol, if, let, type-equal?, type-params-used-in
     /// - `:wat::linkedlist::` 5 of 5 — WHOLLY ABSENT: conj, contains?, empty?, get, length
-    /// - `:wat::runtime::` 3 of 13 (arc 255 Stone P6-c-W4) — field-names-of, field-types-of,
-    ///   metadata-of. NOT UNIFORM: field-names-of/field-types-of ARE type-checked, by
+    /// - `:wat::runtime::` 4 of 14 (arc 255 Stone P6-c-W4 + arc 296 L) — field-names-of, field-types-of,
+    ///   metadata-of, type-of. NOT UNIFORM: field-names-of/field-types-of/type-of ARE type-checked, by
     ///   hand-written special-case inference inside `infer_list` (`src/check.rs:2543`;
     ///   `field-names-of` at `:3570`, `field-types-of` at `:3596`) — they lack a `TypeScheme`
     ///   but are not unverified in the sense the other rows on this ledger are. `metadata-of`
@@ -1086,12 +1086,14 @@ mod tests {
         ":wat::linkedlist::get",
         ":wat::linkedlist::length",
         // arc 255 Stone P6-c-W4 — field-names-of/field-types-of ARE typed (infer_list
-        // special-case, check.rs:3570/3596); metadata-of has neither scheme nor inference.
-        // All three are absent from `CheckEnv` (this ledger's actual criterion), so all three
-        // belong here — but they are NOT identically "unchecked"; see the header note above.
+        // special-case, check.rs); metadata-of has neither scheme nor inference.
+        // Arc 296 L — type-of is typed the same way as field-names-of (infer_list
+        // special-case returning `:wat::runtime::TypeInfo`). All four are absent
+        // from `CheckEnv` (this ledger's actual criterion).
         ":wat::runtime::field-names-of",
         ":wat::runtime::field-types-of",
         ":wat::runtime::metadata-of",
+        ":wat::runtime::type-of",
         ":wat::seq::remove-at",
         ":wat::seq::window",
         ":wat::seq::zip",

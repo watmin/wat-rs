@@ -66,13 +66,13 @@
              ;; read the K-typed durable field generically — `kk` is bound at type K
              (:wat::core::match
                  (:wat-tests::pair-svc::Record/k (:wat-tests::pair-svc::State/durable s))
-               ((:wat::core::Some kk) 10)
-               (:wat::core::None 0))
+               [:wat::core::Some {:value kk} 10]
+               [:wat::core::None {} 0])
              ;; read the V-typed durable field generically — `vv` is bound at type V
              (:wat::core::match
                  (:wat-tests::pair-svc::Record/v (:wat-tests::pair-svc::State/durable s))
-               ((:wat::core::Some vv) 100)
-               (:wat::core::None 0)))))))])
+               [:wat::core::Some {:value vv} 100]
+               [:wat::core::None {} 0]))))))])
 
 ;; ── the gate: stand it up on the thread locus and round-trip one call ───────────────────────
 ;; K is pinned to String and V to i64 BY THE SEED — two DIFFERENT concrete types, so a split
@@ -87,28 +87,28 @@
                      :k (:wat::core::Some "hi")
                      :v (:wat::core::Some 42)))
        c (:wat::core::match (:wat::kernel::connect (:wat-tests::pair-svc::Handle/addr h))
-           ((:wat::kernel::ConnectOutcome::Connected p) p)
-           ((:wat::kernel::ConnectOutcome::Refused c)
-             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-           ((:wat::kernel::ConnectOutcome::Rejected c)
-             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-           ((:wat::kernel::ConnectOutcome::Failed c)
-             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+           [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+           [:wat::kernel::ConnectOutcome::Refused {:cause c}
+             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+           [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+           [:wat::kernel::ConnectOutcome::Failed {:cause c}
+             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
        r (:wat-tests::pair-svc/put c (:wat-tests::Pair::PutRequest :item 7))]
       (:wat::core::match r
-        ((:wat::kernel::RecvOutcome::Message __recv)
+        [:wat::kernel::RecvOutcome::Message {:msg __recv}
           (:wat::core::match __recv
-            ((:wat-tests::Pair::PutResponse::Ok echo) echo)
+            [:wat-tests::Pair::PutResponse::Ok {:echo echo} echo]
             ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-            ((:wat-tests::Pair::PutResponse::RequestTooLarge bytes cap)
+            [:wat-tests::Pair::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
               (:wat::kernel::assertion-failed! "pair-svc put: unexpected RequestTooLarge"
-                :wat::core::None :wat::core::None))
-            ((:wat-tests::Pair::PutResponse::RequestMalformed mpath mexpected mgot)
-              (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-        ((:wat::kernel::RecvOutcome::Lost __cause)
-          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
-        (:wat::kernel::RecvOutcome::Stopped
-          (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-        (:wat::kernel::RecvOutcome::Closed
-          (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+                :wat::core::None :wat::core::None)]
+            [:wat-tests::Pair::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+              (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+        [:wat::kernel::RecvOutcome::Lost {:cause __cause}
+          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)]
+        [:wat::kernel::RecvOutcome::Stopped {}
+          (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+        [:wat::kernel::RecvOutcome::Closed {}
+          (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
     117))

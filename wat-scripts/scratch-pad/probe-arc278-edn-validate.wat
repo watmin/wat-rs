@@ -15,13 +15,13 @@
 
 (:wat::core::defn :vprobe::render [v <- :wat::edn::Validation] -> :wat::core::String
   (:wat::core::match v
-    (:wat::edn::Validation::Valid "VALID")
-    ((:wat::edn::Validation::Invalid path expected got)
+    [:wat::edn::Validation::Valid {} "VALID"]
+    [:wat::edn::Validation::Invalid {:path path :expected expected :got got}
       (:wat::string::concat "INVALID at "
         (:wat::string::concat (:wat::edn::write path)
           (:wat::string::concat " expected="
             (:wat::string::concat expected
-              (:wat::string::concat " got=" got))))))))
+              (:wat::string::concat " got=" got)))))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -1322,13 +1322,13 @@
                 read-form  `(~acc-kw ~assemble-deps-sym)
                 form       (:wat::core::if is-peer
                              `(:wat::core::match (:wat::kernel::connect ~read-form)
-                                ((:wat::kernel::ConnectOutcome::Connected ~assemble-p-sym) ~assemble-p-sym)
-                                ((:wat::kernel::ConnectOutcome::Refused ~assemble-c-sym)
-                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None))
-                                ((:wat::kernel::ConnectOutcome::Rejected ~assemble-c-sym)
-                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None))
-                                ((:wat::kernel::ConnectOutcome::Failed ~assemble-c-sym)
-                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)))
+                                [:wat::kernel::ConnectOutcome::Connected {:peer ~assemble-p-sym} ~assemble-p-sym]
+                                [:wat::kernel::ConnectOutcome::Refused {:cause ~assemble-c-sym}
+                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)]
+                                [:wat::kernel::ConnectOutcome::Rejected {:cause ~assemble-c-sym}
+                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)]
+                                [:wat::kernel::ConnectOutcome::Failed {:cause ~assemble-c-sym}
+                                  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~assemble-c-sym) :wat::core::None :wat::core::None)])
                              read-form)]
                (:wat::core::conj acc form)))
            (:wat::core::Vector :- [:wat::WatAST])
@@ -1938,7 +1938,7 @@
                                     (:wat::string::concat
                                       "\""
                                       (:wat::string::concat pay "\"")))
-                                    ((:wat::core::ReadOutcome::Forms __forms) __forms)
+                                    [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
                                     ;; EXPAND-TIME site — hand-written, not the codemod's uniform
                                     ;; arm. `assertion-failed!` is a kernel head that DIVERGES, so
                                     ;; the F5 default-deny gate refuses it inside a program-body
@@ -1946,11 +1946,11 @@
                                     ;; macro-error channel (EvalBreak::Diagnostic), not the panic
                                     ;; one. Blessing assertion-failed! to make a codemod's output
                                     ;; fit would be widening the gate to suit the tool.
-                                    ((:wat::core::ReadOutcome::Malformed __cause)
+                                    [:wat::core::ReadOutcome::Malformed {:cause __cause}
                                       (:wat::core::macro-error
                                         (:wat::string::concat
                                           "string::interpolate: text segment did not parse: "
-                                          (:wat::core::Error/message __cause))))))))
+                                          (:wat::core::Error/message __cause)))]))))
                             used2)
                           ;; slot segment → validate kwarg, emit (:wat::core::str val-ast)
                           (:wat::core::let

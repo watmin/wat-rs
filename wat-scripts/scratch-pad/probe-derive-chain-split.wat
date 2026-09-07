@@ -101,11 +101,11 @@
 ;; ── main — one fire, then the derive chain link by link, then the control ────
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
-                              ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-                              (:wat::kernel::ReadlnOutcome::Eof
-                                (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None))
-                              (:wat::kernel::ReadlnOutcome::Stopped
-                                (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+                              [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+                              [:wat::kernel::ReadlnOutcome::Eof {}
+                                (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+                              [:wat::kernel::ReadlnOutcome::Stopped {}
+                                (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
                     rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
                     items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
                     staged  (:dc::seed (:wat::rete::compile-all (:dc::build-rules rules-n) (:wat::core::PersistentVector (:dc::q-Out))) items)

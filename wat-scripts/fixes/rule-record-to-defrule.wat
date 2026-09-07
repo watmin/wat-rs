@@ -144,11 +144,11 @@
    suffix <- :wat::core::String]
   -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::match (:user::find-helper forms suffix)
-    ((:wat::core::Some h)
+    [:wat::core::Some {:value h}
       (:wat::core::let [ch   (:wat::core::ast->children h)
                         body (:wat::core::Option/expect (:wat::core::get ch 5) "helper-text-opt: body")]
-        (:wat::core::Some (:user::quasi-text body lines src))))
-    (:wat::core::None :wat::core::None)))
+        (:wat::core::Some (:user::quasi-text body lines src)))]
+    [:wat::core::None {} :wat::core::None]))
 
 ;; build-defrule-text — the replacement source text for one migrated rule.
 (:wat::core::defn :user::build-defrule-text
@@ -282,7 +282,7 @@
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines          (:wat::string::split src "\n")
-     tree           (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+     tree           (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
      forms          (:wat::core::ast->children tree)
      conds-text-opt (:user::helper-text-opt forms lines src "::conds")
      ins-text-opt   (:user::helper-text-opt forms lines src "::ins")
@@ -303,5 +303,5 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))]
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
     (:user::rewrite-each paths)))

@@ -16,8 +16,8 @@
    g <- :wat::core::i64]
   -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::match (:wat::core::get m g)
-    (:wat::core::None (:wat::hashmap::assoc m g 1))
-    ((:wat::core::Some n) (:wat::hashmap::assoc m g (:wat::i64::+ n 1)))))
+    [:wat::core::None {} (:wat::hashmap::assoc m g 1)]
+    [:wat::core::Some {:value n} (:wat::hashmap::assoc m g (:wat::i64::+ n 1))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -26,7 +26,7 @@
      src  (:wat::io::read-file path)
      rules (:wat::rete::collect-rules :fmt)]
     (:wat::core::match (:wat::core::read-string-with-comments src)
-      ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
+      [:wat::core::ReadWithCommentsOutcome::Forms {:forms forms :comments comments}
         (:wat::core::let
           [facts   (:wat::grep::facts-of path src)
            rec0    (:wat::grep::facts-as-records facts)
@@ -92,6 +92,6 @@
                       :a (:wat::i64::to-string n2)
                       :b (:wat::i64::to-string n3)
                       :r (:wat::i64::to-string rows)))
-                  (:wat::kernel::println out)))))))
-      ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
-        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)))))
+                  (:wat::kernel::println out))))))]
+      [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)])))

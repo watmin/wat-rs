@@ -56,9 +56,9 @@
     (:wat::kernel::println "── probe-complete: calls fine, metadata-of decodes the axes ──")
     (:wat::kernel::println (:wat::string::concat "call result: " (:wat::edn::write (:user::probe-complete 41))))
     (:wat::core::match (:wat::runtime::metadata-of :user::probe-complete)
-      ((:wat::core::Some hm) (:wat::kernel::pprintln hm))
-      (:None (:wat::kernel::println "probe-complete metadata-of => NONE (unexpected)")))
+      [:wat::core::Some {:value hm} (:wat::kernel::pprintln hm)]
+      [:wat::core::None {} (:wat::kernel::println "probe-complete metadata-of => NONE (unexpected)")])
     (:wat::kernel::println "── probe-restricted: capability-only map, raw and unvalidated (STOP-3) ──")
     (:wat::core::match (:wat::runtime::metadata-of :user::probe-restricted)
-      ((:wat::core::Some hm) (:wat::kernel::pprintln hm))
-      (:None (:wat::kernel::println "probe-restricted metadata-of => NONE (unexpected)")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::pprintln hm)]
+      [:wat::core::None {} (:wat::kernel::println "probe-restricted metadata-of => NONE (unexpected)")])))

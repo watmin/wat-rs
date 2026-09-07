@@ -12,8 +12,8 @@
 ;; unwrap the single top-level form the same way `wat/core.wat`'s own macros do (e.g. core.wat:1816).
 (:wat::core::defn :user::form-of [src <- :wat::core::String] -> :wat::WatAST
   (:wat::core::match (:wat::core::read-string src)
-    ((:wat::core::ReadOutcome::Forms __forms) (:wat::core::first __forms))
-    ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::panic! "form-of: malformed source"))))
+    [:wat::core::ReadOutcome::Forms {:forms __forms} (:wat::core::first __forms)]
+    [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::panic! "form-of: malformed source")]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

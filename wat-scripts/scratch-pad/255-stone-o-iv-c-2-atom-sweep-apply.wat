@@ -100,8 +100,8 @@
         (:wat::core::match
           (:wat::eval-ast! (:wat::core::quote
             (:wat::core::apply :wat::holon::Blend (:wat::core::Vector :- [:wat::core::Any] rolev fillerv 0.7 0.3))))
-          ((:wat::core::Ok v) (:wat::core::Ok (:wat::holon::statement-length v)))
-          ((:wat::core::Err e) (:wat::core::Err e))))
+          [:wat::core::Ok {:value v} (:wat::core::Ok (:wat::holon::statement-length v))]
+          [:wat::core::Err {:error e} (:wat::core::Err e)]))
       (:probe::show "vector-bytes"
         (:wat::eval-ast! (:wat::core::quote
           (:wat::core::apply :wat::holon::vector-bytes (:wat::core::Vector :- [:wat::core::Any] enc1)))))

@@ -110,40 +110,40 @@
                                   acc)
                           fqdn (:wat::intrinsic::Example/fqdn ex)]
           (:wat::core::match (:wat::intrinsic::Example/expected ex)
-            ((:wat::core::Some expected-ast)
+            [:wat::core::Some {:value expected-ast}
               (:wat::core::match (:wat::eval-ast! (:wat::intrinsic::Example/expr ex))
-                ((:wat::core::Ok got)
+                [:wat::core::Ok {:value got}
                   (:wat::core::match (:wat::eval-ast! expected-ast)
-                    ((:wat::core::Ok want)
+                    [:wat::core::Ok {:value want}
                       (:wat::core::if (:wat::core::not (:wat::core::= got want))
                         (:wat::core::concat acc1
                           (:wat::core::Vector :- [:wat::doctest::Failure]
                             (:wat::doctest::Failure
                               :fqdn fqdn
                               :reason "@example result did not match #=>")))
-                        acc1))
-                    ((:wat::core::Err err)
+                        acc1)]
+                    [:wat::core::Err {:error err}
                       (:wat::core::concat acc1
                         (:wat::core::Vector :- [:wat::doctest::Failure]
                           (:wat::doctest::Failure
                             :fqdn fqdn
                             :reason (:wat::string::concat
                                       "expected eval failed: "
-                                      (:wat::core::EvalError/message err))))))))
-                ((:wat::core::Err err)
+                                      (:wat::core::EvalError/message err)))))])]
+                [:wat::core::Err {:error err}
                   (:wat::core::concat acc1
                     (:wat::core::Vector :- [:wat::doctest::Failure]
                       (:wat::doctest::Failure
                         :fqdn fqdn
                         :reason (:wat::string::concat
                                   "expr eval failed: "
-                                  (:wat::core::EvalError/message err))))))))
-            (:wat::core::None
+                                  (:wat::core::EvalError/message err)))))])]
+            [:wat::core::None {}
               (:wat::core::concat acc1
                 (:wat::core::Vector :- [:wat::doctest::Failure]
                   (:wat::doctest::Failure
                     :fqdn fqdn
-                    :reason "run=true example missing expected"))))))
+                    :reason "run=true example missing expected")))]))
         ;; run=false: skip
         acc))
     (:wat::core::Vector :- [:wat::doctest::Failure])

@@ -85,25 +85,25 @@
   -> :wat::core::String
   (:wat::core::match
     (:wat::core::match (:wat::kernel::readln)
-      ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-      (:wat::kernel::ReadlnOutcome::Eof
-        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stream ended before a SectionDone marker" :wat::core::None :wat::core::None))
-      (:wat::kernel::ReadlnOutcome::Stopped
-        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stop requested before a SectionDone marker" :wat::core::None :wat::core::None)))
+      [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+      [:wat::kernel::ReadlnOutcome::Eof {}
+        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stream ended before a SectionDone marker" :wat::core::None :wat::core::None)]
+      [:wat::kernel::ReadlnOutcome::Stopped {}
+        (:wat::kernel::assertion-failed! "stream-protocol: section truncated — stop requested before a SectionDone marker" :wat::core::None :wat::core::None)])
 
     ;; A payload frame: accept it, ack it, keep going.
-    ((:proto::Frame::Chunk text)
+    [:proto::Frame::Chunk {:text text}
       (:wat::core::do
         (:wat::kernel::println (:proto::Ack::Got n))
         (:proto::read-section (:wat::string::concat acc text)
-                              (:wat::i64::+ n 1))))
+                              (:wat::i64::+ n 1)))]
 
     ;; The marker: the section is closed. Ack with OUR count — if it disagrees
     ;; with the sender's, the sender is the one who can act on it.
-    ((:proto::Frame::SectionDone _count)
+    [:proto::Frame::SectionDone {:count _count}
       (:wat::core::do
         (:wat::kernel::println (:proto::Ack::SectionAck n))
-        acc))))
+        acc)]))
 
 ;; ── The program ───────────────────────────────────────────────────────────────
 ;;

@@ -56,14 +56,14 @@
         [cur  (:wat::core::Option/expect (:wat::core::get ch i) "returns cur")
          nxt  (:wat::core::get ch (:wat::core::+ i 1))]
         (:wat::core::match nxt 
-          (:wat::core::None s)
-          ((:wat::core::Some nn)
+          [:wat::core::None {} s]
+          [:wat::core::Some {:value nn}
             (:wat::core::if
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind cur) "symbol")
                 (:wat::core::if (:wat::core::= (:wat::core::ast-name cur) "->")
                   (:wat::core::= (:wat::core::ast-kind nn) "keyword") false) false)
               (:wat::hashset::conj s (:user::strip-params (:wat::core::ast-name nn)))
-              s)))))
+              s)])))
     acc
     (:wat::core::range 0 (:wat::core::length ch))))
 
@@ -254,7 +254,7 @@
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
+     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)]))
      rm    (:user::resp-map forms)
      eds   (:user::seq-edits forms rm src lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -271,4 +271,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))))
+  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])))

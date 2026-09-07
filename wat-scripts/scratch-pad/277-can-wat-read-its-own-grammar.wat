@@ -17,19 +17,19 @@
 
 (:wat::core::defn :g::try [r <- :wat::intrinsic::Row] -> :wat::core::i64
   (:wat::core::match (:wat::core::read-string (:wat::intrinsic::Row/syntax r))
-    ((:wat::core::ReadOutcome::Forms forms)
+    [:wat::core::ReadOutcome::Forms {:forms forms}
       (:wat::core::let [kids (:wat::core::ast->children forms)]
         (:wat::core::do
           (:wat::kernel::println (:wat::string::interpolate "  OK   {n}  top-forms={k}"
             :n (:wat::core::str (:wat::intrinsic::Row/name r))
             :k (:wat::i64::to-string (:wat::core::length kids))))
-          0)))
-    ((:wat::core::ReadOutcome::Malformed cause)
+          0))]
+    [:wat::core::ReadOutcome::Malformed {:cause cause}
       (:wat::core::do
         (:wat::kernel::println (:wat::string::interpolate "  FAIL {n}  {m}"
           :n (:wat::core::str (:wat::intrinsic::Row/name r))
           :m (:wat::core::Error/message cause)))
-        1))))
+        1)]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

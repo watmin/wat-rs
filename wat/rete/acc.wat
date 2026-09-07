@@ -64,9 +64,9 @@
                              (:wat::map::get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc 
-          ((:wat::core::Some cur)
-           (:wat::core::Some (:wat::core::if (:wat::core::< v cur) v cur)))
-          (:wat::core::None (:wat::core::Some v)))))
+          [:wat::core::Some {:value cur}
+           (:wat::core::Some (:wat::core::if (:wat::core::< v cur) v cur))]
+          [:wat::core::None {} (:wat::core::Some v)])))
     :wat::core::None
     els))
 
@@ -83,9 +83,9 @@
                              (:wat::map::get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc 
-          ((:wat::core::Some cur)
-           (:wat::core::Some (:wat::core::if (:wat::core::> v cur) v cur)))
-          (:wat::core::None (:wat::core::Some v)))))
+          [:wat::core::Some {:value cur}
+           (:wat::core::Some (:wat::core::if (:wat::core::> v cur) v cur))]
+          [:wat::core::None {} (:wat::core::Some v)])))
     :wat::core::None
     els))
 
@@ -150,8 +150,8 @@
                         fact (:wat::rete::Element/fact e)
                         pv   (:wat::core::match (:wat::map::get acc k)
                                
-                               ((:wat::core::Some existing) existing)
-                               (:wat::core::None (:wat::core::PersistentVector)))]
+                               [:wat::core::Some {:value existing} existing]
+                               [:wat::core::None {} (:wat::core::PersistentVector)])]
         (:wat::map::assoc acc k (:wat::vector::conj pv fact))))
     (:wat::core::PersistentMap)
     els))

@@ -95,8 +95,8 @@
           (:wat::holon::Thermometer 0.25 -1.0 1.0)))
      form
       (:wat::core::match bundled 
-        ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::to-holon "unreachable")))
+        [:wat::core::Ok {:value h}  h]
+        [:wat::core::Err {:error _} (:wat::holon::to-holon "unreachable")])
      slots (:wat::holon::term::slots form)
      n (:wat::core::length slots)]
     (:wat::test::assert-eq n 2)))
@@ -113,8 +113,8 @@
           (:wat::holon::Thermometer 0.25 -1.0 1.0)))
      form
       (:wat::core::match bundled 
-        ((:wat::core::Ok h)  h)
-        ((:wat::core::Err _) (:wat::holon::to-holon "unreachable")))
+        [:wat::core::Ok {:value h}  h]
+        [:wat::core::Err {:error _} (:wat::holon::to-holon "unreachable")])
      slot-count
       (:wat::core::length (:wat::holon::term::slots form))
      range-count

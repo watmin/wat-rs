@@ -31,10 +31,12 @@
 
 use crate::ast::WatAST;
 use crate::span::Span;
+use crate::types::{EnumVariant, Nature, Purity, SurfaceMember, TypeDef, TypeExpr};
 use crate::value::{
     Environment, EvalBreak, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
     ValueSnapshot,
 };
+use crate::value::value::{AggregateValue, EnumValue};
 use std::sync::Arc;
 use wat_macros::wat_intrinsic;
 
@@ -490,8 +492,8 @@ pub(crate) fn eval_return_type_of(
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name whose body is read
 /// @ret     (:wat::core::Option :- [:wat::WatAST]) the wat body (function or macro template), or `:None` when body-less or unregistered
-/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::cond) ((:wat::core::Some ast) (:wat::core::ast-kind ast)) (:wat::core::None "none")) #=> "list"
-/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::if) ((:wat::core::Some _) true) (:wat::core::None false)) #=> false
+/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::cond) [:wat::core::Some {:value ast} (:wat::core::ast-kind ast)] [:wat::core::None {} "none"]) #=> "list"
+/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::if) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> false
 /// @see     :wat::runtime::lookup-define
 /// @see     :wat::runtime::signature-of-defn
 #[wat_intrinsic(":wat::runtime::body-of")]
@@ -1210,4 +1212,310 @@ fn resolve_aggregate_def_for_reflection<'a>(
         )
         .into()),
     }
+}
+
+// ─── Arc 296 L — `:wat::runtime::type-of` ────────────────────────────────────
+
+::wat_source_derive::wat_field_names_from!(
+    TYPE_INFO_FIELDS,
+    "wat/runtime-typeinfo.wat",
+    ":wat::runtime::TypeInfo"
+);
+::wat_source_derive::wat_field_names_from!(
+    TYPE_FIELD_FIELDS,
+    "wat/runtime-typeinfo.wat",
+    ":wat::runtime::TypeField"
+);
+::wat_source_derive::wat_field_names_from!(
+    TYPE_VARIANT_FIELDS,
+    "wat/runtime-typeinfo.wat",
+    ":wat::runtime::TypeVariant"
+);
+
+fn type_info_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(TYPE_INFO_FIELDS))
+        .clone()
+}
+fn type_field_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(TYPE_FIELD_FIELDS))
+        .clone()
+}
+fn type_variant_names() -> Arc<Vec<String>> {
+    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(TYPE_VARIANT_FIELDS))
+        .clone()
+}
+
+const TYPE_KIND: &str = ":wat::runtime::TypeKind";
+const TYPE_NATURE: &str = ":wat::runtime::TypeNature";
+const TYPE_PURITY: &str = ":wat::runtime::TypePurity";
+const TYPE_BODY: &str = ":wat::runtime::TypeBody";
+const TYPE_SURFACE_MEMBER: &str = ":wat::runtime::TypeSurfaceMember";
+
+fn unit_variant(type_path: &str, variant: &str) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: type_path.into(),
+        variant_name: variant.into(),
+        names: crate::runtime::no_field_names(),
+        fields: vec![],
+    }))
+}
+
+fn tagged_variant(type_path: &str, variant: &str, fields: Vec<Value>) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: type_path.into(),
+        variant_name: variant.into(),
+        names: crate::runtime::builtin_enum_variant_names(type_path, variant),
+        fields,
+    }))
+}
+
+fn record_value(class: &str, names: Arc<Vec<String>>, fields: Vec<Value>) -> Value {
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        class.to_string(),
+        names,
+        Arc::new(fields),
+    )))
+}
+
+fn kw(name: &str) -> Value {
+    Value::wat__core__keyword(Arc::new(format!(":{name}")))
+}
+
+fn type_form_value(ty: &TypeExpr, span: &Span, op: &str) -> Result<Value, EvalBreak> {
+    let node = crate::edn::render::type_expr_to_clojure_form(
+        ty,
+        crate::edn::render::TypeFormHeadMode::Clojure,
+    )
+    .map_err(|reason| {
+        RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason,
+            },
+        )
+    })?;
+    Ok(Value::wat__WatAST(Arc::new(node)))
+}
+
+fn type_field_value(name: &str, ty: &TypeExpr, span: &Span, op: &str) -> Result<Value, EvalBreak> {
+    Ok(record_value(
+        "wat::runtime::TypeField",
+        type_field_names(),
+        vec![kw(name), type_form_value(ty, span, op)?],
+    ))
+}
+
+fn type_fields_vec(
+    fields: &[(String, TypeExpr)],
+    span: &Span,
+    op: &str,
+) -> Result<Value, EvalBreak> {
+    let mut out = Vec::with_capacity(fields.len());
+    for (name, ty) in fields {
+        out.push(type_field_value(name, ty, span, op)?);
+    }
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+fn nature_value(n: Nature) -> Value {
+    unit_variant(
+        TYPE_NATURE,
+        match n {
+            Nature::Struct => "Struct",
+            Nature::Record => "Record",
+            Nature::HolonRecord => "HolonRecord",
+            Nature::Peer => "Peer",
+        },
+    )
+}
+
+fn purity_value(p: Purity) -> Value {
+    unit_variant(
+        TYPE_PURITY,
+        match p {
+            Purity::Pure => "Pure",
+            Purity::Impure => "Impure",
+        },
+    )
+}
+
+fn type_params_vec(params: &[String]) -> Value {
+    Value::Vec(Arc::new(
+        params
+            .iter()
+            .map(|p| Value::String(Arc::new(p.clone())))
+            .collect(),
+    ))
+}
+
+fn type_body_value(def: &TypeDef, span: &Span, op: &str) -> Result<Value, EvalBreak> {
+    match def {
+        TypeDef::Aggregate(a) => Ok(tagged_variant(
+            TYPE_BODY,
+            "Aggregate",
+            vec![nature_value(a.nature), type_fields_vec(&a.fields, span, op)?],
+        )),
+        TypeDef::Enum(e) => {
+            let mut variants = Vec::with_capacity(e.variants.len());
+            for v in &e.variants {
+                let (name, fields) = match v {
+                    EnumVariant::Unit(name) => (name.as_str(), Vec::new()),
+                    EnumVariant::Tagged { name, fields } => (name.as_str(), fields.clone()),
+                };
+                variants.push(record_value(
+                    "wat::runtime::TypeVariant",
+                    type_variant_names(),
+                    vec![kw(name), type_fields_vec(&fields, span, op)?],
+                ));
+            }
+            Ok(tagged_variant(
+                TYPE_BODY,
+                "Enum",
+                vec![purity_value(e.purity), Value::Vec(Arc::new(variants))],
+            ))
+        }
+        TypeDef::Newtype(n) => Ok(tagged_variant(
+            TYPE_BODY,
+            "Newtype",
+            vec![type_form_value(&n.inner, span, op)?],
+        )),
+        TypeDef::Alias(a) => Ok(tagged_variant(
+            TYPE_BODY,
+            "Alias",
+            vec![type_form_value(&a.expr, span, op)?],
+        )),
+        TypeDef::Union(u) => {
+            let mut members = Vec::with_capacity(u.members.len());
+            for m in &u.members {
+                members.push(type_form_value(m, span, op)?);
+            }
+            Ok(tagged_variant(
+                TYPE_BODY,
+                "Union",
+                vec![Value::Vec(Arc::new(members))],
+            ))
+        }
+        TypeDef::Surface(s) => {
+            let nature = match s.nature {
+                Some(n) => Value::Option(Arc::new(Some(nature_value(n)))),
+                None => Value::Option(Arc::new(None)),
+            };
+            let mut members = Vec::with_capacity(s.members.len());
+            for m in &s.members {
+                members.push(match m {
+                    SurfaceMember::Field { name, ty } => tagged_variant(
+                        TYPE_SURFACE_MEMBER,
+                        "Field",
+                        vec![kw(name), type_form_value(ty, span, op)?],
+                    ),
+                    SurfaceMember::Method { name, args, ret, .. } => {
+                        let params: Vec<Value> = args
+                            .fixed_params
+                            .iter()
+                            .map(|(ident, _)| kw(ident.as_str()))
+                            .collect();
+                        tagged_variant(
+                            TYPE_SURFACE_MEMBER,
+                            "Method",
+                            vec![
+                                kw(name),
+                                Value::Vec(Arc::new(params)),
+                                type_form_value(ret, span, op)?,
+                            ],
+                        )
+                    }
+                });
+            }
+            Ok(tagged_variant(
+                TYPE_BODY,
+                "Surface",
+                vec![nature, Value::Vec(Arc::new(members))],
+            ))
+        }
+    }
+}
+
+fn type_kind_value(def: &TypeDef) -> Value {
+    unit_variant(
+        TYPE_KIND,
+        match def {
+            TypeDef::Aggregate(_) => "Aggregate",
+            TypeDef::Enum(_) => "Enum",
+            TypeDef::Newtype(_) => "Newtype",
+            TypeDef::Alias(_) => "Alias",
+            TypeDef::Union(_) => "Union",
+            TypeDef::Surface(_) => "Surface",
+        },
+    )
+}
+
+fn type_params_of(def: &TypeDef) -> &[String] {
+    match def {
+        TypeDef::Aggregate(a) => &a.type_params,
+        TypeDef::Enum(e) => &e.type_params,
+        TypeDef::Newtype(n) => &n.type_params,
+        TypeDef::Alias(a) => &a.type_params,
+        TypeDef::Union(u) => &u.type_params,
+        TypeDef::Surface(s) => &s.type_params,
+    }
+}
+
+/// `(:wat::runtime::type-of type-kw) -> :wat::runtime::TypeInfo`
+///
+/// Arc 296 L — one row for every `TypeDef` kind. The match-arm codemod needed
+/// a variant's declared field names in order; this is the authority it lacked.
+/// `field-names-of` / `field-types-of` stay; this stone adds, it does not retire.
+///
+/// Arg handling mirrors `field-names-of`: a literal keyword is read without
+/// `eval_inner` (a type keyword that also names a constructor would otherwise
+/// lift to a fn value).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Reflection
+/// @arg     type_kw_ast :wat::core::keyword the type name to interrogate (a literal keyword; a non-literal keyword-valued expression also resolves via `resolve_type_keyword_arg`)
+/// @ret     :wat::runtime::TypeInfo the declared row: kind, name, type-params, and a kind-appropriate body (an Enum body carries each variant's declared field names and types in declaration order)
+/// @example (:wat::runtime::TypeInfo/name (:wat::runtime::type-of :wat::core::Option)) #=> :wat.core/Option
+/// @example-norun (:wat::runtime::type-of :wat::core::Option)
+/// @see     :wat::runtime::field-names-of
+/// @see     :wat::runtime::field-types-of
+#[wat_intrinsic(":wat::runtime::type-of")]
+pub(crate) fn eval_type_of(
+    type_kw_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::type-of";
+    let type_kw = resolve_type_keyword_arg(OP, type_kw_ast, env, sym)?;
+    let span = type_kw_ast.span();
+    let def = match sym.types().and_then(|t| t.get(&type_kw)) {
+        Some(d) => d,
+        None => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("unknown type '{type_kw}'"),
+                },
+            )
+            .into());
+        }
+    };
+    Ok(record_value(
+        "wat::runtime::TypeInfo",
+        type_info_names(),
+        vec![
+            Value::wat__core__keyword(Arc::new(type_kw)),
+            type_kind_value(def),
+            type_params_vec(type_params_of(def)),
+            type_body_value(def, span, OP)?,
+        ],
+    ))
 }

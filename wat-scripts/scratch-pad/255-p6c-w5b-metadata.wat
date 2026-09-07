@@ -12,20 +12,20 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::arm-session)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::arm-session :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::arm-session :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::arm-session :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::arm-session :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::release-session)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::release-session :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::release-session :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::release-session :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::release-session :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::export)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::export :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::export :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::export :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::export :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::import)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::import :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::import :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::import :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::import :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::eval-insert)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::eval-insert :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::eval-insert :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::eval-insert :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::eval-insert :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::eval-test)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::eval-test :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::eval-test :arity= NONE")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::eval-test :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::eval-test :arity= NONE")])))

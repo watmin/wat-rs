@@ -21,17 +21,17 @@
       (:wat::edn::read-json
         "{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"eval\",\"arguments\":{\"edn\":\"(:wat::core::+ 2 2)\"}}}")
 
-    ((:wat::edn::ReadJsonOutcome::Value top)
+    [:wat::edn::ReadJsonOutcome::Value {:value top}
       (:wat::core::match (:wat::hashmap::get top "params")
-        ((:wat::core::Some params)
+        [:wat::core::Some {:value params}
           (:wat::core::match (:wat::hashmap::get params "arguments")
-            ((:wat::core::Some args)
+            [:wat::core::Some {:value args}
               (:wat::core::match (:wat::hashmap::get args "edn")
-                ((:wat::core::Some s)
-                  (:wat::kernel::println (:wat::string::concat "WALKS -> " s)))
-                (:wat::core::None (:wat::kernel::println "MISS at edn"))))
-            (:wat::core::None (:wat::kernel::println "MISS at arguments"))))
-        (:wat::core::None (:wat::kernel::println "MISS at params"))))
+                [:wat::core::Some {:value s}
+                  (:wat::kernel::println (:wat::string::concat "WALKS -> " s))]
+                [:wat::core::None {} (:wat::kernel::println "MISS at edn")])]
+            [:wat::core::None {} (:wat::kernel::println "MISS at arguments")])]
+        [:wat::core::None {} (:wat::kernel::println "MISS at params")])]
 
-    ((:wat::edn::ReadJsonOutcome::Malformed cause)
-      (:wat::kernel::println cause))))
+    [:wat::edn::ReadJsonOutcome::Malformed {:cause cause}
+      (:wat::kernel::println cause)]))

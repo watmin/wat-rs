@@ -12,64 +12,64 @@
   (:wat::core::do
     (:wat::kernel::println "── require_hologram: (:wat::holon::Hologram/len 5) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Hologram/len 5)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_fn: (:wat::holon::Hologram/make 5) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Hologram/make 5)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_vector: (:wat::holon::vector-bytes 5) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::vector-bytes 5)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_subspace: (:wat::holon::OnlineSubspace/dim 5) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::OnlineSubspace/dim 5)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_reckoner: (:wat::holon::Reckoner/observe 5 1 0 1.0) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Reckoner/observe 5 1 0 1.0)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_engram: (:wat::holon::Engram/name 5) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Engram/name 5)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_engram_library: (:wat::holon::EngramLibrary/add 5 \"name\" 1) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::EngramLibrary/add 5 "name" 1)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_string: (:wat::holon::EngramLibrary/add (:wat::holon::EngramLibrary/new 10000) 5 1) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote
                           (:wat::holon::EngramLibrary/add (:wat::holon::EngramLibrary/new 10000) 5 1)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))
+                                  " message=" (:wat::core::EvalError/message e)))])
 
     (:wat::kernel::println "── require_numeric: (:wat::holon::Thermometer \"x\" 0.0 10.0) ──")
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::holon::Thermometer "x" 0.0 10.0)))
-      ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-      ((:wat::core::Err e)
+      [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+      [:wat::core::Err {:error e}
         (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                  " message=" (:wat::core::EvalError/message e)))))))
+                                  " message=" (:wat::core::EvalError/message e)))])))

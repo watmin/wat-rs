@@ -46,9 +46,9 @@
      blended-w (:wat::holon::vector-blend w w 1.0 -1.0)]
 
     (:wat::core::match blended
-      ((:wat::holon::CombineOutcome::Combined z)
+      [:wat::holon::CombineOutcome::Combined {:vector z}
         (:wat::core::match blended-w
-          ((:wat::holon::CombineOutcome::Combined zw)
+          [:wat::holon::CombineOutcome::Combined {:vector zw}
             (:wat::core::let
               [;; z against a real vector, and z against itself — the two shapes
                ;; a degenerate operand can take at a comparison site.
@@ -66,16 +66,16 @@
                     :zero-vs-real     z-vs-v
                     :zero-vs-zero     z-vs-z))
                 (:wat::kernel::println
-                  (:wat::core::PersistentMap :two-cancellations-identical both-zero)))))
-          ((:wat::holon::CombineOutcome::DimensionMismatch e g)
+                  (:wat::core::PersistentMap :two-cancellations-identical both-zero))))]
+          [:wat::holon::CombineOutcome::DimensionMismatch {:expected e :got g}
             (:wat::kernel::println
               (:wat::core::PersistentMap :unexpected-w-mismatch
-                (:wat::core::PersistentMap :expected e :got g))))))
+                (:wat::core::PersistentMap :expected e :got g)))])]
 
-      ((:wat::holon::CombineOutcome::DimensionMismatch e g)
+      [:wat::holon::CombineOutcome::DimensionMismatch {:expected e :got g}
         (:wat::kernel::println
           (:wat::core::PersistentMap :unexpected-dimension-mismatch
-            (:wat::core::PersistentMap :expected e :got g)))))))
+            (:wat::core::PersistentMap :expected e :got g)))])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:probe::run))

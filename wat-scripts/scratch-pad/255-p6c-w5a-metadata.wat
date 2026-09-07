@@ -12,29 +12,29 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::pure?)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::pure? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::pure? :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::pure? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::pure? :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::deterministic?)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::deterministic? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::deterministic? :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::deterministic? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::deterministic? :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::total?)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::total? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::total? :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::total? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::total? :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::primitive?)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::primitive? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::primitive? :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::primitive? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::primitive? :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::vocabulary-admitted?)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::vocabulary-admitted? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::vocabulary-admitted? :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::vocabulary-admitted? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::vocabulary-admitted? :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::cond-has-deferred-constraint?)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::cond-has-deferred-constraint? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::cond-has-deferred-constraint? :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::cond-has-deferred-constraint? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::cond-has-deferred-constraint? :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::alpha-match)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::alpha-match :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::alpha-match :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::alpha-match :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::alpha-match :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::alpha-match-local)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::alpha-match-local :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::alpha-match-local :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::alpha-match-local :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::alpha-match-local :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::alpha-match-under)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "rete::alpha-match-under :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "rete::alpha-match-under :arity= NONE")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::alpha-match-under :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "rete::alpha-match-under :arity= NONE")])))

@@ -116,21 +116,21 @@
   [a <- (:wat::kernel::Address :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])]
   -> (:wat::kernel::Peer :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])
   (:wat::core::match (:wat::kernel::connect a)
-    ((:wat::kernel::ConnectOutcome::Connected p) p)
-    ((:wat::kernel::ConnectOutcome::Refused cz)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Rejected cz)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Failed cz)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))))
+    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome::Refused {:cause cz}
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Failed {:cause cz}
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]))
 
 (:wat::core::defn :wat-tests::pcache/label
   [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [:wat::core::String :wat::core::i64])])]
   -> :wat::core::String
   (:wat::core::match r
-    ((:wat::kernel::RecvOutcome::Message __recv)
+    [:wat::kernel::RecvOutcome::Message {:msg __recv}
       (:wat::core::match __recv
-        ((:wat-tests::PCache::GetResponse::Ok echo results limit)
+        [:wat-tests::PCache::GetResponse::Ok {:echo echo :results results :limit limit}
           ;; READ THE VALUES APART — the K-typed vector rendered VERBATIM (its actual Strings,
           ;; not a length or a tag), the V-typed i64s summed, the concrete i64 field echoed. A
           ;; wire that carried tags but dropped payload, or that shifted K and V, cannot produce
@@ -144,20 +144,20 @@
                   (:wat::i64::+ (:wat::core::nth results 0)
                                       (:wat::core::nth results 1)))
                 (:wat::string::concat "|"
-                  (:wat::i64::to-string limit))))))
+                  (:wat::i64::to-string limit)))))]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        ((:wat-tests::PCache::GetResponse::RequestTooLarge bytes cap) "TooLarge")
-        ((:wat-tests::PCache::GetResponse::RequestMalformed mpath mexpected mgot)
+        [:wat-tests::PCache::GetResponse::RequestTooLarge {:bytes bytes :cap cap} "TooLarge"]
+        [:wat-tests::PCache::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
           (:wat::string::concat "Malformed"
             (:wat::string::concat (:wat::edn::write mpath)
               (:wat::string::concat "/" (:wat::string::concat mexpected
-                (:wat::string::concat "/" mgot))))))))
-    ((:wat::kernel::RecvOutcome::Lost __cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+                (:wat::string::concat "/" mgot)))))])]
+    [:wat::kernel::RecvOutcome::Lost {:cause __cause}
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Stopped {}
+      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Closed {}
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
 
 (:wat::core::defn :wat-tests::pcache/run [locus <- :wat::spawn::Locus] -> :wat::core::String
   (:wat::core::let

@@ -35,7 +35,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
      tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      idxs  (:wat::core::range 0 10)
      logs  (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
@@ -52,8 +52,8 @@
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
      qr    (:wat::telemetry::Journal/query-logs journal
              (:wat::telemetry::Journal::QueryLogsRequest :namespace "sift-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
-    (:wat::core::match qr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
-      ((:wat::telemetry::Journal::QueryLogsResponse::Success qlogs _cur)
+    (:wat::core::match qr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
+      [:wat::telemetry::Journal::QueryLogsResponse::Success {:logs qlogs :cursor _cur}
         (:wat::core::let
           [class-ok (:wat::core::foldl
                       (:wat::core::fn [ok <- :wat::core::bool log <- :wat::telemetry::Log] -> :wat::core::bool
@@ -62,10 +62,10 @@
                             (:wat::core::Vector :- [:wat::core::String] "usr::Temp" "usr::Hot" "usr::Warn")
                             (:wat::core::match
                               (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
-                              ((:wat::edn::ReadForeignOutcome::Value payload)
-                                (:wat::core::type payload))
-                              ((:wat::edn::ReadForeignOutcome::Malformed _)
-                                "")))
+                              [:wat::edn::ReadForeignOutcome::Value {:value payload}
+                                (:wat::core::type payload)]
+                              [:wat::edn::ReadForeignOutcome::Malformed {:cause _}
+                                ""]))
                           false))
                       true
                       qlogs)
@@ -96,5 +96,5 @@
                   (:wat::core::PersistentVector)
                   qlogs)
            _p2 (:wat::kernel::println (:wat::string::concat "deds=" (:wat::core::str (:wat::core::length deds))))]
-          nil))
-      (_ (:wat::kernel::println "query-logs failed")))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+          nil)]
+      [_ (:wat::kernel::println "query-logs failed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)])))

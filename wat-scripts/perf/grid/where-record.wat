@@ -152,15 +152,15 @@
 ;; row 10's predicate over the enum field — `match` over a user-defined enum, called from `where`.
 (:wat::rete::core::defn :wr::is-risky? [st <- :wr::Status] -> :wat::core::bool
   (:wat::rete::core::match st
-    ((:wr::Status::Active lvl)    (:wat::rete::i64::> lvl 3))
-    (:wr::Status::Inactive        false)
-    ((:wr::Status::Pending reason) (:wat::rete::i64::> reason 1))))
+    [:wr::Status::Active {:level lvl}    (:wat::rete::i64::> lvl 3)]
+    [:wr::Status::Inactive {}        false]
+    [:wr::Status::Pending {:reason reason} (:wat::rete::i64::> reason 1)]))
 
 ;; row 11's predicate over the Option field — `match` over Some/None, called from `where`.
 (:wat::rete::core::defn :wr::note-positive? [nt <- (:wat::core::Option :- [:wat::core::i64])] -> :wat::core::bool
   (:wat::rete::core::match nt
-    ((:wat::core::Some v) (:wat::rete::i64::> v 2))
-    (:wat::core::None     false)))
+    [:wat::core::Some {:value v} (:wat::rete::i64::> v 2)]
+    [:wat::core::None {}     false]))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wr::conds [] -> :wat::WatAST

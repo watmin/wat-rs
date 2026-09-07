@@ -20,51 +20,51 @@
     ;; routed into a hand-spawned thread — see the SVC LOST row this probe first
     ;; produced), so each event reports itself by sending a distinct sentinel DOWN to
     ;; the connected client, which the owner reads. 999 = Shutdown reached.
-    (:wat::spawn::ServiceEvent::Shutdown
+    [:wat::spawn::ServiceEvent::Shutdown {}
       (:wat::core::match (:wat::kernel::try-send (:wat::core::nth peers 0) 999)
-        (:wat::kernel::TrySendOutcome::Sent nil)
-        (:wat::kernel::TrySendOutcome::WouldBlock nil)
-        (:wat::kernel::TrySendOutcome::Closed nil)
-        ((:wat::kernel::TrySendOutcome::Lost _c) nil)))
-    ((:wat::spawn::ServiceEvent::Admin _m) (:se::serve self l peers))
-    ((:wat::spawn::ServiceEvent::Connection peer)
-      (:se::serve self l (:wat::core::conj peers peer)))
-    ((:wat::spawn::ServiceEvent::Message idx msg)
+        [:wat::kernel::TrySendOutcome::Sent {} nil]
+        [:wat::kernel::TrySendOutcome::WouldBlock {} nil]
+        [:wat::kernel::TrySendOutcome::Closed {} nil]
+        [:wat::kernel::TrySendOutcome::Lost {:cause _c} nil])]
+    [:wat::spawn::ServiceEvent::Admin {:msg _m} (:se::serve self l peers)]
+    [:wat::spawn::ServiceEvent::Connection {:peer peer}
+      (:se::serve self l (:wat::core::conj peers peer))]
+    [:wat::spawn::ServiceEvent::Message {:idx idx :msg msg}
       (:wat::core::do
         (:wat::core::match (:wat::kernel::send (:wat::core::nth peers idx) msg)
-          (:wat::kernel::SendOutcome::Sent nil)
-          (:wat::kernel::SendOutcome::Closed nil)
+          [:wat::kernel::SendOutcome::Sent {} nil]
+          [:wat::kernel::SendOutcome::Closed {} nil]
           ;; the world-stopping fact is caught above at the ServiceEvent::Shutdown arm
           ;; (poll' index 0), not here — this is one client's reply-send, so a stop mid
           ;; -send is discarded just like its Sent/Closed siblings; the unconditional
           ;; recurse below still runs either way (this probe measures REAP, not stop).
-          (:wat::kernel::SendOutcome::Stopped nil)
-          ((:wat::kernel::SendOutcome::Lost _c) nil))
-        (:se::serve self l peers)))
-    ((:wat::spawn::ServiceEvent::Closed idx)
-      (:se::serve self l (:wat::seq::remove-at peers idx)))
-    ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:se::serve self l (:wat::seq::remove-at peers idx)))
-    (_ nil)))
+          [:wat::kernel::SendOutcome::Stopped {} nil]
+          [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+        (:se::serve self l peers))]
+    [:wat::spawn::ServiceEvent::Closed {:idx idx}
+      (:se::serve self l (:wat::seq::remove-at peers idx))]
+    [:wat::spawn::ServiceEvent::Lost {:idx idx :cause _cause}
+      (:se::serve self l (:wat::seq::remove-at peers idx))]
+    [_ nil]))
 
 (:wat::core::defn :se::try [c <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::kernel::send c 7)
-      (:wat::kernel::SendOutcome::Sent nil)
-      (:wat::kernel::SendOutcome::Closed (:wat::kernel::println (:wat::string::concat label " send => CLOSED")))
-      (:wat::kernel::SendOutcome::Stopped (:wat::kernel::println (:wat::string::concat label " send => STOPPED")))
-      ((:wat::kernel::SendOutcome::Lost _c) nil))
+      [:wat::kernel::SendOutcome::Sent {} nil]
+      [:wat::kernel::SendOutcome::Closed {} (:wat::kernel::println (:wat::string::concat label " send => CLOSED"))]
+      [:wat::kernel::SendOutcome::Stopped {} (:wat::kernel::println (:wat::string::concat label " send => STOPPED"))]
+      [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
     (:wat::core::match (:wat::kernel::recv c)
-      ((:wat::kernel::RecvOutcome::Message m)
+      [:wat::kernel::RecvOutcome::Message {:msg m}
         (:wat::kernel::println (:wat::string::concat label
-          (:wat::string::concat " => Message " (:wat::core::i64/to-string m)))))
-      ((:wat::kernel::RecvOutcome::Lost _cause)
-        (:wat::kernel::println (:wat::string::concat label " => LOST")))
-      (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
-      (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::println (:wat::string::concat label " => CLOSED"))))
+          (:wat::string::concat " => Message " (:wat::core::i64/to-string m))))]
+      [:wat::kernel::RecvOutcome::Lost {:cause _cause}
+        (:wat::kernel::println (:wat::string::concat label " => LOST"))]
+      [:wat::kernel::RecvOutcome::Stopped {}
+        (:wat::kernel::println (:wat::string::concat label " => STOPPED"))]
+      [:wat::kernel::RecvOutcome::Closed {}
+        (:wat::kernel::println (:wat::string::concat label " => CLOSED"))])
     nil))
 
 (:wat::core::defn :se::row-tail [] -> :wat::core::nil
@@ -77,10 +77,10 @@
               -> :wat::core::nil
               (:se::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])]))))
      c    (:wat::core::match (:wat::kernel::connect a)
-            ((:wat::kernel::ConnectOutcome::Connected p) p)
-            ((:wat::kernel::ConnectOutcome::Refused _f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
-            ((:wat::kernel::ConnectOutcome::Rejected _f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
-            ((:wat::kernel::ConnectOutcome::Failed _f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))
+            [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+            [:wat::kernel::ConnectOutcome::Refused {:cause _f}  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None)]
+            [:wat::kernel::ConnectOutcome::Rejected {:cause _f} (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None)]
+            [:wat::kernel::ConnectOutcome::Failed {:cause _f}   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)])
      _    (:se::try c "row non-tail")]
     ;; TAIL: the caller's env (holding `svc`, the lineage Thread' peer) is dropped by the
     ;; trampoline BEFORE this runs. `Thread::drop` → drain_and_join → the serve loop's

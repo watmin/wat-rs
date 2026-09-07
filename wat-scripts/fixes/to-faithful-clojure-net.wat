@@ -263,7 +263,7 @@
   [src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines   (:wat::string::split src "\n")
-                    tree    (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+                    tree    (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
                     forms   (:wat::core::ast->children tree)
                     ;; top-level forms have no enclosing list → :fix::Parent::Root (no sentinel).
                     nodes   (:fix::walk-seq forms :fix::Parent::Root 0 lines)
@@ -295,4 +295,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))))
+  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])))

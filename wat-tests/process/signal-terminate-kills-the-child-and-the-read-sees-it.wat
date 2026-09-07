@@ -42,15 +42,15 @@
                      ;; surfaces as ReadlnOutcome::Stopped and lets main return
                      ;; normally so the process exits and the pipe closes.
                      (:wat::core::match (:wat::kernel::readln)
-                       ((:wat::kernel::ReadlnOutcome::Datum d) nil)
-                       (:wat::kernel::ReadlnOutcome::Eof nil)
-                       (:wat::kernel::ReadlnOutcome::Stopped nil))))))]
+                       [:wat::kernel::ReadlnOutcome::Datum {:v d} nil]
+                       [:wat::kernel::ReadlnOutcome::Eof {} nil]
+                       [:wat::kernel::ReadlnOutcome::Stopped {} nil])))))]
       ;; 1 — the child speaks: it is alive and past its own startup.
       (:wat::core::match (:wat::kernel::recv child)
-        ((:wat::kernel::RecvOutcome::Message m)
+        [:wat::kernel::RecvOutcome::Message {:msg m}
           ;; 2 — kill it, from the parent, like a signal is normally sent.
           (:wat::core::match (:wat::kernel::signal child :wat::kernel::Signal::Terminate)
-            (:wat::kernel::SignalOutcome::Delivered
+            [:wat::kernel::SignalOutcome::Delivered {}
               ;; 3 — the child ANNOUNCES its stop. Arc 170 "stopping is a
               ;; protocol": on SIGTERM the child asks each held stdio service
               ;; to stop and emits one `#wat.kernel/StopAccepted {:services …}`
@@ -58,54 +58,54 @@
               ;; that the signal arrived AND the protocol ran — strictly more
               ;; than "the pipe went quiet".
               (:wat::core::match (:wat::kernel::recv child)
-                ((:wat::kernel::RecvOutcome::Message announced)
+                [:wat::kernel::RecvOutcome::Message {:msg announced}
                   ;; 4 — read once more. Now it is gone.
                   (:wat::core::match (:wat::kernel::recv child)
-                    ((:wat::kernel::RecvOutcome::Message extra)
+                    [:wat::kernel::RecvOutcome::Message {:msg extra}
                       (:wat::kernel::assertion-failed!
                         "the child kept talking after it announced its stop"
-                        :wat::core::None :wat::core::None))
-                    ((:wat::kernel::RecvOutcome::Lost cause)
+                        :wat::core::None :wat::core::None)]
+                    [:wat::kernel::RecvOutcome::Lost {:cause cause}
                       (:wat::kernel::assertion-failed!
                         (:wat::kernel::LociDiedError/message cause)
-                        :wat::core::None :wat::core::None))
+                        :wat::core::None :wat::core::None)]
                     ;; arc 278 #73 — the case this file's header once had no variant
                     ;; for: a STOP observed on a peer that is still ALIVE. That is
                     ;; NOT this test's subject (a SIGTERM-driven clean process exit,
                     ;; asserted as Closed below) — never conflate the two, so this
                     ;; arm reports the stop distinctly rather than folding into
                     ;; Closed's `true`.
-                    (:wat::kernel::RecvOutcome::Stopped
+                    [:wat::kernel::RecvOutcome::Stopped {}
                       (:wat::kernel::assertion-failed!
                         "recv: stopped — the substrate was asked to stop; the child was ALIVE (not the SIGTERM-close this test proves)"
-                        :wat::core::None :wat::core::None))
-                    (:wat::kernel::RecvOutcome::Closed true)))
-                ((:wat::kernel::RecvOutcome::Lost cause)
+                        :wat::core::None :wat::core::None)]
+                    [:wat::kernel::RecvOutcome::Closed {} true])]
+                [:wat::kernel::RecvOutcome::Lost {:cause cause}
                   (:wat::kernel::assertion-failed!
                     (:wat::kernel::LociDiedError/message cause)
-                    :wat::core::None :wat::core::None))
-                (:wat::kernel::RecvOutcome::Stopped
+                    :wat::core::None :wat::core::None)]
+                [:wat::kernel::RecvOutcome::Stopped {}
                   (:wat::kernel::assertion-failed!
                     "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open"
-                    :wat::core::None :wat::core::None))
-                (:wat::kernel::RecvOutcome::Closed
+                    :wat::core::None :wat::core::None)]
+                [:wat::kernel::RecvOutcome::Closed {}
                   (:wat::kernel::assertion-failed!
                     "the child died without announcing a stop — the signal did not run the protocol"
-                    :wat::core::None :wat::core::None))))
-            ((:wat::kernel::SignalOutcome::Failed cause)
+                    :wat::core::None :wat::core::None)])]
+            [:wat::kernel::SignalOutcome::Failed {:cause cause}
               (:wat::kernel::assertion-failed!
                 (:wat::kernel::Failure/message cause)
-                :wat::core::None :wat::core::None))))
-        ((:wat::kernel::RecvOutcome::Lost cause)
+                :wat::core::None :wat::core::None)])]
+        [:wat::kernel::RecvOutcome::Lost {:cause cause}
           (:wat::kernel::assertion-failed!
             (:wat::kernel::LociDiedError/message cause)
-            :wat::core::None :wat::core::None))
-        (:wat::kernel::RecvOutcome::Stopped
+            :wat::core::None :wat::core::None)]
+        [:wat::kernel::RecvOutcome::Stopped {}
           (:wat::kernel::assertion-failed!
             "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open"
-            :wat::core::None :wat::core::None))
-        (:wat::kernel::RecvOutcome::Closed
+            :wat::core::None :wat::core::None)]
+        [:wat::kernel::RecvOutcome::Closed {}
           (:wat::kernel::assertion-failed!
             "the child closed before we ever signalled it"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)]))
     true))

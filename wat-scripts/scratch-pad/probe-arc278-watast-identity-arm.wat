@@ -33,13 +33,13 @@
 
 (:wat::core::defn :vprobe2::render [v <- :wat::edn::Validation] -> :wat::core::String
   (:wat::core::match v
-    (:wat::edn::Validation::Valid "VALID")
-    ((:wat::edn::Validation::Invalid path expected got)
+    [:wat::edn::Validation::Valid {} "VALID"]
+    [:wat::edn::Validation::Invalid {:path path :expected expected :got got}
       (:wat::string::concat "INVALID at "
         (:wat::string::concat (:wat::edn::write path)
           (:wat::string::concat " expected="
             (:wat::string::concat expected
-              (:wat::string::concat " got=" got))))))))
+              (:wat::string::concat " got=" got)))))]))
 
 ;; ── GATE ROW 3 — a bare (not Vector-wrapped) :wat::WatAST field ────────────────
 (:wat::core::defn :vprobe2::gate-row-3 [] -> :wat::core::nil

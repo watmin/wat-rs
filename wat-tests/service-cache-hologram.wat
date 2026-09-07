@@ -47,13 +47,13 @@
   [a <- (:wat::kernel::Address :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])]
   -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])
   (:wat::core::match (:wat::kernel::connect a)
-    ((:wat::kernel::ConnectOutcome::Connected p) p)
-    ((:wat::kernel::ConnectOutcome::Refused cz)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Rejected cz)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Failed cz)
-      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))))
+    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome::Refused {:cause cz}
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Failed {:cause cz}
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None)]))
 
 ;; ── assertion helpers — unwrap RecvOutcome, then assert the STRUCTURE, dying loud on a breach ──
 
@@ -63,19 +63,19 @@
   [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [:wat::holon::HolonAST])])]
   -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
   (:wat::core::match r
-    ((:wat::kernel::RecvOutcome::Message resp)
+    [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
-        ((:wat::cache::Cache::GetResponse::Ok results) results)
-        ((:wat::cache::Cache::GetResponse::RequestTooLarge bytes cap)
-          (:wat::kernel::assertion-failed! "hologram-svc get: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
-        ((:wat::cache::Cache::GetResponse::RequestMalformed mpath mexpected mgot)
-          (:wat::kernel::assertion-failed! "hologram-svc get: unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+        [:wat::cache::Cache::GetResponse::Ok {:results results} results]
+        [:wat::cache::Cache::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
+          (:wat::kernel::assertion-failed! "hologram-svc get: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+        [:wat::cache::Cache::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! "hologram-svc get: unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Stopped {}
+      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Closed {}
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
 
 ;; `put` answers nothing meaningful (file-header departure note in `wat/cache.wat`) — the only
 ;; honest assertion is that the batch was accepted at all.
@@ -83,19 +83,19 @@
   [r <- (:wat::kernel::RecvOutcome :- [:wat::cache::Cache::PutResponse])]
   -> :wat::core::nil
   (:wat::core::match r
-    ((:wat::kernel::RecvOutcome::Message resp)
+    [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
-        ((:wat::cache::Cache::PutResponse::Ok) nil)
-        ((:wat::cache::Cache::PutResponse::RequestTooLarge bytes cap)
-          (:wat::kernel::assertion-failed! "hologram-svc put: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
-        ((:wat::cache::Cache::PutResponse::RequestMalformed mpath mexpected mgot)
-          (:wat::kernel::assertion-failed! "hologram-svc put: unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+        [:wat::cache::Cache::PutResponse::Ok {} nil]
+        [:wat::cache::Cache::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+          (:wat::kernel::assertion-failed! "hologram-svc put: unexpected RequestTooLarge" :wat::core::None :wat::core::None)]
+        [:wat::cache::Cache::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! "hologram-svc put: unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Stopped {}
+      (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+    [:wat::kernel::RecvOutcome::Closed {}
+      (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SEVEN behaviours in one round trip ────────────────
 (:wat::core::defn :wat-tests::hologram-svc/run [locus <- :wat::spawn::Locus] -> :wat::core::nil

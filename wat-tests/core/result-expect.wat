@@ -52,27 +52,27 @@
                    "expected Ok value")]
                nil)
              (:wat::core::match (:wat::kernel::send self 0)
-               (:wat::kernel::SendOutcome::Sent   nil)
-               (:wat::kernel::SendOutcome::Closed nil)
+               [:wat::kernel::SendOutcome::Sent {}   nil]
+               [:wat::kernel::SendOutcome::Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the Err expect above already panicked
                ;; before this line could even run.
-               (:wat::kernel::SendOutcome::Stopped nil)
-               ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
+               [:wat::kernel::SendOutcome::Stopped {} nil]
+               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m)
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
         (:wat::kernel::assertion-failed!
           "expected panic on Err expect, got clean completion"
-          :wat::core::None :wat::core::None))
-      ((:wat::kernel::RecvOutcome::Lost cause)
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::test::assert-eq
           (:wat::kernel::LociDiedError/message cause)
-          "expected Ok value"))
-      (:wat::kernel::RecvOutcome::Stopped
+          "expected Ok value")]
+      [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::assertion-failed!
           "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::assertion-failed!
           "expected panic on Err expect, got clean close"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)])))

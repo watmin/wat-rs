@@ -310,7 +310,7 @@
   -> :wat::grep::Facts
   (:wat::core::let
     [result (:wat::core::match (:wat::core::read-string src)
-              ((:wat::core::ReadOutcome::Forms forms)
+              [:wat::core::ReadOutcome::Forms {:forms forms}
                 (:wat::grep::FactsOfResult
                   :acc (:wat::grep::ChildAcc/acc
                          (:wat::core::foldl
@@ -320,8 +320,8 @@
                                :idx (:wat::i64::+ (:wat::grep::ChildAcc/idx ca) 1)))
                            (:wat::grep::ChildAcc :acc (:wat::grep::empty-acc) :idx 0)
                            (:wat::core::ast->children forms)))
-                  :unreadable (:wat::core::PersistentVector :- [:wat::grep::Unreadable])))
-              ((:wat::core::ReadOutcome::Malformed __cause)
+                  :unreadable (:wat::core::PersistentVector :- [:wat::grep::Unreadable]))]
+              [:wat::core::ReadOutcome::Malformed {:cause __cause}
                 (:wat::grep::FactsOfResult
                   :acc (:wat::grep::empty-acc)
                   :unreadable
@@ -330,7 +330,7 @@
                         :file   path
                         :reason (:wat::core::Error/message __cause)
                         :line   (:wat::kernel::Location/line (:wat::core::Error/location __cause))
-                        :col    (:wat::kernel::Location/col  (:wat::core::Error/location __cause)))))))
+                        :col    (:wat::kernel::Location/col  (:wat::core::Error/location __cause)))))])
      acc (:wat::grep::FactsOfResult/acc result)]
     (:wat::grep::Facts
       :source     (:wat::grep::Source :file path)
@@ -476,13 +476,13 @@
   -> :wat::core::nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
-             ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-             (:wat::kernel::ReadlnOutcome::Eof
+             [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+             [:wat::kernel::ReadlnOutcome::Eof {}
                (:wat::kernel::assertion-failed! "wat::grep::run: readln: end of input"
-                 :wat::core::None :wat::core::None))
-             (:wat::kernel::ReadlnOutcome::Stopped
+                 :wat::core::None :wat::core::None)]
+             [:wat::kernel::ReadlnOutcome::Stopped {}
                (:wat::kernel::assertion-failed! "wat::grep::run: readln: stop requested"
-                 :wat::core::None :wat::core::None)))
+                 :wat::core::None :wat::core::None)])
      bad
        (:wat::rete::with-overlay rules
          (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::grep::q-match))

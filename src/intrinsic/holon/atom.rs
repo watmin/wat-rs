@@ -1465,7 +1465,7 @@ pub(crate) fn require_bundle<'a>(
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [:wat::holon::HolonAST]) `h`'s children, in order
-/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))))
+/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Ok {:value h} (:wat::holon::Bundle/children h)] (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Ok {:value h} (:wat::holon::Bundle/children h)] (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))))
 /// @see     :wat::holon::Bundle/first
 #[wat_intrinsic(":wat::holon::Bundle/children")]
 pub(crate) fn eval_bundle_children(
@@ -1516,7 +1516,7 @@ pub(crate) fn eval_bundle_children(
 /// @Category      Projection
 /// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     :wat::holon::HolonAST `h`'s first child
-/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))))
+/// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Ok {:value h} (:wat::holon::Bundle/first h)] (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Ok {:value h} (:wat::holon::Bundle/first h)] (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))))
 /// @see     :wat::holon::Bundle/children
 #[wat_intrinsic(":wat::holon::Bundle/first")]
 pub(crate) fn eval_bundle_first(

@@ -69,12 +69,12 @@
   ;; prompt — so the REPL refines it, which is the entire reason `read-string` became total:
   ;; a caller that wants to survive bad input can now write that down.
   (:wat::core::match (:wat::core::read-string text)
-    ((:wat::core::ReadOutcome::Malformed cause)
+    [:wat::core::ReadOutcome::Malformed {:cause cause}
       (:wat::core::do
         (:wat::kernel::println cause)
-        (:repl::turn defs)))
-    ((:wat::core::ReadOutcome::Forms forms)
-      (:repl::eval-form defs (:wat::core::first forms)))))
+        (:repl::turn defs))]
+    [:wat::core::ReadOutcome::Forms {:forms forms}
+      (:repl::eval-form defs (:wat::core::first forms))]))
 
 (:wat::core::defn :repl::eval-form
   [defs <- (:wat::core::Vector :- [:wat::WatAST])
@@ -87,28 +87,28 @@
       ;; A DECLARATION joined the world. Nothing to show — but the definition set grows,
       ;; and THIS is the only arm that grows it.
       ;; (a UNIT variant matches BARE — the inner parens are for tagged variants only)
-      (:wat::eval::FormOutcome::Declared
-        (:repl::turn (:wat::core::conj defs form)))
+      [:wat::eval::FormOutcome::Declared {}
+        (:repl::turn (:wat::core::conj defs form))]
 
       ;; An EXPRESSION produced a value. The world is unchanged.
-      ((:wat::eval::FormOutcome::Evaluated v)
+      [:wat::eval::FormOutcome::Evaluated {:value v}
         (:wat::core::do
           (:wat::kernel::println v)
-          (:repl::turn defs)))
+          (:repl::turn defs))]
 
       ;; It did not type-check in this world. Nothing ran; the session is untouched.
       ;; `cause` is a navigable error TREE, not prose — `:causes` down to a real `:span`.
-      ((:wat::eval::FormOutcome::CheckFailed cause)
+      [:wat::eval::FormOutcome::CheckFailed {:cause cause}
         (:wat::core::do
           (:wat::kernel::println cause)
-          (:repl::turn defs)))
+          (:repl::turn defs))]
 
       ;; It type-checked, ran, and unwound. Also non-fatal: one bad line does not end a
       ;; session, which is the whole reason a REPL's failures must be VALUES.
-      ((:wat::eval::FormOutcome::Raised cause)
+      [:wat::eval::FormOutcome::Raised {:cause cause}
         (:wat::core::do
           (:wat::kernel::println cause)
-          (:repl::turn defs))))))
+          (:repl::turn defs))])))
 
 ;; The READ half. `read-frame` hands back the frame's RAW TEXT — a user types wat source,
 ;; not an EDN literal — and hands back EOF as a VALUE, so Ctrl-D returns cleanly instead of
@@ -125,14 +125,14 @@
   [defs <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::read-frame )
-    ((:wat::kernel::ReadFrameOutcome::Frame text)
-      (:repl::eval-and-loop defs text))
+    [:wat::kernel::ReadFrameOutcome::Frame {:text text}
+      (:repl::eval-and-loop defs text)]
     ;; the honest stop — and this time the comment is true
-    (:wat::kernel::ReadFrameOutcome::Eof nil)
+    [:wat::kernel::ReadFrameOutcome::Eof {} nil]
     ;; Arc 170 — a process-wide stop (SIGTERM/SIGINT) arrived while parked
     ;; here waiting on the next line. Same clean-exit shape as ::Eof: this
     ;; loop's only job is to stop reading, and both outcomes agree on that.
-    (:wat::kernel::ReadFrameOutcome::Stopped nil)))
+    [:wat::kernel::ReadFrameOutcome::Stopped {} nil]))
 
 ;; NO `:user::main` HERE — deliberately. This is a stdlib MODULE, not a program: it exposes
 ;; `:repl::turn` and nothing else runs on load. The entry point lives in the CLI's `--repl`

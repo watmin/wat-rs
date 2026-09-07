@@ -103,11 +103,11 @@
       "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from"
       :wat::core::None :wat::core::None)
     (:wat::core::match (:user::namespaced-defn-name (:wat::core::first forms))
-      ((:wat::core::Some nm)
+      [:wat::core::Some {:value nm}
         (:wat::core::let [seg0 (:wat::core::Option/expect (:wat::core::get (:wat::string::split nm "::") 0)
                                   "find-ns: split always yields >= 1 element")]
-          (:wat::string::strip-leading-colon seg0)))
-      (:wat::core::None (:user::find-ns (:wat::core::rest forms))))))
+          (:wat::string::strip-leading-colon seg0))]
+      [:wat::core::None {} (:user::find-ns (:wat::core::rest forms))])))
 
 ;; ── collecting the (old, new) rule-name rename pairs ────────────────────────────────────────────
 
@@ -176,8 +176,8 @@
     :wat::core::None
     (:wat::core::let [h (:wat::core::first items) tl (:wat::core::rest items)]
       (:wat::core::match (:user::find-call h head)
-        ((:wat::core::Some found) (:wat::core::Some found))
-        (:wat::core::None (:user::find-call-seq tl head))))))
+        [:wat::core::Some {:value found} (:wat::core::Some found)]
+        [:wat::core::None {} (:user::find-call-seq tl head)]))))
 
 ;; ── the inserted helper's source text (only the namespace varies) ──────────────────────────────
 
@@ -209,7 +209,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [tree0  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+    [tree0  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
      forms0 (:wat::core::ast->children tree0)]
     (:wat::core::if (:wat::core::not (:user::any-bare-defrule? forms0))
       src ;; idempotent no-op — every defrule name is already namespaced
@@ -218,7 +218,7 @@
          renames  (:user::rule-renames forms0 ns)
          text1    (:user::apply-renames src renames)
          lines1   (:wat::string::split text1 "\n")
-         tree1    (:wat::core::match (:wat::core::read-string text1) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+         tree1    (:wat::core::match (:wat::core::read-string text1) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
          forms1   (:wat::core::ast->children tree1)
          run-row  (:user::find-run-row forms1)
          target   (:wat::core::Option/expect (:user::find-call run-row ":wat::rete::Rule/name")
@@ -244,5 +244,5 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))]
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
     (:user::rewrite-each paths)))

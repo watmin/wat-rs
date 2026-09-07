@@ -29,4 +29,4 @@
       ;; THE SUBJECT — the destructure sugar on the SAME map, same key.
       (:wat::kernel::println
         (:wat::core::match m
-          ({s :edn} s))))))
+          [{s :edn} s])))))

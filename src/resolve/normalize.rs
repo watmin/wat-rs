@@ -220,17 +220,42 @@ fn normalize_match(
     }
     for arm in iter {
         match arm {
+            WatAST::Vector(arm_items, arm_span) => {
+                let mut new_arm = Vec::with_capacity(arm_items.len());
+                match arm_items.len() {
+                    2 => {
+                        // `[_ body]` / `[binder body]` / hash-destructure: last is code.
+                        let mut ai = arm_items.into_iter();
+                        new_arm.extend(ai.next()); // pattern: data
+                        if let Some(body) = ai.next() {
+                            new_arm.push(normalize_form(body, sym, macros, errors));
+                        }
+                    }
+                    3 => {
+                        // `[Variant map body]`: first two data, last code.
+                        let mut ai = arm_items.into_iter();
+                        new_arm.extend(ai.next());
+                        new_arm.extend(ai.next());
+                        if let Some(body) = ai.next() {
+                            new_arm.push(normalize_form(body, sym, macros, errors));
+                        }
+                    }
+                    _ => new_arm.extend(arm_items),
+                }
+                out.push(WatAST::Vector(new_arm, arm_span));
+            }
             WatAST::List(arm_items, arm_span) => {
+                // Retired `(pattern body)` — still skip the pattern so a dual-read
+                // never rewrites a variant head as a call; the checker/runtime refuse it.
                 let mut new_arm = Vec::with_capacity(arm_items.len());
                 let mut ai = arm_items.into_iter();
-                new_arm.extend(ai.next()); // pattern (arm_items[0]): data, as-is
+                new_arm.extend(ai.next());
                 if let Some(body) = ai.next() {
-                    new_arm.push(normalize_form(body, sym, macros, errors)); // body: code
+                    new_arm.push(normalize_form(body, sym, macros, errors));
                 }
-                new_arm.extend(ai); // any trailing arm items: data, as-is
+                new_arm.extend(ai);
                 out.push(WatAST::List(new_arm, arm_span));
             }
-            // Non-list arm (e.g. a bare-symbol wildcard): live code.
             other => out.push(normalize_form(other, sym, macros, errors)),
         }
     }

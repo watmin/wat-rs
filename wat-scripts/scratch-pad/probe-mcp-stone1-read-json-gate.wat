@@ -9,10 +9,10 @@
   (:wat::core::do
     ;; 1 — decodes: a well-formed JSON object → ::Value.
     (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")
-      ((:wat::edn::ReadJsonOutcome::Value v)
-        (:wat::kernel::println "1 decodes: OK -> ::Value"))
-      ((:wat::edn::ReadJsonOutcome::Malformed cause)
-        (:wat::test::assert-true false)))
+      [:wat::edn::ReadJsonOutcome::Value {:value v}
+        (:wat::kernel::println "1 decodes: OK -> ::Value")]
+      [:wat::edn::ReadJsonOutcome::Malformed {:cause cause}
+        (:wat::test::assert-true false)])
 
     ;; 2 — CRUX-1: is a nested field readable from wat? `ReadJsonOutcome` is PARAMETRIC
     ;; (`(ReadJsonOutcome :- [T])`, corrected from an initial pass that fixed the payload at the
@@ -21,21 +21,21 @@
     ;; the caller's use, `m` binds at a real `(HashMap :- [K V])` and the ordinary
     ;; `:wat::core::HashMap/get` accessor applies directly — no destructure sugar needed.
     (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")
-      ((:wat::edn::ReadJsonOutcome::Value m)
+      [:wat::edn::ReadJsonOutcome::Value {:value m}
         (:wat::core::match (:wat::hashmap::get m "edn")
-          ((:wat::core::Some s)
+          [:wat::core::Some {:value s}
             (:wat::core::do
               (:wat::test::assert-eq s "42")
-              (:wat::kernel::println (:wat::string::concat "2 CRUX-1 HashMap/get -> " s))))
-          (:wat::core::None (:wat::test::assert-true false))))
-      ((:wat::edn::ReadJsonOutcome::Malformed cause) (:wat::test::assert-true false)))
+              (:wat::kernel::println (:wat::string::concat "2 CRUX-1 HashMap/get -> " s)))]
+          [:wat::core::None {} (:wat::test::assert-true false)])]
+      [:wat::edn::ReadJsonOutcome::Malformed {:cause cause} (:wat::test::assert-true false)])
 
     ;; 3 — a malformed line leaves the caller ALIVE: ::Malformed, THEN a form
     ;; evaluated afterward still runs — its result is asserted, not just observed.
     (:wat::core::match (:wat::edn::read-json "{not json")
-      ((:wat::edn::ReadJsonOutcome::Value v)
-        (:wat::test::assert-true false))
-      ((:wat::edn::ReadJsonOutcome::Malformed cause)
-        (:wat::kernel::println "3 malformed: OK -> ::Malformed")))
+      [:wat::edn::ReadJsonOutcome::Value {:value v}
+        (:wat::test::assert-true false)]
+      [:wat::edn::ReadJsonOutcome::Malformed {:cause cause}
+        (:wat::kernel::println "3 malformed: OK -> ::Malformed")])
     (:wat::test::assert-eq (:wat::i64::+ 2 2) 4)
     (:wat::kernel::println "3 survived: OK -> (+ 2 2) = 4")))

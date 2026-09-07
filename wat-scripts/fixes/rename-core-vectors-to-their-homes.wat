@@ -258,11 +258,11 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
-             ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-             (:wat::kernel::ReadlnOutcome::Eof
-               (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None))
-             (:wat::kernel::ReadlnOutcome::Stopped
-               (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))]
+             [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+             [:wat::kernel::ReadlnOutcome::Eof {}
+               (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+             [:wat::kernel::ReadlnOutcome::Stopped {}
+               (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
     (:wat::rete::with-overlay (:wat::rete::collect-rules :rn)
       (:wat::core::PersistentVector :- [:wat::rete::Query] (:rn::q-match))
       (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::nil

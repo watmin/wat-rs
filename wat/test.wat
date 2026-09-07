@@ -327,20 +327,20 @@
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::thread) prog)]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m)
-        :wat::kernel::RunResult::Passed)
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
+        :wat::kernel::RunResult::Passed]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause))]
       ;; arc 278 #73 — a stop reached the harness while it awaited the child's
       ;; completion signal. The test did NOT pass and the child did NOT close: it
       ;; was cut short. Failing with the true reason keeps the harness honest — the
       ;; R55 lesson is that the VERIFIER is the last place a mask may live.
-      (:wat::kernel::RecvOutcome::Stopped
+      [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-thread': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")))
-      (:wat::kernel::RecvOutcome::Closed
+          (:wat::kernel::message-only-failure "run-thread': stop requested before the test child signaled completion — child was ALIVE, the run was cut short"))]
+      [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))))))
+          (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))])))
 
 ;; ── The peer-returning holders ──────────────────────────────────────────────
 ;;
@@ -394,10 +394,10 @@
        ;; child's completion-signal send' just needs to proceed regardless.
        (:wat::core::do ~body
          (:wat::core::match (:wat::kernel::send self 0)
-           (:wat::kernel::SendOutcome::Sent   nil)
-           (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces a gone self-peer
-           (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same: the holder's recv' faces the stop
-           ((:wat::kernel::SendOutcome::Lost _c) nil))))))
+           [:wat::kernel::SendOutcome::Sent {}   nil]
+           [:wat::kernel::SendOutcome::Closed {} nil]   ;; parent's recv' already faces a gone self-peer
+           [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: the holder's recv' faces the stop
+           [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))))
 
 (:wat::core::defmacro :wat::test::deftest
   [name <- :wat::WatAST
@@ -436,21 +436,21 @@
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::process) prog)]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m)
-        :wat::kernel::RunResult::Passed)
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause)))
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
+        :wat::kernel::RunResult::Passed]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause))]
       ;; arc 278 #73 — the process-tier twin of the thread harness above. Note this
       ;; arm was UNREACHABLE on this tier until today: `classify_peer_error`'s
       ;; wildcard folded the stop into Closed, so a hermetic test cut short by a
       ;; stop was reported as a child that closed early — blaming the specimen for
       ;; the harness's own interruption.
-      (:wat::kernel::RecvOutcome::Stopped
+      [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-hermetic': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")))
-      (:wat::kernel::RecvOutcome::Closed
+          (:wat::kernel::message-only-failure "run-hermetic': stop requested before the test child signaled completion — child was ALIVE, the run was cut short"))]
+      [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))))))
+          (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))])))
 
 (:wat::core::defmacro :wat::test::run-hermetic
   [body <- :wat::WatAST]

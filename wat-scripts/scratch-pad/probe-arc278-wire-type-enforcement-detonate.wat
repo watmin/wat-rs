@@ -45,17 +45,17 @@
    req   <- :probe-det::Bag::PutRequest]
   -> :wat::core::nil
   (:wat::core::match (:probe-det::Bag/put c req)
-    ((:wat::kernel::RecvOutcome::Message resp)
+    [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
-        ((:probe-det::Bag::PutResponse::Ok len)
+        [:probe-det::Bag::PutResponse::Ok {:len len}
           (:wat::kernel::println
             (:wat::string::concat label " => Ok, string::length = "
-              (:wat::i64::to-string len))))
-        ((:probe-det::Bag::PutResponse::RequestTooLarge bytes cap)
+              (:wat::i64::to-string len)))]
+        [:probe-det::Bag::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::println
-            (:wat::string::concat label " => RequestTooLarge")))
-        ((:probe-det::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
-          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
+            (:wat::string::concat label " => RequestTooLarge"))]
+        [:probe-det::Bag::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
     ;; NB (measured): on this path the payload that actually arrives in the `Lost`
     ;; arm at runtime is a `:wat::kernel::Failure`, NOT the declared
     ;; `:wat::kernel::LociDiedError` — calling `LociDiedError/message` on it raises
@@ -63,29 +63,29 @@
     ;; scope; the arm prints a static label so the measurement transcript stays clean.
     ;; The reason text observed in that raise was:
     ;;   "service peer lost (reason on the owner's crash channel)" (wat/spawn.wat:351)
-    ((:wat::kernel::RecvOutcome::Lost cause)
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
       (:wat::kernel::println
         (:wat::string::concat label
-          " => RecvOutcome::Lost — THE SERVICE DIED serving this request")))
-    (:wat::kernel::RecvOutcome::Stopped
+          " => RecvOutcome::Lost — THE SERVICE DIED serving this request"))]
+    [:wat::kernel::RecvOutcome::Stopped {}
       (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Stopped")))
-    (:wat::kernel::RecvOutcome::Closed
+        (:wat::string::concat label " => RecvOutcome::Stopped"))]
+    [:wat::kernel::RecvOutcome::Closed {}
       (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Closed")))))
+        (:wat::string::concat label " => RecvOutcome::Closed"))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [h (:probe-det::bag-svc/start :locus (:wat::spawn::process)
          :record (:probe-det::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:probe-det::bag-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused f)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected f)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed f)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)))
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)])
      good (:probe-det::Bag::PutRequest
             :items (:wat::core::Vector :- [:wat::core::String] "abcd"))
      _ (:probe-det::round-trip c "[process] control " good)

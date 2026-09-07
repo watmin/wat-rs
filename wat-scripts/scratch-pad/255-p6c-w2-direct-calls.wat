@@ -15,12 +15,12 @@
       (:wat::edn::write (:wat::core::stream->vec []
         (:wat::stream::cons 1 (:wat::stream::cons 2 (:wat::stream::empty)))))))
     (:wat::core::match (:wat::stream::next (:wat::stream::cons 42 (:wat::stream::empty)))
-      ((:wat::stream::NextOutcome::Item v rest) (:wat::kernel::println (:wat::string::concat "stream-next-item= " (:wat::edn::write v)
-        " rest->vec= " (:wat::edn::write (:wat::core::stream->vec [] rest)))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::kernel::println "stream-next-item= EXHAUSTED (unexpected)")))
+      [:wat::stream::NextOutcome::Item {:value v :rest rest} (:wat::kernel::println (:wat::string::concat "stream-next-item= " (:wat::edn::write v)
+        " rest->vec= " (:wat::edn::write (:wat::core::stream->vec [] rest))))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::kernel::println "stream-next-item= EXHAUSTED (unexpected)")])
     (:wat::core::match (:wat::stream::next (:wat::stream::empty))
-      ((:wat::stream::NextOutcome::Item v rest) (:wat::kernel::println (:wat::string::concat "stream-next-empty= UNEXPECTED item " (:wat::edn::write v))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::kernel::println "stream-next-empty= Exhausted")))
+      [:wat::stream::NextOutcome::Item {:value v :rest rest} (:wat::kernel::println (:wat::string::concat "stream-next-empty= UNEXPECTED item " (:wat::edn::write v)))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::kernel::println "stream-next-empty= Exhausted")])
     (:wat::core::do
       (:wat::core::let [e (:wat::program::env)]
         (:wat::kernel::println (:wat::string::concat "program-env-cpu-count= " (:wat::edn::write (:wat::program::Env/cpu-count e))

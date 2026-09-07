@@ -41,8 +41,8 @@
     "empty"
     (:wat::core::match
       (:wat::map::get (:wat::core::first answers) k)
-      ((:wat::core::Some _) "yes")
-      (:wat::core::None "none"))))
+      [:wat::core::Some {:value _} "yes"]
+      [:wat::core::None {} "none"])))
 
 (:wat::core::defn :wfb::line
   [row <- :wat::core::i64 name <- :wat::core::String body <- :wat::core::String]

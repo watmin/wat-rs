@@ -112,14 +112,14 @@
   [(install [s ctx req]
      (:wat::core::match
        (:wat::eval-with-defs! (:probe::evaluand) (:probe::RuleWire::InstallRequest/defs req))
-       (:wat::eval::FormOutcome::Declared
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "declared")))
-       ((:wat::eval::FormOutcome::Evaluated v)
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Derived v)))
-       ((:wat::eval::FormOutcome::CheckFailed _cause)
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "check-failed")))
-       ((:wat::eval::FormOutcome::Raised _cause)
-         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "raised")))))])
+       [:wat::eval::FormOutcome::Declared {}
+         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "declared"))]
+       [:wat::eval::FormOutcome::Evaluated {:value v}
+         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Derived v))]
+       [:wat::eval::FormOutcome::CheckFailed {:cause _cause}
+         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "check-failed"))]
+       [:wat::eval::FormOutcome::Raised {:cause _cause}
+         (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "raised"))]))])
 
 ;; ── the two payloads, differing in ONE form ───────────────────────────────────────────────
 (:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -146,10 +146,10 @@
 ;; ── the client ────────────────────────────────────────────────────────────────────────────
 (:wat::core::defn :probe::connect! [h <- :probe::rulewiresvc::Handle] -> :probe::RuleWire
   (:wat::core::match (:wat::kernel::connect (:probe::rulewiresvc::Handle/addr h))
-    ((:wat::kernel::ConnectOutcome::Connected p) p)
-    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome::Refused {:cause c}  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Failed {:cause c}   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]))
 
 (:wat::core::defn :probe::install!
   [label <- :wat::core::String
@@ -160,27 +160,27 @@
          :record (:probe::rulewiresvc::Record :installs 0))
      c (:probe::connect! h)]
     (:wat::core::match (:probe::RuleWire/install c (:probe::RuleWire::InstallRequest :defs defs))
-      ((:wat::kernel::RecvOutcome::Message resp)
+      [:wat::kernel::RecvOutcome::Message {:msg resp}
         (:wat::core::match resp
-          ((:probe::RuleWire::InstallResponse::Derived n)
+          [:probe::RuleWire::InstallResponse::Derived {:n n}
             (:wat::kernel::println
-              (:wat::string::concat label " => DERIVED n=" (:wat::i64::to-string n))))
-          ((:probe::RuleWire::InstallResponse::Rejected reason)
-            (:wat::kernel::println (:wat::string::concat label " => REJECTED " reason)))
-          ((:probe::RuleWire::InstallResponse::RequestTooLarge bytes cap)
+              (:wat::string::concat label " => DERIVED n=" (:wat::i64::to-string n)))]
+          [:probe::RuleWire::InstallResponse::Rejected {:reason reason}
+            (:wat::kernel::println (:wat::string::concat label " => REJECTED " reason))]
+          [:probe::RuleWire::InstallResponse::RequestTooLarge {:bytes bytes :cap cap}
             (:wat::kernel::println
               (:wat::string::concat label " => REQUEST-TOO-LARGE bytes="
-                (:wat::i64::to-string bytes) " cap=" (:wat::i64::to-string cap))))
-          ((:probe::RuleWire::InstallResponse::RequestMalformed _p expected got)
+                (:wat::i64::to-string bytes) " cap=" (:wat::i64::to-string cap)))]
+          [:probe::RuleWire::InstallResponse::RequestMalformed {:path _p :expected expected :got got}
             (:wat::kernel::println
-              (:wat::string::concat label " => REQUEST-MALFORMED expected=" expected " got=" got)))))
-      ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::string::concat label " => REQUEST-MALFORMED expected=" expected " got=" got))])]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::kernel::println
-          (:wat::string::concat label " => LOST " (:wat::kernel::LociDiedError/message cause))))
-      (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::println (:wat::string::concat label " => STOPPED before reply")))
-      (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::println (:wat::string::concat label " => CLOSED before reply"))))))
+          (:wat::string::concat label " => LOST " (:wat::kernel::LociDiedError/message cause)))]
+      [:wat::kernel::RecvOutcome::Stopped {}
+        (:wat::kernel::println (:wat::string::concat label " => STOPPED before reply"))]
+      [:wat::kernel::RecvOutcome::Closed {}
+        (:wat::kernel::println (:wat::string::concat label " => CLOSED before reply"))])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

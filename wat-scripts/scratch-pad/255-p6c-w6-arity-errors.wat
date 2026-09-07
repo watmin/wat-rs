@@ -10,23 +10,23 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::length (:wat::core::Vector 1 2) 9)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "length UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "length kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "length UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "length kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::empty?)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "empty? UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "empty? kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "empty? UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "empty? kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::nth (:wat::core::Vector 1 2))))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "nth UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "nth kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "nth UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "nth kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::last (:wat::core::Vector 1 2) 9)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "last UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "last kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "last UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "last kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::rest)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "rest UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "rest kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "rest UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "rest kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::reverse (:wat::core::Vector 1 2) 9)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "reverse UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "reverse kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "reverse UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "reverse kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::core::range 0)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "range UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "range kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "range UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "range kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])))

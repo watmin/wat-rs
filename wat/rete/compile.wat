@@ -65,9 +65,9 @@
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
-      ((:wat::core::Some existing-id)
-       (:wat::rete::MintResult :id existing-id :state state))
-      (:wat::core::None
+      [:wat::core::Some {:value existing-id}
+       (:wat::rete::MintResult :id existing-id :state state)]
+      [:wat::core::None {}
        (:wat::core::let [alpha     (:wat::rete::AlphaNode
                                       :id next-id
                                       :tests (:wat::core::PersistentVector cond)
@@ -78,7 +78,7 @@
                                       :network new-net
                                       :next-id (:wat::i64::+ next-id 1)
                                       :dedup new-dedup)]
-         (:wat::rete::MintResult :id next-id :state new-state))))))
+         (:wat::rete::MintResult :id next-id :state new-state))])))
 
 ;; exists-uses-alpha-probe? — a fact-shaped inner (Reading(?g), Maintenance(?loc))
 ;; is what alpha already stored. `:where` / `:and` / `:or` / `:not` / `:exists`
@@ -157,9 +157,9 @@
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
-      ((:wat::core::Some existing-id)
-       (:wat::rete::MintResult :id existing-id :state state))
-      (:wat::core::None
+      [:wat::core::Some {:value existing-id}
+       (:wat::rete::MintResult :id existing-id :state state)]
+      [:wat::core::None {}
        (:wat::core::let [join-node (:wat::rete::RootJoinNode
                                       :id next-id
                                       :children (:wat::core::PersistentVector))
@@ -169,7 +169,7 @@
                                       :network new-net
                                       :next-id (:wat::i64::+ next-id 1)
                                       :dedup new-dedup)]
-         (:wat::rete::MintResult :id next-id :state new-state))))))
+         (:wat::rete::MintResult :id next-id :state new-state))])))
 
 ;; find-or-mint-hash-join — find or mint a HashJoinNode for a non-first condition.
 ;; Dedup key: "hashjoin:<parent-id>:<cond-text>" — both condition AND left parent must match.
@@ -186,9 +186,9 @@
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
-      ((:wat::core::Some existing-id)
-       (:wat::rete::MintResult :id existing-id :state state))
-      (:wat::core::None
+      [:wat::core::Some {:value existing-id}
+       (:wat::rete::MintResult :id existing-id :state state)]
+      [:wat::core::None {}
        (:wat::core::let [join-node (:wat::rete::HashJoinNode
                                       :id next-id
                                       :children (:wat::core::PersistentVector))
@@ -198,7 +198,7 @@
                                       :network new-net
                                       :next-id (:wat::i64::+ next-id 1)
                                       :dedup new-dedup)]
-         (:wat::rete::MintResult :id next-id :state new-state))))))
+         (:wat::rete::MintResult :id next-id :state new-state))])))
 
 ;; compile-condition — fold step: process one condition form in a rule.
 ;; acc = (CompileState, PV of parent node-ids). Empty PV = no parent yet (first
@@ -325,41 +325,41 @@
    failing-axis <- :wat::rete::Axis]
   -> :wat::core::String
   (:wat::core::match failing-axis
-    (:wat::rete::Axis::Pure
+    [:wat::rete::Axis::Pure {}
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Pure)
-       ((:wat::core::Some v)
+       [:wat::core::Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not pure — '"
-                                     (:wat::rete::AxisViolation/head v) "' is not pure"))
-       (:wat::core::None
-        (:wat::core::format "compile-condition: {context} expr is not pure (offending head could not be attributed)" :context context))))
-    (:wat::rete::Axis::Deterministic
+                                     (:wat::rete::AxisViolation/head v) "' is not pure")]
+       [:wat::core::None {}
+        (:wat::core::format "compile-condition: {context} expr is not pure (offending head could not be attributed)" :context context)])]
+    [:wat::rete::Axis::Deterministic {}
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Deterministic)
-       ((:wat::core::Some v)
+       [:wat::core::Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not deterministic — '"
-                                     (:wat::rete::AxisViolation/head v) "' is not deterministic"))
-       (:wat::core::None
-        (:wat::core::format "compile-condition: {context} expr is not deterministic (offending head could not be attributed)" :context context))))
-    (:wat::rete::Axis::Total
+                                     (:wat::rete::AxisViolation/head v) "' is not deterministic")]
+       [:wat::core::None {}
+        (:wat::core::format "compile-condition: {context} expr is not deterministic (offending head could not be attributed)" :context context)])]
+    [:wat::rete::Axis::Total {}
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Total)
-       ((:wat::core::Some v)
+       [:wat::core::Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not total — '"
-                                     (:wat::rete::AxisViolation/head v) "' is not total"))
-       (:wat::core::None
-        (:wat::core::format "compile-condition: {context} expr is not total (offending head could not be attributed)" :context context))))
+                                     (:wat::rete::AxisViolation/head v) "' is not total")]
+       [:wat::core::None {}
+        (:wat::core::format "compile-condition: {context} expr is not total (offending head could not be attributed)" :context context)])]
     ;; #57 LAW A — the sentence the name was CHOSEN for. The three arms above read "is not pure" /
     ;; "is not deterministic" / "is not total"; this one reads "is not a rete primitive", which IS
     ;; the law ("the entire rete query language may only be composed from rete primitives") and
     ;; tells the author what to do without a lookup. The remedy is named explicitly because a
     ;; refusal that withholds the cure makes the reader hunt (R29 RVINA ERVDIT — the checker
     ;; educates); the rete twin of a core op is its name with `rete::` inserted after `wat::`.
-    (:wat::rete::Axis::RetePrimitive
+    [:wat::rete::Axis::RetePrimitive {}
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::RetePrimitive)
-       ((:wat::core::Some v)
+       [:wat::core::Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not a rete primitive — '"
                                      (:wat::rete::AxisViolation/head v)
-                                     "' is not a rete primitive; a " context " admits only :wat::rete:: ops"))
-       (:wat::core::None
-        (:wat::core::format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context))))))
+                                     "' is not a rete primitive; a " context " admits only :wat::rete:: ops")]
+       [:wat::core::None {}
+        (:wat::core::format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context)])]))
 
 (:wat::core::defn :wat::rete::compile-condition
   [acc  <- :wat::rete::CondFoldAcc

@@ -42,15 +42,15 @@
          [dot-xy (:wat::holon::dot ~x ~y)
           dot-yy (:wat::holon::dot ~y ~y)]
          (:wat::core::match dot-xy
-           ((:wat::holon::DotOutcome::Computed nxy)
+           [:wat::holon::DotOutcome::Computed {:product nxy}
              (:wat::core::match dot-yy
-               ((:wat::holon::DotOutcome::Computed nyy)
-                 (:wat::core::/ nxy nyy))
-               ((:wat::holon::DotOutcome::DimensionMismatch _e _g)
+               [:wat::holon::DotOutcome::Computed {:product nyy}
+                 (:wat::core::/ nxy nyy)]
+               [:wat::holon::DotOutcome::DimensionMismatch {:expected _e :got _g}
                  (:wat::core::Result/expect
                    (:wat::core::Err "Reject: dot(y, y) dimension mismatch — unreachable, a value's dimension always equals itself")
-                   "Reject: dot(y, y) dimension mismatch"))))
-           ((:wat::holon::DotOutcome::DimensionMismatch _e _g)
+                   "Reject: dot(y, y) dimension mismatch")])]
+           [:wat::holon::DotOutcome::DimensionMismatch {:expected _e :got _g}
              (:wat::core::Result/expect
                (:wat::core::Err "Reject: dot(x, y) dimension mismatch — x and y must share the same dimension")
-               "Reject: dot(x, y) dimension mismatch")))))))
+               "Reject: dot(x, y) dimension mismatch")])))))

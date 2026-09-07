@@ -19,14 +19,14 @@
                                   expected <- :wat::WatAST]
   -> :wat::core::nil
   (:wat::core::match (:wat::eval-ast! expr)
-    ((:wat::core::Ok got)
+    [:wat::core::Ok {:value got}
       (:wat::core::match (:wat::eval-ast! expected)
-        ((:wat::core::Ok want)
+        [:wat::core::Ok {:value want}
           (:wat::core::if (:wat::core::= got want)
             (:wat::kernel::println (:wat::string::concat "PASS " name))
-            (:wat::kernel::println (:wat::string::concat "FAIL(mismatch) " name))))
-        ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "FAIL(expected-eval) " name " " (:wat::core::EvalError/message e))))))
-    ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "FAIL(expr-eval) " name " " (:wat::core::EvalError/message e))))))
+            (:wat::kernel::println (:wat::string::concat "FAIL(mismatch) " name)))]
+        [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "FAIL(expected-eval) " name " " (:wat::core::EvalError/message e)))])]
+    [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "FAIL(expr-eval) " name " " (:wat::core::EvalError/message e)))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

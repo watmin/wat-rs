@@ -65,26 +65,26 @@
    req   <- :probe-wire::Bag::PutRequest]
   -> :wat::core::nil
   (:wat::core::match (:probe-wire::Bag/put c req)
-    ((:wat::kernel::RecvOutcome::Message resp)
+    [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
-        ((:probe-wire::Bag::PutResponse::Ok seen)
+        [:probe-wire::Bag::PutResponse::Ok {:seen seen}
           (:wat::kernel::println
-            (:wat::string::concat label " => Ok, server saw items = " seen)))
-        ((:probe-wire::Bag::PutResponse::RequestTooLarge bytes cap)
+            (:wat::string::concat label " => Ok, server saw items = " seen))]
+        [:probe-wire::Bag::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::println
-            (:wat::string::concat label " => RequestTooLarge")))
-        ((:probe-wire::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
-          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
+            (:wat::string::concat label " => RequestTooLarge"))]
+        [:probe-wire::Bag::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
       (:wat::kernel::println
         (:wat::string::concat label " => RecvOutcome::Lost: "
-          (:wat::kernel::LociDiedError/message cause))))
-    (:wat::kernel::RecvOutcome::Stopped
+          (:wat::kernel::LociDiedError/message cause)))]
+    [:wat::kernel::RecvOutcome::Stopped {}
       (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Stopped")))
-    (:wat::kernel::RecvOutcome::Closed
+        (:wat::string::concat label " => RecvOutcome::Stopped"))]
+    [:wat::kernel::RecvOutcome::Closed {}
       (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Closed")))))
+        (:wat::string::concat label " => RecvOutcome::Closed"))]))
 
 ;; ── one tier: stand up, connect, send a GOOD payload then a MISTYPED one ─────
 (:wat::core::defn :probe-wire::measure-tier
@@ -95,13 +95,13 @@
     [h (:probe-wire::bag-svc/start :locus locus
          :record (:probe-wire::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:probe-wire::bag-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused f)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected f)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed f)
-           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)))
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message f) :wat::core::None :wat::core::None)])
      ;; CONTROL — a well-typed request, built by the normal ctor.
      good (:probe-wire::Bag::PutRequest
             :items (:wat::core::Vector :- [:wat::core::String] "a" "b"))

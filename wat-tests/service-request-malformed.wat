@@ -73,32 +73,32 @@
   [c <- (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
    req <- :wat-tests::MalBag::PutRequest] -> :wat::core::String
   (:wat::core::match (:wat-tests::MalBag/put c req)
-    ((:wat::kernel::RecvOutcome::Message resp)
+    [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
-        ((:wat-tests::MalBag::PutResponse::Ok n) "Ok")
-        ((:wat-tests::MalBag::PutResponse::RequestTooLarge b cap) "TooLarge")
-        ((:wat-tests::MalBag::PutResponse::RequestMalformed path expected got)
+        [:wat-tests::MalBag::PutResponse::Ok {:n n} "Ok"]
+        [:wat-tests::MalBag::PutResponse::RequestTooLarge {:bytes b :cap cap} "TooLarge"]
+        [:wat-tests::MalBag::PutResponse::RequestMalformed {:path path :expected expected :got got}
           (:wat::string::concat "Malformed"
             (:wat::string::concat (:wat::edn::write path)
               (:wat::string::concat "/" (:wat::string::concat expected
-                (:wat::string::concat "/" got))))))))
-    ((:wat::kernel::RecvOutcome::Lost cause) "LOST")
+                (:wat::string::concat "/" got)))))])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause} "LOST"]
     ;; arc 278 #73 — distinct from LOST (the peer died) and Closed (a clean hangup): the
     ;; substrate was asked to stop while this recv was parked; the peer was ALIVE.
-    (:wat::kernel::RecvOutcome::Stopped "Stopped")
-    (:wat::kernel::RecvOutcome::Closed "Closed")))
+    [:wat::kernel::RecvOutcome::Stopped {} "Stopped"]
+    [:wat::kernel::RecvOutcome::Closed {} "Closed"]))
 
 (:wat::core::defn :wat-tests::mal/dial
   [a <- (:wat::kernel::Address :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])]
   -> (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
   (:wat::core::match (:wat::kernel::connect a)
-    ((:wat::kernel::ConnectOutcome::Connected p) p)
-    ((:wat::kernel::ConnectOutcome::Refused c)
-      (:wat::kernel::assertion-failed! "victim: connect REFUSED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Rejected c)
-      (:wat::kernel::assertion-failed! "victim: connect REJECTED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None))
-    ((:wat::kernel::ConnectOutcome::Failed c)
-      (:wat::kernel::assertion-failed! "victim: connect FAILED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None))))
+    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome::Refused {:cause c}
+      (:wat::kernel::assertion-failed! "victim: connect REFUSED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+      (:wat::kernel::assertion-failed! "victim: connect REJECTED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None)]
+    [:wat::kernel::ConnectOutcome::Failed {:cause c}
+      (:wat::kernel::assertion-failed! "victim: connect FAILED — the service is GONE (the DoS is back)" :wat::core::None :wat::core::None)]))
 
 ;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.
 ;; The victim's `connect'` happens AFTER the malformed frame — that dial is the assertion.

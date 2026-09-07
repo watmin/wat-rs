@@ -32,8 +32,8 @@
   (:wat::core::match
          (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] a b))
 
-         ((:wat::core::Ok h) h)
-         ((:wat::core::Err _) (:wat::holon::leaf 0))))
+         [:wat::core::Ok {:value h} h]
+         [:wat::core::Err {:error _} (:wat::holon::leaf 0)]))
 
 (:wat::test::deftest :wat-tests::holon::Reject::test-reject-strips-y-direction
   
@@ -51,8 +51,8 @@
   (:wat::core::match
          (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] a b))
 
-         ((:wat::core::Ok h) h)
-         ((:wat::core::Err _) (:wat::holon::leaf 0))))
+         [:wat::core::Ok {:value h} h]
+         [:wat::core::Err {:error _} (:wat::holon::leaf 0)]))
 
 (:wat::test::deftest :wat-tests::holon::Reject::test-project-preserves-y-direction
   

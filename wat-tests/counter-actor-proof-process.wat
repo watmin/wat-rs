@@ -73,94 +73,94 @@
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Get)
-       (:wat::kernel::SendOutcome::Sent
+       [:wat::kernel::SendOutcome::Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
-           ((:wat::kernel::RecvOutcome::Message resp)
-             (:wat::core::match resp ((:counter::Response::Value v) v)
-               ((:counter::Response::Ok    v) v)
-               ((:counter::Response::Final v) v)))
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
-       (:wat::kernel::SendOutcome::Closed
-         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
-       (:wat::kernel::SendOutcome::Stopped
-         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-       ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+           [:wat::kernel::RecvOutcome::Message {:msg resp}
+             (:wat::core::match resp [:counter::Response::Value {:v v} v]
+               [:counter::Response::Ok {:v v} v]
+               [:counter::Response::Final {:v v} v])]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)])]
+       [:wat::kernel::SendOutcome::Closed {}
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Stopped {}
+         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Lost {:cause cause}
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]))
 
    (:wat::core::defn :counter-proc::increment
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])
       n     <- :wat::core::i64]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Increment n))
-       (:wat::kernel::SendOutcome::Sent
+       [:wat::kernel::SendOutcome::Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
-           ((:wat::kernel::RecvOutcome::Message resp)
-             (:wat::core::match resp ((:counter::Response::Value v) v)
-               ((:counter::Response::Ok    v) v)
-               ((:counter::Response::Final v) v)))
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
-       (:wat::kernel::SendOutcome::Closed
-         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
-       (:wat::kernel::SendOutcome::Stopped
-         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-       ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+           [:wat::kernel::RecvOutcome::Message {:msg resp}
+             (:wat::core::match resp [:counter::Response::Value {:v v} v]
+               [:counter::Response::Ok {:v v} v]
+               [:counter::Response::Final {:v v} v])]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)])]
+       [:wat::kernel::SendOutcome::Closed {}
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Stopped {}
+         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Lost {:cause cause}
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]))
 
    (:wat::core::defn :counter-proc::reset
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Reset)
-       (:wat::kernel::SendOutcome::Sent
+       [:wat::kernel::SendOutcome::Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
-           ((:wat::kernel::RecvOutcome::Message resp)
-             (:wat::core::match resp ((:counter::Response::Value v) v)
-               ((:counter::Response::Ok    v) v)
-               ((:counter::Response::Final v) v)))
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
-       (:wat::kernel::SendOutcome::Closed
-         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
-       (:wat::kernel::SendOutcome::Stopped
-         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-       ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+           [:wat::kernel::RecvOutcome::Message {:msg resp}
+             (:wat::core::match resp [:counter::Response::Value {:v v} v]
+               [:counter::Response::Ok {:v v} v]
+               [:counter::Response::Final {:v v} v])]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)])]
+       [:wat::kernel::SendOutcome::Closed {}
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Stopped {}
+         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Lost {:cause cause}
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]))
 
    (:wat::core::defn :counter-proc::shutdown
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Shutdown)
-       (:wat::kernel::SendOutcome::Sent
+       [:wat::kernel::SendOutcome::Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
-           ((:wat::kernel::RecvOutcome::Message resp)
-             (:wat::core::match resp ((:counter::Response::Value v) v)
-               ((:counter::Response::Ok    v) v)
-               ((:counter::Response::Final v) v)))
-           ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Stopped
-             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-           (:wat::kernel::RecvOutcome::Closed
-             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
-       (:wat::kernel::SendOutcome::Closed
-         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
-       (:wat::kernel::SendOutcome::Stopped
-         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None))
-       ((:wat::kernel::SendOutcome::Lost cause)
-         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
+           [:wat::kernel::RecvOutcome::Message {:msg resp}
+             (:wat::core::match resp [:counter::Response::Value {:v v} v]
+               [:counter::Response::Ok {:v v} v]
+               [:counter::Response::Final {:v v} v])]
+           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Stopped {}
+             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+           [:wat::kernel::RecvOutcome::Closed {}
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None)])]
+       [:wat::kernel::SendOutcome::Closed {}
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Stopped {}
+         (:wat::kernel::assertion-failed! "send': stopped — the substrate was asked to stop; the subprocess was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+       [:wat::kernel::SendOutcome::Lost {:cause cause}
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]))
 
 
 (:wat::test::deftest :counter-actor::process-proof
@@ -199,26 +199,26 @@
            (:wat::core::defn :counter::dispatch
              [state <- :wat::core::i64]
              -> :wat::core::nil
-             (:wat::core::match (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+             (:wat::core::match (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
                 
                ;; Read — no state change; reply current value; recur
-               (:counter::Request::Get
+               [:counter::Request::Get {}
                   (:wat::core::do
                     (:wat::kernel::println (:counter::Response::Value state))
-                    (:counter::dispatch state)))
+                    (:counter::dispatch state))]
                ;; Mutate-computed — let-bind new state; reply + recur
-               ((:counter::Request::Increment n)
+               [:counter::Request::Increment {:n n}
                   (:wat::core::let [new-n (:wat::i64::+ state n)]
                     (:wat::kernel::println (:counter::Response::Ok new-n))
-                    (:counter::dispatch new-n)))
+                    (:counter::dispatch new-n))]
                ;; Mutate-literal — reply 0; recur with literal
-               (:counter::Request::Reset
+               [:counter::Request::Reset {}
                   (:wat::core::do
                     (:wat::kernel::println (:counter::Response::Ok 0))
-                    (:counter::dispatch 0)))
+                    (:counter::dispatch 0))]
                ;; Terminal — send Final; return nil; process exits
-               (:counter::Request::Shutdown
-                  (:wat::kernel::println (:counter::Response::Final state)))))
+               [:counter::Request::Shutdown {}
+                  (:wat::kernel::println (:counter::Response::Final state))]))
            ;; Entry point — the substrate calls :user::main when the subprocess
            ;; starts. Per user 2026-05-16: "processes must always define
            ;; :user::main ... there is no :user::main-process".
@@ -241,7 +241,7 @@
      ;; Drain the peer to a clean close (arc 278 IPC de-prime: recv-all' replaces
      ;; Process/drain-and-join). The peer's death rides in the Err — surfaced, never swallowed.
      _drained     (:wat::core::match (:wat::kernel::recv-all peer!)
-                    ((:wat::core::Ok _) nil)
-                    ((:wat::core::Err cause)
-                      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))]
+                    [:wat::core::Ok {:value _} nil]
+                    [:wat::core::Err {:error cause}
+                      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)])]
     nil))

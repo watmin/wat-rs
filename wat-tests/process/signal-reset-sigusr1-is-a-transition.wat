@@ -20,33 +20,33 @@
                  (:wat::core::defn :user::main [] -> :wat::core::nil
                    (:wat::core::let
                      [n (:wat::core::match (:wat::kernel::readln)
-                          ((:wat::kernel::ReadlnOutcome::Datum d) d)
-                          (:wat::kernel::ReadlnOutcome::Eof
-                            (:wat::kernel::assertion-failed! "unexpected eof" :wat::core::None :wat::core::None))
-                          (:wat::kernel::ReadlnOutcome::Stopped
-                            (:wat::kernel::assertion-failed! "unexpected stop" :wat::core::None :wat::core::None)))
+                          [:wat::kernel::ReadlnOutcome::Datum {:v d} d]
+                          [:wat::kernel::ReadlnOutcome::Eof {}
+                            (:wat::kernel::assertion-failed! "unexpected eof" :wat::core::None :wat::core::None)]
+                          [:wat::kernel::ReadlnOutcome::Stopped {}
+                            (:wat::kernel::assertion-failed! "unexpected stop" :wat::core::None :wat::core::None)])
                       before      (:wat::kernel::sigusr1?)
                       reset-done  (:wat::kernel::reset-sigusr1!)
                       after       (:wat::kernel::sigusr1?)]
                      (:wat::kernel::println (:wat::core::Vector :- [:wat::core::bool] before after))))))]
       (:wat::core::match (:wat::kernel::signal child :wat::kernel::Signal::User1)
-        (:wat::kernel::SignalOutcome::Delivered
+        [:wat::kernel::SignalOutcome::Delivered {}
           (:wat::core::match (:wat::kernel::send child 0)
-            (:wat::kernel::SendOutcome::Sent
+            [:wat::kernel::SendOutcome::Sent {}
               (:wat::core::match (:wat::kernel::recv child)
-                ((:wat::kernel::RecvOutcome::Message m) m)
-                ((:wat::kernel::RecvOutcome::Lost cause)
-                  (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                (:wat::kernel::RecvOutcome::Stopped
-                  (:wat::kernel::assertion-failed! "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open" :wat::core::None :wat::core::None))
-                (:wat::kernel::RecvOutcome::Closed
-                  (:wat::kernel::assertion-failed! "recv: child closed unexpectedly" :wat::core::None :wat::core::None))))
-            (:wat::kernel::SendOutcome::Closed
-              (:wat::kernel::assertion-failed! "send: child closed unexpectedly" :wat::core::None :wat::core::None))
-            (:wat::kernel::SendOutcome::Stopped
-              (:wat::kernel::assertion-failed! "send: stopped — the substrate was asked to stop; the child was ALIVE and the channel open" :wat::core::None :wat::core::None))
-            ((:wat::kernel::SendOutcome::Lost cause)
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
-        ((:wat::kernel::SignalOutcome::Failed cause)
-          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))))
+                [:wat::kernel::RecvOutcome::Message {:msg m} m]
+                [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                  (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+                [:wat::kernel::RecvOutcome::Stopped {}
+                  (:wat::kernel::assertion-failed! "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+                [:wat::kernel::RecvOutcome::Closed {}
+                  (:wat::kernel::assertion-failed! "recv: child closed unexpectedly" :wat::core::None :wat::core::None)])]
+            [:wat::kernel::SendOutcome::Closed {}
+              (:wat::kernel::assertion-failed! "send: child closed unexpectedly" :wat::core::None :wat::core::None)]
+            [:wat::kernel::SendOutcome::Stopped {}
+              (:wat::kernel::assertion-failed! "send: stopped — the substrate was asked to stop; the child was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+            [:wat::kernel::SendOutcome::Lost {:cause cause}
+              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)])]
+        [:wat::kernel::SignalOutcome::Failed {:cause cause}
+          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)]))
     (:wat::core::Vector :- [:wat::core::bool] true false)))

@@ -70,7 +70,7 @@
      src  (:wat::io::read-file path)
      rules (:wat::rete::collect-rules :fmt)]
     (:wat::core::match (:wat::core::read-string src)
-      ((:wat::core::ReadOutcome::Forms forms)
+      [:wat::core::ReadOutcome::Forms {:forms forms}
         (:wat::core::let
           [acc (:wat::core::foldl
                  (:wat::core::fn [a <- :user::Ex  f <- :wat::WatAST] -> :user::Ex
@@ -84,6 +84,6 @@
               :c (:wat::i64::to-string (:user::Ex/changed acc))
               :i (:wat::i64::to-string (:user::Ex/inline acc))
               :o (:wat::i64::to-string (:user::Ex/over acc))
-              :w (:wat::i64::to-string (:user::Ex/worst acc))))))
-      ((:wat::core::ReadOutcome::Malformed cause)
-        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)))))
+              :w (:wat::i64::to-string (:user::Ex/worst acc)))))]
+      [:wat::core::ReadOutcome::Malformed {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)])))

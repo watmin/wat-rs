@@ -98,30 +98,30 @@
            (:wat::core::do
              (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) nil)
              (:wat::core::match (:wat::kernel::send self 0)
-               (:wat::kernel::SendOutcome::Sent   nil)
-               (:wat::kernel::SendOutcome::Closed nil)
+               [:wat::kernel::SendOutcome::Sent {}   nil]
+               [:wat::kernel::SendOutcome::Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the class-guard panic above already
                ;; fired before this line could even run.
-               (:wat::kernel::SendOutcome::Stopped nil)
-               ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
+               [:wat::kernel::SendOutcome::Stopped {} nil]
+               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m)
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
         (:wat::kernel::assertion-failed!
           "expected class-guard panic on wrong-class receiver; got Success"
-          :wat::core::None :wat::core::None))
-      ((:wat::kernel::RecvOutcome::Lost cause)
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::test::assert-contains
           (:wat::kernel::LociDiedError/message cause)
-          "got class"))
-      (:wat::kernel::RecvOutcome::Stopped
+          "got class")]
+      [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::assertion-failed!
           "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::assertion-failed!
           "expected class-guard panic on wrong-class receiver; got Success"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)])))
 
 ;; ─── HOLONIC: construct + slash-accessor ─────────────────────────────────────
 
@@ -167,27 +167,27 @@
                [p (:test::rd::Pt :x 3 :y 4)]
                (:wat::core::do (:wat::holon::to-holon p) nil))
              (:wat::core::match (:wat::kernel::send self 0)
-               (:wat::kernel::SendOutcome::Sent   nil)
-               (:wat::kernel::SendOutcome::Closed nil)
+               [:wat::kernel::SendOutcome::Sent {}   nil]
+               [:wat::kernel::SendOutcome::Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the to-holon runtime error above already
                ;; fired before this line could even run.
-               (:wat::kernel::SendOutcome::Stopped nil)
-               ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
+               [:wat::kernel::SendOutcome::Stopped {} nil]
+               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
-      ((:wat::kernel::RecvOutcome::Message _m)
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
         (:wat::kernel::assertion-failed!
           "expected to-holon runtime error on BASE record; got Success"
-          :wat::core::None :wat::core::None))
-      ((:wat::kernel::RecvOutcome::Lost _cause) nil)
-      (:wat::kernel::RecvOutcome::Stopped
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
+      [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::assertion-failed!
           "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open"
-          :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::assertion-failed!
           "expected to-holon runtime error on BASE record; got Success"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)])))
 
 ;; ─── Liskov: [v <- :wat::core::Record] accepts a HOLONIC instance ──────────────────
 ;;

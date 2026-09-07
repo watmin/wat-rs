@@ -15,8 +15,8 @@
   (:wat::core::let
     [src   (:wat::io::read-file "wat-scripts/perf/grid/where-shapes.wat")
      tree  (:wat::core::match (:wat::core::read-string src)
-             ((:wat::core::ReadOutcome::Forms __f) __f)
-             ((:wat::core::ReadOutcome::Malformed __c) (:wat::kernel::assertion-failed! (:wat::core::Error/message __c) :wat::core::None :wat::core::None)))
+             [:wat::core::ReadOutcome::Forms {:forms __f} __f]
+             [:wat::core::ReadOutcome::Malformed {:cause __c} (:wat::kernel::assertion-failed! (:wat::core::Error/message __c) :wat::core::None :wat::core::None)])
      forms (:wat::core::ast->children tree)
      ;; find the first form whose ast-name is ":wsh::rule-arith"
      ;; Stone 118.B4-iii — THE WALL: `filter` returns a lazy (Stream :- [T]) (arc 118.2a) and `first`

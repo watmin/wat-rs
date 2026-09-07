@@ -88,13 +88,13 @@
      probe (:wat::holon::Thermometer 50.01 0.0 100.0)
      hologram (:wat::cache::HolographicLru/hologram store)]
     (:wat::core::match (:wat::holon::Hologram/find hologram probe)
-      ((:wat::core::Some m)
+      [:wat::core::Some {:value m}
         (:wat::core::let
           [matched-key (:wat::holon::Match/key m)
            matched-val (:wat::holon::Match/value m)]
           (:wat::test::assert-eq matched-key k)
-          (:wat::test::assert-eq matched-val v)))
-      (:wat::core::None (:wat::test::assert-eq :expected-a-match :got-none)))))
+          (:wat::test::assert-eq matched-val v))]
+      [:wat::core::None {} (:wat::test::assert-eq :expected-a-match :got-none)])))
 
 ;; ─── len agrees with the bound after overflow ───────────────────────────────────────────────
 ;;

@@ -88,8 +88,8 @@
     big     (:wat::core::range 0 4000)
     __hdr   (:wat::kernel::println "--- laziness probe: expect exactly ONE line below ---")
     fst     (:wat::core::match (:wat::stream::next (:wat::core::keep :cx::counting-keep big))
-              ((:wat::stream::NextOutcome::Item value _rest) value)
-              (:wat::stream::NextOutcome::Exhausted
-                (:wat::kernel::assertion-failed! "keep: unexpectedly exhausted" :wat::core::None :wat::core::None)))
+              [:wat::stream::NextOutcome::Item {:value value :rest _rest} value]
+              [:wat::stream::NextOutcome::Exhausted {}
+                (:wat::kernel::assertion-failed! "keep: unexpectedly exhausted" :wat::core::None :wat::core::None)])
     __ftr   (:wat::kernel::println "--- end laziness probe ---")]
     (:wat::kernel::println (:wat::string::concat "first=" (:wat::i64::to-string fst)))))

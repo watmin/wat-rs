@@ -561,7 +561,7 @@
   -> (:wat::core::Vector :- [:wat::lint::Finding])
   (:wat::core::let [path   (:wat::source::File/path sf)
                     source (:wat::source::File/source sf)
-                    tree   (:wat::core::match (:wat::core::read-string source) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+                    tree   (:wat::core::match (:wat::core::read-string source) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
                     forms  (:wat::core::ast->children tree)]
     (:wat::core::foldl
       (:wat::core::fn [acc  <- (:wat::core::Vector :- [:wat::lint::Finding])
@@ -668,8 +668,8 @@
                                              f   <- :wat::lint::Finding]
                               -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                               (:wat::core::match (:wat::lint::Finding/fix f)  
-                                (:wat::core::None acc)
-                                ((:wat::core::Some fe)
+                                [:wat::core::None {} acc]
+                                [:wat::core::Some {:value fe}
                                  (:wat::core::let [start-map (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]
                                                                :line (:wat::lint::FixEdit/start-line fe)
                                                                :col  (:wat::lint::FixEdit/start-col fe))
@@ -681,7 +681,7 @@
                                                    new-text  (:wat::lint::FixEdit/new-text fe)]
                                    (:wat::core::concat acc
                                      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-                                       (:wat::core::Tuple off old-text new-text)))))))
+                                       (:wat::core::Tuple off old-text new-text))))]))
                             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                             findings)
                     rev-edits (:wat::core::reverse edits)]

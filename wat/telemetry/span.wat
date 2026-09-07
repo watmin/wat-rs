@@ -32,13 +32,13 @@
           ;; raise-unwind: a span service whose sink dial fails at :init cannot start).
           (:wat::telemetry::span::State :durable record
             :sink (:wat::core::match (:wat::kernel::connect sink-addr)
-                    ((:wat::kernel::ConnectOutcome::Connected p) p)
-                    ((:wat::kernel::ConnectOutcome::Refused c)
-                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                    ((:wat::kernel::ConnectOutcome::Rejected c)
-                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                    ((:wat::kernel::ConnectOutcome::Failed c)
-                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
+                    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+                    [:wat::kernel::ConnectOutcome::Refused {:cause c}
+                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                    [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                    [:wat::kernel::ConnectOutcome::Failed {:cause c}
+                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])))
   :impls
   [;; incr — PURE: counters[name] + 1, thread new state.
    (incr [s ctx req]
@@ -47,8 +47,8 @@
         rec  (:wat::telemetry::span::State/durable s)
         cs   (:wat::telemetry::span::Record/counters rec)
         next (:wat::core::match (:wat::hashmap::get cs name) 
-               (:wat::core::None 1)
-               ((:wat::core::Some v) (:wat::core::+ v 1)))
+               [:wat::core::None {} 1]
+               [:wat::core::Some {:value v} (:wat::core::+ v 1)])
         rec' (:wat::telemetry::span::Record
                :namespace (:wat::telemetry::span::Record/namespace rec)
                :uuid (:wat::telemetry::span::Record/uuid rec)
@@ -68,8 +68,8 @@
         rec   (:wat::telemetry::span::State/durable s)
         ds    (:wat::telemetry::span::Record/durations rec)
         samples (:wat::core::match (:wat::hashmap::get ds name) 
-                  (:wat::core::None (:wat::core::Vector :- [:wat::core::i64]))
-                  ((:wat::core::Some v) v))
+                  [:wat::core::None {} (:wat::core::Vector :- [:wat::core::i64])]
+                  [:wat::core::Some {:value v} v])
         rec'  (:wat::telemetry::span::Record
                 :namespace (:wat::telemetry::span::Record/namespace rec)
                 :uuid (:wat::telemetry::span::Record/uuid rec)
@@ -149,35 +149,35 @@
         resp (:wat::telemetry::Journal/write-metrics (:wat::telemetry::span::State/sink s)
                (:wat::telemetry::Journal::WriteMetricsRequest all-metrics))
         cresp (:wat::core::match resp
-                ((:wat::kernel::RecvOutcome::Message sresp)
+                [:wat::kernel::RecvOutcome::Message {:msg sresp}
                   (:wat::core::match sresp
-                    ((:wat::telemetry::Journal::WriteMetricsResponse::Success)
-                      (:wat::telemetry::Span::CloseResponse::Done))
-                    ((:wat::telemetry::Journal::WriteMetricsResponse::Constraint err)
-                      (:wat::telemetry::Span::CloseResponse::Constraint err))
-                    ((:wat::telemetry::Journal::WriteMetricsResponse::Transient err)
-                      (:wat::telemetry::Span::CloseResponse::Transient err))
-                    ((:wat::telemetry::Journal::WriteMetricsResponse::Fatal err)
-                      (:wat::telemetry::Span::CloseResponse::Fatal err))
+                    [:wat::telemetry::Journal::WriteMetricsResponse::Success {}
+                      (:wat::telemetry::Span::CloseResponse::Done)]
+                    [:wat::telemetry::Journal::WriteMetricsResponse::Constraint {:err err}
+                      (:wat::telemetry::Span::CloseResponse::Constraint err)]
+                    [:wat::telemetry::Journal::WriteMetricsResponse::Transient {:err err}
+                      (:wat::telemetry::Span::CloseResponse::Transient err)]
+                    [:wat::telemetry::Journal::WriteMetricsResponse::Fatal {:err err}
+                      (:wat::telemetry::Span::CloseResponse::Fatal err)]
                     ;; wire-breach at the sink peer propagates outward as our own op's breach.
-                    ((:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap)
-                      (:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap))
-                    ((:wat::telemetry::Journal::WriteMetricsResponse::RequestMalformed mpath mexpected mgot)
-                      (:wat::telemetry::Span::CloseResponse::RequestMalformed mpath mexpected mgot))))
+                    [:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge {:bytes bytes :cap cap}
+                      (:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap)]
+                    [:wat::telemetry::Journal::WriteMetricsResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+                      (:wat::telemetry::Span::CloseResponse::RequestMalformed mpath mexpected mgot)])]
                 ;; a lost/closed sink peer must NOT kill this span service — map to our own Fatal
                 ;; response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
-                ((:wat::kernel::RecvOutcome::Lost cause)
+                [:wat::kernel::RecvOutcome::Lost {:cause cause}
                   (:wat::telemetry::Span::CloseResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause))))]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; journal sink peer was alive and the substrate was asked to stop.
-                (:wat::kernel::RecvOutcome::Stopped
+                [:wat::kernel::RecvOutcome::Stopped {}
                   (:wat::telemetry::Span::CloseResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: stop requested mid-call — the journal sink peer was ALIVE"))))
-                (:wat::kernel::RecvOutcome::Closed
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: stop requested mid-call — the journal sink peer was ALIVE")))]
+                [:wat::kernel::RecvOutcome::Closed {}
                   (:wat::telemetry::Span::CloseResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed")))))]
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed")))])]
        (:wat::service::Outcome::Reply s cresp)))])
 
 ;; ── the call-site macros (STONE Span.3) ──────────────────────────────────────────
@@ -242,13 +242,13 @@
         ;; ::Connected → the span sink Peer'; failure arms → assertion-failed! (fatal,
         ;; preserving the pre-wall raise-unwind). Arm-local p/c don't escape to ~body.
         ~span-name (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr ~h-sym))
-                     ((:wat::kernel::ConnectOutcome::Connected p) p)
-                     ((:wat::kernel::ConnectOutcome::Refused c)
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                     ((:wat::kernel::ConnectOutcome::Rejected c)
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                     ((:wat::kernel::ConnectOutcome::Failed c)
-                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+                     [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+                     [:wat::kernel::ConnectOutcome::Refused {:cause c}
+                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                     [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                     [:wat::kernel::ConnectOutcome::Failed {:cause c}
+                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
         ~result-sym ~body
         ~close-sym (:wat::telemetry::Span/close ~span-name (:wat::telemetry::Span::CloseRequest))]
        ~result-sym)))

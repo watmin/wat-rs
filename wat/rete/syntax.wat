@@ -35,8 +35,8 @@
                            (:wat::map::get
                              (:wat::rete::Session/query-memory session)
                              (:wat::rete::Query/name q))
-                           ((:wat::core::Some pv) pv)
-                           (:wat::core::None (:wat::core::PersistentVector)))]
+                           [:wat::core::Some {:value pv} pv]
+                           [:wat::core::None {} (:wat::core::PersistentVector)])]
     (:wat::core::if (:wat::core::= (:wat::core::length want) 0)
       raw
       (:wat::core::into (:wat::core::PersistentVector)

@@ -39,28 +39,28 @@
                 :det (:wat::edn::write (:wat::intrinsic::Example/deterministic ex))))
             (:wat::core::if (:wat::intrinsic::Example/run ex)
               (:wat::core::match (:wat::intrinsic::Example/expected ex)
-                ((:wat::core::Some expected-ast)
+                [:wat::core::Some {:value expected-ast}
                   (:wat::core::match (:wat::eval-ast! (:wat::intrinsic::Example/expr ex))
-                    ((:wat::core::Ok got)
+                    [:wat::core::Ok {:value got}
                       (:wat::core::match (:wat::eval-ast! expected-ast)
-                        ((:wat::core::Ok want)
+                        [:wat::core::Ok {:value want}
                           (:wat::core::do
                             (:wat::kernel::println
                               (:wat::string::interpolate "  got={got} want={want} eq={eq}"
                                 :got (:wat::edn::write got)
                                 :want (:wat::edn::write want)
                                 :eq (:wat::edn::write (:wat::core::= got want))))
-                            acc))
-                        ((:wat::core::Err err)
+                            acc)]
+                        [:wat::core::Err {:error err}
                           (:wat::core::do
                             (:wat::kernel::println (:wat::string::concat "  EXPECTED EVAL FAILED: " (:wat::core::EvalError/message err)))
-                            (:wat::i64::+ acc 1)))))
-                    ((:wat::core::Err err)
+                            (:wat::i64::+ acc 1))])]
+                    [:wat::core::Err {:error err}
                       (:wat::core::do
                         (:wat::kernel::println (:wat::string::concat "  EXPR EVAL FAILED: " (:wat::core::EvalError/message err)))
-                        (:wat::i64::+ acc 1)))))
-                (:wat::core::None
-                  (:wat::core::do (:wat::kernel::println "  (norun, no expected)") acc)))
+                        (:wat::i64::+ acc 1))])]
+                [:wat::core::None {}
+                  (:wat::core::do (:wat::kernel::println "  (norun, no expected)") acc)])
               (:wat::core::do (:wat::kernel::println "  (norun)") acc))))
         0
         mine)

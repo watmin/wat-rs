@@ -1186,15 +1186,15 @@ mod tests {
         let world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::echo [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
                (:wat::core::match (:wat::kernel::recv self) \
-                 ((:wat::kernel::RecvOutcome::Message m) \
+                 [:wat::kernel::RecvOutcome::Message {:msg m} \
                    (:wat::core::match (:wat::kernel::send self m) \
-                     (:wat::kernel::SendOutcome::Sent nil) \
-                     (:wat::kernel::SendOutcome::Closed nil) \
-                     (:wat::kernel::SendOutcome::Stopped nil) \
-                     ((:wat::kernel::SendOutcome::Lost _c) nil))) \
-                 ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)) \
-                 (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! \"echo: stop requested before message — the peer was ALIVE\" :wat::core::None :wat::core::None)) \
-                 (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None))))",
+                     [:wat::kernel::SendOutcome::Sent {} nil] \
+                     [:wat::kernel::SendOutcome::Closed {} nil] \
+                     [:wat::kernel::SendOutcome::Stopped {} nil] \
+                     [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] \
+                 [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)] \
+                 [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! \"echo: stop requested before message — the peer was ALIVE\" :wat::core::None :wat::core::None)] \
+                 [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None)]))",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
@@ -1329,10 +1329,10 @@ mod tests {
             "(:wat::core::defn :my::blocker [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
                (:wat::core::do \
                  (:wat::core::match (:wat::kernel::recv self) \
-                   ((:wat::kernel::RecvOutcome::Message _m) nil) \
-                   (:wat::kernel::RecvOutcome::Closed nil) \
-                   (:wat::kernel::RecvOutcome::Stopped nil) \
-                   ((:wat::kernel::RecvOutcome::Lost _c) nil)) \
+                   [:wat::kernel::RecvOutcome::Message {:msg _m} nil] \
+                   [:wat::kernel::RecvOutcome::Closed {} nil] \
+                   [:wat::kernel::RecvOutcome::Stopped {} nil] \
+                   [:wat::kernel::RecvOutcome::Lost {:cause _c} nil]) \
                  nil))",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),

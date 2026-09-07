@@ -18,12 +18,12 @@
    s   <- :wat::core::String]
   -> :wat::core::i64
   (:wat::core::match (:wat::core::read-string-with-comments s)
-    ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
-      (:wat::core::length comments))
-    ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
+    [:wat::core::ReadWithCommentsOutcome::Forms {:forms forms :comments comments}
+      (:wat::core::length comments)]
+    [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
       (:wat::kernel::assertion-failed!
         (:wat::string::concat tag (:wat::core::Error/message cause))
-        :wat::core::None :wat::core::None))))
+        :wat::core::None :wat::core::None)]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

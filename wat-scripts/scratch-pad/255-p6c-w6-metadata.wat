@@ -12,23 +12,23 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::length)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "core::length :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "core::length :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::length :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "core::length :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::empty?)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "core::empty? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "core::empty? :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::empty? :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "core::empty? :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::nth)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "core::nth :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "core::nth :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::nth :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "core::nth :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::last)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "core::last :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "core::last :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::last :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "core::last :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::rest)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "core::rest :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "core::rest :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::rest :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "core::rest :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::reverse)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "core::reverse :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "core::reverse :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::reverse :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "core::reverse :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::core::range)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "core::range :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "core::range :arity= NONE")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::range :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "core::range :arity= NONE")])))

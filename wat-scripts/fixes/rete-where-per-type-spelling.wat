@@ -147,12 +147,12 @@
     (:user::inside-where-edits-walk (:wat::core::ast->children node) table lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
       (:wat::core::match (:user::rename-lookup (:wat::core::ast-name node) table)
-        ((:wat::core::Some new)
+        [:wat::core::Some {:value new}
           (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                             old-len (:wat::core::ast-name node)]
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-              (:wat::core::Tuple off old-len new))))
-        (:wat::core::None (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
+              (:wat::core::Tuple off old-len new)))]
+        [:wat::core::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])])
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
 
 (:wat::core::defn :user::inside-where-edits-walk
@@ -210,7 +210,7 @@
   [src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
                     forms     (:wat::core::ast->children tree)
                     table     (:user::rename-table)
                     all-edits (:user::outer-edits-walk forms table lines)
@@ -232,4 +232,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))))
+    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])))

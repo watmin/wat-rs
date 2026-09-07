@@ -40,28 +40,28 @@
    ctx     <- (:wat::core::Option :- [(:wat::core::Tuple :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])])])]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv self)
-    ((:wat::kernel::RecvOutcome::Message m)
+    [:wat::kernel::RecvOutcome::Message {:msg m}
       (:wat::core::match m
-        ((:wat::bracket::PoolMsg::Setup deps)
+        [:wat::bracket::PoolMsg::Setup {:deps deps}
           ;; deps : (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]) — connect' EACH component into its typed Peer'
           (:probe::multi-dial-runner self work-fn
             (:wat::core::Some
               (:wat::core::Tuple
-                (:wat::core::match (:wat::kernel::connect (:wat::core::first deps)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
-                (:wat::core::match (:wat::kernel::connect (:wat::core::second deps)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))))
-        ((:wat::bracket::PoolMsg::Work pair)
+                (:wat::core::match (:wat::kernel::connect (:wat::core::first deps)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
+                (:wat::core::match (:wat::kernel::connect (:wat::core::second deps)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]))))]
+        [:wat::bracket::PoolMsg::Work {:pair pair}
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")
              out (:wat::core::Tuple (:wat::core::first pair)
                    (work-fn (:wat::core::first c) (:wat::core::second c) (:wat::core::second pair)))
              ;; arc 278 #73 — discard-only send; the recv' at the top of the next iteration
              ;; faces a stop as its own outcome.
-             _   (:wat::core::match (:wat::kernel::send self out) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
-            (:probe::multi-dial-runner self work-fn ctx)))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+             _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+            (:probe::multi-dial-runner self work-fn ctx))])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
     ;; arc 278 #73 — single self-peer worker (no "keep serving others" distinction from
     ;; "the world is ending"): either way this loop's one channel is done. Same body as
     ;; Closed, stated by name rather than folded together silently.
-    (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    [:wat::kernel::RecvOutcome::Stopped {} nil]
+    [:wat::kernel::RecvOutcome::Closed {} nil]))

@@ -56,9 +56,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [params (:wat::core::match (:wat::kernel::readln )
-              ((:wat::kernel::ReadlnOutcome::Datum __d) __d)
-              (:wat::kernel::ReadlnOutcome::Eof     (:wat::kernel::assertion-failed! "readln: eof"  :wat::core::None :wat::core::None))
-              (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop" :wat::core::None :wat::core::None)))
+              [:wat::kernel::ReadlnOutcome::Datum {:v __d} __d]
+              [:wat::kernel::ReadlnOutcome::Eof {}     (:wat::kernel::assertion-failed! "readln: eof"  :wat::core::None :wat::core::None)]
+              [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop" :wat::core::None :wat::core::None)])
      items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
      fanout  20
      keys    (:wat::i64::/ items (:wat::i64::* fanout fanout))

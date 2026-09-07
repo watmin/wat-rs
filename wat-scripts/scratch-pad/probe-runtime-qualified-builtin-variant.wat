@@ -17,23 +17,23 @@
 
 (:wat::core::defn :user::check-some [] -> :wat::core::i64
   (:wat::core::match (:wat::core::Some 42)
-    ((:wat::core::Option::Some x) x)
-    (:wat::core::Option::None 0)))
+    [:wat::core::Option::Some {:value x} x]
+    [:wat::core::Option::None {} 0]))
 
 (:wat::core::defn :user::check-none [] -> :wat::core::i64
   (:wat::core::match :wat::core::None
-    ((:wat::core::Option::Some x) x)
-    (:wat::core::Option::None -1)))
+    [:wat::core::Option::Some {:value x} x]
+    [:wat::core::Option::None {} -1]))
 
 (:wat::core::defn :user::check-ok [] -> :wat::core::i64
   (:wat::core::match (:wat::core::Ok 7)
-    ((:wat::core::Result::Ok x) x)
-    ((:wat::core::Result::Err _) -2)))
+    [:wat::core::Result::Ok {:value x} x]
+    [:wat::core::Result::Err {:error _} -2]))
 
 (:wat::core::defn :user::check-err [] -> :wat::core::i64
   (:wat::core::match (:wat::core::Err -9)
-    ((:wat::core::Result::Ok x) x)
-    ((:wat::core::Result::Err e) e)))
+    [:wat::core::Result::Ok {:value x} x]
+    [:wat::core::Result::Err {:error e} e]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

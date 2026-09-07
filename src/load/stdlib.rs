@@ -146,6 +146,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/Record.wat",
         source: include_str!("../../wat/Record.wat"),
     },
+    // Arc 296 L — `:wat::runtime::TypeInfo` and its closed-domain body types.
+    // After Record.wat: TypeInfo / TypeField / TypeVariant are defrecords.
+    WatSource {
+        path: "wat/runtime-typeinfo.wat",
+        source: include_str!("../../wat/runtime-typeinfo.wat"),
+    },
     // :wat::doc::Row — pprintln of a doc row. After Record.wat (defrecord)
     // and runtime-meta.wat (axis enums, loaded earlier).
     WatSource {

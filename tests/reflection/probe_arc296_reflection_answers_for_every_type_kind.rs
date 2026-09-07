@@ -32,7 +32,7 @@
 //! exists. Had the variant HAD a field named `_cur`, the arm would have bound the WRONG FIELD
 //! SILENTLY. A reflection hole does not merely block tooling; it makes tooling guess.
 //!
-//! RED at HEAD; `#[ignore]`d until the stone un-ignores it.
+//! Un-ignored by the type-of stone.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -55,7 +55,6 @@ fn run(fixture: &str) -> (i32, String) {
 }
 
 #[test]
-#[ignore = "RED at HEAD — reflection answers for only 1 of 6 TypeDef kinds; un-ignored BY the intrinsics stone"]
 fn reflection_answers_for_an_enum() {
     let (code, out) = run("probe_arc296_reflection_answers_for_every_type_kind.wat");
     assert_eq!(
@@ -71,4 +70,17 @@ fn reflection_answers_for_an_enum() {
     // THE QUESTION IS ANSWERABLE AT ALL — and the field-name requirement rides EXPECTATIONS row 4,
     // verified per-kind in the SCORE against the shape the strike actually lands.
     assert!(!out.is_empty(), "type-of must answer with a value, not silence");
+}
+
+#[test]
+fn reflection_answers_for_all_six_kinds_and_variant_field_order() {
+    let (code, out) = run("probe_arc296_type_of_six_kinds.wat");
+    assert_eq!(code, 0, "six-kind fixture must run; got:\n{out}");
+    // Exact stdout — not a contains check. One fact per line, in this order:
+    // six kinds, Pair's declared fields (declaration order), Rec nature,
+    // field-names-of Rec (not retired), Option type-params.
+    assert_eq!(
+        out,
+        "\"Aggregate\"\n\"Enum\"\n\"Newtype\"\n\"Alias\"\n\"Union\"\n\"Surface\"\n\":left\"\n\":right\"\n\"Record\"\n\":alpha\"\n\"T\""
+    );
 }

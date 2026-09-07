@@ -23,8 +23,8 @@
 
 (:wat::core::defn :user::check [] -> :wat::core::i64
   (:wat::core::match (:user::give-none)
-    ((:wat::core::Some x) x)
-    (:wat::core::None -1)))
+    [:wat::core::Some {:value x} x]
+    [:wat::core::None {} -1]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:user::check)))

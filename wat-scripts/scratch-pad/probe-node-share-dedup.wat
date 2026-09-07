@@ -87,8 +87,8 @@
                                  "count-kinds: node not found")
                           kind (:wat::rete::node-kind-label node)
                           cur  (:wat::core::match (:wat::hashmap::get acc kind)
-                                 ((:wat::core::Some v) v)
-                                 (:wat::core::None 0))]
+                                 [:wat::core::Some {:value v} v]
+                                 [:wat::core::None {} 0])]
           (:wat::hashmap::assoc acc kind (:wat::i64::+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
       (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
@@ -96,11 +96,11 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
-                              ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-                              (:wat::kernel::ReadlnOutcome::Eof
-                                (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None))
-                              (:wat::kernel::ReadlnOutcome::Stopped
-                                (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+                              [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+                              [:wat::kernel::ReadlnOutcome::Eof {}
+                                (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+                              [:wat::kernel::ReadlnOutcome::Stopped {}
+                                (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
                     n       (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
                     rules   (:nsp::build-rules n)
                     ;; COMPILE ONLY — never seed, never fire. That is what makes this safe at any N.

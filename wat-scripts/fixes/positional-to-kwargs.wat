@@ -62,12 +62,12 @@
                                        "<"))
                               fvopt  (:user::fieldvec-at ch 2)]
               (:wat::core::match fvopt 
-                (:wat::core::None m)
-                ((:wat::core::Some fv)
+                [:wat::core::None {} m]
+                [:wat::core::Some {:value fv}
                   (:wat::core::let [names (:user::fieldvec-names fv)]
                     (:wat::core::if (:wat::core::empty? names)
                       m
-                      (:wat::hashmap::assoc m tyname names))))))
+                      (:wat::hashmap::assoc m tyname names)))]))
             m))))
     m))
 
@@ -111,11 +111,11 @@
                    (:wat::core::ast-name head) "")
            fopt  (:wat::hashmap::get m hname)
            this  (:wat::core::match fopt 
-                   (:wat::core::None (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
-                   ((:wat::core::Some fields)
+                   [:wat::core::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+                   [:wat::core::Some {:value fields}
                      (:wat::core::if (:wat::core::= (:wat::core::length args) (:wat::core::length fields))
                        (:user::arg-edits args fields lines)
-                       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))]
+                       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))])]
           (:wat::core::concat this (:user::edits-seq ch m lines)))))
     ;; NOT a list — recurse into vector/map children (constructions nest inside let-binding
     ;; vectors `[x (:T a b)]`, map literals, etc.). Only LISTS can be construction heads; these
@@ -142,7 +142,7 @@
    m   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> :wat::core::String
   (:wat::core::let [lines (:wat::string::split src "\n")
-                    tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+                    tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
                     forms (:wat::core::ast->children tree)
                     eds   (:user::edits-seq forms m lines)
                     ;; edits MUST apply high-offset-first so a low insert never shifts a pending
@@ -152,7 +152,7 @@
 
 ;; ── driver: build the map from ALL files first, then rewrite each ────────────
 (:wat::core::defn :user::read-forms [path <- :wat::core::String] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::ast->children (:wat::core::match (:wat::core::read-string (:wat::io::read-file path)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))
+  (:wat::core::ast->children (:wat::core::match (:wat::core::read-string (:wat::io::read-file path)) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])))
 
 (:wat::core::defn :user::build-map
   [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
@@ -177,7 +177,7 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)) m)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
                     m     (:user::build-map
                             (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
                             paths)]

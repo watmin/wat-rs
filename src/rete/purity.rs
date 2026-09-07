@@ -1196,7 +1196,7 @@ fn classify_expr(
         // ⛔ THE HOLE THIS CLOSES (found 2026-08-05 by the builder, proven by run in one probe):
         //
         //     (:wat::rete::primitive? '(:wat::core::cond  (true 1) (:else 2)))  -> TRUE
-        //     (:wat::rete::primitive? '(:wat::core::match x (:wat::core::None 1))) -> TRUE
+        //     (:wat::rete::primitive? '(:wat::core::match x [:wat::core::None {} 1])) -> TRUE
         //     (:wat::rete::primitive? '(:wat::core::fn [a <- …] -> … a))       -> TRUE
         //     (:wat::rete::primitive? '(:wat::core::> 1 0))                    -> false   (control)
         //
@@ -1289,7 +1289,12 @@ fn classify_expr(
             })?;
             for arm in arms {
                 match arm {
-                    // skip pattern (element 0); check body forms (1..).
+                    // body is the last element of the bracket clause.
+                    WatAST::Vector(parts, _) if !parts.is_empty() => {
+                        if let Some(e) = parts.last() {
+                            classify_expr(e, axes, sym, seen, closure_seen, ctx)?;
+                        }
+                    }
                     WatAST::List(parts, _) => {
                         for e in parts.iter().skip(1) {
                             classify_expr(e, axes, sym, seen, closure_seen, ctx)?;

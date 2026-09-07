@@ -104,8 +104,8 @@
       (:wat::core::if (:wat::core::= hd ":wat::rete::not")
         (:wat::rete::negated-types-under (:wat::core::second ch))
         (:wat::core::match (:wat::rete::type-name-of form)
-          ((:wat::core::Some n) (:wat::core::PersistentVector n))
-          (:wat::core::None (:wat::core::PersistentVector)))))))
+          [:wat::core::Some {:value n} (:wat::core::PersistentVector n)]
+          [:wat::core::None {} (:wat::core::PersistentVector)])))))
 
 ;; rule-negates — :not of a fact AND :not of :and/:or. Leaves, not "wat::rete::and".
 (:wat::core::defn :wat::rete::rule-negates
@@ -165,8 +165,8 @@
                                false)]
           (:wat::core::if (:wat::core::= hd ":wat::rete::exists")
             (:wat::core::match (:wat::rete::type-name-of (:wat::core::second ch))
-              ((:wat::core::Some t) (:wat::vector::conj acc t))
-              (:wat::core::None acc))
+              [:wat::core::Some {:value t} (:wat::vector::conj acc t)]
+              [:wat::core::None {} acc])
             (:wat::core::if (:wat::core::if q?
                               (:wat::core::if (:wat::i64::>= (:wat::core::length ch) 5)
                                 (:wat::core::= (:wat::core::ast-name
@@ -180,15 +180,15 @@
                                    (:wat::core::Option/expect
                                      (:wat::core::get ch 4)
                                      "rule-consumes: acc :from inner"))
-                ((:wat::core::Some t) (:wat::vector::conj acc t))
-                (:wat::core::None acc))
+                [:wat::core::Some {:value t} (:wat::vector::conj acc t)]
+                [:wat::core::None {} acc])
               (:wat::core::if (:wat::core::if (:wat::i64::>= n 12)
                                 (:wat::core::= (:wat::string::subs hd 0 12) ":wat::rete::")
                                 false)
                 acc
                 (:wat::core::match (:wat::rete::type-name-of form)
-                  ((:wat::core::Some t) (:wat::vector::conj acc t))
-                  (:wat::core::None acc)))))))
+                  [:wat::core::Some {:value t} (:wat::vector::conj acc t)]
+                  [:wat::core::None {} acc]))))))
       (:wat::core::PersistentVector)
       lhs)))
 
@@ -213,8 +213,8 @@
                                      (:wat::core::let [ns (:wat::core::match
                                                              (:wat::hashmap::get ts neg)
                                                              
-                                                           ((:wat::core::Some v) v)
-                                                           (:wat::core::None 0))
+                                                           [:wat::core::Some {:value v} v]
+                                                           [:wat::core::None {} 0])
                                                        v  (:wat::i64::+ ns 1)]
                                        (:wat::core::if (:wat::i64::> v mx) v mx)))
                                    0
@@ -228,8 +228,8 @@
                                      -> :wat::core::i64
                                      (:wat::core::let [cs (:wat::core::match
                                                              (:wat::hashmap::get ts con)
-                                                           ((:wat::core::Some v) v)
-                                                           (:wat::core::None 0))]
+                                                           [:wat::core::Some {:value v} v]
+                                                           [:wat::core::None {} 0])]
                                        (:wat::core::if (:wat::i64::> cs mx) cs mx)))
                                    0
                                    consumed)
@@ -244,8 +244,8 @@
                                                        cur (:wat::core::match
                                                               (:wat::hashmap::get its p)
                                                               
-                                                            ((:wat::core::Some v) v)
-                                                            (:wat::core::None 0))]
+                                                            [:wat::core::Some {:value v} v]
+                                                            [:wat::core::None {} 0])]
                                        (:wat::core::if (:wat::i64::> required cur)
                                          (:wat::rete::StratifyAcc
                                            :type-strata (:wat::hashmap::assoc its p required)
@@ -293,8 +293,8 @@
                                  (:wat::core::let [ps (:wat::core::match
                                                          (:wat::hashmap::get type-strata p)
                                                          
-                                                       ((:wat::core::Some v) v)
-                                                       (:wat::core::None 0))]
+                                                       [:wat::core::Some {:value v} v]
+                                                       [:wat::core::None {} 0])]
                                    (:wat::core::if (:wat::i64::> ps mx) ps mx)))
                                0
                                produced)
@@ -305,8 +305,8 @@
                                  (:wat::core::let [ns (:wat::core::match
                                                          (:wat::hashmap::get type-strata n)
                                                          
-                                                       ((:wat::core::Some v) v)
-                                                       (:wat::core::None 0))
+                                                       [:wat::core::Some {:value v} v]
+                                                       [:wat::core::None {} 0])
                                                    v  (:wat::i64::+ ns 1)]
                                    (:wat::core::if (:wat::i64::> v mx) v mx)))
                                0

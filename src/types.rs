@@ -2084,6 +2084,19 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Rust consumes it.
     ::wat_source_derive::wat_record_from!(env, "wat/holon.wat", ":wat::holon::Match");
 
+    // Arc 296 L — `:wat::runtime::type-of` answers with this row. wat is the
+    // source of truth (`wat/runtime-typeinfo.wat`); these macros emit the
+    // TypeEnv registrations. Order matches the file: unit enums, then the
+    // two records the tagged enums name, then the tagged enums, then TypeInfo.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeKind");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeNature");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypePurity");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeField");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeVariant");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeSurfaceMember");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeBody");
+    ::wat_source_derive::wat_record_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeInfo");
+
     // :wat::core::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
     // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per
     // the `::`/`/` semantic-split doctrine: the namespace IS the umbrella

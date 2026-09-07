@@ -177,7 +177,7 @@
   [sym-map <- (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
    file    <- :wat::source::File]
   -> (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
-  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
                     forms (:wat::core::ast->children tree)
                     path  (:wat::source::File/path file)]
     (:wat::core::foldl
@@ -230,7 +230,7 @@
    sym-map <- (:wat::core::HashMap :- [:wat::core::String :wat::deporder::SymDef])
    pos-map <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])]
   -> (:wat::core::Vector :- [:wat::deporder::Violation])
-  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
+  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string (:wat::source::File/source file)) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])
                     forms (:wat::core::ast->children tree)
                     path  (:wat::source::File/path file)
                     ;; collect all keyword refs from all forms in this file
@@ -248,8 +248,8 @@
         -> (:wat::core::Vector :- [:wat::deporder::Violation])
         (:wat::core::let [sym-opt (:wat::hashmap::get sym-map kwd)]
           (:wat::core::match sym-opt 
-            (:wat::core::None viols)
-            ((:wat::core::Some sym-def)
+            [:wat::core::None {} viols]
+            [:wat::core::Some {:value sym-def}
              ;; defined in a different file?
              (:wat::core::if (:wat::core::= (:wat::deporder::SymDef/file sym-def) path)
                viols
@@ -260,14 +260,14 @@
                  (:wat::core::let [def-path    (:wat::deporder::SymDef/file sym-def)
                                    def-pos-opt (:wat::hashmap::get pos-map def-path)]
                    (:wat::core::match def-pos-opt 
-                     (:wat::core::None viols)
-                     ((:wat::core::Some def-pos)
+                     [:wat::core::None {} viols]
+                     [:wat::core::Some {:value def-pos}
                       ;; violation: definer loads AFTER referencer
                       (:wat::core::if (:wat::i64::> def-pos ref-pos)
                         (:wat::core::concat viols
                           (:wat::core::Vector :- [:wat::deporder::Violation]
                             (:wat::deporder::Violation :referencer path :referencer-pos ref-pos :definer def-path :definer-pos def-pos :symbol kwd)))
-                        viols))))))))))
+                        viols)]))))])))
       (:wat::core::Vector :- [:wat::deporder::Violation])
       all-refs)))
 

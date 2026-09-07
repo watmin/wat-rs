@@ -52,30 +52,30 @@
   [c <- (:wat::kernel::Peer :- [:dos::Bag::Op :dos::Bag::Reply])  label <- :wat::core::String
    req <- :dos::Bag::PutRequest] -> :wat::core::nil
   (:wat::core::match (:dos::Bag/put c req)
-    ((:wat::kernel::RecvOutcome::Message resp)
+    [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
-        ((:dos::Bag::PutResponse::Ok n)
-          (:wat::kernel::println (:wat::string::concat label " => Ok")))
-        ((:dos::Bag::PutResponse::RequestTooLarge b cap)
-          (:wat::kernel::println (:wat::string::concat label " => TooLarge")))
+        [:dos::Bag::PutResponse::Ok {:n n}
+          (:wat::kernel::println (:wat::string::concat label " => Ok"))]
+        [:dos::Bag::PutResponse::RequestTooLarge {:bytes b :cap cap}
+          (:wat::kernel::println (:wat::string::concat label " => TooLarge"))]
         ;; the codemod's default body for this arm is `assertion-failed!` (a terminal caller that
         ;; builds its own typed request cannot be malformed, so an unexpected refusal must be
         ;; loud). THIS probe is the one place that deliberately sends a malformed frame, so the
         ;; refusal is the expected observation and is printed with its full coordinate.
-        ((:dos::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
+        [:dos::Bag::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
           (:wat::kernel::println
             (:wat::string::concat label
               (:wat::string::concat " => MALFORMED at "
                 (:wat::string::concat (:wat::edn::write mpath)
                   (:wat::string::concat " expected="
                     (:wat::string::concat mexpected
-                      (:wat::string::concat " got=" mgot))))))))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::println (:wat::string::concat label " => LOST (peer gone)")))
-    (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::println (:wat::string::concat label " => Stopped")))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::string::concat label " => Closed")))))
+                      (:wat::string::concat " got=" mgot)))))))])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::println (:wat::string::concat label " => LOST (peer gone)"))]
+    [:wat::kernel::RecvOutcome::Stopped {}
+      (:wat::kernel::println (:wat::string::concat label " => Stopped"))]
+    [:wat::kernel::RecvOutcome::Closed {}
+      (:wat::kernel::println (:wat::string::concat label " => Closed"))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -84,18 +84,18 @@
      bad  (:wat::edn::read "#dos.Bag/PutRequest {:items [1 2 3]}")
      ;; ATTACKER connection
      a (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)))
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! "rejected" :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! "failed" :wat::core::None :wat::core::None)])
      _ (:dos::try a "attacker good " good)
      _ (:dos::try a "attacker BAD  " bad)
      ;; a SECOND, INNOCENT client connects AFTER the bad frame
      b (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
-         ((:wat::kernel::ConnectOutcome::Connected p) p)
-         ((:wat::kernel::ConnectOutcome::Refused f)  (:wat::kernel::assertion-failed! "victim: connect REFUSED — service is GONE" :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Rejected f) (:wat::kernel::assertion-failed! "victim: connect REJECTED — service is GONE" :wat::core::None :wat::core::None))
-         ((:wat::kernel::ConnectOutcome::Failed f)   (:wat::kernel::assertion-failed! "victim: connect FAILED — service is GONE" :wat::core::None :wat::core::None)))
+         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! "victim: connect REFUSED — service is GONE" :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! "victim: connect REJECTED — service is GONE" :wat::core::None :wat::core::None)]
+         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! "victim: connect FAILED — service is GONE" :wat::core::None :wat::core::None)])
      ;; The victim's call is a BINDING, not the let's tail expression. That is not cosmetic and it
      ;; is not about this stone: a service Handle bound in a `let` is dropped before the let's TAIL
      ;; body evaluates, so a request issued from tail position comes back `Closed` — the service is

@@ -563,9 +563,9 @@
 (:wat::core::defn :user::parse-forms [src <- :wat::core::String] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::ast->children
     (:wat::core::match (:wat::core::read-string src)
-      ((:wat::core::ReadOutcome::Forms __forms) __forms)
-      ((:wat::core::ReadOutcome::Malformed __cause)
-        (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))
+      [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
+      [:wat::core::ReadOutcome::Malformed {:cause __cause}
+        (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)])))
 
 (:wat::core::defn :user::scan-file-arity [path <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::i64])])
@@ -627,8 +627,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [ctx   (:wat::core::match (:wat::kernel::readln)
-                             ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
-                             (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None))
-                             (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
+                             [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
+                             [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)]
+                             [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])
                     table (:wat::core::concat (:user::substrate-arity) (:user::scan-all-arity ctx))]
     (:census::files ctx table)))

@@ -22,9 +22,9 @@
   [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
    s   <- (:wat::stream::Stream :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::match (:wat::stream::next s)
-    ((:wat::stream::NextOutcome::Item value rest)
-      (:probe::drain-next (:wat::vector::conj acc value) rest))
-    (:wat::stream::NextOutcome::Exhausted acc)))
+    [:wat::stream::NextOutcome::Item {:value value :rest rest}
+      (:probe::drain-next (:wat::vector::conj acc value) rest)]
+    [:wat::stream::NextOutcome::Exhausted {} acc]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

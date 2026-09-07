@@ -243,8 +243,8 @@
 ;; only when the file has none at all.
 (:wat::core::defn :user::resolve-ns [names <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String] -> :wat::core::String
   (:wat::core::match (:user::find-ns names)
-    ((:wat::core::Some ns) ns)
-    (:wat::core::None (:user::mint-ns path))))
+    [:wat::core::Some {:value ns} ns]
+    [:wat::core::None {} (:user::mint-ns path)]))
 
 ;; ── computing each rename ────────────────────────────────────────────────────────────────
 
@@ -301,8 +301,8 @@
 ;; through would either crash or, worse, "fix" a file that must stay unparseable.
 (:wat::core::defn :user::migrate [src <- :wat::core::String path <- :wat::core::String] -> :wat::core::String
   (:wat::core::match (:wat::core::read-string src)
-    ((:wat::core::ReadOutcome::Malformed __cause) src)
-    ((:wat::core::ReadOutcome::Forms tree0)
+    [:wat::core::ReadOutcome::Malformed {:cause __cause} src]
+    [:wat::core::ReadOutcome::Forms {:forms tree0}
       (:wat::core::let
         [forms0 (:wat::core::ast->children tree0)
          names0 (:user::collect-def-names forms0)]
@@ -311,7 +311,7 @@
           (:wat::core::let
             [ns      (:user::resolve-ns names0 path)
              renames (:user::collect-renames names0 ns)]
-            (:user::apply-renames src renames)))))))
+            (:user::apply-renames src renames))))]))
 
 ;; ── driver: rewrite each path given on stdin (a JSON array of strings) ──────────────────
 (:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
@@ -324,5 +324,5 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))]
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)])]
     (:user::rewrite-each paths)))

@@ -156,23 +156,27 @@ pub(super) fn check_form(
                     return;
                 }
 
-                // match (arc 245 long-tail) — items[1]=scrutinee (walk),
-                // items[2..=3]=`-> :T` (skip), items[4..]=arms. Each arm is
-                // `(pattern body)`: the pattern is DSL data owned by check.rs
-                // `infer_match` (variant/constructor head, not a call head), so
-                // walk only the body (arm_items[1]). A bare-symbol wildcard arm is
-                // walked directly.
+                // match — items[1]=scrutinee (walk), items[2..]=arms.
+                // Each arm is a vector; the BODY is the last element (index 1
+                // for `[_ body]`, index 2 for `[Variant map body]`). The
+                // pattern/map is DSL data owned by check.rs.
                 Boundary::Match => {
                     if let Some(scrutinee) = items.get(1) {
                         check_form(scrutinee, sym, macros, use_decls, unresolved);
                     }
-                    for arm in items.iter().skip(4) {
-                        if let WatAST::List(arm_items, _) = arm {
-                            if let Some(body) = arm_items.get(1) {
-                                check_form(body, sym, macros, use_decls, unresolved);
+                    for arm in items.iter().skip(2) {
+                        match arm {
+                            WatAST::Vector(arm_items, _) if !arm_items.is_empty() => {
+                                if let Some(body) = arm_items.last() {
+                                    check_form(body, sym, macros, use_decls, unresolved);
+                                }
                             }
-                        } else {
-                            check_form(arm, sym, macros, use_decls, unresolved);
+                            WatAST::List(arm_items, _) => {
+                                if let Some(body) = arm_items.get(1) {
+                                    check_form(body, sym, macros, use_decls, unresolved);
+                                }
+                            }
+                            other => check_form(other, sym, macros, use_decls, unresolved),
                         }
                     }
                     return;

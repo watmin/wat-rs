@@ -10,7 +10,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match (:wat::eval-ast! (:wat::core::quote
                         (:wat::core::apply :wat::i64::+ (:wat::core::Vector :- [:wat::core::i64] 20))))
-    ((:wat::core::Ok _) (:wat::kernel::println "UNEXPECTED: ok"))
-    ((:wat::core::Err e)
+    [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+    [:wat::core::Err {:error e}
       (:wat::kernel::println (:wat::string::concat "kind=" (:wat::core::EvalError/kind e)
-                                " message=" (:wat::core::EvalError/message e))))))
+                                " message=" (:wat::core::EvalError/message e)))]))

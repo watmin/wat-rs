@@ -37,21 +37,21 @@
   ;; ::Message → work + recurse; ::Lost (parent Thread crashed) → eprintln the cause
   ;; (loud, terminal); ::Closed (parent dropped cleanly) → exit the runner loop.
   (:wat::core::match (:wat::kernel::recv self)  
-    ((:wat::kernel::RecvOutcome::Message item)
+    [:wat::kernel::RecvOutcome::Message {:msg item}
       ;; arc 278 the send'-outcome wall — face all three arms explicitly. A dead parent
       ;; here means the NEXT recv' observes Closed/Lost and exits the loop honestly, so
       ;; every arm proceeds to recurse (never a `_`-swallow).
       (:wat::core::match (:wat::kernel::send self (work-fn item))
-        (:wat::kernel::SendOutcome::Sent   (:wat::bracket::runner-loop self work-fn))
-        (:wat::kernel::SendOutcome::Stopped nil)                                        ;; arc 278 #73 — the WORLD is stopping → exit the runner loop
-        (:wat::kernel::SendOutcome::Closed (:wat::bracket::runner-loop self work-fn))   ;; parent gone → next recv' faces it
-        ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::runner-loop self work-fn))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+        [:wat::kernel::SendOutcome::Sent {}   (:wat::bracket::runner-loop self work-fn)]
+        [:wat::kernel::SendOutcome::Stopped {} nil]                                        ;; arc 278 #73 — the WORLD is stopping → exit the runner loop
+        [:wat::kernel::SendOutcome::Closed {} (:wat::bracket::runner-loop self work-fn)]   ;; parent gone → next recv' faces it
+        [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::bracket::runner-loop self work-fn)])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
-    (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    [:wat::kernel::RecvOutcome::Stopped {} nil]
+    [:wat::kernel::RecvOutcome::Closed {} nil]))
 
 ;; (PoolMsg :- [D I]) (the universal pool wire message) is defined in wat/spawn.wat — it
 ;; must precede the :wat::spawn::Locus surface's `spawn-runner` return type, which
@@ -76,28 +76,28 @@
   ;; dispatch the PoolMsg; ::Lost (parent crashed) → eprintln (loud, terminal); ::Closed
   ;; (parent dropped) → exit the runner.
   (:wat::core::match (:wat::kernel::recv self)  
-    ((:wat::kernel::RecvOutcome::Message m)
+    [:wat::kernel::RecvOutcome::Message {:msg m}
       (:wat::core::match m  
-        ((:wat::bracket::PoolMsg::Work pair)
+        [:wat::bracket::PoolMsg::Work {:pair pair}
           (:wat::core::let
             [out (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
             ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
             ;; via the next recv', so every arm proceeds to recurse.
             (:wat::core::match (:wat::kernel::send self out)
-              (:wat::kernel::SendOutcome::Sent   (:wat::bracket::process-runner self work-fn))
-              (:wat::kernel::SendOutcome::Stopped nil)                                           ;; arc 278 #73 — the WORLD is stopping → exit
-              (:wat::kernel::SendOutcome::Closed (:wat::bracket::process-runner self work-fn))   ;; parent gone → next recv' faces it
-              ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::process-runner self work-fn)))))
+              [:wat::kernel::SendOutcome::Sent {}   (:wat::bracket::process-runner self work-fn)]
+              [:wat::kernel::SendOutcome::Stopped {} nil]                                           ;; arc 278 #73 — the WORLD is stopping → exit
+              [:wat::kernel::SendOutcome::Closed {} (:wat::bracket::process-runner self work-fn)]   ;; parent gone → next recv' faces it
+              [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::bracket::process-runner self work-fn)]))]
         ;; A non-dialing pool never sends :Setup (dials empty); the arm is total by
         ;; construction — ignore + recurse (D stays phantom for this runner).
-        ((:wat::bracket::PoolMsg::Setup _deps)
-          (:wat::bracket::process-runner self work-fn))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+        [:wat::bracket::PoolMsg::Setup {:deps _deps}
+          (:wat::bracket::process-runner self work-fn)])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
-    (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    [:wat::kernel::RecvOutcome::Stopped {} nil]
+    [:wat::kernel::RecvOutcome::Closed {} nil]))
 
 ;; ── process-dial-runner — the BAKED dialing process-pool runner (arc 170 M1) ──
 ;;
@@ -119,39 +119,39 @@
   ;; arc 278 the recv'-outcome wall — (RecvOutcome :- [PoolMsg]). ::Message → dispatch;
   ;; ::Lost → eprintln (terminal); ::Closed → exit the runner.
   (:wat::core::match (:wat::kernel::recv self)  
-    ((:wat::kernel::RecvOutcome::Message m)
+    [:wat::kernel::RecvOutcome::Message {:msg m}
       (:wat::core::match m  
-        ((:wat::bracket::PoolMsg::Setup deps)
+        [:wat::bracket::PoolMsg::Setup {:deps deps}
           ;; arc 278 the connect'-outcome wall — face all four arms. ::Connected → hold the
           ;; dialed Peer as (Some p); failure arms → assertion-failed! (fatal, preserving
           ;; the pre-wall raise-unwind — the pool does NOT degrade/retry; that is a
           ;; deliberate follow-up if ever wanted, not this wall).
           (:wat::bracket::process-dial-runner self work-fn
             (:wat::core::match (:wat::kernel::connect deps)
-              ((:wat::kernel::ConnectOutcome::Connected p) (:wat::core::Some p))
-              ((:wat::kernel::ConnectOutcome::Refused c)
-                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-              ((:wat::kernel::ConnectOutcome::Rejected c)
-                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-              ((:wat::kernel::ConnectOutcome::Failed c)
-                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
-        ((:wat::bracket::PoolMsg::Work pair)
+              [:wat::kernel::ConnectOutcome::Connected {:peer p} (:wat::core::Some p)]
+              [:wat::kernel::ConnectOutcome::Refused {:cause c}
+                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+              [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+              [:wat::kernel::ConnectOutcome::Failed {:cause c}
+                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]))]
+        [:wat::bracket::PoolMsg::Work {:pair pair}
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "bracket process-dial-runner: Work before Setup")
              out (:wat::core::Tuple (:wat::core::first pair) (work-fn c (:wat::core::second pair)))]
             ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
             ;; via the next recv', so every arm proceeds to recurse.
             (:wat::core::match (:wat::kernel::send self out)
-              (:wat::kernel::SendOutcome::Sent   (:wat::bracket::process-dial-runner self work-fn ctx))
-              (:wat::kernel::SendOutcome::Stopped nil)                                                    ;; arc 278 #73 — the WORLD is stopping → exit
-              (:wat::kernel::SendOutcome::Closed (:wat::bracket::process-dial-runner self work-fn ctx))   ;; parent gone → next recv' faces it
-              ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::process-dial-runner self work-fn ctx)))))))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+              [:wat::kernel::SendOutcome::Sent {}   (:wat::bracket::process-dial-runner self work-fn ctx)]
+              [:wat::kernel::SendOutcome::Stopped {} nil]                                                    ;; arc 278 #73 — the WORLD is stopping → exit
+              [:wat::kernel::SendOutcome::Closed {} (:wat::bracket::process-dial-runner self work-fn ctx)]   ;; parent gone → next recv' faces it
+              [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::bracket::process-dial-runner self work-fn ctx)]))])]
+    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
     ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not drop,
     ;; the substrate is stopping. Same body, stated cause (never an unexplained twin).
-    (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil)))
+    [:wat::kernel::RecvOutcome::Stopped {} nil]
+    [:wat::kernel::RecvOutcome::Closed {} nil]))
 
 ;; ── spawn-runner — the per-tier runner spawn, lifted onto the :Locus surface ──
 ;;
@@ -199,27 +199,27 @@
      impl-kw      (:wat::keyword::from-string
                     (:wat::core::format "{base-str}$impl" :base-str base-str))]
     (:wat::core::match (:wat::kernel::recv self)
-      ((:wat::kernel::RecvOutcome::Message m)
+      [:wat::kernel::RecvOutcome::Message {:msg m}
         (:wat::core::match m
-          ((:wat::bracket::PoolMsg::Setup deps)
+          [:wat::bracket::PoolMsg::Setup {:deps deps}
             (:wat::bracket::thread-kwargs-runner self work-fn
               (:wat::core::Some
-                (:wat::core::apply assemble-kw deps (:wat::core::Vector :- [:wat::core::nil])))))
-          ((:wat::bracket::PoolMsg::Work pair)
+                (:wat::core::apply assemble-kw deps (:wat::core::Vector :- [:wat::core::nil]))))]
+          [:wat::bracket::PoolMsg::Work {:pair pair}
             (:wat::core::let
               [k   (:wat::core::Option/expect ctx "bracket thread-kwargs-runner: Work before Setup")
                out (:wat::core::Tuple (:wat::core::first pair)
                      (:wat::core::apply impl-kw (:wat::core::second pair)
                        (:wat::core::Vector :- [:K] k)))]
               (:wat::core::match (:wat::kernel::send self out)
-                (:wat::kernel::SendOutcome::Sent   (:wat::bracket::thread-kwargs-runner self work-fn ctx))
-                (:wat::kernel::SendOutcome::Stopped nil)
-                (:wat::kernel::SendOutcome::Closed (:wat::bracket::thread-kwargs-runner self work-fn ctx))
-                ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::thread-kwargs-runner self work-fn ctx)))))))
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Stopped nil)
-      (:wat::kernel::RecvOutcome::Closed nil))))
+                [:wat::kernel::SendOutcome::Sent {}   (:wat::bracket::thread-kwargs-runner self work-fn ctx)]
+                [:wat::kernel::SendOutcome::Stopped {} nil]
+                [:wat::kernel::SendOutcome::Closed {} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]
+                [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::bracket::thread-kwargs-runner self work-fn ctx)]))])]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Stopped {} nil]
+      [:wat::kernel::RecvOutcome::Closed {} nil])))
 
 (:wat::core::defclause :wat::bracket::thread-enter
   ([self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
@@ -230,12 +230,12 @@
    (:wat::bracket::runner-loop self
      (:wat::core::fn [m <- (:wat::bracket::PoolMsg :- [D I])] -> (:wat::core::Tuple :- [:wat::core::i64 O])
        (:wat::core::match m
-         ((:wat::bracket::PoolMsg::Work pair)
-           (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair))))
-         ((:wat::bracket::PoolMsg::Setup _deps)
+         [:wat::bracket::PoolMsg::Work {:pair pair}
+           (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
+         [:wat::bracket::PoolMsg::Setup {:deps _deps}
            (:wat::kernel::assertion-failed!
              "bracket thread runner: unexpected PoolMsg::Setup (plain thread pool — no kwargs tail)"
-             :wat::core::None :wat::core::None)))))))
+             :wat::core::None :wat::core::None)])))))
 
 (:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
   (spawn-runner [self work-fn]
@@ -459,13 +459,13 @@
               ;; the generated code (arm-scoped; they don't escape the match).
               form        (:wat::core::if is-peer
                             `(:wat::core::match (:wat::kernel::connect (~accessor-kw deps))
-                               ((:wat::kernel::ConnectOutcome::Connected p) p)
-                               ((:wat::kernel::ConnectOutcome::Refused c)
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                               ((:wat::kernel::ConnectOutcome::Rejected c)
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                               ((:wat::kernel::ConnectOutcome::Failed c)
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+                               [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+                               [:wat::kernel::ConnectOutcome::Refused {:cause c}
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                               [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                               [:wat::kernel::ConnectOutcome::Failed {:cause c}
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
                             `(~accessor-kw deps))]
              (:wat::core::conj acc form)))
          (:wat::core::Vector :- [:wat::WatAST])
@@ -482,12 +482,12 @@
            ctx  <- ~ctx-ty-kw]
           -> :wat::core::nil
           (:wat::core::match (:wat::kernel::recv self)  
-            ((:wat::kernel::RecvOutcome::Message m)
+            [:wat::kernel::RecvOutcome::Message {:msg m}
               (:wat::core::match m  
-                ((:wat::bracket::PoolMsg::Setup deps)
+                [:wat::bracket::PoolMsg::Setup {:deps deps}
                   (:user::bracket::dial-runner self
-                    (:wat::core::Some (~kwargs-prime-kw ~@kwargs-ctor-args))))
-                ((:wat::bracket::PoolMsg::Work pair)
+                    (:wat::core::Some (~kwargs-prime-kw ~@kwargs-ctor-args)))]
+                [:wat::bracket::PoolMsg::Work {:pair pair}
                   (:wat::core::let
                     [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
                      out (:wat::core::Tuple (:wat::core::first pair)
@@ -495,17 +495,17 @@
                     ;; arc 278 the send'-outcome wall — face all three arms; a dead parent
                     ;; surfaces via the next recv', so every arm proceeds to recurse.
                     (:wat::core::match (:wat::kernel::send self out)
-                      (:wat::kernel::SendOutcome::Sent   (:user::bracket::dial-runner self ctx))
-                      (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → exit
-                      (:wat::kernel::SendOutcome::Closed (:user::bracket::dial-runner self ctx))   ;; parent gone → next recv' faces it
-                      ((:wat::kernel::SendOutcome::Lost _c) (:user::bracket::dial-runner self ctx)))))))
+                      [:wat::kernel::SendOutcome::Sent {}   (:user::bracket::dial-runner self ctx)]
+                      [:wat::kernel::SendOutcome::Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → exit
+                      [:wat::kernel::SendOutcome::Closed {} (:user::bracket::dial-runner self ctx)]   ;; parent gone → next recv' faces it
+                      [:wat::kernel::SendOutcome::Lost {:cause _c} (:user::bracket::dial-runner self ctx)]))])]
             ;; arc 278 the recv'-outcome wall — ::Lost → eprintln (terminal); ::Closed → exit.
-            ((:wat::kernel::RecvOutcome::Lost cause)
-              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+            [:wat::kernel::RecvOutcome::Lost {:cause cause}
+              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
             ;; arc 278 #73 — exit like Closed, DIFFERENT reason: the parent did not
             ;; drop, the substrate is stopping. Same body, stated cause.
-            (:wat::kernel::RecvOutcome::Stopped nil)
-            (:wat::kernel::RecvOutcome::Closed nil)))
+            [:wat::kernel::RecvOutcome::Stopped {} nil]
+            [:wat::kernel::RecvOutcome::Closed {} nil]))
        main-def
        `(:wat::core::defn :user::main [] -> :wat::core::nil
           (:user::bracket::dial-runner
@@ -605,7 +605,7 @@
       [event    (:wat::kernel::select peers)]
       (:wat::core::match event
          
-        ((:wat::spawn::ServiceEvent::Message peer-pos pair)
+        [:wat::spawn::ServiceEvent::Message {:idx peer-pos :msg pair}
           (:wat::core::let
             [cursor'  (:wat::core::if (:wat::core::< cursor m)
                         ;; arc 278 the send'-outcome wall — face all three arms explicitly.
@@ -616,56 +616,56 @@
                                               (:wat::core::nth peers peer-pos)
                                               (:wat::bracket::PoolMsg::Work
                                                 (:wat::core::Tuple cursor (:wat::core::nth items cursor))))
-                          (:wat::kernel::SendOutcome::Sent   (:wat::core::+ cursor 1))
-                          (:wat::kernel::SendOutcome::Stopped (:wat::core::+ cursor 1))  ;; arc 278 #73 — same: this loop's select' arm faces the stop
-                          (:wat::kernel::SendOutcome::Closed (:wat::core::+ cursor 1))   ;; surfaces via this loop's own select' arm
-                          ((:wat::kernel::SendOutcome::Lost _c) (:wat::core::+ cursor 1)))
+                          [:wat::kernel::SendOutcome::Sent {}   (:wat::core::+ cursor 1)]
+                          [:wat::kernel::SendOutcome::Stopped {} (:wat::core::+ cursor 1)]  ;; arc 278 #73 — same: this loop's select' arm faces the stop
+                          [:wat::kernel::SendOutcome::Closed {} (:wat::core::+ cursor 1)]   ;; surfaces via this loop's own select' arm
+                          [:wat::kernel::SendOutcome::Lost {:cause _c} (:wat::core::+ cursor 1)])
                         cursor)]
             (:wat::bracket::collect-loop peers items
-              (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m)))
-        ((:wat::spawn::ServiceEvent::Closed idx)
+              (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m))]
+        [:wat::spawn::ServiceEvent::Closed {:idx idx}
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
               "bracket collect-loop: runner {idx} closed unexpectedly"
               :idx idx)
-            :wat::core::None :wat::core::None))
-        ((:wat::spawn::ServiceEvent::Lost idx cause)
+            :wat::core::None :wat::core::None)]
+        [:wat::spawn::ServiceEvent::Lost {:idx idx :cause cause}
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
               "bracket collect-loop: runner {idx} crashed: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None))
+            :wat::core::None :wat::core::None)]
         ;; arc 278 no-hidden-failures — a pool runner sent an UNDECODABLE result. A bracket
         ;; runner speaks a fixed (i64,O) protocol; garbage on that channel is a should-never-
         ;; happen. Mirror :Lost — raise LOUD with the rich decode reason (never a `_` wildcard
         ;; that would re-hide the failure this arc forbids).
-        ((:wat::spawn::ServiceEvent::Malformed idx cause)
+        [:wat::spawn::ServiceEvent::Malformed {:idx idx :cause cause}
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
               "bracket collect-loop: runner {idx} sent an undecodable result: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None))
+            :wat::core::None :wat::core::None)]
         ;; arc 278 Stone 1a — a pool runner sent an OVER-FOO (over-budget) frame. A bracket
         ;; runner speaks a fixed (i64,O) protocol; an oversized result is a should-never-happen.
         ;; Mirror :Malformed — raise LOUD with the reason (never a `_` wildcard that re-hides it).
-        ((:wat::spawn::ServiceEvent::Rejected idx cause)
+        [:wat::spawn::ServiceEvent::Rejected {:idx idx :cause cause}
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
               "bracket collect-loop: runner {idx} sent an over-budget frame: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None))
-        (:wat::spawn::ServiceEvent::Shutdown
+            :wat::core::None :wat::core::None)]
+        [:wat::spawn::ServiceEvent::Shutdown {}
           (:wat::kernel::assertion-failed!
             "bracket collect-loop: unexpected Shutdown event"
-            :wat::core::None :wat::core::None))
-        ((:wat::spawn::ServiceEvent::Connection _peer)
+            :wat::core::None :wat::core::None)]
+        [:wat::spawn::ServiceEvent::Connection {:peer _peer}
           (:wat::kernel::assertion-failed!
             "bracket collect-loop: unexpected Connection event"
-            :wat::core::None :wat::core::None))
-        ((:wat::spawn::ServiceEvent::Admin _msg)
+            :wat::core::None :wat::core::None)]
+        [:wat::spawn::ServiceEvent::Admin {:msg _msg}
           (:wat::kernel::assertion-failed!
             "bracket collect-loop: unexpected Admin event (select' has no self-peer)"
-            :wat::core::None :wat::core::None))))))
+            :wat::core::None :wat::core::None)]))))
 
 ;; ── map-worker — the ONE carrier-generic pool coordinator (arc 170 gap J unification) ──
 ;;
@@ -736,8 +736,8 @@
                   ;; lands before the worker's work-fn dials. A thread peer (peer-pid → None)
                   ;; skips: the in-process handle IS the capability.
                   _ (:wat::core::match (:wat::kernel::peer-pid p)  
-                      ((:wat::core::Some pid) (grant-fn grant-handles pid))
-                      (:wat::core::None nil))
+                      [:wat::core::Some {:value pid} (grant-fn grant-handles pid)]
+                      [:wat::core::None {} nil])
                   ;; SETUP-DIAL: fold over 0-or-1 carriers — empty (plain) sends NO Setup at
                   ;; all; one element (kwargs) sends exactly ONE `PoolMsg::Setup carrier`. Runs
                   ;; AFTER grant-boot (grant-then-dial) and BEFORE the first Work item so the
@@ -749,20 +749,20 @@
                         ;; select' arm (Closed/Lost raises there); this fold's job is only to
                         ;; fire every worker's Setup, so every arm continues the fold.
                         (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Setup c))
-                          (:wat::kernel::SendOutcome::Sent   nil)
-                          (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
-                          (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
-                      (:wat::kernel::SendOutcome::Closed nil)   ;; surfaces via collect-loop's select' arm
-                          ((:wat::kernel::SendOutcome::Lost _c) nil)))
+                          [:wat::kernel::SendOutcome::Sent {}   nil]
+                          [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
+                          [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
+                      [:wat::kernel::SendOutcome::Closed {} nil]   ;; surfaces via collect-loop's select' arm
+                          [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))
                       nil
                       setup-carrier)
                   ;; arc 278 the send'-outcome wall — the initial per-worker item primer. A dead
                   ;; runner surfaces via collect-loop's own select' arm; face all three explicitly.
                   _ (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))
-                      (:wat::kernel::SendOutcome::Sent   nil)
-                      (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
-                      (:wat::kernel::SendOutcome::Closed nil)   ;; surfaces via collect-loop's select' arm
-                      ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                      [:wat::kernel::SendOutcome::Sent {}   nil]
+                      [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
+                      [:wat::kernel::SendOutcome::Closed {} nil]   ;; surfaces via collect-loop's select' arm
+                      [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
                  p))
              (:wat::core::range 0 n))
      pairs  (:wat::bracket::collect-loop peers items
@@ -776,8 +776,8 @@
                                 p    <- (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])]
                  -> :wat::core::nil
                  (:wat::core::match (:wat::kernel::peer-pid p)  
-                   ((:wat::core::Some pid) (revoke-fn grant-handles pid))
-                   (:wat::core::None nil)))
+                   [:wat::core::Some {:value pid} (revoke-fn grant-handles pid)]
+                   [:wat::core::None {} nil]))
                nil
                peers)
      sorted (:wat::core::sort-by

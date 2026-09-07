@@ -9,11 +9,11 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::metadata-of)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "metadata-of :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "metadata-of :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "metadata-of :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "metadata-of :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::field-names-of)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "field-names-of :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "field-names-of :arity= NONE")))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "field-names-of :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "field-names-of :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::field-types-of)
-      ((:wat::core::Some hm) (:wat::kernel::println (:wat::string::concat "field-types-of :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity)))))
-      (:None (:wat::kernel::println "field-types-of :arity= NONE")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "field-types-of :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::None {} (:wat::kernel::println "field-types-of :arity= NONE")])))

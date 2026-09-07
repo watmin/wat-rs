@@ -68,7 +68,7 @@ use wat_macros::wat_special_form_impl;
 /// [`TypeExpr::Var`]s so multiple independent call sites don't alias.
 ///
 /// Arc 150 — variadic-define rest-param info carried inline.
-/// `rest_param_type` is `Some((:wat::core::Vector :- [T]))` for variadic
+/// `rest_param_type` is Some of `(:wat::core::Vector :- [T])` for variadic
 /// callees (the call-site inference accepts `args.len() >= params.len()`
 /// and unifies each rest-arg against `T`); `None` for strict-arity
 /// callees (existing behavior unchanged).
@@ -3541,6 +3541,23 @@ fn infer_list(
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
+            ":wat::runtime::type-of" => {
+                // Arc 296 L — type-of. Same arc-009 "names are values" bypass as
+                // field-names-of: the arg is a type keyword that may also name a
+                // constructor. Infer for side effects; do not constrain.
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                }
+                if !args.is_empty() {
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+                let ty = TypeExpr::Path(":wat::runtime::TypeInfo".into());
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
             ":wat::runtime::field-names-of" => {
                 // Arc 170 Strike B — field-names-of.
                 // (type-kw :wat::core::keyword) -> (:wat::core::Vector :- [wat::core::keyword])
@@ -6054,7 +6071,7 @@ fn infer_match(
     {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut (pat body) ...)".into(),
+            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut [pat body] ...)".into(),
             remedies: vec![],
         } });
         for arg in args {
@@ -6135,115 +6152,182 @@ fn infer_match(
         std::collections::HashSet::new();
 
     for (idx, arm) in args[1..].iter().enumerate() {
-        let arm_items = match arm {
-            WatAST::List(items, _) if items.len() == 2 => items,
-            _ => {
-                local_errors.push(CheckError { span: arm.span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::match".into(),
-                    reason: format!("arm #{} must be `(pattern body)`", idx + 1),
-                    remedies: vec![],
-                } });
+        let parsed = match crate::match_arm::parse_match_arm(arm) {
+            Ok(p) => p,
+            Err(e) => {
+                let mut reason = format!("arm #{}: {}", idx + 1, e.reason);
+                // Retired List arm whose inner pattern is a bare-symbol
+                // variant of the scrutinee enum: keep the arc 105 hint
+                // so a `.wat.bad` that named that hint still fails for
+                // it, not only for the delimiter flip.
+                if let WatAST::List(items, _) = arm {
+                    if let Some(WatAST::List(pat, _)) = items.first() {
+                        if let Some(WatAST::Symbol(ident, _)) = pat.first() {
+                            let other = ident.as_str();
+                            if let MatchShape::Enum(enum_path, _) = &shape {
+                                let is_variant = matches!(
+                                    env.types().get(enum_path.as_str()),
+                                    Some(crate::types::TypeDef::Enum(en))
+                                        if en.variants.iter().any(|v| match v {
+                                            crate::types::EnumVariant::Tagged { name, .. } => name == other,
+                                            crate::types::EnumVariant::Unit(name) => name == other,
+                                        })
+                                );
+                                if is_variant {
+                                    reason = format!(
+                                        "{reason}; match arm pattern `({other} ...)` uses a bare-symbol head, \
+                                         but `{other}` is a variant of user enum `{enum_path}`. Bare-symbol \
+                                         heads are reserved for built-in `Some` / `Ok` / `Err`; \
+                                         user-enum variants must use the keyword form: write \
+                                         `[{enum_path}::{other} {{}} ...]` instead."
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                local_errors.push(CheckError {
+                    span: e.span,
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason,
+                        remedies: vec![],
+                    },
+                });
                 continue;
             }
         };
-        let pattern = &arm_items[0];
-        let body = &arm_items[1];
-
+        let body = parsed.body();
         let mut arm_locals = locals.clone();
 
-        // Arc 257.2 — hash-destructure match-arm: Map with {var :field ...} shape.
-        // Receiver-polymorphic over wat::core::Record / Struct / wat::core::HashMap.
-        // Bypasses shape/coverage machinery (Option/Result/Enum shape does not apply).
-        // Per D4: each binding var receives fresh.fresh(). Coverage: Wildcard.
-        if let WatAST::Map(pairs, _) = pattern {
-            let md = WatAST::classify_map_destructure(pairs);
-            if let Some(m) = &md {
-                if m.kind == crate::ast::MapDestructureKind::Hash {
-                    // Bind each (var, field) pair → fresh type var in arm_locals.
-                    for (ident, _, _) in &m.bindings {
-                        arm_locals.insert(crate::scope::resolution::env_key(ident).into_owned(), fresh.fresh());
-                    }
-                    // Hash-destructure arm acts as Wildcard coverage.
-                    wildcard_seen = true;
-                    covers_option_none = true;
-                    covers_option_some = true;
-                    covers_result_ok = true;
-                    covers_result_err = true;
-                    // Unify the arm body into the running result type.
-                    let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
-                    if let Some(t) = arm_ty {
-                        if let Some(r) = result_ty.clone() {
-                            if unify(&t, &r, subst, env.types()).is_err() {
-                                local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                    callee: ":wat::core::match".into(),
-                                    param: format!("arm #{} (hash-destructure)", idx + 1),
-                                    expected: format_type(&apply_subst(&r, subst)),
-                                    got: format_type(&apply_subst(&t, subst))
-                                } });
-                            }
-                        } else {
-                            result_ty = Some(apply_subst(&t, subst));
-                        }
-                    }
-                    continue;
-                }
-            }
-        }
-
-        match pattern_coverage(pattern, &shape, env, &mut arm_locals, &mut local_errors) {
-            Some(Coverage::OptionNone) => covers_option_none = true,
-            // Arc 055 — partial Some (e.g. `(Some (1 _))`) does not
-            // satisfy Some-coverage; needs a fallback arm.
-            Some(Coverage::OptionSome { full: true }) => covers_option_some = true,
-            Some(Coverage::OptionSome { full: false }) => {}
-            Some(Coverage::ResultOk { full: true }) => covers_result_ok = true,
-            // Arc 111 — partial Ok arm. Check if this is one of the
-            // two canonical Option-unwrapping sub-arms:
-            //   `(Ok (Some v))` → covers_result_ok_inner_some
-            //   `(Ok :None)`    → covers_result_ok_inner_none
-            // If both are seen and the inner type IS (Option :- [T]), the
-            // pair together constitutes full Ok coverage.
-            Some(Coverage::ResultOk { full: false }) => {
-                if let WatAST::List(pat_items, _) = pattern {
-                    if let Some(sub) = pat_items.get(1) {
-                        match sub {
-                            // STONE: the bare-symbol shorthand dies — the bare
-                            // `WatAST::Symbol(s,_) if s == "Some"` alternative is
-                            // dropped: `check_subpattern` (above) now refuses a
-                            // bare-Symbol sub-pattern head before this bookkeeping
-                            // ever sees it (the outer `Ok` arm returns `None`, so
-                            // this `Some(Coverage::ResultOk{full:false})` match arm
-                            // is never reached for one) — only the FQDN keyword
-                            // form is still a live, checked sub-pattern spelling.
-                            WatAST::List(sub_items, _)
-                                if sub_items.first().map(|h| {
-                                    matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::Some")
-                                }).unwrap_or(false) =>
-                            {
-                                covers_result_ok_inner_some = true;
-                            }
-                            WatAST::Keyword(k, _) if (k.as_str() == ":None" || k.as_str() == ":wat::core::None") => {
-                                covers_result_ok_inner_none = true;
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            }
-            Some(Coverage::ResultErr { full: true }) => covers_result_err = true,
-            Some(Coverage::ResultErr { full: false }) => {}
-            Some(Coverage::EnumVariant { name, full: true }) => {
-                covered_enum_variants.insert(name);
-            }
-            Some(Coverage::EnumVariant { full: false, .. }) => {}
-            Some(Coverage::Wildcard) => {
+        match &parsed {
+            crate::match_arm::MatchArm::Wildcard { .. } => {
                 wildcard_seen = true;
                 covers_option_none = true;
                 covers_option_some = true;
                 covers_result_ok = true;
                 covers_result_err = true;
             }
-            None => continue,
+            crate::match_arm::MatchArm::Binding { ident, .. } => {
+                arm_locals.insert(
+                    crate::scope::resolution::env_key(ident).into_owned(),
+                    shape.as_type(),
+                );
+                wildcard_seen = true;
+                covers_option_none = true;
+                covers_option_some = true;
+                covers_result_ok = true;
+                covers_result_err = true;
+            }
+            crate::match_arm::MatchArm::HashDestructure { pairs, .. } => {
+                let md = WatAST::classify_map_destructure(pairs);
+                if let Some(m) = &md {
+                    if m.kind == crate::ast::MapDestructureKind::Hash {
+                        for (ident, _, _) in &m.bindings {
+                            arm_locals.insert(
+                                crate::scope::resolution::env_key(ident).into_owned(),
+                                fresh.fresh(),
+                            );
+                        }
+                        wildcard_seen = true;
+                        covers_option_none = true;
+                        covers_option_some = true;
+                        covers_result_ok = true;
+                        covers_result_err = true;
+                        let arm_ty = infer(body, env, &arm_locals, fresh, subst)
+                            .drain_errors_into(&mut local_errors);
+                        if let Some(t) = arm_ty {
+                            if let Some(r) = result_ty.clone() {
+                                if unify(&t, &r, subst, env.types()).is_err() {
+                                    local_errors.push(CheckError {
+                                        span: body.span().clone(),
+                                        kind: CheckErrorKind::TypeMismatch {
+                                            callee: ":wat::core::match".into(),
+                                            param: format!("arm #{} (hash-destructure)", idx + 1),
+                                            expected: format_type(&apply_subst(&r, subst)),
+                                            got: format_type(&apply_subst(&t, subst)),
+                                        },
+                                    });
+                                }
+                            } else {
+                                result_ty = Some(apply_subst(&t, subst));
+                            }
+                        }
+                        continue;
+                    }
+                }
+                local_errors.push(CheckError {
+                    span: arm.span().clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "arm #{}: a 2-element map arm must be a hash-destructure `{{var :field}}`",
+                            idx + 1
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                continue;
+            }
+            crate::match_arm::MatchArm::Variant { path, pairs, .. } => {
+                match cover_variant_arm(
+                    path,
+                    pairs,
+                    arm.span(),
+                    &shape,
+                    env,
+                    &mut arm_locals,
+                    &mut local_errors,
+                ) {
+                    Some(Coverage::OptionNone) => covers_option_none = true,
+                    Some(Coverage::OptionSome { full: true }) => covers_option_some = true,
+                    Some(Coverage::OptionSome { full: false }) => {}
+                    Some(Coverage::ResultOk { full: true }) => covers_result_ok = true,
+                    Some(Coverage::ResultOk { full: false }) => {
+                        if let Ok(parsed_pairs) =
+                            crate::match_arm::parse_key_first_pairs(pairs, arm.span())
+                        {
+                            if let Some((_, sub)) =
+                                parsed_pairs.iter().find(|(n, _)| n == "value")
+                            {
+                                match *sub {
+                                    WatAST::Vector(sub_items, _)
+                                        if matches!(
+                                            sub_items.first(),
+                                            Some(WatAST::Keyword(k, _))
+                                                if k == ":wat::core::Some"
+                                                    || k == ":wat::core::Option::Some"
+                                        ) =>
+                                    {
+                                        covers_result_ok_inner_some = true;
+                                    }
+                                    WatAST::Keyword(k, _)
+                                        if k == ":wat::core::None"
+                                            || k == ":wat::core::Option::None" =>
+                                    {
+                                        covers_result_ok_inner_none = true;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    Some(Coverage::ResultErr { full: true }) => covers_result_err = true,
+                    Some(Coverage::ResultErr { full: false }) => {}
+                    Some(Coverage::EnumVariant { name, full: true }) => {
+                        covered_enum_variants.insert(name);
+                    }
+                    Some(Coverage::EnumVariant { full: false, .. }) => {}
+                    Some(Coverage::Wildcard) => {
+                        wildcard_seen = true;
+                        covers_option_none = true;
+                        covers_option_some = true;
+                        covers_result_ok = true;
+                        covers_result_err = true;
+                    }
+                    None => continue,
+                }
+            }
         }
         // Arc 111 — combined Option-unwrapping Ok coverage: if the
         // Result's inner Ok type is (Option :- [T]) and we've seen both
@@ -6461,88 +6545,297 @@ fn enum_match_shape(
 ///
 /// If no arm is definitive (all wildcards), defaults to Option with
 /// a fresh T.
+fn cover_variant_arm(
+    path: &str,
+    pairs: &[(WatAST, WatAST)],
+    arm_span: &Span,
+    shape: &MatchShape,
+    env: &CheckEnv,
+    bindings: &mut HashMap<String, TypeExpr>,
+    errors: &mut Vec<CheckError>,
+) -> Option<Coverage> {
+    let parsed = match crate::match_arm::parse_key_first_pairs(pairs, arm_span) {
+        Ok(p) => p,
+        Err(e) => {
+            errors.push(CheckError {
+                span: e.span,
+                kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: e.reason,
+                    remedies: vec![],
+                },
+            });
+            return None;
+        }
+    };
+    let bind_fields = |fields: &[(String, TypeExpr)],
+                       parsed: &[(String, &WatAST)],
+                       bindings: &mut HashMap<String, TypeExpr>,
+                       errors: &mut Vec<CheckError>|
+     -> Option<bool> {
+        if parsed.len() != fields.len() {
+            errors.push(CheckError {
+                span: arm_span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "map pattern has {} key(s), variant `{path}` declares {}",
+                        parsed.len(),
+                        fields.len()
+                    ),
+                    remedies: vec![],
+                },
+            });
+            return None;
+        }
+        let mut all_full = true;
+        for (key, pat) in parsed {
+            let ty = match fields.iter().find(|(n, _)| n == key) {
+                Some((_, t)) => t,
+                None => {
+                    errors.push(CheckError {
+                        span: pat.span().clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!("map-pattern key `:{key}` is not a field of `{path}`"),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+            };
+            let full = check_subpattern(pat, ty, env, bindings, errors)?;
+            all_full &= full;
+        }
+        Some(all_full)
+    };
+
+    match crate::match_arm::builtin_variant(path) {
+        Some(crate::match_arm::BuiltinVariant::OptionSome) => match shape {
+            MatchShape::Option(t) => {
+                let fields = vec![("value".to_string(), t.clone())];
+                let full = bind_fields(&fields, &parsed, bindings, errors)?;
+                Some(Coverage::OptionSome { full })
+            }
+            _ => {
+                errors.push(CheckError {
+                    span: arm_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant `{path}` on a {} scrutinee",
+                            format_type(&shape.as_type())
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                None
+            }
+        },
+        Some(crate::match_arm::BuiltinVariant::OptionNone) => match shape {
+            MatchShape::Option(_) => {
+                let fields: Vec<(String, TypeExpr)> = vec![];
+                let _ = bind_fields(&fields, &parsed, bindings, errors)?;
+                Some(Coverage::OptionNone)
+            }
+            _ => {
+                errors.push(CheckError {
+                    span: arm_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant `{path}` on a {} scrutinee",
+                            format_type(&shape.as_type())
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                None
+            }
+        },
+        Some(crate::match_arm::BuiltinVariant::ResultOk) => match shape {
+            MatchShape::Result(t, _) => {
+                let fields = vec![("value".to_string(), t.clone())];
+                let full = bind_fields(&fields, &parsed, bindings, errors)?;
+                Some(Coverage::ResultOk { full })
+            }
+            _ => {
+                errors.push(CheckError {
+                    span: arm_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant `{path}` on a {} scrutinee",
+                            format_type(&shape.as_type())
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                None
+            }
+        },
+        Some(crate::match_arm::BuiltinVariant::ResultErr) => match shape {
+            MatchShape::Result(_, e) => {
+                let fields = vec![("error".to_string(), e.clone())];
+                let full = bind_fields(&fields, &parsed, bindings, errors)?;
+                Some(Coverage::ResultErr { full })
+            }
+            _ => {
+                errors.push(CheckError {
+                    span: arm_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant `{path}` on a {} scrutinee",
+                            format_type(&shape.as_type())
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                None
+            }
+        },
+        None => match shape {
+            MatchShape::Enum(enum_path, enum_shape_args) => {
+                let (prefix, variant_name) = match path.rsplit_once("::") {
+                    Some(p) => p,
+                    None => {
+                        errors.push(CheckError {
+                            span: arm_span.clone(),
+                            kind: CheckErrorKind::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "variant `{path}` must be `<enum>::<Variant>`"
+                                ),
+                                remedies: vec![],
+                            },
+                        });
+                        return None;
+                    }
+                };
+                if prefix != enum_path {
+                    errors.push(CheckError {
+                        span: arm_span.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "variant `{path}` doesn't belong to scrutinee enum {enum_path}"
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+                let enum_def = match env.types().get(enum_path) {
+                    Some(crate::types::TypeDef::Enum(e)) => e,
+                    _ => {
+                        errors.push(CheckError {
+                            span: arm_span.clone(),
+                            kind: CheckErrorKind::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!("enum {enum_path} not declared"),
+                                remedies: vec![],
+                            },
+                        });
+                        return None;
+                    }
+                };
+                let type_param_mapping: HashMap<String, TypeExpr> = enum_def
+                    .type_params
+                    .iter()
+                    .zip(enum_shape_args.iter())
+                    .map(|(name, arg_ty)| (name.clone(), arg_ty.clone()))
+                    .collect();
+                let fields: Vec<(String, TypeExpr)> = match enum_def.variants.iter().find_map(|v| {
+                    match v {
+                        crate::types::EnumVariant::Tagged { name, fields }
+                            if name == variant_name =>
+                        {
+                            Some(fields.clone())
+                        }
+                        crate::types::EnumVariant::Unit(name) if name == variant_name => {
+                            Some(vec![])
+                        }
+                        _ => None,
+                    }
+                }) {
+                    Some(f) => f
+                        .into_iter()
+                        .map(|(n, t)| {
+                            let t = if type_param_mapping.is_empty() {
+                                t
+                            } else {
+                                rename(&t, &type_param_mapping)
+                            };
+                            (n, t)
+                        })
+                        .collect(),
+                    None => {
+                        errors.push(CheckError {
+                            span: arm_span.clone(),
+                            kind: CheckErrorKind::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "variant `{variant_name}` is not declared on enum {enum_path}"
+                                ),
+                                remedies: vec![],
+                            },
+                        });
+                        return None;
+                    }
+                };
+                let full = bind_fields(&fields, &parsed, bindings, errors)?;
+                Some(Coverage::EnumVariant {
+                    name: variant_name.to_string(),
+                    full,
+                })
+            }
+            _ => {
+                errors.push(CheckError {
+                    span: arm_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant `{path}` on a {} scrutinee",
+                            format_type(&shape.as_type())
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                None
+            }
+        },
+    }
+}
+
 fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) -> MatchShape {
     for arm in arms {
-        if let WatAST::List(items, _) = arm {
-            if items.len() == 2 {
-                let pat = &items[0];
-                match pat {
-                    WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => {
-                        return MatchShape::Option(fresh.fresh());
-                    }
-                    WatAST::Keyword(k, _) => {
-                        // Arc 048 — user-enum variant pattern (unit
-                        // shape). First try the registered unit-variant
-                        // map; falling back to enum-prefix lookup so a
-                        // misapplied keyword pattern (e.g. tagged-variant
-                        // name used in unit position) still classifies
-                        // as Enum and produces the right error in
-                        // pattern_coverage.
-                        if let Some(TypeExpr::Path(enum_path)) = env.unit_variant_type(k) {
-                            return enum_match_shape(enum_path.clone(), env, fresh);
+        if let WatAST::Vector(items, _) = arm {
+            match items.as_slice() {
+                [WatAST::Keyword(k, _), WatAST::Map(_, _), _] => {
+                    match crate::match_arm::builtin_variant(k) {
+                        Some(crate::match_arm::BuiltinVariant::OptionSome)
+                        | Some(crate::match_arm::BuiltinVariant::OptionNone) => {
+                            return MatchShape::Option(fresh.fresh());
                         }
-                        if let Some((enum_path, _)) = k.rsplit_once("::") {
-                            if matches!(
-                                env.types().get(enum_path),
-                                Some(crate::types::TypeDef::Enum(_))
-                            ) {
-                                return enum_match_shape(enum_path.to_string(), env, fresh);
-                            }
+                        Some(crate::match_arm::BuiltinVariant::ResultOk)
+                        | Some(crate::match_arm::BuiltinVariant::ResultErr) => {
+                            return MatchShape::Result(fresh.fresh(), fresh.fresh());
                         }
-                    }
-                    WatAST::List(pat_items, _) => {
-                        if let Some(WatAST::Symbol(ident, _)) = pat_items.first() {
-                            match ident.as_str() {
-                                "Some" => return MatchShape::Option(fresh.fresh()),
-                                "Ok" | "Err" => {
-                                    return MatchShape::Result(fresh.fresh(), fresh.fresh());
-                                }
-                                _ => {}
-                            }
-                        }
-                        // Arc 109 slice 1h — FQDN keyword forms for
-                        // Option variant patterns.
-                        // Arc 109 slice 1i — FQDN keyword forms for
-                        // Result variant patterns (Ok / Err).
-                        if let Some(WatAST::Keyword(k, _)) = pat_items.first() {
-                            if k == ":wat::core::Some" {
-                                return MatchShape::Option(fresh.fresh());
-                            }
-                            if k == ":wat::core::Ok" || k == ":wat::core::Err" {
-                                return MatchShape::Result(fresh.fresh(), fresh.fresh());
-                            }
-                        }
-                        // Arc 048 — user-enum tagged variant pattern
-                        // `(:enum::Variant binders...)`. Split the
-                        // head keyword on the last `::` to get the
-                        // enum path; if the path resolves to a
-                        // declared enum, that's the shape.
-                        if let Some(WatAST::Keyword(head_path, _)) = pat_items.first() {
-                            if let Some((enum_path, _variant)) = head_path.rsplit_once("::") {
-                                let enum_path_owned = enum_path.to_string();
+                        None => {
+                            if let Some((enum_path, _)) = k.rsplit_once("::") {
                                 if matches!(
-                                    env.types().get(&enum_path_owned),
+                                    env.types().get(enum_path),
                                     Some(crate::types::TypeDef::Enum(_))
                                 ) {
-                                    return enum_match_shape(enum_path_owned, env, fresh);
+                                    return enum_match_shape(enum_path.to_string(), env, fresh);
                                 }
                             }
                         }
                     }
-                    // Arc 257.2 — hash-destructure Map pattern.
-                    // Open-typed (no variant constructor); skip here.
-                    // detect_match_shape only considers variant-constructor
-                    // arms for shape determination. If only hash-destructure/
-                    // wildcard arms exist, falls through to MatchShape::Open.
-                    WatAST::Map(mp, _)
-                        if matches!(
-                            WatAST::classify_map_destructure(mp),
-                            Some(m) if m.kind == crate::ast::MapDestructureKind::Hash
-                        ) => {
-                        // hash-destructure — skip, do not determine shape
-                    }
-                    _ => {}
                 }
+                [WatAST::Map(_, _), _] => {}
+                _ => {}
             }
         }
     }
@@ -6961,6 +7254,215 @@ fn pattern_coverage(
                 remedies: vec![],
             } });
             None
+        }
+    }
+}
+
+/// Nested variant `[Variant {:k v}]` (no body) against the type at
+/// this sub-pattern position. Same key-first map as a variant arm;
+/// always partial (a constructor does not cover the other variants).
+fn check_nested_variant_map(
+    path: &str,
+    pairs: &[(WatAST, WatAST)],
+    span: &Span,
+    expected_ty: &TypeExpr,
+    env: &CheckEnv,
+    bindings: &mut HashMap<String, TypeExpr>,
+    errors: &mut Vec<CheckError>,
+) -> Option<bool> {
+    let parsed = match crate::match_arm::parse_key_first_pairs(pairs, span) {
+        Ok(p) => p,
+        Err(e) => {
+            errors.push(CheckError {
+                span: e.span,
+                kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: e.reason,
+                    remedies: vec![],
+                },
+            });
+            return None;
+        }
+    };
+    let bind_fields = |fields: &[(String, TypeExpr)],
+                       bindings: &mut HashMap<String, TypeExpr>,
+                       errors: &mut Vec<CheckError>|
+     -> Option<bool> {
+        if parsed.len() != fields.len() {
+            errors.push(CheckError {
+                span: span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "map pattern has {} key(s), variant `{path}` declares {}",
+                        parsed.len(),
+                        fields.len()
+                    ),
+                    remedies: vec![],
+                },
+            });
+            return None;
+        }
+        for (key, pat) in &parsed {
+            let ty = match fields.iter().find(|(n, _)| n == key) {
+                Some((_, t)) => t,
+                None => {
+                    errors.push(CheckError {
+                        span: pat.span().clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "map-pattern key `:{key}` is not a field of `{path}`"
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+            };
+            check_subpattern(pat, ty, env, bindings, errors)?;
+        }
+        Some(false)
+    };
+    let mismatch = |errors: &mut Vec<CheckError>| {
+        errors.push(CheckError {
+            span: span.clone(),
+            kind: CheckErrorKind::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: format!(
+                    "{path} pattern in {} position",
+                    format_type(expected_ty)
+                ),
+                remedies: vec![],
+            },
+        });
+        None
+    };
+
+    match crate::match_arm::builtin_variant(path) {
+        Some(crate::match_arm::BuiltinVariant::OptionSome) => match expected_ty {
+            TypeExpr::Parametric { head, args }
+                if head == "wat::core::Option" && args.len() == 1 =>
+            {
+                let fields = vec![("value".to_string(), args[0].clone())];
+                bind_fields(&fields, bindings, errors)
+            }
+            _ => mismatch(errors),
+        },
+        Some(crate::match_arm::BuiltinVariant::OptionNone) => match expected_ty {
+            TypeExpr::Parametric { head, .. } if head == "wat::core::Option" => {
+                bind_fields(&[], bindings, errors)
+            }
+            _ => mismatch(errors),
+        },
+        Some(crate::match_arm::BuiltinVariant::ResultOk) => match expected_ty {
+            TypeExpr::Parametric { head, args }
+                if head == "wat::core::Result" && args.len() == 2 =>
+            {
+                let fields = vec![("value".to_string(), args[0].clone())];
+                bind_fields(&fields, bindings, errors)
+            }
+            _ => mismatch(errors),
+        },
+        Some(crate::match_arm::BuiltinVariant::ResultErr) => match expected_ty {
+            TypeExpr::Parametric { head, args }
+                if head == "wat::core::Result" && args.len() == 2 =>
+            {
+                let fields = vec![("error".to_string(), args[1].clone())];
+                bind_fields(&fields, bindings, errors)
+            }
+            _ => mismatch(errors),
+        },
+        None => {
+            let enum_path = match expected_ty {
+                TypeExpr::Path(p) => p.as_str(),
+                other => {
+                    errors.push(CheckError {
+                        span: span.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "keyword variant pattern {path} in {} position",
+                                format_type(other)
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+            };
+            let (prefix, variant_name) = match path.rsplit_once("::") {
+                Some(p) => p,
+                None => {
+                    errors.push(CheckError {
+                        span: span.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "variant constructor pattern {path} must be `<enum>::<Variant>`"
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+            };
+            if prefix != enum_path {
+                errors.push(CheckError {
+                    span: span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant constructor {path} doesn't belong to expected enum {enum_path}"
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                return None;
+            }
+            let enum_def = match env.types().get(enum_path) {
+                Some(crate::types::TypeDef::Enum(e)) => e,
+                _ => {
+                    errors.push(CheckError {
+                        span: span.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!("enum {enum_path} not declared"),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+            };
+            let fields: Vec<(String, TypeExpr)> = match enum_def.variants.iter().find_map(|v| {
+                match v {
+                    crate::types::EnumVariant::Tagged { name, fields }
+                        if name == variant_name =>
+                    {
+                        Some(fields.clone())
+                    }
+                    crate::types::EnumVariant::Unit(name) if name == variant_name => {
+                        Some(vec![])
+                    }
+                    _ => None,
+                }
+            }) {
+                Some(f) => f,
+                None => {
+                    errors.push(CheckError {
+                        span: span.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "{path} is not a tagged variant of {enum_path}"
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+            };
+            bind_fields(&fields, bindings, errors)
         }
     }
 }
@@ -7449,17 +7951,23 @@ fn check_subpattern(
                 }
             }
         }
-        // Arc 167 slice 1 — vectors aren't currently admitted as
-        // match sub-patterns. Slice 2 wires the legal consumer
-        // positions (fn / defn signatures); pattern position is
-        // not one of them. Surface as MalformedForm.
-        WatAST::Vector(_, _) => {
-            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: "vector sub-patterns are not supported in arc 167".into(),
-                remedies: vec![],
-            } });
-            None
+        // Nested variant `[Variant {:k v}]` (no body). Other vectors
+        // stay illegal (arc 167: pattern position is not a Vector
+        // consumer — fn / defn signatures are).
+        WatAST::Vector(items, _) => match items.as_slice() {
+            [WatAST::Keyword(k, _), WatAST::Map(pairs, _)]
+                if crate::match_arm::is_namespaced_variant(k) =>
+            {
+                check_nested_variant_map(k, pairs, pat.span(), expected_ty, env, bindings, errors)
+            }
+            _ => {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: "vector sub-patterns are not supported in arc 167".into(),
+                    remedies: vec![],
+                } });
+                None
+            }
         }
         // Arc 244 — NilLit is a literal pattern; valid at :wat::core::nil position
         // (catches the single nil value exhaustively), type-error otherwise.
@@ -22614,8 +23122,8 @@ pub(crate) mod tests {
 
             (:wat::core::defn :my::is-empty :- [T] [b <- (:my::Box :- [T])] -> :wat::core::bool
               (:wat::core::match b
-                              (:my::Box::Empty true)
-                              ((:my::Box::Filled _v) false)))
+                              [:my::Box::Empty {} true]
+                              [:my::Box::Filled {:value _v} false]))
         "#;
         let result = check(src);
         assert!(
@@ -22639,8 +23147,8 @@ pub(crate) mod tests {
 
             (:wat::core::defn :my::is-left :- [L R] [e <- (:my::Either :- [L R])] -> :wat::core::bool
               (:wat::core::match e
-                              ((:my::Either::Left _v) true)
-                              ((:my::Either::Right _v) false)))
+                              [:my::Either::Left {:value _v} true]
+                              [:my::Either::Right {:value _v} false]))
         "#;
         let result = check(src);
         assert!(
@@ -22665,8 +23173,8 @@ pub(crate) mod tests {
 
             (:wat::core::defn :my::default-or :- [T] [b <- (:my::Box :- [T]) d <- :T] -> :T
               (:wat::core::match b
-                              (:my::Box::Empty d)
-                              ((:my::Box::Filled v) v)))
+                              [:my::Box::Empty {} d]
+                              [:my::Box::Filled {:value v} v]))
         "#;
         let result = check(src);
         assert!(

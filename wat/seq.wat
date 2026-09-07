@@ -168,9 +168,9 @@
 (:wat::core::defn :wat::core::stream->pvec-spec :- [T]
   [acc <- (:wat::core::PersistentVector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::core::PersistentVector :- [T])
   (:wat::core::match (:wat::stream::next s)
-    ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::stream->pvec-spec (:wat::vector::conj acc value) rest))
-    (:wat::stream::NextOutcome::Exhausted acc)))
+    [:wat::stream::NextOutcome::Item {:value value :rest rest}
+      (:wat::core::stream->pvec-spec (:wat::vector::conj acc value) rest)]
+    [:wat::stream::NextOutcome::Exhausted {} acc]))
 
 ;; into — clojure's `(into to from)`: append every element of `from` onto `to`. `to` determines
 ;; the output container kind (Vector or PersistentVector, both in scope); `from` may be a
@@ -217,8 +217,8 @@
 
 (:wat::core::defn :wat::core::dorun :- [T] [coll <- (:wat::stream::Stream :- [T])] -> :wat::core::nil
   (:wat::core::match (:wat::stream::next coll)
-    ((:wat::stream::NextOutcome::Item _value rest) (:wat::core::dorun rest))
-    (:wat::stream::NextOutcome::Exhausted nil)))
+    [:wat::stream::NextOutcome::Item {:value _value :rest rest} (:wat::core::dorun rest)]
+    [:wat::stream::NextOutcome::Exhausted {} nil]))
 
 ;; ─── run! — the eager side-effecting consumer (clojure's `run!`) ──────────────────────────────
 ;;
@@ -286,9 +286,9 @@
 (:wat::core::defn :wat::core::foldl-spec-walk :- [T U]
   [f <- [U T :-> U] acc <- :U s <- (:wat::stream::Stream :- [T])] -> :U
   (:wat::core::match (:wat::stream::next s)
-    ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::foldl-spec-walk f (f acc value) rest))
-    (:wat::stream::NextOutcome::Exhausted acc)))
+    [:wat::stream::NextOutcome::Item {:value value :rest rest}
+      (:wat::core::foldl-spec-walk f (f acc value) rest)]
+    [:wat::stream::NextOutcome::Exhausted {} acc]))
 
 ;; ─── reduce — an alias for foldl (see STOP note above) ──────────────────────────────────────
 ;;
@@ -380,11 +380,11 @@
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::if (pred value)
           (:wat::core::remove pred rest)
-          (:wat::stream::cons value (:wat::core::remove pred rest))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+          (:wat::stream::cons value (:wat::core::remove pred rest)))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 ;; ─── take-while — cons while `pred` holds; stop (never realize past it) at the first false ────
 ;; 118.B2b — ONE `defn` over `(Seqable :- [T])`. ★ THE LAZINESS PROPERTY IS TESTED: the `Exhausted`/false
@@ -396,11 +396,11 @@
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::if (pred value)
           (:wat::stream::cons value (:wat::core::take-while pred rest))
-          (:wat::stream::empty)))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+          (:wat::stream::empty))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 ;; ─── drop-while — skip while `pred` holds; once it turns false, emit the remainder unchanged ──
 ;; 118.B2b — ONE `defn` over `(Seqable :- [T])`. The old terminal branch re-normalized the WHOLE `coll`
@@ -412,11 +412,11 @@
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::if (pred value)
           (:wat::core::drop-while pred rest)
-          (:wat::stream::cons value rest)))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+          (:wat::stream::cons value rest))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 ;; ─── take-nth — every nth element (indices 0, n, 2n, ...) ─────────────────────────────────────
 ;; 118.B2b — ONE `defn` over `(Seqable :- [T])` plus a private `(Stream :- [T])` walker.
@@ -438,11 +438,11 @@
   [n <- :wat::core::i64 s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::stream::cons value
           (:wat::core::take-nth-walk n
-            (:wat::core::drop (:wat::stream::cons value rest) n))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+            (:wat::core::drop (:wat::stream::cons value rest) n)))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::take-nth :- [T]
   [n <- :wat::core::i64 coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
@@ -463,18 +463,18 @@
   [sep <- :T value <- :T s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item next-value next-rest)
+      [:wat::stream::NextOutcome::Item {:value next-value :rest next-rest}
         (:wat::stream::cons value
-          (:wat::stream::cons sep (:wat::core::interpose-walk sep next-value next-rest))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::cons value (:wat::stream::empty))))))
+          (:wat::stream::cons sep (:wat::core::interpose-walk sep next-value next-rest)))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::cons value (:wat::stream::empty))])))
 
 (:wat::core::defn :wat::core::interpose :- [T]
   [sep <- :T coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
-        (:wat::core::interpose-walk sep value rest))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
+        (:wat::core::interpose-walk sep value rest)]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 ;; ─── keep — DIALECT (pinned): `f : [T :-> (Option :- [U])]`; keep the `Some`s, drop the `None`s ──
 ;; (wat's Option-drop IS clojure's nil-drop — the honest dialect form, `VIRTVTE PARES`.)
@@ -485,11 +485,11 @@
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::match (f value)
-          ((:wat::core::Some v) (:wat::stream::cons v (:wat::core::keep f rest)))
-          (:wat::core::None (:wat::core::keep f rest))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+          [:wat::core::Some {:value v} (:wat::stream::cons v (:wat::core::keep f rest))]
+          [:wat::core::None {} (:wat::core::keep f rest)])]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 ;; ─── keep-indexed — as `keep`, `f : [i64 T :-> (Option :- [U])]` ────────────────────────────────
 ;; 118.B2 — ONE clause over `(Seqable :- [T])`. `keep-indexed-stream` (the twin that threaded an `idx`
@@ -506,12 +506,12 @@
    s   <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::match (f idx value)
-          ((:wat::core::Some v)
-            (:wat::stream::cons v (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest)))
-          (:wat::core::None (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+          [:wat::core::Some {:value v}
+            (:wat::stream::cons v (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest))]
+          [:wat::core::None {} (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest)])]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::keep-indexed :- [T U]
   [f    <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])]
@@ -529,10 +529,10 @@
    s   <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::stream::cons (f idx value)
-          (:wat::core::map-indexed-walk (:wat::core::+ idx 1) f rest)))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+          (:wat::core::map-indexed-walk (:wat::core::+ idx 1) f rest))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::map-indexed :- [T U]
   [f    <- [:wat::core::i64 T :-> U]
@@ -552,15 +552,15 @@
   [prev <- (:wat::core::Option :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::match prev
-          (:wat::core::None
-            (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some value) rest)))
-          ((:wat::core::Some p)
+          [:wat::core::None {}
+            (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some value) rest))]
+          [:wat::core::Some {:value p}
             (:wat::core::if (:wat::core::= p value)
               (:wat::core::dedupe-walk (:wat::core::Some value) rest)
-              (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some value) rest))))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+              (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some value) rest)))])]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::dedupe :- [T]
   [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
@@ -581,12 +581,12 @@
   [seen <- (:wat::core::HashSet :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
-      ((:wat::stream::NextOutcome::Item value rest)
+      [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::if (:wat::core::contains? seen value)
           (:wat::core::distinct-walk seen rest)
           (:wat::stream::cons value
-            (:wat::core::distinct-walk (:wat::core::conj seen value) rest))))
-      (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
+            (:wat::core::distinct-walk (:wat::core::conj seen value) rest)))]
+      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::distinct :- [T]
   [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
@@ -636,21 +636,21 @@
   (:wat::stream::lazy
     (:wat::stream::cons init
       (:wat::core::match (:wat::stream::next s)
-        ((:wat::stream::NextOutcome::Item value rest)
-          (:wat::core::reductions-walk f (f init value) rest))
-        (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty))))))
+        [:wat::stream::NextOutcome::Item {:value value :rest rest}
+          (:wat::core::reductions-walk f (f init value) rest)]
+        [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)]))))
 
 ;; The 2-arity seed: pull the first element with ONE force, or raise by name. Shared by all five
 ;; 2-arity arms below so the message and the empty-contract exist in exactly one place.
 (:wat::core::defn :wat::core::reductions-seed :- [T]
   [f <- [T T :-> T] s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::core::match (:wat::stream::next s)
-    ((:wat::stream::NextOutcome::Item value rest)
-      (:wat::core::reductions-walk f value rest))
-    (:wat::stream::NextOutcome::Exhausted
+    [:wat::stream::NextOutcome::Item {:value value :rest rest}
+      (:wat::core::reductions-walk f value rest)]
+    [:wat::stream::NextOutcome::Exhausted {}
       (:wat::kernel::assertion-failed!
         "reductions: the 2-arity form needs at least one element to seed the accumulation; got an empty collection"
-        :wat::core::None :wat::core::None))))
+        :wat::core::None :wat::core::None)]))
 
 (:wat::core::defclause :wat::core::reductions
   ;; 3-arity: explicit init.

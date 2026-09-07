@@ -437,7 +437,7 @@ mod tests {
         // an unresolvable `:scrut::ns::Variant` and `normalize_ast` would panic.
         let ast = normalize_ast(
             r#"(:wat::core::match x
-                  ((scrut.ns/Variant a) (wat.core/i64::+ a 1)))"#,
+                  [scrut.ns/Variant {:a a} (wat.core/i64::+ a 1)])"#,
         );
         assert!(
             contains_symbol(&ast, "scrut.ns/Variant"),

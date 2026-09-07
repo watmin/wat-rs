@@ -35,11 +35,11 @@
 
 (:wat::core::defn :user::totality-of [name <- :wat::core::keyword] -> :wat::core::String
   (:wat::core::match (:wat::runtime::metadata-of name)
-    ((:wat::core::Some hm)
+    [:wat::core::Some {:value hm}
      (:wat::core::match (:wat::hashmap::get hm :totality)
-       ((:wat::core::Some t) (:wat::edn::write t))
-       (:None "registered, but no :totality key (unexpected)")))
-    (:None "None (not registered in this binary)")))
+       [:wat::core::Some {:value t} (:wat::edn::write t)]
+       [:wat::core::None {} "registered, but no :totality key (unexpected)"])]
+    [:wat::core::None {} "None (not registered in this binary)"]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

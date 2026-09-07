@@ -9,11 +9,11 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::runtime::metadata-of :wat::core::if :wat::core::if)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "metadata-of UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "metadata-of kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "metadata-of UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "metadata-of kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::runtime::field-names-of :wat::core::if :wat::core::if)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "field-names-of UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "field-names-of kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "field-names-of UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "field-names-of kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::runtime::field-types-of :wat::core::if :wat::core::if)))
-      ((:wat::core::Ok v) (:wat::kernel::println (:wat::string::concat "field-types-of UNEXPECTED ok: " (:wat::edn::write v))))
-      ((:wat::core::Err e) (:wat::kernel::println (:wat::string::concat "field-types-of kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))))))
+      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "field-types-of UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "field-types-of kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])))

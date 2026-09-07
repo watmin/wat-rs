@@ -41,17 +41,17 @@
     ;; = a bare EOF with no reason — both are the failure. The global per-test
     ;; time-limit catches any deadlock regression.
     (:wat::core::match (:wat::kernel::recv child)
-      ((:wat::kernel::RecvOutcome::Message _m)
+      [:wat::kernel::RecvOutcome::Message {:msg _m}
         (:wat::kernel::assertion-failed!
           "tiny budget ignored: the oversized frame was DELIVERED, not rejected"
-          :wat::core::None :wat::core::None))
-      ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::test::assert-contains (:wat::kernel::LociDiedError/message cause) "frame exceeded cap"))
-      (:wat::kernel::RecvOutcome::Stopped
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        (:wat::test::assert-contains (:wat::kernel::LociDiedError/message cause) "frame exceeded cap")]
+      [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::assertion-failed!
           "expected the over-budget frame to surface as ::Lost with the cap reason, got a ::Stopped — the child was ALIVE"
-          :wat::core::None :wat::core::None))
-      (:wat::kernel::RecvOutcome::Closed
+          :wat::core::None :wat::core::None)]
+      [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::assertion-failed!
           "expected the over-budget frame to surface as ::Lost with the cap reason, got a bare ::Closed"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)])))

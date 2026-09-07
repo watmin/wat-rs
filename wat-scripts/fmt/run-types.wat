@@ -18,7 +18,7 @@
      path (:wat::core::Option/expect (:wat::core::get argv 2) "usage: wat run-types.wat <file.wat>")
      src  (:wat::io::read-file path)]
     (:wat::core::match (:wat::core::read-string-with-comments src)
-      ((:wat::core::ReadWithCommentsOutcome::Forms forms comments)
+      [:wat::core::ReadWithCommentsOutcome::Forms {:forms forms :comments comments}
         (:wat::core::let
           [decls (:wat::fmt::count-type-apps forms)
            colon (:wat::fmt::count-colon-args forms)
@@ -30,6 +30,6 @@
                 :d (:wat::i64::to-string decls)
                 :c (:wat::i64::to-string colon)
                 :k (:wat::i64::to-string (:wat::core::length comments))))
-            (:wat::kernel::println out))))
-      ((:wat::core::ReadWithCommentsOutcome::Malformed cause)
-        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)))))
+            (:wat::kernel::println out)))]
+      [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
+        (:wat::kernel::assertion-failed! (:wat::core::Error/message cause) :wat::core::None :wat::core::None)])))

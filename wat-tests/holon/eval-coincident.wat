@@ -29,8 +29,8 @@
         (:wat::core::quote (:wat::i64::* 1 4)))]
     (:wat::test::assert-eq
       (:wat::core::match r 
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       true)))
 
 ;; ─── Different scalars → not coincident ──────────────────────────
@@ -44,8 +44,8 @@
         (:wat::core::quote 5))]
     (:wat::test::assert-eq
       (:wat::core::match r 
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       false)))
 
 ;; ─── Same strings → coincident ───────────────────────────────────
@@ -59,8 +59,8 @@
         (:wat::core::quote "rsi"))]
     (:wat::test::assert-eq
       (:wat::core::match r 
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       true)))
 
 ;; ─── Structurally-same holons built via quote ────────────────────
@@ -76,8 +76,8 @@
           (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))))]
     (:wat::test::assert-eq
       (:wat::core::match r 
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       true)))
 
 ;; ─── eval-edn-coincident? — inline EDN sources ───────────────────
@@ -91,8 +91,8 @@
  "(:wat::i64::* 1 4)")]
     (:wat::test::assert-eq
       (:wat::core::match r
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-edn-different-sources
@@ -104,8 +104,8 @@
  "(:wat::i64::+ 2 3)")]
     (:wat::test::assert-eq
       (:wat::core::match r 
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       false)))
 
 ;; ─── eval-digest-coincident? — SHA-256-verified per side ─────────
@@ -134,8 +134,8 @@
         :wat::verify::string "5f5d507c988d15471be262dbfc20fb228243512e32b72dcc45153a5ef689f8e3")]
     (:wat::test::assert-eq
       (:wat::core::match r
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-bad-hex-errs
@@ -153,8 +153,8 @@
         :wat::verify::string "5f5d507c988d15471be262dbfc20fb228243512e32b72dcc45153a5ef689f8e3")]
     (:wat::test::assert-eq
       (:wat::core::match r 
-        ((:wat::core::Ok _)  true)     ;; unexpected — verify should have failed
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value _}  true]     ;; unexpected — verify should have failed
+        [:wat::core::Err {:error _} false])
       false)))
 
 ;; ─── eval-signed-coincident? — Ed25519-verified per side ─────────
@@ -187,8 +187,8 @@
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")]
     (:wat::test::assert-eq
       (:wat::core::match r
-        ((:wat::core::Ok b)  b)
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value b}  b]
+        [:wat::core::Err {:error _} false])
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-wrong-sig-errs
@@ -208,6 +208,6 @@
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")]
     (:wat::test::assert-eq
       (:wat::core::match r 
-        ((:wat::core::Ok _)  true)     ;; unexpected — verify should have failed
-        ((:wat::core::Err _) false))
+        [:wat::core::Ok {:value _}  true]     ;; unexpected — verify should have failed
+        [:wat::core::Err {:error _} false])
       false)))

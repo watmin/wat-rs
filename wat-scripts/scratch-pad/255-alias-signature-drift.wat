@@ -13,7 +13,7 @@
 
 (:wat::core::defn :drift::alias? [r <- :wat::intrinsic::Row] -> :wat::core::bool
   (:wat::core::match (:wat::intrinsic::Row/alias-of r)
-    ((:wat::core::Some _) true) (:wat::core::None false)))
+    [:wat::core::Some {:value _} true] [:wat::core::None {} false]))
 
 (:wat::core::defn :drift::render [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::string::concat
@@ -21,7 +21,7 @@
       (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "|")
       (:wat::string::concat (:wat::i64::to-string (:wat::intrinsic::Row/arity r)) "|"))
     (:wat::core::match (:wat::intrinsic::Row/alias-of r)
-      ((:wat::core::Some t) t) (:wat::core::None ""))))
+      [:wat::core::Some {:value t} t] [:wat::core::None {} ""])))
 
 (:wat::core::defn :drift::plain [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::string::concat

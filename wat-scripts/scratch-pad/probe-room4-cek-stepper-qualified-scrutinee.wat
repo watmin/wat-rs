@@ -21,11 +21,11 @@
     (:wat::eval::walk
       (:wat::core::quote
         (:wat::core::match (:wat::core::Option::Some 5)
-          ((:wat::core::Option::Some n) n)
-          (:wat::core::Option::None 0)))
+          [:wat::core::Option::Some {:value n} n]
+          [:wat::core::Option::None {} 0]))
       0
       :my::test::count-visit)
-    ((:wat::core::Ok pair)
-      (:wat::kernel::println pair))
-    ((:wat::core::Err e)
-      (:wat::kernel::println e))))
+    [:wat::core::Ok {:value pair}
+      (:wat::kernel::println pair)]
+    [:wat::core::Err {:error e}
+      (:wat::kernel::println e)]))

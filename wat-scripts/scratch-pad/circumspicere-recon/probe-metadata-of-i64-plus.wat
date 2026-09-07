@@ -7,5 +7,5 @@
   (:wat::core::let
     [m (:wat::runtime::metadata-of :wat::i64::+)]
     (:wat::core::match m
-      ((:wat::core::Some hm) (:wat::kernel::println "SOME (builtin metadata-of answered)"))
-      (:None (:wat::kernel::println "NONE (ignore reason still true)")))))
+      [:wat::core::Some {:value hm} (:wat::kernel::println "SOME (builtin metadata-of answered)")]
+      [:wat::core::None {} (:wat::kernel::println "NONE (ignore reason still true)")])))

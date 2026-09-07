@@ -13,26 +13,26 @@
   [w <- (:wat::kernel::Process :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
   -> :wat::core::nil
   (:wat::core::let
-    [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
-     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 1 5)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+    [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 1 5)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
      ra (:wat::kernel::recv w)
      a  (:wat::core::match ra
-          ((:wat::kernel::RecvOutcome::Message m) m)
-          ((:wat::kernel::RecvOutcome::Lost cause)
-            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Stopped
-            (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed
-            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))
+          [:wat::kernel::RecvOutcome::Message {:msg m} m]
+          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Stopped {}
+            (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Closed {}
+            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)])
      rb (:wat::kernel::recv w)
      b  (:wat::core::match rb
-          ((:wat::kernel::RecvOutcome::Message m) m)
-          ((:wat::kernel::RecvOutcome::Lost cause)
-            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Stopped
-            (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed
-            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
+          [:wat::kernel::RecvOutcome::Message {:msg m} m]
+          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Stopped {}
+            (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)]
+          [:wat::kernel::RecvOutcome::Closed {}
+            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)])]
     (:wat::kernel::println
       (:wat::string::concat
         (:wat::i64::to-string (:wat::core::second a))
@@ -52,7 +52,7 @@
                  [pair (:wat::kernel::recv self)
                   out  (:wat::core::Tuple (:wat::core::first pair)
                                           (:bracket::__work (:wat::core::second pair)))
-                  _    (:wat::core::match (:wat::kernel::send self out) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
+                  _    (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
                  (:bracket::pool-runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::pool-runner

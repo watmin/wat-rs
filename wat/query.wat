@@ -385,13 +385,13 @@
                  (~state-ty-kw
                    :durable  ~record-sym
                    :journal  (:wat::core::match (:wat::kernel::connect ~jaddr-sym)
-                               ((:wat::kernel::ConnectOutcome::Connected p) p)
-                               ((:wat::kernel::ConnectOutcome::Refused c)
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                               ((:wat::kernel::ConnectOutcome::Rejected c)
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
-                               ((:wat::kernel::ConnectOutcome::Failed c)
-                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+                               [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+                               [:wat::kernel::ConnectOutcome::Refused {:cause c}
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                               [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)]
+                               [:wat::kernel::ConnectOutcome::Failed {:cause c}
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)])
                    :template (:wat::rete::compile-all
                                (:wat::core::PersistentVector ~@rule-lits)
                                (:wat::core::PersistentVector ~@query-lits))))
@@ -419,9 +419,9 @@
                 ;; the Journal peer client-method now returns (RecvOutcome :- [QueryLogsResponse]) — a lost/closed
                 ;; Journal backend must NOT kill this shared sift service (client-triggerable-DoS forbidden):
                 ;; map to our own ::Fatal response value and KEEP SERVING (mirrors telemetry/journal.wat).
-                ((:wat::kernel::RecvOutcome::Message sresp)
+                [:wat::kernel::RecvOutcome::Message {:msg sresp}
                   (:wat::core::match sresp
-                    ((:wat::telemetry::Journal::QueryLogsResponse::Success logs next-cur)
+                    [:wat::telemetry::Journal::QueryLogsResponse::Success {:logs logs :cursor next-cur}
                       (:wat::core::if
                         (:wat::core::foldl
                           (:wat::core::fn [~ok-sym <- :wat::core::bool ~log-sym <- :wat::telemetry::Log]
@@ -429,12 +429,12 @@
                             (:wat::core::if ~ok-sym
                               (:wat::core::match
                                 (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))
-                                ((:wat::edn::ReadForeignOutcome::Value ~payload-sym)
+                                [:wat::edn::ReadForeignOutcome::Value {:value ~payload-sym}
                                   (:wat::vec::contains?
                                     (:wat::core::Vector :- [:wat::core::String] ~@def-type-strs)
-                                    (:wat::core::type ~payload-sym)))
-                                ((:wat::edn::ReadForeignOutcome::Malformed ~cause-sym)
-                                  false))
+                                    (:wat::core::type ~payload-sym))]
+                                [:wat::edn::ReadForeignOutcome::Malformed {:cause ~cause-sym}
+                                  false])
                               false))
                           true
                           logs)
@@ -453,30 +453,30 @@
                             logs)
                           next-cur)
                         (~resp-fat-kw
-                          (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs"))))
+                          (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs")))]
                     ;; propagate the budget signal EXPLICITLY — never lump RequestTooLarge into Fatal (ruling A).
-                    ((:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge bytes cap)
-                      (~resp-rtl-kw bytes cap))
+                    [:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge {:bytes bytes :cap cap}
+                      (~resp-rtl-kw bytes cap)]
                     ;; …and the SHAPE signal identically (arc 278 Stone 2). The codemod could not
                     ;; decide this arm structurally — the RequestTooLarge arm above propagates through
                     ;; an UNQUOTED head (`~resp-rtl-kw`, a macro-built keyword), not a literal one, so
                     ;; it fell to the terminal `assertion-failed!` default. Asserting here would be
                     ;; wrong and dangerous: a shape refusal from the journal peer would kill THIS
                     ;; service for every client — the exact DoS this stone closes, one tier up.
-                    ((:wat::telemetry::Journal::QueryLogsResponse::RequestMalformed mpath mexpected mgot)
-                      (~resp-rm-kw mpath mexpected mgot))
-                    (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed")))))
-                ((:wat::kernel::RecvOutcome::Lost cause)
-                  (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause))))
+                    [:wat::telemetry::Journal::QueryLogsResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+                      (~resp-rm-kw mpath mexpected mgot)]
+                    [_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed"))])]
+                [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                  (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape (the sift
                 ;; cannot complete either way) with the TRUE reason: the journal peer was alive.
                 ;; This arm is macro-generated, so it reports at the `sift-rules-defsvc` CALL SITE,
                 ;; never here — which is why it was missed on the first stdlib pass and found by a
                 ;; rider hitting STOP-1 in tests/services.
-                (:wat::kernel::RecvOutcome::Stopped
-                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE")))
-                (:wat::kernel::RecvOutcome::Closed
-                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))))))]))))
+                [:wat::kernel::RecvOutcome::Stopped {}
+                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE"))]
+                [:wat::kernel::RecvOutcome::Closed {}
+                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))])))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed

@@ -147,16 +147,16 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
         note: Some("rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); the `:(T,U,V)` type spelling is ALSO retired (arc 109 \"the comma dies in the reader\") — use `(:wat::core::Tuple :- [T U V])`") },
     // Arc 109 slice 1h — bare `Some` retired (callable heads must be FQDN keywords).
     RetirementEntry { retired: "Some", replacement: ":wat::core::Some",
-        note: Some("rename `(Some x)` → `(:wat::core::Some x)` at constructor sites; rename `((Some v) ...)` → `((:wat::core::Some v) ...)` at match-pattern sites (arc 109 slice 1h)") },
+        note: Some("rename `(Some x)` → `(:wat::core::Some x)` at constructor sites; rename `((Some v) ...)` → `[:wat::core::Some {:value v} ...]` at match-pattern sites (arc 109 slice 1h)") },
     // Arc 109 slice 1h — bare `:None` retired (substrate-provided keywords live under `:wat::core::*`).
     RetirementEntry { retired: ":None", replacement: ":wat::core::None",
-        note: Some("rename `:None` → `:wat::core::None` at value-position sites; rename `(:None ...)` → `(:wat::core::None ...)` at match-pattern sites (arc 109 slice 1h)") },
+        note: Some("rename `:None` → `:wat::core::None` at value-position sites; rename `(:None ...)` → `[:wat::core::None {} ...]` at match-pattern sites (arc 109 slice 1h)") },
     // Arc 109 slice 1i — bare `Ok` retired (callable heads must be FQDN keywords).
     RetirementEntry { retired: "Ok", replacement: ":wat::core::Ok",
-        note: Some("rename `(Ok x)` → `(:wat::core::Ok x)` at constructor sites; rename `((Ok v) ...)` → `((:wat::core::Ok v) ...)` at match-pattern sites (arc 109 slice 1i)") },
+        note: Some("rename `(Ok x)` → `(:wat::core::Ok x)` at constructor sites; rename `((Ok v) ...)` → `[:wat::core::Ok {:value v} ...]` at match-pattern sites (arc 109 slice 1i)") },
     // Arc 109 slice 1i — bare `Err` retired (callable heads must be FQDN keywords).
     RetirementEntry { retired: "Err", replacement: ":wat::core::Err",
-        note: Some("rename `(Err e)` → `(:wat::core::Err e)` at constructor sites; rename `((Err _e) ...)` → `((:wat::core::Err _e) ...)` at match-pattern sites (arc 109 slice 1i)") },
+        note: Some("rename `(Err e)` → `(:wat::core::Err e)` at constructor sites; rename `((Err _e) ...)` → `[:wat::core::Err {:error _e} ...]` at match-pattern sites (arc 109 slice 1i)") },
     // Arc 118.B6b — foldr retired: it was `reverse`+`foldl` wearing a name borrowed from
     // Haskell, where the verb is distinct only because it is LAZY, a property strict wat
     // cannot have. The operation is spelled from verbs that already exist; `reduce` already IS
