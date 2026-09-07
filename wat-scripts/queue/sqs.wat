@@ -101,7 +101,7 @@
   [(send    [self <- :queue::Queue  req <- :queue::Queue::SendRequest]
      -> :queue::Queue::SendResponse :max-request-bytes 524288 :max-entries [bodies 64])
    (receive [self <- :queue::Queue  req <- :queue::Queue::ReceiveRequest]
-     -> :queue::Queue::ReceiveResponse :max-request-bytes 524288)
+     -> :queue::Queue::ReceiveResponse :max-request-bytes 524288 :max-page [envelopes 64])
    (ack     [self <- :queue::Queue  req <- :queue::Queue::AckRequest]
      -> :queue::Queue::AckResponse :max-request-bytes 524288)
    (stats   [self <- :queue::Queue  req <- :queue::Queue::StatsRequest]

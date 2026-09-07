@@ -929,8 +929,8 @@
                         (:wat::hashmap::get clause-map "$surface-form")
                         "defservice: :$surface-form")
                       empty-vec)
-     max-entries-field-of
-       (:wat::core::fn [surface-ast <- :wat::WatAST  op <- :wat::core::String]
+     option-field-of
+       (:wat::core::fn [surface-ast <- :wat::WatAST  op <- :wat::core::String  opt-key <- :wat::core::String]
          -> :wat::core::String
          (:wat::core::let
            [sch (:wat::core::ast->children surface-ast)
@@ -993,7 +993,7 @@
                                  (:wat::core::if
                                    (:wat::core::and
                                      (:wat::core::= (:wat::core::ast-kind knode) "keyword")
-                                     (:wat::core::= (:wat::core::ast-name knode) ":max-entries"))
+                                     (:wat::core::= (:wat::core::ast-name knode) opt-key))
                                    (:wat::core::let
                                      [val (:wat::core::Option/expect
                                             (:wat::core::get mch (:wat::i64::+ j 1))
@@ -1011,6 +1011,14 @@
                          (:wat::core::range 0 nmch)))))))
              ""
              methods)))
+     max-entries-field-of
+       (:wat::core::fn [surface-ast <- :wat::WatAST  op <- :wat::core::String]
+         -> :wat::core::String
+         (option-field-of surface-ast op ":max-entries"))
+     max-page-field-of
+       (:wat::core::fn [surface-ast <- :wat::WatAST  op <- :wat::core::String]
+         -> :wat::core::String
+         (option-field-of surface-ast op ":max-page"))
      ;; Walk :messages of the attached surface form.
      messages-vec-of
        (:wat::core::fn [surface-ast <- :wat::WatAST] -> :wat::WatAST
@@ -1163,6 +1171,23 @@
                              (:wat::core::range 0 nf))))))))))
            (:wat::core::Vector :- [:wat::core::String])
            (:wat::core::ast->children (messages-vec-of surface-ast))))
+     request-fields-or-fallback
+       (:wat::core::fn [want <- :wat::core::String]
+         -> (:wat::core::Vector :- [:wat::core::String])
+         (:wat::core::if (:wat::string::ends-with? want "SendRequest")
+           (:wat::core::Vector :- [:wat::core::String] "queue" "bodies" "now-ns")
+           (:wat::core::if (:wat::string::ends-with? want "PublishRequest")
+             (:wat::core::Vector :- [:wat::core::String] "msgs")
+             (:wat::core::if (:wat::string::ends-with? want "ReceiveRequest")
+               (:wat::core::Vector :- [:wat::core::String] "queue" "now-ns" "visibility-ns" "limit" "wait")
+               (:wat::core::if (:wat::string::ends-with? want "ScanIndexRequest")
+                 (:wat::core::Vector :- [:wat::core::String] "index" "ipk" "isk-lo" "isk-hi" "limit" "cursor")
+                 (:wat::core::if (:wat::string::ends-with? want "ScanRequest")
+                   (:wat::core::Vector :- [:wat::core::String] "pk" "sk-lo" "sk-hi" "limit" "cursor")
+                   (request-field-names-of surface-decl want)))))))
+     request-has-field?
+       (:wat::core::fn [want <- :wat::core::String  fname <- :wat::core::String] -> :wat::core::bool
+         (:wat::vec::contains? (request-fields-or-fallback want) fname))
      ;; peer-forms-calls: (Vector :- [WatAST]) of `(:S::surface-forms)` call nodes — one per :peers surface.
      ;; Spliced into the service-forms concat (below) so each dialed surface's forms cross the fork.
      ;; DESIGN-STONE the-child-needs-the-entry-not-the-library: each contributor to
@@ -2149,8 +2174,45 @@
                               mpath-sym     (:wat::core::symbol-node "mpath")
                               mexp-sym      (:wat::core::symbol-node "mexpected")
                               mgot-sym      (:wat::core::symbol-node "mgot")
+                              page-field    (max-page-field-of surface-decl op-str)
+                              page-cap-kw   (:wat::keyword::from-string
+                                               (:wat::string::concat proto-base
+                                                 (:wat::string::interpolate "::{op-upper}-MAX-PAGE" :op-upper op-upper)))
+                              page-req-want (:wat::string::interpolate "{b}::{p}Request"
+                                               :b proto-base :p variant-pascal)
+                              page-req-ctor (:wat::keyword::from-string
+                                               (:wat::string::concat proto-base
+                                                 (:wat::string::interpolate "::{p}Request" :p variant-pascal)))
+                              page-limit-acc (:wat::keyword::from-string
+                                                (:wat::string::concat proto-base
+                                                  (:wat::string::interpolate "::{p}Request/limit" :p variant-pascal)))
+                              page-ctor-args
+                                (:wat::core::foldl
+                                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
+                                                   fname <- :wat::core::String]
+                                    -> (:wat::core::Vector :- [:wat::WatAST])
+                                    (:wat::core::let
+                                      [kw (:wat::core::keyword-node (:wat::string::concat ":" fname))
+                                       acc-kw (:wat::keyword::from-string
+                                                (:wat::string::concat proto-base
+                                                  (:wat::string::interpolate "::{p}Request/{f}"
+                                                    :p variant-pascal :f fname)))
+                                       val (:wat::core::if (:wat::core::= fname "limit")
+                                             `(:wat::core::if (:wat::i64::> (~page-limit-acc ~req-binder) ~page-cap-kw)
+                                                ~page-cap-kw
+                                                (~page-limit-acc ~req-binder))
+                                             `(~acc-kw ~req-binder))]
+                                      (:wat::core::conj (:wat::core::conj acc kw) val)))
+                                  (:wat::core::Vector :- [:wat::WatAST])
+                                  (request-fields-or-fallback page-req-want))
+                              page-clamped  (:wat::core::if (:wat::core::= page-field "")
+                                              outcome-match
+                                              `(:wat::core::if (:wat::i64::> (~page-limit-acc ~req-binder) ~page-cap-kw)
+                                                 (:wat::core::let [~req-binder (~page-req-ctor ~@page-ctor-args)]
+                                                   ~outcome-match)
+                                                 ~outcome-match))
                               shape-guarded `(:wat::core::match (:wat::edn::validate ~req-binder ~req-ty-kw)
-                                               (:wat::edn::Validation::Valid ~outcome-match)
+                                               (:wat::edn::Validation::Valid ~page-clamped)
                                                ;; arc 278 the send'-outcome wall — refuse, then RECURSE
                                                ;; INTO SERVE with state UNCHANGED (the handler never ran).
                                                ;; A gone client is not fatal either; every arm keeps serving.
@@ -2591,9 +2653,15 @@
                           emit-all?       (:wat::core::and
                                             (:wat::core::not (:wat::core::= entries-field ""))
                                             has-accepted)
+                          helper-base     (:wat::core::if
+                                            (:wat::core::and
+                                              (:wat::string::starts-with? proto-base "wat::")
+                                              (:wat::core::not (:wat::string::starts-with? fqdn-base "wat::")))
+                                            fqdn-base
+                                            proto-base)
                           all-method-name (:wat::keyword::from-string
                                             (:wat::string::interpolate "{b}/{op-str}-all"
-                                              :b proto-base :op-str op-str))
+                                              :b helper-base :op-str op-str))
                           surface-op-kw   (:wat::keyword::from-string
                                             (:wat::string::interpolate "{b}/{op-str}"
                                               :b proto-base :op-str op-str))
@@ -2712,10 +2780,105 @@
                           ;; children receive both via `::client-helpers`.
                           all-alias-name  (:wat::keyword::from-string
                                             (:wat::string::interpolate "{b}::{op-str}-all"
-                                              :b proto-base :op-str op-str))
+                                              :b helper-base :op-str op-str))
                           all-alias-defn  (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
                                             `(:wat::core::defn ~all-alias-name ~method-params -> ~recv-ret-ty ~all-body)
-                                            `(:wat::core::defn ~all-alias-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~all-body))]
+                                            `(:wat::core::defn ~all-alias-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~all-body))
+                          page-field      (max-page-field-of surface-decl op-str)
+                          page-cap-kw     (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-upper}-MAX-PAGE" :op-upper op-upper)))
+                          emit-page-all?  (:wat::core::and
+                                            (:wat::core::not (:wat::core::= page-field ""))
+                                            (request-has-field? req-want "cursor"))
+                          success-ctor-kw (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-pascal}Response::Success" :op-pascal op-pascal)))
+                          item-ty-kw      (:wat::keyword::from-string
+                                            (:wat::core::if (:wat::string::ends-with? req-want "ScanIndexRequest")
+                                              "wat::query::IndexRow"
+                                              (:wat::core::if (:wat::string::ends-with? req-want "ScanRequest")
+                                                "wat::query::Row"
+                                                "wat::core::String")))
+                          page-ret-ty     `(:wat::stream::Stream :- [~item-ty-kw])
+                          pn-sym          (:wat::core::symbol-node "pn")
+                          pi-sym          (:wat::core::symbol-node "pi")
+                          rows-sym        (:wat::core::symbol-node "prows")
+                          pcur-sym        (:wat::core::symbol-node "pcur")
+                          prest-sym       (:wat::core::symbol-node "prest")
+                          ck-sym          (:wat::core::symbol-node "pck")
+                          page-fnames     (request-fields-or-fallback req-want)
+                          page-args-from-req
+                            (:wat::core::foldl
+                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
+                                               fname <- :wat::core::String]
+                                -> (:wat::core::Vector :- [:wat::WatAST])
+                                (:wat::core::let
+                                  [kw (:wat::core::keyword-node (:wat::string::concat ":" fname))
+                                   acc-kw (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-pascal}Request/{f}"
+                                                :op-pascal op-pascal :f fname)))
+                                   val (:wat::core::if (:wat::core::= fname "limit")
+                                         page-cap-kw
+                                         `(~acc-kw req))]
+                                  (:wat::core::conj (:wat::core::conj acc kw) val)))
+                              (:wat::core::Vector :- [:wat::WatAST])
+                              page-fnames)
+                          page-args-from-ck
+                            (:wat::core::foldl
+                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
+                                               fname <- :wat::core::String]
+                                -> (:wat::core::Vector :- [:wat::WatAST])
+                                (:wat::core::let
+                                  [kw (:wat::core::keyword-node (:wat::string::concat ":" fname))
+                                   acc-kw (:wat::keyword::from-string
+                                            (:wat::string::concat proto-base
+                                              (:wat::string::interpolate "::{op-pascal}Request/{f}"
+                                                :op-pascal op-pascal :f fname)))
+                                   val (:wat::core::if (:wat::core::= fname "limit")
+                                         page-cap-kw
+                                         (:wat::core::if (:wat::core::= fname "cursor")
+                                           `(:wat::core::Some ~ck-sym)
+                                           `(~acc-kw req)))]
+                                  (:wat::core::conj (:wat::core::conj acc kw) val)))
+                              (:wat::core::Vector :- [:wat::WatAST])
+                              page-fnames)
+                          page-all-body
+                            `(:wat::stream::lazy
+                               (:wat::core::let
+                                 [~creq-sym (~req-ctor-kw ~@page-args-from-req)
+                                  ~r-sym (~surface-op-kw c ~creq-sym)]
+                                 (:wat::core::match ~r-sym
+                                   ((:wat::kernel::RecvOutcome::Message ~resp-sym)
+                                     (:wat::core::match ~resp-sym
+                                       ((~success-ctor-kw ~rows-sym ~pcur-sym)
+                                         (:wat::core::let
+                                           [~pn-sym (:wat::core::count ~rows-sym)
+                                            ~prest-sym
+                                              (:wat::core::match ~pcur-sym
+                                                (:wat::core::None (:wat::stream::empty))
+                                                ((:wat::core::Some ~ck-sym)
+                                                  (:wat::stream::lazy
+                                                    (~all-alias-name c (~req-ctor-kw ~@page-args-from-ck)))))]
+                                           (:wat::core::foldl
+                                             (:wat::core::fn [~acc-sym <- ~page-ret-ty
+                                                              ~pi-sym <- :wat::core::i64]
+                                               -> ~page-ret-ty
+                                               (:wat::stream::cons
+                                                 (:wat::core::nth ~rows-sym
+                                                   (:wat::i64::- (:wat::i64::- ~pn-sym 1) ~pi-sym))
+                                                 ~acc-sym))
+                                             ~prest-sym
+                                             (:wat::core::range 0 ~pn-sym))))
+                                       (_ (:wat::stream::empty))))
+                                   (_ (:wat::stream::empty)))))
+                          page-all-defn   (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                                            `(:wat::core::defn ~all-method-name ~method-params -> ~page-ret-ty ~page-all-body)
+                                            `(:wat::core::defn ~all-method-name :- [~@fqdn-tp-syms] ~method-params -> ~page-ret-ty ~page-all-body))
+                          page-alias-defn (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                                            `(:wat::core::defn ~all-alias-name ~method-params -> ~page-ret-ty ~page-all-body)
+                                            `(:wat::core::defn ~all-alias-name :- [~@fqdn-tp-syms] ~method-params -> ~page-ret-ty ~page-all-body))]
                          (:wat::core::if is-internal
                            acc
                            (:wat::core::let
@@ -2728,7 +2891,13 @@
                                  (:wat::core::conj
                                    (:wat::core::conj (:wat::core::second acc1) all-defn)
                                    all-alias-defn))
-                               acc1)))))
+                               (:wat::core::if emit-page-all?
+                                 (:wat::core::Tuple
+                                   (:wat::core::first acc1)
+                                   (:wat::core::conj
+                                     (:wat::core::conj (:wat::core::second acc1) page-all-defn)
+                                     page-alias-defn))
+                                 acc1))))))
                      (:wat::core::Tuple
                        (:wat::core::Vector :- [:wat::WatAST])
                        (:wat::core::Vector :- [:wat::WatAST]))

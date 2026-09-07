@@ -464,6 +464,9 @@ pub enum SurfaceMember {
         /// There is no default. Declaring it on a Peer op whose Response lacks
         /// `RequestTooManyEntries [entries cap]` is a compile error.
         max_entries: Option<(String, i64)>,
+        /// `:max-page [field N]` — per-response collection page cap. `None` = absent
+        /// = uncapped. Truncates (clamps request `limit`); does not reject.
+        max_page: Option<(String, i64)>,
     },
 }
 
@@ -3220,6 +3223,165 @@ fn check_max_entries_field(
     }
 }
 
+/// Declaration-time wall for `:max-page [field N]`:
+/// - the named field exists on some response variant and is a sequence
+/// - the request record has `limit <- i64` (the clamp lives at the boundary)
+fn check_max_page_field(
+    method_name: &str,
+    request_ty: &TypeExpr,
+    ret: &TypeExpr,
+    field: &str,
+    env: &TypeEnv,
+    decl_span: &Span,
+) -> Result<(), TypeError> {
+    let Some(req_path) = request_ty.base_fqdn() else {
+        return Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: ":wat::core::defsurface".into(),
+                reason: format!(
+                    "method member `{method_name}`: `:max-page` cannot be resolved — the request \
+                     type `{request_ty:?}` has no name"
+                ),
+            },
+        ));
+    };
+    match env.get(&req_path) {
+        Some(TypeDef::Aggregate(agg)) => match agg.fields.iter().find(|(n, _)| n == "limit") {
+            Some((_, ty)) => {
+                let ok = match ty {
+                    TypeExpr::Path(p) => p.trim_start_matches(':') == "wat::core::i64",
+                    _ => false,
+                };
+                if !ok {
+                    return Err(TypeError::new(
+                        decl_span.clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: ":wat::core::defsurface".into(),
+                            reason: format!(
+                                "method member `{method_name}`: `:max-page` clamps request `limit`; \
+                                 `{req_path}` field `limit` is {}, not `:wat::core::i64`",
+                                typeexpr_diag(ty)
+                            ),
+                        },
+                    ));
+                }
+            }
+            None => {
+                let names = agg
+                    .fields
+                    .iter()
+                    .map(|(n, _)| n.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(TypeError::new(
+                    decl_span.clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: ":wat::core::defsurface".into(),
+                        reason: format!(
+                            "method member `{method_name}`: `:max-page` clamps request `limit`, \
+                             but `{req_path}` has no `limit` field (fields: {names})"
+                        ),
+                    },
+                ));
+            }
+        },
+        _ => {
+            return Err(TypeError::new(
+                decl_span.clone(),
+                TypeErrorKind::MalformedDecl {
+                    head: ":wat::core::defsurface".into(),
+                    reason: format!(
+                        "method member `{method_name}`: `:max-page` cannot be resolved — \
+                         request type `{req_path}` is not a record"
+                    ),
+                },
+            ));
+        }
+    }
+
+    let Some(resp_path) = ret.base_fqdn() else {
+        return Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: ":wat::core::defsurface".into(),
+                reason: format!(
+                    "method member `{method_name}`: `:max-page` field `{field}` cannot be \
+                     resolved — the response type `{ret:?}` has no name"
+                ),
+            },
+        ));
+    };
+    match env.get(&resp_path) {
+        Some(TypeDef::Enum(en)) => {
+            let found = en.variants.iter().find_map(|v| match v {
+                EnumVariant::Tagged { fields, .. } => {
+                    fields.iter().find(|(n, _)| n == field).map(|(_, ty)| ty)
+                }
+                EnumVariant::Unit(_) => None,
+            });
+            match found {
+                Some(ty) if typeexpr_is_sequence(ty) => Ok(()),
+                Some(ty) => Err(TypeError::new(
+                    decl_span.clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: ":wat::core::defsurface".into(),
+                        reason: format!(
+                            "method member `{method_name}`: `:max-page` counts ELEMENTS; field \
+                             `{field}` is a {ty}. Declare the cap on a sequence field \
+                             (Vector, PersistentVector or List).",
+                            ty = typeexpr_diag(ty)
+                        ),
+                    },
+                )),
+                None => {
+                    let names: Vec<&str> = en
+                        .variants
+                        .iter()
+                        .flat_map(|v| match v {
+                            EnumVariant::Tagged { fields, .. } => {
+                                fields.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>()
+                            }
+                            EnumVariant::Unit(_) => vec![],
+                        })
+                        .collect();
+                    Err(TypeError::new(
+                        decl_span.clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: ":wat::core::defsurface".into(),
+                            reason: format!(
+                                "method member `{method_name}`: `:max-page` field `{field}` is not \
+                                 a field of `{resp_path}` (fields: {names})",
+                                names = names.join(", ")
+                            ),
+                        },
+                    ))
+                }
+            }
+        }
+        Some(_) => Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: ":wat::core::defsurface".into(),
+                reason: format!(
+                    "method member `{method_name}`: `:max-page` field `{field}` cannot be \
+                     resolved — `{resp_path}` is not an enum"
+                ),
+            },
+        )),
+        None => Err(TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: ":wat::core::defsurface".into(),
+                reason: format!(
+                    "method member `{method_name}`: `:max-page` field `{field}` cannot be \
+                     resolved — response type `{resp_path}` is not yet registered"
+                ),
+            },
+        )),
+    }
+}
+
 fn synthesize_surface_protocol(
     surface: &SurfaceDef,
     env: &TypeEnv,
@@ -3298,7 +3460,7 @@ fn synthesize_surface_protocol(
     let enforce_rtl_lock = surface.nature == Some(Nature::Peer);
 
     for member in &surface.members {
-        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, max_entries, .. } = member
+        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, max_entries, max_page, .. } = member
         else {
             continue; // Field members are data, not operations.
         };
@@ -3468,6 +3630,9 @@ fn synthesize_surface_protocol(
 
         if let Some((field, _)) = max_entries {
             check_max_entries_field(name, &request_ty, field, env, decl_span)?;
+        }
+        if let Some((field, _)) = max_page {
+            check_max_page_field(name, &request_ty, ret, field, env, decl_span)?;
         }
 
         // The purity gate: BOTH request and response must cross (EDN-serializable). Any impure
@@ -3801,7 +3966,7 @@ fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: S
 fn build_op_budget_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
     let mut out = Vec::new();
     for member in &surface.members {
-        let SurfaceMember::Method { name, max_request_bytes, max_entries, .. } = member else {
+        let SurfaceMember::Method { name, max_request_bytes, max_entries, max_page, .. } = member else {
             continue;
         };
         // `surface.name` already carries the leading `:` sigil (matches every other
@@ -3835,6 +4000,30 @@ fn build_op_budget_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
                     WatAST::Keyword(":wat::core::def".into(), span.clone()),
                     WatAST::Keyword(
                         format!("{}::{}-MAX-ENTRIES-FIELD", surface.name, op_u),
+                        span.clone(),
+                    ),
+                    WatAST::StringLit(field.clone(), span.clone()),
+                ],
+                span.clone(),
+            ));
+        }
+        if let Some((field, n)) = max_page {
+            out.push(WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::def".into(), span.clone()),
+                    WatAST::Keyword(
+                        format!("{}::{}-MAX-PAGE", surface.name, op_u),
+                        span.clone(),
+                    ),
+                    WatAST::IntLit(*n, span.clone()),
+                ],
+                span.clone(),
+            ));
+            out.push(WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::def".into(), span.clone()),
+                    WatAST::Keyword(
+                        format!("{}::{}-MAX-PAGE-FIELD", surface.name, op_u),
                         span.clone(),
                     ),
                     WatAST::StringLit(field.clone(), span.clone()),
@@ -7399,6 +7588,73 @@ mod tests {
         assert!(
             def_of(":t::Cap::BAR-MAX-ENTRIES-FIELD").is_none(),
             "absent :max-entries must emit neither field def"
+        );
+    }
+
+    #[test]
+    fn max_page_emits_readable_defs_and_omits_them_when_absent() {
+        let src = r#"(:wat::core::defsurface :t::Page :nature :wat::kernel::Peer
+                  :messages [(:wat::core::recordtype :t::Page::FooRequest :wat::core::Record
+                                [limit <- :wat::core::i64
+                                 cursor <- (:wat::core::Option :- [:wat::core::String])])
+                             (:wat::core::defenum :t::Page::FooResponse :wat::enum::Pure
+                                :Success [rows <- (:wat::core::Vector :- [:wat::core::String])
+                                          cursor <- (:wat::core::Option :- [:wat::core::String])]
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                                   expected <- :wat::core::String
+                                                   got <- :wat::core::String])
+                             (:wat::core::recordtype :t::Page::BarRequest :wat::core::Record
+                                [x <- :wat::core::String])
+                             (:wat::core::defenum :t::Page::BarResponse :wat::enum::Pure
+                                :Ok []
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
+                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                                   expected <- :wat::core::String
+                                                   got <- :wat::core::String])]
+                  :features [(foo [self <- :t::Page  req <- :t::Page::FooRequest]
+                               -> :t::Page::FooResponse
+                               :max-request-bytes 524288
+                               :max-page [rows 64])
+                             (bar [self <- :t::Page  req <- :t::Page::BarRequest]
+                               -> :t::Page::BarResponse
+                               :max-request-bytes 524288)])"#;
+        let forms = crate::parse_all!(src).expect("parse ok");
+        let mut reg = crate::macros::MacroRegistry::new();
+        let rest = crate::macros::register_defmacros(forms, &mut reg).expect("register_defmacros ok");
+        let renv = crate::runtime::Environment::default();
+        let sym = crate::runtime::SymbolTable::default();
+        let expanded = crate::macros::expand_all(rest, &mut reg, &renv, &sym).expect("expand_all ok");
+        let mut env = TypeEnv::with_builtins();
+        let rest = register_types(expanded, &mut env).expect("register ok");
+        let def_of = |name: &str| -> Option<&WatAST> {
+            rest.iter().find_map(|f| match f {
+                WatAST::List(items, _) if items.len() == 3 => match items.as_slice() {
+                    [WatAST::Keyword(h, _), WatAST::Keyword(n, _), val]
+                        if h == ":wat::core::def" && n == name =>
+                    {
+                        Some(val)
+                    }
+                    _ => None,
+                },
+                _ => None,
+            })
+        };
+        match def_of(":t::Page::FOO-MAX-PAGE") {
+            Some(WatAST::IntLit(64, _)) => {}
+            other => panic!("FOO-MAX-PAGE must be 64; got {other:?}"),
+        }
+        match def_of(":t::Page::FOO-MAX-PAGE-FIELD") {
+            Some(WatAST::StringLit(s, _)) if s == "rows" => {}
+            other => panic!("FOO-MAX-PAGE-FIELD must be \"rows\"; got {other:?}"),
+        }
+        assert!(
+            def_of(":t::Page::BAR-MAX-PAGE").is_none(),
+            "absent :max-page must emit neither def"
+        );
+        assert!(
+            def_of(":t::Page::BAR-MAX-PAGE-FIELD").is_none(),
+            "absent :max-page must emit neither field def"
         );
     }
 

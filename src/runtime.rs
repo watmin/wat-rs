@@ -6353,7 +6353,7 @@ fn dispatch_keyword_head_value(
                             // `Nature::Peer` — every other nature (aggregate dispatch) falls
                             // through to the unchanged `:<T>/<method>` lookup below.
                             if s.nature == Some(crate::types::Nature::Peer) {
-                                if let crate::types::SurfaceMember::Method { ret, max_entries, .. } = member {
+                                if let crate::types::SurfaceMember::Method { ret, max_entries, max_page, .. } = member {
                                     use crate::scope::Identifier;
                                     if args.len() < 2 {
                                         return Err(RuntimeError::new(
@@ -6441,7 +6441,10 @@ fn dispatch_keyword_head_value(
                                     // caller's arg expressions); bind them into a child env that
                                     // the synthesized forwarding AST references by name.
                                     let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
-                                    let req_val = eval_inner(&args[1], env, sym)?.value_owned();
+                                    let mut req_val = eval_inner(&args[1], env, sym)?.value_owned();
+                                    if let Some((_field, cap)) = max_page.clone() {
+                                        req_val = clamp_request_limit(req_val, cap);
+                                    }
                                     let call_env = env
                                         .child()
                                         .bind_unknown_span("__peer", TrackedValue::from(peer_val))
@@ -7084,6 +7087,31 @@ fn keyword_accessor_record(
             },
         )
         .into()),
+    }
+}
+
+/// Clamp a request record's `limit` field to `cap`. Missing or non-i64 `limit`
+/// is left unchanged (declaration-time wall requires the field).
+fn clamp_request_limit(req: Value, cap: i64) -> Value {
+    match req {
+        Value::Aggregate(a) => {
+            let Some(i) = a.names.iter().position(|n| n == "limit") else {
+                return Value::Aggregate(a);
+            };
+            match a.fields.get(i) {
+                Some(Value::i64(n)) if *n > cap => {
+                    let mut fields = a.fields.as_slice().to_vec();
+                    fields[i] = Value::i64(cap);
+                    Value::Aggregate(Arc::new(AggregateValue::record_arc(
+                        a.class.clone(),
+                        a.names.clone(),
+                        Arc::new(fields),
+                    )))
+                }
+                _ => Value::Aggregate(a),
+            }
+        }
+        other => other,
     }
 }
 

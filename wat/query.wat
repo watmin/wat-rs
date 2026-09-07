@@ -614,7 +614,7 @@
 
    ;; a PAGE on a named GSI: ipk fixed, isk in a prefix/range, ordered ASC, after `cursor`.
    (scan-index [self <- :wat::query::Store  req <- :wat::query::Store::ScanIndexRequest]
-     -> :wat::query::Store::ScanIndexResponse :max-request-bytes 524288)
+     -> :wat::query::Store::ScanIndexResponse :max-request-bytes 524288 :max-page [rows 64])
 
    ;; a COUNT on a named GSI: ipk fixed, isk in a prefix/range. Returns n, never rows.
    (count-index [self <- :wat::query::Store  req <- :wat::query::Store::CountIndexRequest]
