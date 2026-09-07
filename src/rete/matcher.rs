@@ -166,6 +166,9 @@ pub(crate) type BindPairs = Option<Arc<[(Value, Value)]>>;
 pub(crate) type FieldNames = Arc<Vec<String>>;
 pub(crate) type BindAcc = Vec<(Value, Value)>;
 
+// This get body is duplicated in `benches/binding_repr.rs` as `array_get` (296 Stone K
+// moves 2–4). The representation diagnostic's recorded margins depend on the two staying
+// identical; a change here means re-measuring there or striking the numbers.
 impl Bindings for [(Value, Value)] {
     fn get(&self, k: &Value) -> Option<&Value> {
         <[(Value, Value)]>::iter(self)

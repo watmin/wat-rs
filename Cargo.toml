@@ -237,7 +237,7 @@ path = "tests/wat_lang/mod.rs"
 name = "cli"
 path = "tests/cli/mod.rs"
 
-# ─── Benchmarks — 296 Stone K, move 1 ─────────────────────────────────────────
+# ─── Benchmarks — 296 Stone K, moves 1–4 ──────────────────────────────────────
 # `#[ignore]` used to mean two incompatible things: "blocked/broken" (debt) and
 # "deliberately outside the floor" (an instrument). A throughput measurement that
 # asserts nothing meaningful is the second kind, and belongs here — cargo has had
@@ -250,6 +250,11 @@ path = "tests/cli/mod.rs"
 [[bench]]
 name = "perf_arc278_fire_baseline"
 path = "benches/perf_arc278_fire_baseline.rs"
+harness = false
+
+[[bench]]
+name = "binding_repr"
+path = "benches/binding_repr.rs"
 harness = false
 
 # Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
