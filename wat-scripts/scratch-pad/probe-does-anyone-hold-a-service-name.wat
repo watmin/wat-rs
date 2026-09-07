@@ -59,7 +59,7 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible _unacked) visible)
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible _unacked _) visible)
         (_ (:wat::kernel::assertion-failed! "sn: stats not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "sn: stats recv failed" :wat::core::None :wat::core::None))))
 
