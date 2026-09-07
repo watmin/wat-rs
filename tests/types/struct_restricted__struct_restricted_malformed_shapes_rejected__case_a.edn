@@ -4,12 +4,12 @@
     :file "tests/types/struct_restricted_empty_metadata.wat.bad"
     :line 3
     :col 3
-    :end #wat.core.Option/Some [
-      #wat.core/Pos {
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
         :line 3
         :col 5
       }
-    ]
+    }
   }
   :causes []
   :head ":wat::core::defstruct"

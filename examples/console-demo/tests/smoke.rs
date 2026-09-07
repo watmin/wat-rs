@@ -26,11 +26,11 @@ fn console_demo_prints_five_events_and_exits_clean() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let expected = "\
-#demo.Event/Buy [100.5 7]
-#demo.Event/Sell [102.25 3 \"stop-loss\"]
-#demo.Event/Buy [99.0 12]
-#demo.Event/CircuitBreak [\"spike-volume\"]
-#demo.Event/CircuitBreak [\"exchange-disconnected\"]
+#demo/Event.Buy {:price 100.5 :qty 7}
+#demo/Event.Sell {:price 102.25 :qty 3 :reason \"stop-loss\"}
+#demo/Event.Buy {:price 99.0 :qty 12}
+#demo/Event.CircuitBreak {:reason \"spike-volume\"}
+#demo/Event.CircuitBreak {:reason \"exchange-disconnected\"}
 ";
     assert_eq!(
         stdout.as_ref(),

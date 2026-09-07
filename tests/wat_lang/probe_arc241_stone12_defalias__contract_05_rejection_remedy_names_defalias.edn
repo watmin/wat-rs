@@ -9,12 +9,12 @@
         :file "tests/wat_lang/probe_arc241_stone12_defalias.wat.bad"
         :line 5
         :col 2
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 5
             :col 29
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::runtime::define-alias"

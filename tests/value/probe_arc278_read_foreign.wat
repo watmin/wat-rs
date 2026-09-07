@@ -6,7 +6,7 @@
 ;; DYNAMIC value instead of raising UnknownTag — and it is RECURSIVE: a foreign record
 ;; CONTAINING a foreign variant field decodes all the way down.
 ;;
-;;   #some.unknown/Rec {:kind #some.unknown.Kind/Click [42]}
+;;   #some.unknown/Rec {:kind #some.unknown/Kind.Click [42]}
 ;;     read-foreign → ForeignRecord {class "some.unknown/Rec", :kind → ForeignVariant …}
 ;;     ForeignRecord/get fr :kind → Some (the nested ForeignVariant)
 ;;     ForeignVariant/variant that → :Click  (the recursive path proven)
@@ -21,7 +21,7 @@
 ;; itself a ForeignVariant (recursion); its variant is :Click.
 (:wat::core::defn :my::compute [] -> :wat::core::Keyword
   (:wat::core::match
-    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown.Kind/Click [42]}")
+    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
     ((:wat::edn::ReadForeignOutcome::Value fr)
       (:wat::edn::ForeignVariant/variant
         (:wat::core::Option/expect
@@ -34,7 +34,7 @@
 ;; :my::missing-field-is-none — get of an absent key is None, never a raise.
 (:wat::core::defn :my::missing-field-is-none [] -> :wat::core::bool
   (:wat::core::match
-    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown.Kind/Click [42]}")
+    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
     ((:wat::edn::ReadForeignOutcome::Value fr)
       (:wat::core::match (:wat::edn::ForeignRecord/get fr :nope)
         (:wat::core::None true)
@@ -51,4 +51,17 @@
 ;; The no-hidden-failures floor (R41 EGO SVM LEX) is untouched: strict is strict.
 ;; At green, `read` on the unknown tag raises → call_beside returns Err → the .rs expect_err's.
 (:wat::core::defn :my::strict-errors [] -> :wat::core::Value
-  (:wat::edn::read "#some.unknown/Rec {:kind #some.unknown.Kind/Click [42]}"))
+  (:wat::edn::read "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}"))
+
+;; Row 9 — names self-carried: write-pretty of the nested variant keeps :n.
+(:wat::core::defn :my::keys-survive [] -> :wat::core::String
+  (:wat::core::match
+    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
+    ((:wat::edn::ReadForeignOutcome::Value fr)
+      (:wat::edn::write-pretty
+        (:wat::core::Option/expect
+          (:wat::edn::ForeignRecord/get fr :kind)
+          "nested :kind")))
+    ((:wat::edn::ReadForeignOutcome::Malformed _)
+      (:wat::kernel::assertion-failed! "read-foreign of well-formed EDN was :Malformed"
+        :wat::core::None :wat::core::None))))

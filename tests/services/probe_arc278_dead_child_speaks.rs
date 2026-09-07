@@ -25,7 +25,7 @@ fn a_forked_service_that_cannot_decode_a_message_speaks_its_reason_to_the_caller
     // would unwind past the reader — the mask the wall kills) and returns a structured :probe::Outcome
     // whose in-wat `reason-names-decode-failure?` bool proves THE LAW — the caller's error carries the
     // child's real reason ("...no matching struct or enum in the type registry"), never a mute mask.
-    // The golden #probe.Outcome/Lost [true] is captured (UPDATE_EDN=1), never hand-authored; the
+    // The golden #probe/Outcome.Lost {:sentinel-present? true} is captured (UPDATE_EDN=1), never hand-authored; the
     // per-run-variable Failure location stays in wat, only its boolean RESULT crosses. Mirrors the
     // canonical gate probe_arc278_recv_outcome_wall. "wat stdio is edn — it's always data" (builder).
     let v = call_beside_value(file!(), ":user::compute").unwrap_or_else(|e| {

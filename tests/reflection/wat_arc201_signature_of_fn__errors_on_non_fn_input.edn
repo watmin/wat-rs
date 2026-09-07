@@ -4,12 +4,12 @@
     :file "tests/reflection/wat_arc201_signature_of_fn_err_non_fn.wat"
     :line 6
     :col 50
-    :end #wat.core.Option/Some [
-      #wat.core/Pos {
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
         :line 6
         :col 52
       }
-    ]
+    }
   }
   :causes []
   :op ":wat::runtime::signature-of-fn"

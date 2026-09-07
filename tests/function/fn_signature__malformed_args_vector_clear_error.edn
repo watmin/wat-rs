@@ -9,12 +9,12 @@
         :file "tests/function/fn_signature_malformed_args.wat"
         :line 6
         :col 42
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 6
             :col 43
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::fn"

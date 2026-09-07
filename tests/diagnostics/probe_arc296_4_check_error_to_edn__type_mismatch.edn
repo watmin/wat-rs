@@ -8,6 +8,6 @@
     :file "test.wat"
     :line 10
     :col 5
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

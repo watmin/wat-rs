@@ -1,5 +1,5 @@
-#wat.core.Option/Some [
-  (
+#wat.core/Option.Some {
+  :value (
     :my/sum-of
     (init wat.type/i64)
     &
@@ -10,4 +10,4 @@
     ->
     wat.type/i64
   )
-]
+}

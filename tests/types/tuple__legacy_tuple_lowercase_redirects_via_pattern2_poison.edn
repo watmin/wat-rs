@@ -9,12 +9,12 @@
         :file "tests/types/tuple_legacy_lowercase.wat.bad"
         :line 2
         :col 110
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 2
             :col 127
           }
-        ]
+        }
       }
       :causes []
       :callee ":wat::core::tuple"

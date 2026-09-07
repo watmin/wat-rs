@@ -9,12 +9,12 @@
         :file "tests/types/probe_arc293_holder_substitution_c4.wat.bad"
         :line 6
         :col 20
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 6
             :col 40
           }
-        ]
+        }
       }
       :causes []
       :callee ":u::wants-holon"

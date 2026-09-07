@@ -4,12 +4,12 @@
     :file "outer.wat"
     :line 10
     :col 4
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

@@ -31,14 +31,14 @@
 //! | keyword | `Keyword` (namespace split at last `::`) |
 //! | Vec | `Vector` |
 //! | Tuple | `Vector` (no tuple distinction in EDN) |
-//! | Option(None) | `Tagged #wat.core.Option/None []` (arc 278 A.0) |
-//! | Option(Some(v)) | `Tagged #wat.core.Option/Some [v]` (arc 278 A.0) |
-//! | Result(Ok(v)) | `Tagged #wat.core.Result/Ok [v]` (arc 278 A.0) |
-//! | Result(Err(e)) | `Tagged #wat.core.Result/Err [e]` (arc 278 A.0) |
+//! | Option(None) | `Tagged #wat.core/Option.None {}` (arc 296 H-2) |
+//! | Option(Some(v)) | `Tagged #wat.core/Option.Some {:value v}` (arc 296 H-2) |
+//! | Result(Ok(v)) | `Tagged #wat.core/Result.Ok {:value v}` (arc 296 H-2) |
+//! | Result(Err(e)) | `Tagged #wat.core/Result.Err {:error e}` (arc 296 H-2) |
 //! | HashMap | `Map` |
 //! | HashSet | `Set` |
 //! | Struct | `Tagged #ns/Type {:field-0 v0 :field-1 v1 ...}` |
-//! | Enum | `Tagged #ns/Variant [v0 v1 ...]` (unit variant → `[]`) |
+//! | Enum | `Tagged #ns/Enum.Variant {:field v}` (unit variant → `{}`) |
 //! | HolonAST | DATA, never a wat source form (arc 294.j RELAND): a data-shaped holon renders as the plain EDN `from_holon_item` recovers; `Thermometer`/`SlotMarker` (constructor directives) render as `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}`; the algebra (Bind/Bundle/Atom/Permute/Blend) never crosses the wire in any form — encoding one RAISES |
 //! | All other substrate handles | `Tagged #wat.<home>/<TypeName> nil` (arc 294.i — per-type home, not a shared bucket) |
 //!
@@ -2405,12 +2405,23 @@ fn coerce_variant_single<'a>(
     target: &crate::types::TypeExpr,
     edn: &wat_edn::OwnedValue,
     body: &'a wat_edn::OwnedValue,
+    key: &str,
 ) -> Result<&'a wat_edn::OwnedValue, EdnCoerceError> {
     use wat_edn::Value as Edn;
     match body {
-        Edn::Vector(items) | Edn::List(items) if items.len() == 1 => Ok(&items[0]),
+        Edn::Map(entries) => map_keyword_field(entries, key).ok_or_else(|| mismatch(target, edn)),
         _ => Err(mismatch(target, edn)),
     }
+}
+
+fn map_keyword_field<'a>(
+    entries: &'a [(wat_edn::OwnedValue, wat_edn::OwnedValue)],
+    key: &str,
+) -> Option<&'a wat_edn::OwnedValue> {
+    entries.iter().find_map(|(k, v)| match k {
+        wat_edn::OwnedValue::Keyword(kw) if kw.namespace().is_none() && kw.name() == key => Some(v),
+        _ => None,
+    })
 }
 
 /// Coerce an already-parsed EDN tree to a runtime [`Value`] whose
@@ -2436,11 +2447,11 @@ fn coerce_variant_single<'a>(
 /// | `:wat::core::keyword` | `Keyword` | `Value::wat__core__keyword(...)` |
 /// | `:(A,B,...)` (tuple) | `Vector` of len N | recurse per element |
 /// | `:wat::core::Vector<T>` | `Vector` | recurse on each element |
-/// | `:wat::core::Option<T>` | `Tagged #wat.core.Option/{None,Some}` | arc 298.1 |
-/// | `:wat::core::Result<T,E>` | `Tagged #wat.core.Result/{Ok,Err}` | recurse on payload |
+/// | `:wat::core::Option<T>` | `Tagged #wat.core/Option.{None,Some}` | arc 296 H-2 |
+/// | `:wat::core::Result<T,E>` | `Tagged #wat.core/Result.{Ok,Err}` | recurse on payload |
 /// | user `Struct` | `Tagged #ns/Name {map}` | recurse per field |
-/// | user `Enum` (Unit variant) | `Tagged #ns/Variant nil` | enum variant |
-/// | user `Enum` (Tagged variant) | `Tagged #ns/Variant [items]` | recurse per field |
+/// | user `Enum` (Unit variant) | `Tagged #ns/Enum.Variant {}` | enum variant |
+/// | user `Enum` (Tagged variant) | `Tagged #ns/Enum.Variant {fields}` | recurse per field |
 /// | `:wat::holon::HolonAST` | any | call [`edn_derive_holon`] (arc 294.j — one collapsed reader) |
 ///
 /// On mismatch the returned [`EdnCoerceError`] carries the declared
@@ -2689,17 +2700,21 @@ fn edn_to_typed_value_inner(
                 }
             }
             "wat::core::Option" => {
-                // Arc 278 Stone A.0 — Option wire form is VECTOR-bodied:
-                // `#wat.core.Option/None []` / `#wat.core.Option/Some [inner]`.
+                // Arc 296 H-2 — `#wat.core/Option.None {}` / `#wat.core/Option.Some {:value v}`.
                 let inner_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
                 match edn {
-                    Edn::Tagged(tag, body) if tag.namespace() == "wat.core.Option" => {
+                    Edn::Tagged(tag, body) if tag.namespace() == "wat.core" => {
                         match tag.name() {
-                            "None" => Ok(Value::Option(Arc::new(None))),
-                            "Some" => {
-                                let inner_edn = coerce_variant_single(target, edn, body)?;
+                            "Option.None" => match body.as_ref() {
+                                Edn::Map(entries) if entries.is_empty() => {
+                                    Ok(Value::Option(Arc::new(None)))
+                                }
+                                _ => Err(mismatch(target, edn)),
+                            },
+                            "Option.Some" => {
+                                let inner_edn = coerce_variant_single(target, edn, body, "value")?;
                                 let inner = edn_to_typed_value_inner(inner_ty, inner_edn, types, ctx)
-                                    .map_err(|e| e.at(".some"))?;
+                                    .map_err(|e| e.at(".value"))?;
                                 Ok(Value::Option(Arc::new(Some(inner))))
                             }
                             _ => Err(mismatch(target, edn)),
@@ -2715,20 +2730,18 @@ fn edn_to_typed_value_inner(
                 let ok_ty = &args[0];
                 let err_ty = &args[1];
                 match edn {
-                    // Arc 278 Stone A.0 — Result is VECTOR-bodied:
-                    // `#wat.core.Result/Ok [v]` / `#wat.core.Result/Err [e]`.
-                    Edn::Tagged(tag, body) if tag.namespace() == "wat.core.Result" => {
+                    Edn::Tagged(tag, body) if tag.namespace() == "wat.core" => {
                         match tag.name() {
-                            "Ok" => {
-                                let inner_edn = coerce_variant_single(target, edn, body)?;
+                            "Result.Ok" => {
+                                let inner_edn = coerce_variant_single(target, edn, body, "value")?;
                                 let v = edn_to_typed_value_inner(ok_ty, inner_edn, types, ctx)
-                                    .map_err(|e| e.at(".ok"))?;
+                                    .map_err(|e| e.at(".value"))?;
                                 Ok(Value::Result(Arc::new(Ok(v))))
                             }
-                            "Err" => {
-                                let inner_edn = coerce_variant_single(target, edn, body)?;
+                            "Result.Err" => {
+                                let inner_edn = coerce_variant_single(target, edn, body, "error")?;
                                 let v = edn_to_typed_value_inner(err_ty, inner_edn, types, ctx)
-                                    .map_err(|e| e.at(".err"))?;
+                                    .map_err(|e| e.at(".error"))?;
                                 Ok(Value::Result(Arc::new(Err(v))))
                             }
                             _ => Err(mismatch(target, edn)),
@@ -3024,10 +3037,7 @@ fn coerce_enum_path(
     type_args: &[crate::types::TypeExpr],
 ) -> Result<Value, EdnCoerceError> {
     use wat_edn::Value as Edn;
-    // User-enum tag is `<ns>/<Variant>` where `<ns>` derives from the
-    // enum's qualified path plus its name (mirroring
-    // `tag_from_type_path(format!("{}::{}", type_path, variant_name))`
-    // in `value_to_edn_with`'s Enum arm).
+    // User-enum tag is `#<parent-ns>/<Enum>.<Variant>` (arc 296 H-2).
     let (tag_ns, tag_name, body) = match edn {
         Edn::Tagged(tag, body) => (tag.namespace().to_string(), tag.name().to_string(), body.as_ref()),
         other => {
@@ -3038,92 +3048,83 @@ fn coerce_enum_path(
             });
         }
     };
-    // The expected enum-tag namespace mirrors the writer:
-    // `tag_from_type_path(<enum_path>::<Variant>)` → ns = the enum
-    // path's dotted form (typename included), name = variant name.
-    let expected_ns = enum_variant_ns(type_path);
-    if tag_ns != expected_ns {
+    let Some((enum_leaf, variant_name)) = split_variant_tag_name(&tag_name) else {
         return Err(EdnCoerceError {
-            expected: format!("{} (ns={})", type_path, expected_ns),
+            expected: format!("{} (tag `#ns/Enum.Variant`)", type_path),
+            got: format!("Tagged ns={}/{}", tag_ns, tag_name),
+            path: String::new(),
+        });
+    };
+    let expected_ns = enum_variant_ns(type_path);
+    let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    let expected_leaf = wat_reader::identifier::leaf(stripped);
+    if tag_ns != expected_ns || enum_leaf != expected_leaf {
+        return Err(EdnCoerceError {
+            expected: format!("{} (ns={}/{})", type_path, expected_ns, expected_leaf),
             got: format!("Tagged ns={}/{}", tag_ns, tag_name),
             path: String::new(),
         });
     }
+    let variant_name = variant_name.to_string();
     let variant = def.variants.iter().find(|v| match v {
-        crate::types::EnumVariant::Unit(n) => n == &tag_name,
-        crate::types::EnumVariant::Tagged { name, .. } => name == &tag_name,
+        crate::types::EnumVariant::Unit(n) => n == &variant_name,
+        crate::types::EnumVariant::Tagged { name, .. } => name == &variant_name,
     });
     let variant = variant.ok_or_else(|| EdnCoerceError {
         expected: type_path.to_string(),
-        got: format!("unknown variant {}", tag_name),
+        got: format!("unknown variant {}", variant_name),
         path: String::new(),
     })?;
     match variant {
         crate::types::EnumVariant::Unit(_) => {
-            // Arc 278 Stone A.0 — unit variant body must be an EMPTY vector `[]`
-            // (bare-nil bodies are retired; `nil` is the unit value only).
             match body {
-                Edn::Vector(items) | Edn::List(items) if items.is_empty() => {
+                Edn::Map(entries) if entries.is_empty() => {
                     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
                         type_path: type_path.to_string(),
-                        variant_name: tag_name,
+                        variant_name,
                         names: crate::runtime::no_field_names(),
                         fields: vec![],
                     })))
                 }
                 other => Err(EdnCoerceError {
-                    expected: format!("{}::{} (unit → `[]`)", type_path, tag_name),
+                    expected: format!("{}::{} (unit → `{{}}`)", type_path, variant_name),
                     got: format!("Tagged-body {}", edn_shape_name(other)),
                     path: String::new(),
                 }),
             }
         }
         crate::types::EnumVariant::Tagged { fields, .. } => {
-            // Arc 278 Stone A.0 — tagged variant body must be a Vector matching arity.
-            // Zero-field tagged variants serialize as `[]` (the writer emits an empty
-            // vector for any `fields.is_empty()` variant); bare-nil bodies are retired.
-            let items: &[wat_edn::OwnedValue] = match body {
-                Edn::Vector(items) | Edn::List(items) => items.as_slice(),
+            let entries: &[(wat_edn::OwnedValue, wat_edn::OwnedValue)] = match body {
+                Edn::Map(entries) => entries.as_slice(),
                 other => {
                     return Err(EdnCoerceError {
-                        expected: format!("{}::{} (tagged)", type_path, tag_name),
+                        expected: format!("{}::{} (tagged map)", type_path, variant_name),
                         got: format!("Tagged-body {}", edn_shape_name(other)),
                         path: String::new(),
                     });
                 }
             };
-            if items.len() != fields.len() {
-                return Err(EdnCoerceError {
-                    expected: format!(
-                        "{}::{} (fields={})",
-                        type_path,
-                        tag_name,
-                        fields.len()
-                    ),
-                    got: format!("Vector(len={})", items.len()),
-                    path: String::new(),
-                });
-            }
-            let mut walked = Vec::with_capacity(items.len());
-            for (i, ((fname, fty), item)) in fields.iter().zip(items.iter()).enumerate() {
-                // Arc 278 the parametric protocol — see `substitute_type_params`.
+            let mut walked = Vec::with_capacity(fields.len());
+            for (fname, fty) in fields {
+                let item = map_keyword_field(entries, fname).ok_or_else(|| EdnCoerceError {
+                    expected: format!("{}::{} field :{}", type_path, variant_name, fname),
+                    got: "missing map key".into(),
+                    path: format!(".{}", fname),
+                })?;
                 let fty = substitute_type_params(fty, &def.type_params, type_args);
                 let v = edn_to_typed_value_inner(&fty, item, types, ctx)
                     .map_err(|e| e.at(&format!(".{}", fname)))?;
-                let _ = i; // path uses field name, index reserved for future
                 walked.push(v);
             }
-            // `def` holds the registry directly (we're already inside the `Tagged` arm this
-            // very `def.variants` walk matched above, so `variant_names_arc` cannot miss).
-            let names = def.variant_names_arc(&tag_name).unwrap_or_else(|| {
+            let names = def.variant_names_arc(&variant_name).unwrap_or_else(|| {
                 panic!(
-                    "edn_to_enum_value: `{type_path}::{tag_name}` matched Tagged above but \
+                    "edn_to_enum_value: `{type_path}::{variant_name}` matched Tagged above but \
                      variant_names_arc returned None — def and its own match arm disagree"
                 )
             });
             Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
                 type_path: type_path.to_string(),
-                variant_name: tag_name,
+                variant_name,
                 names,
                 fields: walked,
             })))
@@ -3155,14 +3156,24 @@ fn struct_tag_for(type_path: &str) -> (String, String) {
 }
 
 /// EDN tag namespace for an enum variant. The writer emits
-/// `tag_from_type_path(format!("{type_path}::{variant_name}"))` →
-/// namespace derived from the enum's full path + variant-name as the
-/// tag's terminal segment. For the READ side, the namespace IS the
-/// enum's dotted path (including the type name), and the tag name IS
-/// the variant identifier.
+/// `variant_tag(type_path, variant)` → `#<parent-ns>/<Enum>.<Variant>`.
+/// The READ side's expected namespace is the parent (everything before
+/// the type's leaf), dotted.
 fn enum_variant_ns(type_path: &str) -> String {
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
-    stripped.replace("::", ".")
+    wat_reader::identifier::path(stripped).replace("::", ".")
+}
+
+/// True when `tag` is a variant of `type_path` under H-2's discriminator
+/// (`#<parent-ns>/<Enum>.<Variant>`). Uses the same ns/leaf split `variant_tag`
+/// writes — consumers ask this instead of comparing a typed namespace string.
+pub(crate) fn tag_is_variant_of(tag: &Tag, type_path: &str) -> bool {
+    let Some((enum_leaf, _)) = split_variant_tag_name(tag.name()) else {
+        return false;
+    };
+    let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    tag.namespace() == enum_variant_ns(type_path)
+        && enum_leaf == wat_reader::identifier::leaf(stripped)
 }
 
 // ─── Natural / tagless renderers ──────────────────────────────────
@@ -3252,19 +3263,7 @@ pub fn value_to_json_natural(
                 })
                 .collect(),
         ),
-        // Arc 278 Stone A.0 — Option gets the uniform vector-bodied variant form in JSON too.
-        Value::Option(opt) => match &**opt {
-            None => OwnedValue::Tagged(
-                Tag::ns("wat.core.Option", "None"),
-                Box::new(OwnedValue::Vector(vec![])),
-            ),
-            Some(inner) => OwnedValue::Tagged(
-                Tag::ns("wat.core.Option", "Some"),
-                Box::new(OwnedValue::Vector(vec![value_to_json_natural(inner, types)])),
-            ),
-        },
-        // Fallback: use the tagged walker. Result now falls through to
-        // value_to_edn_with which emits #wat.core.Result/Ok|Err (arc 298.1).
+        // Option/Result fall through to value_to_edn_with (arc 296 H-2 tagged maps).
         _ => value_to_edn_with(v, types),
     }
 }
@@ -3288,13 +3287,12 @@ fn strip_keyword_colon(k: &str) -> String {
     stripped.replace("::", ".")
 }
 
-/// Arc 278 Stone A.0 — read the single field of a one-arity vector-bodied
-/// variant (`#tag [v]`). Enforces the vector body + exactly-one-item arity so a
-/// malformed body (bare value, wrong arity) fails loudly (no-hidden-failures).
-fn variant_single_field<F>(
+/// Arc 296 H-2 — read one named field of a map-bodied variant (`#tag {:key v}`).
+fn variant_map_field<F>(
     ns: &str,
     name: &str,
     body: &OwnedValue,
+    key: &str,
     decode: F,
 ) -> Result<Value, EdnReadError>
 where
@@ -3302,11 +3300,19 @@ where
 {
     use wat_edn::Value as Edn;
     match body {
-        Edn::Vector(items) if items.len() == 1 => decode(&items[0]),
+        Edn::Map(entries) => match map_keyword_field(entries, key) {
+            Some(v) => decode(v),
+            None => Err(EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::UnsupportedTag(format!(
+                    "{ns}/{name} body must be a map with :{key}"
+                )),
+            }),
+        },
         _ => Err(EdnReadError {
             span: crate::rust_caller_span!(),
             kind: EdnReadErrorKind::UnsupportedTag(format!(
-                "{ns}/{name} body must be a one-element vector `[v]` (arc 278 A.0)"
+                "{ns}/{name} body must be a map `{{:{key} v}}`"
             )),
         }),
     }
@@ -3369,27 +3375,36 @@ fn tagged_to_value(
     // value arriving here bearing the old namespace has NO arm — it falls through this whole
     // `if`-chain to the generic `UnknownTag` refusal below. Dead, not dormant (gate 5): there is
     // no name check doing the refusing, only the absence of a matching arm.
-    // Arc 278 Stone A.0 — Option wire form is VECTOR-bodied: `#wat.core.Option/None []`
-    // / `#wat.core.Option/Some [v]`. `None` accepts `[]`; `Some` reads the single field.
-    if ns == "wat.core.Option" {
-        return Ok(Value::Option(Arc::new(match name {
-            "None" => None,
-            "Some" => {
-                let inner = variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign, ctx))?;
-                Some(inner)
-            }
-            // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
-            _ => return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(format!("{ns}/{name}")) }),
-        })));
+    // Arc 296 H-2 — `#wat.core/Option.None {}` / `#wat.core/Option.Some {:value v}`.
+    if ns == "wat.core" && name == "Option.None" {
+        return match body {
+            Edn::Map(entries) if entries.is_empty() => Ok(Value::Option(Arc::new(None))),
+            _ => Err(EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::UnsupportedTag(
+                    "wat.core/Option.None body must be `{}`".into(),
+                ),
+            }),
+        };
     }
-    // Arc 278 Stone A.0 — Result is VECTOR-bodied: `#wat.core.Result/Ok [v]` / `.../Err [e]`.
-    if ns == "wat.core.Result" {
-        return Ok(Value::Result(Arc::new(match name {
-            "Ok" => Ok(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign, ctx))?),
-            "Err" => Err(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign, ctx))?),
-            // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
-            _ => return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(format!("{ns}/{name}")) }),
-        })));
+    if ns == "wat.core" && name == "Option.Some" {
+        let inner = variant_map_field(ns, name, body, "value", |b| {
+            edn_to_value_caps(b, types, allow_caps, foreign, ctx)
+        })?;
+        return Ok(Value::Option(Arc::new(Some(inner))));
+    }
+    // Arc 296 H-2 — `#wat.core/Result.Ok {:value v}` / `#wat.core/Result.Err {:error e}`.
+    if ns == "wat.core" && name == "Result.Ok" {
+        let inner = variant_map_field(ns, name, body, "value", |b| {
+            edn_to_value_caps(b, types, allow_caps, foreign, ctx)
+        })?;
+        return Ok(Value::Result(Arc::new(Ok(inner))));
+    }
+    if ns == "wat.core" && name == "Result.Err" {
+        let inner = variant_map_field(ns, name, body, "error", |b| {
+            edn_to_value_caps(b, types, allow_caps, foreign, ctx)
+        })?;
+        return Ok(Value::Result(Arc::new(Err(inner))));
     }
 
     // Arc-278-0a — `#wat.core/PersistentMap {…}` tagged literal → PersistentMap.
@@ -3482,25 +3497,38 @@ fn tagged_to_value(
         // the same fn `aggregate-new` calls at construction) — never sniffs the body, never
         // reads a marker key.
         Edn::Map(entries) => {
-            let path = ns_to_wat_path(ns, name);
-            match types.get(&path) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::HolonRecord => {
-                    reconstruct_holon_record(ns, name, entries, types, allow_caps, foreign, ctx)
+            if let Some((enum_leaf, variant)) = split_variant_tag_name(name) {
+                reconstruct_enum_tagged(
+                    VariantTag { ns, enum_leaf, variant },
+                    entries,
+                    types,
+                    allow_caps,
+                    foreign,
+                    ctx,
+                )
+            } else {
+                let path = ns_to_wat_path(ns, name);
+                match types.get(&path) {
+                    Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::HolonRecord => {
+                        reconstruct_holon_record(ns, name, entries, types, allow_caps, foreign, ctx)
+                    }
+                    Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
+                        reconstruct_record(ns, name, entries, types, allow_caps, foreign, ctx)
+                    }
+                    _ => reconstruct_struct(ns, name, entries, types, allow_caps, foreign, ctx),
                 }
-                Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
-                    reconstruct_record(ns, name, entries, types, allow_caps, foreign, ctx)
-                }
-                _ => reconstruct_struct(ns, name, entries, types, allow_caps, foreign, ctx),
             }
         }
-        Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types, allow_caps, foreign, ctx),
-        // Arc 278 Stone A.0 — a bare-nil body is no longer a variant. Unit variants
-        // are now `#tag []` (empty vector, handled above); `nil` is the unit value ONLY.
-        // A generic `#tag nil` is malformed post-cutover → loud error (no-hidden-failures).
+        Edn::Vector(_) => Err(EdnReadError {
+            span: crate::rust_caller_span!(),
+            kind: EdnReadErrorKind::UnsupportedTag(format!(
+                "{ns}/{name} vector body retired (arc 296 H-2); variants are `#ns/Enum.Variant {{…}}`"
+            )),
+        }),
         Edn::Nil => Err(EdnReadError {
             span: crate::rust_caller_span!(),
             kind: EdnReadErrorKind::UnsupportedTag(format!(
-                "{ns}/{name} has a bare-nil body — retired (arc 278 A.0); unit variants are `#tag []`"
+                "{ns}/{name} has a bare-nil body — retired (arc 278 A.0); unit variants are `#tag {{}}`"
             )),
         }),
         other => {
@@ -3604,10 +3632,6 @@ mod canonical_head_name_tests {
         assert_eq!(canonical_head_name("x"), "x");
         assert_eq!(canonical_head_name("->"), "->");
     }
-}
-
-fn ns_to_enum_path(ns: &str) -> String {
-    format!(":{}", ns.replace('.', "::"))
 }
 
 fn reconstruct_struct(
@@ -3857,27 +3881,44 @@ fn rewrap_option_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
     }
 }
 
+/// Arc 296 H-2 — a variant tag, already split on the NAME half's dot.
+///
+/// `#wat.core/Option.Some {…}` is `ns` = `wat.core`, `enum_leaf` = `Option`, `variant` = `Some`.
+/// The three travel together everywhere because they ARE one thing: the tag's identity under H's
+/// discriminator (a dot LEFT of the slash is namespace nesting; a dot in the NAME half means
+/// variant, and `resolve::registration`'s `DottedName` wall is what makes a record unable to
+/// forge one). Named rather than passed as three loose `&str` — `split_variant_tag_name` produces
+/// exactly this and nothing else consumes the parts separately.
+pub(crate) struct VariantTag<'a> {
+    pub ns: &'a str,
+    pub enum_leaf: &'a str,
+    pub variant: &'a str,
+}
+
 fn reconstruct_enum_tagged(
-    ns: &str,
-    variant_name: &str,
-    items: &[OwnedValue],
+    tag: VariantTag<'_>,
+    entries: &[(OwnedValue, OwnedValue)],
     types: &crate::types::TypeEnv,
     allow_caps: bool,
     foreign: bool,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
-    let path = ns_to_enum_path(ns);
+    let VariantTag { ns, enum_leaf, variant: variant_name } = tag;
+    let path = ns_to_wat_path(ns, enum_leaf);
     let def = match types.get(&path) {
         Some(crate::types::TypeDef::Enum(d)) => d,
         _ => {
-            // Arc 278 Stone A — the UNKNOWN-tag miss for a vector body. In foreign
-            // mode, reconstruct a self-describing ForeignVariant (enum-class +
-            // variant + positional fields, recursively decoded); strict mode errors.
             if foreign {
-                return build_foreign_variant(ns, variant_name, items, types, ctx);
+                return build_foreign_variant(ns, enum_leaf, variant_name, entries, types, ctx);
             }
-            // arc 138: no span — reconstruct_enum_tagged operates on parsed OwnedValue, no WatAST
-            return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: variant_name.to_string(), body_shape: "vector" } });
+            return Err(EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::UnknownTag {
+                    ns: ns.to_string(),
+                    name: format!("{enum_leaf}.{variant_name}"),
+                    body_shape: "map",
+                },
+            });
         }
     };
     let variant = def
@@ -3888,18 +3929,18 @@ fn reconstruct_enum_tagged(
             crate::types::EnumVariant::Tagged { name, .. } => name == variant_name,
         })
         .ok_or_else(|| {
-            // arc 138: no span — reconstruct_enum_tagged operates on parsed OwnedValue, no WatAST
-            EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::EnumVariantNotFound { type_path: path.clone(), variant: variant_name.to_string() } }
+            EdnReadError {
+                span: crate::rust_caller_span!(),
+                kind: EdnReadErrorKind::EnumVariantNotFound {
+                    type_path: path.clone(),
+                    variant: variant_name.to_string(),
+                },
+            }
         })?;
-    // Arc 113 slice 3 — Option-aware field wrapping (same shape as
-    // reconstruct_struct). Variant field types come from
-    // `EnumVariant::Tagged.fields`; bridge each item, then rewrap
-    // Option layers wat-edn dropped on the wire.
     let declared_fields: &[(String, crate::types::TypeExpr)] = match variant {
         crate::types::EnumVariant::Tagged { fields, .. } => fields.as_slice(),
         crate::types::EnumVariant::Unit(_) => &[],
     };
-    // `def` holds the registry directly (`variant` was already matched out of it above).
     let names = match variant {
         crate::types::EnumVariant::Tagged { .. } => {
             def.variant_names_arc(variant_name).unwrap_or_else(|| {
@@ -3911,14 +3952,16 @@ fn reconstruct_enum_tagged(
         }
         crate::types::EnumVariant::Unit(_) => crate::runtime::no_field_names(),
     };
-    let mut fields: Vec<Value> = Vec::with_capacity(items.len());
-    for (idx, item) in items.iter().enumerate() {
+    let mut fields: Vec<Value> = Vec::with_capacity(declared_fields.len());
+    for (fname, fty) in declared_fields {
+        let item = map_keyword_field(entries, fname).ok_or_else(|| EdnReadError {
+            span: crate::rust_caller_span!(),
+            kind: EdnReadErrorKind::Other(format!(
+                "variant `{path}::{variant_name}` missing map key :{fname}"
+            )),
+        })?;
         let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign, ctx)?;
-        let wrapped = match declared_fields.get(idx) {
-            Some((_, fty)) => rewrap_option_field(fty, inner),
-            None => inner,
-        };
-        fields.push(wrapped);
+        fields.push(rewrap_option_field(fty, inner));
     }
     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
         type_path: path,
@@ -3967,27 +4010,42 @@ fn build_foreign_record(
     Ok(Value::ForeignRecord(Arc::new(ForeignRecordValue { class, fields })))
 }
 
-/// Arc 278 Stone A — build a self-describing [`Value::ForeignVariant`] from an
-/// UNKNOWN vector-bodied tag (`#<enum-path>/<Variant> [...]`). The enum class
-/// is the colon-free FQDN of the tag namespace (`some::unknown::Kind`), the
-/// variant is the tag name (`Click`), and each positional field is recursively
-/// decoded in FOREIGN mode. Re-serializes to the same tag + vector body.
+/// Arc 296 H-2 — build a self-describing [`Value::ForeignVariant`] from an
+/// UNKNOWN map-bodied dotted tag (`#<ns>/<Enum>.<Variant> {…}`). Names are
+/// self-carried from the map keys (STOP-2).
 fn build_foreign_variant(
     ns: &str,
+    enum_leaf: &str,
     variant_name: &str,
-    items: &[OwnedValue],
+    entries: &[(OwnedValue, OwnedValue)],
     types: &crate::types::TypeEnv,
     ctx: Option<&crate::value::EncodingCtx>,
 ) -> Result<Value, EdnReadError> {
-    let enum_path = ns_to_enum_path(ns);
+    let enum_path = ns_to_wat_path(ns, enum_leaf);
     let enum_class = enum_path.strip_prefix(':').unwrap_or(&enum_path).to_string();
-    let mut fields: Vec<Value> = Vec::with_capacity(items.len());
-    for item in items {
-        fields.push(edn_to_value_caps(item, Some(types), /*allow_caps*/ false, /*foreign*/ true, ctx)?);
+    let mut names: Vec<String> = Vec::with_capacity(entries.len());
+    let mut fields: Vec<Value> = Vec::with_capacity(entries.len());
+    for (k, v) in entries {
+        let key = match k {
+            OwnedValue::Keyword(kw) => kw.name().to_string(),
+            other => {
+                return Err(EdnReadError {
+                    span: crate::rust_caller_span!(),
+                    kind: EdnReadErrorKind::Other(format!(
+                        "read-foreign: ForeignVariant field key must be a keyword, got {}",
+                        edn_shape_name(other)
+                    )),
+                });
+            }
+        };
+        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true, ctx)?;
+        names.push(key);
+        fields.push(val);
     }
     Ok(Value::ForeignVariant(Arc::new(ForeignVariantValue {
         enum_class,
         variant: variant_name.to_string(),
+        names,
         fields,
     })))
 }
@@ -4158,29 +4216,35 @@ pub fn value_to_edn_with(
         Value::wat__core__keyword(k) => keyword_from_wat_path(k),
 
         // ── Option / Result ──────────────────────────────────────
-        // Arc 278 Stone A.0 — uniform VECTOR-bodied variant encoding.
-        // Every enum variant (including Option/Result) is `#tag [field-vec]`:
-        // `None → []`, `Some(v) → [v]`, `Ok(v) → [v]`, `Err(e) → [e]`. The
-        // arc-298.1 direct-body special-case (`#Some v`, `#None nil`) is retired
-        // so `Some(nil) → [nil]` (arity visible) never collides with `None → []`.
+        // Arc 296 H-2 — a variant is a tagged map. `#wat.core/Option.Some {:value v}`
+        // / `#wat.core/Option.None {}` (and Result `{:value}` / `{:error}`).
         Value::Option(opt) => match &**opt {
             None => OwnedValue::Tagged(
-                Tag::ns("wat.core.Option", "None"),
-                Box::new(OwnedValue::Vector(vec![])),
+                Tag::ns("wat.core", "Option.None"),
+                Box::new(OwnedValue::Map(vec![])),
             ),
             Some(inner) => OwnedValue::Tagged(
-                Tag::ns("wat.core.Option", "Some"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)])),
+                Tag::ns("wat.core", "Option.Some"),
+                Box::new(OwnedValue::Map(vec![(
+                    OwnedValue::Keyword(Keyword::new("value")),
+                    value_to_edn_with(inner, types),
+                )])),
             ),
         },
         Value::Result(r) => match &**r {
             Ok(inner) => OwnedValue::Tagged(
-                Tag::ns("wat.core.Result", "Ok"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)])),
+                Tag::ns("wat.core", "Result.Ok"),
+                Box::new(OwnedValue::Map(vec![(
+                    OwnedValue::Keyword(Keyword::new("value")),
+                    value_to_edn_with(inner, types),
+                )])),
             ),
             Err(inner) => OwnedValue::Tagged(
-                Tag::ns("wat.core.Result", "Err"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_with(inner, types)])),
+                Tag::ns("wat.core", "Result.Err"),
+                Box::new(OwnedValue::Map(vec![(
+                    OwnedValue::Keyword(Keyword::new("error")),
+                    value_to_edn_with(inner, types),
+                )])),
             ),
         },
 
@@ -4250,22 +4314,19 @@ pub fn value_to_edn_with(
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         Value::Enum(ev) => {
-            let tag_name = format!("{}::{}", ev.type_path, ev.variant_name);
-            let tag = tag_from_type_path(&tag_name);
-            if ev.fields.is_empty() {
-                // Arc 278 Stone A.0 — unit / zero-field variant renders as `#tag []`
-                // (empty field-vector), NEVER a bare-nil body. `nil` is now the unit
-                // value ONLY, so body-shape is a perfect discriminator (map=record,
-                // vector=variant, nil=unit).
-                OwnedValue::Tagged(tag, Box::new(OwnedValue::Vector(vec![])))
-            } else {
-                let payload: Vec<OwnedValue> = ev
-                    .fields
-                    .iter()
-                    .map(|x| value_to_edn_with(x, types))
-                    .collect();
-                OwnedValue::Tagged(tag, Box::new(OwnedValue::Vector(payload)))
-            }
+            let tag = variant_tag(&ev.type_path, &ev.variant_name);
+            let entries: Vec<(OwnedValue, OwnedValue)> = ev
+                .names
+                .iter()
+                .zip(ev.fields.iter())
+                .map(|(n, fv)| {
+                    (
+                        OwnedValue::Keyword(Keyword::new(n.clone())),
+                        value_to_edn_with(fv, types),
+                    )
+                })
+                .collect();
+            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
 
         // ── Arc 278 Stone A — foreign dynamic values (self-describing) ──
@@ -4289,14 +4350,19 @@ pub fn value_to_edn_with(
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
         Value::ForeignVariant(fv) => {
-            let tag_name = format!(":{}::{}", fv.enum_class, fv.variant);
-            let tag = tag_from_type_path(&tag_name);
-            let payload: Vec<OwnedValue> = fv
-                .fields
+            let tag = variant_tag(&format!(":{}", fv.enum_class), &fv.variant);
+            let entries: Vec<(OwnedValue, OwnedValue)> = fv
+                .names
                 .iter()
-                .map(|x| value_to_edn_with(x, types))
+                .zip(fv.fields.iter())
+                .map(|(n, val)| {
+                    (
+                        OwnedValue::Keyword(Keyword::new(n.clone())),
+                        value_to_edn_with(val, types),
+                    )
+                })
                 .collect();
-            OwnedValue::Tagged(tag, Box::new(OwnedValue::Vector(payload)))
+            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
 
         // ── Substrate compound values — opaque or structural ─────
@@ -4540,6 +4606,42 @@ pub(crate) fn tag_from_type_path(path: &str) -> Tag {
              silently erase this type's identity on the wire)"
         )
     })
+}
+
+/// Tag for an enum variant: `#<parent-ns>/<Enum>.<Variant>`.
+///
+/// Distinct from [`tag_from_type_path`], which records keep using
+/// (`#ns.Enum/Name`). A dot in the tag's NAME half means variant (H-1's
+/// wall makes a record unable to produce that shape).
+#[track_caller]
+pub(crate) fn variant_tag(type_path: &str, variant_name: &str) -> Tag {
+    let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    if !stripped.contains("::") {
+        panic!(
+            "variant_tag: type path {type_path:?} has no `::` namespace separator — no \
+             derivable EDN home (fabricating a namespace would silently erase this type's \
+             identity on the wire)"
+        );
+    }
+    let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+    let enum_leaf = wat_reader::identifier::leaf(stripped);
+    let tag_name = format!("{enum_leaf}.{variant_name}");
+    Tag::try_ns(&ns, &tag_name).unwrap_or_else(|e| {
+        panic!(
+            "variant_tag: type path {type_path:?} variant {variant_name:?} has no derivable \
+             EDN home — namespace {ns:?} / name {tag_name:?} rejected: {e}"
+        )
+    })
+}
+
+/// Split a variant tag's NAME half (`"Shape.Circle"`) into `(enum-leaf, variant)`.
+/// `None` if the name carries no dot — then it is a record tag, not a variant.
+fn split_variant_tag_name(name: &str) -> Option<(&str, &str)> {
+    let i = name.rfind('.')?;
+    if i == 0 || i + 1 == name.len() {
+        return None;
+    }
+    Some((&name[..i], &name[i + 1..]))
 }
 
 /// Build a tagged-nil for an opaque handle.
@@ -4858,13 +4960,25 @@ mod tests {
     }
 
     #[test]
-    fn arc170_1fi_coerce_option_nil_to_none() {
-        // Arc 278 Stone A.0 — Option wire form is `#wat.core.Option/None []` (vector body).
+    fn unit_variant_empty_vector_is_refused() {
         let t = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
             args: vec![TypeExpr::Path(":wat::core::i64".into())],
         };
-        let v = coerce(&t, "#wat.core.Option/None []").unwrap();
+        assert!(
+            coerce(&t, "#wat.core/Option.None []").is_err(),
+            "the old vector body must be refused (STOP-5: one wire)"
+        );
+    }
+
+    #[test]
+    fn arc170_1fi_coerce_option_nil_to_none() {
+        // Arc 296 H-2 — Option wire form is `#wat.core/Option.None {}` (empty map).
+        let t = TypeExpr::Parametric {
+            head: "wat::core::Option".into(),
+            args: vec![TypeExpr::Path(":wat::core::i64".into())],
+        };
+        let v = coerce(&t, "#wat.core/Option.None {}").unwrap();
         match v {
             Value::Option(o) => assert!(o.is_none()),
             other => panic!("expected Value::Option(None); got {:?}", other),
@@ -4873,12 +4987,12 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_option_some() {
-        // Arc 278 Stone A.0 — Option wire form is `#wat.core.Option/Some [v]` (vector body).
+        // Arc 296 H-2 — Option wire form is `#wat.core/Option.Some {:value v}`.
         let t = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
             args: vec![TypeExpr::Path(":wat::core::i64".into())],
         };
-        let v = coerce(&t, "#wat.core.Option/Some [7]").unwrap();
+        let v = coerce(&t, "#wat.core/Option.Some {:value 7}").unwrap();
         match v {
             Value::Option(o) => match &*o {
                 Some(Value::i64(7)) => {}
@@ -4949,7 +5063,7 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_result_ok() {
-        // Arc 278 Stone A.0 — Result wire form is `#wat.core.Result/Ok [v]` (vector body).
+        // Arc 296 H-2 — Result wire form is `#wat.core/Result.Ok {:value v}`.
         let t = TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![
@@ -4957,7 +5071,7 @@ mod tests {
                 TypeExpr::Path(":wat::core::String".into()),
             ],
         };
-        let v = coerce(&t, "#wat.core.Result/Ok [42]").unwrap();
+        let v = coerce(&t, "#wat.core/Result.Ok {:value 42}").unwrap();
         match v {
             Value::Result(r) => match &*r {
                 Ok(Value::i64(42)) => {}
@@ -4969,7 +5083,7 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_result_err() {
-        // Arc 278 Stone A.0 — Result wire form is `#wat.core.Result/Err [e]` (vector body).
+        // Arc 296 H-2 — Result wire form is `#wat.core/Result.Err {:error e}`.
         let t = TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![
@@ -4977,7 +5091,7 @@ mod tests {
                 TypeExpr::Path(":wat::core::String".into()),
             ],
         };
-        let v = coerce(&t, "#wat.core.Result/Err [\"boom\"]").unwrap();
+        let v = coerce(&t, "#wat.core/Result.Err {:error \"boom\"}").unwrap();
         match v {
             Value::Result(r) => match &*r {
                 Err(Value::String(s)) => assert_eq!(&**s, "boom"),

@@ -4,12 +4,12 @@
     :file "tests/macros/probe_arc249_threading_witness_tf_empty.wat"
     :line 2
     :col 3
-    :end #wat.core.Option/Some [
-      #wat.core/Pos {
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
         :line 2
         :col 24
       }
-    ]
+    }
   }
   :causes []
   :macro-name ":wat::core::->"
@@ -19,12 +19,12 @@
       :file "wat/core.wat"
       :line 1412
       :col 33
-      :end #wat.core.Option/Some [
-        #wat.core/Pos {
+      :end #wat.core/Option.Some {
+        :value #wat.core/Pos {
           :line 1412
           :col 37
         }
-      ]
+      }
     }
     :causes []
     :cause #wat.runtime/MalformedForm {
@@ -33,12 +33,12 @@
         :file "wat/core.wat"
         :line 1412
         :col 33
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 1412
             :col 37
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::first"

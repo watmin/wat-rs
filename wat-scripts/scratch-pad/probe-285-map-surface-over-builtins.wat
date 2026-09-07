@@ -13,8 +13,8 @@
 ;; ANSWER, measured 2026-08-20 at HEAD 9b360374f: it works, with no new substrate.
 ;; Both map families satisfy one surface; a surface-typed fn param accepts either;
 ;; runtime dispatch reaches the right Rust intrinsic.
-;;     (:user::lookup <HashMap>)        -> #wat.core.Option/Some [1]
-;;     (:user::lookup <PersistentMap>)  -> #wat.core.Option/Some [2]
+;;     (:user::lookup <HashMap>)        -> #wat.core/Option.Some {:value 1}
+;;     (:user::lookup <PersistentMap>)  -> #wat.core/Option.Some {:value 2}
 ;;
 ;; ⚠ NOTE THE TWO CONSTRUCTORS BELOW. `HashMap` REQUIRES leading type keywords
 ;; (K V) and rejects their absence; `PersistentMap` REJECTS them and infers K/V

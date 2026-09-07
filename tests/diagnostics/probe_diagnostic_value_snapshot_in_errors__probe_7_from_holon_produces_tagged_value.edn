@@ -4,7 +4,7 @@
     :file "src/runtime.rs"
     :line 25647
     :col 17
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :causes []
   :got {
@@ -16,12 +16,12 @@
         :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p7.wat"
         :line 5
         :col 12
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 5
             :col 47
           }
-        ]
+        }
       }
     }
   }

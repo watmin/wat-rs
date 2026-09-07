@@ -1,1 +1,1 @@
-#wat.core.Option/Some [nil]
+#wat.core/Option.Some {:value nil}

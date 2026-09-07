@@ -9,12 +9,12 @@
         :file "tests/types/newtype_rejects_inner_type.wat.bad"
         :line 4
         :col 77
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 82
           }
-        ]
+        }
       }
       :causes []
       :callee ":my::trading::pretty"

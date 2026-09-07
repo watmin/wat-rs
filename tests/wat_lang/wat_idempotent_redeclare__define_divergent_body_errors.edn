@@ -9,12 +9,12 @@
         :file "tests/wat_lang/wat_idempotent_redeclare_define_div.wat.bad"
         :line 5
         :col 1
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 5
             :col 94
           }
-        ]
+        }
       }
       :causes []
       :name ":my::add-one"
@@ -22,12 +22,12 @@
         :file "tests/wat_lang/wat_idempotent_redeclare_define_div.wat.bad"
         :line 4
         :col 1
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 94
           }
-        ]
+        }
       }
     }
   ]

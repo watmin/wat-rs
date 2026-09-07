@@ -71,7 +71,7 @@ fn stranger_is_bounced() {
         .clone();
     // arc 278 VALUE-CONTRACT (R53/R55): the owner FACES the stranger's death as a matchable
     // RecvOutcome VALUE and RETURNS a :probe::Outcome — never re-raises past apply_function.
-    // The golden #probe.Outcome/Bounced [] is captured (UPDATE_EDN=1), never hand-authored.
+    // The golden #probe/Outcome.Bounced {} is captured (UPDATE_EDN=1), never hand-authored.
     let v = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .unwrap_or_else(|e| panic!("the stranger's bounce must surface as a VALUE compute FACES (never a raise past apply_function); got Err: {e:?}"));
     let edn = ::wat_edn::write(&wat::edn::render::value_to_edn(&v));

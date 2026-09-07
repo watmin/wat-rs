@@ -298,7 +298,7 @@ pub(crate) fn eval_edn_validate_home(
 /// @arg     fr :wat::edn::ForeignRecord the foreign record navigated
 /// @arg     key :wat::core::keyword the field key looked up
 /// @ret     (:wat::core::Option :- [:wat::core::Value]) `Some` the field value, or `None` on a miss
-/// @example (:wat::edn::ForeignRecord/get (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown.Kind/Click [42]}") ((:wat::edn::ReadForeignOutcome::Value fr) fr) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None))) :kind) #=> (:wat::core::Some (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None))))
+/// @example (:wat::edn::ForeignRecord/get (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}") ((:wat::edn::ReadForeignOutcome::Value fr) fr) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None))) :kind) #=> (:wat::core::Some (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None))))
 /// @see     :wat::edn::read-foreign
 /// @see     :wat::edn::ForeignRecord/class
 #[wat_intrinsic(":wat::edn::ForeignRecord/get")]
@@ -334,7 +334,7 @@ pub(crate) fn eval_foreign_record_get_home(
 /// @Category      Probe
 /// @arg     fr :wat::edn::ForeignRecord the foreign record probed
 /// @ret     :wat::core::String `fr`'s fully-qualified class name
-/// @example (:wat::edn::ForeignRecord/class (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown.Kind/Click [42]}") ((:wat::edn::ReadForeignOutcome::Value fr) fr) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> "some::unknown::Rec"
+/// @example (:wat::edn::ForeignRecord/class (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}") ((:wat::edn::ReadForeignOutcome::Value fr) fr) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> "some::unknown::Rec"
 /// @see     :wat::edn::ForeignRecord/get
 #[wat_intrinsic(":wat::edn::ForeignRecord/class")]
 pub(crate) fn eval_foreign_record_class_home(
@@ -359,7 +359,7 @@ pub(crate) fn eval_foreign_record_class_home(
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
 /// @ret     :wat::core::Keyword the variant's name
-/// @example (:wat::edn::ForeignVariant/variant (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> :Click
+/// @example (:wat::edn::ForeignVariant/variant (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> :Click
 /// @see     :wat::edn::ForeignVariant/enum-class
 #[wat_intrinsic(":wat::edn::ForeignVariant/variant")]
 pub(crate) fn eval_foreign_variant_variant_home(
@@ -383,7 +383,7 @@ pub(crate) fn eval_foreign_variant_variant_home(
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
 /// @ret     :wat::core::String `v`'s fully-qualified enum class name
-/// @example (:wat::edn::ForeignVariant/enum-class (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> "some::unknown::Kind"
+/// @example (:wat::edn::ForeignVariant/enum-class (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> "some::unknown::Kind"
 /// @see     :wat::edn::ForeignVariant/variant
 #[wat_intrinsic(":wat::edn::ForeignVariant/enum-class")]
 pub(crate) fn eval_foreign_variant_enum_class_home(
@@ -408,7 +408,7 @@ pub(crate) fn eval_foreign_variant_enum_class_home(
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
 /// @ret     (:wat::core::Vector :- [:wat::core::Value]) `v`'s positional fields, in order
-/// @example (:wat::edn::ForeignVariant/fields (:wat::core::match (:wat::edn::read-foreign "#some.unknown.Kind/Click [42]") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> (:wat::core::Vector :- [:wat::core::Value] 42)
+/// @example (:wat::edn::ForeignVariant/fields (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") ((:wat::edn::ReadForeignOutcome::Value fv) fv) ((:wat::edn::ReadForeignOutcome::Malformed _) (:wat::kernel::assertion-failed! "bad fixture" :wat::core::None :wat::core::None)))) #=> (:wat::core::Vector :- [:wat::core::Value] 42)
 /// @see     :wat::edn::ForeignVariant/variant
 #[wat_intrinsic(":wat::edn::ForeignVariant/fields")]
 pub(crate) fn eval_foreign_variant_fields_home(

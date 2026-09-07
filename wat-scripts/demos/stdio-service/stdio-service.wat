@@ -31,9 +31,9 @@
 ;;
 ;;   …or interactively, one frame per line:
 ;;   ./target/release/wat wat-scripts/demos/stdio-service/stdio-service.wat
-;;   #repl.Cmd/Bump [5]
-;;   #repl.Cmd/Show []
-;;   #repl.Cmd/Quit []
+;;   #repl/Cmd.Bump {:by 5}
+;;   #repl/Cmd.Show {}
+;;   #repl/Cmd.Quit {}
 
 ;; ── The protocol ──────────────────────────────────────────────────────────────
 ;;

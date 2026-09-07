@@ -9,12 +9,12 @@
         :file "tests/types/struct_restricted_field_denied.wat.bad"
         :line 9
         :col 4
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 9
             :col 21
           }
-        ]
+        }
       }
       :causes []
       :callee ":my::Vault/secret"

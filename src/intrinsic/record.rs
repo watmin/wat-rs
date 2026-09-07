@@ -425,7 +425,7 @@ pub(crate) fn eval_variant(
 /// STONE-the-fence-refuses-what-it-cannot-prove: nothing previously read an enum value's
 /// variant name (`variant` only constructs). Returns the variant identifier with no
 /// leading colon — `NodeKind::List` → `"List"` — matching the value's own render
-/// (`#wat.grep.NodeKind/List []`).
+/// (`#wat.grep/NodeKind.List {}`).
 ///
 /// **Purity ground:** one argument, evaluated by ordinary call-by-value; the body only
 /// reads `EnumValue.variant_name`. Pure ∧ Deterministic.

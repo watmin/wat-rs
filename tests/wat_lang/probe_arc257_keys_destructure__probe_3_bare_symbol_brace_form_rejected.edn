@@ -9,12 +9,12 @@
         :file "tests/wat_lang/probe_arc257_keys_destructure.wat.bad"
         :line 10
         :col 8
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 10
             :col 29
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::let"

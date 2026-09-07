@@ -9,12 +9,12 @@
         :file "tests/value/probe_arc242_stone1_lexeme_role.wat.bad"
         :line 8
         :col 43
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 8
             :col 59
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::Char"
@@ -34,12 +34,12 @@
         :file "tests/value/probe_arc242_stone1_lexeme_role.wat.bad"
         :line 8
         :col 64
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 8
             :col 80
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::Char"

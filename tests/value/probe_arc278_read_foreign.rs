@@ -30,7 +30,7 @@ fn read_foreign_reconstructs_nested_foreign_variant() {
     assert_eq!(
         v,
         Value::wat__core__keyword(Arc::new(":Click".to_string())),
-        "read-foreign should navigate #some.unknown/Rec {{:kind #some.unknown.Kind/Click [42]}} \
+        "read-foreign should navigate #some.unknown/Rec {{:kind #some.unknown/Kind.Click {{:n 42}}}} \
          down to the nested ForeignVariant and yield its variant keyword :Click"
     );
 }
@@ -57,6 +57,23 @@ fn read_foreign_malformed_does_not_raise() {
         Value::bool(true),
         "read-foreign of junk must be :Malformed"
     );
+}
+
+/// Row 9 — names self-carried on ForeignVariant: read→write keeps `:n`.
+#[test]
+fn foreign_variant_keys_survive_read_then_write() {
+    let v = call_beside_value(file!(), ":my::keys-survive")
+        .expect("write-pretty of a foreign variant should return a String");
+    match v {
+        Value::String(s) => {
+            wat::assert_edn_matches_file!(
+                (*s).clone(),
+                "probe_arc278_read_foreign__keys_survive.edn",
+                "foreign variant keys must survive read→write"
+            );
+        }
+        other => panic!("expected String, got {other:?}"),
+    }
 }
 
 /// (2) STRICT read on the SAME input STILL raises — the no-hidden-failures floor held (R41).

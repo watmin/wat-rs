@@ -1,7 +1,7 @@
 ;; bare-variant-constructors.wat — THE MIGRATION CENSUS, ASKED STRUCTURALLY.
 ;;
 ;; `:wat::core::{Some,Ok,Err}` are the BARE aliases of `Option::Some` / `Result::{Ok,Err}`. They
-;; produce byte-identical values (measured: both spellings render `#wat.core.Option/Some [42]`),
+;; produce byte-identical values (measured: both spellings render `#wat.core/Option.Some {:value 42}`),
 ;; but only the qualified path is a DECLARATION — the bare ones are special-cased by string
 ;; equality in the checker and runtime, which is why rete's constructor door cannot see them and
 ;; a `:then` refuses them. `296/DESIGN-STONE-H` carries the migration.

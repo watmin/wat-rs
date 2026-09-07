@@ -9,12 +9,12 @@
         :file "tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03.wat.bad"
         :line 1
         :col 50
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 1
             :col 65
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::i64"

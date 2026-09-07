@@ -3,8 +3,8 @@
 //! Two claims, both RED at HEAD, both measured 2026-09-06:
 //!
 //!   record  `:usr::Shape::Circle`            -> #usr.Shape/Circle {:r 2}
-//!   enum    `:usr::Shape` variant `:Circle`  -> #usr.Shape/Circle [2]
-//!            ^ BYTE-IDENTICAL TAGS, from the identical `tag_from_type_path` call.
+//!   enum    `:usr::Shape` variant `:Circle`  -> #usr/Shape.Circle {:r 2}
+//!            ^ discriminator is a dot in the NAME half; bodies are the same map.
 //!
 //! Today the ONLY thing separating them is body shape, which H's design calls out: the current
 //! design "does not HAVE a discriminator in the tag — it has an ambiguity that the body happens to
@@ -21,7 +21,7 @@
 //! — so a single-program probe would measure the theft, not the tag. That defect is NOT H-2's to
 //! close and deliberately has no row here.
 //!
-//! RED at HEAD; `#[ignore]`d until H-2 un-ignores them.
+//! Un-ignored by H-2.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -54,7 +54,6 @@ fn split_tagged(rendered: &str) -> (&str, &str) {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 stone H-2 (a variant is a tagged map); un-ignored BY that stone"]
 fn a_variant_tag_is_not_a_records_tag() {
     let variant = stdout_of("probe_arc296_h2__variant.wat");
     let record = stdout_of("probe_arc296_h2__record.wat");
@@ -66,8 +65,30 @@ fn a_variant_tag_is_not_a_records_tag() {
     );
 }
 
+/// H's UNIT SEAM, made testable: a unit variant and a ZERO-FIELD RECORD both render an empty
+/// body, so body shape cannot tell them apart — "the tag's dot separates them, so body shape
+/// stops carrying any burden at all." The zero-field record is the CONTROL; the expected body
+/// is read off it rather than written by hand (a hand-written `"#usr/Shape.Dot {}"` is both an
+/// inlined-EDN lint offence and a bar that cannot notice the writer changing).
 #[test]
-#[ignore = "RED at HEAD — arc 296 stone H-2 (a variant is a tagged map); un-ignored BY that stone"]
+fn a_unit_variant_and_a_zero_field_record_share_a_body_and_differ_only_in_the_tag() {
+    let variant = stdout_of("probe_arc296_h2__unit.wat");
+    let record = stdout_of("probe_arc296_h2__unit_record.wat");
+    assert_eq!(
+        split_tagged(&variant).1,
+        split_tagged(&record).1,
+        "a unit variant's body must be the empty map a zero-field record already gets \
+         (variant={variant:?} record={record:?})"
+    );
+    assert_ne!(
+        split_tagged(&variant).0,
+        split_tagged(&record).0,
+        "with identical bodies the TAG is the only discriminator left — and it must discriminate \
+         (variant={variant:?} record={record:?})"
+    );
+}
+
+#[test]
 fn a_variant_body_is_rendered_exactly_like_a_records() {
     let variant = stdout_of("probe_arc296_h2__variant.wat");
     let record = stdout_of("probe_arc296_h2__record.wat");

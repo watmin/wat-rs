@@ -32,16 +32,12 @@ pub const EXIT_PANIC: i32 = 2;
 pub const EXIT_STARTUP_ERROR: i32 = 3;
 pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 
-// ─── Arc 296 — structured StartupError EDN emission ────────────────────────
+// ─── Arc 296 H-2c — structured StartupError EDN emission ────────────────────
 //
-// For startup failures the `Value::Enum` path (used by emit_structured_exit)
-// cannot carry a nested `MacroError` tree as a typed field — the field is
-// declared as `:wat::core::String` in `types.rs` and `edn/render.rs` would
-// emit a prose string instead of a structured tagged value.
-//
-// This helper bypasses Value entirely: it builds the wire-format EDN directly
-// from `OwnedValue`, matching the `#wat.kernel/ProcessPanics [...]` envelope
-// shape that `emit_chain_envelope` produces for other exit paths.
+// Builds a `Value::Enum` of the wat-declared `LociDiedError::StartupError` and
+// runs it through `value_to_edn_with` — the same writer every other death
+// chain uses. The hand-built `Tag::ns("wat.kernel.LociDiedError", …) + Vector`
+// is gone (it minted the retired wire).
 
 /// Arc 296 — emit the startup-error exit envelope.
 ///
@@ -74,16 +70,46 @@ pub(crate) fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError
 /// gate can capture the emitted chain without a real fork.
 pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_edn::OwnedValue {
     use crate::edn::contract::WatError;
-    let cause_edn = e.error_edn();
+    use crate::kernel::error::LociDiedError;
 
-    // Arc 278 the LociDiedError stone — #wat.kernel.LociDiedError/StartupError [<cause>].
-    let startup_err_edn = wat_edn::OwnedValue::Tagged(
-        wat_edn::Tag::ns("wat.kernel.LociDiedError", "StartupError"),
-        Box::new(wat_edn::OwnedValue::Vector(vec![cause_edn])),
+    // ⛔ THE CAUSE IS EDN AND STAYS EDN. `error_edn()` returns a rendered error record from an
+    // arbitrary taxonomy — `#wat.check/CheckErrors {…}`, `#wat.macro/…`, `#wat.rete/…` — and those
+    // have NO `Value` representation. Arc 296 H-2c's first cut round-tripped it through
+    // `edn_to_value` so it could build a `Value::Enum` and hand it to `value_to_edn_with`; every
+    // startup error whose cause was a check error then PANICKED (`UnknownTag { ns: "wat.check" }`),
+    // exit 101 instead of the structured exit 3, and a peer's death read as `Message` not `Lost`.
+    // The brief that asked for it ("go through the same writer every other variant uses") was
+    // wrong for THIS producer: it is a diagnostic-EDN path, not a value path.
+    //
+    // What the wat-sourced enum buys is still bought — the tag's identity and the payload's key
+    // both come from the `defenum` in `wat/kernel/diagnostics.wat`, never from a typed string.
+    let cause_edn = e.error_edn();
+    let names = crate::runtime::builtin_enum_variant_names(
+        LociDiedError::WAT_TYPE_PATH,
+        LociDiedError::StartupError.as_str(),
+    );
+    let key = names.first().unwrap_or_else(|| {
+        panic!(
+            "startup_error_chain_edn: `{}` variant `{}` declares no payload field in \
+             wat/kernel/diagnostics.wat — the declaration and this constructor disagree",
+            LociDiedError::WAT_TYPE_PATH,
+            LociDiedError::StartupError.as_str()
+        )
+    });
+    let died = wat_edn::OwnedValue::Tagged(
+        crate::edn::render::variant_tag(
+            LociDiedError::WAT_TYPE_PATH,
+            LociDiedError::StartupError.as_str(),
+        ),
+        Box::new(wat_edn::OwnedValue::Map(vec![(
+            wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new(key.clone())),
+            cause_edn,
+        )])),
     );
 
-    // A bare, self-describing Vector<LociDiedError>.
-    wat_edn::OwnedValue::Vector(vec![startup_err_edn])
+    // A bare, self-describing Vector<LociDiedError> — the shape `single_died_chain` builds on the
+    // Value side, written directly here because the payload never becomes a Value.
+    wat_edn::OwnedValue::Vector(vec![died])
 }
 
 // ─── emit_structured_exit (single copy — all fork/spawn paths share this) ───

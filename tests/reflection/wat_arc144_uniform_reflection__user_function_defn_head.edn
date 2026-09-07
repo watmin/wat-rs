@@ -1,5 +1,5 @@
-#wat.core.Option/Some [
-  (
+#wat.core/Option.Some {
+  :value (
     :wat.core/defn
     (
       :user/greet
@@ -9,4 +9,4 @@
     )
     n
   )
-]
+}

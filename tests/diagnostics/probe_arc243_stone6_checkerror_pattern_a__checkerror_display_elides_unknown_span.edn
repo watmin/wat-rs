@@ -4,7 +4,7 @@
     :file "src/foo.wat"
     :line 10
     :col 3
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :causes []
   :head "HashMap"

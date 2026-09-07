@@ -1,9 +1,9 @@
-#wat.core.Option/Some [
-  (
+#wat.core/Option.Some {
+  :value (
     :wat.i64/+
     (_a0 wat.type/i64)
     (_a1 wat.type/i64)
     ->
     wat.type/i64
   )
-]
+}

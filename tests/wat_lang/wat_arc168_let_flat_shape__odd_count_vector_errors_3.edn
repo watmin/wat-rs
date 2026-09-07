@@ -9,12 +9,12 @@
         :file "tests/wat_lang/wat_arc168_let_flat_shape_odd3.wat.bad"
         :line 5
         :col 20
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 5
             :col 27
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::let"

@@ -51,7 +51,7 @@ fn small_foo_over_budget_fails_with_the_reason() {
     // would unwind past the reader — the mask the wall kills) and returns a structured :probe::Outcome
     // whose in-wat `names-frame-cap?` bool proves THE LAW — the over-FOO reject carries the frame
     // REASON ("...exceeded this service's max-frame-bytes limit"), a matchable ::Lost, never the mute
-    // ::Closed. The golden #probe.Outcome/Lost [true] is captured (UPDATE_EDN=1), never hand-authored;
+    // ::Closed. The golden #probe/Outcome.Lost {:sentinel-present? true} is captured (UPDATE_EDN=1), never hand-authored;
     // the per-run-variable reason location stays in wat, only its boolean RESULT crosses. Mirrors the
     // canonical gate probe_arc278_recv_outcome_wall. "wat stdio is edn — it's always data" (builder).
     let v = call_beside_value(file!(), ":user::small-foo-rejects").unwrap_or_else(|e| {

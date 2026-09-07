@@ -671,6 +671,7 @@ impl PartialEq for Value {
             (Value::ForeignVariant(a), Value::ForeignVariant(b)) => {
                 a.enum_class == b.enum_class
                     && a.variant == b.variant
+                    && a.names == b.names
                     && a.fields == b.fields
             }
             // holon::Vector: bit-exact (PartialEq impl in holon-rs compares data slices)
@@ -871,6 +872,7 @@ impl std::hash::Hash for Value {
             Value::ForeignVariant(a) => {
                 a.enum_class.hash(state);
                 a.variant.hash(state);
+                a.names.hash(state);
                 a.fields.hash(state);
             }
             // holon::Vector: hash the underlying i8 data slice
@@ -1174,15 +1176,19 @@ pub struct ForeignRecordValue {
 ///
 /// A self-describing dynamic enum variant: the enum's colon-free FQDN
 /// (`"some::unknown::Kind"`), the variant name (`"Click"`), and the
-/// positional field values (recursively decoded). Re-serializes to the same
-/// `#<enum-path>/<Variant> [...]` the reader consumed.
+/// named field values (recursively decoded). Re-serializes to the same
+/// `#<ns>/<Enum>.<Variant> {…}` the reader consumed. Names are self-carried
+/// (arc 296 H-2) the way [`ForeignRecordValue`] carries keys — a
+/// `read-foreign` consumer lacks the type, so the wire is the only source.
 #[derive(Debug, Clone)]
 pub struct ForeignVariantValue {
     /// Colon-free fully-qualified enum class (e.g. `"some::unknown::Kind"`).
     pub enum_class: String,
     /// Variant name without path prefix (e.g. `"Click"`).
     pub variant: String,
-    /// Positional field values in wire order.
+    /// Field names in wire order. **Same length as `fields`, always.**
+    pub names: Vec<String>,
+    /// Field values in wire order.
     pub fields: Vec<Value>,
 }
 

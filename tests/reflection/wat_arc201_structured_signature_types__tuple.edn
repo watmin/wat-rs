@@ -1,7 +1,7 @@
-#wat.core.Option/Some [
-  (
+#wat.core/Option.Some {
+  :value (
     :user/make-pair
     ->
     (wat.type/Tuple :- [wat.type/i64 wat.type/String])
   )
-]
+}

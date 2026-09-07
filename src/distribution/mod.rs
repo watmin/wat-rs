@@ -86,7 +86,7 @@
 //! `wat-scripts/cosines.wat`). A subprocess whose source is assembled at
 //! runtime may instead declare it via `:wat::core::define`. Any other
 //! shape (wrong arity, parameter types, or return type) halts startup
-//! with a `#wat.kernel.ProcessDiedError/MainSignature` diagnostic on
+//! with a `#wat.kernel/ProcessDiedError.MainSignature` diagnostic on
 //! stderr and exit code 4.
 //!
 //! # Kernel signal state

@@ -4,7 +4,7 @@
     :file "crates/wat-reader/src/parser.rs"
     :line 201
     :col 28
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :causes []
   :cause "lex error at byte 296: invalid character literal: \\😀: supplementary-plane codepoint U+1F600 not supported; wat char literals are BMP-only (U+0000–U+FFFF)"

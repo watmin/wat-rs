@@ -29,6 +29,8 @@
 //! ## What lives here
 //!
 //! - [`wat_enum_from!`] — a `defenum` becomes a Rust enum.
+//! - [`wat_enum_register_from!`] — a `defenum` becomes a TypeEnv `EnumDef` registration
+//!   (the enum sibling of [`wat_record_from!`]).
 //!
 //! Anything else wat declares and Rust must agree with belongs here too, under the same rule: the
 //! wat form is the single source, the Rust artifact is derived, and `include_str!` makes rustc
@@ -507,6 +509,224 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
                         ),
                     )*
                 ],
+            }));
+        }
+    }
+    .into())
+}
+
+// ─── wat_enum_register_from! ─────────────────────────────────────────────────
+//
+// Arc 296 H-2c. The enum sibling of `wat_record_from!`. `wat_enum_from!` emits a
+// Rust `enum` because Rust code MATCHES on those variants. The TypeEnv still
+// needs the declaration before any wat loads (`with_builtins`), and a second
+// hand-written `EnumDef` literal next to the generated Rust enum is the class
+// this crate exists to remove. This macro emits the REGISTRATION — one
+// `env.register_builtin(TypeDef::Enum(...))` statement — from the same
+// `defenum` `wat_enum_from!` reads.
+//
+// Field TYPE KEYWORDS are emitted as strings and parsed by the substrate's
+// `parse_type_expr_from_source` at registration time — same decision as
+// `wat_record_from!` (a proc-macro crate cannot depend on the main crate).
+// Splices are refused.
+
+#[proc_macro]
+pub fn wat_enum_register_from(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as WatRecordFromArgs);
+    match expand_wat_enum_register_from(&args) {
+        Ok(ts) => ts,
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+enum EnumRegVariant {
+    Unit(String),
+    Tagged { name: String, fields: Vec<(String, String)> },
+}
+
+fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> {
+    let rel = args.path.value();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+        syn::Error::new_spanned(&args.path, "CARGO_MANIFEST_DIR unset — cannot resolve the wat file")
+    })?;
+    let abs: PathBuf = PathBuf::from(&manifest).join(&rel);
+    let src = std::fs::read_to_string(&abs).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("cannot read `{}`: {e}", abs.display()))
+    })?;
+
+    let want = args.type_path.value();
+    let forms = wat_reader::parse_all_with_file(&src, &abs.to_string_lossy()).map_err(|e| {
+        syn::Error::new_spanned(&args.path, format!("wat parse error in `{}`: {e:?}", abs.display()))
+    })?;
+
+    let mut purity_kw: Option<String> = None;
+    let mut variants: Vec<EnumRegVariant> = Vec::new();
+    let mut found = false;
+
+    for form in &forms {
+        let wat_reader::WatAST::List(items, _) = form else { continue };
+        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        if head != ":wat::core::defenum" {
+            continue;
+        }
+        let Some((tp, payload)) = declared_name(items) else { continue };
+        if tp != want {
+            continue;
+        }
+        found = true;
+
+        let Some(wat_reader::WatAST::Keyword(marker, _)) = items.get(payload) else {
+            return Err(syn::Error::new_spanned(
+                &args.type_path,
+                format!("`{want}` in `{}`: expected a `:wat::enum::Pure|Impure` marker after the name", abs.display()),
+            ));
+        };
+        match marker.as_str() {
+            ":wat::enum::Pure" | ":wat::enum::Impure" => purity_kw = Some(marker.clone()),
+            other => {
+                return Err(syn::Error::new_spanned(
+                    &args.type_path,
+                    format!("`{want}`: purity marker is `{other}`, expected `:wat::enum::Pure` or `:wat::enum::Impure`"),
+                ));
+            }
+        }
+
+        let mut i = payload + 1;
+        while i < items.len() {
+            let wat_reader::WatAST::Keyword(vname, _) = &items[i] else {
+                return Err(syn::Error::new_spanned(
+                    &args.type_path,
+                    format!("`{want}`: expected a variant keyword at position {i}"),
+                ));
+            };
+            let vname_bare = vname.trim_start_matches(':').to_string();
+            let next_is_vector = matches!(items.get(i + 1), Some(wat_reader::WatAST::Vector(_, _)));
+            if !next_is_vector {
+                variants.push(EnumRegVariant::Unit(vname_bare));
+                i += 1;
+                continue;
+            }
+            let Some(wat_reader::WatAST::Vector(fs, _)) = items.get(i + 1) else {
+                unreachable!()
+            };
+            let mut fields: Vec<(String, String)> = Vec::new();
+            let mut fi = 0usize;
+            while fi < fs.len() {
+                match &fs[fi] {
+                    wat_reader::WatAST::Symbol(id, _) if id.as_str() == "~@" => {
+                        return Err(syn::Error::new_spanned(
+                            &args.type_path,
+                            format!("`{want}::{vname_bare}` uses a SURFACE SPLICE — splices resolve against a live TypeEnv, which does not exist at compile time"),
+                        ));
+                    }
+                    wat_reader::WatAST::Symbol(name, _) => {
+                        let (Some(arrow), Some(ty)) = (fs.get(fi + 1), fs.get(fi + 2)) else {
+                            return Err(syn::Error::new_spanned(
+                                &args.type_path,
+                                format!("`{want}::{vname_bare}`: field `{}` is not a `name <- :Type` triple", name.as_str()),
+                            ));
+                        };
+                        let arrow_txt = match arrow {
+                            wat_reader::WatAST::Symbol(a, _) => a.as_str(),
+                            wat_reader::WatAST::Keyword(a, _) => a.as_str(),
+                            other => {
+                                return Err(syn::Error::new_spanned(
+                                    &args.type_path,
+                                    format!("`{want}::{vname_bare}`: field `{}` arrow slot holds {other:?}", name.as_str()),
+                                ));
+                            }
+                        };
+                        if arrow_txt != "<-" && arrow_txt != ":-" {
+                            return Err(syn::Error::new_spanned(
+                                &args.type_path,
+                                format!("`{want}::{vname_bare}`: field `{}` uses arrow `{arrow_txt}`", name.as_str()),
+                            ));
+                        }
+                        let Some(ty_text) = node_source_text(&src, ty.span()) else {
+                            return Err(syn::Error::new_spanned(
+                                &args.type_path,
+                                format!("`{want}::{vname_bare}`: field `{}` type node has no source range", name.as_str()),
+                            ));
+                        };
+                        fields.push((name.as_str().to_string(), ty_text));
+                        fi += 3;
+                    }
+                    other => {
+                        return Err(syn::Error::new_spanned(
+                            &args.type_path,
+                            format!("`{want}::{vname_bare}`: unexpected item in the field vector: {other:?}"),
+                        ));
+                    }
+                }
+            }
+            variants.push(EnumRegVariant::Tagged {
+                name: vname_bare,
+                fields,
+            });
+            i += 2;
+        }
+        break;
+    }
+
+    if !found {
+        return Err(syn::Error::new_spanned(
+            &args.type_path,
+            format!("no `(:wat::core::defenum {want} …)` in `{}` — wat is the source of truth, so the registration cannot be generated without it", abs.display()),
+        ));
+    }
+    if variants.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &args.type_path,
+            format!("`defenum {want}` declares no variants"),
+        ));
+    }
+
+    let purity_ident = match purity_kw.as_deref() {
+        Some(":wat::enum::Pure") => syn::Ident::new("Pure", proc_macro2::Span::call_site()),
+        Some(":wat::enum::Impure") => syn::Ident::new("Impure", proc_macro2::Span::call_site()),
+        _ => unreachable!(),
+    };
+
+    let variant_tokens: Vec<proc_macro2::TokenStream> = variants
+        .iter()
+        .map(|v| match v {
+            EnumRegVariant::Unit(name) => quote! {
+                crate::types::EnumVariant::Unit(#name.into())
+            },
+            EnumRegVariant::Tagged { name, fields } => {
+                let fnames: Vec<&String> = fields.iter().map(|(n, _)| n).collect();
+                let ftypes: Vec<&String> = fields.iter().map(|(_, t)| t).collect();
+                quote! {
+                    crate::types::EnumVariant::Tagged {
+                        name: #name.into(),
+                        fields: ::std::vec![
+                            #(
+                                (
+                                    #fnames.into(),
+                                    crate::types::parse_type_expr_from_source(#ftypes).unwrap_or_else(|e| panic!(
+                                        "wat_enum_register_from!({}): variant `{}` field `{}` has type `{}` which the type parser rejects: {e:?}",
+                                        #want, #name, #fnames, #ftypes,
+                                    )),
+                                ),
+                            )*
+                        ],
+                    }
+                }
+            }
+        })
+        .collect();
+
+    let env = &args.env;
+    let type_path = &args.type_path;
+
+    Ok(quote! {
+        {
+            const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
+            #env.register_builtin(crate::types::TypeDef::Enum(crate::types::EnumDef {
+                name: #type_path.into(),
+                type_params: ::std::vec::Vec::new(),
+                purity: crate::types::Purity::#purity_ident,
+                variants: ::std::vec![ #( #variant_tokens ),* ],
             }));
         }
     }

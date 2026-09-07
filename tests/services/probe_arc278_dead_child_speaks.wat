@@ -23,14 +23,14 @@
 ;; EXACT DATA: :user::compute returns a STRUCTURED :probe::Outcome — the RecvOutcome variant that
 ;; matched + a deterministic `reason-names-decode-failure?` bool computed IN-WAT (the per-run-variable
 ;; Failure location never leaves wat; only its boolean RESULT crosses to the .rs golden). The .rs
-;; asserts the golden #probe.Outcome/Lost [true] exactly — mirroring probe_arc278_recv_outcome_wall.
+;; asserts the golden #probe/Outcome.Lost {:sentinel-present? true} exactly — mirroring probe_arc278_recv_outcome_wall.
 ;; "wat stdio is edn — assert the structure exactly" (builder; R55 REVOLVTIONE, NVLLA LARVA).
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                                ;; matched ::Message (.rs asserts NEVER)
   :Lost    [reason-names-decode-failure? <- :wat::core::bool] ;; matched ::Lost — true iff the cause names the decode failure (the LAW: the reason is carried)
   :Closed  []                                                ;; matched ::Closed (the mute we killed — .rs asserts NEVER)
   ;; arc 278 #73 — a stop is NOT a close, so it does not borrow ::Closed's label. The golden is
-  ;; `#probe.Outcome/Lost [true]`, so adding a variant costs the passing path nothing; what it buys
+  ;; `#probe/Outcome.Lost {:reason-names-decode-failure? true}`, so adding a variant costs the passing path nothing; what it buys
   ;; is that if a stop ever DID fire here, the mismatch names a stop instead of pointing the next
   ;; reader at the channel layer — which is the precise false trail this whole stone removes.
   :Stopped [])                                               ;; .rs asserts NEVER (nothing here stops mid-read)

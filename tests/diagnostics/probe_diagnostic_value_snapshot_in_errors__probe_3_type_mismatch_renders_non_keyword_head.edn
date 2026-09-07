@@ -4,12 +4,12 @@
     :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p3.wat"
     :line 1
     :col 76
-    :end #wat.core.Option/Some [
-      #wat.core/Pos {
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
         :line 1
         :col 91
       }
-    ]
+    }
   }
   :causes []
   :op ":wat::core::apply"

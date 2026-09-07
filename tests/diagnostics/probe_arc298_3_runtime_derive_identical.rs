@@ -8,7 +8,7 @@
 //! - Field keys are snake→kebab in declaration order.
 //! - `:span` is appended LAST by `splice_span` (from the outer `RuntimeError.span`).
 //! - `Box<T>: ToEdn` delegates through the Box.
-//! - `Option<T>` is tagged (`#wat.core.Option/Some`/`None`) per arc 298.1.
+//! - `Option<T>` is tagged (`#wat.core/Option.Some`/`None`) per arc 296 H-2.
 //! - Secondary `Span` fields emit under their auto-kebab key (e.g. `outer-define-span`).
 //! - `MacroExpansionFailed.cause` uses `error_edn_of_boxed` (floor form).
 //! - `EdnCoerceMismatch.path` is split into a Vec via `edn_path_segments`.
@@ -261,7 +261,7 @@ fn probe_no_step_rule() {
 //
 // Arc 298.1 wire change: `Option<String>` is now tagged.
 // Old: `:actual "42"` (transparent)
-// New: `:actual #wat.core.Option/Some "42"` (tagged per arc 298.1)
+// New: `:actual #wat.core/Option.Some {:value "42"}` (tagged per arc 296 H-2)
 
 #[test]
 fn probe_assertion_failed_both_some() {
@@ -275,7 +275,7 @@ fn probe_assertion_failed_both_some() {
 
 // ─── 24b. AssertionFailed (expected None) ────────────────────────────────────
 //
-// Arc 298.1: `None` → `#wat.core.Option/None nil`
+// Arc 296 H-2: `None` → `#wat.core/Option.None {}`
 
 #[test]
 fn probe_assertion_failed_expected_none() {

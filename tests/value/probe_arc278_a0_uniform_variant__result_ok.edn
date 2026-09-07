@@ -1,1 +1,1 @@
-#wat.core.Result/Ok [42]
+#wat.core/Result.Ok {:value 42}

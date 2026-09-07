@@ -9,12 +9,12 @@
         :file "tests/diagnostics/probe_arc241_stone10_remedy_c01.wat.bad"
         :line 2
         :col 49
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 2
             :col 65
           }
-        ]
+        }
       }
       :causes []
       :function ":test::pick"

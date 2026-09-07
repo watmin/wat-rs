@@ -1,1 +1,1 @@
-#wat.core.Result/Err ["e"]
+#wat.core/Result.Err {:error "e"}

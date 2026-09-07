@@ -4,7 +4,7 @@
     :file "src/bar.wat"
     :line 5
     :col 1
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :causes []
   :process-identifier "worker"
@@ -12,6 +12,6 @@
     :file "src/bar.wat"
     :line 2
     :col 7
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

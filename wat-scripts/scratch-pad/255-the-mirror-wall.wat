@@ -56,7 +56,7 @@
 ;;   BEFORE this stone (measured, pre-existing binary): EXIT=0 — passes uncaught; the misuse
 ;;     is caught only at RUNTIME, by a raise:
 ;;       $ ./target/release/wat /tmp/probe-mirror-wall-target.wat
-;;       [#wat.kernel.LociDiedError/RuntimeError ["#wat.runtime/MacroAbort {:message \"boom —
+;;       [#wat.kernel/LociDiedError.RuntimeError ["#wat.runtime/MacroAbort {:message \"boom —
 ;;       target: refused, not inside a defmacro body\" :location #wat.core/Span {:file
 ;;       \"/tmp/probe-mirror-wall-target.wat\" :line 3 :col 5 …} …}"]]
 ;;       EXIT=1
@@ -86,7 +86,7 @@
 ;;     literal `(:wat::core::macro-error …)` call into `:user::main`'s body, invisible to
 ;;     `--check` until it runs:
 ;;       $ ./target/release/wat /tmp/probe-mirror-wall-quoted-template.wat
-;;       [#wat.kernel.LociDiedError/RuntimeError ["#wat.runtime/MacroAbort {:message \"boom —
+;;       [#wat.kernel/LociDiedError.RuntimeError ["#wat.runtime/MacroAbort {:message \"boom —
 ;;       quoted-template: emitted into expanded program code\" …}"]]
 ;;       EXIT=1
 ;;   AFTER this stone (expected — this rider could not build): `--check` REFUSES — by the time

@@ -9,12 +9,12 @@
         :file "tests/types/newtype_distinct_newtypes.wat.bad"
         :line 8
         :col 33
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 8
             :col 34
           }
-        ]
+        }
       }
       :causes []
       :callee ":my::trading::price-pretty"

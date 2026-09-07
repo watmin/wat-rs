@@ -9,12 +9,12 @@
         :file "tests/types/ord_struct.wat.bad"
         :line 9
         :col 6
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 9
             :col 19
           }
-        ]
+        }
       }
       :causes []
       :callee ":wat::core::<"

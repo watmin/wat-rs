@@ -90,7 +90,7 @@ pub(crate) fn eval_died_error_message(
         std::slice::from_ref(err),
         env,
         sym,
-        ":wat::kernel::LociDiedError",
+        crate::kernel::error::LociDiedError::WAT_TYPE_PATH,
         list_span,
     )
 }
@@ -200,7 +200,7 @@ pub(crate) fn eval_died_error_to_failure(
         std::slice::from_ref(err),
         env,
         sym,
-        ":wat::kernel::LociDiedError",
+        crate::kernel::error::LociDiedError::WAT_TYPE_PATH,
         list_span,
     )
 }

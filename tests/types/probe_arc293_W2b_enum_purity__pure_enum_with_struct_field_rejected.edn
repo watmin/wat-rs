@@ -4,7 +4,7 @@
     :file "src/check.rs"
     :line 14008
     :col 37
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :causes []
   :enum-name ":w2b::BadEvt"

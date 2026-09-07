@@ -9,12 +9,12 @@
         :file "tests/wat_lang/wat_arc153_nil_rename_paren_form.wat.bad"
         :line 9
         :col 60
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 9
             :col 62
           }
-        ]
+        }
       }
       :causes []
       :retired "()"

@@ -1,1 +1,1 @@
-#probe.Outcome/Lost [true]
+#probe/Outcome.Lost {:sentinel-present? true}

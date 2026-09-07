@@ -9,12 +9,12 @@
         :file "tests/wat_lang/wat_arc143_define_alias_retired.wat.bad"
         :line 4
         :col 2
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 29
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::runtime::define-alias"

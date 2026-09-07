@@ -1,5 +1,5 @@
-#wat.core.Option/Some [
-  (
+#wat.core/Option.Some {
+  :value (
     :wat.core/defn
     (
       :t/my-square
@@ -9,4 +9,4 @@
     )
     (:wat.core/* x x)
   )
-]
+}

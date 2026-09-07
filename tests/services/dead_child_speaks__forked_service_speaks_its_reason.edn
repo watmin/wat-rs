@@ -1,1 +1,3 @@
-#probe.Outcome/Lost [true]
+#probe/Outcome.Lost {
+  :reason-names-decode-failure? true
+}

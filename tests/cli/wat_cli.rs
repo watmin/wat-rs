@@ -299,11 +299,13 @@ fn startup_error_bubbles_up_as_exit_3() {
     let _ = std::fs::remove_file(&path);
     assert_eq!(output.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    // Arc 211b — child's stderr now carries the structured #wat.kernel/ProcessPanics
-    // EDN envelope (slice 1i) wrapping a StartupError variant. The substrate's
-    // panic-as-EDN doctrine (arc 211b) supersedes the pre-211 "startup:" text prefix.
+    // Arc 211b — child's stderr carries a bare, self-describing `Vector<LociDiedError>` whose
+    // head is the StartupError variant (the `#wat.kernel/ProcessPanics` wrapper is gone). The
+    // substrate's panic-as-EDN doctrine (arc 211b) supersedes the pre-211 "startup:" text prefix.
+    // Arc 296 H-2: the variant's dot moved into the tag's NAME half — `#wat.kernel/LociDiedError
+    // .StartupError {…}` — which is what separates it from a RECORD named StartupError.
     assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
-        stderr.contains("#wat.kernel.LociDiedError/StartupError"),
+        stderr.contains("#wat.kernel/LociDiedError.StartupError"),
         "stderr should contain structured ProcessPanics envelope with StartupError variant; got: {}",
         stderr
     );
@@ -341,7 +343,7 @@ fn freeze_time_panic_surfaces_structured_not_silent() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
-        stderr.contains("#wat.kernel.LociDiedError/Panic") && stderr.contains("freeze-time boom"),
+        stderr.contains("#wat.kernel/LociDiedError.Panic") && stderr.contains("freeze-time boom"),
         "freeze-time panic must surface the structured ProcessPanics envelope carrying its reason, not silence; got: {}",
         stderr
     );

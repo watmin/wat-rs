@@ -6,7 +6,7 @@
       :file "macro.wat"
       :line 5
       :col 2
-      :end #wat.core.Option/None []
+      :end #wat.core/Option.None {}
     }
     :causes []
     :name "my-macro"
@@ -15,6 +15,6 @@
     :file "test.wat"
     :line 1
     :col 0
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

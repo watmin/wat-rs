@@ -9,12 +9,12 @@
         :file "tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad"
         :line 4
         :col 2
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 17
           }
-        ]
+        }
       }
       :causes []
       :name ":wat-arc157-def-redef-type-change::a"
@@ -24,12 +24,12 @@
         :file "tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad"
         :line 3
         :col 2
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 3
             :col 17
           }
-        ]
+        }
       }
     }
   ]

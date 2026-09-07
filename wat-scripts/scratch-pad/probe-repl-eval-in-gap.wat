@@ -23,7 +23,7 @@
 ;;
 ;; ★ THE STONE LANDED (2026-07-28). `:wat::eval-with-defs!` closes exactly this gap, and
 ;; STEP 3 below now demonstrates it: the same expression, given the definition set, returns
-;; `#wat.eval.FormOutcome/Evaluated [7]`. The line kept beside it — the ORIGINAL `eval-ast!`
+;; `#wat.eval/FormOutcome.Evaluated [7]`. The line kept beside it — the ORIGINAL `eval-ast!`
 ;; call — still fails, and is kept ON PURPOSE: it is the before/after in one run, and it
 ;; keeps honest the claim that the ambient-eval could never have done this.
 ;;

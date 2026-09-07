@@ -56,7 +56,7 @@ fn revoked_prober_is_bounced() {
     // The teeth: after revoke (ack'd), the SAME live pid's re-dial is bounced → the prober dies.
     // arc 278 VALUE-CONTRACT (R53/R55): the owner FACES the prober's death as a matchable
     // RecvOutcome VALUE and RETURNS a :probe::Outcome — never re-raises past apply_function.
-    // The golden #probe.Outcome/Bounced [] is captured (UPDATE_EDN=1), never hand-authored.
+    // The golden #probe/Outcome.Bounced {} is captured (UPDATE_EDN=1), never hand-authored.
     let v = compute("tests/services/probe_arc170_m1_teeth_revoked.wat")
         .unwrap_or_else(|e| panic!("the revoked prober's bounce must surface as a VALUE compute FACES (never a raise past apply_function); got Err: {e:?}"));
     let edn = ::wat_edn::write(&wat::edn::render::value_to_edn(&v));

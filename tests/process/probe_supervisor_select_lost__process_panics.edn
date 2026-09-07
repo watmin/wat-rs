@@ -1,8 +1,8 @@
 [
-  #wat.kernel.LociDiedError/Panic [
-    "boom"
-    #wat.core.Option/Some [
-      #wat.kernel/Failure {
+  #wat.kernel/LociDiedError.Panic {
+    :message "boom"
+    :failure #wat.core/Option.Some {
+      :value #wat.kernel/Failure {
         :error #wat.core/Fault {
           :message "boom"
           :location #wat.kernel/Location {
@@ -19,9 +19,9 @@
             :symbol ":user::main"
           }
         ]
-        :actual #wat.core.Option/None []
-        :expected #wat.core.Option/None []
+        :actual #wat.core/Option.None {}
+        :expected #wat.core/Option.None {}
       }
-    ]
-  ]
+    }
+  }
 ]

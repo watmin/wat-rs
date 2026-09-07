@@ -6,6 +6,6 @@
     :file "src/main.wat"
     :line 5
     :col 1
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

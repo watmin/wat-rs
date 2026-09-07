@@ -54,6 +54,24 @@ use crate::value::{
 };
 use std::sync::Arc;
 
+// ⛔ GENERATED FROM `wat/kernel/diagnostics.wat`. Builder ruling 2026-09-06:
+// LociDiedError is declared in wat; Rust sources from it. Add a variant there
+// and this type follows — there is no Rust list to keep in step.
+::wat_source_derive::wat_enum_from!(
+    pub(crate) enum LociDiedError,
+    "wat/kernel/diagnostics.wat",
+    ":wat::kernel::LociDiedError"
+);
+
+fn loci_died_value(variant: LociDiedError, names: Arc<Vec<String>>, fields: Vec<Value>) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: LociDiedError::WAT_TYPE_PATH.into(),
+        variant_name: variant.as_str().into(),
+        names,
+        fields,
+    }))
+}
+
 /// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
 /// (arc 060 + arc 105c). Variant carries two fields:
 /// `message: String` always populated; `failure: (Option :- [Failure])`
@@ -74,23 +92,24 @@ pub(crate) fn thread_died_error_panic(
         }
         None => Value::Option(Arc::new(None)),
     };
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "Panic".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "Panic"),
-        fields: vec![Value::String(Arc::new(message)), failure_field],
-    }))
+    loci_died_value(
+        LociDiedError::Panic,
+        builtin_enum_variant_names(LociDiedError::WAT_TYPE_PATH, LociDiedError::Panic.as_str()),
+        vec![Value::String(Arc::new(message)), failure_field],
+    )
 }
 
 /// Build a `:wat::kernel::ThreadDiedError::RuntimeError(message)`
 /// enum value (arc 060).
 pub(crate) fn thread_died_error_runtime(message: String) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "RuntimeError".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "RuntimeError"),
-        fields: vec![Value::String(Arc::new(message))],
-    }))
+    loci_died_value(
+        LociDiedError::RuntimeError,
+        builtin_enum_variant_names(
+            LociDiedError::WAT_TYPE_PATH,
+            LociDiedError::RuntimeError.as_str(),
+        ),
+        vec![Value::String(Arc::new(message))],
+    )
 }
 
 /// Build a `:wat::kernel::LociDiedError::Stopped`
@@ -106,12 +125,7 @@ pub(crate) fn thread_died_error_runtime(message: String) -> Value {
 /// (send' side); the recv' side builds its own inline copy in
 /// `recv_outcome_shutdown`.
 pub(crate) fn thread_died_error_shutdown() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "Stopped".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
+    loci_died_value(LociDiedError::Stopped, no_field_names(), vec![])
 }
 
 /// `(:wat::kernel::Failure/message f) -> :String` — arc 278 the string-wrap
@@ -307,14 +321,18 @@ pub(crate) fn eval_died_error_message(
     }
     let val = eval_inner(&args[0], env, sym)?.value_owned();
     match val {
-        Value::Enum(ev) if ev.type_path == expected_type_path => {
-            match ev.variant_name.as_str() {
+        Value::Enum(ev) if ev.type_path == LociDiedError::WAT_TYPE_PATH => {
+            match ev.variant_name.parse::<LociDiedError>() {
                 // Arc 170 slice 1i — EntryFormFailure / MainSignature / BadReturn /
                 // RuntimeError / Panic carry a String at field 0. Arc 278 stone 1 —
                 // StartupError carries a structured `:wat::core::Error` record; the
                 // message is DERIVED from its `:message` (see `died_error_payload_message`).
-                "Panic" | "RuntimeError" | "StartupError" | "EntryFormFailure"
-                | "MainSignature" | "BadReturn" => {
+                Ok(LociDiedError::Panic)
+                | Ok(LociDiedError::RuntimeError)
+                | Ok(LociDiedError::StartupError)
+                | Ok(LociDiedError::EntryFormFailure)
+                | Ok(LociDiedError::MainSignature)
+                | Ok(LociDiedError::BadReturn) => {
                     match ev.fields.first().and_then(died_error_payload_message) {
                         Some(s) => Ok(Value::String(s)),
                         None => Err(RuntimeError::new(
@@ -329,11 +347,15 @@ pub(crate) fn eval_died_error_message(
                         .into()),
                     }
                 }
-                "Disconnected" => Ok(Value::String(Arc::new("disconnected".to_string()))),
+                Ok(LociDiedError::Disconnected) => {
+                    Ok(Value::String(Arc::new("disconnected".to_string())))
+                }
                 // arc 170 Slice A — a stop was requested during recv. Wat-visible name is
                 // "Stopped" (arc-170 intueri cast RULING A), not Rust's "shutdown".
-                "Stopped" => Ok(Value::String(Arc::new("process stopped".to_string()))),
-                _ => Err(RuntimeError::new(
+                Ok(LociDiedError::Stopped) => {
+                    Ok(Value::String(Arc::new("process stopped".to_string())))
+                }
+                Err(()) => Err(RuntimeError::new(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
@@ -364,7 +386,7 @@ pub(crate) fn eval_died_error_message(
 pub(crate) fn edn_is_loci_died_chain(v: &wat_edn::OwnedValue) -> bool {
     if let wat_edn::OwnedValue::Vector(items) = v {
         if let Some(wat_edn::OwnedValue::Tagged(tag, _)) = items.first() {
-            return tag.namespace() == "wat.kernel.LociDiedError";
+            return crate::edn::render::tag_is_variant_of(tag, LociDiedError::WAT_TYPE_PATH);
         }
     }
     false
@@ -395,9 +417,9 @@ pub(crate) fn eval_died_error_to_failure(
     }
     let val = eval_inner(&args[0], env, sym)?.value_owned();
     match val {
-        Value::Enum(ev) if ev.type_path == expected_type_path => {
-            match ev.variant_name.as_str() {
-                "Panic" => {
+        Value::Enum(ev) if ev.type_path == LociDiedError::WAT_TYPE_PATH => {
+            match ev.variant_name.parse::<LociDiedError>() {
+                Ok(LociDiedError::Panic) => {
                     let msg = match ev.fields.first() {
                         Some(Value::String(s)) => (**s).clone(),
                         _ => {
@@ -434,27 +456,36 @@ pub(crate) fn eval_died_error_to_failure(
                 // RuntimeError carry one String field. Arc 278 stone 1 — StartupError
                 // carries a structured `:wat::core::Error`; `died_error_payload_message`
                 // derives its `:message`. Both map to a message-only Failure.
-                "RuntimeError" | "StartupError" | "EntryFormFailure" | "MainSignature"
-                | "BadReturn" => match ev.fields.first().and_then(died_error_payload_message) {
-                    Some(s) => Ok(message_only_failure((*s).clone())),
-                    None => Err(RuntimeError::new(
-                        args[0].span().clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: op.into(),
-                            expected: "String or :wat::core::Error at *DiedError payload",
-                            got: Box::new(ValueSnapshot::unavailable(
-                                "non-message payload at field 0",
-                            )),
-                            // arc 138: no — matching on Value::Enum fields; no AST element
-                        },
-                    )
-                    .into()),
-                },
-                "Disconnected" => Ok(message_only_failure("disconnected".to_string())),
+                Ok(LociDiedError::RuntimeError)
+                | Ok(LociDiedError::StartupError)
+                | Ok(LociDiedError::EntryFormFailure)
+                | Ok(LociDiedError::MainSignature)
+                | Ok(LociDiedError::BadReturn) => {
+                    match ev.fields.first().and_then(died_error_payload_message) {
+                        Some(s) => Ok(message_only_failure((*s).clone())),
+                        None => Err(RuntimeError::new(
+                            args[0].span().clone(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: "String or :wat::core::Error at *DiedError payload",
+                                got: Box::new(ValueSnapshot::unavailable(
+                                    "non-message payload at field 0",
+                                )),
+                                // arc 138: no — matching on Value::Enum fields; no AST element
+                            },
+                        )
+                        .into()),
+                    }
+                }
+                Ok(LociDiedError::Disconnected) => {
+                    Ok(message_only_failure("disconnected".to_string()))
+                }
                 // arc 170 Slice A — a stop was requested during recv. Wat-visible name is
                 // "Stopped" (arc-170 intueri cast RULING A), not Rust's "shutdown".
-                "Stopped" => Ok(message_only_failure("process stopped".to_string())),
-                _ => Err(RuntimeError::new(
+                Ok(LociDiedError::Stopped) => {
+                    Ok(message_only_failure("process stopped".to_string()))
+                }
+                Err(()) => Err(RuntimeError::new(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
@@ -503,9 +534,9 @@ pub(crate) fn loci_died_error_from_reason(reason: String, types: Option<&crate::
                 }
             }
         }
-        // A single #wat.kernel.LociDiedError/… tagged value → bridge as-is.
+        // A single LociDiedError tagged value → bridge as-is.
         if let wat_edn::OwnedValue::Tagged(tag, _) = &parsed {
-            if tag.namespace() == "wat.kernel.LociDiedError" {
+            if crate::edn::render::tag_is_variant_of(tag, LociDiedError::WAT_TYPE_PATH) {
                 if let Ok(v) = crate::edn::render::edn_to_value(&parsed, types, None) {
                     return v;
                 }
@@ -513,15 +544,14 @@ pub(crate) fn loci_died_error_from_reason(reason: String, types: Option<&crate::
         }
     }
     // Opaque reason — wrap as a Panic carrying the raw death message.
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "Panic".into(),
-        names: builtin_enum_variant_names(":wat::kernel::LociDiedError", "Panic"),
-        fields: vec![
+    loci_died_value(
+        LociDiedError::Panic,
+        builtin_enum_variant_names(LociDiedError::WAT_TYPE_PATH, LociDiedError::Panic.as_str()),
+        vec![
             Value::String(Arc::new(reason)),
             Value::Option(Arc::new(None)),
         ],
-    }))
+    )
 }
 
 /// `:wat::kernel::LociDiedError::Disconnected []` — the peer's receiving end is
@@ -534,12 +564,7 @@ pub(crate) fn loci_died_error_from_reason(reason: String, types: Option<&crate::
 /// specifically the `Disconnected` cause, not a stand-in for "whatever send
 /// failed for."
 pub(crate) fn loci_died_disconnected() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::LociDiedError".into(),
-        variant_name: "Disconnected".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
+    loci_died_value(LociDiedError::Disconnected, no_field_names(), vec![])
 }
 
 /// Map a `comms::SendError<T>` to its `:wat::kernel::LociDiedError` cause —

@@ -9,12 +9,12 @@
         :file "tests/wat_lang/wat_arc153_nil_rename_unit_sig.wat.bad"
         :line 4
         :col 35
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 51
           }
-        ]
+        }
       }
       :causes []
       :retired ":wat::core::unit"

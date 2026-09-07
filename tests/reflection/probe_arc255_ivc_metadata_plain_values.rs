@@ -16,8 +16,8 @@
 //! `Value::Enum`s parsed from the doc (`wat_doc::Purity`/`Determinism`), not derived
 //! bools — see `src/intrinsic/mod.rs`'s header, "CORRECTED 2026-08-25". Verified live
 //! this session (`wat-scripts/scratch-pad/255-p3/dump-to-hex-metadata.wat`):
-//! `metadata-of(:wat::core::Bytes::to-hex)` puts `:purity #wat.runtime.Purity/Pure`
-//! and `:determinism #wat.runtime.Determinism/Deterministic` — enums, not bools.
+//! `metadata-of(:wat::core::Bytes::to-hex)` puts `:purity #wat.runtime/Purity.Pure`
+//! and `:determinism #wat.runtime/Determinism.Deterministic` — enums, not bools.
 //!
 //! THE CONTRACT (as shipped):
 //!  - The baseline scalar fields are PLAIN wat values:

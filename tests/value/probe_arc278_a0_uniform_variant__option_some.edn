@@ -1,1 +1,1 @@
-#wat.core.Option/Some [7]
+#wat.core/Option.Some {:value 7}

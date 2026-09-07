@@ -33,7 +33,7 @@
 ;;   - wat: a `where` predicate that raises unwinds the ENTIRE `fire-rules` call, not just the one
 ;;     offending token — confirmed with a 3-fact probe (facts with divisor 2, 0, 3) where "before
 ;;     fire" printed and "after fire" never did; the process exits 1 with an unhandled
-;;     `#wat.runtime/DivisionByZero` surfacing as `#wat.kernel.LociDiedError/RuntimeError`.
+;;     `#wat.runtime/DivisionByZero` surfacing as `#wat.kernel/LociDiedError.RuntimeError`.
 ;;   - Clara: the mirror probe (`[:test (> (quot ?k ?d) 1)]` over the same three facts) behaves
 ;;     IDENTICALLY — "before fire" printed, `fire-rules` throws `ArithmeticException: Divide by
 ;;     zero`, "after fire" never printed, process exits 1.

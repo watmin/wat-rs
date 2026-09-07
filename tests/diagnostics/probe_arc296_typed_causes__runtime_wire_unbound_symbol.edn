@@ -4,7 +4,7 @@
     :file "probe.wat"
     :line 1
     :col 1
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :causes []
   :name "some-var"

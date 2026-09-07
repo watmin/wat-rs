@@ -1238,8 +1238,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // through the middle of it. `RecvOutcome`'s `Impure` is about `O` being a live PEER OUTPUT, not
     // about parametricity: `(WalkStep :- [A])` is the parametric-and-registered precedent.
     //
-    // Field names are INTERNAL, not API: the wire form is positional — measured,
-    // `(:wat::core::Some 42)` prints `#wat.core.Option/Some [42]` — so no observable shape moves.
+    // Field names ARE on the wire (arc 296 H-2): measured,
+    // `(:wat::core::Some 42)` prints `#wat.core/Option.Some {:value 42}`.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::core::Option".into(),
         type_params: vec!["T".into()],
@@ -1644,66 +1644,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Purity::Pure — a death report crosses back to the owner as EDN data; its
     // payload is String / (Option :- [Failure]) (no live resource), unlike
     // (RecvOutcome :- [O]) which is Impure only because O may be live.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::LociDiedError".into(),
-        type_params: vec![],
-        purity: Purity::Pure, // a death report — Pure (crosses back to the owner as EDN data)
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Panic".into(),
-                fields: vec![
-                    ("message".into(), TypeExpr::Path(":wat::core::String".into())),
-                    (
-                        "failure".into(),
-                        TypeExpr::Parametric {
-                            head: "wat::core::Option".into(),
-                            args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
-                        },
-                    ),
-                ],
-            },
-            EnumVariant::Tagged {
-                name: "RuntimeError".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
-            },
-            // Reconciled: the two dead enums' ChannelDisconnected → Disconnected
-            // (the wire dropped — loci-agnostic; "channel" was thread-tier vocab).
-            EnumVariant::Unit("Disconnected".into()),
-            // arc 170 Slice A — a stop was requested during recv, any locus. Renamed
-            // Shutdown -> Stopped by the arc-170 intueri cast (RULING A): the wat-visible
-            // layer says "stopped", never "shutdown" — nothing is shutting down when this
-            // fires, a stop was merely requested. Rust's own vocabulary (`trigger_shutdown`,
-            // `RecvError::Shutdown`, …) is UNCHANGED; only this wat-visible variant moves.
-            EnumVariant::Unit("Stopped".into()),
-            // arc 170 slice 1i — structured exit variants for all peer death
-            // paths. extract-panics / the recv' Lost decoder use the TypeEnv to
-            // reconstruct these from EDN on round-trip; they must be registered
-            // here so edn_to_value can find them.
-            // Arc 278 "errors first-class EDN" (stone 1) — `StartupError`'s cause is
-            // the structured `:wat::core::Error` floor record (`error_edn()`), NOT a
-            // `to_wire_edn` String (the double-encoded mask this stone kills). The
-            // child emits `#wat.kernel.LociDiedError/StartupError [#wat.runtime/<V> {…}]`
-            // (see `verbs.rs::startup_error_chain_edn`); the owner STRICT-decodes the
-            // cause to a typed record. `LociDiedError/message` is a DERIVED accessor
-            // reading `error.message` (see `eval_died_error_message`).
-            EnumVariant::Tagged {
-                name: "StartupError".into(),
-                fields: vec![("error".into(), TypeExpr::Path(":wat::core::Error".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "EntryFormFailure".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "MainSignature".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "BadReturn".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
-            },
-        ],
-    }));
+    //
+    // ⛔ ARC 296 H-2c — GENERATED FROM WAT. The hand-written `EnumDef` literal that
+    // stood here is DELETED; this row is now emitted from
+    // `(:wat::core::defenum :wat::kernel::LociDiedError …)` in
+    // `wat/kernel/diagnostics.wat`. wat is the source of truth; Rust consumes it.
+    // The three EDN-tag string compares that used to key on `"wat.kernel.LociDiedError"`
+    // source from the generated enum (`wat_enum_from!` in `src/kernel/error.rs`), so
+    // a next wire change cannot unhook them silently.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::LociDiedError");
 
     // :wat::kernel::Location — a point in a source file. Populated by
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo

@@ -73,12 +73,12 @@
 ;;   C fence det?   Uuid/v4 ....  FALSE                    <- negative control on determinism
 ;;   D fence pure?  Bytes::to-hex FALSE                    <- ★ THE SEAM
 ;;   D metadata-of  Bytes::to-hex =
-;;     #wat.core.Option/Some [{:category #wat.runtime.Category/Encoding
-;;                             :defined-in #wat.runtime.DefinedIn/Rust
-;;                             :kind #wat.runtime.Kind/Intrinsic  :arity 1
+;;     #wat.core/Option.Some [{:category #wat.runtime/Category.Encoding
+;;                             :defined-in #wat.runtime/DefinedIn.Rust
+;;                             :kind #wat.runtime/Kind.Intrinsic  :arity 1
 ;;                             :name :wat.core.Bytes/to-hex
-;;                             :purity #wat.runtime.Purity/Pure
-;;                             :determinism #wat.runtime.Determinism/Deterministic
+;;                             :purity #wat.runtime/Purity.Pure
+;;                             :determinism #wat.runtime/Determinism.Deterministic
 ;;                             :layer … :doc … :added "1.0.0" :ret …}]
 ;;
 ;; TWO FINDINGS, and the second is the one that shapes slice one.

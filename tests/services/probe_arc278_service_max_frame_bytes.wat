@@ -61,7 +61,7 @@
 ;; mute "peer closed"). EXACT DATA: :user::small-foo-rejects returns a structured :probe::Outcome —
 ;; the RecvOutcome variant that matched + a deterministic `names-frame-cap?` bool computed IN-WAT (the
 ;; per-run-variable reason location never leaves wat; only its boolean RESULT crosses to the .rs
-;; golden #probe.Outcome/Lost [true]). Matching ::Lost (not the mute ::Closed) + the frame-cap-named
+;; golden #probe/Outcome.Lost {:sentinel-present? true}). Matching ::Lost (not the mute ::Closed) + the frame-cap-named
 ;; reason IS the LAW proven — the over-FOO reason reaches the caller. Mirrors probe_arc278_recv_outcome_wall.
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
   :Message []                                          ;; matched ::Message (.rs asserts NEVER)

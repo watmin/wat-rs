@@ -105,11 +105,11 @@
     ]
   ]
   :see []
-  :purity #wat.runtime.Purity/Pure []
-  :determinism #wat.runtime.Determinism/Deterministic []
-  :totality #wat.runtime.Totality/Unreviewed []
-  :expand-time #wat.runtime.ExpandTime/Unreviewed []
-  :category #wat.runtime.Category/Transform []
-  :deprecated #wat.core.Option/None []
-  :alias #wat.core.Option/None []
+  :purity #wat.runtime/Purity.Pure {}
+  :determinism #wat.runtime/Determinism.Deterministic {}
+  :totality #wat.runtime/Totality.Unreviewed {}
+  :expand-time #wat.runtime/ExpandTime.Unreviewed {}
+  :category #wat.runtime/Category.Transform {}
+  :deprecated #wat.core/Option.None {}
+  :alias #wat.core/Option.None {}
 }

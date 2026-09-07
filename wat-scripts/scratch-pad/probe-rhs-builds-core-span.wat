@@ -86,7 +86,7 @@
 ;; constructor and its field accessors exist by construction of the type." So anything that is a
 ;; real declaration sails through, whatever namespace it is spelled in:
 ;;
-;;   a rule's OWN enum          (:g::End::Known ?l ?c)              → #g.End/Known [7 26]
+;;   a rule's OWN enum          (:g::End::Known ?l ?c)              → #g/End.Known [7 26]
 ;;   a declared core variant    (:wat::core::Option::Some …)        → compiles
 ;;   the bare core alias        (:wat::core::Some …)                → REFUSED
 ;;

@@ -514,8 +514,11 @@ mod beta0_wire_tests {
         assert_eq!(edn_line.to_wire(), "42", "the wire must carry no holon-AST envelope");
         assert_eq!(String::from_wire("42").unwrap(), "42");
 
-        // A tagged literal (#wat.kernel.LociDiedError/...) is itself valid EDN and
-        // rides the wire as-is — proving holon tags are content, not envelope.
+        // A tagged literal is itself valid EDN and rides the wire as-is — proving
+        // holon tags are content, not envelope. The payload spelling is OPAQUE:
+        // to_wire/from_wire do not parse it, so this is not the variant writer
+        // (arc 296 H-2's `#wat.kernel/LociDiedError.Variant` form). Left as a
+        // pre-H-2 tag on purpose: the claim is passthrough, not tag shape.
         // (arc 278: the bare `Vector<LociDiedError>` death chain is exactly such a
         // self-describing tagged line; the old `#wat.kernel/ProcessPanics` wrapper
         // was annihilated.)

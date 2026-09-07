@@ -6,7 +6,7 @@
 //! this probe inspected the child's OS-stderr lines to prove the silent panic hook
 //! suppressed Rust's default handler output — "thread '…' panicked at …",
 //! "Box<dyn Any>", "note: run with `RUST_BACKTRACE=1`" — leaving ONLY a structured
-//! `#wat.kernel.LociDiedError/*` line on fd 2.
+//! `#wat.kernel/LociDiedError.*` line on fd 2.
 //!
 //! IPC de-prime (arc 278): migrated onto the PRIMED peer wire — `spawn-program'
 //! :process` + `recv'`. The wire captures NO child OS-stderr, so the literal

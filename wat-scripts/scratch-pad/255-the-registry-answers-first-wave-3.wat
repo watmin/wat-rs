@@ -60,7 +60,7 @@
 ;;   EOF
 ;;   $ ./target/release/wat --check /tmp/probe_macro_error.wat   # exit 0 — well-typed, LOADS
 ;;   $ ./target/release/wat /tmp/probe_macro_error.wat           # exit 1 —
-;;   [#wat.kernel.LociDiedError/RuntimeError ["#wat.runtime/MacroAbort {:message \"boom\" ...}"]]
+;;   [#wat.kernel/LociDiedError.RuntimeError {:message "#wat.runtime/MacroAbort {:message \"boom\" ...}"}]
 ;;
 ;; This is the empirical anchor for the ★ ruling below: `--check` passes (it "loads"); running it
 ;; raises a `RuntimeError`/`MacroAbort` that terminates the process with a nonzero exit — a

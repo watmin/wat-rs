@@ -9,12 +9,12 @@
         :file "tests/wat_lang/wat_arc157_def_type_error_in_expr.wat.bad"
         :line 4
         :col 38
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 50
           }
-        ]
+        }
       }
       :causes []
       :callee ":t::helper"
@@ -29,12 +29,12 @@
         :file "tests/wat_lang/wat_arc157_def_type_error_in_expr.wat.bad"
         :line 4
         :col 38
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 50
           }
-        ]
+        }
       }
       :causes []
       :callee ":t::helper"

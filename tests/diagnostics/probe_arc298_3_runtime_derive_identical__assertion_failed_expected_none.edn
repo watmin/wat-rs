@@ -1,11 +1,11 @@
 #wat.runtime/AssertionFailed {
   :message "fired"
-  :actual #wat.core.Option/Some ["x"]
-  :expected #wat.core.Option/None []
+  :actual #wat.core/Option.Some {:value "x"}
+  :expected #wat.core/Option.None {}
   :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

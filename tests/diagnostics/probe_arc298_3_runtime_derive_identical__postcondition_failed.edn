@@ -11,12 +11,12 @@
     :file "defs.wat"
     :line 20
     :col 8
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :span #wat.core/Span {
     :file "test.wat"
     :line 1
     :col 0
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

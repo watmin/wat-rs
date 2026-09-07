@@ -110,6 +110,34 @@
    actual   <- (:wat::core::Option :- [:wat::core::String])
    expected <- (:wat::core::Option :- [:wat::core::String])])
 
+;; ─── Arc 296 H-2c: :wat::kernel::LociDiedError — moving the source of truth to wat ───
+;;
+;; The ONE loci-agnostic death report (arc 278 DESIGN-loci-died-error.md). Variant
+;; names *how* a peer died; the locus rides as data. Pure — a death report crosses
+;; back to the owner as EDN. Field names/types transcribed from the Rust builtin
+;; registration in `register_builtin_types` (src/types.rs) that this form replaces.
+;;
+;; Rust sources from this form: `wat_enum_from!` (a generated enum the consumers
+;; ask) and `wat_enum_register_from!` (the TypeEnv row). There is no second list.
+(:wat::core::defenum :wat::kernel::LociDiedError :wat::enum::Pure
+;; Peer raised/panicked; `failure` is Some when the panic carried an AssertionPayload.
+  :Panic            [message <- :wat::core::String
+                     failure <- (:wat::core::Option :- [:wat::kernel::Failure])]
+;; A type/arity/etc. error surfaced at run.
+  :RuntimeError     [message <- :wat::core::String]
+;; The wire dropped (was ChannelDisconnected).
+  :Disconnected
+;; A stop was requested mid-recv, any locus (arc 170: wat's word, not Rust's "shutdown").
+  :Stopped
+;; The locus didn't come up. Cause is the structured `:wat::core::Error` floor record.
+  :StartupError     [error   <- :wat::core::Error]
+;; The peer program's entry form was malformed.
+  :EntryFormFailure [message <- :wat::core::String]
+;; The peer's :user::main had a bad signature.
+  :MainSignature    [message <- :wat::core::String]
+;; The peer returned a value that won't cross the wire.
+  :BadReturn        [message <- :wat::core::String])
+
 ;; ─── Arc 296: :wat::kernel::AssertionFailure — moving the source of truth to wat ───
 ;;
 ;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).

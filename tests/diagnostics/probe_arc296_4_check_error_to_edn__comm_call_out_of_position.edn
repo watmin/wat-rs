@@ -4,6 +4,6 @@
     :file "user.wat"
     :line 8
     :col 3
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

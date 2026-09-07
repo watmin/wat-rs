@@ -4,7 +4,7 @@
     :file "src/check.rs"
     :line 13990
     :col 29
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
   :causes []
   :aggregate ":w::Bad"

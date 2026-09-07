@@ -152,13 +152,13 @@ fn key_rename_span_known_emits_renamed_key() {
     // Stone B: span fields now emit #wat.core/Span tagged records, not bare maps.
     assert_eq!(
         edn,
-        r#"#wat.kernel/WithCallSpan {:call-span #wat.core/Span {:file "f.wat" :line 3 :col 5 :end #wat.core.Option/None []} :name "foo"}"#,
+        r#"#wat.kernel/WithCallSpan {:call-span #wat.core/Span {:file "f.wat" :line 3 :col 5 :end #wat.core/Option.None {}} :name "foo"}"#,
     );
 }
 
 // ── F. STRUCT derive (296 closing strike, Stone 1) — `#[derive(ToEdn)]` on a struct emits
 // one tagged record `#wat.<ns>/<Name> {fields}`, namespace via `#[to_edn(namespace = ...)]`,
-// with `Option<record>` nesting honestly (#wat.core.Option/{Some,None}). The pattern the
+// with `Option<record>` nesting honestly (#wat.core/Option.{Some,None}). The pattern the
 // `#wat.core/Span` record (Stone 2) is built on: a struct → a typed record, data all the way down.
 #[derive(wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::CORE)]
@@ -186,9 +186,9 @@ fn struct_derive_emits_namespaced_tagged_record_with_optional_nested() {
     };
     assert_eq!(
         wat_edn::write(&some.to_edn()),
-        r#"#wat.core/SpanProbe296 {:file "f.wat" :line 3 :col 8 :end #wat.core.Option/Some [#wat.core/PosProbe296 {:line 3 :col 12}]}"#,
+        r#"#wat.core/SpanProbe296 {:file "f.wat" :line 3 :col 8 :end #wat.core/Option.Some {:value #wat.core/PosProbe296 {:line 3 :col 12}}}"#,
     );
-    // None(end): a point — absence spoken as #wat.core.Option/None, no end==start sentinel.
+    // None(end): a point — absence spoken as #wat.core/Option.None, no end==start sentinel.
     let none = SpanProbe296 {
         file: "g.wat".to_owned(),
         line: 1,
@@ -197,7 +197,7 @@ fn struct_derive_emits_namespaced_tagged_record_with_optional_nested() {
     };
     assert_eq!(
         wat_edn::write(&none.to_edn()),
-        r#"#wat.core/SpanProbe296 {:file "g.wat" :line 1 :col 0 :end #wat.core.Option/None []}"#,
+        r#"#wat.core/SpanProbe296 {:file "g.wat" :line 1 :col 0 :end #wat.core/Option.None {}}"#,
     );
 }
 
@@ -309,7 +309,7 @@ fn secondary_span_both_known_key_override_applied() {
     // Stone B: span fields now emit #wat.core/Span tagged records, not bare maps.
     assert_eq!(
         edn,
-        r#"#wat.kernel/Def {:span #wat.core/Span {:file "a.wat" :line 1 :col 1 :end #wat.core.Option/None []} :outer-span #wat.core/Span {:file "b.wat" :line 2 :col 3 :end #wat.core.Option/None []} :name "def"}"#,
+        r#"#wat.kernel/Def {:span #wat.core/Span {:file "a.wat" :line 1 :col 1 :end #wat.core/Option.None {}} :outer-span #wat.core/Span {:file "b.wat" :line 2 :col 3 :end #wat.core/Option.None {}} :name "def"}"#,
     );
 }
 

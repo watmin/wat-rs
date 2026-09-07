@@ -4,12 +4,12 @@
     :file "tests/reflection/wat_arc201_holon_ast_accessors_children_err_atom.wat"
     :line 7
     :col 51
-    :end #wat.core.Option/Some [
-      #wat.core/Pos {
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
         :line 7
         :col 55
       }
-    ]
+    }
   }
   :causes []
   :op ":wat::holon::Bundle/children"

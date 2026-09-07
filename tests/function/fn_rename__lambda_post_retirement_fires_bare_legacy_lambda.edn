@@ -9,12 +9,12 @@
         :file "tests/function/fn_rename_legacy_lambda.wat"
         :line 3
         :col 5
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 3
             :col 23
           }
-        ]
+        }
       }
       :causes []
       :retired ":wat::core::lambda"

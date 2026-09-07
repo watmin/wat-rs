@@ -64,8 +64,12 @@ fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
     wat::assert_edn_matches_file!(message.to_string(), "probe_arc278_journal_service_logs__message.edn", "opaque :message payload (Stone B, producer edn::write)");
 
     let (level_tag, _) = map_get(fields, "level").as_tagged().expect("level is tagged");
-    assert_eq!(level_tag.namespace(), "wat.telemetry.Level", "level tag namespace: {level_tag:?}");
-    assert_eq!(level_tag.name(), "Info", "level tag name: {level_tag:?}");
+    // Arc 296 H-2 — a VARIANT's discriminator is a dot in the tag's NAME half, so the enum's own
+    // leaf rides with the variant: ns `wat.telemetry`, name `Level.Info`. Asserting both halves is
+    // the point — the pre-H-2 spelling (ns `wat.telemetry.Level`) is the shape a RECORD produces,
+    // and telling those apart is what the stone exists for.
+    assert_eq!(level_tag.namespace(), "wat.telemetry", "level tag namespace: {level_tag:?}");
+    assert_eq!(level_tag.name(), "Level.Info", "level tag name: {level_tag:?}");
 
     // :emitted-from — a real captured Frame (caller.2). Structural, portable checks only: the
     // absolute Rust source path varies by checkout, so we check the SUFFIX, not the whole path.

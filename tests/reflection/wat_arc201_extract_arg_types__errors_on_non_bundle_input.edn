@@ -4,12 +4,12 @@
     :file "tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat"
     :line 6
     :col 52
-    :end #wat.core.Option/Some [
-      #wat.core/Pos {
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
         :line 6
         :col 54
       }
-    ]
+    }
   }
   :causes []
   :op ":wat::runtime::extract-arg-types"

@@ -9,12 +9,12 @@
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 5
         :col 22
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 5
             :col 37
           }
-        ]
+        }
       }
       :causes []
       :callee ":wat::core::match"
@@ -29,12 +29,12 @@
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 7
         :col 6
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 7
             :col 21
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::match"
@@ -47,12 +47,12 @@
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 8
         :col 6
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 8
             :col 23
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::match"
@@ -65,12 +65,12 @@
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 5
         :col 4
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 5
             :col 21
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::match"
@@ -83,12 +83,12 @@
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 5
         :col 3
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 8
             :col 27
           }
-        ]
+        }
       }
       :causes []
       :function ":user::main"

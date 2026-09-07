@@ -5,9 +5,9 @@
 ;;
 ;; The read side reconstructs structs + enums via the type registry
 ;; (arc 085's SymbolTable.types capability). Tag dispatch:
-;;   - `#ns/Name {map}` → Struct lookup at `:ns::Name`
-;;   - `#ns/Variant [body]` → Enum tagged variant
-;;   - `#ns/Variant []` → Enum unit variant (arc 278 A.0; `nil` = the unit value only)
+;;   - `#ns/Name {map}` → Struct/record lookup at `:ns::Name`
+;;   - `#ns/Enum.Variant {fields}` → Enum tagged variant (arc 296 H-2)
+;;   - `#ns/Enum.Variant {}` → Enum unit variant (`nil` = the unit value only)
 
 ;; Test enum + struct used across the deftests below.
 ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).

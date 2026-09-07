@@ -18,7 +18,7 @@
 ;;   #wat.rete/ReteCheckErrors {:message "1 rete rule validation error" ... :errors
 ;;     [#wat.rete/UnknownFactType {:rule "probe278b::rule-userfn" :fact-type "probe278b::Temp"
 ;;       :span #wat.core/Span {:file "wat-scripts/scratch-pad/probe-arc278-forms-block-is-inert.wat"
-;;       :line 37 :col 14 :end #wat.core.Option/Some [#wat.core/Pos {:line 37 :col 43}]}}]}
+;;       :line 37 :col 14 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 37 :col 43}}}}]}
 ;;
 ;; `:line 37 :col 14`→`:col 43` is `(:probe278b::Temp (?c <- :c))` — the FACT-PATTERN CONDITION
 ;; inside the defrule's `:when`, three forms below the `defrecord` that declares

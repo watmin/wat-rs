@@ -6,7 +6,7 @@
       :file "inner.wat"
       :line 3
       :col 1
-      :end #wat.core.Option/None []
+      :end #wat.core/Option.None {}
     }
     :causes []
     :reason "bad form"
@@ -15,6 +15,6 @@
     :file "test.wat"
     :line 1
     :col 0
-    :end #wat.core.Option/None []
+    :end #wat.core/Option.None {}
   }
 }

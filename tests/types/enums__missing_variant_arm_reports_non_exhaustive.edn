@@ -9,12 +9,12 @@
         :file "tests/types/enums_missing_variant.wat.bad"
         :line 4
         :col 4
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 4
             :col 21
           }
-        ]
+        }
       }
       :causes []
       :head ":wat::core::match"
@@ -27,12 +27,12 @@
         :file "tests/types/enums_missing_variant.wat.bad"
         :line 4
         :col 3
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
             :line 6
             :col 27
           }
-        ]
+        }
       }
       :causes []
       :function ":user::main"

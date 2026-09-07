@@ -4,12 +4,12 @@
     :file "tests/macros/probe_arc258_stone2b_macro_error_c02.wat"
     :line 5
     :col 3
-    :end #wat.core.Option/Some [
-      #wat.core/Pos {
+    :end #wat.core/Option.Some {
+      :value #wat.core/Pos {
         :line 7
         :col 31
       }
-    ]
+    }
   }
   :causes []
   :macro-name ":wat::core::cond"
@@ -19,12 +19,12 @@
       :file "wat/core.wat"
       :line 1464
       :col 5
-      :end #wat.core.Option/Some [
-        #wat.core/Pos {
+      :end #wat.core/Option.Some {
+        :value #wat.core/Pos {
           :line 1464
           :col 82
         }
-      ]
+      }
     }
     :causes []
     :reason "cond: non-exhaustive — needs a terminal :else arm"
