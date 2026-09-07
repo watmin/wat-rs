@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-09-07. **A STRIKE IS IN FLIGHT. THE FLOOR IS RED AT 7.**
+# SEAM — the ONE live breadcrumb. As of 2026-09-07. **GREEN, CLEAN, NO PEER IN FLIGHT.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -8,111 +8,119 @@
 
 > `251/SEAM.md` · `255/SEAM.md` · `278/SEAM.md` PARKED and point HERE. ⛔ **PARKED IS NOT DEAD.**
 
-## ⚠⚠ FIRST — GROK IS MID-STRIKE AND ONE FILE IS DIRTY
+## FIRST — RUN THESE, DO NOT READ THE NUMBERS BELOW
 
 ```bash
-git status --porcelain          # expect:  M src/rete/expr_ir.rs   ← grok, RELAND-5 cause 2
-git log --oneline -1            # b50768833 AMEND(109 RELAND-5)
+git status --porcelain          # expect EMPTY
+git log --oneline -1            # expect ef2c20bf2 or later
 grep -aE "^ +Summary" .floor/latest/raw.log
 ```
 
 ```
-floor ....... 5219 passed, 7 failed, 21 skipped      clippy 0      0 unpushed
+floor ....... 5229 passed, 0 failed, 18 skipped     clippy 0 errors     0 unpushed
+peer ........ HALTED. Nothing in flight. `.pulsare/to-claude` holds a kind=halt.
 ```
 
-**Do NOT touch `src/rete/expr_ir.rs`.** A `pulsare_yield kind=briefed` went out for RELAND-5; the
-peer is working. If a SCORE arrives, weigh it centrally (floor unpiped, read `^ +Summary`).
+⚠ **The floor takes ~175s and `every_wat_scripts_file_loads` finishes LAST.** Poll for
+`^ +Summary` itself. Do NOT poll `pgrep -x cargo` — nextest runs as `cargo-nextest`, the loop
+falls through instantly, and you will read a half-written log as a verdict. (Done today.)
 
-## ★★★ WHERE THE CRUSADE IS
+## ★★★ WHERE THE CRUSADE IS — BOTH GATES ARE OPEN
 
-The clojure-ification. 50 commits today. **arc 296 stone H is COMPLETE and stones J · K · L landed.**
-
-```
-296 H-2/b/c  the wire flips: #ns.Enum/Variant […]  ->  #ns/Enum.Variant {…}      ✅
-             records unmoved; one wire not two; LociDiedError DECLARED IN WAT
-296 H-3      Option/Result declared in wat + PARAMETRIC registration built        ✅
-296 J        26 hand-written enum literals -> wat, AND A WALL so a 27th cannot     ✅
-296 K        aliases moved; the Rust-side floor NAMED and walled by an ORACLE      ✅
-296 L        type-of / #wat.runtime/TypeInfo — reflection for ALL SIX TypeDef kinds ✅
-251.8b       Identifier STORES (ns, name)                                          ✅
-277          pprintln is the one printer · HALT: a keyword is a keyword            ✅
-```
-
-## ⛔ THE MATCH ARM — 108 → 38 → 16 → 7, FIVE RELANDS, ONE STILL OPEN
-
-`[Variant {:k v} body]` — a bracket clause with a KEY-FIRST map pattern. 1869 `.wat` files by
-codemod. **The 7 remaining are THREE causes and none shares a root** (`RELAND-5` brief):
+The clojure-ification. **The match arm closed and 251.9 struck. Nothing blocks the head migration
+except the two items under QUEUED.**
 
 ```
-peers_bijection ×4   GOLDEN SPAN DRIFT. golden pins wat/service.wat:881, actual :910. Everything
-                     else byte-identical. The goldens PIN A STDLIB LINE — arc 109 already has
-                     NOTE-a-golden-that-pins-a-rust-line-number for the Rust case.
-grid_axes ×2         ⛔ rete's IR. NOT drift — a STATED SCOPE BOUNDARY: lower_pat says
-                     "match map-destructure is not lowered in v1" TWICE, and
-                     Pat::Variant{payload: Option<Box<Pat>>} is ONE POSITIONAL sub-pattern.
-                     The fix is the identical position->name move the SURFACE just made, one
-                     layer down — an IR change, not an arm reader fix. AMENDED after I
-                     understated it from the error text.
-wat_scripts loader   NOT OURS. probe-arc278-surface-registers-service-reads.wat was NEVER
-                     rewritten by the sweep (last commits ab52b7188 / 037ef43ef). It regressed
-                     TODAY via something else. STOP-4: BISECT, do not fix blind.
+296 H/J/K/L   the enum wire · 26 enums into wat + a wall · aliases + an ORACLE · type-of    ✅
+109 the arm   108 → 38 → 16 → 7 → 0 across five relands. 1869 files by codemod.            ✅
+251.8b        Identifier STORES (ns, name)                                                  ✅
+251.9         a symbol-headed declaration DECLARES. `head_fqdn` is the one door;             ✅
+              the `_` arm FELL at every converted site (parse.rs 15 → 14)
 ```
 
-## ⚠ RULINGS FROM TODAY — do not re-litigate
+★ 251.9's fixtures are the whole point and are worth re-reading before the migration:
 
-- **The match arm is `[Variant {:k v} body]`, KEY-FIRST.** `{a :x}` is `let`-destructure order;
-  `{:x x}` is PATTERN order (core.match). Different operations. I reached for the `let` relative and
-  was cut. The flat positional clause is RETIRED; its warrant had already failed twice.
-- **`cond` is NOT in scope.** Its NAME is unruled (intueri OWED; the NOTE forbids narrating one).
-- **A type wat uses is DECLARED IN WAT** — categorical, not "if it has bitten". I twice recommended
-  moving zero on defect grounds and was corrected both times.
-- **`TypeInfo` is ONE ROW, not N verbs.** `metadata-of`'s precedent.
-- **Never key tooling on character case.**
+```
+(:wat::core::defenum :probe::Color …)   --check EXIT=0
+(wat.core/defenum    :probe::Color …)   --check EXIT=1  →  now 0
+```
+
+ONE TOKEN apart, and the second is the target spelling. That stone was a scale model of the
+migration it unblocks.
+
+## ⛔ QUEUED — BOTH IN FRONT OF THE HEAD MIGRATION
+
+```
+head_of        src/runtime.rs:12232 — a Keyword-ONLY closure in `eval-with-defs!`:
+  THE RESIDUAL     if head_of(f).map(|h| is_declaration_head(&h)).unwrap_or(false) { continue; }
+                 A symbol head → None → NO continue → the declaration is registered by
+                 `register_runtime_defs` AND THEN EVALUATED AGAIN.
+                 ⚠ Unreachable ONLY because macro templates emit KEYWORD heads
+                 (wat/core.wat:1348/1351/1393; 51 stdlib template sites emit a declaration
+                 head). THE HEAD MIGRATION REWRITES THOSE TEMPLATES. The excuse has an
+                 EXPIRY DATE and it is the very migration this unblocks.
+                 NEEDS A PROBE — the current probe does not reach the eval path.
+
+Option/Result  ⛔ NOT COMPLETED. THREE SPELLINGS ARE LEGAL AT ONCE:
+  COMPLETION       :None  ·  :wat::core::None  ·  :wat::core::Option::None
+                 runtime.rs:1700 / :8661 / match_arm.rs:162 accept them; 62 Rust sites
+                 across 10 files keep the bare one alive.
+                 corpus   bare  None 5816 · Some 625 · Err 560 · Ok 365   = 7366
+                          qual  Option::None 8 · Some 8 · Err 3 · Ok 3    =   22
+                 wat/core.wat:2125 declares them as VARIANTS of Option/Result, so the honest
+                 name is `:wat::core::Option::None` → `#wat.core/Option.None {}`. The bare
+                 name is a variant that SKIPS ITS ENUM.
+                 ⚠ THE BUILDER ALREADY RULED THIS: "i think :wat::core::None is illegal ...
+                 to communicate a none it must be (wat.core/Option.None {})".
+
+assertion-failed! -> kwargs. DRAWN. 2670 calls / 442 files. THE PROBE IS OWED.
+#95            widen infer_list's gate. MEASURED: 10 lines, 0 compiler errors, 0 cascade.
+5 dead-code    Coverage::Wildcard · pattern_coverage · ident_span · try_match_pattern_ast ·
+warnings       substitute_many. NOT clippy (which is 0 and DENIED at the workspace root);
+               these are rustc's. `ident_span` is in src/match_arm.rs, minted 2026-09-07, so
+               "pre-existing" is true of the stone and UNMEASURED of the campaign.
+               Corpse-or-door is a judgement PER SITE, not a reflex deletion.
+```
+
+## ⚠ RULINGS — do not re-litigate
+
+- **The match arm is `[Variant {:k v} body]`, KEY-FIRST.** `{a :x}` is `let` order; `{:x x}` is
+  PATTERN order. The flat positional clause is RETIRED.
+- **A type wat uses is DECLARED IN WAT** — categorical, not "if it has bitten".
+- **`TypeInfo` is ONE ROW, not N verbs.** · **Never key tooling on character case.**
+- **The dot is modelled ONLY for variants**; a dot LEFT of the slash is namespace nesting.
 - **`Type::member` / `Type/member` is a syntax we should never have had.** End state: per-namespace
-  verbs — `(wat.core/length x)` dispatching, `wat.map/length`, `wat.vec/length`. 109's domain.
-- **The dot is modelled ONLY for variants** (`probe/Color.Red`); a dot LEFT of the slash is
-  ordinary namespace nesting.
+  verbs. 109's domain.
+- **A golden pinning a stdlib line: RECAPTURE IT, KEEP PINNING IT.** Do NOT extend
+  `normalize_rust_source_span_lines` to `wat/*.wat` — that is the retracted option in stdlib
+  clothes. (`109/NOTE-a-golden-that-pins-a-stdlib-line.md`)
 - **⛔ SIDE BRANCHES DO NOT SERVE US** — 3 parked branches, 15 days, 0 merged.
 
-## QUEUED, DRAWN, NOT STRUCK
+## ⛔ THE FAILURE PATTERN — NOW NINE, ONE CLASS
+
+**I COUNT SOMETHING CORRECTLY AND SAY THE WRONG THING ABOUT WHAT I COUNTED.** Every one caught by a
+wall, a lint, the floor, the source, or the peer — never by me noticing:
 
 ```
-109 RELAND-5   with grok NOW
-109            assertion-failed! -> kwargs. DRAWN. 2670 calls / 442 files; 2532 of the 5784
-               :wat::core::None sites are its two trailing args, which the kwargs form DELETES.
-               ⚠ THE PROBE IS OWED — the tree could not run one; STOP-1 refuses the migration
-               until it is written and verified red on a GREEN tree.
-Some/None      HELD ON PURPOSE. 5784 sites. The arm codemod CONSUMES None in ARM position, so a
-               census taken mid-strike is wrong. Re-measure on a clean tree first.
-251.9          the catch-all that ate the declaration — DESIGN + BRIEF + EXPECTATIONS + RED probe
-               all on disk since this morning, UNSTRUCK. A symbol-headed declaration EVAPORATES:
-               declare/parse.rs:199 `_ => return false`. THE ONLY LIVE *SILENT* DEFECT.
-#95            widen infer_list's gate. MEASURED: 10 lines, 0 compiler errors, 0 cascade.
+25 enums / 26 · "no live producer" · "17 .wat.bad" (11) · "4 failures" (108) ·
+"the codemod misses nested arms" · "[~@ {" as a population · "teach the arm reader"
+  ⑧ THE BISECT — I read a first-bad commit as WHAT BROKE IT. 480f38d05 changed
+    resolve/walk.rs `skip(4)`→`skip(2)`; the reference had been malformed since arc 278.
+    ★ A BISECT NAMES WHERE A SYMPTOM BECAME VISIBLE. IT CANNOT ALONE NAME A CAUSE.
+  ⑨ THE FRAMING — I reported "5816 :wat::core::None" as a neutral population count. It is
+    the size of the ILLEGAL spelling, under a ruling the builder had already made. The
+    number was right and the sentence was wrong.
 ```
 
-## ⛔ THE FAILURE PATTERN — SEVEN TIMES, ONE CLASS
+★ **THE CURE, PROVEN AGAIN TODAY: GO TO THE SOURCE, NOT THE BRIEF.** I was about to publish
+"251.9 gates 7,816 declaration forms". `parse.rs`'s own doc stopped me: *"must be asked of a
+POST-MACRO-EXPANSION form; `defn` expands to `def`."* Those 7,816 never reach that predicate. The
+number was wrong in the direction that made my point bigger, and only opening the file caught it.
 
-**I COUNTED TEXT AND CALLED IT A CENSUS.** Every one caught by a wall, a lint, the floor, or the
-peer — never by me noticing:
-
-```
-25 enums when there were 26      the pattern could not match :wat::io::IOReader::ReadFrameOutcome
-"no live producer"               a tag built as Tag::ns(ns, name) is invisible to a search for its
-                                 RENDERED form. The peer found it by scanning CONSTRUCTORS.
-"17 .wat.bad"                    11; the rest were cond-only and comment-only files
-"4 failures"                     108. `| tail -4` cut the Summary off — nextest prints it BEFORE
-                                 the FAIL recap
-"the codemod misses nested arms" it did not; that was residue from a PRIOR HAND-EDIT
-"[~@ {" as a population          a guessed signature, published as a count
-"teach the arm reader"           it is an IR change; the error text named the SYMPTOM
-                                 ("malformed match arm") and the code named the CAUSE
-                                 ("not lowered in v1")
-```
-
-★ **THE CURE, PROVEN TWICE TODAY: STOP CITING AND COUNT THE POPULATION.** The casing heuristic died
-on `18 of 177`. The side-branch proposal died on `3 branches, 15 days, 0 merged`. Both took one
-command. And when the instrument reads the FORM TREE rather than characters, it was right every
-time — macroexpand, ast-kind, the codemod, the constructor census.
+★ **AND THE ROOM MAP IS A CLAIM.** My 251.9 AMEND said "the `--check` failure travels the load
+path" — right — then aimed at `preregister.rs`. The site was `src/types.rs classify_type_decl`,
+outside `src/declare/*` entirely. The peer found it. **Naming that a second door EXISTS is worth
+more than guessing where.**
 
 ---
 
@@ -121,7 +129,8 @@ time — macroexpand, ast-kind, the codemod, the constructor census.
 >
 > ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Re-run the commands. Do not read the numbers.
 >
-> ⛔ **A PEER IS MID-STRIKE IN `src/rete/expr_ir.rs` AND THE FLOOR IS RED AT 7.** `git status` before
-> anything else.
+> ⛔ **GREEN AND QUIET IS THE MOST DANGEROUS STATE THIS FILE HAS EVER DESCRIBED** — there is no
+> red to stop you and no peer to wait for, so nothing external will interrupt a wrong move.
+> `git status` before anything else.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.`
