@@ -43,3 +43,38 @@
     (:wat::core::do
       (:wat::io::IOWriter/close w)
       result)))
+
+
+;; Arc 170 stdin-joins-the-lock-step — :wat::io::IOReader::ReadFrameOutcome — what
+;; `:wat::io::IOReader/read-frame` returns.
+;;
+;; The raw-IOReader-level sibling of `:wat::kernel::ReadFrameOutcome` above: this
+;; one is what the verb hands back DIRECTLY (see `eval_ioreader_read_frame`,
+;; `src/io.rs`); `:wat::kernel::ReadFrameOutcome` is the higher, caller-facing
+;; outcome the StdIn *service* (`stdin-svc` in `stdio.wat`) builds from its
+;; own `StdIn::ReadFrameResponse` reply. Two different enums at two different
+;; layers, deliberately — the brief's "rooms 4 and 6" are not the same room.
+;;
+;; Owner-qualified (`IOReader::`), not bare `:wat::io::ReadFrameOutcome`: ruled by
+;; the same arc-170 intueri cast, because that bare name was structurally identical
+;; (same variants, same purity, same field name) to `:wat::kernel::ReadFrameOutcome`
+;; above — the only hand-written duplicate base name in the wat type vocabulary.
+;; `:wat::kernel::ReadFrameOutcome` keeps the short name (its verb is
+;; `:wat::kernel::read-frame`, so verb and outcome agree, and it's the surface wat
+;; programmers meet); this plumbing-layer one is owner-qualified instead, the same
+;; shape as `:wat::kernel::StdIn::ReadFrameResponse`. A throwaway four-segment probe
+;; (register_builtin + construct/match from a `.wat` fixture) proved the mechanism
+;; resolves cleanly before this name shipped.
+;;
+;; Was `(Option :- [String])` before this arc: `Frame(Some(text))` / `Eof(None)`. A
+;; process-wide stop request is neither — `(Option :- [String])` had no third state to
+;; carry it, so this dedicated enum replaces it. See `eval_ioreader_read_frame`'s
+;; doc comment (`src/io.rs`) for the poll that produces `Stopped`.
+;; PURITY Impure: an I/O outcome
+(:wat::core::defenum :wat::io::IOReader::ReadFrameOutcome :wat::enum::Impure
+  :Frame [text <- :wat::core::String]
+  :Eof
+;; "A stop was requested; nothing is wrong with the stream." Named
+;; `Stopped` (not `Shutdown`) by the same arc-170 intueri cast as the
+;; sibling above — see that comment for the full rationale.
+  :Stopped)

@@ -140,3 +140,145 @@
 (:wat::core::defrecord :wat::holon::Match
   [key   <- :wat::holon::HolonAST
    value <- :wat::holon::HolonAST])
+
+
+;; :wat::holon::VectorDecodeOutcome — Arc 278 the dimension-heresy strike
+;; (BRIEF-dimension-heresy-screams.md). `:wat::holon::bytes-vector` used to
+;; return a bare `(:Option :- [wat::holon::Vector])`, collapsing FOUR structurally
+;; distinct wire-decode failures (short header, wrong data length, foreign
+;; encoding dimension, reserved 0b11 cell pattern) into one reason-free
+;; `:None`. Per the builder's ruling on this strike — "the entire check is
+;; 'are these two dims the same vec length?' — that's it. This is trivially
+;; measured and is not deserving of a crash but an expressive enum to be
+;; handled" — each failure becomes its own named variant, not a lumped
+;; `Malformed[reason, at]`: the failure space is a CLOSED set already
+;; explicitly branched in the decoder's own source (unlike
+;; `RequestMalformed`'s open-ended String, which is honest precisely
+;; because ITS space is open-ended). The tell: `at` is meaningful only for
+;; `InvalidCell` — a shared field honest for one member and vacuous for the
+;; rest is the evidence a lumped shape would be wrong here.
+;;   :Decoded           [vector <- Vector]     — the happy path.
+;;   :DimensionMismatch [expected <- i64  got <- i64] — the wire header's
+;;                        dim disagrees with this program's constant
+;;                        `dim-count` (`config::collect_entry_file`).
+;;                        Neither vector is "foreign" in the combine sense
+;;                        below — this one DOES cross a wire, so the
+;;                        disagreement is against the ambient program's d.
+;;   :TruncatedHeader   [got <- i64]            — fewer than 4 header bytes;
+;;                        no `expected` field — the 4-byte minimum is a
+;;                        protocol constant, not a per-call datum, and the
+;;                        actual (short) length is the one thing a log wants.
+;;   :LengthMismatch    [expected <- i64  got <- i64] — header dim parsed
+;;                        fine, but the data bytes don't match `ceil(dim/4)`.
+;;   :InvalidCell       [at <- i64]             — a 2-bit cell decoded to
+;;                        the reserved `0b11` pattern at cell index `at`.
+;; PURE — `:wat::holon::Vector` is fully EDN-reconstructable ternary cell
+;; data (the very reason `vector-bytes`/`bytes-vector` exist to serialize
+;; it), and every other field is a bare `i64`. Registered as a builtin
+;; (peer with the other outcome walls) for load-order robustness, though
+;; `bytes-vector` itself has zero wat-corpus callers today.
+(:wat::core::defenum :wat::holon::VectorDecodeOutcome :wat::enum::Pure
+  :Decoded [vector <- :wat::holon::Vector]
+  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64]
+  :TruncatedHeader [got <- :wat::core::i64]
+  :LengthMismatch [expected <- :wat::core::i64  got <- :wat::core::i64]
+  :InvalidCell [at <- :wat::core::i64])
+
+;; :wat::holon::CombineOutcome — Arc 278 the dimension-heresy strike, part
+;; 2. `vector-bind` / `vector-bundle` / `vector-blend` each RAISED a
+;; `TypeMismatch` on differing Vector dimensions; per the same ruling as
+;; `VectorDecodeOutcome` above, a differing `d` is cheap to detect and
+;; meaningful to recover from, so it becomes a matchable value instead.
+;; ONE shared enum for all three verbs, not three per-verb siblings —
+;; unlike `RecvOutcome`/`SendOutcome`/`TrySendOutcome` (whose split is
+;; earned because their outcome SHAPES genuinely differ), bind/bundle/blend
+;; have an IDENTICAL outcome space: both reduce to `[expected, got]`.
+;;   :Combined          [vector <- Vector]                — the happy path
+;;                        (bind's XOR-compose / bundle's superposition /
+;;                        blend's weighted linear combination — three
+;;                        verbs, one shape of success).
+;;   :DimensionMismatch [expected <- i64  got <- i64]      — the operands
+;;                        disagree. Deliberately the SAME variant name as
+;;                        `VectorDecodeOutcome::DimensionMismatch` — one
+;;                        fact reached by two routes. NOT `ForeignDimension`:
+;;                        here neither vector is foreign (both are ordinary
+;;                        in-program values that simply disagree), unlike
+;;                        the wire-decode case above where one honestly did
+;;                        cross a boundary.
+;; PURE, for the same reason `VectorDecodeOutcome` is: a bare `Vector` +
+;; two `i64`s, all EDN-reconstructable.
+(:wat::core::defenum :wat::holon::CombineOutcome :wat::enum::Pure
+  :Combined [vector <- :wat::holon::Vector]
+  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64])
+
+;; :wat::holon::DegenerateSide — Arc 278 the cosine outcome wall
+;; (BRIEF-cosine-outcome-wall.md, DESIGN-STONE-where-admits-only-rete-ops.md
+;; "THE MEASUREMENT IS FULL; THE PREDICATE IS EXACT" + its AMENDED
+;; 2026-08-03 block). Diagnostic payload for `CosineOutcome::Degenerate`
+;; below — WHICH operand had a zero-magnitude vector (the case cosine
+;; cannot honestly answer, since a direction is undefined for a
+;; zero-magnitude vector). Three-valued rather than two bools deliberately
+;; (orchestrator's amendment to the ward's original cast): a pair of bools
+;; makes `(false, false)` — a `Degenerate` that is not degenerate —
+;; representable, in a substrate whose standing doctrine is the wrong
+;; state has no form. `Target`/`Reference` are the implementation's own
+;; operand names (mirroring `pair_values_to_vectors`'s `target`/`reference`
+;; callers use), not invented ones.
+;; PURE — three nullary variants, no fields at all.
+(:wat::core::defenum :wat::holon::DegenerateSide :wat::enum::Pure
+  :Target
+  :Reference
+  :Both)
+
+;; :wat::holon::CosineOutcome — Arc 278 the cosine outcome wall. `cosine`
+;; had two domain holes, both dishonest: a dimension mismatch raised
+;; `TypeMismatch` (uncatchable, unwinds past the reader), and a
+;; zero-magnitude operand returned a guarded `0.0` — which in cosine's
+;; own codomain MEANS "orthogonal, unrelated", a fabricated answer that
+;; sails through `(f64::> ... 0.9)` as a confident no-match (probe
+;; `wat-scripts/scratch-pad/probe-zero-magnitude-reachable.wat`: genuine
+;; unrelatedness reads `-0.0086`, the sentinel reads exactly `0.0` — the
+;; two are indistinguishable to a caller without this wall). Per the
+;; design stone's ruled law (a MEASUREMENT may not absorb its own
+;; undefined case), both holes become named variants a caller faces:
+;;   :Similarity        [similarity <- f64]        — the happy path, the
+;;                        raw cosine, clamped to [-1, 1].
+;;   :Degenerate        [side <- DegenerateSide]    — one operand (or
+;;                        both) is a zero-magnitude vector, so a
+;;                        direction — and therefore a cosine — is
+;;                        undefined. ONE variant carrying which side,
+;;                        not three variants proliferated: the caller
+;;                        acts identically regardless of which side was
+;;                        degenerate, and the side is a diagnostic, not a
+;;                        behavioral fork — exactly the role
+;;                        `DimensionMismatch`'s fields already play below.
+;;   :DimensionMismatch [expected <- i64  got <- i64] — the two operands
+;;                        disagree in dimension; was the `pair_values_to_vectors`
+;;                        `TypeMismatch` raise, now a domain fact.
+;; PURE — non-parametric, holding only pure data: an f64, a `DegenerateSide`
+;; (itself pure), and two i64s. Fully EDN-reconstructable / wire-crossable;
+;; marking it Impure would lie. Registered as a builtin, peer with the
+;; other outcome walls in this family (`CombineOutcome`, `VectorDecodeOutcome`).
+(:wat::core::defenum :wat::holon::CosineOutcome :wat::enum::Pure
+  :Similarity [similarity <- :wat::core::f64]
+  :Degenerate [side <- :wat::holon::DegenerateSide]
+  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64])
+
+;; :wat::holon::DotOutcome — Arc 278 the cosine outcome wall's sibling for
+;; `dot`. TWO enums, not one shared with `CosineOutcome` — `dot` performs
+;; no division (`Similarity::dot` sums `i8 × i8` products, bounded by
+;; `d × 127²`, so reaching ±Inf needs `d ≈ 10³⁰⁴` — closed, not merely
+;; unlikely), so a zero-magnitude operand yields an HONEST `0.0`: a zero
+;; vector really does dot to zero. A shared enum would hand `dot` a
+;; `Degenerate` arm it can never construct — the `TrySendOutcome`-from-
+;; `SendOutcome` precedent: split earned by a genuine, structural
+;; difference in outcome space, not a naming convenience.
+;;   :Computed          [product <- f64]           — the happy path.
+;;   :DimensionMismatch [expected <- i64  got <- i64] — same fact,
+;;                        same shape as `CosineOutcome::DimensionMismatch`
+;;                        (one fact reached by two routes through the
+;;                        shared `pair_values_to_vectors` guard).
+;; PURE, for the same reason `CosineOutcome` is.
+(:wat::core::defenum :wat::holon::DotOutcome :wat::enum::Pure
+  :Computed [product <- :wat::core::f64]
+  :DimensionMismatch [expected <- :wat::core::i64  got <- :wat::core::i64])

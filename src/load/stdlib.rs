@@ -47,6 +47,21 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/diagnostics.wat",
         source: include_str!("../../wat/kernel/diagnostics.wat"),
     },
+    // Arc 296 J — `:wat::edn::*` read/validate outcomes. After core.wat (`Error`).
+    WatSource {
+        path: "wat/edn.wat",
+        source: include_str!("../../wat/edn.wat"),
+    },
+    // Arc 296 J — `:wat::eval::*` step/walk/form outcomes. After core.wat.
+    WatSource {
+        path: "wat/eval.wat",
+        source: include_str!("../../wat/eval.wat"),
+    },
+    // Arc 296 J — `:wat::stream::NextOutcome`. After core.wat.
+    WatSource {
+        path: "wat/stream.wat",
+        source: include_str!("../../wat/stream.wat"),
+    },
     // Arc 278 stone S1 — :wat::sqlite::* — the RAW sqlite interop surface over the fresh
     // `:rust::sqlite` shim (src/rust_deps/sqlite.rs, core's FIRST default :rust:: shim).
     // Below the backend-agnostic :wat::query::Store contract (wat/query.wat, S2 satisfies it
@@ -168,6 +183,19 @@ const STDLIB_FILES: &[WatSource] = &[
     WatSource {
         path: "wat/spawn.wat",
         source: include_str!("../../wat/spawn.wat"),
+    },
+    // Arc 296 J — kernel outcome enums (Recv/Send/Accept/Connect/…). AFTER spawn.wat,
+    // not after diagnostics.wat as this stone's design table said: `AcceptOutcome` and
+    // `ConnectOutcome` name `(:wat::kernel::Peer :- [R S])`, and although `Peer` is a RUST
+    // builtin (`Nature::Peer`, types.rs:250) rather than a wat declaration, deporder
+    // attributes it to the file that `derive`s onto it — spawn.wat:245-246. The load-set's
+    // own record already said so: bracket.wat is documented "AFTER spawn.wat which provides
+    // :wat::kernel::Peer". Registration is COMPILE-time (`wat_enum_register_from!`), so no
+    // earlier file loses access to these types by the move; only this file's own forward
+    // reference had to be resolved. Measured: `verify-stdlib` violations 2 -> 0.
+    WatSource {
+        path: "wat/kernel/outcomes.wat",
+        source: include_str!("../../wat/kernel/outcomes.wat"),
     },
     // Arc 259 S3.2a — the brackets layer runner server-loop.  Loaded AFTER
     // spawn.wat which provides :wat::kernel::Peer, recv', send'.

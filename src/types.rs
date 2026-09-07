@@ -1108,37 +1108,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // wat::WatAST, the terminal value as wat::holon::HolonAST. The
     // consumer drives the loop, feeding StepNext.form back in until
     // StepTerminal arrives.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::eval::StepResult".into(),
-        type_params: vec![],
-        purity: Purity::Impure, // in-locus eval-step control; carries WatAST forms — Impure (never crosses)
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "StepNext".into(),
-                fields: vec![("form".into(), TypeExpr::Path(":wat::WatAST".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "StepTerminal".into(),
-                fields: vec![(
-                    "value".into(),
-                    TypeExpr::Path(":wat::WatAST".into()),
-                )],
-            },
-            // Arc 070 — distinguishes "input was already a value; no
-            // work happened" from "this step reduced a redex." Fires
-            // on holon-value-shape WatASTs (`to-watast(holon)` round-
-            // trips like Bundle's bare-list lift, holon-constructor
-            // forms with all-canonical args, primitive literals).
-            // Walkers and tracers care about chain-length 0 vs ≥ 1.
-            EnumVariant::Tagged {
-                name: "AlreadyTerminal".into(),
-                fields: vec![(
-                    "value".into(),
-                    TypeExpr::Path(":wat::WatAST".into()),
-                )],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/eval.wat", ":wat::eval::StepResult");
 
     // Arc 070 — (:wat::eval::WalkStep :- [A]) — what the visitor passed to
     // :wat::eval::walk returns. Two variants:
@@ -1156,27 +1127,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Generic over A so the consumer's accumulator can be any
     // type — cache, trace, counter, tier, etc.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::eval::WalkStep".into(),
-        type_params: vec!["A".into()],
-        purity: Purity::Impure, // in-locus walk control — Impure (never crosses)
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Continue".into(),
-                fields: vec![("acc".into(), TypeExpr::Path("A".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Skip".into(),
-                fields: vec![
-                    (
-                        "terminal".into(),
-                        TypeExpr::Path(":wat::WatAST".into()),
-                    ),
-                    ("acc".into(), TypeExpr::Path("A".into())),
-                ],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/eval.wat", ":wat::eval::WalkStep");
 
     // Arc 170 — :wat::core::ReadOutcome — what `:wat::core::read-string` returns.
     //
@@ -1250,21 +1202,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::Option");
     ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::Result");
 
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::core::ReadOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Forms".into(),
-                fields: vec![("forms".into(), TypeExpr::Path(":wat::WatAST".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Malformed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/core.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::ReadOutcome");
 
     // Arc 277 — `:wat::core::ReadWithCommentsOutcome` — what
     // `:wat::core::read-string-with-comments` returns. Mirror of `ReadOutcome`
@@ -1272,30 +1211,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // core (registered here, in a fresh TypeEnv), not to a late-loading
     // stdlib defrecord. Comment *elements* stay `:wat::fmt::Comment` (wat-side);
     // only the outcome type the verb hands back is core.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::core::ReadWithCommentsOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Forms".into(),
-                fields: vec![
-                    ("forms".into(), TypeExpr::Path(":wat::WatAST".into())),
-                    (
-                        "comments".into(),
-                        TypeExpr::Parametric {
-                            head: "wat::core::PersistentVector".into(),
-                            args: vec![TypeExpr::Path(":wat::fmt::Comment".into())],
-                        },
-                    ),
-                ],
-            },
-            EnumVariant::Tagged {
-                name: "Malformed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/core.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::ReadWithCommentsOutcome");
 
     // Arc 278 Stone 1 (`wat --mcp`) — (:wat::edn::ReadJsonOutcome :- [T]) — what
     // `:wat::edn::read-json` returns.
@@ -1324,21 +1241,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // ordinary decoded data — a String/HashMap/record — never a live resource, unlike
     // `(ReadlnOutcome :- [T])`'s T which can be), and `:wat::core::Error` is Record-natured. Marking it
     // Impure would bar it from pure aggregates and the wire for nothing.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::edn::ReadJsonOutcome".into(),
-        type_params: vec!["T".into()],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Value".into(),
-                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Malformed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/edn.wat", ":wat::edn::ReadJsonOutcome");
 
     // `:wat::edn::ReadForeignOutcome<T>` — what `:wat::edn::read-foreign` returns.
     // Twin of `ReadJsonOutcome<T>`: the verb's input is an untrusted String (a journal
@@ -1348,21 +1252,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     //   :Value     [value <- T] — the decoded value (ForeignRecord / ForeignVariant / typed)
     //   :Malformed [cause]      — the EDN text did not parse, or did not decode
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::edn::ReadForeignOutcome".into(),
-        type_params: vec!["T".into()],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Value".into(),
-                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Malformed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/edn.wat", ":wat::edn::ReadForeignOutcome");
 
     // Arc 170 — :wat::kernel::ReadFrameOutcome — what `:wat::kernel::read-frame` returns.
     //
@@ -1413,27 +1304,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Impure — it is I/O — and a sibling of the caller-facing `*Outcome` family
     // (RecvOutcome / SendOutcome / ConnectOutcome), so a reader already knows the shape.
     // Named by an intueri cast (2026-07-28), which also caught the frame-vs-line lie.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::ReadFrameOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Impure, // an I/O outcome
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Frame".into(),
-                // `text`, not `line` — it may span several physical lines.
-                fields: vec![("text".into(), TypeExpr::Path(":wat::core::String".into()))],
-            },
-            EnumVariant::Unit("Eof".into()),
-            // Arc 170 stdin-joins-the-lock-step — a process-wide stop was requested
-            // while `stdio-read-frame` (`stdio.wat`) was blocked waiting on
-            // the StdIn service. NOT an `Eof` (the peer didn't close) and NOT an
-            // error — its own outcome, matching `StdIn::ReadFrameResponse::Stopped`
-            // one layer below. Named by the arc-170 intueri cast, 2026-07-28: wat
-            // already has `(:wat::kernel::stopped?)` for this fact, so `Shutdown`
-            // (a second word for the same thing) was the synonym anti-pattern.
-            EnumVariant::Unit("Stopped".into()),
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::ReadFrameOutcome");
 
     // Arc 170 closure #24 — (:wat::kernel::ReadlnOutcome :- [T]) — what `readln` returns.
     //
@@ -1463,19 +1335,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // rides with it. Named `Datum` and not `Value` to avoid colliding with
     // `:wat::core::Value`, the universal top; not `Line`, which is taken one layer down
     // for the raw text and would re-tell the frame-vs-line lie the 2026-07-28 cast caught.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::ReadlnOutcome".into(),
-        type_params: vec!["T".into()],
-        purity: Purity::Impure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Datum".into(),
-                fields: vec![("v".into(), TypeExpr::Path("T".into()))],
-            },
-            EnumVariant::Unit("Eof".into()),
-            EnumVariant::Unit("Stopped".into()),
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::ReadlnOutcome");
 
     // Arc 170 stdin-joins-the-lock-step — :wat::io::IOReader::ReadFrameOutcome — what
     // `:wat::io::IOReader/read-frame` returns.
@@ -1502,22 +1363,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // process-wide stop request is neither — `(Option :- [String])` had no third state to
     // carry it, so this dedicated enum replaces it. See `eval_ioreader_read_frame`'s
     // doc comment (`src/io.rs`) for the poll that produces `Stopped`.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::io::IOReader::ReadFrameOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Impure, // an I/O outcome
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Frame".into(),
-                fields: vec![("text".into(), TypeExpr::Path(":wat::core::String".into()))],
-            },
-            EnumVariant::Unit("Eof".into()),
-            // "A stop was requested; nothing is wrong with the stream." Named
-            // `Stopped` (not `Shutdown`) by the same arc-170 intueri cast as the
-            // sibling above — see that comment for the full rationale.
-            EnumVariant::Unit("Stopped".into()),
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/io.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/io.wat", ":wat::io::IOReader::ReadFrameOutcome");
 
     // Arc 170 — (:wat::eval::FormOutcome :- [T]) — what `:wat::eval-with-defs!` returns:
     // the outcome of handing ONE form to a world built from a definition set.
@@ -1570,32 +1417,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // TYPES already use (StepResult, WalkStep above); `:wat::core::` would have been
     // drift, and a bare `Outcome` would read ambiguously beside
     // `:wat::service::Outcome` in the defservice handler that is its first consumer.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::eval::FormOutcome".into(),
-        type_params: vec!["T".into()],
-        purity: Purity::Impure, // T may be a live resource — see above
-        variants: vec![
-            EnumVariant::Unit("Declared".into()),
-            EnumVariant::Tagged {
-                name: "Evaluated".into(),
-                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "CheckFailed".into(),
-                fields: vec![(
-                    "cause".into(),
-                    TypeExpr::Path(":wat::core::Error".into()),
-                )],
-            },
-            EnumVariant::Tagged {
-                name: "Raised".into(),
-                fields: vec![(
-                    "cause".into(),
-                    TypeExpr::Path(":wat::core::EvalError".into()),
-                )],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/eval.wat", ":wat::eval::FormOutcome");
 
     // :wat::kernel::LociDiedError — the ONE loci-agnostic death report
     // (arc 278 the IPC de-prime, DESIGN-loci-died-error.md). Annihilates the
@@ -1778,44 +1601,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // design's own note, Impure is the honest fixed purity (a Pure marking would lie the moment O
     // is a live resource). O carries the peer's output element type ((WalkStep :- [A]) is the parametric
     // precedent).
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::RecvOutcome".into(),
-        type_params: vec!["O".into()],
-        purity: Purity::Impure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Message".into(),
-                fields: vec![("msg".into(), TypeExpr::Path("O".into()))],
-            },
-            EnumVariant::Unit("Closed".into()),
-            // Arc 278 #73 — a stop was requested while this read was parked. NOTHING
-            // DIED and NOTHING CLOSED: the peer is ALIVE and the channel is OPEN.
-            //
-            // Before this variant the fact had no honest home. It was produced (the
-            // substrate has always known), then reported as `Lost[LociDiedError::Stopped]`
-            // — a carrier whose very type name says "died" — so a caller matched a death
-            // and had to open the death report to learn nothing had died. `Closed` was
-            // the other candidate and is worse: it asserts a clean EOF that did not
-            // happen (the false "peer closed" a months-long sigterm flake was made of).
-            //
-            // UNIT, carrying no cause: four precedents (`types.rs` Stopped variants) and
-            // there is nothing to report. The substrate was asked to stop. That is the
-            // whole fact — a cause here would be inventing a reason for "you asked me to".
-            EnumVariant::Unit("Stopped".into()),
-            EnumVariant::Tagged {
-                name: "Lost".into(),
-                // Arc 278 the LociDiedError stone — the Lost cause is now the
-                // loci-agnostic `:wat::kernel::LociDiedError` (was the flat
-                // `Failure`). Every peer exhaustively handles every death
-                // regardless of its locus. The death CHAIN is a container-level
-                // Vector; Lost holds the single head (the immediate peer death).
-                fields: vec![(
-                    "cause".into(),
-                    TypeExpr::Path(":wat::kernel::LociDiedError".into()),
-                )],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::RecvOutcome");
 
     // (:wat::stream::NextOutcome :- [T]) — Arc 118.11a (stone A of two, "mint next +
     // NextOutcome", DESIGN-STONE-118.11a). The matchable outcome of
@@ -1838,27 +1625,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // purely additive — no existing verb moves, no call site migrates onto `next` yet.
     // (Stone 118.B3 has since DELETED the `forced: OnceLock` memo this comment used to say was
     // untouched; the migration it anticipated happened in 118.B2/B2b. Both are done.)
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::stream::NextOutcome".into(),
-        type_params: vec!["T".into()],
-        purity: Purity::Impure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Item".into(),
-                fields: vec![
-                    ("value".into(), TypeExpr::Path("T".into())),
-                    (
-                        "rest".into(),
-                        TypeExpr::Parametric {
-                            head: "wat::stream::Stream".into(),
-                            args: vec![TypeExpr::Path("T".into())],
-                        },
-                    ),
-                ],
-            },
-            EnumVariant::Unit("Exhausted".into()),
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/stream.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/stream.wat", ":wat::stream::NextOutcome");
 
     // :wat::kernel::SendOutcome — Arc 278 the send'-outcome wall (Phase 1,
     // DESIGN-send-outcome-wall.md): the send-side twin of (RecvOutcome :- [O]) above.
@@ -1885,31 +1653,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // marking it Impure would LIE (claim its values are locus-bound when they are not).
     // Registered as a builtin for the same load-order reason as RecvOutcome — send' is used
     // inside the stdlib before any wat defenum would load.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::SendOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Unit("Sent".into()),
-            EnumVariant::Unit("Closed".into()),
-            // Arc 278 #73 — the send-side twin of `RecvOutcome::Stopped` (see above for
-            // the full argument). Landed in the SAME pass, deliberately: a half-fixed
-            // pair is precisely how this arc got here — recv' was walled at R53 and the
-            // send side went unwalled for months (R57 `IGNORANTIAM DELEMVS`).
-            //
-            // `send'` has always been able to tell a stop from a peer loss —
-            // `SendError::Shutdown` is a distinct variant (`comms/mod.rs:919`, built to
-            // mirror `RecvError::Shutdown`) — and folded it into `Lost` anyway.
-            EnumVariant::Unit("Stopped".into()),
-            EnumVariant::Tagged {
-                name: "Lost".into(),
-                fields: vec![(
-                    "cause".into(),
-                    TypeExpr::Path(":wat::kernel::LociDiedError".into()),
-                )],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::SendOutcome");
 
     // :wat::kernel::TrySendOutcome — Arc 278 the send'-outcome wall Phase 3a
     // (BRIEF-send-wall-3a-try-send-outcome.md): `try-send'`'s OWN outcome type,
@@ -1932,23 +1677,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                    symmetric with SendOutcome::Lost above.
     // PURE for the same reason SendOutcome is (see above) — non-parametric, only
     // pure data (three nullary variants + a pure `LociDiedError` record).
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::TrySendOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Unit("Sent".into()),
-            EnumVariant::Unit("WouldBlock".into()),
-            EnumVariant::Unit("Closed".into()),
-            EnumVariant::Tagged {
-                name: "Lost".into(),
-                fields: vec![(
-                    "cause".into(),
-                    TypeExpr::Path(":wat::kernel::LociDiedError".into()),
-                )],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::TrySendOutcome");
 
     // :wat::kernel::CloseOutcome — Arc 278 peer-lifecycle Strike 2 (the close'
     // OUTCOME WALL, BRIEF-close-outcome-wall.md). `close'` (:wat::kernel::-restricted
@@ -1970,31 +1700,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Failure — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
     // Registered as a builtin for the same load-order reason as SendOutcome — close' is a
     // kernel intrinsic used before any wat defenum would load.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::CloseOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Closed".into(),
-                fields: vec![(
-                    "exit".into(),
-                    TypeExpr::Parametric {
-                        head: "wat::core::Option".into(),
-                        args: vec![TypeExpr::Path(":wat::core::i64".into())],
-                    },
-                )],
-            },
-            EnumVariant::Tagged {
-                name: "Signaled".into(),
-                fields: vec![("signal".into(), TypeExpr::Path(":wat::core::i64".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Failed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::CloseOutcome");
 
     // :wat::kernel::Signal — Arc 278 process-signal-owner-to-child stone
     // (DESIGN-STONE-process-signal-owner-to-child.md § "The shape";
@@ -2032,19 +1739,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // KILLS you — any process on the box can send any signal. One concept,
     // two honest shapes for two different directions of control, not an
     // inconsistency to unify.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::Signal".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Unit("User1".into()),
-            EnumVariant::Unit("User2".into()),
-            EnumVariant::Unit("Hangup".into()),
-            EnumVariant::Unit("Interrupt".into()),
-            EnumVariant::Unit("Terminate".into()),
-            EnumVariant::Unit("Kill".into()),
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::Signal");
 
     // :wat::kernel::SignalOutcome — the matchable outcome of
     // `(:wat::kernel::signal proc sig)` (BRIEF-process-signal-p2-mint.md).
@@ -2069,18 +1765,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is intercepted before the syscall (the same "peer already closed" guard
     // close' itself uses) — a live `signal` call can never observe ESRCH. Two
     // arms and a raise, per the stone's own named fallback for this outcome.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::SignalOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Unit("Delivered".into()),
-            EnumVariant::Tagged {
-                name: "Failed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::SignalOutcome");
 
     // :wat::edn::Validation — Arc 278 the REQUEST-MALFORMED wall (Stone 1,
     // DESIGN-request-malformed-input-sanitization.md). The outcome of
@@ -2108,28 +1794,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // PURE — three Strings/String-vectors and a nullary variant; fully
     // EDN-reconstructable. Registered as a builtin because the defservice-generated
     // serve loop matches on it, before any wat defenum would load.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::edn::Validation".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Unit("Valid".into()),
-            EnumVariant::Tagged {
-                name: "Invalid".into(),
-                fields: vec![
-                    (
-                        "path".into(),
-                        TypeExpr::Parametric {
-                            head: "wat::core::Vector".into(),
-                            args: vec![TypeExpr::Path(":wat::core::String".into())],
-                        },
-                    ),
-                    ("expected".into(), TypeExpr::Path(":wat::core::String".into())),
-                    ("got".into(), TypeExpr::Path(":wat::core::String".into())),
-                ],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/edn.wat", ":wat::edn::Validation");
 
     // (:wat::kernel::AcceptOutcome :- [R S]) — Arc 278 peer-lifecycle Strike 3 (the accept'
     // OUTCOME WALL, BRIEF-accept-outcome-wall.md). `accept'` used to RETURN a bare
@@ -2154,31 +1820,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // resource. R,S carry the peer's wire element types (the parametric precedent).
     // Registered as a builtin for the same load-order reason as RecvOutcome — accept' is a
     // kernel verb usable inside the stdlib before any wat defenum would load.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::AcceptOutcome".into(),
-        type_params: vec!["R".into(), "S".into()],
-        purity: Purity::Impure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Accepted".into(),
-                fields: vec![(
-                    "peer".into(),
-                    TypeExpr::Parametric {
-                        head: "wat::kernel::Peer".into(),
-                        args: vec![
-                            TypeExpr::Path("R".into()),
-                            TypeExpr::Path("S".into()),
-                        ],
-                    },
-                )],
-            },
-            EnumVariant::Unit("Closed".into()),
-            EnumVariant::Tagged {
-                name: "Failed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::AcceptOutcome");
 
     // (:wat::kernel::ConnectOutcome :- [S R]) — Arc 278 peer-lifecycle Strike 4 (the connect'
     // OUTCOME WALL, BRIEF-connect-outcome-wall.md — the LAST peer-lifecycle wall). The
@@ -2215,38 +1858,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // peer is a live resource. S,R carry the peer's wire element types. Registered as a
     // builtin for the same load-order reason as AcceptOutcome — connect' is a kernel verb
     // usable inside the stdlib before any wat defenum would load.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::ConnectOutcome".into(),
-        type_params: vec!["S".into(), "R".into()],
-        purity: Purity::Impure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Connected".into(),
-                fields: vec![(
-                    "peer".into(),
-                    TypeExpr::Parametric {
-                        head: "wat::kernel::Peer".into(),
-                        args: vec![
-                            TypeExpr::Path("S".into()),
-                            TypeExpr::Path("R".into()),
-                        ],
-                    },
-                )],
-            },
-            EnumVariant::Tagged {
-                name: "Refused".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Rejected".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Failed".into(),
-                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::ConnectOutcome");
 
     // :wat::holon::VectorDecodeOutcome — Arc 278 the dimension-heresy strike
     // (BRIEF-dimension-heresy-screams.md). `:wat::holon::bytes-vector` used to
@@ -2283,39 +1896,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // it), and every other field is a bare `i64`. Registered as a builtin
     // (peer with the other outcome walls) for load-order robustness, though
     // `bytes-vector` itself has zero wat-corpus callers today.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::holon::VectorDecodeOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Decoded".into(),
-                fields: vec![("vector".into(), TypeExpr::Path(":wat::holon::Vector".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "DimensionMismatch".into(),
-                fields: vec![
-                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
-                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
-                ],
-            },
-            EnumVariant::Tagged {
-                name: "TruncatedHeader".into(),
-                fields: vec![("got".into(), TypeExpr::Path(":wat::core::i64".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "LengthMismatch".into(),
-                fields: vec![
-                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
-                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
-                ],
-            },
-            EnumVariant::Tagged {
-                name: "InvalidCell".into(),
-                fields: vec![("at".into(), TypeExpr::Path(":wat::core::i64".into()))],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::VectorDecodeOutcome");
 
     // :wat::holon::CombineOutcome — Arc 278 the dimension-heresy strike, part
     // 2. `vector-bind` / `vector-bundle` / `vector-blend` each RAISED a
@@ -2340,24 +1922,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                        cross a boundary.
     // PURE, for the same reason `VectorDecodeOutcome` is: a bare `Vector` +
     // two `i64`s, all EDN-reconstructable.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::holon::CombineOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Combined".into(),
-                fields: vec![("vector".into(), TypeExpr::Path(":wat::holon::Vector".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "DimensionMismatch".into(),
-                fields: vec![
-                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
-                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
-                ],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::CombineOutcome");
 
     // :wat::holon::DegenerateSide — Arc 278 the cosine outcome wall
     // (BRIEF-cosine-outcome-wall.md, DESIGN-STONE-where-admits-only-rete-ops.md
@@ -2373,16 +1939,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // operand names (mirroring `pair_values_to_vectors`'s `target`/`reference`
     // callers use), not invented ones.
     // PURE — three nullary variants, no fields at all.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::holon::DegenerateSide".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Unit("Target".into()),
-            EnumVariant::Unit("Reference".into()),
-            EnumVariant::Unit("Both".into()),
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::DegenerateSide");
 
     // :wat::holon::CosineOutcome — Arc 278 the cosine outcome wall. `cosine`
     // had two domain holes, both dishonest: a dimension mismatch raised
@@ -2413,31 +1971,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // (itself pure), and two i64s. Fully EDN-reconstructable / wire-crossable;
     // marking it Impure would lie. Registered as a builtin, peer with the
     // other outcome walls in this family (`CombineOutcome`, `VectorDecodeOutcome`).
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::holon::CosineOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Similarity".into(),
-                fields: vec![("similarity".into(), TypeExpr::Path(":wat::core::f64".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "Degenerate".into(),
-                fields: vec![(
-                    "side".into(),
-                    TypeExpr::Path(":wat::holon::DegenerateSide".into()),
-                )],
-            },
-            EnumVariant::Tagged {
-                name: "DimensionMismatch".into(),
-                fields: vec![
-                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
-                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
-                ],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::CosineOutcome");
 
     // :wat::holon::DotOutcome — Arc 278 the cosine outcome wall's sibling for
     // `dot`. TWO enums, not one shared with `CosineOutcome` — `dot` performs
@@ -2454,24 +1989,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                        (one fact reached by two routes through the
     //                        shared `pair_values_to_vectors` guard).
     // PURE, for the same reason `CosineOutcome` is.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::holon::DotOutcome".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Computed".into(),
-                fields: vec![("product".into(), TypeExpr::Path(":wat::core::f64".into()))],
-            },
-            EnumVariant::Tagged {
-                name: "DimensionMismatch".into(),
-                fields: vec![
-                    ("expected".into(), TypeExpr::Path(":wat::core::i64".into())),
-                    ("got".into(), TypeExpr::Path(":wat::core::i64".into())),
-                ],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::DotOutcome");
 
     // :wat::kernel::RunResult — the matchable outcome of running a program:
     // `:wat::kernel::run-sandboxed`, `:wat::test::run-thread` /
@@ -2502,21 +2021,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // marking it Impure would lie. Registered as a builtin (like its two sibling
     // outcome walls) because `run-thread'` constructs it inside the stdlib, before
     // any wat `defenum` would load.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::RunResult".into(),
-        type_params: vec![],
-        purity: Purity::Pure,
-        variants: vec![
-            EnumVariant::Unit("Passed".into()),
-            EnumVariant::Tagged {
-                name: "Failed".into(),
-                fields: vec![(
-                    "failure".into(),
-                    TypeExpr::Path(":wat::kernel::Failure".into()),
-                )],
-            },
-        ],
-    }));
+        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::RunResult");
 
     // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).
     // The struct collapsed into (:wat::kernel::Process :- [I O]) — both
