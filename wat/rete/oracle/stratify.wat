@@ -48,6 +48,16 @@
 ;; Arc 278 Stone A: each RHS entry IS the fact-form directly (:ProducedType …) — the
 ;; `:wat::rete::insert` wrapper is gone, so the type head is the first child of `form`
 ;; itself (no more unwrapping a second child).
+;;
+;; ⛔ RESOLVE THE HEAD, DO NOT STRIP A COLON. A user-fn `:then` head must yield the
+;; fn's return type, not the fn's name — otherwise the sweep raises the wrong key
+;; and a consumer of the fact type sits below its producer (`34ee46ce9`). The recipe
+;; is `compile.wat`'s `:then` constructor door: eval the head, if it is not already
+;; a fn re-resolve through the PRIME `:T'` keyword, then `return-type-of`. That path
+;; is also correct for a bare record head (keyword → PRIME → constructor → type).
+;; `return-type-of` already returns a colon-free FQDN — do not re-prepend or strip.
+;; There is no colon-strip fallback: a fallback restores the defect when resolution
+;; fails, which is the shape this cure exists to remove.
 (:wat::core::defn :wat::rete::rule-produces
   [rule <- :wat::rete::Rule]
   -> (:wat::core::PersistentVector :- [:wat::core::String])
@@ -56,13 +66,20 @@
       (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
                        form <- :wat::WatAST]
         -> (:wat::core::PersistentVector :- [:wat::core::String])
-        (:wat::core::let [fact-ch   (:wat::core::ast->children form)
-                          type-hd   (:wat::core::first fact-ch)
-                          raw-nm    (:wat::core::ast-name type-hd)
-                          ;; strip leading colon → bare FQDN matching (:wat::core::type fact)
-                          type-nm   (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-nm 0 1) ":")
-                                      (:wat::core::string::subs raw-nm 1 (:wat::core::string::length raw-nm))
-                                      raw-nm)]
+        (:wat::core::let [head      (:wat::core::first (:wat::core::ast->children form))
+                          head-val0 (:wat::core::Result/expect (:wat::eval-ast! head)
+                                      "rule-produces: :then item head failed to evaluate")
+                          ;; `:wat::core::type` returns the COLON-FREE FQDN — compare
+                          ;; against "wat::core::fn", not ":wat::core::fn".
+                          is-fn-val (:wat::core::= (:wat::core::type head-val0) "wat::core::fn")
+                          prime-kw  (:wat::core::keyword-node
+                                      (:wat::core::string::concat (:wat::core::ast-name head) "'"))
+                          head-fn   (:wat::core::if is-fn-val head-val0
+                                      (:wat::core::Result/expect (:wat::eval-ast! prime-kw)
+                                        "rule-produces: :then item head failed to resolve to a fn"))
+                          ;; return-type-of raises "unknown type" itself for an unrecognised
+                          ;; head — no separate check, and no colon-strip fallback.
+                          type-nm   (:wat::runtime::return-type-of head-fn)]
           (:wat::core::PersistentVector/conj acc type-nm)))
       (:wat::core::PersistentVector)
       rhs)))
