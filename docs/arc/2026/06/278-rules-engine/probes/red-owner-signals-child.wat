@@ -10,7 +10,7 @@
 ;;
 ;; MEASURED 2026-08-03 (own run, `./target/release/wat <this file>`):
 ;;
-;;   [#wat.kernel.LociDiedError/RuntimeError
+;;   [#wat.kernel/LociDiedError.RuntimeError
 ;;     ["#wat.runtime/UnknownFunction {:message \"unknown function: :wat::kernel::signal\"
 ;;       :location #wat.core/Span {:file \"…/red-signal.wat\" :line 11 :col 11 …}
 ;;       :causes [] :path \":wat::kernel::signal\"}"]]
