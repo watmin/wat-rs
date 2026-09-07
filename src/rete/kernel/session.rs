@@ -256,7 +256,8 @@ impl JoinLeftIndex {
     }
 
     /// The ONE first-keying door. Sets the key list and indexes `toks` in a
-    /// single act. A later call does not replace keys; it still indexes `toks`.
+    /// single act. Both callers gate on [`is_keyed`], so a second call is a
+    /// caller bug — add tokens after keying through [`writer()`].
     pub(crate) fn key_and_index(
         &mut self,
         join_id: i64,
@@ -264,6 +265,11 @@ impl JoinLeftIndex {
         toks: &[Token],
         mut key_of_tok: impl FnMut(&Token) -> JoinKey,
     ) {
+        debug_assert!(
+            !self.keys.contains_key(&join_id),
+            "key_and_index is the FIRST-keying door and join {join_id} is already keyed — \
+             add tokens through `writer()`"
+        );
         self.keys.entry(join_id).or_insert(keys);
         let buckets = self.buckets.entry(join_id).or_default();
         for tok in toks {
@@ -1818,5 +1824,25 @@ pub(crate) fn check_insert_ceiling(
             ),
         )
         .into()),
+    }
+}
+
+#[cfg(all(test, debug_assertions))]
+mod join_left_index_tests {
+    use super::*;
+
+    // rune:excusare(no-falsifier) — a #[should_panic] on the release floor cannot fail
+    // this guard: debug_assert compiles out under --release, and this test is
+    // cfg(debug_assertions) so it does not exist in the floor binary. Nothing
+    // achievable on cargo nextest run --release makes the check fail. An assert!
+    // to buy a floor-provable mutation was rejected: that is release cost for an
+    // unreachable branch.
+    #[test]
+    #[should_panic(expected = "key_and_index is the FIRST-keying door")]
+    fn second_key_and_index_on_one_join_panics() {
+        let mut idx = JoinLeftIndex::default();
+        let empty: &[Token] = &[];
+        idx.key_and_index(1, Vec::new(), empty, |_| JoinKey::Empty);
+        idx.key_and_index(1, Vec::new(), empty, |_| JoinKey::Empty);
     }
 }
