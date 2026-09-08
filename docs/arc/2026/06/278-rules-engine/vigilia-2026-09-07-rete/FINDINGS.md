@@ -1085,6 +1085,12 @@ Muster derived in `README.md` with measured triggers. Returns land verbatim in `
 | id | ward | site | finding | sev | status | re-derivation |
 |---|---|---|---|---|---|---|
 | **3P1 ★★★** | peragrare | the grid's 5-axis grid; census at `wat-scripts/perf/grid/peragrare-census.sh` | ⭐⭐⭐ **THE CORPUS PROVES EVERY MECHANISM ALONE AND NO TWO TOGETHER.** All three founding defects that birthed this ward are now closed **as isolated axes** — `userfn-head`, `retract-multiplicity`, `accum-over-derived` each have a fixture and a mutation proof. But **no fixture combines any two of them.** 5 of 108 cells are empty *and* carry a live compound hypothesis: a user-fn head whose LHS accumulates over a type the same ruleset derives; a duplicate-retract feeding a **leading** accumulate; a leading accumulate whose `:from` is itself derived; a positive consumer downstream of a **leading** gate; a duplicate-retract of the accumulate's own source. **Each cure was proven only where the other pressure is absent.** | **L1** ×5 | **OPEN** · ✅ I VERIFIED the census, its anchor and its arithmetic | `bash peragrare-census.sh` → 108 cells, 9 visited, 99 empty, 16 members; `--pins` → all three PASS, moving pin **8 of 8** with the spell's own denominator `(2-1)+(2-1)+(3-1)+(3-1)+(3-1)`; `--verify` → *"all 16 fixtures' mechanical facts agree with the table"*. Closed cell by cell, each with a fixture |
+| **3S1 ★★** | solvere | `run-axis.sh:277-280` vs `check-grid-three-way.sh:233-241` | ⭐⭐ **ONE DECODE, TWO COPIES, AND THEY HAVE ALREADY DIVERGED.** Both extract fields from the `#grid/Result` wire line. `check-grid-three-way.sh` uses a parameterised `extract()` carrying a **`(?<=[ {])` lookbehind**; `run-axis.sh` hand-writes four inline `grep -oP` calls **without it**. The guarded copy's own comment names the hazard it defends: *"`:oracle-derived` does NOT contain `:derived` … but a future `:spec-derived` would, and the match count below is what refuses an ambiguous line."* **The drift is not hypothetical — it is present.** | L2 · incidental but live | **OPEN** · ✅ I VERIFIED | `sed -n '277,280p' run-axis.sh` → no lookbehind; `:235` of the sibling → `(?<=[ {])`. Closed by one shared extractor carrying the guard |
+| **3S2 ★** | solvere | `check-spec-native.sh:28-35` + `check-query-compat.sh:50-55` | ⭐ **`rewrite_to_spec()` DUPLICATED VERBATIM — INCLUDING ITS COMMENT, WORD FOR WORD.** Both run the identical `perl -pe 's/:wat::rete::fire-rules(?!\$oracle)(?!-)/…/g'` and carry the same two-line justification; only local-var naming differs. ⛔ **This encodes domain logic, and the class has already bitten**: `run-axis.sh:179-180` records *"The 2026-08-20 skip was a no-op because it still matched `fire-rules-spec` after the `$oracle` rename."* A verb-naming convention encoded in two places, after it silently broke once when encoded in one. | L2 · incidental, higher-risk | **OPEN** · ✅ I VERIFIED | both bodies read; comments byte-identical; `sed -n '179,180p' run-axis.sh` → the prior incident |
+| **3S3** | solvere | 11 `gen-*.sh`, two variants | The Clara **harness** — session build, JIT warmup, timing block, `#grid/Result` print — is byte-identical across 8 generators (simple timing) and again across 3 (extended, adding `:insert-ns`/`:fire-ns`/`:query-ns`/`:protocol-ns`), with **no shared source**: `grep -ho 'source …' gen-*.sh` → empty. ⚠ The per-axis *workload* is genuinely eleven different programs and is **not** the finding; the harness around it is. | L2 · incidental | **OPEN** · ⚠ ward-reported | closed by one sourced `gen-lib.sh` carrying the harness |
+| **3S4** | solvere | `compare-grids.sh:39-60`; `check-grid-speed.sh:57-60` | `#grid/Verdict` field extraction done twice in **two different techniques** — awk `match`/`substr` in one, four `sed -E` one-liners in the other — over the same line shape, with no field unique to either consumer. | L2 · incidental | **OPEN** · ⚠ ward-reported | one shared verdict-reader |
+| **3S5** | solvere | `check-where-shapes.sh:68-84`; `check-query-compat.sh:25-44`; `check-grid-three-way.sh:98-112` | JDK discovery (`PATH → JAVA_HOME → $HOME/opt/jdk-*`) triplicated; the two function forms differ only in whitespace and statement splitting — **the signature of independent retyping** — and the convention is documented twice in near-identical header lines. | L2 · incidental | **OPEN** · ⚠ ward-reported | one sourced `find_java` |
+| **3S6** | solvere | `check-spec-native.sh:15-23`; `check-query-compat.sh:15-23`; `check-grid-three-way.sh:60-68`; `check-where-shapes.sh:55-66`; `run-axis.sh:45-62` | `WAT_BIN`/`GRID_DIR`/`REPO_ROOT` discovery-and-validation repeated **5×**, byte-identical but for the echoed script name; its rationale comment duplicated in long and short forms. ⚠ **Only `run-axis.sh` carries the freshness wall** — the other four read the same binary for the same kind of measurement with no such protection, which is itself evidence the copies are not kept in sync. | L2 · incidental | **OPEN** · ⚠ ward-reported | extract the 5-line core; leave `run-axis.sh`'s freshness wall local |
 
 ## Verified by the orchestrator — target 3
 
@@ -1235,3 +1241,49 @@ the corpus itself**: `peragrare`'s 5 unvisited cells are a *structural absence i
 walking the grid*, not prose promising to fill them. **No coverage note in this directory is written
 as a promise.** That is a real fact about how this corpus documents itself, and it took casting both
 wards to establish it.
+
+- **3S1 ★★ / 3S2 ★** — CONFIRMED, and these two are qualitatively different from the other four
+  because **the risk each names has already materialised once.**
+  · **3S1: the drift is present, not predicted.** `run-axis.sh:277` is
+    `grep -oP ':derived\s+(?:#wat\.core/PersistentVector\s+)?\K\[[^]]*\]'`; the sibling's `extract()`
+    at `check-grid-three-way.sh:235` is the same decode **plus `(?<=[ {])`**. Two copies of one
+    wire-format reader, one hardened, one not — and the hardened one's comment names exactly what it
+    defends: *"a future `:spec-derived` would [contain `:derived`], and the match count below is what
+    refuses an ambiguous line."* **The unguarded copy is not wrong today; it is wrong on the day the
+    field set grows, and only one of the two will notice.**
+  · **3S2: the class has already produced a silent no-op in this very directory.**
+    `run-axis.sh:179-180` records it verbatim: *"The 2026-08-20 skip was a no-op because it still
+    matched `fire-rules-spec` after the `$oracle` rename."* And the duplicated `rewrite_to_spec()`
+    encodes that same verb-naming convention **twice**, comment and all, word for word.
+    `[[an-accurate-comment-can-be-a-defects-alibi]]` in its sharpest form: the incident is written
+    down, the lesson is not applied to the copy sitting one file away.
+
+⭐ **`solvere` read all 20 scripts in FULL and said so — no sampling.** That matters for a
+duplication ward: its spell's own rule is that a finding naming one instance of an N-fold copy is a
+fraction of a finding, and **Findings 1, 4, 5 and 6 each enumerate EVERY copy** (11, 3, 2 and 5
+sites). It also ran the disconfirming grep first — `grep -ho 'source …' gen-*.sh` → **empty** —
+establishing there is no shared helper before claiming duplication, rather than inferring it.
+
+⭐⭐ **AND IT REFUSED THE FINDING I EXPLICITLY WARNED IT AWAY FROM, then found the real one under it.**
+I told it: *"Do not flag 'there are eleven generators' as a finding. Eleven perf axes need eleven
+Clara programs; that is the design."* It agreed in its own words — *"the per-axis workload stays in
+each `gen-<axis>.sh` (that part is genuinely eleven different programs — not a finding)"* — and then
+isolated what actually IS duplicated: the **harness** around the workload, byte-identical in two
+variants (8 files + 3 files). **Separating the eleven-different-things from the one-thing-eleven-times
+inside the same eleven files is the whole discipline**, and a ward that reports the file count would
+have missed it.
+
+⚠ **All six are judged INCIDENTAL, and that judgment is load-bearing rather than a hedge.** Its
+spell's categories for a *legitimate* braid are `load-bearing-coupling`, `irreducible-tangle` and
+`historical-shape`; it found **none of the six qualifies for any of them**, and no `rune:solvere`
+exists in the 20 scripts to pre-excuse them. Incidental means *nothing forces these copies* — which
+is what makes them fixable, and what makes 3S1's already-present divergence a warning rather than a
+cost of doing business.
+
+⚠ **One observation of its own worth keeping, which it drew from the copies rather than the code:**
+of `WAT_BIN`'s five sites, **only `run-axis.sh` carries the freshness wall** — the other four read
+the same binary for the same kind of measurement with no such protection. It reads that asymmetry as
+*"evidence the copies aren't being kept in sync as the convention evolves."* ⛔ **That is the same
+shape this session already met at the top of the tree**: I ran a stale `~/.cargo/bin/wat` earlier
+today, and only caught it before casting `experiri` because the lesson had been written down. **Four
+of these five scripts have no equivalent of that lesson at all.**
