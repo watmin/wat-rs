@@ -27,7 +27,7 @@ strikes to run — the failure this scoping exists to prevent.
 | 1 | `src/rete/kernel/` + `wat/rete/oracle/` — the fire path and the spec it must mirror | 28 | 15,771 (measured) | ✅ **CAST COMPLETE** — 14/14 wards, 38 rows |
 | 2 | `src/rete/**` minus `kernel/` + `wat/rete*.wat` — the compile side and its spec (⛔ WIDENED — see below) | 25 | 23,886 (measured) | ✅ **CAST COMPLETE** — 15/15 wards, 36 rows |
 | 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | **148** | **16,616** (both measured 2026-09-08 by `find wat-scripts/perf/grid -type f`; my 54/~8.7k counted `.wat` alone, and my later **147/16,345** went stale when I committed `peragrare-census.sh` into the directory mid-cast — ⛔ the LINE count was corrected that day and the FILE count beside it was NOT, so a corrected figure sat vouching for a stale one) | ⏳ MID-FLIGHT |
-| 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | 264? | ~36k? | ⛔ NOT CAST — **both figures UNVERIFIED; every scope figure I wrote at the same time as these has been wrong. MEASURE BEFORE DERIVING THE MUSTER.** |
+| 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | **306** | **38,058** | ⏳ **MEASURED 2026-09-08, MUSTER DERIVED, NOT YET CAST.** The tracker said *264 / ~36k* — **off by 42 files.** 144 `.wat` + 23 `.edn` + 19 `.wat.bad` + 120 `.rs` |
 
 ## Muster, derived per target — with the triggers MEASURED
 
@@ -48,6 +48,48 @@ Cast 1, `src/rete/kernel/` + `wat/rete/oracle/`:
 | circumspicere | always, last | **muster, last** |
 
 Later targets get their own derivation block, written before that cast.
+
+## Muster for target 4 — the test corpus, derived and MEASURED 2026-09-08
+
+⛔ **FIRST: THE SCOPE FIGURE IN THE TRACKER WAS WRONG, AS EVERY ONE WRITTEN THAT DAY HAS BEEN.** It
+said *"264 files, ~36k."* Measured: **306 files, 38,058 lines** — off by **42 files (16%)**.
+`find tests/rete src/rete/kernel/tests -type f | wc -l`.
+
+| where | files | lines | composition |
+|---|---|---|---|
+| `tests/rete/` | 286 | 23,633 | **144 `.wat`**, 100 `.rs`, 23 `.edn`, **19 `.wat.bad`** |
+| `src/rete/kernel/tests/` | 20 | 14,425 | all `.rs` |
+
+⭐ **The composition is unlike targets 1–3.** This is a FIXTURE corpus as much as a code one: 144
+`.wat` inputs, 23 `.edn` expected-outputs, 19 must-fail `.wat.bad`, driven by 120 `.rs`.
+
+⭐⭐ **AND THE FACT THAT SHAPES THE WHOLE CAST, ESTABLISHED NOT ASSUMED: NO WALK-GATE REQUIRES
+`tests/**/*.wat` TO LOAD.** Two gates ask that question and I checked both roots by reading them:
+`wat_scripts_fixes_load.rs` walks **`wat-scripts/`** (`collect_wat(Path::new("wat-scripts"))`);
+`docs_wat_loads_or_declares_why_not.rs` walks **`docs/arc`**. `every_wat_bad_fixture_actually_fails.rs`
+DOES walk `tests` — but only for **`.wat.bad`**. **So the 144 plain `.wat` here are exercised only if
+some `.rs` actually drives them.**
+
+⚠ **MY DRIVE-COVERAGE NUMBER IS A NAME-GREP AND I AM DISCLOSING WHAT IT CANNOT SEE.** Matching each
+basename against `tests/ src/ --include='*.rs'` gives **85 named / 59 not named** of 144. **A name-grep
+cannot see a path built by string concatenation, nor a directory walk** — the exact error that fired
+three times on target 3 (`check-grid-three-way.sh` "referenced by 0 tests"; 28 `GRID-*.txt` "referenced
+by nothing"). `tests/rete/wat_scripts_grid_axes_live.rs:235` proves at least one test here uses
+`read_dir`. **The 59 is a QUESTION, not a finding. Whoever casts `peragrare`/`purgare` must derive
+true drive-coverage and report the delta.**
+
+| ward | rule | verdict — with the measurement |
+|---|---|---|
+| **`complectens`** | test-shape: does each layer compose from layers above; does each test carry its own proof | ⭐⭐ **MUSTER — ITS TARGET BY CONSTRUCTION, AND IT HAS FIRED NOWHERE IN THIS VIGILIA.** 120 `.rs`. ⛔ **It also has HISTORY here:** `docs_wat_loads_or_declares_why_not.rs:99` records *"`complectens` found 10 of 15 file-walking gates in `tests/lint/` with"* a vacuity hole — so a prior cast already scored on this surface, and `every_walking_gate_declares_non_vacuity.rs` exists because of it. **Hand that down; do not let it re-find its own past work** |
+| **`vocare`** | does the test verify what the CALLER sees, or reach past the interface | ⭐⭐ **MUSTER — and the corpus already carries 24 `rune:vocare` exemptions**, i.e. it has been cast here before and its judgments are on disk. **That makes this a re-cast against pre-declared exemptions, which is a different and harder question than a first pass** |
+| **`excusare`** | every suppression weighed against present truth | ⭐⭐⭐ **MUSTER — THE LARGEST RUNE POPULATION OF ANY TARGET.** ~**110** rune lines across **seven** vocabularies: `rune:lint` **69**, `rune:vocare` **24**, `rune:perspicere` **12**, `rune:complectens` 2, `rune:exigere` 1, `rune:struere` 1, one bare `rune:`. Plus **5 `#[ignore]`** and **1 `#[allow(`**. Targets 1/2/3 carried 65 / 36 / **0** |
+| **`peragrare`** · **`purgare`** | the corpus an instrument runs over; dead weight | ⭐⭐ **MUSTER** — 144 `.wat` + 23 `.edn` + 19 `.wat.bad`, **no walk-gate over the `.wat`**, drive-coverage unestablished (see the disclosure above) |
+| **`perspicere`** | 2+ `<` in a type | ⭐ **MUSTER, and here the LITERAL trigger works** — this is Rust, so `<` really is a type bracket. `grep -rhoE '<[^<>]*<[^<>]*<'` → **72** sites, against **4** on target 3. ⚠ Not hand-verified; re-derive |
+| `secare` | parallel primitives | **MUSTER, weakly** — 6 files carry `thread::spawn`/`Mutex`/`Arc<`/`par_iter`. Note the tests themselves run in PARALLEL under nextest, which is the surround |
+| `mora` | a wait by chosen duration | **NO — measured 0.** No `sleep`/`thread::sleep`/`Duration::from` in any of the 306 files |
+| `exigere` | deferred-work language | **⚠ measured 0 TODO/FIXME/XXX/HACK — the FOURTH consecutive zero.** Muster anyway: on target 2 it found its row in comment PROSE, not in a TODO token |
+| `intueri` · `solvere` · `struere` · `sequi` · `temperare` · `conformare` · `probare` · `cernere` | universal code | **muster** |
+| **`circumspicere`** | always, LAST | ⭐⭐⭐ **MUSTER, LAST — three targets, three times the sharpest finding of the cast.** Non-negotiable |
 
 ## Muster for target 3 — the grid, derived and MEASURED 2026-09-08
 
@@ -215,7 +257,7 @@ the only copy. **Read it before casting anything.**
 | 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
 | 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
 | 3 | `wat-scripts/perf/grid/` (148 files, 16,616 lines) | **15 / 15** | **34** | ✅ CLOSED |
-| 4 | `tests/rete/` + `src/rete/kernel/tests/` | **0** | 0 | ⛔ NOT CAST — **and its "264 files, ~36k" figure has NEVER been re-derived. MEASURE IT FIRST.** |
+| 4 | `tests/rete/` + `src/rete/kernel/tests/` (**306 files, 38,058 lines** — measured 2026-09-08) | **0** | 0 | ⛔ **NOT CAST — but MEASURED, and its muster is derived** (see § "Muster for target 4"). The old *"264 / ~36k"* was **off by 42 files** |
 
 **Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6), `purgare` (1),
 `conferre` (2), `intueri` (4, incl. one L1), `struere` (5, incl. one L1), `sequi` (1 + 1 of mine, incl. one L1), `temperare` (2, incl. one L1), `conformare` (3, two L1),
