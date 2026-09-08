@@ -131,6 +131,34 @@ records its path. A census nobody can re-run is a rumour with a grid.
 is unchecked by construction — prefer naming a symbol or a gate over a bare line number, and expect
 line citations here to rot.
 
+## ⛔ BUILDER'S RULING 2026-09-07 — `docs/*.md` IS STALE BY DEFAULT AND OUT OF SCOPE
+
+> *"note, many of docs/\*.md files are very out of date — they will be addressed in time, not now"*
+
+This governs every remaining cast in this vigilia, and it has two edges:
+
+1. **Do not row a finding whose subject is a `docs/*.md` file.** Staleness there is known,
+   acknowledged, and deferred by the builder. A ward reporting it is reporting a decision, not a
+   defect. (`nesciens`, `cohaerere` and `consonare` already muster nowhere here because no
+   documentation is in any target set — this extends the same fact to incidental sightings.)
+
+2. ⚠ **The sharper edge: `docs/*.md` MAY NOT BE USED AS AUTHORITY.** A ward that verifies a code
+   claim *against* a stale doc has verified nothing — and this is not hypothetical. `excusare`
+   leaned on `docs/CONVENTIONS.md` this cast to establish which wards have closed-set vocabulary
+   tables. That reasoning may be sound or may rest on a stale page, and **nothing in this tree can
+   tell the two apart**, because — as this README already records — nothing under `docs/` is gated
+   by `no_stale_path_in_doc` or `rete_citation_resolves`.
+
+   **Authority is the code, the gates under `tests/lint/`, and the `wat/` corpus.** Where a ward
+   must cite a doc, it must say so explicitly and mark the conclusion as resting on an ungated
+   source. A finding grounded only in `docs/*.md` is not grounded.
+
+⚠ **This does NOT retroactively strike anything already rowed.** `excusare`'s closed-set-gap
+observation (2X notes) named `docs/CONVENTIONS.md` as its source *and* independently verified each
+rune on the merits, so its verdicts stand on the code. Its gap claim — that `solvere`, `exigere`
+and `temperare` have no closed-set gate — is re-derivable from `tests/lint/` alone, which is where
+it should be re-checked before anyone acts on it.
+
 ---
 
 # ⛔ HOW TO RESUME THIS CAST — read this FIRST if you are picking it up cold
