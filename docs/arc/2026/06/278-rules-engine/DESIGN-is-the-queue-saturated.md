@@ -37,6 +37,53 @@ So store-vs-non-store was the wrong axis. The question is:
 because it is blocked in store calls that long. Its own compute sits **on top** of that. The
 instrument closes the gap between that floor and 1.
 
+## ⛔ AN ELIMINATION FIRST — the poller is NOT the slope
+
+Before drawing this, one hypothesis was tested and killed. The depth check is `O(min(depth, cap+1))`,
+verified through the chain `circuit.wat:2116` (`:cap sub-cap` = 8192) → `sqs.wat:389/962`
+(`lim = cap + 1` = 8193) → `count-index :limit 8193` → `SELECT COUNT(*) … LIMIT 8193`. The shipped
+`cap 32` makes that O(32); **the benchmark's `sub-cap 8192` makes it O(depth)** — and `stats` calls
+it twice, on every queue, every poll iteration.
+
+So: raise the poll interval 5 ms → 50 ms and measure. Nothing else changed.
+
+```
+  n     poll-calls        drain ms         drain-store-ms
+        5ms   50ms      5ms    50ms       5ms    50ms
+  500    85     35      532     492       279     265
+  1000  230     85     1245    1236       638     597
+  2000  650    215     3308    3049      1567    1407
+```
+
+★★★ **Poller iterations cut ~2.5–3×; the drain moved 0–8 %; the slope is unchanged at +55 %.** The
+O(depth) count is real and is **not** the slope. Eighth mechanism killed in this arc.
+
+The cleaner decomposition it left:
+
+```
+store / pair                +33 %
+NON-store / pair            +81 %     ← the superlinear term
+ms per store round trip     +26 %
+store calls / pair           +5 %     ← flat
+```
+
+## ⛔ THE MODEL THIS STONE TESTS — stated as a model, not a finding
+
+Same round trips, same payloads, worker compute flat at `<1 ms` — yet non-store time per message
+grows **+81 %** while the store's *service time* grows only **+26 %**.
+
+★★★ **The queue is a single server**, and in any single-server system waiting rises far faster than
+utilisation: `W ∝ ρ/(1−ρ)`. A 26 % rise in service time raises ρ by ~26 %; from ρ ≈ 0.5 that alone
+produces roughly the +81 % observed.
+
+⚠ **That is arithmetic that fits, not evidence.** Eight mechanisms have been killed in this arc that
+also fitted. What makes this one worth a stone is that it is **directly measurable**: `ρ` *is*
+`busy / wall`, which is exactly what `handler-ns` reports.
+
+★ And it names the shape of "stay linear" if it holds: linearity is not about making one operation
+faster, it is about holding utilisation off the knee — **fewer ops through the one server, cheaper
+ops, or more servers.** Only the last changes the exponent.
+
 ## ⛔ THE ONE CONTRACT DECISION
 
 ```
