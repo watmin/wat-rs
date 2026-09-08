@@ -297,7 +297,9 @@
                     (:wat::core::Option/expect
                       (:wat::map::get ~pmap-sym "?fact")
                       "sift-rules: ?fact"))
-                  (:wat::rete::query ~fired-sym ~lit)))))
+                  ;; `query` is a macro. This AST is spliced from an outer macro and is
+                  ;; not re-expanded; emit the expansion (`query-read` + empty params).
+                  (:wat::rete::query-read ~fired-sym ~lit (:wat::core::PersistentMap))))))
          (:wat::core::Vector :- [:wat::WatAST])
          query-lits)
 
