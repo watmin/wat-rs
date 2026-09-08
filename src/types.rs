@@ -388,6 +388,17 @@ impl EnumDef {
             _ => None,
         })
     }
+
+    /// Declared fields of a variant, in declaration order. Unit variants
+    /// answer an empty slice. `None` if `variant` is not a member of this enum.
+    /// Field names come from the TypeDef — never a hand-list (arc 296 M).
+    pub fn variant_fields(&self, variant: &str) -> Option<&[(String, TypeExpr)]> {
+        self.variants.iter().find_map(|v| match v {
+            EnumVariant::Tagged { name, fields } if name == variant => Some(fields.as_slice()),
+            EnumVariant::Unit(n) if n == variant => Some(&[] as &[(String, TypeExpr)]),
+            _ => None,
+        })
+    }
 }
 
 /// Newtype declaration — nominal wrapper distinct from its inner type.

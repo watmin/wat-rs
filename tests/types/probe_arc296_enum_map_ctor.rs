@@ -61,7 +61,6 @@ fn the_control_program_checks_clean() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 enum map ctor; un-ignored BY that stone"]
 fn a_payload_variant_is_built_from_a_map_naming_its_field() {
     assert_eq!(
         check("user_map"),
@@ -72,7 +71,6 @@ fn a_payload_variant_is_built_from_a_map_naming_its_field() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 enum map ctor; un-ignored BY that stone"]
 fn a_unit_variant_is_built_from_an_empty_map() {
     assert_eq!(
         check("user_unit_map"),
@@ -83,7 +81,6 @@ fn a_unit_variant_is_built_from_an_empty_map() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 enum map ctor; un-ignored BY that stone"]
 fn option_is_an_ordinary_enum_and_takes_the_same_ctor() {
     assert_eq!(
         check("option_map"),
@@ -94,7 +91,6 @@ fn option_is_an_ordinary_enum_and_takes_the_same_ctor() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 enum map ctor; un-ignored BY that stone"]
 fn the_retired_positional_ctor_is_refused() {
     assert_ne!(
         check("positional"),

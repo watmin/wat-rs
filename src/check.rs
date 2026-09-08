@@ -5547,6 +5547,12 @@ fn infer_list(
         // `defclause` dispatch, just above, now sees the same peeled `args` too — the
         // hoist widened who benefits from the peel, not who is allowed to author one.
 
+        // Arc 296 M — enum variant map ctor. Intercept BEFORE the synthesized
+        // positional Function scheme (tagged) / UnknownCallee (unit).
+        if let Some(result) = infer_enum_map_ctor(k, args, head_span, env, locals, fresh, subst) {
+            return result;
+        }
+
         // Normal call: look up scheme, instantiate, unify args.
         // STONE reap-the-angle-machinery (arc 109) — the arc 139 turbofish `<T,...>` this
         // used to strip via `canonical_callable_name` is unexpressible now; `canonical_k`
@@ -13946,6 +13952,177 @@ fn infer_aggregate_new_check(
     };
 
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 296 M — `(:Enum::Variant {:field v …})` / `(:Enum::Unit {})`.
+///
+/// Returns `None` when `head` is not a registered enum-variant constructor,
+/// so the generic scheme lookup proceeds (`:wat::core::Some` is a different
+/// keyword — its path is `:wat::core`, not Option). The map NAMES FIELDS; it
+/// is never the payload. Positional `(:Enum::Variant v…)` is refused.
+///
+/// Must not synthesize a positional call to the same head: that would re-enter
+/// this intercept and refuse the form we just accepted.
+fn infer_enum_map_ctor(
+    k: &str,
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> Option<CheckResult<TypeExpr>> {
+    if !k.contains("::") {
+        return None;
+    }
+    let type_path = wat_reader::identifier::path(k);
+    let variant_name = wat_reader::identifier::leaf(k);
+    let enum_def = match env.types().get(type_path) {
+        Some(crate::types::TypeDef::Enum(e)) => e,
+        _ => return None,
+    };
+    let declared_slice = enum_def.variant_fields(variant_name)?;
+    let enum_name = enum_def.name.clone();
+    let enum_type_params = enum_def.type_params.clone();
+    let declared: Vec<(String, TypeExpr)> = declared_slice
+        .iter()
+        .map(|(n, t)| (n.clone(), t.clone()))
+        .collect();
+
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let refuse_positional = || CheckError {
+        span: head_span.clone(),
+        kind: CheckErrorKind::MalformedForm {
+            head: k.to_string(),
+            reason: format!(
+                "positional variant construction is retired; write `({k} {{:field value …}})` \
+                 or `({k} {{}})` for a unit variant"
+            ),
+            remedies: vec![],
+        },
+    };
+
+    if args.len() != 1 {
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        local_errors.push(refuse_positional());
+        return Some(CheckResult::errs(local_errors));
+    }
+    let WatAST::Map(pairs, map_span) = &args[0] else {
+        let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        local_errors.push(refuse_positional());
+        return Some(CheckResult::errs(local_errors));
+    };
+    let parsed = match crate::match_arm::parse_key_first_pairs(pairs, map_span) {
+        Ok(p) => p,
+        Err(e) => {
+            local_errors.push(CheckError {
+                span: e.span,
+                kind: CheckErrorKind::MalformedForm {
+                    head: k.to_string(),
+                    reason: e.reason,
+                    remedies: vec![],
+                },
+            });
+            return Some(CheckResult::errs(local_errors));
+        }
+    };
+
+    for (key, val_ast) in &parsed {
+        if !declared.iter().any(|(n, _)| n == key) {
+            let _ = infer(val_ast, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            local_errors.push(CheckError {
+                span: map_span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!(
+                        "map-ctor key `:{key}` is not a field of {type_path}::{variant_name}"
+                    ),
+                    remedies: vec![],
+                },
+            });
+        }
+    }
+    let mut ordered: Vec<(&str, &WatAST)> = Vec::with_capacity(declared.len());
+    for (decl_name, _) in &declared {
+        match parsed.iter().find(|(n, _)| n == decl_name) {
+            Some((_, val_ast)) => ordered.push((decl_name.as_str(), val_ast)),
+            None => {
+                local_errors.push(CheckError {
+                    span: map_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: k.to_string(),
+                        reason: format!(
+                            "map ctor is missing declared field `:{decl_name}` of {type_path}::{variant_name}"
+                        ),
+                        remedies: vec![],
+                    },
+                });
+            }
+        }
+    }
+    if !local_errors.is_empty() {
+        for (_, val_ast) in &parsed {
+            let _ = infer(val_ast, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return Some(CheckResult::errs(local_errors));
+    }
+
+    let (param_types, ret_type) = if let Some(scheme) = env.get(k) {
+        instantiate(scheme, fresh)
+    } else if enum_type_params.is_empty() {
+        (
+            declared.iter().map(|(_, t)| t.clone()).collect(),
+            TypeExpr::Path(enum_name),
+        )
+    } else {
+        let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+        for tp in &enum_type_params {
+            mapping.insert(tp.clone(), fresh.fresh());
+        }
+        let field_tys = declared
+            .iter()
+            .map(|(_, t)| rename(t, &mapping))
+            .collect();
+        let ret = TypeExpr::Parametric {
+            head: enum_name.trim_start_matches(':').to_string(),
+            args: enum_type_params
+                .iter()
+                .map(|tp| mapping.get(tp).cloned().unwrap_or_else(|| fresh.fresh()))
+                .collect(),
+        };
+        (field_tys, ret)
+    };
+
+    for ((field_name, val_ast), expected) in ordered.iter().zip(&param_types) {
+        let arg_ty =
+            infer_component_against(val_ast, expected, env, locals, fresh, subst, &mut local_errors);
+        if let Some(arg_ty) = arg_ty {
+            if !assignable(&arg_ty, expected, subst, env) {
+                local_errors.push(CheckError {
+                    span: val_ast.span().clone(),
+                    kind: CheckErrorKind::TypeMismatch {
+                        callee: k.to_string(),
+                        param: (*field_name).to_string(),
+                        expected: format_type(&apply_subst(expected, subst)),
+                        got: format_type(&apply_subst(&arg_ty, subst)),
+                    },
+                });
+            }
+        }
+    }
+    // Values past the scheme's param list (internal mismatch) still get inferred.
+    for (_, val_ast) in ordered.iter().skip(param_types.len()) {
+        let _ = infer(val_ast, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    }
+
+    let ty = apply_subst(&ret_type, subst);
+    Some(if local_errors.is_empty() {
+        CheckResult::ok(ty)
+    } else {
+        CheckResult::partial_with(ty, local_errors)
+    })
 }
 
 /// Arc 294 item (C) — type inference for `:wat::core::kwargs-construct`, the LIVE

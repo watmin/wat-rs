@@ -242,6 +242,157 @@ pub(crate) fn eval_variant(
     })))
 }
 
+/// Arc 296 M — `(:Enum::Variant {:field v …})` / `(:Enum::Unit {})`.
+///
+/// Returns `None` when `head` is not a registered enum variant constructor,
+/// so the generic dispatch can proceed. The map NAMES FIELDS; it is never
+/// the payload. Positional `(:Enum::Variant v…)` is refused.
+///
+/// Option/Result native `Value::Option` / `Value::Result` wrappers are a
+/// representation mapping of those two TypeDef enums, not a construction
+/// grammar exception — field names still come from the declaration.
+pub(crate) fn try_eval_enum_map_ctor(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Option<Result<Value, EvalBreak>> {
+    if !head.contains("::") {
+        return None;
+    }
+    let type_path = wat_reader::identifier::path(head);
+    let variant_name = wat_reader::identifier::leaf(head);
+    let types = sym.types()?;
+    let enum_def = match types.get(type_path) {
+        Some(crate::types::TypeDef::Enum(e)) => e,
+        _ => return None,
+    };
+    let declared = enum_def.variant_fields(variant_name)?;
+
+    let refuse = || {
+        RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: head.into(),
+                reason: format!(
+                    "positional variant construction is retired; write `({head} {{:field value …}})` \
+                     or `({head} {{}})` for a unit variant"
+                ),
+            },
+        )
+        .into()
+    };
+
+    if args.len() != 1 {
+        return Some(Err(refuse()));
+    }
+    let WatAST::Map(pairs, map_span) = &args[0] else {
+        return Some(Err(refuse()));
+    };
+    let parsed = match crate::match_arm::parse_key_first_pairs(pairs, map_span) {
+        Ok(p) => p,
+        Err(e) => {
+            return Some(Err(RuntimeError::new(
+                e.span,
+                RuntimeErrorKind::MalformedForm {
+                    head: head.into(),
+                    reason: e.reason,
+                },
+            )
+            .into()));
+        }
+    };
+    if parsed.len() != declared.len() {
+        return Some(Err(RuntimeError::new(
+            map_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: head.into(),
+                reason: format!(
+                    "map ctor has {} key(s), variant {type_path}::{variant_name} declares {}",
+                    parsed.len(),
+                    declared.len()
+                ),
+            },
+        )
+        .into()));
+    }
+    let mut fields = Vec::with_capacity(declared.len());
+    let mut names = Vec::with_capacity(declared.len());
+    for (decl_name, _) in declared {
+        let Some((_, val_ast)) = parsed.iter().find(|(n, _)| n == decl_name) else {
+            return Some(Err(RuntimeError::new(
+                map_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: head.into(),
+                    reason: format!(
+                        "map ctor is missing declared field `:{decl_name}` of {type_path}::{variant_name}"
+                    ),
+                },
+            )
+            .into()));
+        };
+        match eval_inner(val_ast, env, sym) {
+            Ok(tv) => {
+                names.push(decl_name.clone());
+                fields.push(tv.value_owned());
+            }
+            Err(e) => return Some(Err(e)),
+        }
+    }
+    for (key, _) in &parsed {
+        if !declared.iter().any(|(n, _)| n == key) {
+            return Some(Err(RuntimeError::new(
+                map_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: head.into(),
+                    reason: format!(
+                        "map-ctor key `:{key}` is not a field of {type_path}::{variant_name}"
+                    ),
+                },
+            )
+            .into()));
+        }
+    }
+    Some(Ok(enum_runtime_value(
+        type_path,
+        variant_name,
+        Arc::new(names),
+        fields,
+    )))
+}
+
+fn enum_runtime_value(
+    type_path: &str,
+    variant_name: &str,
+    names: Arc<Vec<String>>,
+    fields: Vec<Value>,
+) -> Value {
+    // Native representations: Option/Result are TypeDef enums whose values
+    // are `Value::Option` / `Value::Result`, not `Value::Enum`. Variant
+    // identity is the declaration; field names still come from TypeDef.
+    if type_path == ":wat::core::Option" {
+        return Value::Option(Arc::new(if fields.is_empty() {
+            None
+        } else {
+            Some(fields.into_iter().next().expect("Some has one field"))
+        }));
+    }
+    if type_path == ":wat::core::Result" {
+        return Value::Result(Arc::new(if variant_name == "Err" {
+            Err(fields.into_iter().next().expect("Err has one field"))
+        } else {
+            Ok(fields.into_iter().next().expect("Ok has one field"))
+        }));
+    }
+    Value::Enum(Arc::new(EnumValue {
+        type_path: type_path.to_string(),
+        variant_name: variant_name.to_string(),
+        names,
+        fields,
+    }))
+}
+
 /// Arc 294.c.2a — `(:wat::core::aggregate-new :T field…)`.
 ///
 /// The ONE nature-dispatched aggregate constructor. Looks up `:T`'s `AggregateDef`

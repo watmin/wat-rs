@@ -3500,6 +3500,13 @@ fn dispatch_keyword_head_value(
             // turbofish from the head via `canonical_callable_name` before lookup. Angle
             // syntax is unexpressible now, so `other` can never carry a suffix; look it up
             // directly (`def_value(other)` just below already does, unstripped).
+            // Arc 296 M — enum variant map ctor. Intercept BEFORE the
+            // synthesized positional Function (tagged) / UnknownFunction (unit).
+            if let Some(result) = crate::record::construct::try_eval_enum_map_ctor(
+                other, args, list_span, env, sym,
+            ) {
+                return result;
+            }
             let func = match sym.get(other) {
                 Some(f) => f.clone(),
                 None => {
