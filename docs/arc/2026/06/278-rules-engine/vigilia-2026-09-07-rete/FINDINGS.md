@@ -373,6 +373,8 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2V2** | perspicere | `export.rs:721`; `expr_ir/mod.rs:833`, `:163` | The `(field-name, slot-index)` pair — `(Arc<str>, u16)` — is spelled longhand at three sites across two modules with **no alias anywhere**, while `expr_ir/mod.rs:167-168` already hosts a `Slot*` family it would sit beside. ⭐ **The ward applied its own rule-4 bar before recommending**: 3 uses across 2 modules clears "reused, not read-once". | L2 | **OPEN** · ⚠ ward-reported | closed by `type FieldSlot = (Arc<str>, u16);` beside `SlotName` |
 | **2V3** | perspicere | `wat/rete.wat:32`, recurring at `:429` | The wat-side mint. `Token.matches` inlines `(PersistentVector :- [(Tuple :- [Record i64])])` in a `defrecord` field — 2 levels of bracket nesting, the analog the ward derived for a language with no angle brackets. The inner `(Tuple :- [Record i64])` is **one alpha-hit**; the file's own comment at `:419` says *"each tuple is (sfact, alpha-id)"*, and the identical shape recurs at `:429` as a lambda parameter. ⚠ **Confirmed NOT read-once by the twin**, and no `typealias :wat::rete::*` covers it (all six checked). | L2 | **OPEN** · ⚠ ward-reported | closed by a `:wat::rete::AlphaHit` typealias used at both sites |
 | **2Y1 ★★** | experiri | `reachability.rs:83-85`; harness at `docs/arc/2026/06/278-rules-engine/harness-experiri/` | ⭐⭐ **A CAST-LEVEL L1: THE `:then` COLUMN IS UNTESTED, AND THE INSTRUMENT TO TEST IT WAS BUILT AND SHELVED.** The live ledger sweeps `InlineConstraint` + `WhereFence` (79/79 rows, all fire) and `AccHeadFold` (1/1). The **fourth** position — `:then`, which the vocabulary's own module doc declares admissible for every rete verb — is excluded with the reason *"remains deliberately unmodelled… an un-calibrated position would add a column of findings nobody can trust."* ⛔ **That reason is falsified by the repo itself:** a calibrated harness for exactly this position exists at `harness-experiri/positions-3-4.rs.txt`, was driven 2026-08-30, and found **two real L1s since fixed**. It is saved as `.rs.txt` — the README says *"so no tooling mistakes it for a live module"* — and *"asserts nothing."* The ward reproduced its calibration clean today and drove 4 of 79 rows at `:then`, all firing. **The exclusion defers to a harness already built; `experiri`'s rune rule requires a reason that DISPOSES.** | **L1 (cast-level)** | **OPEN** · ✅ I VERIFIED | `README.md:19` → *"Saved as `.rs.txt` so no tooling mistakes it for a live module"*; `:132` → *"`positions-3-4.rs.txt` asserts nothing"*. Closed by converting the shelved sweep to an assertion, or by a reason that disposes |
+| **2W1 ★★★** | circumspicere | claim: `expr_ir/mod.rs:14-19` · code: `mod.rs:255-262`, `:374,431,473`; `eval.rs:201` · **the sibling cure: `export.rs:350-370`** | ⭐⭐⭐ **THE ONE EXPRESSION CORE PROMISES "TOTAL OR IT REFUSES" AND HAS NO DEPTH GUARD AT ALL.** The header: *"`lower` IS TOTAL OR IT REFUSES… `exec` therefore raises only on VALUES … **never on shape**. A refusal that belongs at compile time and lands at fire time is a defect in this file."* But `lower_expr`/`lower_list`/`lower_hof_callee` mutually recurse over `WatAST` with **no depth counter** — `LowerCx` has four fields and none is a depth — and `exec` recurses the resulting tree on every row of every fire. The parser feeding it has no guard either. ⛔ **AND THE CURE EXISTS ONE FILE OVER, MEASURED**: `MAX_IMPORT_DEPTH` records that *"the same 20,000-deep Export was ACCEPTED on a 256 MiB thread and killed a 2 MiB one with `fatal runtime error: stack overflow, aborting` — an abort, not a panic, so nothing catches it."* An abort is neither of the two outcomes the header calls exhaustive. | **L1** | **OPEN** · ✅ I VERIFIED | `sed -n '14,19p' expr_ir/mod.rs` → the claim verbatim; `:255-262` → `sym, slots, next, hof_fn_pos`, no depth; `grep -cE 'depth\|recursion_limit\|stacker'` over both lowering files → **0, 0**; `grep -cE 'depth\|recursion\|MAX_' src/parser.rs` → **0**. Closed by threading `depth` through `LowerCx` by `MAX_IMPORT_DEPTH`'s own method — measure the corpus max and the abort window, then cap with headroom |
+| **2W2** | circumspicere | `wat/rete.wat:329-352` vs `export.rs:308-370` | The one wat-facing spec of `Export` documents the record field by field — including behavioural notes like *"Import refuses a miss"* — and says **nothing** about `MAX_IMPORT_NODES` (10,000) or `MAX_IMPORT_DEPTH` (300), the two walls `:wat::rete::import` enforces, nor that the build is quadratic beneath them. A wat author reading the only spec that documents this record cannot learn the ceilings exist without reading Rust. | L2 | **OPEN** · ⚠ ward-reported | closed by naming the two walls in the `Export` doc block |
 
 ## Verified by the orchestrator — target 2
 
@@ -485,7 +487,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **14** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere · probare · perspicere · experiri **DROVE** | perspicere, **`circumspicere` LAST** | **6** | 25 (+2 L3, +1 ward-split) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **15 of 15 — COMPLETE** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere · probare · perspicere · experiri **DROVE** · circumspicere | perspicere, **`circumspicere` LAST** | **7** | 26 (+2 L3, +1 ward-split) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -1027,3 +1029,49 @@ holds — but `:wat::core::>` is refused by a **totality** check while `:wat::co
 the **rete-primitive** check. Two controls, two different refusal mechanisms, both correct. The ward
 called it *"a curiosity, not a bypass"* and moved on. **A ward that can tell an interesting fact from
 a finding is one whose findings are worth reading.**
+
+- **2W1 ★★★** — CONFIRMED on every coordinate, and it is **the strongest single finding of target 2.**
+  The claim at `:14-19` is verbatim as quoted. `LowerCx` carries exactly four fields — `sym`,
+  `slots`, `next`, `hof_fn_pos` — **and no depth.** `grep -cE 'depth|recursion_limit|stacker'` over
+  `expr_ir/mod.rs` and `expr_ir/eval.rs` returns **0 and 0**. `src/parser.rs`, which feeds them,
+  returns **0**.
+  ⛔⛔ **AND THE SIBLING CURE IS A MODEL ONE, WHICH IS WHAT MAKES THIS THE ARC'S SIGNATURE SHAPE
+  AGAIN — the fourteenth time.** `export.rs:350-370` is not a guessed constant; it is the standard
+  this codebase sets for a measured bound, and it says so: *"**MEASURED, not chosen for
+  roundness.**"* It records the defect it answers (*"`import` had no depth criterion at all"*), the
+  driving that found it (*"the same 20,000-deep Export was ACCEPTED on a 256 MiB thread and killed a
+  2 MiB one with `fatal runtime error: stack overflow, aborting` — an abort, not a panic, so nothing
+  catches it. Acceptance was a property of the importing THREAD."*), **both numbers behind the
+  choice** (3, the measured corpus maximum, instrumented; 3,000–5,000, the observed abort window),
+  the arithmetic (*"300 is 3 × 100 headroom … and one tenth of the low end"*), and the rule for
+  changing it (*"Raise it only with a new measurement"*).
+  **A defect found, driven, measured to two numbers, cured with documented headroom, and shipped on
+  `import` — and the sibling recursive descent that EVERY rete expression compiles and runs through
+  never received it.** The header of that very file calls a compile-time refusal landing at fire time
+  *"a defect in this file"*; an uncatchable process abort is worse than either outcome it names.
+
+⭐⭐ **AND THE WARD CHECKED THE TARGET-1 SHAPE AND REPORTED THAT IT DID *NOT* RECUR — which is the
+harder, more useful answer.** I pointed it at the `MAX_IMPORT_NODES` surface because target 1's
+sharpest L1 was a qualification that existed in one file and **never travelled** to the sites that
+shipped the claim. It checked exactly that here and found **the discipline HELD**: the quadratic-build
+justification is stated consistently at three sites inside `export.rs` — module header, the constants'
+own docs, and the runtime refusal — and the node check runs *before* any unpack, so the refusal costs
+nothing. **It then found the real gap adjacent to it** (2W2: the qualification never reached the wat
+*spec*). A ward that can say "the shape you sent me after is not here, and here is what is" is worth
+more than one that finds what it was pointed at.
+
+⭐⭐ **IT ALSO RESOLVED MY WEAK MEASUREMENT — IN THE DIRECTION OF NO FINDING.** I handed it a
+gate-coverage count with its weakness disclosed: eleven of the 25 files are *named* by no gate under
+`tests/lint/`, **but being named is not being covered**, and I said so and told it the check was the
+finding either way. It did the check — reading each gate's `collect_rs`/`root()` rather than its
+names — and found **13 broad gates recurse `src/rete` or `["src","tests","crates"]` wholesale**, so
+every one of the 25 files is swept. Its verdict: *"the measurement's own warning was correct to raise
+the question; the answer is 'covered,' not 'gap.'"*
+⛔ **That is the disclosure practice paying in the OTHER direction.** Six of my handed-down numbers
+were wrong and wards caught them. This one was *incomplete rather than wrong*, and disclosing how it
+was incomplete is what stopped it becoming a seventh error — a false negative-space finding against
+eleven files that are, in fact, covered.
+
+⚠ **Zero `rune:circumspicere` in target 2, re-derived.** Target 1 had exactly one, adjudicated valid.
+So **no surface on the compile side has ever been declared an accepted-by-design edge** — which is
+not the same as there being none, and the ward said so rather than reading the zero as health.
