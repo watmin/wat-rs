@@ -1,33 +1,35 @@
-# EXPECTATIONS — recording and gating the depth shield
+# EXPECTATIONS v2 — the depth budget and the quote door
+
+⚠ Supersedes v1. The mutation row is different: the probe now asserts **our** refusal.
 
 | what | command | expected |
 |---|---|---|
-| lowering logic untouched | `git diff -U0 -- src/rete/expr_ir/mod.rs` | every `+`/`-` line begins `//` |
-| no new depth counter | `grep -cE 'depth' src/rete/expr_ir/mod.rs` | >0 in comments, **0** in code |
-| the shield is named | `grep -c 'EXPANSION_DEPTH_LIMIT' src/rete/expr_ir/mod.rs` | ≥1 |
-| the bypass is named | `grep -c 'MAX_IMPORT_DEPTH\|unpack_expr' src/rete/expr_ir/mod.rs` | ≥1 |
-| the probe does not pin 509 | `grep -c '509\|510' tests/rete/probe_arc278_lower_depth_shield.rs` | **0** |
-| the probe binds the constant | `grep -c 'EXPANSION_DEPTH_LIMIT' tests/rete/probe_arc278_lower_depth_shield.rs` | ≥1 |
-| the refusal is named, not just "an error" | `grep -c 'ExpansionDepthExceeded' tests/rete/probe_arc278_lower_depth_shield.rs` | ≥1 |
-| the probe passes | `cargo nextest run --release -E 'test(lower_depth_shield)'` | green, both arms |
-| **MUTATION — the gate can fail** | raise `EXPANSION_DEPTH_LIMIT` to `1024`, re-run the probe | **RED**, naming the accepted-too-deep arm. Restore, green |
-| floor | `scripts/floor.sh` | 5481 (5480 + the new probe's tests), **0 fail** |
+| ONE shared budget, not per-function | read the diff | every mutually-recursive `lower_*` calls the same method and shadows its depth |
+| the bound is bound, not restated | `grep -c '512' src/rete/expr_ir/mod.rs` | **0** — `EXPANSION_DEPTH_LIMIT` is imported |
+| refusal is a value | `grep -c 'panic!\|unwrap()\|expect(' <the new code>` | 0 |
+| ⛔ **the abort is GONE at 2 MiB** | `bash -c 'ulimit -s 2048; wat <3000-deep quoted fixture>'` | a clean refusal naming the depth. **NOT rc=134** |
+| the deep case is refused on 8 MB too | same fixture, normal stack | refusal, not silent acceptance |
+| **the compile path is unchanged** | 509-deep *source* (not quoted) fixture | still compiles — this is STOP-2's tripwire |
+| 510-deep source still refused by the expander | as before | `ExpansionDepthExceeded`, not our new error |
+| the probe names the refusal | `grep -c 'depth' tests/rete/probe_arc278_lower_depth_shield.rs` | ≥1, and it asserts the kind, not just "an error" |
+| **MUTATION — the guard is load-bearing** | raise the `LowerCx` bound to `100_000`, re-run the probe under `ulimit -s 2048` | **rc=134 / abort returns.** Restore ⇒ clean refusal |
+| floor | `scripts/floor.sh` | 5480 + the probe's tests, **0 fail** |
 | clippy | `cargo clippy --all-targets --release -- -D warnings` | rc=0 |
 
 ## Runtime prediction
 
-30–45 min, most of it the two floors.
+45–70 min. Two floors dominate; the guard itself is small.
 
 ## Trap doors
 
-- **Pinning 509.** The contract decision. A test that hard-codes it reddens on any harmless
-  re-wrapping of the generated source and teaches the next hand to bump a number instead of asking
-  what moved. Bind `EXPANSION_DEPTH_LIMIT` and express the wall relative to it.
-- **Asserting "it was refused" without naming the kind.** The deep case can fail for a dozen
-  unrelated reasons — a malformed generated form most likely. A green that does not name
-  `ExpansionDepthExceeded` proves nothing about the shield.
-- **Building a 15 KB `.wat` fixture.** It would also land in a gated tree and has to *fail* to load,
-  which is a fight with two other gates. Generate the source in the test.
-- **Believing the row.** `2W1` says this path aborts. It does not. If your driving disagrees with
-  this brief rather than with the row, STOP — the brief is the thing that was measured, but it was
-  measured once, by one hand, and it is a claim until you reproduce it.
+- **A per-function counter.** The contract decision, and `export.rs` says why in prose it wrote
+  after being bitten.
+- **Copying `MAX_IMPORT_DEPTH = 300`.** It would refuse source that compiles today — a regression
+  wearing a guard's clothes — and its headroom was measured on `unpack_expr`'s frames, which are
+  **half** as deep-going as `lower`'s (3,000–5,000 vs the ~1,530 measured here).
+- **Testing only on the 8 MB main stack.** It accepts **50,000** there. A probe that does not
+  constrain the stack proves nothing about the abort.
+- **Asserting "it failed".** A deep malformed fixture fails for many reasons. Assert the depth
+  refusal by kind.
+- **Believing this brief.** Everything here was measured once, by one hand, on one box. Reproduce
+  the 1520/1539 pair before you lean on it; if it moves, say so — that is worth more than the strike.
