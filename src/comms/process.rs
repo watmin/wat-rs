@@ -7,7 +7,7 @@
 //! mechanism.
 //!
 //! Wire chain (Stone C0b.2e-i-0 onward): `T → EDN string (T::to_wire) →
-//! newline-framed bytes → libc::write → io_uring Read → bytes → EDN string
+//! newline-framed bytes → io_uring Write → io_uring Read → bytes → EDN string
 //! → T (T::from_wire)`. `EdnRepresentable::to_wire` / `from_wire` do the
 //! EDN-text conversion directly — no intermediate HolonAST IR (arc 294.h
 //! deleted the holographic wire trait; see
@@ -30,8 +30,8 @@
 //! methods so Select composes via Receiver's surface instead of reaching
 //! into its fields. Stone 4.5-fix: `Sender::raw_fds` + `Receiver::raw_fds`
 //! — the intentional, portable surface for preserving ALL owned fds
-//! across a fork `close_inherited_fds_above_stdio` sweep (Receiver owns
-//! both `read_fd` AND the io_uring ring fd; both must survive).
+//! across a fork `close_inherited_fds_above_stdio` sweep (each endpoint
+//! owns its data fd AND its io_uring ring fd; both must survive).
 //!
 //! The underlying principle (FDs are the persistent state; io_urings are
 //! ephemeral frames sized to the current operation set; substrate maintains
@@ -305,50 +305,190 @@ mod autobind_tests {
 ///
 /// `close(self)` consumes the endpoint and drops the fd via OwnedFd Drop;
 /// the peer sees EOF when the sole Sender closes.
-#[derive(Debug)]
 pub struct Sender<T: EdnRepresentable> {
     write_fd: OwnedFd,
+    /// Persistent io_uring (capacity 4) — Write 1 + PollAdd 1, with
+    /// headroom for AsyncCancel. `RefCell` so `send(&self)` can submit.
+    /// The send fd stays blocking: an io_uring Write on a full blocking
+    /// pipe parks (the measured behaviour); `O_NONBLOCK` would complete
+    /// with `-EAGAIN` instead and none of that transfers.
+    ring: RefCell<IoUring>,
     /// Type marker — `T` doesn't appear in any field but constrains
     /// what `send` accepts. `PhantomData<T>` makes `Sender<T>` invariant
     /// in T which is correct for this use case.
     _phantom: PhantomData<T>,
 }
 
-/// Restores `fcntl` flags on drop so a polled write can run `O_NONBLOCK`
-/// without leaking that flag onto the fd on any exit (success, Shutdown,
-/// Disconnected, Failed). Matches `try_send`'s toggle; a Drop guard so
-/// every return path restores, including the ones `try_send` names in
-/// prose and implements by hand.
-struct NonblockGuard {
+// rune:purgare(public-api) — Debug impl mirrors Receiver<T>'s manual Debug:
+// IoUring is !Debug, so #[derive(Debug)] cannot survive the ring field.
+impl<T: EdnRepresentable> std::fmt::Debug for Sender<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Sender")
+            .field("write_fd", &self.write_fd)
+            .field("ring", &"IoUring")
+            .field("_phantom", &self._phantom)
+            .finish()
+    }
+}
+
+/// Tokens on the Sender ring. Two ops per attempt, plus AsyncCancel of
+/// whichever did not complete. Never assume completion order — tag only.
+const SEND_WRITE_TOKEN: u64 = 1;
+const SEND_BROADCAST_TOKEN: u64 = 2;
+const SEND_CANCEL_TOKEN: u64 = 3;
+
+enum WriteWait {
+    /// Write CQE with n > 0. Resume loop adds this to `written`.
+    Wrote(usize),
+    /// Write CQE with n < 0. Positive errno; caller maps as today.
+    Errno(i32),
+    /// Broadcast completed and the Write delivered nothing.
+    Shutdown,
+}
+
+fn submit_and_wait_eintr(ring: &mut IoUring) -> std::io::Result<()> {
+    loop {
+        match ring.submit_and_wait(1) {
+            // `submit_and_wait` returns SQEs submitted (`enter(sq_len, want)`),
+            // not a CQE count. Ok(0) with an empty SQ means the wait blocked
+            // until a completion was available (`min_complete = 1`) and then
+            // submitted nothing — return, so the caller can drain. A signal
+            // interrupting io_uring_enter can still present as a wait that
+            // yields no completion; that case is write_once's empty-drain
+            // continue, which re-enters this wait (now blocking).
+            Ok(_) => return Ok(()),
+            Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+fn drain_cqes(ring: &mut IoUring) -> Vec<(u64, i32)> {
+    let mut out = Vec::new();
+    while let Some(cqe) = ring.completion().next() {
+        out.push((cqe.user_data(), cqe.result()));
+    }
+    out
+}
+
+/// AsyncCancel `target` and drain. ENOENT (already complete) is not an error.
+fn cancel_ud(ring: &mut IoUring, target: u64) -> Vec<(u64, i32)> {
+    let cancel_e = opcode::AsyncCancel::new(target)
+        .build()
+        .user_data(SEND_CANCEL_TOKEN);
+    unsafe {
+        let _ = ring.submission().push(&cancel_e);
+    }
+    let _ = submit_and_wait_eintr(ring);
+    drain_cqes(ring)
+}
+
+/// One Write attempt on the Sender's ring. `buf` is `framed[written..]` —
+/// it must outlive this call (it does: `framed` lives on `send`'s stack).
+///
+/// When `broadcast_fd >= 0`, a PollAdd on the shutdown broadcast rides
+/// with the Write. If the Write can make progress the kernel completes
+/// it; only a parked Write lets the broadcast win. Bootstrap (`-1`)
+/// submits the Write alone.
+fn write_once(
+    ring: &mut IoUring,
     fd: std::os::fd::RawFd,
-    orig: libc::c_int,
-}
-
-impl NonblockGuard {
-    fn arm(fd: std::os::fd::RawFd) -> std::io::Result<Self> {
-        // SAFETY: `fd` is the live write-end of this Sender (OwnedFd-managed).
-        // F_GETFL / F_SETFL on a fd this Sender exclusively owns (single-writer)
-        // cannot race with another user of this exact fd.
-        let orig = unsafe { libc::fcntl(fd, libc::F_GETFL) };
-        if orig < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        if unsafe { libc::fcntl(fd, libc::F_SETFL, orig | libc::O_NONBLOCK) } < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        Ok(Self { fd, orig })
+    buf: &[u8],
+    broadcast_fd: i32,
+) -> Result<WriteWait, String> {
+    let write_e = opcode::Write::new(types::Fd(fd), buf.as_ptr(), buf.len() as u32)
+        .offset(0)
+        .build()
+        .user_data(SEND_WRITE_TOKEN);
+    // SAFETY: `buf` is a borrow of `framed[written..]` on send()'s stack
+    // and outlives every submit_and_wait below (same discipline as
+    // uring_read_into_acc's 4096-byte buf).
+    unsafe {
+        ring.submission()
+            .push(&write_e)
+            .map_err(|e| format!("io_uring write SQE submission failed: {e}"))?;
     }
-}
-
-impl Drop for NonblockGuard {
-    fn drop(&mut self) {
-        unsafe { libc::fcntl(self.fd, libc::F_SETFL, self.orig) };
+    let have_broadcast = broadcast_fd >= 0;
+    if have_broadcast {
+        let poll_e = opcode::PollAdd::new(
+            types::Fd(broadcast_fd),
+            (libc::POLLIN | libc::POLLHUP) as u32,
+        )
+        .build()
+        .user_data(SEND_BROADCAST_TOKEN);
+        unsafe {
+            ring.submission()
+                .push(&poll_e)
+                .map_err(|e| format!("io_uring poll SQE submission failed: {e}"))?;
+        }
     }
+    let mut write_result: Option<i32> = None;
+    let mut got_broadcast = false;
+    loop {
+        submit_and_wait_eintr(ring).map_err(|e| e.to_string())?;
+        let cqes = drain_cqes(ring);
+        if cqes.is_empty() {
+            continue;
+        }
+        for (ud, result) in cqes {
+            match ud {
+                SEND_WRITE_TOKEN => write_result = Some(result),
+                SEND_BROADCAST_TOKEN => {
+                    if result < 0 {
+                        return Err(format!(
+                            "io_uring poll failed: {}",
+                            std::io::Error::from_raw_os_error(-result)
+                        ));
+                    }
+                    got_broadcast = true;
+                }
+                _ => {}
+            }
+        }
+        if write_result.is_some() || got_broadcast {
+            break;
+        }
+        // A CQE arrived but it was not ours. SQEs still in flight;
+        // the next wait blocks until one of ours completes.
+    }
+
+    if let Some(n) = write_result {
+        if have_broadcast && !got_broadcast {
+            let _ = cancel_ud(ring, SEND_BROADCAST_TOKEN);
+        }
+        if n > 0 {
+            return Ok(WriteWait::Wrote(n as usize));
+        }
+        if n < 0 {
+            return Ok(WriteWait::Errno(-n));
+        }
+        return Ok(WriteWait::Wrote(0));
+    }
+
+    if got_broadcast {
+        let leftover = cancel_ud(ring, SEND_WRITE_TOKEN);
+        for (ud, result) in leftover {
+            if ud != SEND_WRITE_TOKEN {
+                continue;
+            }
+            if result > 0 {
+                // Write completed first; AsyncCancel is ENOENT. Honor
+                // the count — the tie-break, not a cancelled partial.
+                return Ok(WriteWait::Wrote(result as usize));
+            }
+            if result < 0 && result != -libc::ECANCELED {
+                return Ok(WriteWait::Errno(-result));
+            }
+        }
+        return Ok(WriteWait::Shutdown);
+    }
+
+    Err("io_uring wait returned no Write and no broadcast CQE".into())
 }
 
 impl<T: EdnRepresentable> Sender<T> {
     /// Send `value` to the channel. Encodes via
-    /// `T::to_wire` → newline-framed bytes → `libc::write` retry loop.
+    /// `T::to_wire` → newline-framed bytes → io_uring Write resume loop.
     ///
     /// Returns `Err(SendError::Disconnected(value))` when the peer's
     /// read-end is closed (EPIPE), `Err(SendError::Shutdown(value))`
@@ -376,110 +516,29 @@ impl<T: EdnRepresentable> Sender<T> {
         framed.push(b'\n');
 
         let fd = self.write_fd.as_raw_fd();
-        // Toggle, not construction: the no-broadcast fallback (test bypass /
-        // pre-bootstrap) must keep the blocking write; `try_send` independently
-        // toggles the same fd and restores. Construction-time O_NONBLOCK would
-        // make try_send's restore fight this path. Single-writer, so the two
-        // toggles do not overlap.
         let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
             .load(std::sync::atomic::Ordering::SeqCst);
-        let _nonblock = if broadcast_fd >= 0 {
-            match NonblockGuard::arm(fd) {
-                Ok(g) => Some(g),
-                Err(e) => return Err(SendError::Failed(value, e.to_string())),
-            }
-        } else {
-            None
-        };
+        let mut ring = self.ring.borrow_mut();
         let mut written = 0usize;
         while written < framed.len() {
-            // Arc 278 send-mirrors-recv — poll `[fd → POLLOUT,
-            // SHUTDOWN_BROADCAST_READ_FD → POLLIN|POLLHUP]` before every
-            // write attempt, exactly as `io::PipeWriter::write` already does
-            // (`src/io.rs`, arc 170 closure #5). The poll owns every wait;
-            // `O_NONBLOCK` (restored on drop) makes `write` return EAGAIN
-            // instead of blocking for the rest of a partial frame — POLLOUT
-            // promises ≥ 1 byte, not the full remainder, and the shutdown
-            // broadcast is an fd that cannot interrupt a write already inside
-            // the kernel. When the broadcast fd hasn't been initialized
-            // (-1: test bypass / pre-bootstrap), skip straight to the
-            // blocking write — today's un-multiplexed path, unchanged.
-            if broadcast_fd >= 0 {
-                loop {
-                    let mut fds = [
-                        libc::pollfd { fd, events: libc::POLLOUT, revents: 0 },
-                        libc::pollfd {
-                            fd: broadcast_fd,
-                            // POLLIN: the shutdown-worker's wake byte. POLLHUP: the
-                            // broadcast write-end closing after — either wakes us.
-                            events: libc::POLLIN | libc::POLLHUP,
-                            revents: 0,
-                        },
-                    ];
-                    let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
-                    if n < 0 {
-                        // EINTR re-polls; never a blind retry.
-                        let err = std::io::Error::last_os_error();
-                        if err.kind() == std::io::ErrorKind::Interrupted {
-                            continue;
-                        }
-                        break; // non-EINTR poll error — proceed to write, let write(2) surface it
-                    }
-                    if n == 0 {
-                        // timeout=-1 should never produce n=0; defensively retry.
+            match write_once(&mut ring, fd, &framed[written..], broadcast_fd) {
+                Ok(WriteWait::Wrote(n)) => written += n,
+                Ok(WriteWait::Errno(errno)) => {
+                    let err = std::io::Error::from_raw_os_error(errno);
+                    if err.kind() == std::io::ErrorKind::Interrupted {
                         continue;
                     }
-                    // Writable wins ties — mirrors `PipeWriter::write`'s
-                    // documented tie-break (`src/io.rs`): if the fd is
-                    // writable NOW, WRITE (O_NONBLOCK: the write returns
-                    // short / EAGAIN instead of blocking, so there is no
-                    // reason to abandon it); surface the stop only when
-                    // the write WOULD have blocked. A dying process must
-                    // still be able to utter its last words.
-                    if fds[0].revents != 0 {
-                        break; // writable — proceed, stop or no stop
+                    if err.kind() == std::io::ErrorKind::WouldBlock {
+                        continue;
                     }
-                    if fds[1].revents != 0 {
-                        // Not writable AND a stop is pending → this write
-                        // would block indefinitely. Surface it typed.
-                        return Err(SendError::Shutdown(value));
+                    if err.kind() == std::io::ErrorKind::BrokenPipe {
+                        return Err(SendError::Disconnected(value));
                     }
+                    return Err(SendError::Failed(value, err.to_string()));
                 }
+                Ok(WriteWait::Shutdown) => return Err(SendError::Shutdown(value)),
+                Err(reason) => return Err(SendError::Failed(value, reason)),
             }
-
-            // SAFETY: `fd` is valid for the lifetime of `self.write_fd`
-            // (OwnedFd-managed; not closed until Drop). The pointer
-            // derived from `framed[written..]` is valid for
-            // `framed.len() - written` bytes — `framed` is a live Vec
-            // on this function's stack and is not freed until after
-            // this loop completes.
-            let n = unsafe {
-                libc::write(
-                    fd,
-                    framed[written..].as_ptr() as *const _,
-                    framed.len() - written,
-                )
-            };
-            if n < 0 {
-                let err = std::io::Error::last_os_error();
-                if err.kind() == std::io::ErrorKind::Interrupted {
-                    continue;
-                }
-                if err.kind() == std::io::ErrorKind::WouldBlock {
-                    // Pipe filled between poll and write, or the kernel
-                    // took a short count's remainder. Re-poll with the
-                    // broadcast armed — never a blind retry, never an error.
-                    continue;
-                }
-                if err.kind() == std::io::ErrorKind::BrokenPipe {
-                    // EPIPE — the peer's read-end is gone.
-                    return Err(SendError::Disconnected(value));
-                }
-                // Any other write failure carries its real reason (arc 278
-                // no-hidden-failures — the send-tier twin of RecvError::Failed).
-                return Err(SendError::Failed(value, err.to_string()));
-            }
-            written += n as usize;
         }
         Ok(())
     }
@@ -583,17 +642,16 @@ impl<T: EdnRepresentable> Sender<T> {
 impl<T: EdnRepresentable> Sender<T> {
     /// Return every raw file descriptor this `Sender` owns.
     ///
-    /// Currently: `[write_fd]`. This is the complete fd set the kernel-side
-    /// pipe write-end occupies. Callers that fork and need to preserve this
-    /// endpoint's fds across a `close_inherited_fds_above_stdio` sweep should
-    /// pass the result of this method into the skip-list (via
+    /// Currently: `[write_fd, ring_fd]`. Callers that fork and need to
+    /// preserve this endpoint's fds across a `close_inherited_fds_above_stdio`
+    /// sweep should pass the result of this method into the skip-list (via
     /// `crate::process::child_post_fork_init_preserving`).
     ///
     /// Stone 4.5-fix: added as the intentional, portable preservation surface
     /// so fork children can enumerate "every fd I must keep alive across the
     /// sweep" without reaching past the public API into OwnedFd fields.
     pub fn raw_fds(&self) -> Vec<std::os::fd::RawFd> {
-        vec![self.write_fd.as_raw_fd()]
+        vec![self.write_fd.as_raw_fd(), self.ring.borrow().as_raw_fd()]
     }
 
     /// Reinterpret this sender's wire type as `U` without touching the
@@ -613,6 +671,7 @@ impl<T: EdnRepresentable> Sender<T> {
     pub fn reinterpret<U: EdnRepresentable>(self) -> Sender<U> {
         Sender {
             write_fd: self.write_fd,
+            ring: self.ring,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -2054,6 +2113,10 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
     Ok((
         Sender {
             write_fd,
+            ring: RefCell::new(
+                IoUring::new(4)
+                    .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at Sender construction: {}", e)))?,
+            ),
             _phantom: PhantomData,
         },
         receiver,
@@ -2105,7 +2168,17 @@ pub fn sender_receiver_from_fd_with_budget<T: EdnRepresentable>(
         ),
         _phantom: PhantomData,
     };
-    Ok((Sender { write_fd: fd, _phantom: PhantomData }, receiver))
+    Ok((
+        Sender {
+            write_fd: fd,
+            ring: RefCell::new(
+                IoUring::new(4).map_err(|e| std::io::Error::other(
+                    format!("IoUring::new(4) failed at sender_receiver_from_fd Sender: {}", e)))?,
+            ),
+            _phantom: PhantomData,
+        },
+        receiver,
+    ))
 }
 
 /// Arc 209 C0b.3a-0 — wrap a SEPARATE read fd + write fd as a
@@ -2129,7 +2202,17 @@ pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
         ),
         _phantom: PhantomData,
     };
-    Ok((Sender { write_fd, _phantom: PhantomData }, receiver))
+    Ok((
+        Sender {
+            write_fd,
+            ring: RefCell::new(
+                IoUring::new(4).map_err(|e| std::io::Error::other(
+                    format!("IoUring::new(4) failed at sender_receiver_from_split_fds Sender: {}", e)))?,
+            ),
+            _phantom: PhantomData,
+        },
+        receiver,
+    ))
 }
 
 // ─── Timer tests ──────────────────────────────────────────────────────────────
