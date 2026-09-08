@@ -113,13 +113,13 @@
      (:wat::core::match
        (:wat::eval-with-defs! (:probe::evaluand) (:probe::RuleWire::InstallRequest/defs req))
        [:wat::eval::FormOutcome::Declared {}
-         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Rejected "declared")})]
+         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Rejected {:reason "declared"})})]
        [:wat::eval::FormOutcome::Evaluated {:value v}
-         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Derived v)})]
+         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Derived {:n v})})]
        [:wat::eval::FormOutcome::CheckFailed {:cause _cause}
-         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Rejected "check-failed")})]
+         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Rejected {:reason "check-failed"})})]
        [:wat::eval::FormOutcome::Raised {:cause _cause}
-         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Rejected "raised")})]))])
+         (:wat::service::Outcome::Reply {:state s :reply (:probe::RuleWire::InstallResponse::Rejected {:reason "raised"})})]))])
 
 ;; ── the two payloads, differing in ONE form ───────────────────────────────────────────────
 (:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])

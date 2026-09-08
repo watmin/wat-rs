@@ -3,7 +3,7 @@
   :Candle  [open <- :wat::core::f64 close <- :wat::core::f64]
   :Deposit [amount <- :wat::core::f64]
   :Nothing)
-(:wat::core::defn :my::a-candle [] -> :my::Event (:my::Event::Candle 100.0 105.0))
+(:wat::core::defn :my::a-candle [] -> :my::Event (:my::Event::Candle {:open 100.0 :close 105.0}))
 (:wat::core::defn :my::summary [e <- :my::Event] -> :wat::core::String
   (:wat::core::match e 
     [:my::Event::Candle {:open o :close c} (:wat::f64::to-string c)]

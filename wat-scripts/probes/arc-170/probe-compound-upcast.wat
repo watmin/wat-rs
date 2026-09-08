@@ -22,7 +22,7 @@
 
 (:wat::service::defservice :probe::echo :satisfies :probe::Echo :durable [] :ephemeral []
   :impls [(echo [s ctx req] (:wat::service::Outcome::Reply {:state s
-            :reply (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+            :reply (:probe::Echo::EchoResponse::Ok {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 (:wat::core::defn :probe::as-map [m <- (:wat::core::HashMap :- [:wat::core::keyword :wat::capability::Capability])]
   -> (:wat::core::HashMap :- [:wat::core::keyword :wat::capability::Capability])

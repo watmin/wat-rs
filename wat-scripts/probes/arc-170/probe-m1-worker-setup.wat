@@ -17,7 +17,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+              :reply (:probe::Echo::EchoResponse::Ok {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 ;; the union the worker recv's: Setup hands the address; Work is one unit of work.
 (:wat::core::defenum :probe::Msg :wat::enum::Pure

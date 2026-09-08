@@ -27,7 +27,7 @@
   :impls
   [(echo [s ctx req]
      (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+       :reply (:probe::Echo::EchoResponse::Ok {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
 (:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
@@ -62,7 +62,7 @@
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
-       (:wat::service::Outcome::Reply {:state s :reply (:probe::Caller::RunResponse::Ok out)})))])
+       (:wat::service::Outcome::Reply {:state s :reply (:probe::Caller::RunResponse::Ok {:out out})})))])
 
 ;; ── the crossing: start both on PROCESSES, dial caller', which dials echo' ───────
 (:wat::core::defn :user::main [] -> :wat::core::nil

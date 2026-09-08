@@ -30,20 +30,20 @@
   [s <- :wat::core::String]
   -> :user::NodeKind
   (:wat::core::cond
-    ((:wat::core::= s "int") (:user::NodeKind::IntLit))
-    ((:wat::core::= s "float") (:user::NodeKind::FloatLit))
-    ((:wat::core::= s "rational") (:user::NodeKind::RationalLit))
-    ((:wat::core::= s "bigint") (:user::NodeKind::BigIntLit))
-    ((:wat::core::= s "char") (:user::NodeKind::CharLit))
-    ((:wat::core::= s "bool") (:user::NodeKind::BoolLit))
-    ((:wat::core::= s "string") (:user::NodeKind::StringLit))
-    ((:wat::core::= s "nil") (:user::NodeKind::NilLit))
+    ((:wat::core::= s "int") (:user::NodeKind::IntLit {}))
+    ((:wat::core::= s "float") (:user::NodeKind::FloatLit {}))
+    ((:wat::core::= s "rational") (:user::NodeKind::RationalLit {}))
+    ((:wat::core::= s "bigint") (:user::NodeKind::BigIntLit {}))
+    ((:wat::core::= s "char") (:user::NodeKind::CharLit {}))
+    ((:wat::core::= s "bool") (:user::NodeKind::BoolLit {}))
+    ((:wat::core::= s "string") (:user::NodeKind::StringLit {}))
+    ((:wat::core::= s "nil") (:user::NodeKind::NilLit {}))
     ((:wat::core::= s "keyword") (:user::NodeKind::Keyword {}))
-    ((:wat::core::= s "symbol") (:user::NodeKind::Symbol))
+    ((:wat::core::= s "symbol") (:user::NodeKind::Symbol {}))
     ((:wat::core::= s "list") (:user::NodeKind::List {}))
     ((:wat::core::= s "vector") (:user::NodeKind::Vector {}))
-    ((:wat::core::= s "set") (:user::NodeKind::Set))
-    ((:wat::core::= s "map") (:user::NodeKind::Map))
+    ((:wat::core::= s "set") (:user::NodeKind::Set {}))
+    ((:wat::core::= s "map") (:user::NodeKind::Map {}))
     (:else (:wat::kernel::assertion-failed! :message (:wat::string::concat "grep: unknown ast-kind " s)))))
 
 (:wat::core::defn :user::kind-name
@@ -70,5 +70,5 @@
   (:wat::kernel::println
     (:wat::string::interpolate "roundtrip={r} same={s} cross={c}"
       :r (:user::kind-name (:user::kind-of "list"))
-      :s (:wat::core::if (:wat::core::= (:user::kind-of "map") (:user::NodeKind::Map)) "true" "false")
-      :c (:wat::core::if (:wat::core::= (:user::kind-of "map") (:user::NodeKind::Set)) "true" "false"))))
+      :s (:wat::core::if (:wat::core::= (:user::kind-of "map") (:user::NodeKind::Map {})) "true" "false")
+      :c (:wat::core::if (:wat::core::= (:user::kind-of "map") (:user::NodeKind::Set {})) "true" "false"))))

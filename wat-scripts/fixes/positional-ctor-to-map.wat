@@ -741,7 +741,13 @@
     (:wat::core::= path "tests/types/probe_arc296_enum_map_ctor__positional.wat")
     (:wat::core::or
       (:wat::core::= path "wat-scripts/fixes/positional-ctor-to-map.wat")
-      (:wat::core::= path "wat/service.wat"))))
+      (:wat::core::or
+        (:wat::core::= path "wat/service.wat")
+        (:wat::core::or
+          (:wat::core::= path "tests/cli/grep_smoke_target.wat")
+          (:wat::core::if (:wat::core::> (:wat::string::length path) 17)
+            (:wat::core::= (:wat::string::subs path 0 18) "wat-scripts/fixes/")
+            false))))))
 
 (:wat::core::defn :user::rewrite-each
   [paths <- (:wat::core::Vector :- [:wat::core::String])

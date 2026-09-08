@@ -20,7 +20,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+              :reply (:probe::Echo::EchoResponse::Ok {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 ;; a typed helper: the param pins the reconstructed addr's S,R (unify ? = Echo::Op/Reply).
 (:wat::core::defn :probe::dial-and-echo
