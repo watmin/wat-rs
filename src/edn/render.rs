@@ -453,7 +453,7 @@ pub fn eval_foreign_record_get(
         other => {
             return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::core::Keyword",
+                expected: ":wat::core::keyword",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             }));
         }
@@ -484,7 +484,7 @@ pub fn eval_foreign_record_class(
     }
 }
 
-/// `(:wat::edn::ForeignVariant/variant v)` → `:wat::core::Keyword`. Arc 278
+/// `(:wat::edn::ForeignVariant/variant v)` → `:wat::core::keyword`. Arc 278
 /// Stone A — the variant name as a keyword (`:Click`). Traffics in `Value` at
 /// the argument boundary (heterogeneous), runtime-checking it is a
 /// `ForeignVariant` and raising a clean located error otherwise

@@ -347,7 +347,7 @@ pub(crate) fn eval_foreign_record_class_home(
         .map_err(Into::into)
 }
 
-/// `(:wat::edn::ForeignVariant/variant v)` → `:wat::core::Keyword`. The variant name as a
+/// `(:wat::edn::ForeignVariant/variant v)` → `:wat::core::keyword`. The variant name as a
 /// keyword (`:Click`). Traffics in `:wat::core::Value` at the argument boundary (heterogeneous),
 /// runtime-checking it is a `ForeignVariant` and raising a clean located error otherwise.
 ///
@@ -358,7 +358,7 @@ pub(crate) fn eval_foreign_record_class_home(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     v :wat::core::Value the foreign variant probed
-/// @ret     :wat::core::Keyword the variant's name
+/// @ret     :wat::core::keyword the variant's name
 /// @example (:wat::edn::ForeignVariant/variant (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") [:wat::edn::ReadForeignOutcome::Value {:value fv} fv] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")])) #=> :Click
 /// @see     :wat::edn::ForeignVariant/enum-class
 #[wat_intrinsic(":wat::edn::ForeignVariant/variant")]
