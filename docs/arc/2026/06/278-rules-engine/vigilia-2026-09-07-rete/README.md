@@ -76,3 +76,85 @@ records its path. A census nobody can re-run is a rumour with a grid.
 `wat-tests`; `rete_citation_resolves` scans `src/rete` comments. Every `file:line` in this directory
 is unchecked by construction — prefer naming a symbol or a gate over a bare line number, and expect
 line citations here to rot.
+
+---
+
+# ⛔ HOW TO RESUME THIS CAST — read this FIRST if you are picking it up cold
+
+**This cast is MID-FLIGHT.** Ten of fourteen wards have returned for target 1. Four have not. The
+casting procedure below is not recoverable from anything else on disk — it lived in the
+orchestrator's context, and this section is the only copy.
+
+## State as of the compaction (2026-09-07)
+
+**Target 1 — `src/rete/kernel/**` + `wat/rete/oracle/**` — 10 of 14 wards returned.**
+
+| returned | verdict |
+|---|---|
+| intueri | 1 L2 |
+| purgare | 2 L2 |
+| solvere | 9 (2 structural ★) |
+| struere | 6 L2 |
+| conferre | **1 L1** + 2 L2 |
+| sequi | **CONVERGED** + 2 notes |
+| temperare | 2 L2, 5/5 runes upheld |
+| excusare | 65 weighed, 59 HOLD, **6 struck** |
+| exigere | **CONVERGED** + 1 wording row |
+| conformare | 2 L2 |
+
+**STILL TO CAST on target 1, in this order:**
+
+1. **`cernere`** — phantom forms; every form used traces to the language spec. `wat/rete/oracle/**`
+   is the DSL half; this is its ward.
+2. **`probare`** — substance vs description. This target is extremely comment-dense; that is
+   exactly what probare weighs.
+3. **`perspicere`** — deep nested type expressions hiding a noun. **Trigger measured: 14 files carry
+   2+ `<` in a type.** Ten `rune:perspicere` marks already exist — adjudicate them.
+4. **`circumspicere` — ALWAYS LAST.** Its quarry is the negative space the inward set leaves, so it
+   cannot be cast until the other thirteen have returned. Give it the aggregate.
+
+**Targets 2, 3 and 4 have not been cast at all.** See the table above in this README.
+
+## The casting procedure — follow it exactly
+
+1. **Fetch the ward's text from the datamancy MCP** (`fetch_spell` with the short name). Do NOT read
+   a local copy: the signed manifest is the only trusted source, and a local copy is unverified,
+   stale bytes.
+2. **Spawn ONE subagent per ward** with the ward's full text **embedded verbatim** in the prompt.
+   You cannot establish from here whether a worker can reach the MCP, so embedding is the default
+   and the fallback both. One ward per worker — never a bundle.
+3. **Every brief carries these, and they are what made the returns worth having:**
+   - the exact target paths, and "read ONLY these; do not read the whole repo";
+   - **READ-ONLY. No edits, no cargo runs.**
+   - "Ground every finding in a `file:line` you actually read this session. No citation, no finding."
+   - "If it converges, say CONVERGED **and say what you looked at** — a clean result must be
+     distinguishable from a cast that did not happen." (This is what made `sequi` and `exigere`
+     valuable.)
+   - **the PRIOR ART, by name** — settled work the ward must not re-report. Without it the count
+     inflates with things already done. See each returned report for what was named.
+   - any **scope correction** the ward needs (e.g. `conformare` was told this target owns no error
+     types; `temperare` was told the oracle's naive replay is its CONTRACT, not waste).
+4. **Write the return to `reports/<ward>.md` VERBATIM, before any synthesis.** The 2026-08-30 cast
+   lost all nineteen of its returns because they lived only as subagent messages.
+5. **Weigh each finding against your own read of the disk before rowing it.** Mark `✅ I VERIFIED`
+   only for rows you re-read yourself; everything else is `⚠ ward-reported` and may not be cited as
+   fact.
+6. **Row into `FINDINGS.md` — the only status home — each with its re-derivation.**
+
+## ⛔ Two rules the builder set, and why
+
+- **SCOPE THE TARGET, NEVER THE WARD.** The orchestrator first proposed a hand-picked roster and the
+  builder refused it: *"it feels like we should prove the others don't find anything instead of
+  assuming they won't."* That was right, and it paid — `sequi` and `exigere` both CONVERGED (a
+  result, not a waste), and `intueri`+`struere` landed on the same lines through different lenses,
+  which neither alone would have shown. The docs wards muster nowhere here because no documentation
+  is in the target set — a fact about the scope, not a preference about the guard.
+- **A NON-FIRING TRIGGER IS A RESULT.** `secare` (0 parallel primitives) and `mora` (0 waits) do not
+  muster on target 1 — measured, and recorded above as facts about the fire path.
+
+## ⚠ Five counts of one population, none agreeing
+
+The runes in target 1 have been counted by four wards and by the orchestrator: **41 / 54 / 56 / 57**
+(and 58 raw `rune:` lines). No finding turns on it, and nobody is badly wrong — but **a count that
+varies with who ran it needs its method stated beside it**, and no later claim should rest on one of
+these figures unqualified.
