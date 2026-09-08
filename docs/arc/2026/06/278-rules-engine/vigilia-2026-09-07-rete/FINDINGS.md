@@ -348,6 +348,9 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2P5** | purgare | `eval_test.rs:72-73` | `rune:purgare(trait-contract)` on `eval_test_core`'s `env` parameter. All 5 call sites pass a fresh `Environment::new()` — a genuine constant-parameter, correctly spotted. But `eval_test_core` is a plain fn, not a trait impl; the category does not fit the doctrine's own taxonomy. | L2 | **OPEN** · ⚠ ward-reported | closed by recategorising to `future-fixture` |
 | **2P6** | purgare | `wat/rete/factbag.wat:103-115` | `:wat::rete::factbag::count-of` is DEAD — a full-name grep across `.wat` and `.rs` returns the definition and nothing else. No Rust dispatch arm, no wat caller. ⚠ The ward was careful to exclude `:sq::count-of` / `:t118b::count-of`, unrelated namespaces that a substring grep would have swept in. | L2 | **OPEN** · ✅ I VERIFIED | `grep -rn 'factbag::count-of' --include=*.wat --include=*.rs .` → **1 hit, the defn**. Closed by deleting it, or a `rune:purgare` if held for the file's rung-3 seal |
 | **2P7 ★** | purgare | `wat/rete/compile.wat:263-266` | ⭐ **A RECORD THAT PROMISES A DIAGNOSTIC IT NEVER GIVES.** `AxisViolation` declares `head`, `axis`, `span`, and `purity.rs:2055-2070` populates all three with real values on every construction. Only `head` is ever read. The record's own doc says a caller can *"report as well as the substrate can"* — but `axis-violation-message`'s four arms use `head` alone, so the span is computed, carried across the boundary, and dropped. | L2 | **OPEN** · ✅ I VERIFIED | `AxisViolation/head` → **4** reads; `AxisViolation/axis` → **0**; `AxisViolation/span` → **0**. Closed by wiring the 4 arms to use `span`, or dropping the fields |
+| **2S1 ★** | solvere | `matcher.rs:733-741` + `compiled_cond.rs:1403-1412` | ⭐ **THE `CmpKind → bool` TABLE IS HAND-WRITTEN TWICE.** Six arms, same semantics, in the interpreted path and the compiled path. `clause.rs:119-126` defines `CmpKind` and implements **no method on it**; there is no `cmp_holds` anywhere. ⚠ The compiled site's own doc reasons about drift one level too shallow: *"`compare_values` is REUSED from `matcher.rs`… so an ordering definition can never drift"* — true, and it protects the `Ordering` computation while leaving the dispatch table **on top of it** duplicated. | L2 · structural, low blast radius | **OPEN** · ✅ I VERIFIED | both bodies read: 6 arms each, `?`-propagation vs `matches!`; `grep -rn 'impl CmpKind\|fn cmp_holds\|fn holds' src/rete/` → **0**. Closed by one `cmp_holds` in `clause.rs` beside the type |
+| **2S2 ★★** | solvere | `export.rs:751-754` vs `:834-839`, `:1106`; ten `pack_X`/`unpack_X` pairs | ⭐⭐ **ONE FILE HOLDS BOTH ENDS OF THE LADDER.** `pack_expr` is a bare `match` with no catch-all — a new variant **cannot compile** without its arm. `unpack_expr` matches a runtime **string tag** with `other => Err(malformed(…))`, so the same new variant compiles clean and fails at runtime. Ten pairs, same asymmetry. ⛔ **The file DIAGNOSES ITSELF** — `:751-754` says the packer is *"the one whose exhaustiveness the compiler enforces for you… Its inverse cannot get that guarantee"* — and names the mitigant as a **test corpus a human must remember to extend**. | L2 · structural | **OPEN** · ✅ I VERIFIED | `pack_expr` has no catch-all; `unpack_expr:1106` is `other => Err(...)`; `:838` names the corpus as the catcher. Closed by a per-variant table or a macro emitting both arms |
+| **2S3** | solvere | `wat/rete/compile.wat:1079-1100` + `:1103-1124` | `compile-rule` and `compile-query` run the identical pipeline — `sort-lhs` → `CondFoldAcc` → `foldl compile-condition` → destructure → build terminal → `assoc` → `wire-parents` → bump `next-id` — differing only in the RHS fence and the terminal node type. ⛔ **Self-diagnosed:** the comment at `:1102` reads *"compile-query — same LHS fold as compile-rule; terminal is a QueryNode."* Named, never extracted. | L2 · structural | **OPEN** · ✅ I VERIFIED | `sed -n '1102p' compile.wat` → the comment, verbatim. Closed by one `compile-terminal` helper parameterised by the terminal constructor |
 
 ## Verified by the orchestrator — target 2
 
@@ -460,4 +463,52 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **3** — conferre · conformare · purgare | intueri · solvere · struere · sequi · temperare · exigere · cernere · probare · perspicere · excusare, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | 0 | 9 |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **4** — conferre · conformare · purgare · solvere | intueri · struere · sequi · temperare · exigere · cernere · probare · perspicere · excusare, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | 0 | 12 |
+
+- **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
+  `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
+  observable divergence**. `solvere` read the same two bodies and says they are **two hand-written
+  copies with no shared function**. *Both are right, and together they are the finding:* the copies
+  agree **today**, which is precisely why nothing has ever gone red, and there is no mechanism that
+  makes them agree tomorrow. A spec-fidelity ward can only report the current state of a
+  duplication; only the structural ward can say it is a duplication at all.
+  ⚠ The one real difference between the copies is already known and benign: `?`-propagation
+  (a `None` short-circuits `eval_clause`) vs `matches!` (a `None` becomes `false`). `conferre`
+  checked it and found both produce "clause fails" for `Lt/Gt/Le/Ge`. **That is the drift surface
+  with one foot already on it.**
+
+- **2S2 ★★** — CONFIRMED, and it is the sharpest row of target 2 so far, because **one file holds
+  both ends of the extirpare ladder and says so.**
+  · `pack_expr` sits at the TOP rung — a bare `match` with no catch-all, so a new `Expr` variant
+    **has no way to be written down** without its arm. The wrong shape is uncompilable.
+  · `unpack_expr` sits at the BOTTOM — a runtime string tag with `other => Err(malformed(…))`, so
+    the same new variant compiles clean and degrades at runtime.
+  · The file's own doc names the asymmetry exactly (*"the one whose exhaustiveness the compiler
+    enforces for you… Its inverse cannot get that guarantee"*) and nominates the mitigant: a test
+    corpus, plus the instruction that *"a new variant belongs in their corpus in the same change."*
+  ⛔ **That mitigant is a CONVENTION guarding a check.** The tests fire only if a human remembers to
+  extend the corpus — which is rung 1 of the ladder, protecting a rung-3 sibling in the same file.
+  The doc is honest, accurate, and dated; what it is not is a cure. ⚠ **And this is the sharpest
+  form of the arc's signature shape yet**: not a fix that never reached a sibling path, but a fix
+  that reached one HALF of a pair and structurally cannot reach the other in its present form.
+
+- **2S3** — CONFIRMED. `compile.wat:1102` reads, verbatim: *"compile-query — same LHS fold as
+  compile-rule; terminal is a QueryNode."* The duplication is named in a comment directly above the
+  duplicate.
+
+⛔ **TWO OF THE THREE ARE SELF-DIAGNOSED, AND THAT IS THE PATTERN WORTH NAMING.** 2S2's file says
+*"Its inverse cannot get that guarantee"*; 2S3's comment says *"same LHS fold as compile-rule"*.
+Neither is a case of nobody noticing. **In both, noticing is where it stopped** — the observation was
+written down, correctly and durably, and then served as the record that the thing was understood
+rather than as the trigger to fix it. An accurate comment naming a defect is evidence the defect is
+known; it is not evidence it is bounded. `[[an-accurate-comment-can-be-a-defects-alibi]]` — and here
+it recurs twice in one ward's return.
+
+⭐ **`solvere` also cleared the axis the cast most expected to be tangled, and named its method.** It
+grepped `classify_rete_clause` and found every consumer — `matcher.rs`, `compiled_cond.rs`,
+`alpha_tree.rs`, `step_payload.rs`, `validate/{mod,typing}.rs`, `kernel/{stratify,arm}.rs` — routing
+through **one door**. The "four walkers over one grammar" worry I put in the brief is, on the
+clause-classification axis, already cured. It then found the real duplication one level down, in the
+comparison table those walkers each evaluate. **And it declined `where_tree.rs`'s range family with
+a reason**: that code is the *product* of a prior consolidation whose own doc records the fifth
+hand-match it replaced. A ward that can tell a cure from a defect is worth casting.
