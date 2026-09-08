@@ -338,8 +338,10 @@ const SEND_BROADCAST_TOKEN: u64 = 2;
 const SEND_CANCEL_TOKEN: u64 = 3;
 
 enum WriteWait {
-    /// Write CQE with n > 0. Resume loop adds this to `written`.
-    Wrote(usize),
+    /// Write CQE with n > 0. Resume loop adds `n.get()` to `written`.
+    /// Zero is unrepresentable — a zero-length write of a non-empty
+    /// buffer is not progress and is reported, not looped.
+    Wrote(std::num::NonZeroUsize),
     /// Write CQE with n < 0. Positive errno; caller maps as today.
     Errno(i32),
     /// Broadcast completed and the Write delivered nothing.
@@ -457,12 +459,19 @@ fn write_once(
             let _ = cancel_ud(ring, SEND_BROADCAST_TOKEN);
         }
         if n > 0 {
-            return Ok(WriteWait::Wrote(n as usize));
+            if let Some(nz) = std::num::NonZeroUsize::new(n as usize) {
+                return Ok(WriteWait::Wrote(nz));
+            }
         }
         if n < 0 {
             return Ok(WriteWait::Errno(-n));
         }
-        return Ok(WriteWait::Wrote(0));
+        // n == 0 on a non-empty buffer: the kernel does not define this.
+        // Report it — a zero is not progress, and looping would resubmit
+        // the identical Write forever.
+        return Err(
+            "io_uring Write returned 0 for a non-empty buffer — zero is not progress".into(),
+        );
     }
 
     if got_broadcast {
@@ -474,7 +483,9 @@ fn write_once(
             if result > 0 {
                 // Write completed first; AsyncCancel is ENOENT. Honor
                 // the count — the tie-break, not a cancelled partial.
-                return Ok(WriteWait::Wrote(result as usize));
+                if let Some(nz) = std::num::NonZeroUsize::new(result as usize) {
+                    return Ok(WriteWait::Wrote(nz));
+                }
             }
             if result < 0 && result != -libc::ECANCELED {
                 return Ok(WriteWait::Errno(-result));
@@ -522,7 +533,7 @@ impl<T: EdnRepresentable> Sender<T> {
         let mut written = 0usize;
         while written < framed.len() {
             match write_once(&mut ring, fd, &framed[written..], broadcast_fd) {
-                Ok(WriteWait::Wrote(n)) => written += n,
+                Ok(WriteWait::Wrote(n)) => written += n.get(),
                 Ok(WriteWait::Errno(errno)) => {
                     let err = std::io::Error::from_raw_os_error(errno);
                     if err.kind() == std::io::ErrorKind::Interrupted {
