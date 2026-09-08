@@ -26,7 +26,7 @@ strikes to run — the failure this scoping exists to prevent.
 |---|---|---|---|---|
 | 1 | `src/rete/kernel/` + `wat/rete/oracle/` — the fire path and the spec it must mirror | 28 | 15,771 (measured) | ✅ **CAST COMPLETE** — 14/14 wards, 38 rows |
 | 2 | `src/rete/**` minus `kernel/` + `wat/rete*.wat` — the compile side and its spec (⛔ WIDENED — see below) | 25 | 23,886 (measured) | ✅ **CAST COMPLETE** — 15/15 wards, 36 rows |
-| 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | 54 | ~8.7k | PENDING |
+| 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | 147 | 16,345 (measured — my 54/~8.7k was the `.wat` count alone) | CASTING |
 | 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | 264 | ~36k | PENDING |
 
 ## Muster, derived per target — with the triggers MEASURED
@@ -48,6 +48,47 @@ Cast 1, `src/rete/kernel/` + `wat/rete/oracle/`:
 | circumspicere | always, last | **muster, last** |
 
 Later targets get their own derivation block, written before that cast.
+
+## Muster for target 3 — the grid, derived and MEASURED 2026-09-08
+
+⛔ **FIRST: MY OWN SCOPE FIGURE WAS WRONG, AND THIS IS THE SEVENTH.** The target table above said
+*"54 files, ~8.7k lines."* Measured: **147 files, 16,345 lines.** The 54 was the `.wat` count alone —
+I never counted the 43 `.clj`, 29 `.txt`, 19 `.sh` and 2 `.md` that make the instrument work.
+`[[a-throwaway-sweep-is-an-instrument]]`. **TARGET 3, FINAL: 147 files, 16,345 lines.**
+
+⛔ **SECOND: A FALSE FINDING I NEARLY HANDED DOWN, CAUGHT BY MEASURING.** 54 `.wat` axes against 43
+`.clj` twins looks like **11 axes with no Clara reference** — a textbook `peragrare` cell. It is not.
+The eleven are **exactly** the eleven with a `gen-<axis>.sh`, and `check-grid-three-way.sh:157-161`
+documents the rule: *"Two legitimate provenances, and EXACTLY ONE must apply per axis: `gen-<axis>.sh
+SIZE` — the eleven perf axes, whose Clara side is generated per size; `<axis>.clj` — a STATIC twin,
+for a correctness-only axis. Neither is a hard failure; BOTH is a hard failure."* I verified the two
+sets are identical. **Had I put "11 axes lack a Clara twin" in a brief, the ward would have been
+hunting a decision, not a defect.**
+
+| ward | rule | verdict — with the measurement |
+|---|---|---|
+| **`peragrare`** | a load-bearing instrument AND its corpus | ⭐⭐ **MUSTER — this is the target it was minted for.** The grid is the arc's correctness instrument (Clara \| oracle \| native) and the `.wat`/`.clj` axes are its corpus. ⛔ Its census goes in `wat-scripts/perf/grid/`, **beside the corpus**, never in this directory |
+| **`mora`** | a wait by chosen duration, or a timeout-0 snapshot | ⭐ **MUSTER — FIRES FOR THE FIRST TIME IN THIS VIGILIA.** `run-axis.sh` (the timer) carries `sleep`/`timeout`. It measured **0** on targets 1 and 2 |
+| **`exigere`** | universal, every kind | ⭐ **MUSTER, and with a real population for the first time** — **7** TODO-family hits. Targets 1 and 2 each measured **zero**, three times over |
+| `conferre` · `cernere` · `probare` | spec / reference vs subject | **muster** — the `.clj` twins are a REFERENCE implementation against the `.wat` axes' subject; that is `conferre`'s pair by construction |
+| intueri · solvere · purgare · struere · sequi · temperare · conformare | universal code | **muster** — 19 shell scripts + 54 `.wat` + 43 `.clj` are all code |
+| `excusare` | runes / inline suppressions | **NO — 0 runes in the entire grid.** Targets 1 and 2 carried 65 and 36. A measured zero, and a fact worth noticing: **no exemption anywhere in the instrument has ever been written down** |
+| `secare` | parallel primitives | **NO — 0 files.** No `xargs -P`, no background jobs, no `wait` in the 19 scripts |
+| `experiri` | declares a callable surface | evaluated after `peragrare` — the axis registry is a declared surface, and `run-all.sh` discovers it |
+| `perspicere` | 2+ `<` in a type | evaluated at cast time; shell and wat carry few generic types |
+| `circumspicere` | always, last | **muster, LAST** — on both prior targets it found a finding no inward lens could |
+
+⚠ **THREE COVERAGE NUMBERS THE SCRIPTS STATE ABOUT THEMSELVES — every one must be re-derived, not
+quoted.** `grep` over the grid's own prose returns *"3 of 33"*, *"20 of 22"* and *"0 of 47"*. The last
+is `check-grid-three-way.sh:17` (*"0 of 47 carry `:oracle-accuracy`"*) — **against 54 `.wat` axes.**
+Six of my handed-down numbers were wrong this vigilia and a seventh is recorded above; these three are
+the instrument's own claims about its own coverage, which is precisely `peragrare`'s quarry.
+
+⭐ **AND THE INSTRUMENT ALREADY REASONS ABOUT ITS OWN BLIND SPOTS**, which raises the bar for this
+cast rather than lowering it. `check-grid-three-way.sh:39`: *"unreadable is a HARD FAILURE — never a
+skip. **A silently skipped axis is how a corpus goes dark**."* That sentence is `peragrare`'s thesis,
+written by the instrument's own author before the ward existed. The cast must find what that
+awareness did not already close.
 
 ## Muster for target 2 — derived and MEASURED 2026-09-07, before the cast
 
