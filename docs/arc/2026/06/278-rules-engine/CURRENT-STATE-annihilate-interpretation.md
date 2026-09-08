@@ -4,19 +4,20 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-08 (forty-fourth — ⛔⛔ A FOUR-TARGET VIGILIA IS MID-FLIGHT. TWO TARGETS CLOSED, ONE HALF-CAST, ONE NEVER MEASURED).** Supersedes every earlier stamp and every dated block below.
+**CURRENT STAMP 2026-09-08 (forty-fifth — ⛔⛔ A FOUR-TARGET VIGILIA IS MID-FLIGHT. THREE TARGETS CLOSED, THE FOURTH 12 OF ~17 WARDS IN).** Supersedes every earlier stamp and every dated block below.
 
 > # ⛔ FIRST ACTION IF YOU ARE READING THIS COLD
 >
 > **Read `vigilia-2026-09-07-rete/README.md` § "HOW TO RESUME THIS CAST" before you touch anything
 > in this arc.** It holds the four-target state table, the wards still to cast, the exact casting
-> procedure, and the two builder decisions still owed. **The procedure exists nowhere else on disk.**
+> procedure, and the THREE builder decisions still owed. **The procedure exists nowhere else on disk.**
 >
 > **FLOOR 5480/5480, 19 skipped. clippy rc=0.** ⚠ **NO ENGINE CODE HAS CHANGED IN THE ENTIRE
-> VIGILIA** — every cast was READ-ONLY by construction, and the only two files added are evidence:
-> `wat-scripts/perf/grid/peragrare-census.sh` and nine `.wat` probes under
-> `wat-scripts/scratch-pad/experiri-then/`. Both lint gates over `wat-scripts/` were run before those
-> landed: `2 tests run: 2 passed`.
+> VIGILIA** — every cast was READ-ONLY by construction. **Do not count the added files from prose;
+> the ENUMERATED ALLOWLIST below is the authority** (it has four rows, and this sentence has already
+> gone stale once by naming a count). Both lint gates over `wat-scripts/` were run before the
+> scratch-pad probes landed: `2 tests run: 2 passed`, and `tests/lint/peragrare-bad-census.sh` was
+> confirmed inert to every gate before it landed.
 >
 > **THE SESSION IN ONE SENTENCE:** **targets 1, 2 AND 3 are CLOSED** at 14/14, 15/15 and 15/15 wards.
 > **Target 4 is MEASURED (306 files / 38,058 lines — the tracker said 264/~36k) and 12 of ~17 wards in**,
@@ -70,9 +71,11 @@
 > matching a stated risk-vocabulary plus 40 at random — **128 of 613** — and found **zero** more.
 > Isolated. **A negative earned with a method is a fact; without one it is silence.**
 >
-> **⚠ TWO DECISIONS ARE THE BUILDER'S, NOT MINE.** **X3** — three wards, one rune, two verdicts.
+> **⚠ THREE DECISIONS ARE THE BUILDER'S, NOT MINE.** **X3** — three wards, one rune, two verdicts.
 > **2X2** — a rune whose REASON is true and whose CATEGORY is wrong; `purgare` and `excusare` split
-> on which matters. `vigilia` forbids the aggregator re-classifying a child, so both stand.
+> on which matters. **3X1** — `exigere` and `intueri` both reached `run-all.sh:46`, ran the same
+> cross-check, reached the same fact, and disposed of it oppositely. `vigilia` forbids the
+> aggregator re-classifying a child, so in all three both verdicts stand.
 >
 > **⛔ NOTHING IS DRIVEN TO RESOLUTION.** **126 rows open, 22 of them L1** (`3P1` is itself L1×5). ⛔ **The stamp said 83/8 and BOTH were wrong — a recolligere derived them 2026-09-08.** Re-derive, never copy: `grep -c '^| \*\*' FINDINGS.md` and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md`. The prose total sat three lines under a table reading 38+36+10.
 
