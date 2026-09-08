@@ -125,7 +125,7 @@ pub(crate) fn list_contains_q(l: &Value, item: &Value) -> Result<Value, EvalBrea
 /// @arg     l (:wat::core::List :- [T]) the list probed
 /// @arg     i :wat::core::i64 the index looked up
 /// @ret     (:wat::core::Option :- [T]) `Some` the element at `i`, or `None` on OOB
-/// @example (:wat::linkedlist::get (:wat::core::List 1 2 3) 0) #=> (:wat::core::Some 1)
+/// @example (:wat::linkedlist::get (:wat::core::List 1 2 3) 0) #=> (:wat::core::Option::Some {:value 1})
 /// @example (:wat::linkedlist::get (:wat::core::List 1 2 3) 9) #=> :None
 /// @see     :wat::linkedlist::contains?
 #[wat_intrinsic(":wat::linkedlist::get")]

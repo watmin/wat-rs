@@ -492,8 +492,8 @@ pub(crate) fn eval_return_type_of(
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name whose body is read
 /// @ret     (:wat::core::Option :- [:wat::WatAST]) the wat body (function or macro template), or `:None` when body-less or unregistered
-/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::cond) [:wat::core::Some {:value ast} (:wat::core::ast-kind ast)] [:wat::core::None {} "none"]) #=> "list"
-/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::if) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> false
+/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::cond) [:wat::core::Option::Some {:value ast} (:wat::core::ast-kind ast)] [:wat::core::Option::None {} "none"]) #=> "list"
+/// @example (:wat::core::match (:wat::runtime::body-of :wat::core::if) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
 /// @see     :wat::runtime::lookup-define
 /// @see     :wat::runtime::signature-of-defn
 #[wat_intrinsic(":wat::runtime::body-of")]

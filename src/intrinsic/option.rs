@@ -61,7 +61,7 @@ use crate::span::Span;
 /// @arg     opt (:wat::core::Option :- [T]) the option unwrapped
 /// @arg     msg :wat::core::String the message evaluated and raised if `opt` is `None`
 /// @ret     :T the wrapped value, if `opt` is `Some`
-/// @example (:wat::core::Option/expect (:wat::core::Some 3) "unreachable") #=> 3
+/// @example (:wat::core::Option/expect (:wat::core::Option::Some {:value 3}) "unreachable") #=> 3
 /// @see     :wat::core::Record/field-at
 #[wat_intrinsic(":wat::core::Option/expect")]
 pub(crate) fn eval_option_expect(
@@ -115,7 +115,7 @@ pub(crate) fn eval_option_expect(
 /// @Category      Transform
 /// @arg     v :T the value to wrap
 /// @ret     (:wat::core::Option :- [T]) `v` wrapped as `Some`
-/// @example (:wat::core::Some 3) #=> (:wat::core::Some 3)
+/// @example (:wat::core::Option::Some {:value 3}) #=> (:wat::core::Option::Some {:value 3})
 /// @see     :wat::core::Option/expect
 /// @see     :wat::core::Ok
 /// @see     :wat::core::Err
@@ -167,7 +167,7 @@ pub(crate) fn eval_some_ctor(
 /// @arg     opt (:wat::core::Option :- [T]) the option unwrapped
 /// @ret     :T the wrapped value, if `opt` is `Some`; otherwise short-circuits the enclosing
 ///   function with `:None`
-/// @example (:wat::core::Option/try (:wat::core::Some 3)) #=> 3
+/// @example (:wat::core::Option/try (:wat::core::Option::Some {:value 3})) #=> 3
 /// @see     :wat::core::Option/expect
 /// @see     :wat::core::Result/try
 #[wat_intrinsic(":wat::core::Option/try")]

@@ -109,7 +109,7 @@ pub(crate) fn persistentmap_contains_key_q(m: &Value, k: &Value) -> Result<Value
 /// @arg     m (:wat::core::PersistentMap :- [K V]) the map probed
 /// @arg     k :K the key looked up
 /// @ret     (:wat::core::Option :- [V]) `Some` the value at `k`, or `None` on a miss
-/// @example (:wat::map::get (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> (:wat::core::Some 1)
+/// @example (:wat::map::get (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> (:wat::core::Option::Some {:value 1})
 /// @see     :wat::map::contains-key?
 #[wat_intrinsic(":wat::map::get")]
 pub(crate) fn persistentmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak> {

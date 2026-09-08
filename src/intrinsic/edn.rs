@@ -298,7 +298,7 @@ pub(crate) fn eval_edn_validate_home(
 /// @arg     fr :wat::edn::ForeignRecord the foreign record navigated
 /// @arg     key :wat::core::keyword the field key looked up
 /// @ret     (:wat::core::Option :- [:wat::core::Value]) `Some` the field value, or `None` on a miss
-/// @example (:wat::edn::ForeignRecord/get (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}") [:wat::edn::ReadForeignOutcome::Value {:value fr} fr] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")]) :kind) #=> (:wat::core::Some (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") [:wat::edn::ReadForeignOutcome::Value {:value fv} fv] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")]))
+/// @example (:wat::edn::ForeignRecord/get (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}") [:wat::edn::ReadForeignOutcome::Value {:value fr} fr] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")]) :kind) #=> (:wat::core::Option::Some {:value (:wat::core::match (:wat::edn::read-foreign "#some.unknown/Kind.Click {:n 42}") [:wat::edn::ReadForeignOutcome::Value {:value fv} fv] [:wat::edn::ReadForeignOutcome::Malformed {:cause _} (:wat::kernel::assertion-failed! :message "bad fixture")])})
 /// @see     :wat::edn::read-foreign
 /// @see     :wat::edn::ForeignRecord/class
 #[wat_intrinsic(":wat::edn::ForeignRecord/get")]

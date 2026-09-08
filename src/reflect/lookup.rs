@@ -309,8 +309,8 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name looked up (a literal keyword; a named fn value also resolves via its stored name)
 /// @ret     (:wat::core::Option :- [:wat::WatAST]) the FULL define AST for `name_ast`, or `:None` if unregistered
-/// @example (:wat::core::match (:wat::runtime::lookup-define :wat::core::if) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> true
-/// @example (:wat::core::match (:wat::runtime::lookup-define :probe::totally-unknown-xyz) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> false
+/// @example (:wat::core::match (:wat::runtime::lookup-define :wat::core::if) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> true
+/// @example (:wat::core::match (:wat::runtime::lookup-define :probe::totally-unknown-xyz) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
 /// @see     :wat::runtime::signature-of-defn
 /// @see     :wat::runtime::body-of
 #[wat_intrinsic(":wat::runtime::lookup-define")]

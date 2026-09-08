@@ -7374,8 +7374,8 @@ fn doc_contract_from_comment(doc: &wat_doc::DocComment) -> DocContractEmit {
 /// @Category      Reflection
 /// @arg     name_ast :wat::core::keyword the binding name (or intrinsic FQDN) whose metadata is read (a literal keyword; a named fn value also resolves via its stored name)
 /// @ret     (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::core::Value])]) the metadata map, or `:None` when the binding is unregistered or carries no metadata
-/// @example (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::lookup-define) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> true
-/// @example (:wat::core::match (:wat::runtime::metadata-of :probe::totally-unknown-xyz) [:wat::core::Some {:value _} true] [:wat::core::None {} false]) #=> false
+/// @example (:wat::core::match (:wat::runtime::metadata-of :wat::runtime::lookup-define) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> true
+/// @example (:wat::core::match (:wat::runtime::metadata-of :probe::totally-unknown-xyz) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
 /// @see     :wat::runtime::lookup-define
 /// @see     :wat::runtime::field-names-of
 #[wat_intrinsic(":wat::runtime::metadata-of")]
@@ -9374,7 +9374,7 @@ pub(crate) fn eval_conj(
 /// @Category      Projection
 /// @arg     args :T the collection (position 0) then the index-or-key to look up (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
 /// @ret     (:wat::core::Option :- [T]) `Some` the element/value at the index/key, or `None` if absent
-/// @example (:wat::core::get (:wat::core::Vector 1 2 3) 1) #=> (:wat::core::Some 2)
+/// @example (:wat::core::get (:wat::core::Vector 1 2 3) 1) #=> (:wat::core::Option::Some {:value 2})
 #[wat_intrinsic(":wat::core::get")]
 fn eval_get(
     args: &[WatAST],
@@ -13452,6 +13452,13 @@ fn is_match_canonical(form: &WatAST) -> bool {
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         | WatAST::Keyword(_, _) => true,
+        // Arc 296 M / N RELAND-3 — `(:Enum::Variant {:field v})` is the
+        // ONE ctor grammar. A map whose keys are keywords and whose
+        // values are canonical is itself canonical, or the stepper
+        // tries to "reduce" the map and dies (`no-step-rule`).
+        WatAST::Map(pairs, _) => pairs
+            .iter()
+            .all(|(k, v)| matches!(k, WatAST::Keyword(_, _)) && is_match_canonical(v)),
         WatAST::List(items, _) => {
             // One arm since the bare-symbol arm's removal (below): only the canonical
             // FQDN keyword head names a matchable constructor form.
@@ -16138,8 +16145,8 @@ mod tests {
         let present = eval_with_ctx(
             &format!(
                 r#"(:wat::core::match {bundle}
-                     [:wat::core::Ok {{:value h}} (:wat::holon::presence? (:wat::holon::to-holon "a") h)]
-                     [:wat::core::Err {{:error _}} false])"#,
+                     [:wat::core::Result::Ok {{:value h}} (:wat::holon::presence? (:wat::holon::to-holon "a") h)]
+                     [:wat::core::Result::Err {{:error _}} false])"#,
                 bundle = bundle_src
             ),
             1024,
@@ -16152,8 +16159,8 @@ mod tests {
         let coincident = eval_with_ctx(
             &format!(
                 r#"(:wat::core::match {bundle}
-                     [:wat::core::Ok {{:value h}} (:wat::holon::coincident? (:wat::holon::to-holon "a") h)]
-                     [:wat::core::Err {{:error _}} false])"#,
+                     [:wat::core::Result::Ok {{:value h}} (:wat::holon::coincident? (:wat::holon::to-holon "a") h)]
+                     [:wat::core::Result::Err {{:error _}} false])"#,
                 bundle = bundle_src
             ),
             1024,
@@ -17587,8 +17594,8 @@ mod tests {
             (:wat::core::let
               [m (:wat::core::HashMap :- [:String :i64] "a" 10 "b" 20)]
               (:wat::core::match (:wat::core::get m "a")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} 0]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} 0]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(10) => {}
@@ -17602,8 +17609,8 @@ mod tests {
             (:wat::core::let
               [m (:wat::core::HashMap :- [:String :i64] "a" 10)]
               (:wat::core::match (:wat::core::get m "missing")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} -1]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(-1) => {}
@@ -17690,8 +17697,8 @@ mod tests {
                m1
                 (:wat::core::assoc m0 "count" 1)]
               (:wat::core::match (:wat::core::get m1 "count")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} 0]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} 0]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(1) => {}
@@ -17708,8 +17715,8 @@ mod tests {
                m1
                 (:wat::core::assoc m0 "count" 2)]
               (:wat::core::match (:wat::core::get m1 "count")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} 0]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} 0]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
@@ -17727,8 +17734,8 @@ mod tests {
                m1
                 (:wat::core::assoc m0 "b" 20)]
               (:wat::core::match (:wat::core::get m0 "b")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} -1]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} -1]))
         "#;
         // Original m0 doesn't have "b" — assoc returned a new map,
         // m0 stays as {a: 10}.
@@ -17837,8 +17844,8 @@ mod tests {
                     (:wat::core::Vector :- [:i64] 20)
                     (:wat::core::Vector :- [:i64] 30)))
                 0)
-              [:wat::core::Some {:value n} n]
-              [:wat::core::None {} -1])
+              [:wat::core::Option::Some {:value n} n]
+              [:wat::core::Option::None {} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(10) => {}
@@ -17874,8 +17881,8 @@ mod tests {
                m1
                 (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m1 "a")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} -1]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(-1) => {}
@@ -17892,8 +17899,8 @@ mod tests {
                m1
                 (:wat::core::dissoc m0 "missing")]
               (:wat::core::match (:wat::core::get m1 "a")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} -1]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(1) => {}
@@ -17911,8 +17918,8 @@ mod tests {
                _m1
                 (:wat::core::dissoc m0 "a")]
               (:wat::core::match (:wat::core::get m0 "a")
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {} -1]))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(1) => {}
@@ -18138,8 +18145,8 @@ mod tests {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :- [:i64] 10 20 30)]
             (:wat::core::match (:wat::core::get xs 1)
-              [:wat::core::Some {:value v} v]
-              [:wat::core::None {} -1]))"#;
+              [:wat::core::Option::Some {:value v} v]
+              [:wat::core::Option::None {} -1]))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(20)));
     }
 
@@ -18148,8 +18155,8 @@ mod tests {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :- [:i64] 10 20 30)]
             (:wat::core::match (:wat::core::get xs 5)
-              [:wat::core::Some {:value _} false]
-              [:wat::core::None {} true]))"#;
+              [:wat::core::Option::Some {:value _} false]
+              [:wat::core::Option::None {} true]))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
@@ -18158,8 +18165,8 @@ mod tests {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :- [:i64] 10 20 30)]
             (:wat::core::match (:wat::core::get xs -1)
-              [:wat::core::Some {:value _} false]
-              [:wat::core::None {} true]))"#;
+              [:wat::core::Option::Some {:value _} false]
+              [:wat::core::Option::None {} true]))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
@@ -18787,8 +18794,8 @@ mod tests {
                 (:wat::core::Bytes::from-hex hex)
                bs2
                 (:wat::core::match maybe-bs2
-                  [:wat::core::Some {:value b} b]
-                  [:wat::core::None {} (:wat::core::Vector :- [:u8] (:wat::core::u8 0))])]
+                  [:wat::core::Option::Some {:value b} b]
+                  [:wat::core::Option::None {} (:wat::core::Vector :- [:u8] (:wat::core::u8 0))])]
               (:wat::core::= bs1 bs2))
         "#;
         match eval_expr(src).unwrap() {
@@ -18819,8 +18826,8 @@ mod tests {
         // "" → :Some(empty Bytes); to-hex of empty Bytes → "".
         let empty_decode = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "")
-              [:wat::core::Some {:value b} (:wat::core::length b)]
-              [:wat::core::None {} -1])
+              [:wat::core::Option::Some {:value b} (:wat::core::length b)]
+              [:wat::core::Option::None {} -1])
         "#;
         match eval_expr(empty_decode).unwrap() {
             Value::i64(0) => {}
@@ -18839,8 +18846,8 @@ mod tests {
     fn bytes_from_hex_rejects_odd_length() {
         let src = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "abc")
-              [:wat::core::Some {:value _} false]
-              [:wat::core::None {} true])
+              [:wat::core::Option::Some {:value _} false]
+              [:wat::core::Option::None {} true])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -18853,8 +18860,8 @@ mod tests {
         // "zz" — z is not a hex character.
         let src = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "zz")
-              [:wat::core::Some {:value _} false]
-              [:wat::core::None {} true])
+              [:wat::core::Option::Some {:value _} false]
+              [:wat::core::Option::None {} true])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -18867,8 +18874,8 @@ mod tests {
         // Per DESIGN Q6: no `0x` tolerance in v1.
         let src = r#"
             (:wat::core::match (:wat::core::Bytes::from-hex "0xdead")
-              [:wat::core::Some {:value _} false]
-              [:wat::core::None {} true])
+              [:wat::core::Option::Some {:value _} false]
+              [:wat::core::Option::None {} true])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -18923,16 +18930,16 @@ mod tests {
     #[test]
     fn show_renders_option_and_result() {
         assert_eq!(
-            show_str("(:wat::core::show (:wat::core::Some 1))"),
+            show_str("(:wat::core::show (:wat::core::Option::Some {:value 1}))"),
             "(Some 1)"
         );
-        assert_eq!(show_str("(:wat::core::show :wat::core::None)"), ":None");
+        assert_eq!(show_str("(:wat::core::show :wat::core::Option::None)"), ":None");
         assert_eq!(
-            show_str(r#"(:wat::core::show (:wat::core::Ok "hi"))"#),
+            show_str(r#"(:wat::core::show (:wat::core::Result::Ok {:value "hi"}))"#),
             "(Ok \"hi\")"
         );
         assert_eq!(
-            show_str("(:wat::core::show (:wat::core::Err 42))"),
+            show_str("(:wat::core::show (:wat::core::Result::Err {:error 42}))"),
             "(Err 42)"
         );
     }
@@ -19191,8 +19198,8 @@ mod tests {
                     (:wat::core::Vector :- [:wat::holon::HolonAST]
                       (:wat::holon::leaf "role")
                       (:wat::holon::leaf "filler")))
-                  [:wat::core::Ok {:value h} h]
-                  [:wat::core::Err {:error _} (:wat::holon::leaf "unreachable")])
+                  [:wat::core::Result::Ok {:value h} h]
+                  [:wat::core::Result::Err {:error _} (:wat::holon::leaf "unreachable")])
                ast (:wat::holon::to-wat h1)
                h2 (:wat::holon::from-wat ast)]
               (:wat::holon::cosine h1 h2))
@@ -19234,8 +19241,8 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::i64::+ 2 2)))
-              [:wat::core::Ok {:value n} n]
-              [:wat::core::Err {:error _} -1])
+              [:wat::core::Result::Ok {:value n} n]
+              [:wat::core::Result::Err {:error _} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(4) => {}
@@ -19250,8 +19257,8 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::i64::> 5 3)))
-              [:wat::core::Ok {:value b} b]
-              [:wat::core::Err {:error _} false])
+              [:wat::core::Result::Ok {:value b} b]
+              [:wat::core::Result::Err {:error _} false])
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -19266,8 +19273,8 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::string::concat "hello, " "world")))
-              [:wat::core::Ok {:value s} s]
-              [:wat::core::Err {:error _} "fail"])
+              [:wat::core::Result::Ok {:value s} s]
+              [:wat::core::Result::Err {:error _} "fail"])
         "#;
         match eval_expr(src).unwrap() {
             Value::String(s) => assert_eq!(&*s, "hello, world"),
@@ -19287,8 +19294,8 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::holon::leaf 42)))
-              [:wat::core::Ok {:value h} (:wat::holon::from-holon h)]
-              [:wat::core::Err {:error _} -1])
+              [:wat::core::Result::Ok {:value h} (:wat::holon::from-holon h)]
+              [:wat::core::Result::Err {:error _} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}
@@ -19306,8 +19313,8 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::Vector :- [:i64] 1 2 3)))
-              [:wat::core::Ok {:value xs} (:wat::core::length xs)]
-              [:wat::core::Err {:error _} -1])
+              [:wat::core::Result::Ok {:value xs} (:wat::core::length xs)]
+              [:wat::core::Result::Err {:error _} -1])
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(3) => {}
@@ -19323,8 +19330,8 @@ mod tests {
     fn step_to_show(quoted_src: &str) -> String {
         let src = format!(
             "(:wat::core::match {} \
-                [:wat::core::Ok {{:value r}} (:wat::core::show r)] \
-                [:wat::core::Err {{:error e}} (:wat::core::show e)])",
+                [:wat::core::Result::Ok {{:value r}} (:wat::core::show r)] \
+                [:wat::core::Result::Err {{:error e}} (:wat::core::show e)])",
             quoted_src
         );
         match eval_expr(&src).unwrap() {
@@ -19373,7 +19380,7 @@ mod tests {
     /// Used to drive walks that should run to natural terminal.
     fn walk_count_prelude() -> &'static str {
         r#"
-        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64]) (:wat::eval::WalkStep::Continue (:wat::i64::+ acc 1)))
+        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64]) (:wat::eval::WalkStep::Continue {:acc (:wat::i64::+ acc 1)}))
         "#
     }
 
@@ -19396,19 +19403,19 @@ mod tests {
                 (:wat::core::quote (:wat::i64::+ (:wat::i64::+ 1 2) 3))
                 0
                 :my::test::count-visit)
-              [:wat::core::Ok {{:value pair}}
+              [:wat::core::Result::Ok {{:value pair}}
                 (:wat::core::let
                   [terminal (:wat::core::first pair)
                    count (:wat::core::second pair)]
                   (:wat::core::match (:wat::eval-ast! terminal)
-                    [:wat::core::Ok {{:value value}}
+                    [:wat::core::Result::Ok {{:value value}}
                       ;; encode (value, count) as one i64: value * 1000 + count.
                       ;; sufficient for a chain of length < 1000.
                       (:wat::i64::+
                         (:wat::i64::* value 1000)
                         count)]
-                    [:wat::core::Err {{:error _}} -1]))]
-              [:wat::core::Err {{:error _}} -1])
+                    [:wat::core::Result::Err {{:error _}} -1]))]
+              [:wat::core::Result::Err {{:error _}} -1])
             "#,
             walk_count_prelude()
         );
@@ -19441,9 +19448,9 @@ mod tests {
                     (:wat::holon::to-holon "v")))
                 0
                 :my::test::count-visit)
-              [:wat::core::Ok {{:value pair}}
+              [:wat::core::Result::Ok {{:value pair}}
                 (:wat::core::second pair)]
-              [:wat::core::Err {{:error _}} -1])
+              [:wat::core::Result::Err {{:error _}} -1])
             "#,
             walk_count_prelude()
         );
@@ -19480,20 +19487,20 @@ mod tests {
         let src = r#"
         (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64])
           (:wat::eval::WalkStep::Skip
-                      (:wat::holon::to-wat (:wat::holon::leaf 999))
-                      (:wat::i64::+ acc 1)))
+                      {:terminal (:wat::holon::to-wat (:wat::holon::leaf 999))
+                       :acc (:wat::i64::+ acc 1)}))
         (:wat::core::match
           (:wat::eval::walk
             (:wat::core::quote (:wat::i64::+ (:wat::i64::+ 1 2) 3))
             0
             :my::test::skip-on-first)
-          [:wat::core::Ok {:value pair}
+          [:wat::core::Result::Ok {:value pair}
             (:wat::core::let
               [terminal (:wat::core::first pair)]
               (:wat::core::match (:wat::eval-ast! terminal)
-                [:wat::core::Ok {:value value} value]
-                [:wat::core::Err {:error _} -1]))]
-          [:wat::core::Err {:error _} -1])
+                [:wat::core::Result::Ok {:value value} value]
+                [:wat::core::Result::Err {:error _} -1]))]
+          [:wat::core::Result::Err {:error _} -1])
         "#;
         match run(src).unwrap() {
             Value::i64(value) => {
@@ -19519,8 +19526,8 @@ mod tests {
                     (:wat::core::quote 42)))
                 0
                 :my::test::count-visit)
-              [:wat::core::Ok {{:value _}} -2]
-              [:wat::core::Err {{:error e}}
+              [:wat::core::Result::Ok {{:value _}} -2]
+              [:wat::core::Result::Err {{:error e}}
                 ;; struct-field 0 is the kind tag.
                 (:wat::core::if
                   (:wat::core::= "no-step-rule"
@@ -19660,13 +19667,13 @@ mod tests {
         r#"
         (:wat::core::defn :my::test::step-to-terminal [form <- :wat::WatAST] -> :wat::WatAST
           (:wat::core::match (:wat::eval-step! form)
-                      [:wat::core::Ok {:value r}
+                      [:wat::core::Result::Ok {:value r}
                         (:wat::core::match r
                           [:wat::eval::StepResult::StepNext {:form next}
                             (:my::test::step-to-terminal next)]
                           [:wat::eval::StepResult::StepTerminal {:value h} h]
                           [:wat::eval::StepResult::AlreadyTerminal {:value h} h])]
-                      [:wat::core::Err {:error e}
+                      [:wat::core::Result::Err {:error e}
                         (:wat::holon::to-wat (:wat::holon::leaf (:wat::core::struct-field e 1)))]))
         "#
     }
@@ -19807,7 +19814,7 @@ mod tests {
         // scrutinee match-canonical (Some + canonical inner); arm
         // selection binds n→5; substituted body reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::match (:wat::core::Some 5) [:wat::core::Some {:value n} n] [:wat::core::None {} 0])",
+            "(:wat::core::match (:wat::core::Option::Some {:value 5}) [:wat::core::Option::Some {:value n} n] [:wat::core::Option::None {} 0])",
         );
         assert_eq!(watast_as_i64(&h), Some(5));
     }
@@ -19846,7 +19853,7 @@ mod tests {
         let s = step_to_show(
             r#"(:wat::eval-step!
                  (:wat::core::quote
-                   (:wat::kernel::assertion-failed!' "x" :wat::core::None :wat::core::None)))"#,
+                   (:wat::kernel::assertion-failed!' "x" :wat::core::Option::None :wat::core::Option::None)))"#,
         );
         assert_eq!(
             s,
@@ -19866,7 +19873,7 @@ mod tests {
             ("(:wat::i64::* 3 7)", 21),
             ("(:wat::core::if true 10 20)", 10),
             ("(:wat::core::let [x 5] (:wat::i64::+ x 1))", 6),
-            ("(:wat::core::match (:wat::core::Some 7) [:wat::core::Some {:value n} n] [:wat::core::None {} 0])", 7),
+            ("(:wat::core::match (:wat::core::Option::Some {:value 7}) [:wat::core::Option::Some {:value n} n] [:wat::core::Option::None {} 0])", 7),
         ];
         for (form, expected) in forms {
             let h = step_drive_to_terminal(form);
@@ -19883,7 +19890,7 @@ mod tests {
             // scheme; no atom-value extraction needed.
             let eval_src = format!(
                 "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) \
-                  [:wat::core::Ok {{:value n}} n] [:wat::core::Err {{:error _}} -1])",
+                  [:wat::core::Result::Ok {{:value n}} n] [:wat::core::Result::Err {{:error _}} -1])",
                 form
             );
             match eval_expr(&eval_src).unwrap() {
@@ -19914,13 +19921,13 @@ mod tests {
                                                  (:wat::i64::+ acc n))))
             (:wat::core::defn :my::test::step-count [form <- :wat::WatAST n <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::match (:wat::eval-step! form)
-                              [:wat::core::Ok {{:value r}}
+                              [:wat::core::Result::Ok {{:value r}}
                                 (:wat::core::match r
                                   [:wat::eval::StepResult::StepNext {{:form next}}
                                     (:my::test::step-count next (:wat::i64::+ n 1))]
                                   [:wat::eval::StepResult::StepTerminal {{:value h}} n]
                                   [:wat::eval::StepResult::AlreadyTerminal {{:value h}} n])]
-                              [:wat::core::Err {{:error e}} -1]))
+                              [:wat::core::Result::Err {{:error e}} -1]))
             {}
             (:wat::core::let
               [sum
@@ -20147,8 +20154,8 @@ mod tests {
                   (:wat::core::quote (:wat::i64::+ 40 2)))
                ast (:wat::holon::to-wat form)]
               (:wat::core::match (:wat::eval-ast! ast)
-                [:wat::core::Ok {:value n} n]
-                [:wat::core::Err {:error _} -1]))
+                [:wat::core::Result::Ok {:value n} n]
+                [:wat::core::Result::Err {:error _} -1]))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}

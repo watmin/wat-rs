@@ -140,7 +140,7 @@ pub(crate) fn persistentvector_contains_q(v: &Value, item: &Value) -> Result<Val
 /// @arg     v (:wat::core::PersistentVector :- [T]) the vector probed
 /// @arg     i :wat::core::i64 the index looked up
 /// @ret     (:wat::core::Option :- [T]) `Some` the element at `i`, or `None` on OOB
-/// @example (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 0) #=> (:wat::core::Some 1)
+/// @example (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 0) #=> (:wat::core::Option::Some {:value 1})
 /// @example (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 9) #=> :None
 /// @see     :wat::vector::contains?
 #[wat_intrinsic(":wat::vector::get")]

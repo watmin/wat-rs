@@ -57,7 +57,7 @@ use crate::span::Span;
 /// @Category      Transform
 /// @arg     v :T the value to wrap
 /// @ret     (:wat::core::Result :- [T E]) `v` wrapped as `Ok`
-/// @example (:wat::core::Ok 3) #=> (:wat::core::Ok 3)
+/// @example (:wat::core::Result::Ok {:value 3}) #=> (:wat::core::Result::Ok {:value 3})
 /// @see     :wat::core::Err
 /// @see     :wat::core::Some
 #[wat_intrinsic(":wat::core::Ok")]
@@ -109,7 +109,7 @@ pub(crate) fn eval_ok_ctor(
 /// @Category      Transform
 /// @arg     v :E the value to wrap
 /// @ret     (:wat::core::Result :- [T E]) `v` wrapped as `Err`
-/// @example (:wat::core::Err "boom") #=> (:wat::core::Err "boom")
+/// @example (:wat::core::Result::Err {:error "boom"}) #=> (:wat::core::Result::Err {:error "boom"})
 /// @see     :wat::core::Ok
 /// @see     :wat::core::Some
 #[wat_intrinsic(":wat::core::Err")]
@@ -157,7 +157,7 @@ pub(crate) fn eval_err_ctor(
 /// @arg     res (:wat::core::Result :- [T E]) the result unwrapped
 /// @arg     msg :wat::core::String the message evaluated and raised if `res` is `Err`
 /// @ret     :T the wrapped value, if `res` is `Ok`
-/// @example (:wat::core::Result/expect (:wat::core::Ok 3) "unreachable") #=> 3
+/// @example (:wat::core::Result/expect (:wat::core::Result::Ok {:value 3}) "unreachable") #=> 3
 /// @see     :wat::core::Option/expect
 /// @see     :wat::core::Result/try
 #[wat_intrinsic(":wat::core::Result/expect")]
@@ -213,7 +213,7 @@ pub(crate) fn eval_result_expect(
 /// @arg     res (:wat::core::Result :- [T E]) the result unwrapped
 /// @ret     :T the wrapped value, if `res` is `Ok`; otherwise short-circuits the enclosing
 ///   function with `(Err e)`
-/// @example (:wat::core::Result/try (:wat::core::Ok 3)) #=> 3
+/// @example (:wat::core::Result/try (:wat::core::Result::Ok {:value 3})) #=> 3
 /// @see     :wat::core::Result/expect
 /// @see     :wat::core::Option/try
 #[wat_intrinsic(":wat::core::Result/try")]

@@ -554,7 +554,7 @@ pub(crate) struct ReteCoreLet;
 /// @alias :wat::core::match
 /// @syntax (:wat::rete::core::match <scrutinee> (<pattern> <body>) ...)
 /// @ret :T the taken arm's value; every arm unifies to T
-/// @example (:wat::rete::core::match (:wat::core::Some 3) [:wat::core::Some {:value x} x] [:wat::core::None {} 0]) #=> 3
+/// @example (:wat::rete::core::match (:wat::core::Option::Some {:value 3}) [:wat::core::Option::Some {:value x} x] [:wat::core::Option::None {} 0]) #=> 3
 #[wat_special_form(":wat::rete::core::match")]
 pub(crate) struct ReteCoreMatch;
 

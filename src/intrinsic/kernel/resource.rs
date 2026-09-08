@@ -396,7 +396,7 @@ pub(crate) fn eval_kernel_spawn_thread_prime(
 /// @arg     max_message_bytes :wat::core::i64 per-receiver frame-size budget
 /// @arg     identity (:wat::core::Option :- [:wat::core::Record]) optional ps-visible identity label
 /// @ret     (:wat::kernel::Process :- [I O]) the new process's peer handle
-/// @example-norun (:wat::kernel::spawn-process forms post-fn env-fn 524288 :wat::core::None) #=> #wat.kernel/Process{}
+/// @example-norun (:wat::kernel::spawn-process forms post-fn env-fn 524288 :wat::core::Option::None) #=> #wat.kernel/Process{}
 // No registered `TypeScheme` — `check.rs`'s `infer_spawn_process_prime`
 // (`:10378`) is the real authority: `forms` projects through
 // `infer_process_prog_type` to `(Process' :- [I O])`; the other four args are

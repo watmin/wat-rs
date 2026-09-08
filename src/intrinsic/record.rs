@@ -178,7 +178,7 @@ pub(crate) fn eval_to_core_record(
 /// @Category      Transform
 /// @arg     record :wat::core::Record the receiver — a Record/HolonRecord Aggregate whose class is registered in the TypeEnv
 /// @ret     (:wat::core::HashMap :- [:wat::core::keyword T]) field-name keyword → field value, one entry per declared field
-/// @example (:wat::core::do (:wat::core::defrecord :probe::ToMapExample [sk <- :wat::core::i64]) (:wat::hashmap::get (:wat::core::record->map (:probe::ToMapExample :sk 3)) :sk)) #=> (:wat::core::Some 3)
+/// @example (:wat::core::do (:wat::core::defrecord :probe::ToMapExample [sk <- :wat::core::i64]) (:wat::hashmap::get (:wat::core::record->map (:probe::ToMapExample :sk 3)) :sk)) #=> (:wat::core::Option::Some {:value 3})
 /// @see     :wat::core::Record/same-data?
 #[wat_intrinsic(":wat::core::record->map")]
 pub(crate) fn eval_record_to_map(

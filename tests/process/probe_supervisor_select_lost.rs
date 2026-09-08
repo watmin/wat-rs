@@ -8,7 +8,7 @@
 //! builds `ServiceEvent::Lost{idx, cause}` from the reason, and returns it.
 //!
 //! The probe spawns a process child whose `:user::main` immediately panics
-//! via `(:wat::core::Option/expect -> :wat::core::nil :wat::core::None "boom")`,
+//! via `(:wat::core::Option/expect -> :wat::core::nil :wat::core::Option::None "boom")`,
 //! then calls `(select' (Vector child))` from embedded wat and asserts the
 //! returned `ServiceEvent` is `:Lost{idx=0, cause}` whose cause message contains
 //! "boom".
@@ -118,7 +118,7 @@ fn assert_location_names_the_child_not_the_decoder(msg: &str) {
 /// The process child immediately panics with "boom" via `Option/expect` on `None`.
 const CRASHING_CHILD_SRC: &str = r#"
     (:wat::core::defn :user::main [] -> :wat::core::nil
-      (:wat::core::Option/expect :wat::core::None "boom"))
+      (:wat::core::Option/expect :wat::core::Option::None "boom"))
 "#;
 
 /// `select'` over `[child]` where child immediately crashes.

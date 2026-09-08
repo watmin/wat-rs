@@ -1103,7 +1103,7 @@ pub(crate) fn eval_string_declare_acronyms(
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(n)` on a valid base-10 i64 literal, `None` otherwise
-/// @example (:wat::string::to-i64 "42") #=> (:wat::core::Some 42)
+/// @example (:wat::string::to-i64 "42") #=> (:wat::core::Option::Some {:value 42})
 /// @example (:wat::string::to-i64 "nope") #=> :None
 /// @see     :wat::string::to-f64
 #[wat_intrinsic(":wat::string::to-i64")]
@@ -1136,7 +1136,7 @@ pub(crate) fn eval_string_to_i64(
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) `Some(x)` on a valid f64 literal, `None` otherwise
-/// @example (:wat::string::to-f64 "3.5") #=> (:wat::core::Some 3.5)
+/// @example (:wat::string::to-f64 "3.5") #=> (:wat::core::Option::Some {:value 3.5})
 /// @example (:wat::string::to-f64 "nope") #=> :None
 /// @see     :wat::string::to-bool
 #[wat_intrinsic(":wat::string::to-f64")]
@@ -1169,7 +1169,7 @@ pub(crate) fn eval_string_to_f64(
 /// @Category      Transform
 /// @arg     s :wat::core::String the string to parse
 /// @ret     (:wat::core::Option :- [:wat::core::bool]) `Some(b)` for exactly `"true"`/`"false"`, `None` otherwise
-/// @example (:wat::string::to-bool "true") #=> (:wat::core::Some true)
+/// @example (:wat::string::to-bool "true") #=> (:wat::core::Option::Some {:value true})
 /// @example (:wat::string::to-bool "nope") #=> :None
 /// @see     :wat::string::to-i64
 #[wat_intrinsic(":wat::string::to-bool")]

@@ -136,7 +136,7 @@ pub(crate) fn vector_contains_q(v: &Value, item: &Value) -> Result<Value, EvalBr
 /// @arg     v (:wat::core::Vector :- [T]) the vector probed
 /// @arg     i :wat::core::i64 the index looked up
 /// @ret     (:wat::core::Option :- [T]) `Some` the element at `i`, or `None` on OOB
-/// @example (:wat::vec::get (:wat::core::Vector 1 2 3) 0) #=> (:wat::core::Some 1)
+/// @example (:wat::vec::get (:wat::core::Vector 1 2 3) 0) #=> (:wat::core::Option::Some {:value 1})
 /// @example (:wat::vec::get (:wat::core::Vector 1 2 3) 9) #=> :None
 /// @see     :wat::vec::contains?
 #[wat_intrinsic(":wat::vec::get")]

@@ -254,7 +254,7 @@ pub(crate) fn eval_nth(
 /// @Category      Projection
 /// @arg     xs (:wat::core::Vector :- [T]) the vector probed
 /// @ret     (:wat::core::Option :- [T]) the last element, or `None` if `xs` is empty
-/// @example (:wat::core::last (:wat::core::Vector 1 2 3)) #=> (:wat::core::Some 3)
+/// @example (:wat::core::last (:wat::core::Vector 1 2 3)) #=> (:wat::core::Option::Some {:value 3})
 /// @see     :wat::core::nth
 #[wat_intrinsic(":wat::core::last")]
 pub(crate) fn eval_vec_last(
@@ -544,7 +544,7 @@ pub(crate) fn eval_sort_native(
 ///           — a hashable K for a map receiver (raises a TypeMismatch if unhashable), or a :wat::core::keyword field name for a Record (raises UnknownField if the Record has no such field)
 /// @arg     new_value :T the value written at `key` (V, flattened to the scheme's single :T)
 /// @ret     :T the same-kind collection with `key` bound to `new-value`
-/// @example (:wat::hashmap::get (:wat::core::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Some 1)
+/// @example (:wat::hashmap::get (:wat::core::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Option::Some {:value 1})
 /// @see     :wat::core::conj
 #[wat_intrinsic(":wat::core::assoc")]
 pub(crate) fn eval_assoc(

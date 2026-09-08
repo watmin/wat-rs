@@ -468,7 +468,7 @@ fn eval_alpha_match_kind_impl(
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
 /// @arg     fact :wat::core::Record the fact to test the condition against
 /// @ret     (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String V])]) `Some(bindings)` on a match, `None` on any mismatch
-/// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match (:wat::core::quote (:probe::AlphaMatchTemp (?t <- :value) (:wat::rete::i64::> ?t 20))) (:probe::AlphaMatchTemp :value 25))) #=> (:wat::core::Some (:wat::core::PersistentMap "?t" 25))
+/// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match (:wat::core::quote (:probe::AlphaMatchTemp (?t <- :value) (:wat::rete::i64::> ?t 20))) (:probe::AlphaMatchTemp :value 25))) #=> (:wat::core::Option::Some {:value (:wat::core::PersistentMap "?t" 25)})
 #[wat_intrinsic(":wat::rete::alpha-match")]
 pub(crate) fn eval_rete_alpha_match_intrinsic(
     cond: &WatAST,
@@ -501,7 +501,7 @@ pub(crate) fn eval_rete_alpha_match_intrinsic(
 /// @arg     cond :wat::WatAST the quoted condition form `(:Type clause…)` (from `:wat::core::quote`)
 /// @arg     fact :wat::core::Record the fact to test the condition against
 /// @ret     (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String V])]) `Some(bindings)` on a match, `None` on any mismatch
-/// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchLocalTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match-local (:wat::core::quote (:probe::AlphaMatchLocalTemp (?t <- :value) (:wat::rete::i64::> ?t 20))) (:probe::AlphaMatchLocalTemp :value 25))) #=> (:wat::core::Some (:wat::core::PersistentMap "?t" 25))
+/// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchLocalTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match-local (:wat::core::quote (:probe::AlphaMatchLocalTemp (?t <- :value) (:wat::rete::i64::> ?t 20))) (:probe::AlphaMatchLocalTemp :value 25))) #=> (:wat::core::Option::Some {:value (:wat::core::PersistentMap "?t" 25)})
 #[wat_intrinsic(":wat::rete::alpha-match-local")]
 pub(crate) fn eval_rete_alpha_match_local_intrinsic(
     cond: &WatAST,
@@ -534,7 +534,7 @@ pub(crate) fn eval_rete_alpha_match_local_intrinsic(
 /// @arg     fact :wat::core::Record the fact to test the condition against
 /// @arg     bindings (:wat::core::PersistentMap :- [:wat::core::String V]) the token's already-bound `?var`s, seeding the clause fold
 /// @ret     (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String V])]) `Some(bindings)` (seed plus any new binds) on a match, `None` on any mismatch
-/// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchUnderTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match-under (:wat::core::quote (:probe::AlphaMatchUnderTemp (?p <- :value) (:wat::rete::i64::> ?p ?m))) (:probe::AlphaMatchUnderTemp :value 25) (:wat::core::PersistentMap "?m" 20))) #=> (:wat::core::Some (:wat::core::PersistentMap "?m" 20 "?p" 25))
+/// @example (:wat::core::do (:wat::core::defrecord :probe::AlphaMatchUnderTemp [value <- :wat::core::i64]) (:wat::rete::alpha-match-under (:wat::core::quote (:probe::AlphaMatchUnderTemp (?p <- :value) (:wat::rete::i64::> ?p ?m))) (:probe::AlphaMatchUnderTemp :value 25) (:wat::core::PersistentMap "?m" 20))) #=> (:wat::core::Option::Some {:value (:wat::core::PersistentMap "?m" 20 "?p" 25)})
 #[wat_intrinsic(":wat::rete::alpha-match-under")]
 pub(crate) fn eval_rete_alpha_match_under_intrinsic(
     cond: &WatAST,

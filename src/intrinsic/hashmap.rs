@@ -121,7 +121,7 @@ pub(crate) fn hashmap_contains_key_q(m: &Value, k: &Value) -> Result<Value, Eval
 /// @arg     m (:wat::core::HashMap :- [K V]) the map probed
 /// @arg     k :K the key looked up
 /// @ret     (:wat::core::Option :- [V]) `Some` the value at `k`, or `None` on a miss
-/// @example (:wat::hashmap::get (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Some 1)
+/// @example (:wat::hashmap::get (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Option::Some {:value 1})
 /// @see     :wat::hashmap::contains-key?
 #[wat_intrinsic(":wat::hashmap::get")]
 pub(crate) fn hashmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
