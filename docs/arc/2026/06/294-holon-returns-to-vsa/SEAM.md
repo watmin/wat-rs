@@ -16,105 +16,114 @@ grep -aE "^ +Summary" .floor/latest/raw.log
 ```
 
 ```
-floor ... 5243 tests run: 5243 passed, 18 skipped   FLOOR EXIT=0   clippy 0   0 unpushed
-peer .... HALTED. `.pulsare/to-claude` holds a kind=halt.
+floor ... 5245 tests run: 5245 passed, 18 skipped   FLOOR EXIT=0   clippy 0   0 unpushed
+peer .... idle. Last exchange: Q2 scored.
 ```
 
-## ★★★ THE ENUM CAMPAIGN IS CLOSED. THE TREE IS WHOLE.
+## ★★★ WHAT LANDED — the enum campaign and the type authority
 
 ```
 296 M    an enum variant is constructed by a MAP naming its declared fields, and ONLY that way.
-         (:ns::E::V {:f v}) · (:ns::E::V {}) for unit. POSITIONAL IS REFUSED.
-         Variant construction was the LAST positional constructor in the language.
-296 N    the bare spelling is HERESY. :wat::core::{Some,None,Ok,Err} and the arc-109 :None REFUSE,
-         naming their replacement. All 62 Rust arms across 10 files are GONE — the bare form is
-         UNREPRESENTABLE, not merely unused.
+         POSITIONAL IS REFUSED. Variant construction was the last positional ctor in the language.
+296 N    the bare spelling is HERESY. :wat::core::{Some,None,Ok,Err} + the arc-109 :None REFUSE,
+         naming their replacement. All 62 Rust arms GONE — unrepresentable, not merely unused.
 M2+R1-10 the corpus: 1875 .wat files by the self-hosted codemod, twice, idempotent.
-296 O    {:keys …} destructures EVERY aggregate — defstruct · defrecord · holon::defrecord ·
-         defholon. Verified by RUNNING, not just --check.
+         2447/2773-failed/18-timeout  ->  5238/0. NOTHING RAN at the start of that.
+296 O    {:keys …} destructures EVERY aggregate. The guard was a FOSSIL of the arc it cited:
+         293.2b UNIFIED struct+record, and the predicate kept `nature == Struct`. And backwards —
+         natures differ in PURITY not SHAPE, so it allowed the one that holds a live socket.
+296 Q    `:wat::runtime::is-type?` — ONE authority over THREE mechanisms.
+296 Q2   `subtype?` registered. It was conforms?'s TWIN and 255 registered only one.
 ```
 
-One shape in all three places, per kind: **wire `#ns/E.V {…}` · pattern `[E::V {:f v} body]` ·
-ctor `(E::V {:f v})`** — and `declare :None []`, an explicit empty field vector.
+## ⛔ QUEUED — the order, with the reasons that decided it
 
 ```
-M    2447 passed · 2773 FAILED · 18 TIMED OUT   ← no wat program could start
-N 473 · R1 291 · R2 128 · R3 69 · R4 50 · R5 47 · R6 45 · R8 17 · R9 4 · R10 0 · O 5243/5243
+1  the :wat::* blanket   ★ PROMOTED TO A CORRECTNESS DEFECT, not hygiene:
+                           (:wat::core::Option.Some {:value 7}) check=0 -> #wat.core/Option.None {}
+                           (:usr::Box.Full {:payload 7})        check=1 -> UnresolvedReference
+                         THE DOT SPELLING — the one the head migration moves TOWARD — is accepted
+                         under :wat::* and SILENTLY BUILDS THE WRONG VARIANT. A user ns catches it.
+                         Worklist 143/833 (17%), 35 names, four families; rete numerics ~87% of
+                         sites at ~11 names. ⚠ Why it yields Option.None is UNMEASURED — expand
+                         before theorising. `296/NOTE-the-dot-spelling-silently-builds-…`
+2  P-1 annotation        the annotation position VALIDATES its type name. Its authority NOW EXISTS
+   validates            (Q's is-type?). Today `[s <- :usr::TotallyMadeUp]` checks CLEAN and the
+                         mismatch is reported against a PHANTOM. A wall: expect a corpus-wide red,
+                         and that count is the worklist.
+3  P-2 variant is a type ⚠ THE SEAM PREVIOUSLY SAID "ONE ENTRY in subtype_edges". THAT WAS WRONG,
+                         measured 2026-09-08: a variant is NOT a registered type (`type-of` says
+                         unknown). Every failure in param/return/field position is ERASURE ONLY —
+                         so it is GENERAL the moment the ctor stops erasing, not a narrowing.
+                         4/4 on the four questions. Needs P-1 first so its rows rest on REFUSALS.
+   Q2's 22               short list of unregistered check.rs arms. Named, not urgent.
+   Q's (B)               complete 255's leaf list so `contains` = the union; then
+                         is_builtin_primitive can die.
+   the dot flip / heads  BLOCKED on the blanket. `#wat.core/Option.Some` is ALREADY the wire form.
 ```
 
-## ⛔ FOUR DEFECTS FOUND THAT WERE NEVER ABOUT ENUMS
+## ⛔⛔ THE RECORD'S SETTLED NUMBERS EXPIRE — THREE FIRINGS THIS WEEK
+
+`296 R20 HAERESIS EST ITERVM ROGARE`. **Before a number becomes a premise for an ORDERING, a SCOPE
+CUT, or a REFUSAL — re-derive it.**
 
 ```
-eval_tail TCO bypassed the map-ctor intercept   OURS. Tagged ctors are registered Functions, so
-                                                eval_match_tail trampolined past the intercept.
-                                                Found by REMOVING a consumer-side accommodation.
-Option's OWN DECLARATION corrupted by our       OURS. :None -> :wat::core::Option::None INSIDE its
-rename                                          defenum. type-of named it in ONE command. A
-                                                ONE-TOKEN repair healed 28 tests and proved the
-                                                purity classifier RIGHT to refuse an unresolvable name.
-:wat::rete::query never re-expanded when        PRE-EXISTING. The serve thread invoked a MACRO as a
-macro-spliced into a defservice body            function and died; the client saw Lost; FOUR RELANDS
-                                                read that corpse as migration residue.
-sort$native classifies a comparator BEFORE      PRE-EXISTING. Unmasked by the corruption, then
-any use                                         re-masked by a workaround, then proven compensating
-                                                by REVERTING it and measuring.
+255's blocker NOTE, fact 1   "578/599 FAIL, 96%, 121 names"   ->  143/833, 17%, 35 names
+255's blocker NOTE, fact 2   "the registry holds exactly TWO  ->  if let fn match def quote do
+                              special forms — let and if"        defclause, ALL REGISTERED
+this seam, on P-2            "ONE ENTRY in subtype_edges"     ->  a variant is not a type at all
 ```
 
-## ⛔ QUEUED — the builder's order
+★ Fact 2 is why 255's ordering was FORCED — *"a corpus that cannot resolve `fn` cannot be measured
+for anything else."* `fn` resolves now. **Neither fact moved because anyone worked on 255** — "as a
+side effect," exactly as its founding DESIGN predicted. The NOTE was TRUE WHEN WRITTEN.
+Corrections live BESIDE it (`255/NOTE-2026-09-08-…`); what is written stays written.
+
+## ⛔ ONE DISEASE, FOUR POSITIONS — found in a single session
+
+**A NAME CHECKED AGAINST A SET THAT IS NOT THE WHOLE.**
 
 ```
-1  variant <: enum      ★ THE SMALL STONE NOW. ONE ENTRY in `subtype_edges`
-                        (types.rs:542, a GENERAL HashMap<String,Vec<String>>), refused by a
-                        parse-time wall admitting only `:Name <: <nature root>` (types.rs:304).
-                        THE REAL QUESTION: is `Variant <: Enum` INHERITANCE? Arc 293 annihilated
-                        inheritance and KEPT subtyping. Inheritance is "Circle inherits Shape's
-                        fields"; Variant<:Enum is TAGGED-UNION MEMBERSHIP — a sum type, not a
-                        hierarchy. Two relations sharing an arrow, and a wall that cannot tell them
-                        apart refuses both.
-                        ⚠ FIRST ACT IS A MEASUREMENT, NOT A DESIGN: can `Shape.Circle` be a type
-                        WITHOUT becoming a second way to spell a record? Likely a NARROWING for
-                        parameter/dispatch position only.
-                        ★ PAYOFF: `defclause` (72 live sites, already the open-surface router)
-                        dispatches PER VARIANT — a DISPATCH answer via an existing entity kind, not
-                        a type-system reach. And `{:keys}` on a variant follows for free from O.
-2  :wat::* whitelist    RE-MEASURED 2026-09-07: 143/833 FAIL (17%), 35 names — NOT the NOTE's
-                        578/599 (96%) / 121. Every special form (fn def match quote do derive) at
-                        ZERO. Four families; rete numerics ~87% of sites at ~11 names.
-                        THE NOTE'S FORCED ORDERING NO LONGER HOLDS.
-3  the head migration   keyword heads -> symbols. 251.9 unblocked it. `head_of` (runtime.rs:12232)
-                        is a Keyword-ONLY closure in eval-with-defs! that will fire the moment
-                        macro templates emit symbol heads (core.wat:1348/1351/1393; 51 sites).
-   incremental type-of  the wrap pays a FREEZE per ASK; eval_form_with_defs's own header says the
-                        fast data plane is owed. A corpus sweep is a freeze farm until then.
-   the scream predicate `pascal-leaf?` asks to-uppercase(c)==c, true of EVERY non-letter, so ~3835
-                        of 9494 screams were operators. 3 real in 9494. Safety net, NOT a worklist.
+TYPE membership     3 mechanisms; type-of asks 1, subtype? asks 2, none asks the union   Q FIXED IT
+VERB call-heads     the :wat::* reserved-prefix blanket                                  QUEUED #1
+@see resolution     unions 2 sources; subtype? lived in a third                          Q2 FIXED IT
+the dot spelling    accepted under :wat::*, silently wrong                               QUEUED #1
 ```
+
+★ **They converge on ONE authority at the symbol migration** — builder, 2026-09-08: *"as we move to
+the proper clojure form with real symbols this is moot… `:wat::core::+` IS `wat.core/+`."* Once an
+`@see` names a symbol, "which registry?" becomes "does this resolve?" — the call-head question.
 
 ## ⚠ RULINGS — do not re-litigate
 
-- **An enum ctor is a MAP.** Declare `:None []` · construct `(…::None {})` · match `[…::None {} b]`.
-- **`{:keys}` is for ONE-SHAPE aggregates; match is for many-shape.** Destructuring is total; a
-  match arm is a test that can fail. Do not unify them.
-- **The natures differ in PURITY, not SHAPE** — so a predicate about shape must not ask about nature.
-- **`:keys` is right, not `:attrs`** — it means the declared FIELD NAMES; a record is not a map.
+- **An enum ctor is a MAP.** declare `:None []` · construct `(…::None {})` · match `[…::None {} b]`.
+- **`{:keys}` is for ONE-SHAPE aggregates; match is for many-shape.** Do not unify them.
+- **Natures differ in PURITY, not SHAPE** — a predicate about shape must not ask about nature.
+- **`type-of` is STRUCTURE; `is-type?` is MEMBERSHIP.** Keep that legible or the wrong one gets asked.
 - **A golden pinning a stdlib line: RECAPTURE, KEEP PINNING.** Never extend the normaliser.
 - **⛔ SIDE BRANCHES DO NOT SERVE US** · **COMMIT LOCALLY OFTEN; PUSH ONLY GREEN.**
+- **Colon-quoted symbols are ACCEPTABLE transitionally** — they are not keywords, they share the
+  syntax. `:wat::core::+` IS `wat.core/+`.
 
-## ⛔ THE FAILURE PATTERNS — TWO NOW, AND THE SECOND IS NEW
+## ⛔ THE FAILURE PATTERNS
 
-**① I COUNT TEXT AND CALL IT A CENSUS.** ~13 instances. The worst: an unvalidated regex put a FALSE
-PROOF into a brief whose own subject was *"use the tool, not hand-inspection"* — `[^{)]` consumed the
-space before a map, so a correctly-migrated form read as positional. The form tree, `macroexpand`,
-`type-of`, and the wall's own error stream were right EVERY time.
+**① I COUNT TEXT AND CALL IT A CENSUS.** ~13 instances. Worst: an unvalidated regex put a FALSE
+PROOF into a brief whose subject was *"use the tool, not hand-inspection."* The form tree,
+`macroexpand`, `type-of` and the walls were right every time.
 
-**② ★ A FALLING FAILURE COUNT IS NOT CONVERGENCE.** `2773 → 473 → 291 → 128` read as progress for
-THREE RELANDS while a behavioural regression and a corrupted declaration sat underneath it. What
-broke the pattern each time was reading a **VERBATIM failure** instead of a total.
-⛔ **A count going down is not the same as the thing getting better.**
+**② A FALLING FAILURE COUNT IS NOT CONVERGENCE.** 2773→473→291→128 read as progress for THREE
+relands while a behavioural regression and a corrupted declaration sat underneath. What broke it
+every time was ONE VERBATIM FAILURE instead of a total.
 
-★ **AND THE FOUR QUESTIONS OVERTURNED ME THREE TIMES**, always for one reason: I reach for the
-smaller-feeling move and it leaves an exception or a landmine alive. *When you prefer the smaller
-change, check whether the larger one deletes a class.*
+**③ ★ I NEARLY TOOK THE FOLD, TWICE, AND WAS STOPPED BY THE BUILDER BOTH TIMES.** A `HashMap` arm
+tolerating a bad producer (RELAND 2 — removing it found an `eval_tail` TCO bug); and removing a
+CORRECT `@see` to green a floor (Q2 — the wall and the reference were both right, the registry was
+incomplete). **When a wall complains, ask whether it is right before making it quiet.**
+
+★ **AND THE FOUR QUESTIONS OVERTURNED ME FOUR TIMES**, always the same way: I reach for the
+smaller-feeling move and it leaves an exception or a landmine alive. **When you prefer the smaller
+change, check whether the larger one deletes a class.** ⚠ And a four-questions run that is not
+SHOWN did not happen — the builder caught me citing a verdict I never displayed.
 
 ---
 
