@@ -21,7 +21,7 @@
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))}))])
+              :reply (:probe::Echo::EchoResponse::Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages

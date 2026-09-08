@@ -80,11 +80,11 @@
      c    (:wat::core::match (:wat::kernel::connect (:probe::smallfoo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s   (:wat::kernel::send c (:probe::Big::Op::Put {:req (:probe::Big::PutRequest :payload big)}))]
     (:wat::core::match (:wat::kernel::recv c)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message)]
+      [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message {})]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "max-frame-bytes"))]
-      [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Stopped)]
-      [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Closed)])))
+        (:probe::Outcome::Lost {:names-frame-cap? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "max-frame-bytes")})]
+      [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Stopped {})]
+      [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Closed {})])))
 
 ;; ── (b') SURVIVAL probe: c1 fires an over-FOO frame (send' only, fire-and-forget — no recv, so
 ;; this fn does not raise on c1); then a FRESH connection c2 issues an in-budget request. If the

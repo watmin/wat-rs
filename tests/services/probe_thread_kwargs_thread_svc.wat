@@ -29,7 +29,7 @@
   [(echo [s ctx req]
      (:wat::service::Outcome::Reply {:state s
        :reply (:probe::Echo::EchoResponse::Ok
-         (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+         {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 (:wat::core::defn :probe::work
   [item <- :wat::core::String

@@ -1029,7 +1029,21 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                 // Head resolves in sym.functions; anything else (kernel/
                 // algebra/config primitive, :rust:: shim) runs through
                 // regular eval.
+                //
+                // Arc 296 M / N RELAND-2 — tagged variant constructors ARE
+                // registered Functions (the synthesized positional ctor).
+                // Intercept the map form HERE, before TCO evaluates the map
+                // as a payload and trampolines into that Function. The
+                // eval_inner door (`try_eval_enum_map_ctor` in the `other`
+                // arm of `dispatch_keyword_head_value`) never sees a tail
+                // call: `eval_match_tail` / `eval_let_tail` land here.
                 other if sym.has_function(other) => {
+                    let (_, peeled) = crate::types::peel_param_spec(args);
+                    if let Some(result) = crate::record::construct::try_eval_enum_map_ctor(
+                        other, peeled, &list_span, env, sym,
+                    ) {
+                        return result;
+                    }
                     let func = sym.get(other).expect("contains_key above").clone();
                     emit_tail_call(func, args, env, sym, list_span)
                 }
@@ -3307,10 +3321,6 @@ fn dispatch_keyword_head_value(
                                                                     WatAST::Symbol(Identifier::bare("resp"), span.clone()),
                                                                 )], span.clone()),
                                                                 WatAST::Symbol(Identifier::bare("resp"), span.clone()),
-                                                            ], span.clone()),
-                                                            WatAST::Vector(vec![
-                                                                WatAST::Symbol(Identifier::bare("_"), span.clone()),
-                                                                WatAST::Symbol(Identifier::bare("__m"), span.clone()),
                                                             ], span.clone()),
                                                         ], span.clone()),
                                                     )], span.clone()),

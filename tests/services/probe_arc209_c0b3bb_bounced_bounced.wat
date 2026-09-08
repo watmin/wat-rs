@@ -90,6 +90,6 @@
            ;; and Bounced is the closer read (does not falsely claim the regression) — JUDGEMENT
            ;; CALL, flagged for review.
            [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Bounced {})]
-           [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Served)]          ;; stranger served then exited cleanly = regression
-           [:wat::kernel::RecvOutcome::Message {:msg m} (:probe::Outcome::Served)])]   ;; defensive (stranger never sends up)
+           [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Served {})]          ;; stranger served then exited cleanly = regression
+           [:wat::kernel::RecvOutcome::Message {:msg m} (:probe::Outcome::Served {})])]   ;; defensive (stranger never sends up)
     got))

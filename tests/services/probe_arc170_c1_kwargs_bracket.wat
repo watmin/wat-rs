@@ -20,7 +20,7 @@
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply {:state s
               :reply (:probe::Echo::EchoResponse::Ok
-                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+                {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 (:wat::core::defenum :probe::Msg :wat::enum::Pure
   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]

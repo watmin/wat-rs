@@ -22,7 +22,7 @@
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))}))])
+              :reply (:probe::Echo::EchoResponse::Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 
 ;; abstract parametric-surface param + coord on it (Gap 2 return + Gap 1 accepting the handle)
 (:wat::core::defn :probe::takes-dialable

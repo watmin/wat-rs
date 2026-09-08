@@ -266,7 +266,9 @@ pub(crate) fn try_eval_enum_map_ctor(
     let types = sym.types()?;
     let enum_def = match types.get(type_path) {
         Some(crate::types::TypeDef::Enum(e)) => e,
-        _ => return None,
+        _ => {
+            return None;
+        }
     };
     let declared = enum_def.variant_fields(variant_name)?;
 

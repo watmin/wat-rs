@@ -28,7 +28,7 @@
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply {:state s
               :reply (:probe::Echo::EchoResponse::Ok
-                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+                {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 ;; arc 278 VALUE-CONTRACT: the owner FACES the prober's death as a matchable RecvOutcome VALUE and
 ;; RETURNS this enum — never re-raises it with assertion-failed! (which panic_any's past apply_function).

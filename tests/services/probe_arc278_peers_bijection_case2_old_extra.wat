@@ -28,7 +28,7 @@
   [(echo [s ctx req]
      (:wat::service::Outcome::Reply {:state s
        :reply (:probe::Echo::EchoResponse::Ok
-         (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
+         {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
 (:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
@@ -59,12 +59,12 @@
         er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg "hi"))
         rresp (:wat::core::match er [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
                 [:probe::Echo::EchoResponse::Ok {:reply reply}
-                  (:probe::Caller::RunResponse::Ok reply)]
+                  (:probe::Caller::RunResponse::Ok {:out reply})]
                 ;; wire-breach at the echo peer propagates outward as our own op's breach.
                 [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
-                  (:probe::Caller::RunResponse::RequestTooLarge bytes cap)]
+                  (:probe::Caller::RunResponse::RequestTooLarge {:bytes bytes :cap cap})]
                 [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                  (:probe::Caller::RunResponse::RequestMalformed mpath mexpected mgot)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
+                  (:probe::Caller::RunResponse::RequestMalformed {:path mpath :expected mexpected :got mgot})])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
        (:wat::service::Outcome::Reply {:state s :reply rresp})))])
 
 ;; ── the crossing: start both on THREADS, dial caller', which dials echo'. Return the reply. ──
