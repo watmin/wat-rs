@@ -61,7 +61,7 @@
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
+          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
@@ -130,7 +130,7 @@
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
+          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))

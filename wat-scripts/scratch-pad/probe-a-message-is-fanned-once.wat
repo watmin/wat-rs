@@ -64,7 +64,7 @@
                      :store-addr (:wat::query::mem-store::Handle/addr ish)
                      :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs nsubs :inbox-addr (:queue::queue::Handle/addr iqh)))
+          :record (:demo::topic::Record :nsubs nsubs :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      t  (:demo::dial-topic (:demo::topic::Handle/addr th))
      q  (:demo::dial-queue (:queue::queue::Handle/addr iqh))
      tag (:wat::core::match
@@ -93,7 +93,7 @@
                      :store-addr (:wat::query::mem-store::Handle/addr ish)
                      :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 7 :inbox-addr (:queue::queue::Handle/addr iqh)))
+          :record (:demo::topic::Record :nsubs 7 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      t  (:demo::dial-topic (:demo::topic::Handle/addr th))
      tag (:wat::core::match
            (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs (:once::msgs 10)))

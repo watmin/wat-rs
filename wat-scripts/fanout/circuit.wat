@@ -1097,7 +1097,7 @@
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok n _ticks) n)
+        ((:demo::Topic::StatsResponse::Ok n _ticks _l _c _t) n)
         (_ -1)))
     (_ -1)))
 
@@ -1107,9 +1107,20 @@
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok _n ticks) ticks)
+        ((:demo::Topic::StatsResponse::Ok _n ticks _l _c _t) ticks)
         (_ -1)))
     (_ -1)))
+
+(:wat::core::defn :fanout::topic-inbox-fails
+  [t <- :demo::Topic]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:demo::Topic::StatsResponse::Ok _n _ticks lost closed timedout)
+          (:wat::core::Tuple lost closed timedout))
+        (_ (:wat::core::Tuple -1 -1 -1))))
+    (_ (:wat::core::Tuple -1 -1 -1))))
 
 (:wat::core::defn :fanout::require!
   [r <- :wat::core::String] -> :wat::core::nil
@@ -2144,7 +2155,7 @@
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:queue::queue/grant inbox-qh (:fanout::pids pl))))
-          :record (:demo::topic::Record :nsubs m :inbox-addr (:queue::queue::Handle/addr inbox-qh)))
+          :record (:demo::topic::Record :nsubs m :inbox-addr (:queue::queue::Handle/addr inbox-qh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      twhandles (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:demo::topic-worker::Handle])
                                   _wi <- :wat::core::i64]
@@ -2315,6 +2326,10 @@
      store-calls (:fanout::sum-store-calls qclients)
      store-ns (:fanout::sum-store-ns qclients)
      tticks (:fanout::topic-ticks topic)
+     ifails (:fanout::topic-inbox-fails topic)
+     ilost  (:wat::core::first ifails)
+     iclosed (:wat::core::second ifails)
+     itimed (:wat::core::third ifails)
      dpair (:fanout::sum-disrupts wpeers)
      dhits (:wat::core::first dpair)
      ce    (:wat::core::first (:wat::core::second dpair))
@@ -2356,7 +2371,7 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2375,6 +2390,9 @@
               :sd sdups
               :pc pub-calls
               :fr pub-retries
+              :il ilost
+              :ic iclosed
+              :ito itimed
               :asleep pub-asleep
               :pa pub-attempts
               :polls poll-calls
@@ -2652,7 +2670,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:queue::queue/grant iqh (:fanout::pids pl))))
-           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh)))
+           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
