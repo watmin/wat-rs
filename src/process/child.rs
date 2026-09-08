@@ -71,28 +71,30 @@ extern "C" fn substrate_on_sighup(_sig: libc::c_int) {
 /// itself performs no other work. The kernel MEASURES; userland owns the
 /// transitions.
 pub fn install_substrate_signal_handlers() {
-    unsafe {
-        libc::signal(
-            libc::SIGINT,
-            substrate_on_stop_signal as *const () as libc::sighandler_t,
-        );
-        libc::signal(
-            libc::SIGTERM,
-            substrate_on_stop_signal as *const () as libc::sighandler_t,
-        );
-        libc::signal(
-            libc::SIGUSR1,
-            substrate_on_sigusr1 as *const () as libc::sighandler_t,
-        );
-        libc::signal(
-            libc::SIGUSR2,
-            substrate_on_sigusr2 as *const () as libc::sighandler_t,
-        );
-        libc::signal(
-            libc::SIGHUP,
-            substrate_on_sighup as *const () as libc::sighandler_t,
-        );
+    // Declaration, not a behaviour change. glibc `signal()` is BSD
+    // semantics (persistent handler, SA_RESTART). sigaction writes that
+    // down. Empty sa_mask is signal()'s equivalent: the delivered signal
+    // is blocked during the handler (kernel default, no SA_NODEFER); no
+    // extra signals are masked. No SA_RESETHAND (System V one-shot — not
+    // what glibc does). No SA_SIGINFO: sa_sigaction is read as sa_handler.
+    fn install(sig: libc::c_int, handler: extern "C" fn(libc::c_int), name: &'static str) {
+        unsafe {
+            let mut act: libc::sigaction = std::mem::zeroed();
+            act.sa_sigaction = handler as *const () as libc::sighandler_t;
+            act.sa_flags = libc::SA_RESTART;
+            if libc::sigaction(sig, &act, std::ptr::null_mut()) != 0 {
+                panic!(
+                    "sigaction({name}) failed: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
+        }
     }
+    install(libc::SIGINT, substrate_on_stop_signal, "SIGINT");
+    install(libc::SIGTERM, substrate_on_stop_signal, "SIGTERM");
+    install(libc::SIGUSR1, substrate_on_sigusr1, "SIGUSR1");
+    install(libc::SIGUSR2, substrate_on_sigusr2, "SIGUSR2");
+    install(libc::SIGHUP, substrate_on_sighup, "SIGHUP");
 }
 
 

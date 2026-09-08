@@ -248,7 +248,7 @@
    (:wat::core::defenum :fanout::Worker::DisruptsResponse :wat::enum::Pure
      :Ok [hits <- :wat::core::i64  draws <- :wat::core::i64  points <- :wat::core::String
           check-exhausted <- :wat::core::i64  mark-exhausted <- :wat::core::i64
-          ack-retries <- :wat::core::i64]
+          ack-retries <- :wat::core::i64  ack-exhausted <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
@@ -284,7 +284,8 @@
               disrupt-points    <- :wat::core::String
               check-exhausted   <- :wat::core::i64
               mark-exhausted    <- :wat::core::i64
-              ack-retries       <- :wat::core::i64]
+              ack-retries       <- :wat::core::i64
+              ack-exhausted     <- :wat::core::i64]
   :ephemeral [q        <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
               seen     <- (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
               outcomes <- (:wat::core::PersistentVector :- [:fanout::Outcome])]
@@ -346,7 +347,8 @@
                     :disrupt-points (:fanout::worker::Record/disrupt-points rec)
                     :check-exhausted (:fanout::worker::Record/check-exhausted rec)
                     :mark-exhausted (:fanout::worker::Record/mark-exhausted rec)
-                    :ack-retries (:fanout::worker::Record/ack-retries rec))
+                    :ack-retries (:fanout::worker::Record/ack-retries rec)
+                    :ack-exhausted (:fanout::worker::Record/ack-exhausted rec))
             s' (:fanout::worker::State :durable rec'
                  :q (:fanout::worker::State/q s)
                  :seen (:fanout::worker::State/seen s)
@@ -372,7 +374,8 @@
              (:fanout::worker::Record/disrupt-points rec)
              (:fanout::worker::Record/check-exhausted rec)
              (:fanout::worker::Record/mark-exhausted rec)
-             (:fanout::worker::Record/ack-retries rec))))
+             (:fanout::worker::Record/ack-retries rec)
+             (:fanout::worker::Record/ack-exhausted rec))))
          none-sends none-arms)))
    (-disrupt [s ctx]
      (:wat::core::let
@@ -437,7 +440,8 @@
                 :disrupt-points points'
                 :check-exhausted (:fanout::worker::Record/check-exhausted rec)
                 :mark-exhausted (:fanout::worker::Record/mark-exhausted rec)
-                :ack-retries (:fanout::worker::Record/ack-retries rec))
+                :ack-retries (:fanout::worker::Record/ack-retries rec)
+                :ack-exhausted (:fanout::worker::Record/ack-exhausted rec))
         s' (:fanout::worker::State :durable rec'
              :q (:fanout::worker::State/q s) :seen seen'
              :outcomes (:fanout::worker::State/outcomes s))
@@ -478,7 +482,7 @@
                   ;; check-all → emit the absent → mark those → ack all. One round
                   ;; trip each. Receipt still written after emit (STOP-2).
                   triple (:wat::core::if (:wat::core::empty? envs)
-                           (:wat::core::Tuple (:wat::core::Tuple q seen outs) (:wat::core::Tuple 0 0 0))
+                           (:wat::core::Tuple (:wat::core::Tuple q seen outs) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0)))
                            (:wat::core::let
                              [addr (:fanout::worker::Record/seen-addr rec)
                               seqs (:wat::core::foldl
@@ -528,11 +532,7 @@
                                   (:wat::core::match (:wat::service::call-by-deadline peer op 200 inert)
                                     ((:wat::service::CallOutcome::Answered r)
                                       (:wat::core::Tuple (:fanout::SeenRetry::Got) peer r))
-                                    ((:wat::service::CallOutcome::Lost _c)
-                                      (:wat::core::Tuple (:fanout::SeenRetry::Exhausted 0) (redial) inert))
-                                    ((:wat::service::CallOutcome::Closed)
-                                      (:wat::core::Tuple (:fanout::SeenRetry::Exhausted 0) (redial) inert))
-                                    ((:wat::service::CallOutcome::DeadlineFired)
+                                    (_
                                       (:wat::core::let
                                         [elapsed0 (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) now) 1000000)]
                                         (:wat::core::if (:wat::i64::>= elapsed0 limit-ms)
@@ -570,17 +570,7 @@
                                                        (:wat::core::match (:wat::service::call-by-deadline p0 op 200 inert)
                                                          ((:wat::service::CallOutcome::Answered r)
                                                            (:wat::core::Tuple left (:wat::core::Tuple sd attempt true) r))
-                                                         ((:wat::service::CallOutcome::Lost _c)
-                                                           (:wat::core::Tuple
-                                                             (:wat::core::Tuple (redial) retries)
-                                                             (:wat::core::Tuple sd attempt true)
-                                                             reply0))
-                                                         ((:wat::service::CallOutcome::Closed)
-                                                           (:wat::core::Tuple
-                                                             (:wat::core::Tuple (redial) retries)
-                                                             (:wat::core::Tuple sd attempt true)
-                                                             reply0))
-                                                         ((:wat::service::CallOutcome::DeadlineFired)
+                                                         (_
                                                            (:wat::core::let
                                                              [elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) now) 1000000)]
                                                              (:wat::core::if (:wat::i64::>= elapsed limit-ms)
@@ -608,8 +598,9 @@
                                                                    reply0)))))))))
                                                  st0
                                                  (:wat::core::range 0 256))
-                                             done1 (:wat::core::third (:wat::core::second st))]
-                                            (:wat::core::if done1
+                                             done1 (:wat::core::third (:wat::core::second st))
+                                             elapsed-f (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) now) 1000000)]
+                                            (:wat::core::if (:wat::core::and done1 (:wat::i64::< elapsed-f limit-ms))
                                               (:wat::core::Tuple (:fanout::SeenRetry::Got)
                                                 (:wat::core::first (:wat::core::first st))
                                                 (:wat::core::third st))
@@ -621,7 +612,7 @@
                               sreply (:wat::core::third check-pack)]
                              (:wat::core::match (:wat::core::first check-pack)
                                ((:fanout::SeenRetry::Exhausted _att)
-                                 (:wat::core::Tuple (:wat::core::Tuple q seen1 outs) (:wat::core::Tuple 1 0 0)))
+                                 (:wat::core::Tuple (:wat::core::Tuple q seen1 outs) (:wat::core::Tuple (:wat::core::Tuple 1 0) (:wat::core::Tuple 0 0))))
                                ((:fanout::SeenRetry::Got)
                                  (:wat::core::match sreply
                                    ((:fanout::Seen::Reply::Check cresp)
@@ -668,7 +659,7 @@
                                             seen2 (:wat::core::second mark-pack)]
                                            (:wat::core::match (:wat::core::first mark-pack)
                                              ((:fanout::SeenRetry::Exhausted _matt)
-                                               (:wat::core::Tuple (:wat::core::Tuple q seen2 outs1) (:wat::core::Tuple 0 1 0)))
+                                               (:wat::core::Tuple (:wat::core::Tuple q seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 1) (:wat::core::Tuple 0 0))))
                                              ((:fanout::SeenRetry::Got)
                                                (:wat::core::let
                                                  [_nap (:wat::core::if (:wat::i64::> ack-delay 0)
@@ -706,11 +697,7 @@
                                               (:wat::core::match ack-first
                                                 ((:wat::service::CallOutcome::Answered _r)
                                                   (:wat::core::Tuple (:fanout::QueueRetry::Got) q 0))
-                                                ((:wat::service::CallOutcome::Lost _c)
-                                                  (:wat::core::Tuple (:fanout::QueueRetry::Exhausted 0) (redial-q) 0))
-                                                ((:wat::service::CallOutcome::Closed)
-                                                  (:wat::core::Tuple (:fanout::QueueRetry::Exhausted 0) (redial-q) 0))
-                                                ((:wat::service::CallOutcome::DeadlineFired)
+                                                (_
                                                   (:wat::core::let
                                                     [elapsed0 (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) ack-start-ns) 1000000)]
                                                     (:wat::core::if (:wat::i64::>= elapsed0 ack-limit-ms)
@@ -745,15 +732,7 @@
                                                                      (:wat::service::call-by-deadline peer ack-op 200 inert-ack)
                                                                      ((:wat::service::CallOutcome::Answered _r)
                                                                        (:wat::core::Tuple left (:wat::core::Tuple sd attempt true)))
-                                                                     ((:wat::service::CallOutcome::Lost _c)
-                                                                       (:wat::core::Tuple
-                                                                         (:wat::core::Tuple (redial-q) retries)
-                                                                         (:wat::core::Tuple sd attempt true)))
-                                                                     ((:wat::service::CallOutcome::Closed)
-                                                                       (:wat::core::Tuple
-                                                                         (:wat::core::Tuple (redial-q) retries)
-                                                                         (:wat::core::Tuple sd attempt true)))
-                                                                     ((:wat::service::CallOutcome::DeadlineFired)
+                                                                     (_
                                                                        (:wat::core::let
                                                                          [elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) ack-start-ns) 1000000)]
                                                                          (:wat::core::if (:wat::i64::>= elapsed ack-limit-ms)
@@ -779,27 +758,35 @@
                                                                                (:wat::core::Tuple seed1 (:wat::i64::+ attempt 1) false))))))))))
                                                              ack-st0
                                                              ;; 8192 × 200 ms > vis 10^12 ns; elapsed check stops first.
-                                                             (:wat::core::range 0 8192))]
-                                                        (:wat::core::Tuple (:fanout::QueueRetry::Got)
-                                                          (:wat::core::first (:wat::core::first ack-st))
-                                                          (:wat::core::second (:wat::core::first ack-st))))))))
+                                                             (:wat::core::range 0 8192))
+                                                         ack-done (:wat::core::third (:wat::core::second ack-st))
+                                                         ack-elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) ack-start-ns) 1000000)]
+                                                        (:wat::core::if (:wat::core::and ack-done (:wat::i64::< ack-elapsed ack-limit-ms))
+                                                          (:wat::core::Tuple (:fanout::QueueRetry::Got)
+                                                            (:wat::core::first (:wat::core::first ack-st))
+                                                            (:wat::core::second (:wat::core::first ack-st)))
+                                                          (:wat::core::Tuple (:fanout::QueueRetry::Exhausted (:wat::core::second (:wat::core::first ack-st)))
+                                                            (:wat::core::first (:wat::core::first ack-st))
+                                                            (:wat::core::second (:wat::core::first ack-st)))))))))
                                             ack-out (:wat::core::first ack-pair)
                                             q-acked (:wat::core::second ack-pair)
                                             ar-tick (:wat::core::third ack-pair)]
                                                  (:wat::core::match ack-out
                                                    ((:fanout::QueueRetry::Got)
-                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple 0 0 ar-tick)))
+                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple ar-tick 0))))
                                                    ((:fanout::QueueRetry::Exhausted att)
-                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple 0 0 att))))))))))
+                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple att 1)))))))))))
                                      (_ (:wat::kernel::assertion-failed! "fanout worker: check not Ok" :wat::core::None :wat::core::None))))
                                    (_ (:wat::kernel::assertion-failed! "fanout worker: check reply misrouted" :wat::core::None :wat::core::None)))))))
                   folded (:wat::core::first triple)
                   tick-pair (:wat::core::second triple)
-                  ce-tick (:wat::core::first tick-pair)
-                  me-tick (:wat::core::second tick-pair)
-                  ar-tick (:wat::core::third tick-pair)
+                  ce-tick (:wat::core::first (:wat::core::first tick-pair))
+                  me-tick (:wat::core::second (:wat::core::first tick-pair))
+                  ar-tick (:wat::core::first (:wat::core::second tick-pair))
+                  ae-tick (:wat::core::second (:wat::core::second tick-pair))
                   rec' (:wat::core::if (:wat::core::or (:wat::i64::> ce-tick 0)
-                                        (:wat::core::or (:wat::i64::> me-tick 0) (:wat::i64::> ar-tick 0)))
+                                        (:wat::core::or (:wat::i64::> me-tick 0)
+                                          (:wat::core::or (:wat::i64::> ar-tick 0) (:wat::i64::> ae-tick 0))))
                          (:fanout::worker::Record
                            :id (:fanout::worker::Record/id rec)
                            :queue-name (:fanout::worker::Record/queue-name rec)
@@ -818,7 +805,8 @@
                            :disrupt-points (:fanout::worker::Record/disrupt-points rec)
                            :check-exhausted (:wat::i64::+ (:fanout::worker::Record/check-exhausted rec) ce-tick)
                            :mark-exhausted (:wat::i64::+ (:fanout::worker::Record/mark-exhausted rec) me-tick)
-                           :ack-retries (:wat::i64::+ (:fanout::worker::Record/ack-retries rec) ar-tick))
+                           :ack-retries (:wat::i64::+ (:fanout::worker::Record/ack-retries rec) ar-tick)
+                           :ack-exhausted (:wat::i64::+ (:fanout::worker::Record/ack-exhausted rec) ae-tick))
                          rec)
                   s' (:fanout::worker::State :durable rec'
                        :q (:wat::core::first folded)
@@ -889,7 +877,7 @@
    (disrupts [s ctx req]
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:fanout::Worker::Reply::Disrupts
-         (:fanout::Worker::DisruptsResponse::Ok 0 0 "" 0 0 0)))
+         (:fanout::Worker::DisruptsResponse::Ok 0 0 "" 0 0 0 0)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
        (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::held-worker::Op])])))
    (-tick [s ctx]
@@ -1092,7 +1080,7 @@
     :queue-addr queue-addr :seen-addr seen-addr
     :disrupt-rate-bp rate-bp :disrupt-seed seed
     :disrupt-lo-ms 50 :disrupt-hi-ms 150 :disrupt-max-draws 0
-    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points "" :check-exhausted 0 :mark-exhausted 0 :ack-retries 0))
+    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points "" :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0))
 
 ;; Sentinel: -1 means unread. Matches ticks-of / q-depth. (1,1) satisfied both waits.
 (:wat::core::defn :fanout::depth-of
@@ -1902,26 +1890,28 @@
 
 (:wat::core::defn :fanout::sum-disrupts
   [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
-  -> (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64])
+  -> (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64])
+    (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
                      w   <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
-      -> (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64])
+      -> (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
       (:wat::core::match (:fanout::Worker/disrupts w (:fanout::Worker::DisruptsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points ce me ars)
+            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points ce me ars ae)
               (:wat::core::Tuple (:wat::i64::+ (:wat::core::first acc) hits)
                                  (:wat::core::Tuple
                                    (:wat::i64::+ (:wat::core::first (:wat::core::second acc)) ce)
                                    (:wat::i64::+ (:wat::core::second (:wat::core::second acc)) me))
-                                 (:wat::i64::+ (:wat::core::third acc) ars)))
+                                 (:wat::core::Tuple
+                                   (:wat::i64::+ (:wat::core::first (:wat::core::third acc)) ars)
+                                   (:wat::i64::+ (:wat::core::second (:wat::core::third acc)) ae))))
             ((:fanout::Worker::DisruptsResponse::RequestTooLarge _b _c) acc)
             ((:fanout::Worker::DisruptsResponse::RequestMalformed _p _e _g) acc)))
         ((:wat::kernel::RecvOutcome::Lost _c) acc)
         (:wat::kernel::RecvOutcome::Stopped acc)
         (:wat::kernel::RecvOutcome::Closed acc) (:wat::kernel::RecvOutcome::TimedOut acc)))
-    (:wat::core::Tuple 0 (:wat::core::Tuple 0 0) 0)
+    (:wat::core::Tuple 0 (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0))
     wpeers))
 
 (:wat::core::defn :fanout::collect-stop
@@ -2304,11 +2294,12 @@
               (:wat::core::if (:wat::core::= drain-err "")
                 ""
                 (:wat::core::let [dp (:fanout::sum-disrupts wpeers)]
-                  (:wat::core::format "{e};check-exhausted={ce};mark-exhausted={me};ack-retries={ar}"
+                  (:wat::core::format "{e};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae}"
                     :e drain-err
                     :ce (:wat::core::first (:wat::core::second dp))
                     :me (:wat::core::second (:wat::core::second dp))
-                    :ar (:wat::core::third dp)))))
+                    :ar (:wat::core::first (:wat::core::third dp))
+                    :ae (:wat::core::second (:wat::core::third dp))))))
      poll-calls (:wat::core::second drain-pair)
      sc-after (:fanout::sum-store-calls qclients)
      ns-after (:fanout::sum-store-ns qclients)
@@ -2323,7 +2314,8 @@
      dhits (:wat::core::first dpair)
      ce    (:wat::core::first (:wat::core::second dpair))
      me    (:wat::core::second (:wat::core::second dpair))
-     ars   (:wat::core::third dpair)
+     ars   (:wat::core::first (:wat::core::third dpair))
+     aes   (:wat::core::second (:wat::core::third dpair))
      spair (:fanout::seen-stats seenh)
      sfirsts (:wat::core::first spair)
      sdups (:wat::core::second spair)
@@ -2346,8 +2338,8 @@
                    1
                    (:wat::core::range 0 m))
      summary0 (:fanout::summarize n m j outs empty-flags)
-     summary (:wat::core::format "{s};seen-recorded={f};seen-skipped={d};check-exhausted={ce};mark-exhausted={me};ack-retries={ar}"
-               :s summary0 :f sfirsts :d sdups :ce ce :me me :ar ars)
+     summary (:wat::core::format "{s};seen-recorded={f};seen-skipped={d};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae}"
+               :s summary0 :f sfirsts :d sdups :ce ce :me me :ar ars :ae aes)
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
      _stoptw (:wat::core::foldl
                (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
@@ -2359,7 +2351,7 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2373,6 +2365,7 @@
               :ce ce
               :me me
               :ar ars
+              :ae aes
               :sf sfirsts
               :sd sdups
               :pc pub-calls

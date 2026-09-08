@@ -37,9 +37,6 @@ use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_si
 use crate::host::guest::GuestError;
 use crate::load::loader::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
-use crate::runtime::{
-    request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2,
-};
 use crate::load::source::{self, WatSource};
 use std::sync::Arc;
 
@@ -53,33 +50,11 @@ pub type DepRegistrar = fn(&mut RustDepsBuilder);
 
 // ─── Signal handlers ─────────────────────────────────────────────────────
 
-extern "C" fn on_stop_signal(_sig: libc::c_int) {
-    request_kernel_stop();
-}
-extern "C" fn on_sigusr1(_sig: libc::c_int) {
-    set_kernel_sigusr1();
-}
-extern "C" fn on_sigusr2(_sig: libc::c_int) {
-    set_kernel_sigusr2();
-}
-extern "C" fn on_sighup(_sig: libc::c_int) {
-    set_kernel_sighup();
-}
-
 fn install_signal_handlers() {
-    unsafe {
-        libc::signal(
-            libc::SIGINT,
-            on_stop_signal as *const () as libc::sighandler_t,
-        );
-        libc::signal(
-            libc::SIGTERM,
-            on_stop_signal as *const () as libc::sighandler_t,
-        );
-        libc::signal(libc::SIGUSR1, on_sigusr1 as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGUSR2, on_sigusr2 as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGHUP, on_sighup as *const () as libc::sighandler_t);
-    }
+    // Same five signals, same handlers: the substrate installer. A second
+    // installer here would have kept the undeclared SA_RESTART after
+    // child.rs switched to sigaction.
+    crate::process::install_substrate_signal_handlers();
 }
 
 // ─── The entry point `wat::main!` expands to ─────────────────────────────

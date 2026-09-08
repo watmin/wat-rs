@@ -314,6 +314,38 @@ pub struct Sender<T: EdnRepresentable> {
     _phantom: PhantomData<T>,
 }
 
+/// Restores `fcntl` flags on drop so a polled write can run `O_NONBLOCK`
+/// without leaking that flag onto the fd on any exit (success, Shutdown,
+/// Disconnected, Failed). Matches `try_send`'s toggle; a Drop guard so
+/// every return path restores, including the ones `try_send` names in
+/// prose and implements by hand.
+struct NonblockGuard {
+    fd: std::os::fd::RawFd,
+    orig: libc::c_int,
+}
+
+impl NonblockGuard {
+    fn arm(fd: std::os::fd::RawFd) -> std::io::Result<Self> {
+        // SAFETY: `fd` is the live write-end of this Sender (OwnedFd-managed).
+        // F_GETFL / F_SETFL on a fd this Sender exclusively owns (single-writer)
+        // cannot race with another user of this exact fd.
+        let orig = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if orig < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if unsafe { libc::fcntl(fd, libc::F_SETFL, orig | libc::O_NONBLOCK) } < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(Self { fd, orig })
+    }
+}
+
+impl Drop for NonblockGuard {
+    fn drop(&mut self) {
+        unsafe { libc::fcntl(self.fd, libc::F_SETFL, self.orig) };
+    }
+}
+
 impl<T: EdnRepresentable> Sender<T> {
     /// Send `value` to the channel. Encodes via
     /// `T::to_wire` → newline-framed bytes → `libc::write` retry loop.
@@ -344,20 +376,34 @@ impl<T: EdnRepresentable> Sender<T> {
         framed.push(b'\n');
 
         let fd = self.write_fd.as_raw_fd();
+        // Toggle, not construction: the no-broadcast fallback (test bypass /
+        // pre-bootstrap) must keep the blocking write; `try_send` independently
+        // toggles the same fd and restores. Construction-time O_NONBLOCK would
+        // make try_send's restore fight this path. Single-writer, so the two
+        // toggles do not overlap.
+        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
+            .load(std::sync::atomic::Ordering::SeqCst);
+        let _nonblock = if broadcast_fd >= 0 {
+            match NonblockGuard::arm(fd) {
+                Ok(g) => Some(g),
+                Err(e) => return Err(SendError::Failed(value, e.to_string())),
+            }
+        } else {
+            None
+        };
         let mut written = 0usize;
         while written < framed.len() {
             // Arc 278 send-mirrors-recv — poll `[fd → POLLOUT,
             // SHUTDOWN_BROADCAST_READ_FD → POLLIN|POLLHUP]` before every
             // write attempt, exactly as `io::PipeWriter::write` already does
-            // (`src/io.rs`, arc 170 closure #5). THE BLOCKING IS NOT THE
-            // BUG (STOP-1) — this still blocks on `libc::write` below when
-            // the pipe has room; the poll only makes the wait WAKEABLE on a
-            // stop instead of uncancellable. When the broadcast fd hasn't
-            // been initialized (-1: test bypass / pre-bootstrap), skip
-            // straight to the blocking write — today's un-multiplexed path,
-            // unchanged.
-            let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
-                .load(std::sync::atomic::Ordering::SeqCst);
+            // (`src/io.rs`, arc 170 closure #5). The poll owns every wait;
+            // `O_NONBLOCK` (restored on drop) makes `write` return EAGAIN
+            // instead of blocking for the rest of a partial frame — POLLOUT
+            // promises ≥ 1 byte, not the full remainder, and the shutdown
+            // broadcast is an fd that cannot interrupt a write already inside
+            // the kernel. When the broadcast fd hasn't been initialized
+            // (-1: test bypass / pre-bootstrap), skip straight to the
+            // blocking write — today's un-multiplexed path, unchanged.
             if broadcast_fd >= 0 {
                 loop {
                     let mut fds = [
@@ -385,10 +431,11 @@ impl<T: EdnRepresentable> Sender<T> {
                     }
                     // Writable wins ties — mirrors `PipeWriter::write`'s
                     // documented tie-break (`src/io.rs`): if the fd is
-                    // writable NOW, WRITE (the write cannot block, so there
-                    // is no reason to abandon it); surface the stop only
-                    // when the write WOULD have blocked. A dying process
-                    // must still be able to utter its last words.
+                    // writable NOW, WRITE (O_NONBLOCK: the write returns
+                    // short / EAGAIN instead of blocking, so there is no
+                    // reason to abandon it); surface the stop only when
+                    // the write WOULD have blocked. A dying process must
+                    // still be able to utter its last words.
                     if fds[0].revents != 0 {
                         break; // writable — proceed, stop or no stop
                     }
@@ -416,6 +463,12 @@ impl<T: EdnRepresentable> Sender<T> {
             if n < 0 {
                 let err = std::io::Error::last_os_error();
                 if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                if err.kind() == std::io::ErrorKind::WouldBlock {
+                    // Pipe filled between poll and write, or the kernel
+                    // took a short count's remainder. Re-poll with the
+                    // broadcast armed — never a blind retry, never an error.
                     continue;
                 }
                 if err.kind() == std::io::ErrorKind::BrokenPipe {

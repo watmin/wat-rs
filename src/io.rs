@@ -617,6 +617,37 @@ impl PipeWriter {
     }
 }
 
+/// Restores `fcntl` flags on drop so a polled write can run `O_NONBLOCK`
+/// without leaking that flag onto the fd (stdio dups share a file
+/// description with fd 1/2; a leaked O_NONBLOCK turns later blocking
+/// writers into a spin). Toggle, not construction: this type also wraps
+/// regular files and stdio dups, which other paths assume are blocking.
+struct NonblockGuard {
+    fd: i32,
+    orig: libc::c_int,
+}
+
+impl NonblockGuard {
+    fn arm(fd: i32) -> std::io::Result<Self> {
+        // SAFETY: `fd` is the live write-end this PipeWriter currently
+        // holds (checked by the caller). F_GETFL / F_SETFL on that number.
+        let orig = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if orig < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if unsafe { libc::fcntl(fd, libc::F_SETFL, orig | libc::O_NONBLOCK) } < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(Self { fd, orig })
+    }
+}
+
+impl Drop for NonblockGuard {
+    fn drop(&mut self) {
+        unsafe { libc::fcntl(self.fd, libc::F_SETFL, self.orig) };
+    }
+}
+
 impl Drop for PipeWriter {
     /// Idempotent. If the fd is still live, swap to -1 and
     /// `close(2)` the original; if already closed, no-op.
@@ -632,6 +663,29 @@ impl Drop for PipeWriter {
 
 impl WatWriter for PipeWriter {
     fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
+        let raw0 = self.fd.load(Ordering::SeqCst);
+        if raw0 < 0 {
+            return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
+                head: ":wat::io::write".into(),
+                reason: "pipe write: writer is closed".into()
+            }));
+        }
+        // Toggle, not construction: PipeWriter also wraps regular files
+        // (`IOWriter/open-file`) and dups of fd 1/2. Construction-time
+        // O_NONBLOCK would leak onto those file descriptions. When the
+        // broadcast is unarmed, keep the blocking write.
+        let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(Ordering::SeqCst);
+        let _nonblock = if broadcast_fd >= 0 {
+            match NonblockGuard::arm(raw0) {
+                Ok(g) => Some(g),
+                Err(e) => return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
+                    head: ":wat::io::write".into(),
+                    reason: format!("pipe write: fcntl O_NONBLOCK: {}", e)
+                })),
+            }
+        } else {
+            None
+        };
         loop {
             let raw = self.fd.load(Ordering::SeqCst);
             if raw < 0 {
@@ -653,7 +707,6 @@ impl WatWriter for PipeWriter {
             // `as_raw_fd_for_poll()` because PipeWriter always has an fd
             // once open (checked above) — `as_raw_fd_for_poll()` reporting
             // `None` is exactly the "writer is closed" case already handled.
-            let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(Ordering::SeqCst);
             if broadcast_fd >= 0 {
                 loop {
                     let mut fds = [
@@ -668,10 +721,15 @@ impl WatWriter for PipeWriter {
                     ];
                     let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
                     if n < 0 {
-                        // EINTR re-polls; never a blind retry (constraint 3 —
-                        // whether EINTR ever reaches here under this repo's
-                        // signal handlers is deliberately unresolved; a
-                        // poll-first loop is correct either way).
+                        // EINTR re-polls; never a blind retry. SA_RESTART is
+                        // explicit at `install_substrate_signal_handlers`
+                        // (`src/process/child.rs`) — set, matching glibc
+                        // `signal()` BSD semantics. poll(2) is never restarted
+                        // by that flag, so EINTR still reaches here. A blocking
+                        // write of the full remainder would still block inside
+                        // the kernel (SA_RESTART would auto-restart it);
+                        // O_NONBLOCK (restored on drop) turns that wait into
+                        // EAGAIN, which loops back to poll.
                         let err = std::io::Error::last_os_error();
                         if err.kind() == std::io::ErrorKind::Interrupted {
                             continue;
@@ -701,8 +759,9 @@ impl WatWriter for PipeWriter {
                     // write during teardown. Proven mine by a stash differential (passes without
                     // this file's change, fails with it).
                     //
-                    // So: if the fd is writable NOW, WRITE — the write cannot block, and there is
-                    // no reason to abandon it. Surface the stop only when the write WOULD have
+                    // So: if the fd is writable NOW, WRITE — O_NONBLOCK means the write
+                    // returns short / EAGAIN instead of blocking, and there is no reason
+                    // to abandon it. Surface the stop only when the write WOULD have
                     // blocked, which is the entire defect this poll exists to fix.
                     if fds[0].revents != 0 {
                         break; // writable — proceed, stop or no stop
@@ -721,9 +780,14 @@ impl WatWriter for PipeWriter {
             if ret < 0 {
                 let err = std::io::Error::last_os_error();
                 if err.kind() == std::io::ErrorKind::Interrupted {
-                    // Re-poll before retrying (constraint 3) rather than
-                    // blind-retrying the write directly — loops back to the
-                    // top, which re-checks closed state and re-polls.
+                    // Re-poll before retrying rather than blind-retrying the
+                    // write directly — loops back to the top, which re-checks
+                    // closed state and re-polls.
+                    continue;
+                }
+                if err.kind() == std::io::ErrorKind::WouldBlock {
+                    // Pipe filled between poll and write. Re-poll with the
+                    // broadcast armed — never a blind retry, never an error.
                     continue;
                 }
                 return Err(RuntimeError::new(span, RuntimeErrorKind::MalformedForm {
