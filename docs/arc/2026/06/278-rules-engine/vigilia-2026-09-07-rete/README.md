@@ -70,7 +70,9 @@ said *"264 files, ~36k."* Measured: **306 files, 38,058 lines** — off by **42 
 DOES walk `tests` — but only for **`.wat.bad`**. **So the 144 plain `.wat` here are exercised only if
 some `.rs` actually drives them.**
 
-⛔⛔ **RESOLVED 2026-09-08 BY `complectens` — THE MECHANISM IS NAME-DERIVATION, SO THE QUERY BELOW WAS THE WRONG ONE.** `src/freeze.rs:987` `startup_beside(caller_rs)` derives `<stem>.wat` **from the calling `.rs` file's own name** (*"Rename-safe — rename the probe and the derived path follows"*), and `call_beside_value` takes an explicit name. **Being named in the source is not the property that matters.** ⚠ Not closed, RE-AIMED: only **73 of 144** `.wat` have a same-stem `.rs` sibling, so at least three reach-mechanisms are in play. `peragrare`/`purgare` inherit a named mechanism, not a bad query. The original disclosure follows, kept as the record of the wrong question:
+✅ **CLOSED 2026-09-08 BY `purgare`: 143 of 144 `.wat`, 19/19 `.wat.bad`, 23/23 `.edn` ARE REACHED — one gap, `datamancer.src.wat`, rowed as `4G1`.** It enumerated every mechanism instead of grepping names. The history of the wrong question is kept below because it took two corrections to ask the right one.
+
+⛔⛔ **RE-AIMED 2026-09-08 BY `complectens` — THE MECHANISM IS NAME-DERIVATION, SO THE QUERY BELOW WAS THE WRONG ONE.** `src/freeze.rs:987` `startup_beside(caller_rs)` derives `<stem>.wat` **from the calling `.rs` file's own name** (*"Rename-safe — rename the probe and the derived path follows"*), and `call_beside_value` takes an explicit name. **Being named in the source is not the property that matters.** ⚠ Not closed, RE-AIMED: only **73 of 144** `.wat` have a same-stem `.rs` sibling, so at least three reach-mechanisms are in play. `peragrare`/`purgare` inherit a named mechanism, not a bad query. The original disclosure follows, kept as the record of the wrong question:
 
 ⚠ **MY DRIVE-COVERAGE NUMBER IS A NAME-GREP AND I AM DISCLOSING WHAT IT CANNOT SEE.** Matching each
 basename against `tests/ src/ --include='*.rs'` gives **85 named / 59 not named** of 144. **A name-grep
@@ -259,7 +261,7 @@ the only copy. **Read it before casting anything.**
 | 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
 | 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
 | 3 | `wat-scripts/perf/grid/` (148 files, 16,616 lines) | **15 / 15** | **34** | ✅ CLOSED |
-| 4 | `tests/rete/` + `src/rete/kernel/tests/` (**306 files, 38,058 lines** — measured 2026-09-08) | **4 cast** | **9** | ⏳ MID-FLIGHT |
+| 4 | `tests/rete/` + `src/rete/kernel/tests/` (**306 files, 38,058 lines** — measured 2026-09-08) | **6 cast** | **11** | ⏳ MID-FLIGHT |
 
 **Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6), `purgare` (1),
 `conferre` (2), `intueri` (4, incl. one L1), `struere` (5, incl. one L1), `sequi` (1 + 1 of mine, incl. one L1), `temperare` (2, incl. one L1), `conformare` (3, two L1),
@@ -281,7 +283,7 @@ file; two triggers measured **NO** (`secare` 0 parallel primitives, `excusare` 0
 grid) and one measured **CLEAN-not-absent** (`exigere`: my "7 TODO hits" were all `"XXX"` as a
 deliberately-nonexistent location code — the true count is **0**, same as targets 1 and 2).
 
-**NOTHING IS DRIVEN TO RESOLUTION.** **117 rows open, 18 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 117, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 18. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
+**NOTHING IS DRIVEN TO RESOLUTION.** **119 rows open, 19 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 119, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 19. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
 **X3** (three wards, one rune, two verdicts), **2X2** (a rune's REASON is true, its CATEGORY is
 wrong — two wards split on which matters), and **3X1** — `exigere` and `intueri` both reached
 `run-all.sh:46`, ran the same cross-check, reached the same fact, and disposed of it oppositely:
