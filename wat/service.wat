@@ -1396,10 +1396,11 @@
          (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST])
            `(:wat::core::derive ~enum-name ~service-op-kw)))
      ;; keyword-:op resolution data: for each INTERNAL op, the body keyword string (`:-tick`) and
-     ;; the SOURCE TEXT of its <service>::Op variant constructor (`(:<fqdn>::Op::-Tick)`). A
-     ;; handler body's `:op :-tick` is resolved to the variant via an ast->source → split/join →
-     ;; read-string round-trip (in serve-op-arms) — <service>::Op never leaks to the author, and
-     ;; the leading-dash marker makes `:-tick` an unambiguous token (never a substring of an fqdn).
+     ;; the SOURCE TEXT of its <service>::Op variant constructor (`(:<fqdn>::Op::-Tick {})`).
+     ;; Unit map ctor — `(Variant)` positional is retired (296 N RELAND 9). A handler body's
+     ;; `:op :-tick` is resolved to the variant via an ast->source → split/join → read-string
+     ;; round-trip (in serve-op-arms) — <service>::Op never leaks to the author, and the
+     ;; leading-dash marker makes `:-tick` an unambiguous token (never a substring of an fqdn).
      internal-op-kw-strs
        (:wat::core::foldl
          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])  clause <- :wat::WatAST]
@@ -1428,7 +1429,7 @@
                    (:wat::string::concat "(:"
                      (:wat::string::concat service-op-str
                        (:wat::string::concat "::"
-                         (:wat::string::concat variant-pascal ")"))))))
+                         (:wat::string::concat variant-pascal " {})"))))))
                acc)))
          (:wat::core::Vector :- [:wat::core::String])
          impl-clauses)

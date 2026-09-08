@@ -101,7 +101,7 @@
           :fact
           (:probe/StepPayloadExampleTemp :celsius 10)
           :rule
-          :wat.core/None
+          :wat.core.Option/None
           :via
           (:wat.core/PersistentVector)
         )

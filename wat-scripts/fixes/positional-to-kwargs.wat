@@ -24,7 +24,7 @@
 (:wat::core::defn :user::fieldvec-at [ch <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64]
   -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::>= i (:wat::core::length ch))
-    (:wat::core::Option::None :wat::WatAST)
+    (:wat::core::Option::None {})
     (:wat::core::let [c (:wat::core::Option/expect (:wat::core::get ch i) "fieldvec-at")]
       (:wat::core::if (:wat::core::= (:wat::core::ast-kind c) "vector")
         (:wat::core::Option::Some {:value c})
