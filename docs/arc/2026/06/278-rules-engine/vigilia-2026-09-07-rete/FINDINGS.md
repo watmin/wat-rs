@@ -52,12 +52,13 @@ row first for days.
 | **X1 ★** | excusare | 1 | `alpha.rs:338` | Bare `#[allow(clippy::too_many_arguments)]`, **ILLEGITIMATE-AT-BIRTH**. The only comment above it addresses `#[cold]`/`#[inline(never)]`, not argument count — and being a COLD path, the hot-loop excuse its siblings use would not even apply. Least defensible of the six. | L1 | **OPEN** · ✅ I VERIFIED | line above is a `#[cold]` note, not a reason; contrast `hash_join.rs:39-41` which carries an on-point one |
 | **X2** | excusare | 1 | `fire/mod.rs:469`, `:2128`, `filter_after_join.rs:17`, `round_census.rs:25` | Four more bare `#[allow(clippy::too_many_arguments)]` with no argument-count reason. Each has a doc comment above describing what the fn DOES — a comment's presence is not a reason's presence. `round_census.rs:25` is `#[cfg(test)]`-only, where the lint is arguably MORE valid. | L1 | **OPEN** · ✅ I VERIFIED | read all four lines above: *"Drain the frontier…"*, *"Exists/Not Leaf: probe…"*, etc. None mentions arity |
 | **X3 ★★** | excusare | 1 | `wat/rete/oracle/fire.wat:54` | ⭐⭐ **THREE WARDS, ONE RUNE, TWO VERDICTS.** `excusare` strikes `rune:intueri(naming)` as ILLEGITIMATE-AT-BIRTH: *"rename would fork every oracle fire caller"* is a cost-of-change plea, not a domain-truth, and names no target. But `intueri` graded the same rune **CLEAR**, and `struere` (T6) said **no action required**. Vigilia forbids me re-classifying a ward's verdict — so both stand, and the disagreement IS the finding. | L2 (excusare) vs CLEAR (intueri) | **OPEN — NEEDS A DECISION** · ✅ I VERIFIED both readings | the rune's text at `:54-56` is a historical explanation + a refactor-cost claim; whether that is a warrant is the open question |
+| **E1** | exigere | 1 | `stratify.rs:620-632` | *"deliberately not attempted"* / *"the fence half stays punted"* — but `RETE-OPEN-WORK.md:1471` records that exact idea as **CLOSED — REFUSED**, permanently, because population for `i64`/`f64`/`String` is an insert-time input rather than a static type property. The comment describes a final refusal in punt-language; a reader who has not seen the arc doc reads open work. | L1 by pattern, **wording-only in substance** | **OPEN** · ✅ I VERIFIED | `:632` says *"stays punted"*; `RETE-OPEN-WORK.md:1471` says *"THE FENCE HALF IS CLOSED — REFUSED"*. Closed by rewording to a refusal; no work is owed |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ sequi ✓ **CONV** temperare ✓ excusare ✓ (not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ sequi ✓ **CONV** temperare ✓ excusare ✓ exigere ✓ **CONV** (in flight: conformare; not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
 
 ## Verified by the orchestrator, not taken
 
@@ -140,3 +141,28 @@ stand and the disagreement is itself the deliverable — a decision for the buil
 weighed, **59 HOLD**. This subsystem's runes are, overwhelmingly, real. Classes B and H (19 of the
 59) were checked mechanically — against the actual `#[cfg(test)]`/no-op-twin shape, and against the
 actual absence of each cited symbol — not read for plausibility.
+
+- **E1** — CONFIRMED. `stratify.rs:632` reads *"which is why the fence half stays punted"*;
+  `RETE-OPEN-WORK.md:1471` reads *"★★★★★★★ THE FENCE HALF IS CLOSED — REFUSED."* A permanent
+  refusal described in the language of an open punt. No work is owed — only the wording misleads.
+
+⭐ **exigere CONVERGED, and re-derived the zero rather than inheriting it.** I told it a prior ward
+had reported zero `TODO/FIXME/XXX/HACK` and asked it to confirm or refute independently; it ran its
+own greps and got zero. Two wards agreeing from separate sweeps is evidence. One repeating the
+other's number is an echo.
+
+## ⚠ THREE COUNTS OF ONE POPULATION, AND THEY DISAGREE
+
+The runes in this target have now been counted three times, by different methods, with no two
+agreeing:
+
+| counter | figure | method |
+|---|---|---|
+| `excusare` | **56** applied (+2 excluded as prose) | enumerated then weighed each |
+| `exigere` | **54** markers | `rune:[a-z-]*` grep |
+| me, just now | **57** tagged (+1 bare `rune:` = 58 lines) | `grep -o 'rune:[a-z]*'`, per-occurrence |
+
+Nobody is badly wrong and no finding turns on it — but a population **nobody can state to the unit**
+is a population no later claim should be built on. Recorded rather than smoothed, because a count
+that varies with who ran it is a count that needs its method stated beside it. This is the fifth
+sweep-arithmetic wobble of the session.
