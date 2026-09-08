@@ -45,6 +45,36 @@ the 18 TIMEOUTS                  14 are wat_mcp::* + 2 sigterm + 2 process-label
                                  30s for a handshake that never comes. NOT a second defect.
 ```
 
+## ⛔⛔ IF A CODEMOD SWEEP IS RUNNING, IT IS NOT HUNG. DO NOT KILL IT.
+
+> `/home/john/work/NOTE-the-codemod-asks-type-of-and-that-is-a-freeze.md` (builder, 2026-09-08)
+
+A full `positional-ctor-to-map.wat` sweep over ~1875 `.wat` files takes **tens of minutes** — eight
+parallel procs, still going at ~40 min / ~1500 files. **THAT IS CORRECT BEHAVIOUR.**
+
+```
+the wrap ASKS type-of for declared field names   (it must: byte-observation cannot see
+                                                  defservice/defsurface-generated enums — M2)
+type-of goes through eval-with-defs!
+eval-with-defs! RE-DERIVES THE ENTIRE WORLD PER CALL — by design, the R1/R9 correct-but-slow ORACLE
+  -> every ASK is a freeze; a MISS pays the first freeze AND its retry chain
+     (all decls -> without defservice -> simple type decls -> stdlib)
+```
+
+★ **RELAND 1 looked fast because it was SKIPPING.** `rewrite-each` threaded the per-file fmap
+forward and `#seen#<ep>` suppressed later files' asks — that WAS the defect (five `:probe::Outcome`
+declarations, five variant sets, four never asked). RELAND 2's repair un-threaded it and thereby
+**restored the true cost**. Slower-after-the-fix is right.
+
+⚠ Eight parallel procs each pay the `stdlib-fmap` seed startup independently — a cost the
+parallelisation added, not the tool.
+
+⬜ **THE STONE THIS NAMES:** an incremental `type-of` against the already-frozen driver world.
+`eval_form_with_defs`'s own header says the fast data plane "gets built later, behind a differential
+against this." Until then a corpus sweep of this kind is a freeze farm, and it will keep reading as
+"wat is slow" when the bill is "we froze the world a few thousand times to ask what `:Open`'s field
+is called."
+
 ## ⛔ THE WAY OUT IS WRITTEN DOWN — `wat/fix.wat:23` THE STASH-DANCE
 
 The codemod that fixes this is itself a `.wat` program, **and no `.wat` program can run.** That
