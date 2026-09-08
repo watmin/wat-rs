@@ -43,7 +43,9 @@ declare -A LADDER=(
                                               # consumer downstream of a negation gate, the one
                                               # shape no other axis crosses. Emits :oracle-derived
                                               # so the verdict carries :oracle-accuracy and
-                                              # :port-accuracy. RED until task #94 is closed.
+                                              # :port-accuracy. Task #94 was FOUND AND CLOSED
+                                              # by this axis (ff581b6f); per neg-consumer.wat:38-43
+                                              # any MISMATCH here is that regression returning.
   [asym-join]="500|1000|2000"                # dial: items
   [strat-neg]="6 500|6 1000|6 2000"          # dial: items      (strata fixed at 6 — chain depth)
   [user-reduce]="10 25|20 50|40 100"         # dial: locs × reads together

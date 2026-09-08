@@ -1134,6 +1134,7 @@ grimoire (fetched 2026-09-01). The decisive-test column is what this table adds.
 |---|---|---|---|
 | `public-api` | **outside this crate**, by design | is the item reachable from outside the crate, and is there a downstream that would call it? Name the surface | `to_json_string_pretty` in `wat-edn` — the compact twin IS consumed, and the pretty one is the exported bridge surface |
 | `trait-contract` | **in a trait** — the item exists because a trait bound or a trait implementation requires it | **name the trait.** If no trait can be named, this is not the category, and reaching for it because the item is "structurally required" is how the label goes hollow | a manual `Debug` impl standing in for a `derive` that cannot compile |
+| `shape-contract` | **in the SHAPE** — the item exists so a form, a signature, or a classifier stays whole over its grammar | **name the shape, and say what stops being whole without it.** Removal must still COMPILE — if removing it breaks the build, something requires it *mechanically* and the category is `trait-contract`, not this one | `Accumulate { var, acc_form }` in `src/rete/clause.rs` — the classifier names the whole `(?var <- acc-form :from inner)` grammar; consumers walk `from` only |
 | `future-fixture` | **not yet written** — a fixture for a planned test or downstream with a named landing point | cite the document or issue that says when it lands. Per the ward: *the rune retires when the downstream lands* — a rune with no landing point never retires | `write_to` in `wat-edn`, citing `crates/wat-edn/docs/IPC-BRIDGE.md` |
 | `safety-margin` | **on an error path the current production flow does not reach** | name the condition that WOULD reach it, and what a caller should do if it ever does | `Pidfd::poll_exit` — completes the blocking / non-blocking / timeout surface of the pidfd primitive |
 
@@ -1141,9 +1142,16 @@ grimoire (fetched 2026-09-01). The decisive-test column is what this table adds.
 requires an item *mechanically* — remove it and the crate does not compile. A grammar payload, a
 symmetric signature, or a field carried so a classifier is total over its grammar is required
 *structurally* — remove it and the crate compiles fine, but a shape stops being whole. Those are
-different claims with different evidence, and only the first is `trait-contract`. **The
-vocabulary as the ward defines it has no category for the second**, which is exactly the kind of
-gap a written table makes visible and an unwritten one hides.
+different claims with different evidence, and only the first is `trait-contract`.
+
+⭐ **MINTED 2026-09-08 — `shape-contract` IS the category for the second, and the gap this paragraph
+named is why.** The table made it visible and it stayed open long enough for **all three**
+`rune:purgare(trait-contract)` sites in the tree to be the structural kind: two grammar payloads
+(`src/rete/clause.rs`) and one symmetric signature (`src/rete/eval_test.rs:72`). **Not one of them
+named a trait — the category's correct population was empty while three runes wore it.** Found by a
+`vigilia` two-ward split (`purgare` said mis-categorised, `excusare` said the reason holds and
+category fit was another ward's question); **both were right, and this table had already answered
+it four lines below the row they were arguing over.**
 
 **What the gate closes, and what it cannot.** `no_unknown_ward_rune` (tests/lint/) refuses a
 category outside these sets — a fifth `perspicere` category or a fifth `purgare` one, invented at a

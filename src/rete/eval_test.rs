@@ -69,7 +69,8 @@ pub(crate) fn build_test_env<B: Bindings + ?Sized>(bindings: &B, env: &Environme
 pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
     expr: &WatAST,
     bindings: &B,
-    // rune:purgare(trait-contract) — parent Environment is the eval_inner signature; callers pass empty
+    // rune:purgare(shape-contract) — the parameter keeps this signature symmetric with
+    // `eval_inner`'s; callers pass empty. No trait requires it.
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<bool, EvalBreak> {
