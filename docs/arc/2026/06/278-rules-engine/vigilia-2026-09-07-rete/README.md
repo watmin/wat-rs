@@ -261,7 +261,7 @@ the only copy. **Read it before casting anything.**
 | 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
 | 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
 | 3 | `wat-scripts/perf/grid/` (148 files, 16,616 lines) | **15 / 15** | **34** | ✅ CLOSED |
-| 4 | `tests/rete/` + `src/rete/kernel/tests/` (**306 files, 38,058 lines** — measured 2026-09-08) | **12 cast** | **18** | ⏳ MID-FLIGHT — remaining: `struere` · `sequi` · `temperare` · `conformare`, then **`circumspicere` LAST** |
+| 4 | `tests/rete/` + `src/rete/kernel/tests/` (**306 files, 38,058 lines** — measured 2026-09-08) | **13 cast** | **21** | ⏳ MID-FLIGHT — remaining: `sequi` (IN FLIGHT) · `temperare` · `conformare`, then **`circumspicere` LAST** |
 
 **Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6), `purgare` (1),
 `conferre` (2), `intueri` (4, incl. one L1), `struere` (5, incl. one L1), `sequi` (1 + 1 of mine, incl. one L1), `temperare` (2, incl. one L1), `conformare` (3, two L1),
@@ -283,9 +283,9 @@ only.**
 
 **Target 4 — cast so far (12):** `excusare` (1 L1 — 81 exemptions weighed, **80 HOLD**), `complectens`
 (3), `vocare` (2), `perspicere` (3), `purgare` (1), `peragrare` (**6×L1**), `secare` (1 L1), `probare`
-(1), `cernere` (1), `exigere` (2 L1), `solvere` (2), `intueri` **CLEAN**.
+(1), `cernere` (1), `exigere` (2 L1), `solvere` (2), `intueri` **CLEAN**, `struere` (2 + 1 of mine, two L1).
 
-**Target 4 — still to cast:** `struere` · `sequi` · `temperare` · `conformare`, then
+**Target 4 — still to cast:** `sequi` (IN FLIGHT) · `temperare` · `conformare`, then
 **`circumspicere` LAST — three targets, three times the sharpest finding of the cast.**
 
 ⚠ **`conformare` will find NO literal surface here** — measured: **zero** `enum *Error` definitions in
@@ -298,7 +298,7 @@ shape) or accept a short honest cast.
 one unreached file, which **no gate parses either** — was traced form-by-form and is **clean**
 (`cernere`).
 
-**NOTHING IS DRIVEN TO RESOLUTION.** **126 rows open, 22 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 126, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 22. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
+**NOTHING IS DRIVEN TO RESOLUTION.** **129 rows open, 24 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 129, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 24. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
 **X3** (three wards, one rune, two verdicts), **2X2** (a rune's REASON is true, its CATEGORY is
 wrong — two wards split on which matters), and **3X1** — `exigere` and `intueri` both reached
 `run-all.sh:46`, ran the same cross-check, reached the same fact, and disposed of it oppositely:
