@@ -358,6 +358,12 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2I1 ★★** | intueri | `vocabulary.rs:104-105`, `:1845`, `:1846`, `:1853` | ⭐⭐ **FOUR NUMBERS DESCRIBE ONE ARRAY, IN ONE FILE, AND ONLY ONE IS GATED.** `NAMING_RULE_EXCEPTIONS` is claimed as **nine** by the module header, **eleven** by the test's own doc comment, **fourteen** by that test's function NAME one line below it, and **14** by its assertion one line below that. The assertion is the only mechanically enforced one, and it is the true one. ⛔ **The doc comment disagrees with its own test's name TWO LINES AWAY.** | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `sed -n '104,105p'` → *"Nine rows total"*; `:1845` → *"exactly the eleven rows"*; `:1846` → `fn naming_rule_exceptions_are_exactly_the_documented_fourteen`; `:1853` → `assert_eq!(…len(), 14)`. Closed by deleting both prose numbers in favour of *"count enforced by the gate below"* |
 | **2I2** | intueri | `export.rs:2274` | `import_export`'s doc says *"Its 194 lines are phase COUNT rather than depth."* The body spans `:2278-2535` — **258 lines**. The qualitative claim it supports (9 phases, brace nesting peaks at 3) is still true; only the number rotted, by 64. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | body end located by brace-match at `:2535`; 2535−2277 = 258. Closed by dropping the number — the point stands without it |
 | **2I3 ★** | intueri | `purity.rs:1811` | ⭐ **A CYCLE DETECTOR WHOSE HEADER CALLS ITSELF PURITY — IN THE FILE WHERE "PURE" IS THE LOAD-BEARING TERM.** `walk_rete_defn_callees`'s first line: *"Walk a rete definition's callees for **purity**, returning the first **impure** one."* It classifies no purity; it is a gray/black DFS cycle detector, called only from `rete_defn_cycle`. ⚠ Two neighbouring comments in the same file say the opposite explicitly — `:1803` *"this walk is a LOAD refusal, not a fifth axis"* and `:1782` *"cycle is a second question (#87 recursion), not a fifth fence axis."* And the doc's OWN second paragraph correctly describes the gray/black colouring. **The header contradicts its own body-description.** | L2 | **OPEN** · ✅ I VERIFIED | `:1811` uses "purity"/"impure"; `:1813-1815` describes cycle-safe colouring; `:1782` and `:1803` both name cycle-≠-purity. Closed by naming the recursion cycle in the first line |
+| **2M1 ★★** | temperare | `where_tree.rs:84` vs `alpha_tree.rs:56` | ⭐⭐ **TWO FILES, THE SAME TYPE-ALIAS NAME, ONE FIXED WITH A MEASURED STONE AND ONE NOT.** Both declare `type EqChildren` for a discrimination tree's equality fan-out. `alpha_tree.rs:56` is `FxHashMap`, carrying a measurement at `:66-67`: *"FxHash — SipHash of the field `Value` 40k times was the I−G walk (`DESIGN-STONE-alpha-tree-fxhash`)."* `where_tree.rs:84` is plain `std` `HashMap`, and the file does not import `rustc_hash` at all. ⚠ **This one IS on the fire path** — 2T1 established that `walk`'s `proven` flag gates the pure-cmp fast path at `kernel/fire/mod.rs:2284`. Dimension: **n tokens** × tree depth, every round. | L2 · fire-dimension | **OPEN** · ✅ I VERIFIED | `grep -n 'rustc_hash\|FxHashMap' where_tree.rs` → **0**; same in `alpha_tree.rs` → `:46,56,150`. Closed by swapping `:84` and the maps feeding it, matching the sibling |
+| **2M2** | temperare | `eval_insert.rs:148`, `:170`, `:172` | `build_insert_fact` performs the identical `sym.types().and_then(\|t\| t.get(type_keyword))` twice — once to bind `names`, once for `field_names`. Control only reaches `:170` when `:148` already returned `Some(Aggregate(_))`, so the `_ => Arc::new(Vec::new())` fallback at `:172` is **unreachable**. Dimension: n calls to the interpreter/differential door — not production fire. | L2 | **OPEN** · ⚠ ward-reported | closed by `let field_names = names.clone();` and deleting the dead arm |
+| **2M3** | temperare | `purity.rs:1371-1394`; call sites `compile.wat:450,589,742` | Each fence calls `pure?`/`deterministic?`/`total?`/`primitive?` as four primitives, each doing its own single-axis `classify_expr`. The axis loop sits **inside** one recursive descent (`:1387`), so 4 calls = 4 full tree walks where 1 would do — and `apply_rete_defn_contracts` already uses `&Axis::ALL` for the same walk. ⚠ The ward checked this against the builder's 2026-08-05 ruling at `compile.wat:273-290` and found it does **not** conflict: that ruling forbids *skipping* an axis, not *sharing a traversal*. | L2 · freeze-time | **OPEN** · ⚠ ward-reported | closed by one `&Axis::ALL` call per fence yielding four booleans |
+| **2M4** | temperare | `wat/rete/compile.wat:1038` + `:1061` | `sort-lhs` calls `uses-result?` once per condition in the `independent` guard and again in the complementary `rest` guard — two recursive `ast-qvars` walks per condition for one boolean. Dimension: n LHS conditions per rule, doubled, freeze-time. | L2 · freeze-time | **OPEN** · ⚠ ward-reported | closed by one fold producing a three-way bucket verdict |
+| **2M5** | temperare | `wat/rete/acc.wat:107-122` | `acc::distinct` is `foldl` + `PersistentVector/contains?` — a linear scan before every `conj`, so O(n²) in elements gathered. ⚠ **Oracle-only**: `kernel/arm.rs:285` recognises the name and dispatches a native `AccFold::Distinct`, so native fire never runs this body. It is real cost on every floor run, in the oracle's interpreted accumulate pass. | L2 · oracle-dimension | **OPEN** · ⚠ ward-reported | closed by a seen-`PersistentMap` instead of `contains?` |
+| **2M6** | temperare | `wat/rete.wat:539` | `render-dag`'s outer `foldl` does `(string::concat acc line)` on a growing accumulator — potentially O(n²) in output length. ⚠ The ward checked whether the adjacent `rune:exigere(scope-affirmative)` at `:524-527` covers it: **it does not** — that rune protects the fixed-depth nested-concat that builds one `line`, not the outer accumulator. Diagnostic renderer, lowest priority. | L3 | **OPEN** · ⚠ ward-reported | closed by a rope/joiner, or left as-is with a rune |
 
 ## Verified by the orchestrator — target 2
 
@@ -470,7 +476,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **8** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** | temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 15 (+1 ward-split, 2X2) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **9** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare | exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -727,3 +733,61 @@ question. Recorded here as a nit, not as 2X2's sibling.
 production binary.** I confirmed it. That is the second independent reason to leave it alone (the
 first being its DISCONFIRMING-PROBE header), and it means its size does not bear on the compile
 side's shipped surface at all.
+
+⛔⛔ **`temperare` CORRECTED MY BRIEF ON A LOAD-BEARING FACT — MY FIFTH HANDED-DOWN ERROR, AND THE
+FIRST THAT WOULD HAVE MIS-SIZED FINDINGS RATHER THAN MISCOUNTED THEM.**
+I wrote into the brief that `matcher.rs`'s `eval_clause`/`resolve_operand` family *"IS reached at fire
+time… That file is the exception to the compile-side-is-cold rule and deserves your closest
+reading."* **It is not.** I verified the ward's correction myself:
+· `mod.rs:56` says it outright: *"Native authority is compiled exec; `alpha_match_inner` is the
+  oracle / differential."*
+· `compiled_cond.rs:960-962`: *"On a real fire `match:calls` still reads zero because the round
+  loop's step 1 is this function."*
+· Every caller of `alpha_match_inner`/`eval_alpha_match`: `matcher.rs:327` (internal),
+  `kernel/tests/alpha_discrimination.rs` ×4 (target 4), and `runtime.rs:5645` — the wat-visible
+  `:wat::rete::alpha-match` primitive. **None is the automatic per-fact fire loop.**
+
+⚠ **The cost of this error would have been silent.** The four earlier corrections were counts — wrong
+numbers that a ward re-derived. This one was a *reachability* claim, and it sets the DIMENSION every
+temperare finding is scored on. Had the ward trusted me, up to six rows would have shipped labelled
+"n facts" when the honest label is "n oracle/differential calls" — findings inflated by orders of
+magnitude, each looking urgent, none checkable without redoing the reachability work. **A wrong
+number is visible; a wrong denominator is not.**
+
+- **2M1 ★★** — CONFIRMED, and it is the arc's signature shape in its cleanest form yet. **Both files
+  declare a type alias with the SAME NAME, `EqChildren`, for the same job** — a discrimination
+  tree's equality fan-out. `alpha_tree.rs:56` is `FxHashMap` and carries the measurement in its own
+  doc: *"SipHash of the field `Value` 40k times was the I−G walk (`DESIGN-STONE-alpha-tree-fxhash`)."*
+  `where_tree.rs:84` is `std::collections::HashMap`, and `grep -n 'rustc_hash\|FxHashMap'` over that
+  file returns **zero** — it never even imports the type. A fix that was profiled, named a stone, and
+  shipped on one tree did not reach its twin.
+  ⭐ **And the ward established reachability by citing ANOTHER WARD'S ROW**: 2T1 (`struere`) proved
+  `walk`'s `proven` flag gates the pure-cmp fast path at `kernel/fire/mod.rs:2284`, which is what
+  makes this a fire-dimension finding rather than a freeze-time one. Two wards composing — one
+  established the path is live, the other found what is slow on it.
+
+⭐ **It also refused to over-claim in three separate places, and each refusal is load-bearering:**
+· **2M5** — it checked whether native fire runs `acc::distinct` at all, found `kernel/arm.rs:285`
+  dispatches a native `AccFold::Distinct` by name, and labelled the finding **oracle-dimension**
+  rather than letting an O(n²) read as a production hazard.
+· **2M6** — it checked whether the adjacent `rune:exigere` already excused the concat growth and
+  found it does not, saying so explicitly rather than assuming either way.
+· **2M3** — it checked its own recommendation against a **builder's ruling** (`compile.wat:273-290`,
+  2026-08-05: the four axes are *"NOT collapsed even where one arguably implies another"*) and drew
+  the distinction that saves it: that ruling forbids *skipping an axis*, not *sharing a traversal*.
+  **A ward that reads the standing rulings before proposing a change is the one whose proposals can
+  be acted on.**
+
+⚠ **And it declined to score a seventh** (`factbag.wat`'s three O(n) scans) because the only caller
+it could find lives in `wat/rete/oracle/**` — **outside this target's file list** — so whether the
+aggregate is O(n²) cannot be settled from files in scope. It named it for whoever scopes the oracle
+files next rather than claiming it. ⛔ **That is a `peragrare` cell in waiting**: a cost whose
+population lives on the other side of a target boundary.
+
+**Rune verdict — the only `rune:temperare` in the target, and it is judged WEAK.** `purity.rs:1782`,
+`simplicity-win`, reason *"cycle is a second question (#87 recursion), not a fifth fence axis."* The
+category's own format rule requires citing a **cost ceiling**; this reason gives an
+architectural-separation argument with no date, no measurement, no ceiling. Measured against the
+model form the ward itself named on target 1 (`fire/mod.rs:494` — dated, names its floor run, carries
+`206 / 245583 = 0.084%`), it does not reach the bar. ⚠ The ward asked for a better-formed rune rather
+than a fix, since what it excuses is human-bounded and freeze-time — the proportionate call.
