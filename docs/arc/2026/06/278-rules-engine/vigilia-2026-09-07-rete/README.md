@@ -261,7 +261,7 @@ the only copy. **Read it before casting anything.**
 | 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
 | 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
 | 3 | `wat-scripts/perf/grid/` (148 files, 16,616 lines) | **15 / 15** | **34** | ✅ CLOSED |
-| 4 | `tests/rete/` + `src/rete/kernel/tests/` (**306 files, 38,058 lines** — measured 2026-09-08) | **14 cast** | **23** | ⏳ MID-FLIGHT — remaining: `temperare` · `conformare`, then **`circumspicere` LAST** |
+| 4 | `tests/rete/` + `src/rete/kernel/tests/` (**306 files, 38,058 lines** — measured 2026-09-08) | **16 cast** | **26** | ⏳ MID-FLIGHT — remaining: **`circumspicere` LAST, and it is the ONLY ward left** |
 
 **Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6), `purgare` (1),
 `conferre` (2), `intueri` (4, incl. one L1), `struere` (5, incl. one L1), `sequi` (1 + 1 of mine, incl. one L1), `temperare` (2, incl. one L1), `conformare` (3, two L1),
@@ -288,12 +288,12 @@ attributes.**
 
 **Target 4 — cast so far (12):** `excusare` (1 L1 — 81 exemptions weighed, **80 HOLD**), `complectens`
 (3), `vocare` (2), `perspicere` (3), `purgare` (1), `peragrare` (**6×L1**), `secare` (1 L1), `probare`
-(1), `cernere` (1), `exigere` (2 L1), `solvere` (2), `intueri` **CLEAN**, `struere` (2 + 1 of mine, two L1), `sequi` (2, both L1).
+(1), `cernere` (1), `exigere` (2 L1), `solvere` (2), `intueri` **CLEAN**, `struere` (2 + 1 of mine, two L1), `sequi` (2, both L1), `temperare` (1), `conformare` (2, two L1).
 
-**Target 4 — still to cast:** `temperare` · `conformare`, then
-**`circumspicere` LAST — three targets, three times the sharpest finding of the cast.**
+**Target 4 — still to cast: `circumspicere`, and NOTHING ELSE.** Sixteen wards are in. ⭐ **Three
+targets, three times the sharpest finding of the cast — cast it last, every time.**
 
-⚠ **`conformare` will find NO literal surface here** — measured: **zero** `enum *Error` definitions in
+✅ **RESOLVED — `conformare` CAST AND RETURNED 2 ROWS ON THE TRANSLATED SURFACE (the failure-message vocabulary: 586 `assert_eq!` / 550 `.expect(` / 489 `assert!` / 325 `panic!` against **10** bare `.unwrap()`, all ten in one file). The prediction below held exactly and the translated surface was the right answer — keep this shape for a future test-corpus cast.** ⚠ **`conformare` will find NO literal surface here** — measured: **zero** `enum *Error` definitions in
 either tree. On target 3 it gave the honest "this target defines no error type" answer and that
 pointed at something worth finding; expect to give it a translated surface (assertion/panic-message
 shape) or accept a short honest cast.
@@ -303,7 +303,7 @@ shape) or accept a short honest cast.
 one unreached file, which **no gate parses either** — was traced form-by-form and is **clean**
 (`cernere`).
 
-**NOTHING IS DRIVEN TO RESOLUTION.** **131 rows open, 26 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 131, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 26. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
+**NOTHING IS DRIVEN TO RESOLUTION.** **134 rows open, 28 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 134, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 28. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
 **X3** (three wards, one rune, two verdicts), **2X2** (a rune's REASON is true, its CATEGORY is
 wrong — two wards split on which matters), and **3X1** — `exigere` and `intueri` both reached
 `run-all.sh:46`, ran the same cross-check, reached the same fact, and disposed of it oppositely:
