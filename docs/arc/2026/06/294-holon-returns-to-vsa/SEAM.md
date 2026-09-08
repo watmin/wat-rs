@@ -20,7 +20,18 @@ floor .... 5238 run: 2447 passed, 2773 FAILED, 18 TIMED OUT, 18 skipped     FLOO
 control .. run EXIT=3     ← ⛔ NO WAT PROGRAM STARTS. THE STDLIB DOES NOT LOAD.
 ```
 
-⛔ **DO NOT COMMIT.** ⛔ **DO NOT REVERT — THE WORK IS CORRECT.** ⛔ **DO NOT "FIX" THE FLOOR.**
+✅ **COMMIT LOCALLY — OFTEN.** ⛔ **DO NOT PUSH A BROKEN MAIN.** ⛔ **DO NOT REVERT — THE WORK IS
+CORRECT.** ⛔ **DO NOT "FIX" THE FLOOR.**
+
+> **Builder, 2026-09-07:** *"we can commit, just don't push a broken main - the commits allow save
+> undos without losing work…. grok (or sonnet, or yourself) are likely to reflexively undo something
+> to re-attempt another way... if they accidentally revert something they shouldn't have, we've lost
+> work we need to recover."*
+>
+> ★ **A LOCAL COMMIT IS THE UNDO BUFFER.** The green-tree rule governs what reaches the DR site, not
+> what reaches the object store. An agent mid-migration WILL reflexively `git checkout` / revert to
+> try another approach — that is normal, and it is only destructive against an UNCOMMITTED tree.
+> Commit before every re-attempt. `git push` is the gate; `git commit` is the seatbelt.
 
 **Arc 296 STONE M landed in the working tree, UNCOMMITTED, and it is RIGHT.** It refuses positional
 enum construction — and the stdlib is written in the positional form, so the loaded world now fails
@@ -152,9 +163,12 @@ note remembers.
 >
 > ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Re-run the commands. Do not read the numbers.
 >
-> ⛔⛔ **NOTHING RUNS. FOUR `src/` FILES ARE DIRTY AND UNCOMMITTED AND THE WORK IS CORRECT.** The
-> instinct on waking to a dead toolchain is to revert. **REVERTING IS A LOSS.** `wat/fix.wat:23`
-> is the way out and it was written for exactly this.
+> ⛔⛔ **NOTHING RUNS, AND THE WORK THAT BROKE IT IS CORRECT.** The instinct on waking to a dead
+> toolchain is to revert. **REVERTING IS A LOSS.** `wat/fix.wat:23` is the way out and it was
+> written for exactly this.
+>
+> ✅ **COMMIT LOCALLY BEFORE EVERY RE-ATTEMPT. DO NOT PUSH UNTIL GREEN.** `git log` is the undo
+> buffer; an uncommitted tree has none.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.` ·
 > `HAERESIS EST ITERVM ROGARE.`
