@@ -128,3 +128,39 @@ fn a_phantom_type_name_is_refused_in_param_and_return_position() {
 fn a_phantom_type_name_is_refused_in_a_field_annotation() {
     assert_eq!(check("phantom_record_field"), 1);
 }
+
+/// RELAND-1 — store 3. A use!d `:rust::*` annotation is a real type, not a
+/// phantom. Without `UseDeclarations::covers` this is the 838-file scream.
+#[test]
+fn a_use_declared_rust_type_is_accepted_in_annotation_position() {
+    assert_eq!(
+        check("use_rust_annotation"),
+        0,
+        "`:rust::sqlite::Connection` is use!d (stdlib + this fixture) and is in \
+         the rust-deps registry. It is not in TypeEnv. A wall that asks only \
+         contains ∪ prim refuses every program that mentions it."
+    );
+}
+
+/// RELAND-1 — store 4. A derive-marker bound is a legitimate annotation.
+#[test]
+fn a_derive_marker_bound_is_accepted() {
+    assert_eq!(
+        check("derive_marker_bound"),
+        0,
+        "`:t::Marker` is a derive parent (subtype_edges VALUE), never a types \
+         key. A wall that does not ask is_subtype_parent refuses every derive \
+         marker bound."
+    );
+}
+
+/// RELAND-1 — no `:rust::` prefix blanket. A rust path with no `use!` refuses.
+#[test]
+fn a_rust_type_with_no_use_is_refused() {
+    assert_eq!(
+        check("rust_without_use"),
+        1,
+        "`:rust::test::Greeting` is not use!d and is not in wat-rs defaults. \
+         Accepting it would be STOP-1: names starting with :rust:: are exempt."
+    );
+}

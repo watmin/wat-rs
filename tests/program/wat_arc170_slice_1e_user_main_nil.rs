@@ -109,7 +109,7 @@ fn t2_slice2_4arg_main_rejected_at_freeze() {
     .expect_err("4-arg :user::main must be rejected at freeze");
     assert!(
         matches!(err, StartupError::Check(_)),
-        "expected StartupError::Check (ExitCode ReturnTypeMismatch); got {err:?}"
+        "expected StartupError::Check (u8 body vs nil ReturnTypeMismatch); got {err:?}"
     );
 }
 

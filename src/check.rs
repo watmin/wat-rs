@@ -15240,10 +15240,13 @@ pub(crate) fn validate_aggregate_containment(
     Ok(())
 }
 
-/// Arc 296 P-1 — after types AND functions are registered, refuse any annotation
-/// whose named type does not exist. Forward references are resolved (same reason
-/// as [`validate_aggregate_containment`]). Type variables (`is_type_var_path`)
-/// and bound type-params are accepted without asking the registry.
+/// Arc 296 P-1 RELAND-1 — after types AND functions are registered, refuse any
+/// annotation whose named type is in none of the four membership stores:
+/// `TypeEnv::contains` ∪ `is_builtin_primitive` ∪ `UseDeclarations::covers`
+/// ∪ `TypeEnv::is_subtype_parent`. No reserved-prefix skip. Type variables
+/// (`is_type_var_path`) and bound type-params are accepted without asking
+/// any store. Forward references are resolved (same reason as
+/// [`validate_aggregate_containment`]).
 pub(crate) fn validate_named_type_annotations(
     env: &crate::types::TypeEnv,
     symbols: &crate::value::SymbolTable,
@@ -20400,13 +20403,16 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    //   ForeignVariant/variant  : Value -> Keyword
+    //   ForeignVariant/variant  : Value -> keyword
+    // Arc 296 P-1 RELAND-1 — `:wat::core::Keyword` is a phantom; the type is
+    // `:wat::core::keyword` (types.rs builtin leaf). The wall caught the
+    // same spelling in the wat fixture this scheme types.
     env.register(
         ":wat::edn::ForeignVariant/variant".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::Value".into())],
-            ret: TypeExpr::Path(":wat::core::Keyword".into()),
+            ret: TypeExpr::Path(":wat::core::keyword".into()),
             rest_param_type: None,
         },
     );
