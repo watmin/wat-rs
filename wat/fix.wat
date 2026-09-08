@@ -847,6 +847,80 @@
 ;; Comments/formatting survive (rides fix-text-apply's span-splice); non-matching keywords and
 ;; prefix-siblings (`:t::deftest-hermetic`) are untouched (exact whole-name equality). Use
 ;; rename-keyword-prefix for a boundary-aware prefix swap; use this for an exact whole-name rename.
+;; ── defenum variant-name slots are DECLARATIONS, not use sites ────────────────
+;; A `defenum` is: head, type name, optional `:- [params]`, mandatory purity
+;; marker (`:wat::enum::Pure` | `:wat::enum::Impure`), optional metadata map,
+;; then variant-name / field-vector pairs. The variant-name keyword is the
+;; name being bound. A whole-file keyword rename that treats it as a use of
+;; `:None` / `:Some` / … corrupts the enum (296 N RELAND 8: Option's unit
+;; variant became `:wat::core::Option::None`). Position rule, not a name list.
+(:wat::core::defn :wat::fix::binder-marker? [n <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
+    (:wat::core::= (:wat::core::ast-name n) ":-")
+    false))
+
+(:wat::core::defn :wat::fix::enum-purity-marker? [n <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
+    (:wat::core::or
+      (:wat::core::= (:wat::core::ast-name n) ":wat::enum::Pure")
+      (:wat::core::= (:wat::core::ast-name n) ":wat::enum::Impure"))
+    false))
+
+(:wat::core::defn :wat::fix::defenum-variant-start
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> :wat::core::i64
+  (:wat::core::let
+    [n  (:wat::core::length ch)
+     i0 2
+     i1 (:wat::core::if (:wat::core::if (:wat::core::< i0 n)
+                            (:wat::fix::binder-marker?
+                              (:wat::core::Option/expect (:wat::core::get ch i0) "defenum :-"))
+                            false)
+          (:wat::core::let [j (:wat::i64::+ i0 1)]
+            (:wat::core::if (:wat::core::if (:wat::core::< j n)
+                                (:wat::core::= (:wat::core::ast-kind
+                                  (:wat::core::Option/expect (:wat::core::get ch j) "defenum params"))
+                                  "vector")
+                                false)
+              (:wat::i64::+ j 1)
+              j))
+          i0)
+     i2 (:wat::core::if (:wat::core::if (:wat::core::< i1 n)
+                            (:wat::fix::enum-purity-marker?
+                              (:wat::core::Option/expect (:wat::core::get ch i1) "defenum purity"))
+                            false)
+          (:wat::i64::+ i1 1)
+          i1)]
+    (:wat::core::if (:wat::core::if (:wat::core::< i2 n)
+                        (:wat::core::= (:wat::core::ast-kind
+                          (:wat::core::Option/expect (:wat::core::get ch i2) "defenum meta"))
+                          "map")
+                        false)
+      (:wat::i64::+ i2 1)
+      i2)))
+
+(:wat::core::defn :wat::fix::rename-exact-edits-defenum-variants
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   old   <- :wat::core::String
+   new   <- :wat::core::String
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::core::let [h  (:wat::core::first items)
+                      tl (:wat::core::rest items)]
+      (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
+        (:wat::core::if (:wat::core::if (:wat::core::not (:wat::core::empty? tl))
+                            (:wat::core::= (:wat::core::ast-kind (:wat::core::first tl)) "vector")
+                            false)
+          (:wat::core::concat
+            (:wat::fix::rename-exact-edits (:wat::core::first tl) old new lines)
+            (:wat::fix::rename-exact-edits-defenum-variants (:wat::core::rest tl) old new lines))
+          (:wat::fix::rename-exact-edits-defenum-variants tl old new lines))
+        (:wat::core::concat
+          (:wat::fix::rename-exact-edits h old new lines)
+          (:wat::fix::rename-exact-edits-defenum-variants tl old new lines))))))
+
 (:wat::core::defn :wat::fix::rename-exact-edits-walk
   [items <- (:wat::core::Vector :- [:wat::WatAST])
    old   <- :wat::core::String
@@ -869,15 +943,24 @@
    new   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:wat::fix::rename-exact-edits-walk (:wat::core::ast->children node) old new lines)
-    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-      (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
-        (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-            (:wat::core::Tuple off old new)))
-        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
-      (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
+  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::defenum")
+    (:wat::core::let
+      [ch    (:wat::core::ast->children node)
+       start (:wat::fix::defenum-variant-start ch)
+       pre   (:wat::core::into [] (:wat::core::take ch start))
+       body  (:wat::core::into [] (:wat::core::drop ch start))]
+      (:wat::core::concat
+        (:wat::fix::rename-exact-edits-walk pre old new lines)
+        (:wat::fix::rename-exact-edits-defenum-variants body old new lines)))
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::fix::rename-exact-edits-walk (:wat::core::ast->children node) old new lines)
+      (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+        (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
+          (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+              (:wat::core::Tuple off old new)))
+          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))))
 
 (:wat::core::defn :wat::fix::rename-keyword-exact
   [old <- :wat::core::String

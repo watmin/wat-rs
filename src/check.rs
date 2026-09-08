@@ -4714,6 +4714,45 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 296 N RELAND 8 — `:wat::core::variant`'s first two args are
+            // NAME LITERALS (enum path, variant identifier), not values.
+            // Inferring the variant keyword as a unit ctor fires the bare-spelling
+            // wall on `:None` and poisons Option's own synthesized constructor.
+            ":wat::core::variant" => {
+                if args.len() < 2 {
+                    local_errors.push(CheckError {
+                        span: head_span.clone(),
+                        kind: CheckErrorKind::ArityMismatch {
+                            callee: ":wat::core::variant".into(),
+                            expected: 2,
+                            got: args.len(),
+                        },
+                    });
+                    return CheckResult::errs(local_errors);
+                }
+                for arg in &args[2..] {
+                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+                let ty = match &args[0] {
+                    WatAST::Keyword(k, _) => TypeExpr::Path(k.clone()),
+                    other => {
+                        local_errors.push(CheckError {
+                            span: other.span().clone(),
+                            kind: CheckErrorKind::MalformedForm {
+                                head: ":wat::core::variant".into(),
+                                reason: "first argument must be a keyword (the enum type path)".into(),
+                                remedies: vec![],
+                            },
+                        });
+                        return CheckResult::errs(local_errors);
+                    }
+                };
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ty)
+                } else {
+                    CheckResult::partial_with(ty, local_errors)
+                };
+            }
             // Arc 155 — `:wat::core::fn` is the canonical operator for
             // function values (Clojure-faithful lowercase verb; mirrors
             // arc 154's let retirement recipe). Routes to `infer_fn`

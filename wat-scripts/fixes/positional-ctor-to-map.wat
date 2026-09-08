@@ -696,6 +696,31 @@
                       (:user::walk-seq args fmap src lines path)))]
                 [_ (:user::walk-seq args fmap src lines path)])))))))))
 
+;; A defenum variant-name keyword is a declaration slot, not a constructor.
+;; Walk field vectors; skip the name. See wat/fix.wat defenum-variant-start.
+(:wat::core::defn :user::walk-defenum-variants
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   src   <- :wat::core::String
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   path  <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :- [:wat::fix::Edit])
+    (:wat::core::let [h  (:wat::core::first items)
+                      tl (:wat::core::rest items)]
+      (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
+        (:wat::core::if (:wat::core::if (:wat::core::not (:wat::core::empty? tl))
+                            (:wat::core::= (:wat::core::ast-kind (:wat::core::first tl)) "vector")
+                            false)
+          (:wat::core::concat
+            (:user::walk-edits (:wat::core::first tl) fmap src lines path)
+            (:user::walk-defenum-variants (:wat::core::rest tl) fmap src lines path))
+          (:user::walk-defenum-variants tl fmap src lines path))
+        (:wat::core::concat
+          (:user::walk-edits h fmap src lines path)
+          (:user::walk-defenum-variants tl fmap src lines path))))))
+
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
    fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
@@ -704,7 +729,16 @@
    path  <- :wat::core::String]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:user::ctor-edits node fmap src lines path)
+    (:wat::core::if (:wat::core::= (:wat::fix::head-name node) ":wat::core::defenum")
+      (:wat::core::let
+        [ch    (:wat::core::ast->children node)
+         start (:wat::fix::defenum-variant-start ch)
+         pre   (:wat::core::into [] (:wat::core::take ch start))
+         body  (:wat::core::into [] (:wat::core::drop ch start))]
+        (:wat::core::concat
+          (:user::walk-seq pre fmap src lines path)
+          (:user::walk-defenum-variants body fmap src lines path)))
+      (:user::ctor-edits node fmap src lines path))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::walk-seq (:wat::core::ast->children node) fmap src lines path)
       (:wat::core::Vector :- [:wat::fix::Edit]))))
