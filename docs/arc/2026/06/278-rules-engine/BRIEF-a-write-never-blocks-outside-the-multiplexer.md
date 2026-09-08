@@ -34,6 +34,17 @@ broadcast armed.
 `io.rs:670` (*"deliberately unresolved… correct either way"*) both assert something that is only true
 at full-pipe. Replace them with what is now true.
 
+## ⚠ THE TREE IS DIRTY, AND THAT WORK IS NOT YOURS
+
+`wat-scripts/fanout/circuit.wat` carries **`a reconnect is not an abandonment`, uncommitted**. It is
+correct, its floor was green on its own terms, and it is held back only because **this** RED appeared
+on the same run. It is a **different file** from either of yours.
+
+**Do not revert it. Do not commit it. Do not touch `wat-scripts/` at all.** If you restore anything,
+restore only `src/`.
+
+★ The order is: this stone lands → the floor goes green → *then* circuit.wat can land behind it.
+
 ## Blast radius
 
 `src/io.rs` and `src/comms/process.rs`. **Rust substrate — this is the first substrate stone of the
@@ -50,3 +61,5 @@ arc's perf line**, so a rebuild is in play and the floor is the real gate.
   The probe is the gate; a passing floor with that probe still red is not a pass.
 - **STOP-6** — if the fix requires changing what `send` returns to callers, **STOP.** The typed
   outcomes (`Shutdown` / `Disconnected` / `Failed`) are a contract.
+- **STOP-7** — **do not touch `wat-scripts/`.** It holds uncommitted work that is not this stone's.
+  A `git checkout --` there would discard it.
