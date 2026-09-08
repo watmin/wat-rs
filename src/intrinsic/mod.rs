@@ -1547,7 +1547,9 @@ mod tests {
         ":wat::core::i64/to-f64",
         ":wat::core::i64/to-string",
         ":wat::core::stream->pvec",
-        ":wat::core::subtype?",
+        // ":wat::core::subtype?" DELETED — arc 296 Q2: now a `#[wat_intrinsic]` row
+        // (`eval_subtype`, `src/runtime.rs`), twin of `conforms?`. `registry()` answers
+        // for it and the gap this list named is closed.
         ":wat::eval-ast!",
         ":wat::eval-digest!",
         ":wat::eval-digest-string!",

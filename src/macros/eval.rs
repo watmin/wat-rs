@@ -460,7 +460,10 @@ fn is_expand_time_legal(head: &str) -> bool {
     // None`, nothing about these groupings:
     //   value/control-flow ops with no per-verb home yet —
     //     `i64/to-f64` (dual spelling of the homed `i64::to-f64`), `i64/to-string`,
-    //     `subtype?`, `List?`
+    //     `List?`
+    //   ~~subtype?~~ — DELETED arc 296 Q2: `#[wat_intrinsic]`-registered
+    //     (`src/runtime.rs`'s `eval_subtype`, `@ExpandTime Legal`), so the
+    //     `registry().lookup_entry` door above answers first.
     //   ~~str~~ — DELETED arc 255 Stone 1c-e: `#[wat_intrinsic]`-registered
     //     (`src/runtime.rs`'s `eval_str`, `@ExpandTime Legal`), so the `registry().lookup_entry`
     //     door above answers first and this arm was unreachable dead text — the identical
@@ -503,7 +506,6 @@ fn is_expand_time_legal(head: &str) -> bool {
         head,
         | ":wat::core::i64/to-f64"
         | ":wat::core::i64/to-string"
-        | ":wat::core::subtype?"
         | ":wat::core::List?"
         | ":wat::core::count"
         | ":wat::core::into"

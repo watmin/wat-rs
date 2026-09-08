@@ -2268,7 +2268,11 @@ mod completeness_gate {
     // door itself demanded) classifies all six instead of leaving them unreviewed. Leaving
     // any name here after registering would fail this ledger's own STALE check.
     ":wat::core::seqable->stream",
-    ":wat::core::subtype?",
+    // Arc 296 Q2 — `:wat::core::subtype?` LEAVES. `intrinsic_meta`'s registry-first
+    // consult now answers `Some` for it (`@Purity Pure` / `@Determinism Deterministic` /
+    // `@Totality Partial`, registered at `src/runtime.rs` `eval_subtype`), so
+    // `dispatch_verbs`'s scan classifies it instead of leaving it unreviewed.
+    // Leaving the name here after registering would fail this ledger's own STALE check.
     // Arc 255 Stone 1a-ε — `:wat::core::use!` LEAVES. `intrinsic_meta`'s registry-first
     // consult (`:473` above) now answers `Some` for it (the `@Purity Pure` /
     // `@Determinism Deterministic` / `@Totality Total` this stone registered), so

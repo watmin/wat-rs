@@ -2156,7 +2156,10 @@ fn dispatch_keyword_head_value(
         // Directional, transitive, reflexive walk over the `typesub` child→parent registry.
         // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
         // Error contract: well-formed known type names → bool; unknown name → Err.
-        ":wat::core::subtype?" => eval_subtype(args, list_span, env, sym),
+        // Arc 296 Q2 — RETIRED as a literal arm this stone; registry-routed via
+        // `eval_subtype` (this file), now a `#[wat_intrinsic]` handler with its real
+        // (variadic) shape declared, mirroring `conforms?` (arc 255 Stone 1c-a-ii).
+        // The pre-match registry check above intercepts the name before reaching here.
         // Arc 255 Stone the-registry-answers-first-wave-3 — `:wat::core::aggregate-new` /
         // `:wat::core::kwargs-construct` RETIRED as literal arms this stone; registry-routed via
         // `src/intrinsic/record.rs` (the registry-first door above already reaches them, joining
@@ -9948,6 +9951,38 @@ pub(crate) fn is_builtin_primitive(name: &str) -> bool {
 /// - Both names must be known (in TypeEnv or is_builtin_primitive); else `MalformedForm`.
 ///   This keeps `false` honest (probe 10): an unknown name is bad input, not a negative result.
 /// - Well-formed known pair → `Value::bool(is_subtype(a, b, types))`.
+///
+/// Arc 296 Q2 — registered `#[wat_intrinsic]`. Same variadic-sniff/single-`@arg`
+/// mechanics as `eval_conforms` (arc 255 Stone 1c-a-ii): `args: &[WatAST]` sniffs as
+/// the VARIADIC form; `check_args` requires exactly ONE `@arg`, named `args`; the
+/// real 2-arg shape stays enforced by this fn's own `args.len() != 2` guard,
+/// unchanged. The one `@arg`'s type is pinned to the checker scheme's first param
+/// (`:wat::core::keyword`); `@ret` is `:wat::core::bool` per that same scheme.
+///
+/// **Purity/Determinism ground —** neither arg is evaluated as a value (type-position
+/// keywords, a pure syntactic read). `is_subtype` is a pure walk of the typesub
+/// registry. `Pure ∧ Deterministic`.
+///
+/// **Totality ground — `Partial`, NOT `Total`:** a well-typed call can still hand
+/// an unknown type name; the fn raises `MalformedForm` (probe 10). The checker
+/// validates Keyword shape, not registry membership. `Partial`.
+///
+/// **Expand-time ground —** `Legal`. A raise during expansion is a located
+/// `MacroError`, strictly better than a runtime one. Same "different axes"
+/// pair as `conforms?`.
+///
+/// **Category ground —** Probe: derives one fact — is this type a subtype of that.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Probe
+/// @arg     args :wat::core::keyword the child type keyword (position 0) then the parent type keyword (position 1, prose-only — the variadic sniff leaves no second `@arg` slot)
+/// @ret     :wat::core::bool whether the first type is-a the second
+/// @example (:wat::core::subtype? :wat::holon::Record :wat::core::Record) #=> true
+#[wat_intrinsic(":wat::core::subtype?")]
 fn eval_subtype(
     args: &[WatAST],
     list_span: &Span,
