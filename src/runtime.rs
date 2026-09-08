@@ -9881,10 +9881,16 @@ fn concrete_type_name_matches(value: &Value, path_with_colon: &str) -> bool {
     value.declared_type_name() == stripped
 }
 
-/// Returns `true` if `name` (colon-free FQDN) is a built-in primitive type
-/// recognized at the runtime level. These paths never appear in the TypeEnv
-/// (they're substrate, not user-declared), but `conforms?` must handle them.
-fn is_builtin_primitive(name: &str) -> bool {
+/// Returns `true` if `name` (colon-free FQDN) is a built-in primitive / container
+/// / opaque recognized at the runtime level. `conforms?` and `subtype?` consult
+/// this table when `TypeEnv::get` is `None`.
+///
+/// Stone 255 registered many of the same names as TypeEnv *membership*
+/// (`contains` true, `get` None). This list is a PARALLEL set, not identical
+/// to `contains` (`char`/`Tuple` are here and not leaves; `PersistentVector`/
+/// `Value` are leaves and not here). Stone Q's `is-type?` unions both; a count
+/// of either is not the authority (`TABLE-STONE-Q-the-mechanisms.md`).
+pub(crate) fn is_builtin_primitive(name: &str) -> bool {
     matches!(
         name,
         "wat::core::bool"

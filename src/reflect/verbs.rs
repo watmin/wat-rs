@@ -1519,3 +1519,62 @@ pub(crate) fn eval_type_of(
         ],
     ))
 }
+
+/// `(:wat::runtime::is-type? :TypeKeyword) -> :wat::core::bool`
+///
+/// Arc 296 Q — membership, not structure. `type-of` asks `TypeEnv::get` and
+/// raises on a leaf; this verb asks whether `name` is a type at all.
+/// `TypeEnv::contains` ∪ `is_builtin_primitive` — one query, two stores, nothing
+/// moves (`TABLE-STONE-Q-the-mechanisms.md`). A nonexistent name is `false`,
+/// not a raise: that row is the stone.
+///
+/// The arg is a type-position keyword, taken literally (not evaluated). Doctrine 1
+/// stands: a primitive type keyword as a *value* still refuses; here it is a name.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Reflection
+/// @arg     type_kw_ast :wat::core::keyword the type name to ask about (a literal keyword in type position)
+/// @ret     :wat::core::bool true iff the name is a type (TypeEnv member or runtime primitive)
+/// @example (:wat::runtime::is-type? :wat::core::Option) #=> true
+/// @example (:wat::runtime::is-type? :usr::TotallyMadeUp) #=> false
+/// @see     :wat::runtime::type-of
+/// @see     :wat::core::subtype?
+#[wat_intrinsic(":wat::runtime::is-type?")]
+pub(crate) fn eval_is_type(
+    type_kw_ast: &WatAST,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::is-type?";
+    let type_kw = match type_kw_ast {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => {
+            return Err(RuntimeError::new(
+                type_kw_ast.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "arg must be a type keyword (e.g. :wat::core::i64)".into(),
+                },
+            )
+            .into());
+        }
+    };
+    let types = sym.types().ok_or_else(|| {
+        RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "is-type? requires the type registry, but the SymbolTable has no TypeEnv attached \
+                         (programmer error: this build path didn't go through startup_from_source / freeze)"
+                    .into(),
+            },
+        )
+    })?;
+    let stripped = type_kw.strip_prefix(':').unwrap_or(&type_kw);
+    let known = types.contains(&type_kw) || crate::runtime::is_builtin_primitive(stripped);
+    Ok(Value::bool(known))
+}

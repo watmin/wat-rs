@@ -2826,6 +2826,41 @@ fn infer_list(
                     CheckResult::partial_with(bool_result_ty, local_errors)
                 };
             }
+            // Arc 296 Q — `:wat::runtime::is-type?` membership predicate.
+            //
+            // Signature: (:TypeKeyword) -> :wat::core::bool.
+            // The arg is type-position, NOT a value. Inferring it would fire Doctrine 1
+            // on `:wat::core::i64` (the exact reason `type-of` cannot receive scalars)
+            // and the constructor-as-Fn trap on a defrecord name. Skip inference.
+            // A List is a type *expression*; this verb answers for a *name*. P-1 parses
+            // expressions. Unknown names are legal here — they are the false row.
+            ":wat::runtime::is-type?" => {
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::runtime::is-type?".into(),
+                        reason: format!(
+                            "expected (:wat::runtime::is-type? :TypeKeyword); got {} arg(s)",
+                            args.len()
+                        ),
+                        remedies: vec![],
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                if !matches!(&args[0], WatAST::Keyword(_, _)) {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::runtime::is-type?".into(),
+                        reason: "arg must be a type keyword (e.g. :wat::core::i64)".into(),
+                        remedies: vec![],
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
+                return if local_errors.is_empty() {
+                    CheckResult::ok(bool_result_ty)
+                } else {
+                    CheckResult::partial_with(bool_result_ty, local_errors)
+                };
+            }
             // Arc 237 Stone 237.5 — `:wat::core::conforms?` inference.
             //
             // Signature: (value :TypeExpr) -> :wat::core::bool.
@@ -22374,6 +22409,23 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::core::keyword".into()),
                 TypeExpr::Path(":wat::core::keyword".into()),
             ],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 296 Q — `:wat::runtime::is-type?` membership predicate.
+    //
+    // :wat::runtime::is-type? :: :wat::core::keyword -> :wat::core::bool
+    //
+    // The infer_list special-case (above, beside subtype?) is load-bearing: it
+    // skips inference so Doctrine 1 does not fire on a primitive type keyword
+    // in type position. The scheme is the reflection fingerprint.
+    env.register(
+        ":wat::runtime::is-type?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::keyword".into())],
             ret: bool_ty(),
             rest_param_type: None,
         },

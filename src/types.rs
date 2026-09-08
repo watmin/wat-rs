@@ -6876,4 +6876,83 @@ mod tests {
              happen by drift"
         );
     }
+
+    /// Stone Q — the DESIGN census, asked of `contains` / `get`, not of `type-of`.
+    /// Membership goes through THE DOOR (`registrations`) so `no_loose_string_assert`
+    /// cannot confuse `TypeEnv::contains` with `String::contains`. Structure is
+    /// `get`. The holes (`char`, `Tuple`, `Fn`) are asserted, not papered over:
+    /// they are why the verb unions `contains` with `is_builtin_primitive`.
+    #[test]
+    fn stone_q_census_contains_is_membership_get_is_structure() {
+        let env = TypeEnv::with_builtins();
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(env.clone()));
+        let type_facet = crate::value::symbol_table::RegistryKind::Type;
+
+        let structured: &[(&str, &str)] = &[
+            (":wat::core::Bytes", "Alias"),
+            (":wat::core::EvalError", "Aggregate"),
+            (":wat::core::Record", "Aggregate"),
+            (":wat::core::Struct", "Aggregate"),
+            (":wat::core::Option", "Enum"),
+            (":wat::core::Result", "Enum"),
+            (":wat::core::nil", "Alias"),
+        ];
+        for (name, kind) in structured {
+            let regs = sym.registrations(name);
+            assert!(
+                regs.contains(type_facet),
+                "{name} must be Type-facet membership; registrations = {regs:?}"
+            );
+            let got = match env.get(name) {
+                Some(TypeDef::Alias(_)) => "Alias",
+                Some(TypeDef::Aggregate(_)) => "Aggregate",
+                Some(TypeDef::Enum(_)) => "Enum",
+                Some(other) => panic!("{name} unexpected TypeDef: {other:?}"),
+                None => panic!("{name} must have structure (get Some)"),
+            };
+            assert_eq!(got, *kind, "{name} get kind");
+        }
+
+        let leaves: &[&str] = &[
+            ":wat::core::i64",
+            ":wat::core::f64",
+            ":wat::core::bool",
+            ":wat::core::String",
+            ":wat::core::u8",
+            ":wat::core::keyword",
+            ":wat::core::Vector",
+            ":wat::core::HashMap",
+            ":wat::core::HashSet",
+            ":wat::core::PersistentVector",
+            ":wat::core::PersistentMap",
+            ":wat::core::bigint",
+            ":wat::core::rational",
+            ":wat::core::Value",
+            ":wat::WatAST",
+        ];
+        for name in leaves {
+            let regs = sym.registrations(name);
+            assert!(
+                regs.contains(type_facet),
+                "{name} must be Type-facet membership (leaf); registrations = {regs:?}"
+            );
+            assert_eq!(
+                env.get(name),
+                None,
+                "{name} must stay get-None — membership without structure"
+            );
+        }
+
+        // Holes vs the runtime primitive table. Asserted so a future leaf-register
+        // of char/Tuple is a deliberate test edit, not silent completion.
+        for name in [":wat::core::char", ":wat::core::Tuple", ":wat::core::Fn"] {
+            let regs = sym.registrations(name);
+            assert!(
+                !regs.contains(type_facet),
+                "{name} is not a TypeEnv member today (TABLE-STONE-Q); registrations = {regs:?}"
+            );
+            assert_eq!(env.get(name), None, "{name} has no TypeDef");
+        }
+    }
 }

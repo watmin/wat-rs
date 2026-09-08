@@ -1,0 +1,4 @@
+;; STOP-4 control — Doctrine 1 is not weakened. A primitive type keyword in
+;; VALUE position still refuses. This file must not check.
+(:wat::core::defn :user::main [] -> :wat::core::i64
+  :wat::core::i64)
