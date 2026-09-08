@@ -1,17 +1,14 @@
 //! Child-side envelope (post-clone3, pre-user code).
 //!
-//! Signal handlers and the canonical post-fork initialization
-//! sequence (5-step: silent panic hook / setpgid / fd close-sweep /
-//! shutdown-signal registration / signal-handler installation).
+//! Signal mask (the five are blocked; delivery is signalfd) and the
+//! canonical post-fork initialization sequence.
 
 // ─── Arc 106 — substrate-level signal handlers for fork children ─────
 //
-// Wat programs in forked children must observe SIGTERM / SIGINT /
+// Wat programs in spawned children observe SIGTERM / SIGINT /
 // SIGUSR1/2 / SIGHUP through the same `(:wat::kernel::stopped?)` /
-// `(:wat::kernel::sigusr1?)` polling contract that worked when the
-// program ran in the cli's process pre-arc-104. The handlers below
-// flip the substrate's kernel flags; the wat program polls; the
-// program returns cleanly when the flag is observed.
+// `(:wat::kernel::sigusr1?)` polling contract. Delivery is signalfd;
+// the five are blocked, not handled.
 //
 // HISTORICAL, and named so it is not read as live: the cli once had its
 // own handlers that ALSO called `killpg(CHILD_PGID, sig)` to cascade to a
@@ -24,77 +21,16 @@
 // handlers after its exec (`distribution::spawned_runtime`), on its own
 // fresh statics.
 
-// Arc 170 "stopping is a protocol" Phase 3 — the handler measures, it does
-// not transition, same shape as its three siblings below: one call. The
-// wake-pipe write (needed so the shutdown worker's poll(2) wakes and can
-// run the ask-then-await-Stopped protocol before severing anything — see
-// runtime.rs's shutdown worker) used to live here inline, making this the
-// one handler that did two things. It moved into `request_kernel_stop`
-// itself (`src/runtime.rs`), which stays exactly as async-signal-safe as
-// this call site was — `AtomicBool::store` and `libc::write` to an
-// already-open pipe fd are both on the POSIX async-signal-safe list
-// (signal-safety(7)); relocating them changed nothing about that.
-extern "C" fn substrate_on_stop_signal(_sig: libc::c_int) {
-    crate::runtime::request_kernel_stop();
-}
-
-extern "C" fn substrate_on_sigusr1(_sig: libc::c_int) {
-    crate::runtime::set_kernel_sigusr1();
-}
-
-extern "C" fn substrate_on_sigusr2(_sig: libc::c_int) {
-    crate::runtime::set_kernel_sigusr2();
-}
-
-extern "C" fn substrate_on_sighup(_sig: libc::c_int) {
-    crate::runtime::set_kernel_sighup();
-}
-
-/// Install the substrate's wat signal handlers in the calling process.
+/// Block the five substrate signals on this thread (inherited by threads
+/// spawned afterward). Delivery is via `signalfd` in
+/// `init_shutdown_signal_with_inputs` — there is no handler.
 ///
-/// Called by `distribution::spawned_runtime` on a freshly `execve`'d runtime,
-/// and by the cli entry for its own process, to give each a working
-/// `(:wat::kernel::stopped?)` / `(sigusr1?)` polling contract.
-///
-/// The handlers flip substrate-level static atomics (KERNEL_STOPPED,
-/// KERNEL_SIGUSR1, …). Arc 170 step 4: those statics are no longer COW-copied
-/// from a parent — a spawned runtime execs, so it starts with its own fresh
-/// set and there is nothing inherited to flip. Each process owns its flags
-/// because each process IS its own image, not because a copy was made.
-///
-/// Must be async-signal-safe. Each handler body is exactly one call —
-/// `substrate_on_sigusr1`/`substrate_on_sigusr2`/`substrate_on_sighup` each
-/// call a `set_kernel_*` that is one atomic store; `substrate_on_stop_signal`
-/// calls `request_kernel_stop`, which is an atomic store plus an
-/// async-signal-safe wake-pipe write (arc 170 "stopping is a protocol"
-/// Phase 3) — still one call at this handler's own level, and the handler
-/// itself performs no other work. The kernel MEASURES; userland owns the
-/// transitions.
+/// The name is historical. Callers that used to install `sigaction`
+/// handlers now establish the blocked mask; the shutdown worker reads
+/// `signalfd_siginfo` and measures. Kept so existing call sites do not
+/// fork into a second installer.
 pub fn install_substrate_signal_handlers() {
-    // Declaration, not a behaviour change. glibc `signal()` is BSD
-    // semantics (persistent handler, SA_RESTART). sigaction writes that
-    // down. Empty sa_mask is signal()'s equivalent: the delivered signal
-    // is blocked during the handler (kernel default, no SA_NODEFER); no
-    // extra signals are masked. No SA_RESETHAND (System V one-shot — not
-    // what glibc does). No SA_SIGINFO: sa_sigaction is read as sa_handler.
-    fn install(sig: libc::c_int, handler: extern "C" fn(libc::c_int), name: &'static str) {
-        unsafe {
-            let mut act: libc::sigaction = std::mem::zeroed();
-            act.sa_sigaction = handler as *const () as libc::sighandler_t;
-            act.sa_flags = libc::SA_RESTART;
-            if libc::sigaction(sig, &act, std::ptr::null_mut()) != 0 {
-                panic!(
-                    "sigaction({name}) failed: {}",
-                    std::io::Error::last_os_error()
-                );
-            }
-        }
-    }
-    install(libc::SIGINT, substrate_on_stop_signal, "SIGINT");
-    install(libc::SIGTERM, substrate_on_stop_signal, "SIGTERM");
-    install(libc::SIGUSR1, substrate_on_sigusr1, "SIGUSR1");
-    install(libc::SIGUSR2, substrate_on_sigusr2, "SIGUSR2");
-    install(libc::SIGHUP, substrate_on_sighup, "SIGHUP");
+    crate::runtime::block_substrate_signals();
 }
 
 

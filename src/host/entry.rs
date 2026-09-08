@@ -27,10 +27,10 @@
 //! `run_program` is that assembly. It does NOT wire stdio; the
 //! three substrate services own fd 0/1/2 now (arc 170 slice 1f).
 //!
-//! Signal handling matches the CLI: SIGINT/SIGTERM route to
-//! [`crate::runtime::request_kernel_stop`]; SIGUSR1/SIGUSR2/SIGHUP
-//! to the user-signal flags. `:wat::kernel::stopped?` works as
-//! expected inside the user's wat program.
+//! Signals match the CLI: the five are blocked and read from a
+//! `signalfd`. SIGINT/SIGTERM set [`crate::runtime::KERNEL_STOPPED`];
+//! SIGUSR1/SIGUSR2/SIGHUP set the user-signal flags.
+//! `:wat::kernel::stopped?` works as expected inside the user's wat program.
 
 use crate::panic_hook;
 use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
@@ -51,9 +51,7 @@ pub type DepRegistrar = fn(&mut RustDepsBuilder);
 // ─── Signal handlers ─────────────────────────────────────────────────────
 
 fn install_signal_handlers() {
-    // Same five signals, same handlers: the substrate installer. A second
-    // installer here would have kept the undeclared SA_RESTART after
-    // child.rs switched to sigaction.
+    // Block the five; delivery is the signalfd in init_shutdown_signal.
     crate::process::install_substrate_signal_handlers();
 }
 
@@ -87,10 +85,9 @@ fn install_signal_handlers() {
 /// `:rust::*` types available; a registrar with no source alone
 /// won't have wat-level wrappers.
 ///
-/// **Signal handlers and the silent-assertion panic hook are
-/// installed at the top of this call** — same as the wat CLI.
-/// Idempotent: re-invocation reinstalls the same handlers. Callers
-/// that need different signal semantics compose their own main
+/// **The five substrate signals are blocked here** — same as the wat
+/// CLI — and delivered via signalfd once shutdown infra inits.
+/// Callers that need different signal semantics compose their own main
 /// using `Guest` directly.
 ///
 /// **Loader: `InMemoryLoader`.** No filesystem access for

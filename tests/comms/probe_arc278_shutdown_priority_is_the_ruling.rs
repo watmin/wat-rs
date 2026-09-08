@@ -46,11 +46,11 @@
 //! called it would leave `got_broadcast` false, produce no tie, and test nothing. (That is exactly
 //! how an earlier version of this probe "passed" while measuring the harness.)
 //!
-//! Production's path is: **write the wake pipe → the worker wakes → the worker writes the broadcast.**
-//! That is what the helper below does, and it then **waits on the wire** — `poll()` until the
-//! broadcast fd is genuinely readable — rather than sleeping. `mora`: a sleep is a guess, and guesses
-//! race. That wait is also the honest non-vacuity guard: it cannot pass unless the cascade really
-//! fired. Asserting `broadcast_fd >= 0` would guard the *apparatus*, not the *condition*.
+//! Production's path is: **SIGTERM → signalfd → the worker demultiplexes a stop-class
+//! event → the worker writes the broadcast.** That is what the helper below does, and it
+//! then **waits on the wire** — `poll()` until the broadcast fd is genuinely readable —
+//! rather than sleeping. `mora`: a sleep is a guess, and guesses race. That wait is also
+//! the honest non-vacuity guard: it cannot pass unless the cascade really fired.
 //!
 //! ## Isolation
 //!
@@ -66,19 +66,17 @@ fn fire_real_cascade_and_wait_until_broadcast_is_ready() -> i32 {
     wat::runtime::init_shutdown_signal();
 
     let broadcast_fd = wat::runtime::SHUTDOWN_BROADCAST_READ_FD.load(Ordering::SeqCst);
-    let wake_fd = wat::runtime::SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
 
     // Without an armed broadcast fd, `recv` takes a BOOTSTRAP FALLBACK that polls the data fd
     // alone — one arm, no tie, nothing under test.
     assert!(broadcast_fd >= 0, "broadcast fd absent ({broadcast_fd}) — recv would single-arm poll");
-    assert!(wake_fd >= 0, "wake-pipe write fd absent ({wake_fd}) — cannot fire the real cascade");
 
-    // The signal handler's move: one byte on the wake pipe. The worker owns the broadcast write-end
-    // and writes it on wake — writing the broadcast ourselves would simulate the mechanism instead
-    // of driving it.
-    let byte = b"!";
-    let n = unsafe { libc::write(wake_fd, byte.as_ptr() as *const _, 1) };
-    assert_eq!(n, 1, "failed to write the wake byte");
+    // Production's move: SIGTERM is blocked and pending, then consumed by the
+    // worker's signalfd. The worker owns the broadcast write-end and writes it
+    // on a stop-class event — writing the broadcast ourselves would simulate
+    // the mechanism instead of driving it.
+    let rc = unsafe { libc::kill(libc::getpid(), libc::SIGTERM) };
+    assert_eq!(rc, 0, "kill(SIGTERM) failed: {}", std::io::Error::last_os_error());
 
     // Wait ON THE WIRE for the worker to have written the broadcast. This is what makes the tie
     // deterministic instead of a race, and it is the guard that cannot pass vacuously.

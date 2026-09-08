@@ -25,14 +25,19 @@ fn pidfd_observes_normal_exit() {
 #[test]
 fn pidfd_observes_signal_exit() {
     let (pidfd, lifeline) = wat::process::spawn_lifelined(|_lifeline_r| {
-        // Child blocks until any signal arrives — libc::pause(2) is the
-        // honest event-wait. The old shape was `loop { sleep(60s) }`
-        // which was a mora L1 violation (chosen-duration mechanism; on a
-        // fast kernel SIGTERM could wait up to 60s for the next iter).
-        // pause() returns when the kernel delivers the signal — no
-        // duration; no race. SAFETY: pause(2) has no preconditions; it
-        // always returns -1 with errno=EINTR after a signal is handled.
-        unsafe { libc::pause(); }
+        // clone3 copies the parent's sigmask (CLONE_CLEAR_SIGHAND resets
+        // handlers, not the mask). The parent blocked SIGTERM for signalfd;
+        // this child never execs and never creates a signalfd, so SIGTERM
+        // would stay pending and pause() would never return. Unblock so
+        // the default action (terminate) fires — the pidfd_send_signal
+        // path this test exists to observe.
+        unsafe {
+            let mut mask: libc::sigset_t = std::mem::zeroed();
+            libc::sigemptyset(&mut mask);
+            libc::sigaddset(&mut mask, libc::SIGTERM);
+            libc::pthread_sigmask(libc::SIG_UNBLOCK, &mask, std::ptr::null_mut());
+            libc::pause();
+        }
     })
     .expect("spawn_lifelined succeeds");
 

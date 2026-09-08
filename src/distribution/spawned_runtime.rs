@@ -48,7 +48,7 @@ pub(crate) fn serve() -> ExitCode {
     crate::process::child::install_silent_panic_hook();
 
     crate::runtime::init_shutdown_signal_with_inputs(&[LIFELINE_FD]);
-    crate::process::child::install_substrate_signal_handlers();
+    crate::process::child::install_substrate_signal_handlers(); // mask; signalfd is in init
 
     let (substrate, program) = match crate::process::boot::receive_in_child(0, 1) {
         Ok(pair) => pair,

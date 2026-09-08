@@ -91,19 +91,18 @@
 //!
 //! # Kernel signal state
 //!
-//! **Terminal signals (SIGINT, SIGTERM)** route to `request_kernel_stop()`
+//! **Terminal signals (SIGINT, SIGTERM)** arrive on the process signalfd
 //! — the stop flag is set-once and irreversible. User programs poll
 //! `(:wat::kernel::stopped?)` in their loops and cascade shutdown by
 //! dropping their root producers.
 //!
-//! **Non-terminal user signals (SIGUSR1, SIGUSR2, SIGHUP)** each route
-//! to their own flag setter. Userland polls `(sigusr1?)` / `(sigusr2?)`
-//! / `(sighup?)` and clears via `(reset-sigusr1!)` / `(reset-sigusr2!)`
+//! **Non-terminal user signals (SIGUSR1, SIGUSR2, SIGHUP)** each set
+//! their own flag. Userland polls `(sigusr1?)` / `(sigusr2?)` /
+//! `(sighup?)` and clears via `(reset-sigusr1!)` / `(reset-sigusr2!)`
 //! / `(reset-sighup!)`. The kernel measures; userland owns the
 //! transitions. Per the 2026-04-19 administrative stance.
 //!
-//! All handlers are `extern "C" fn` that do a single atomic write and
-//! return — no allocation, no I/O.
+//! Delivery is `signalfd`, not handlers. The five are blocked process-wide.
 //!
 //! # Exit codes
 //!
@@ -382,10 +381,9 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // in 594572fc. Parent-death detection is the lifeline pipe's job and is
     // untouched.
     //
-    // Signals: the cli's old handlers were the substrate's plus a killpg
-    // forward. With nothing to forward to, the substrate handlers ARE the
-    // contract — they flip KERNEL_STOPPED and write the shutdown wake-pipe, so
-    // `(:wat::kernel::stopped?)` polling behaves exactly as it did in the child.
+    // Signals: blocked + signalfd. KERNEL_STOPPED and the user-signal flags
+    // are measured by the shutdown worker, so `(:wat::kernel::stopped?)`
+    // polling behaves as it did when handlers wrote the wake pipe.
     crate::runtime::init_shutdown_signal();
     crate::process::install_substrate_signal_handlers();
 

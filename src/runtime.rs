@@ -57,8 +57,8 @@ use wat_macros::wat_special_form_impl;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
-/// The wat binary installs OS signal handlers for SIGINT and
-/// SIGTERM; both set this flag to `true`. User programs poll via the
+/// SIGINT and SIGTERM arrive on the substrate `signalfd`; both set
+/// this flag to `true`. User programs poll via the
 /// `:wat::kernel::stopped?` form to decide whether to continue their
 /// main loops — whenever `true`, they drop their output senders
 /// and return, which cascades clean shutdown through the channel
@@ -69,36 +69,13 @@ use wat_macros::wat_special_form_impl;
 /// mutates at runtime under kernel control.
 pub static KERNEL_STOPPED: AtomicBool = AtomicBool::new(false);
 
-/// Set the kernel stop flag to `true` AND wake the shutdown worker.
-/// Called by the wat CLI's SIGINT/SIGTERM signal handlers (and by
-/// `compose.rs`'s external-crate equivalent). After `true` is set, any
-/// user program polling `(:wat::kernel::stopped?)` will observe it and
-/// can begin clean shutdown.
-///
-/// Arc 170 "stopping is a protocol" Phase 3 — the wake-pipe write used to
-/// live in `substrate_on_stop_signal` (`src/process/child.rs`) alongside
-/// this store, making that handler the one signal handler in the file
-/// that did two things instead of one. Moved here so the handler itself
-/// is a single call — matching `sigusr1`/`sigusr2`/`sighup`'s shape
-/// (`set_kernel_sigusr1` et al., each one atomic store) — while the wake
-/// behaviour itself is preserved exactly, just relocated. Still fully
-/// async-signal-safe to call from a signal handler: an `AtomicBool::store`
-/// and a `libc::write` to an already-open pipe fd are both on the POSIX
-/// async-signal-safe list (signal-safety(7)); nothing added here changes
-/// that. `SHUTDOWN_WAKE_WRITE_FD == -1` (shutdown infra not yet
-/// initialized, e.g. a bare unit test calling this directly) is a safe
-/// no-op — the guard below short-circuits before the write.
+/// Set the kernel stop flag to `true`. Production stop arrives through
+/// the signalfd (the worker stores this flag when it reads SIGINT/SIGTERM).
+/// A `#[test]` calls this directly to drive `(:wat::kernel::stopped?)`.
+/// The wake-pipe write that used to live here is gone — there is no
+/// production writer left on that pipe.
 pub fn request_kernel_stop() {
     KERNEL_STOPPED.store(true, Ordering::SeqCst);
-    let fd = SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
-    if fd >= 0 {
-        let byte: u8 = b'!';
-        // SAFETY: libc::write is async-signal-safe per signal-safety(7).
-        // `fd` is either -1 (guarded above) or a valid write end of the
-        // wake pipe, set before the first signal handler can fire
-        // (init_shutdown_signal() runs at bootstrap, before any user code).
-        unsafe { libc::write(fd, &byte as *const u8 as *const libc::c_void, 1) };
-    }
 }
 
 /// Reset the kernel stop flag. Used only by test harnesses that
@@ -112,7 +89,8 @@ pub fn reset_kernel_stop() {
 
 /// Non-terminal user-signal flags — SIGUSR1, SIGUSR2, SIGHUP. Per the
 /// 2026-04-19 signal-model stance: the kernel MEASURES; userland owns
-/// the transitions. OS signal handlers set these true; wat programs
+/// the transitions. The shutdown worker sets these true when it reads
+/// the matching signalfd event; wat programs
 /// poll via `(:wat::kernel::sigusr1?)` / `(sigusr2?)` / `(sighup?)`
 /// and clear via the matching `reset-*!` primitive.
 ///
@@ -125,17 +103,17 @@ pub static KERNEL_SIGUSR1: AtomicBool = AtomicBool::new(false);
 pub static KERNEL_SIGUSR2: AtomicBool = AtomicBool::new(false);
 pub static KERNEL_SIGHUP: AtomicBool = AtomicBool::new(false);
 
-/// Set the SIGUSR1 flag. Called by the OS signal handler.
+/// Set the SIGUSR1 flag. Called by the shutdown worker on a signalfd read.
 pub fn set_kernel_sigusr1() {
     KERNEL_SIGUSR1.store(true, Ordering::SeqCst);
 }
 
-/// Set the SIGUSR2 flag. Called by the OS signal handler.
+/// Set the SIGUSR2 flag. Called by the shutdown worker on a signalfd read.
 pub fn set_kernel_sigusr2() {
     KERNEL_SIGUSR2.store(true, Ordering::SeqCst);
 }
 
-/// Set the SIGHUP flag. Called by the OS signal handler.
+/// Set the SIGHUP flag. Called by the shutdown worker on a signalfd read.
 pub fn set_kernel_sighup() {
     KERNEL_SIGHUP.store(true, Ordering::SeqCst);
 }
@@ -268,13 +246,101 @@ pub(crate) fn shutdown_rx() -> Option<&'static ShutdownRx> {
 static SHUTDOWN_TX_PTR: std::sync::atomic::AtomicPtr<ShutdownTx> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
-/// Write-end of the wake pipe. The SIGTERM/SIGINT signal handler writes
-/// a byte here (async-signal-safe per signal-safety(7)). The shutdown
-/// worker thread reads from the corresponding read-end and calls
-/// [`trigger_shutdown`] in normal context (where Sender drop is safe).
-/// -1 means uninitialized; signal handler no-ops if so.
-pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
+/// The process `signalfd` for SIGINT/SIGTERM/SIGUSR1/SIGUSR2/SIGHUP.
+/// Created atomically (`SFD_CLOEXEC | SFD_NONBLOCK`). -1 until
+/// `init_shutdown_signal_with_inputs` runs. Rebuilt in a fork child.
+pub static SHUTDOWN_SIGNAL_FD: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(-1);
+
+/// The five signals the substrate owns. Blocked process-wide before
+/// any worker thread is spawned; delivered via [`SHUTDOWN_SIGNAL_FD`].
+const SUBSTRATE_SIGNALS: [libc::c_int; 5] = [
+    libc::SIGINT,
+    libc::SIGTERM,
+    libc::SIGUSR1,
+    libc::SIGUSR2,
+    libc::SIGHUP,
+];
+
+/// Block the five substrate signals on the calling thread. New threads
+/// inherit the mask. Idempotent (`SIG_BLOCK` unions). Must run before
+/// any thread is spawned so a later thread cannot take a default action.
+pub fn block_substrate_signals() {
+    unsafe {
+        let mut mask: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut mask);
+        for sig in SUBSTRATE_SIGNALS {
+            libc::sigaddset(&mut mask, sig);
+        }
+        if libc::pthread_sigmask(libc::SIG_BLOCK, &mask, std::ptr::null_mut()) != 0 {
+            panic!(
+                "pthread_sigmask(SIG_BLOCK) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+}
+
+/// Block the five at process load, before `main` and before any Rust
+/// thread (libtest workers, the shutdown worker, stdio services).
+/// `pthread_sigmask` is per-thread; new threads inherit. A ctor is
+/// the one place that runs on the original thread with no siblings.
+#[ctor::ctor(unsafe)]
+fn block_substrate_signals_at_load() {
+    block_substrate_signals();
+}
+
+fn fill_substrate_sigset(mask: &mut libc::sigset_t) {
+    unsafe {
+        libc::sigemptyset(mask);
+        for sig in SUBSTRATE_SIGNALS {
+            libc::sigaddset(mask, sig);
+        }
+    }
+}
+
+/// Drain `signalfd` until EAGAIN. Returns true if a stop-class signal
+/// (SIGINT/SIGTERM) was among the events. SIGUSR1/2/HUP only flip
+/// their atomics — they do not stop the process.
+fn drain_signalfd(sfd: i32) -> bool {
+    let mut stop_class = false;
+    loop {
+        let mut info: libc::signalfd_siginfo = unsafe { std::mem::zeroed() };
+        let n = unsafe {
+            libc::read(
+                sfd,
+                &mut info as *mut _ as *mut libc::c_void,
+                std::mem::size_of::<libc::signalfd_siginfo>(),
+            )
+        };
+        if n < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::WouldBlock
+                || err.kind() == std::io::ErrorKind::Interrupted
+            {
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                break;
+            }
+            break;
+        }
+        if n == 0 {
+            break;
+        }
+        match info.ssi_signo as i32 {
+            libc::SIGINT | libc::SIGTERM => {
+                KERNEL_STOPPED.store(true, Ordering::SeqCst);
+                stop_class = true;
+            }
+            libc::SIGUSR1 => set_kernel_sigusr1(),
+            libc::SIGUSR2 => set_kernel_sigusr2(),
+            libc::SIGHUP => set_kernel_sighup(),
+            _ => {}
+        }
+    }
+    stop_class
+}
 
 /// Arc 170 Phase 2 — substrate-owned shutdown broadcast read-fd.
 /// Worker holds the write-end; drops it after trigger_shutdown.
@@ -297,37 +363,35 @@ pub static SHUTDOWN_BROADCAST_READ_FD: std::sync::atomic::AtomicI32 =
 ///
 /// Creates:
 ///   1. A crossbeam unbounded channel pair (rx → SHUTDOWN_RX_PTR, tx → SHUTDOWN_TX_PTR)
-///   2. A wake pipe (write-end → SHUTDOWN_WAKE_WRITE_FD, read-end → worker)
-///   3. A worker thread that blocks on the wake pipe read; on wake,
-///      calls trigger_shutdown
+///   2. A signalfd for the five substrate signals (SHUTDOWN_SIGNAL_FD)
+///   3. A worker thread that polls [signalfd, extra inputs], demultiplexes,
+///      and on a stop-class event writes the broadcast and may trigger_shutdown
 pub fn init_shutdown_signal() {
     init_shutdown_signal_with_inputs(&[])
 }
 
-/// Same as [`init_shutdown_signal`] but the spawned worker polls an
-/// additional input-FD set alongside the wake pipe. Any FD becoming
-/// ready (POLLIN | POLLHUP) → `trigger_shutdown`. The lifeline-pipe
-/// pattern (per `DESIGN-FD-MULTIPLEX-SHUTDOWN.md`) registers the
-/// child-side read-end here so parent-process death → kernel closes
-/// parent's write-end → child's poll returns POLLHUP → shutdown cascade.
+/// Same as [`init_shutdown_signal`] but the spawned worker also polls
+/// extra input FDs (the lifeline). Parent death → POLLHUP on a lifeline
+/// fd → stop-class, same as SIGINT/SIGTERM on the signalfd. SIGUSR1/2/HUP
+/// on the signalfd are measured only — they do not leave the loop.
 ///
 /// All extra input FDs must remain valid for the lifetime of the
-/// process (the worker holds them in its poll set forever). The wake
-/// pipe is owned by the substrate; extra FDs are caller-owned and
-/// caller-managed (e.g., the bootstrap path keeps the lifeline read-end
-/// alive via an OwnedFd held in `ProcessRuntime`).
+/// process (the worker holds them in its poll set forever). Extra FDs
+/// are caller-owned (e.g. the lifeline read-end held in `ProcessRuntime`).
 ///
 /// Idempotent within a process: if `SHUTDOWN_RX_PTR` is non-null AND
 /// `SHUTDOWN_INIT_PID == getpid()`, this is a no-op. Fork-aware: if the
 /// ptr is non-null but the pid differs, we are in a clone3 child whose
 /// inherited shutdown worker thread does not exist — the guard fires and
 /// rebuilds the entire infra. The OLD heap boxes (Receiver + Sender) are
-/// NOT freed — they are the child's inherited process-local copies and
-/// must not be dropped (that would corrupt the parent's state via
-/// copy-on-write). They LEAK BY DESIGN. The old inherited wake write-fd
-/// is closed (it was the parent's fd; the new fd is stored BEFORE signal
-/// handler re-installation in the child sequence).
+/// NOT freed — they LEAK BY DESIGN. The inherited signalfd is closed
+/// (the child's own is created below).
 pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
+    // Mask FIRST, before this function spawns the worker thread. New
+    // threads inherit the blocked set. A thread spawned before this
+    // call would take a default action on an unblocked stop signal.
+    block_substrate_signals();
+
     let current_pid = unsafe { libc::getpid() };
     // Guard: initialized AND same process → no-op.
     let rx_ptr = SHUTDOWN_RX_PTR.load(Ordering::SeqCst);
@@ -340,24 +404,15 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     //   - rx_ptr and the old SHUTDOWN_TX_PTR point to the PARENT's
     //     heap-boxed values (COW copy). We must NOT free them (Box::from_raw
     //     would corrupt the parent on the next COW write). They LEAK.
-    //   - The inherited wake-write fd is the PARENT's fd; close it now
-    //     so the new fd takes its place before the signal handler fires.
+    //   - The inherited signalfd is the PARENT's fd; close it now so the
+    //     child's own takes its place.
     if !rx_ptr.is_null() {
-        // Fork child — close the inherited wake write-fd.
-        // The new fd is stored below BEFORE signal handler installation.
-        //
         // CROSS-STEP NOTE (F4): child.rs::child_post_fork_init step 3
         // (close_range) already closed this fd. This guard fires on the
-        // same raw int a second time → EBADF, which we discard. This is
-        // intentional and benign: single-threaded child at this point means
-        // no fd recycling can occur between step 3 and here. The guard
-        // exists so that if a future caller invokes init_shutdown_signal_with_inputs
-        // WITHOUT the close_range step, the fd is still closed safely.
-        // Do NOT reorder step 3 and step 4 — that would create a real
-        // recycled-fd double-close risk.
-        let old_write_fd = SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
-        if old_write_fd >= 0 {
-            unsafe { libc::close(old_write_fd) };
+        // same raw int a second time → EBADF, which we discard.
+        let old_sfd = SHUTDOWN_SIGNAL_FD.load(Ordering::SeqCst);
+        if old_sfd >= 0 {
+            unsafe { libc::close(old_sfd) };
         }
         // Do NOT free rx_ptr or SHUTDOWN_TX_PTR — they are the parent's
         // COW-copied boxes; freeing would corrupt the parent. LEAK BY DESIGN.
@@ -370,24 +425,16 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     let tx_boxed = Box::into_raw(Box::new(tx));
     SHUTDOWN_TX_PTR.store(tx_boxed, Ordering::SeqCst);
 
-    // Create wake pipe (async-signal-safe write-end; blocking read-end).
-    // pipe2(O_CLOEXEC): atomic CLOEXEC — belt for any future exec path; in
-    // fork-without-exec the flag doesn't fire, close_range handles hygiene.
-    let mut fds = [0_i32; 2];
-    let pipe_result = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
-    if pipe_result != 0 {
-        // pipe2(2) failed — substrate cannot safely operate. Structured
-        // stderr diagnostic + exit. Should never happen in practice on Linux.
-        // (Using write(2) directly avoids stdio locking in this early context.)
-        let msg = b"substrate: pipe2(2) failed during shutdown init\n";
+    // signalfd: atomic CLOEXEC+NONBLOCK at creation, matching timerfd.
+    let mut mask: libc::sigset_t = unsafe { std::mem::zeroed() };
+    fill_substrate_sigset(&mut mask);
+    let sfd = unsafe { libc::signalfd(-1, &mask, libc::SFD_CLOEXEC | libc::SFD_NONBLOCK) };
+    if sfd < 0 {
+        let msg = b"substrate: signalfd(2) failed during shutdown init\n";
         unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
-        // _exit(2): fork-safe; skips atexit/stdio flush which would
-        // corrupt shared parent state in a forked child context.
         unsafe { libc::_exit(1) };
     }
-    let read_fd = fds[0];
-    let write_fd = fds[1];
-    SHUTDOWN_WAKE_WRITE_FD.store(write_fd, Ordering::SeqCst);
+    SHUTDOWN_SIGNAL_FD.store(sfd, Ordering::SeqCst);
 
     // Phase 2 — broadcast pipe for tier-2 PipeFd recvs.
     // Worker holds the write-end; drops it after trigger_shutdown().
@@ -398,7 +445,7 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     if broadcast_result != 0 {
         let msg = b"substrate: pipe2(2) failed during broadcast init\n";
         unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
-        // _exit(2): fork-safe; same rationale as pipe2 failure above.
+        // _exit(2): fork-safe; same rationale as signalfd failure above.
         unsafe { libc::_exit(1) };
     }
     let broadcast_r_fd = broadcast_fds[0];
@@ -408,21 +455,18 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     let broadcast_w_fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(broadcast_fds[1]) };
     SHUTDOWN_BROADCAST_READ_FD.store(broadcast_r_fd, Ordering::SeqCst);
 
-    // Build the worker's pollfd set: wake-pipe + caller-provided inputs.
-    // Captured by value into the worker closure; the worker owns its set.
+    // Poll set: signalfd first, then caller-provided inputs (lifeline).
     let mut input_fds: Vec<i32> = Vec::with_capacity(1 + extra_input_fds.len());
-    input_fds.push(read_fd);
+    input_fds.push(sfd);
     input_fds.extend_from_slice(extra_input_fds);
 
-    // Spawn the shutdown-worker thread. It blocks on poll(2) over all
-    // input FDs; first to fire wins. On wake → trigger_shutdown in
-    // normal context (Sender drop is safe; not in signal handler).
+    // Spawn the shutdown-worker thread. It polls [signalfd, extra] and
+    // DEMULTIPLEXES: SIGUSR1/2/HUP measure and keep polling; SIGINT/SIGTERM
+    // or a lifeline POLLHUP leave the loop. Then trigger_shutdown in
+    // normal context (Sender drop is safe; not in a signal handler).
     //
-    // poll(2) over pipe FDs is the Linux primitive that gives lock-step
-    // OS-event delivery without timing (per INTERSTITIAL Linux-only § —
-    // signalfd/eventfd/epoll/poll are the load-bearing primitives).
-    // POLLHUP fires on pipe-EOF (all writers closed) — that's how the
-    // lifeline mechanism propagates parent-death without a signal.
+    // signalfd/eventfd/epoll/poll are the load-bearing primitives
+    // (INTERSTITIAL Linux-only). POLLHUP on a lifeline pipe is parent-death.
     std::thread::Builder::new()
         .name("wat-shutdown-worker".to_string())
         .spawn(move || {
@@ -434,15 +478,31 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
                     revents: 0,
                 })
                 .collect();
-            // Block forever (timeout = -1). EINTR retries; any FD ready
-            // (POLLIN or POLLHUP) → break.
+            // Block forever (timeout = -1). EINTR retries. signalfd at
+            // index 0 is drained and dispatched; other fds are stop-class
+            // (lifeline POLLHUP). Only a stop-class event leaves the loop.
             loop {
                 let n = unsafe { libc::poll(pollfds.as_mut_ptr(), pollfds.len() as _, -1) };
-                if n > 0 {
-                    break; // some FD ready — wake
+                if n <= 0 {
+                    // n == 0 cannot happen with timeout=-1; n < 0 is EINTR.
+                    continue;
                 }
-                // n == 0 cannot happen with timeout=-1 in normal operation;
-                // n < 0 is typically EINTR (signal interrupted poll). Retry.
+                let mut stop_class = false;
+                for (i, pfd) in pollfds.iter().enumerate() {
+                    if pfd.revents == 0 {
+                        continue;
+                    }
+                    if i == 0 {
+                        if drain_signalfd(pfd.fd) {
+                            stop_class = true;
+                        }
+                    } else {
+                        stop_class = true;
+                    }
+                }
+                if stop_class {
+                    break;
+                }
             }
             // Wake received.
             //
@@ -514,8 +574,8 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
 /// and no-ops.
 ///
 /// MUST be called from normal context (deallocator can run). The signal
-/// handler MUST NOT call this directly — it writes to the wake pipe;
-/// the worker thread calls trigger_shutdown.
+/// handler MUST NOT call this directly; the worker thread calls
+/// trigger_shutdown after a stop-class signalfd or lifeline event.
 pub fn trigger_shutdown() {
     let ptr = SHUTDOWN_TX_PTR.swap(std::ptr::null_mut(), Ordering::SeqCst);
     if !ptr.is_null() {
