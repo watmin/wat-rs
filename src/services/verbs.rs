@@ -288,16 +288,36 @@ fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) ->
     let outcome = apply_function(read_fn, vec![peer, Value::i64(cap)], sym, span.clone())?;
     match &outcome {
         Value::Enum(e) if e.type_path == ":wat::kernel::ReadFrameOutcome" => match e.variant_name.as_str() {
-            "Frame" => match e.fields.first() {
-                Some(Value::String(s)) => Ok(ReadFrame::Text((**s).clone())),
-                other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-                    op: op.into(),
-                    expected: ":wat::core::String (ReadFrameOutcome::Frame text)",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(
-                        other.unwrap_or(&Value::Unit),
-                    )),
-                })),
-            },
+            "Frame" => {
+                let field = e.names.iter().position(|n| n == "text").and_then(|i| e.fields.get(i))
+                    .or_else(|| e.fields.first());
+                match field {
+                    Some(Value::String(s)) => Ok(ReadFrame::Text((**s).clone())),
+                    Some(Value::wat__std__HashMap(m)) => {
+                        let key = Value::wat__core__keyword(std::sync::Arc::new("text".into()));
+                        match m.get(&key).or_else(|| {
+                            let colon = Value::wat__core__keyword(std::sync::Arc::new(":text".into()));
+                            m.get(&colon)
+                        }) {
+                            Some(Value::String(s)) => Ok(ReadFrame::Text((**s).clone())),
+                            other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
+                                op: op.into(),
+                                expected: ":wat::core::String (ReadFrameOutcome::Frame text)",
+                                got: Box::new(crate::runtime::ValueSnapshot::of(
+                                    other.unwrap_or(&Value::Unit),
+                                )),
+                            })),
+                        }
+                    }
+                    other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
+                        op: op.into(),
+                        expected: ":wat::core::String (ReadFrameOutcome::Frame text)",
+                        got: Box::new(crate::runtime::ValueSnapshot::of(
+                            other.unwrap_or(&Value::Unit),
+                        )),
+                    })),
+                }
+            }
             "Eof" => Ok(ReadFrame::Eof),
             "Stopped" => Ok(ReadFrame::Stopped),
             other => Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {

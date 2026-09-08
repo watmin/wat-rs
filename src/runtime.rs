@@ -3144,11 +3144,15 @@ fn dispatch_keyword_head_value(
                             // Arc 293 S3-Nature-4 (Path B) — a `:nature :Peer` surface has no
                             // aggregate satisfier to look up; instead it COMPOSES the generic
                             // `send'`/`recv'` peer primitives with its own S1-synthesized
-                            // `Op`/`Reply` enums: `(let [__op (:S::Op::<Variant> req) _ (send'
-                            // peer __op) __r (recv' peer)] (match __r -> <ret> ((:S::Reply::
-                            // <Variant> resp) resp)))`. This branch fires ONLY for
-                            // `Nature::Peer` — every other nature (aggregate dispatch) falls
-                            // through to the unchanged `:<T>/<method>` lookup below.
+                            // `Op`/`Reply` enums: `(let [__op (:S::Op::<Variant> {:req req})
+                            // _ (send' peer __op) __r (recv' peer)] (match __r
+                            //   [:S::Reply::<Variant> {:resp resp} resp]))`. This branch
+                            // fires ONLY for `Nature::Peer` — every other nature (aggregate
+                            // dispatch) falls through to the unchanged `:<T>/<method>` lookup
+                            // below. Arc 296 N RELAND 1 — the Op construction is the map ctor;
+                            // the retired positional `(:S::Op::<Variant> req)` is what made
+                            // `readln` / `println` die (every `:S/method` call runs through
+                            // this AST, never `wat/service.wat`'s `op-methods`).
                             if s.nature == Some(crate::types::Nature::Peer) {
                                 if let crate::types::SurfaceMember::Method { ret, .. } = member {
                                     use crate::scope::Identifier;
@@ -3251,7 +3255,10 @@ fn dispatch_keyword_head_value(
                                             WatAST::Symbol(Identifier::bare("__op"), span.clone()),
                                             WatAST::List(vec![
                                                 WatAST::Keyword(op_ctor, span.clone()),
-                                                WatAST::Symbol(Identifier::bare("__req"), span.clone()),
+                                                WatAST::Map(vec![(
+                                                    WatAST::Keyword(":req".into(), span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("__req"), span.clone()),
+                                                )], span.clone()),
                                             ], span.clone()),
                                             WatAST::Symbol(Identifier::bare("__send"), span.clone()),
                                             WatAST::List(vec![
@@ -3288,18 +3295,25 @@ fn dispatch_keyword_head_value(
                                                 )], span.clone()),
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
-                                                    WatAST::List(vec![
-                                                        WatAST::Keyword(":wat::core::match".into(), span.clone()),
-                                                        WatAST::Symbol(Identifier::bare("__m"), span.clone()),
-                                                        WatAST::Vector(vec![
-                                                            WatAST::Keyword(reply_ctor, span.clone()),
-                                                            WatAST::Map(vec![(
-                                                                WatAST::Keyword(":resp".into(), span.clone()),
+                                                    WatAST::Map(vec![(
+                                                        WatAST::Keyword(":msg".into(), span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::Keyword(":wat::core::match".into(), span.clone()),
+                                                            WatAST::Symbol(Identifier::bare("__m"), span.clone()),
+                                                            WatAST::Vector(vec![
+                                                                WatAST::Keyword(reply_ctor, span.clone()),
+                                                                WatAST::Map(vec![(
+                                                                    WatAST::Keyword(":resp".into(), span.clone()),
+                                                                    WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                                                )], span.clone()),
                                                                 WatAST::Symbol(Identifier::bare("resp"), span.clone()),
-                                                            )], span.clone()),
-                                                            WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                                            ], span.clone()),
+                                                            WatAST::Vector(vec![
+                                                                WatAST::Symbol(Identifier::bare("_"), span.clone()),
+                                                                WatAST::Symbol(Identifier::bare("__m"), span.clone()),
+                                                            ], span.clone()),
                                                         ], span.clone()),
-                                                    ], span.clone()),
+                                                    )], span.clone()),
                                                 ], span.clone()),
                                             ], span.clone()),
                                             // ::Lost arm — scrub the cause; a REASON-FREE Failure via the
@@ -3318,6 +3332,8 @@ fn dispatch_keyword_head_value(
                                                 )], span.clone()),
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                    WatAST::Map(vec![(
+                                                        WatAST::Keyword(":cause".into(), span.clone()),
                                                     // Arc 170 — SCRUB THE DEATH, PASS THE STOP.
                                                     //
                                                     // The scrub is arc-294's ruling: a client learns no server
@@ -3349,8 +3365,9 @@ fn dispatch_keyword_head_value(
                                                             WatAST::Keyword(":wat::kernel::LociDiedError::Disconnected".into(), span.clone()),
                                                         ], span.clone()),
                                                     ], span.clone()),
-                                                ], span.clone()),
+                                                )], span.clone()),
                                             ], span.clone()),
+                                        ], span.clone()),
                                             // ::Stopped arm — arc 278 #73. Pass the stop through AS
                                             // ITSELF. This is the fact the `Lost` arm above went to
                                             // such lengths to rescue from the scrub: the nested
@@ -3415,11 +3432,22 @@ fn dispatch_keyword_head_value(
                                                 // server would send, with NO send and therefore NO recv.
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
-                                                    WatAST::List(vec![
-                                                        WatAST::Keyword(rtl_ctor_kw, span.clone()),
-                                                        WatAST::Symbol(n_sym, span.clone()),
-                                                        WatAST::Keyword(cap_const_kw.clone(), span.clone()),
-                                                    ], span.clone()),
+                                                    WatAST::Map(vec![(
+                                                        WatAST::Keyword(":msg".into(), span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::Keyword(rtl_ctor_kw, span.clone()),
+                                                            WatAST::Map(vec![
+                                                                (
+                                                                    WatAST::Keyword(":bytes".into(), span.clone()),
+                                                                    WatAST::Symbol(n_sym, span.clone()),
+                                                                ),
+                                                                (
+                                                                    WatAST::Keyword(":cap".into(), span.clone()),
+                                                                    WatAST::Keyword(cap_const_kw.clone(), span.clone()),
+                                                                ),
+                                                            ], span.clone()),
+                                                        ], span.clone()),
+                                                    )], span.clone()),
                                                 ], span.clone()),
                                                 send_recv_ast.clone(),
                                             ], span.clone()),

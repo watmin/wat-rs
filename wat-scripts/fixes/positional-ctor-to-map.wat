@@ -183,7 +183,8 @@
     [:wat::core::Option::Some {:value existing}
       (:wat::core::if (:user::names-eq? existing fields)
         m
-        m)]))
+        m)]
+    [_ (:wat::hashmap::assoc m leaf fields)]))
 
 (:wat::core::defn :user::fill-enum
   [m         <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
@@ -234,7 +235,8 @@
                         acc3 (:user::conj-unique acc2 (:user::parent-path vp))]
         (:wat::core::match (:user::alias-enum (:user::leaf-of vp))
           [:wat::core::Option::Some {:value ep} (:user::conj-unique acc3 ep)]
-          [:wat::core::Option::None {} acc3])))
+          [:wat::core::Option::None {} acc3]
+          [_ acc3])))
     (:wat::core::Vector :- [:wat::core::String])
     vpaths))
 
@@ -276,7 +278,9 @@
             (:wat::core::let [acc2 (:wat::hashmap::assoc acc seen (:wat::core::Vector :- [:wat::core::String]))]
               (:wat::core::match (:user::try-type-of ep decls)
                 [:wat::core::Option::Some {:value info} (:user::fill-enum acc2 info ep)]
-                [:wat::core::Option::None {} acc2]))])))
+                [:wat::core::Option::None {} acc2]
+                [_ acc2]))]
+          [_ acc])))
     m epaths))
 
 (:wat::core::defn :user::stdlib-fmap []
@@ -380,7 +384,8 @@
                         acc
                         (:wat::core::match (:wat::hashmap::get acc leaf)
                           [:wat::core::Option::Some {:value fields} (:wat::hashmap::assoc acc nm fields)]
-                          [:wat::core::Option::None {} acc]))))))))))
+                          [:wat::core::Option::None {} acc]
+                          [_ acc]))))))))))
       m
       (:wat::core::range 0 n))))
 
@@ -566,7 +571,8 @@
     (:wat::core::if (:user::unquote-form? head)
       (:wat::core::match (:user::unquote-ctor-leaf (:user::unquote-inner-name head))
         [:wat::core::Option::Some {:value leaf} (:wat::hashmap::get fmap leaf)]
-        [:wat::core::Option::None {} :wat::core::Option::None])
+        [:wat::core::Option::None {} :wat::core::Option::None]
+        [_ :wat::core::Option::None])
       :wat::core::Option::None)))
 
 (:wat::core::defn :user::ctor-edits
@@ -611,7 +617,8 @@
                         (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
                           (:wat::core::ast-name head)
                           (:user::node-text head src lines)))
-                      (:user::walk-seq args fmap src lines)))])))))))))
+                      (:user::walk-seq args fmap src lines)))]
+                [_ (:user::walk-seq args fmap src lines)])))))))))
 
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
