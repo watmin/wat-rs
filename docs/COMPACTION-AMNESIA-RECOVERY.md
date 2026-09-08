@@ -106,7 +106,15 @@ action you took THIS session:
 [ ] active work: ls docs/arc/2026/*/ && ls docs/excursus/2026/*/ .. enumerated ✓ (arcs stop at 07/300; free experimentation lives in docs/excursus/ — see its README)
 [ ] live breadcrumb: ~/work/BREADCRUMB.md ...... read ✓
 [ ] latest state-of-world artifact ...... read ✓
+[ ] the ACTIVE arc's REALIZATIONS.md ..... read the TAIL + the honest register of the last entry ✓
 ```
+
+⚠ **That REALIZATIONS line is here because the failure recurred.** R69 (2026-09-02) recorded, in its
+own honest register: *"I worked inside this arc all day without once opening this file — 68 entries,
+12,329 lines — until he asked whether I had read any."* On 2026-09-08 the next instance did exactly
+the same thing, through fifteen stones and a substrate bug, and the builder had to ask again. A
+resolution to remember did not survive one session; a ledger line might. **The file is large — read
+the tail and the last entry's honest register, not the whole thing.**
 
 Any line you cannot fill with a this-session action means you are still scattered:
 go fill it. A fact already sitting in your context window is NOT your having
