@@ -18,9 +18,8 @@
 > `wat-scripts/scratch-pad/experiri-then/`. Both lint gates over `wat-scripts/` were run before those
 > landed: `2 tests run: 2 passed`.
 >
-> **THE SESSION IN ONE SENTENCE:** targets 1 and 2 are closed at 14/14 and 15/15 wards (74 rows);
-> target 3 is six wards in (9 rows); target 4 has never been cast and its scope figure has never been
-> re-derived.
+> **THE SESSION IN ONE SENTENCE:** **targets 1, 2 AND 3 are now CLOSED** at 14/14, 15/15 and 15/15
+> wards (108 rows); **target 4 has never been cast and its scope figure has never been re-derived.**
 >
 > **⭐ THE THREE SHARPEST FINDINGS, ALL VERIFIED BY ME:**
 > · **2W1 (L1)** — `expr_ir/mod.rs` promises *"`lower` IS TOTAL OR IT REFUSES … never on shape"* and
@@ -55,7 +54,7 @@
 > **2X2** — a rune whose REASON is true and whose CATEGORY is wrong; `purgare` and `excusare` split
 > on which matters. `vigilia` forbids the aggregator re-classifying a child, so both stand.
 >
-> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** **104 rows open, 16 of them L1** (`3P1` is itself L1×5). ⛔ **The stamp said 83/8 and BOTH were wrong — a recolligere derived them 2026-09-08.** Re-derive, never copy: `grep -c '^| \*\*' FINDINGS.md` and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md`. The prose total sat three lines under a table reading 38+36+10.
+> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** **108 rows open, 17 of them L1** (`3P1` is itself L1×5). ⛔ **The stamp said 83/8 and BOTH were wrong — a recolligere derived them 2026-09-08.** Re-derive, never copy: `grep -c '^| \*\*' FINDINGS.md` and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md`. The prose total sat three lines under a table reading 38+36+10.
 
 > ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
 > *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
