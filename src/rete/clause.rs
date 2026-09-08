@@ -66,12 +66,14 @@ pub(crate) enum ReteClauseShape<'a> {
     Where(&'a WatAST),
     /// `(?result-var <- (<acc-form>) :from (<inner>))` — top-level-only accumulate wrapper.
     Accumulate {
-        // rune:purgare(trait-contract) — classifier names the full accumulate shape
-        // (`?var <- acc-form :from inner`); current consumers only walk `from`.
+        // rune:purgare(shape-contract) — the classifier names the whole
+        // `(?var <- acc-form :from inner)` grammar; current consumers walk `from` only.
+        // Removing it still compiles — no trait requires it — which is why this is
+        // `shape-contract` and not `trait-contract`.
         #[allow(dead_code)] // grammar payload; consumers walk `from` only
         var: &'a str,
-        // rune:purgare(trait-contract) — same grammar payload; fire reads acc-form
-        // off the AccumulateNode, not this parse field.
+        // rune:purgare(shape-contract) — same grammar payload; fire reads acc-form
+        // off the AccumulateNode, not this parse field. No trait requires it.
         #[allow(dead_code)] // grammar payload; fire reads acc-form off AccumulateNode
         acc_form: &'a WatAST,
         from: &'a WatAST,

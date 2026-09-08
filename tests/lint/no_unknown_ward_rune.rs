@@ -60,6 +60,7 @@ const WARD_VOCABULARIES: &[(&str, &[&str])] = &[
         &[
             "public-api",
             "trait-contract",
+            "shape-contract",
             "future-fixture",
             "safety-margin",
         ],
