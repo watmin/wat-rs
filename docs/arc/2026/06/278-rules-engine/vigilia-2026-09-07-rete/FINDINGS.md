@@ -364,6 +364,7 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2M4** | temperare | `wat/rete/compile.wat:1038` + `:1061` | `sort-lhs` calls `uses-result?` once per condition in the `independent` guard and again in the complementary `rest` guard — two recursive `ast-qvars` walks per condition for one boolean. Dimension: n LHS conditions per rule, doubled, freeze-time. | L2 · freeze-time | **OPEN** · ⚠ ward-reported | closed by one fold producing a three-way bucket verdict |
 | **2M5** | temperare | `wat/rete/acc.wat:107-122` | `acc::distinct` is `foldl` + `PersistentVector/contains?` — a linear scan before every `conj`, so O(n²) in elements gathered. ⚠ **Oracle-only**: `kernel/arm.rs:285` recognises the name and dispatches a native `AccFold::Distinct`, so native fire never runs this body. It is real cost on every floor run, in the oracle's interpreted accumulate pass. | L2 · oracle-dimension | **OPEN** · ⚠ ward-reported | closed by a seen-`PersistentMap` instead of `contains?` |
 | **2M6** | temperare | `wat/rete.wat:539` | `render-dag`'s outer `foldl` does `(string::concat acc line)` on a growing accumulator — potentially O(n²) in output length. ⚠ The ward checked whether the adjacent `rune:exigere(scope-affirmative)` at `:524-527` covers it: **it does not** — that rune protects the fixed-depth nested-concat that builds one `line`, not the outer accumulator. Diagnostic renderer, lowest priority. | L3 | **OPEN** · ⚠ ward-reported | closed by a rope/joiner, or left as-is with a rune |
+| **2E1** | exigere | `wat/rete/factbag.wat:7` | *"Doors, all under `:wat::rete::factbag::` — the whitelist a future rung-3 seal **will name**:"* — a future-work promise naming **no tracker**. *"rung-3"* is a repo-wide phase label, not an arc number. ⚠ **The finding stands on the comment's own text** — it names no arc, checkable in the file itself. The ward's supporting evidence (a companion doc calling a sibling rung-3 item *"neither scoped nor scheduled"*) is `docs/*.md` and therefore **corroboration, not authority**, under today's ruling. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `sed -n '7p' wat/rete/factbag.wat` → the phrase, verbatim; the line cites no arc. Closed by formalising the whitelist now, or a `rune:exigere(attested-arc)` naming a real arc |
 
 ## Verified by the orchestrator — target 2
 
@@ -476,7 +477,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **9** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare | exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **10** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere | cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -791,3 +792,43 @@ architectural-separation argument with no date, no measurement, no ceiling. Meas
 model form the ward itself named on target 1 (`fire/mod.rs:494` — dated, names its floor run, carries
 `206 / 245583 = 0.084%`), it does not reach the bar. ⚠ The ward asked for a better-formed rune rather
 than a fix, since what it excuses is human-bounded and freeze-time — the proportionate call.
+
+- **2E1** — CONFIRMED, and modest by design. The line promises a *"whitelist a future rung-3 seal
+  will name"* and names nothing. ⚠ **I am recording one qualification the ward could not**: its
+  supporting citation — a companion doc saying a sibling rung-3 item is *"neither scoped nor
+  scheduled"* — is a `docs/*.md` file, and **today's ruling forbids a doc as authority**. The row
+  does not need it: the comment cites no arc, and that is a fact about the comment. The doc is
+  colour. ⭐ **This is the docs ruling biting one cast after it was made**, exactly as intended — the
+  finding survives because its primary evidence is in the file under audit.
+
+⭐⭐ **`exigere`'s REAL PRODUCT HERE IS THE DISMISSAL LIST, AND IT IS WHY THE ONE FINDING IS
+CREDIBLE.** It ran nine distinct grep families and read **32 hits** on `defer|punt|stub|placeholder|
+for now|eventually` alone — then dismissed every one with a reason and the quote. The dismissals are
+the evidence that the sweep was real:
+· `compiled_cond.rs:1378` — *"AFFIRMATIVELY CUT, not deferred (T7's close, 2026-08-25)"* — the
+  codebase explicitly renouncing a deferral, which a naive grep reads as one.
+· `purity.rs:1758` — *"no unordered value left for a future hand to forget to sort"* — **a negation**.
+· `matcher.rs:230` — `cond-has-deferred-constraint?` — **domain vocabulary**, not a promise.
+· `wat/rete/compile.wat:998` — *"Clara defers accumulators…"* — **a different engine**.
+· `expr_ir/eval.rs:1370` and `compile.wat:598` — the falsified-belief-in-place pattern, which the
+  brief warned it about and which it correctly exempted.
+**Every one of those would have been a false L1 from a grep alone.**
+
+⭐ **And it flagged its own judgment call rather than burying it.** `factbag.wat:19` sits *twelve
+lines* from the finding, on the same "rung-3" concept: *"`no_raw_factbag_access.rs` is the seal
+today. When rung 3 arrives, that gate is deleted — the deletion is the proof."* It read that as
+**exempt** — a self-obsoleting contract stated in the present tense whose own deletion is the
+objective trigger — and then said so explicitly *because* of its proximity to a genuine finding.
+A ward that shows you the line it nearly flagged, and why it didn't, is one whose flags mean more.
+
+⭐ **Both `rune:exigere` sites verified ON DISK, and I re-checked both.** `purity.rs:22`'s
+`attested-arc` names arc 255 — `docs/arc/2026/06/255-builtin-registry/` exists **and** the specific
+`NOTE-purity-is-definition-time-queryable-metadata.md` it cites exists inside it.
+`wat/rete.wat:524`'s `scope-affirmative` names arc 278, which exists, and gives a checkable
+substrate cause (the arc-277 auto-fix is bare-symbol-only and structurally cannot reach a compound
+case). **The spell's hardest rule is that a rune naming a nonexistent arc FAILS; both pass.**
+
+⚠ **Zero TODO/FIXME/XXX/HACK in target 2, re-derived twice by the ward and once by me.** It explicitly
+did NOT inherit target 1's zero — *"target 1's zero did not carry over; this target's zero was earned
+separately."* That is the second time this ward has refused to inherit a number, and both times it
+was right to.
