@@ -367,6 +367,8 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2E1** | exigere | `wat/rete/factbag.wat:7` | *"Doors, all under `:wat::rete::factbag::` — the whitelist a future rung-3 seal **will name**:"* — a future-work promise naming **no tracker**. *"rung-3"* is a repo-wide phase label, not an arc number. ⚠ **The finding stands on the comment's own text** — it names no arc, checkable in the file itself. The ward's supporting evidence (a companion doc calling a sibling rung-3 item *"neither scoped nor scheduled"*) is `docs/*.md` and therefore **corroboration, not authority**, under today's ruling. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `sed -n '7p' wat/rete/factbag.wat` → the phrase, verbatim; the line cites no arc. Closed by formalising the whitelist now, or a `rune:exigere(attested-arc)` naming a real arc |
 | **2N1 ★★** | cernere | `expr_ir/eval.rs:59` and `:905` | ⭐⭐ **THE SAME CLASS AS TARGET 1's N1, TWICE MORE — AND IT IS NOW A CLASS, NOT A SITE.** Two user-facing `MalformedForm` errors carry `head: ":wat::rete::exec_value"` and `head: ":wat::rete::apply_op"`. Both are **the Rust functions' own names**, verbatim — `fn exec_value` at `:69`, `fn apply_op` at `:890`, each ~10 lines from its own error site. Both snake_case inside a namespace where every real name is kebab-case. Both resolve **nowhere**: one repo-wide hit each, their own construction site. ⭐ **And the same file demonstrates BOTH correct alternatives** — a real FQDN at `:772` (`":wat::rete::core::match"`) and a plain non-namespaced label at `:1295` (`"compiled-exec"`) for exactly this kind of internal guard. | L2 | **OPEN** · ✅ I VERIFIED | `grep -rn ':wat::rete::exec_value'` → **1**; `apply_op` → **1**; `grep -n 'fn exec_value\|fn apply_op'` → same file, same neighbourhood. Closed by adopting `:1295`'s non-namespaced form at both sites |
 | **2N2** | cernere | `clause.rs:551` | `":wat::rete::core::vector::="` appears in `unrelated_heads_are_not_constraints`'s list of heads that must NOT classify. No `RETE_OPS` row has ever borne that name (checked against the full 79-row extraction) and it appears nowhere else in the tree. ⚠ **The ward graded its own confidence LOWER here and said why**: the name is used correctly as a *negative probe*, which is what `cernere`'s `spell-probe` rune category exists for — it simply carries no rune. Test-only data, never user-visible. | L3 | **OPEN** · ⚠ ward-reported | closed by a `rune:cernere(spell-probe)` naming the test, or by using a real inadmissible head |
+| **2R1 ★★** | probare | `matcher.rs:114-131` | ⭐⭐ **"THREE INDEPENDENT SITES" — THERE ARE FOUR, AND THE FOURTH IS NAMED NOWHERE.** The doc justifies `enum_variant_ctor`'s `(enum, variant, arity)` return shape by *"the three callers"* and says so three times (`:115`, `:124`, `:127`). Actual callers: `purity.rs:976`, `expr_ir/mod.rs:1087`, `validate/mod.rs:1056`, **and `validate/typing.rs:335`** — the last resolving `Unit`/`Tagged` for a diagnostic classification, a fourth purpose the doc does not mention. ⚠ **The ward proposed a cause worth keeping**: this likely postdates `partire`'s 2026-08-30 split of `validate.rs` into `mod`/`typing`/`error` — the split created a caller in the new file that the doc in the *other* file never absorbed. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `grep -rn 'enum_variant_ctor(' src/` → 4 callers of `matcher::enum_variant_ctor` (`check.rs`'s `literal_enum_variant_ctor` is a different, local fn — correctly excluded). `grep tests/lint/` → **no gate pins this count.** Closed by correcting the number and naming the fourth |
+| **2R2** | probare | `validate/mod.rs:66-67` | *"Full coverage is each CALLER's job, and **both callers** now enforce it"* — naming `eval_kwargs_construct` (runtime.rs) and `validate_rule_when_and_reorder_then`. There are **three** production call sites: `runtime.rs:18965`, `check.rs:13115`, `validate/mod.rs:1284`. ⚠ **Weaker than 2R1 and I am saying so**: the doc DOES mention `check.rs`'s `infer_kwargs_construct_check` — but as *enforcement backing the runtime caller*, not as a caller of this helper. The ward read `check.rs:13095-13118` and found it a **direct, independent call**. So the call-site count is wrong; whether the doc's own taxonomy makes "both" defensible is arguable. | L2 | **OPEN** · ✅ I VERIFIED | 3 production sites + 2 `#[cfg(test)]` in-file (`:1664`, `:1675`, correctly excluded); no gate pins it |
 
 ## Verified by the orchestrator — target 2
 
@@ -479,7 +481,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **11** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere | probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **12** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere · probare | perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -880,3 +882,53 @@ Six handed-down errors, six caught by wards that re-derived; two of the six shar
 `(rete_name, core_name)` pairs and confirmed every distinct `core_name` — 67 of them — is
 independently attested **outside** `vocabulary.rs`. The question this target uniquely allowed
 (*"does the table everything trusts contain a phantom row?"*) is answered: **no.**
+
+⭐⭐ **2R1/2R2 MAKE THE FALSE-CALLER-COUNT A CLASS TOO — the second class this cast has promoted.**
+`probare` found `outcome.rs`'s *"three callers … at `fire/rules.rs:425`"* on target 1 (rowed R1;
+the citation pointed at a data literal and there were four callers). Here it found the same shape
+twice more:
+
+| claim | site | claimed | actual | gated? |
+|---|---|---|---|---|
+| `fire_fixpoint_delta_armed` callers | `kernel/outcome.rs:22-25` | 3 (+ a wrong `file:line`) | 4 | no |
+| `enum_variant_ctor` callers | `matcher.rs:114-131` | 3 | **4** | no |
+| `reorder_kwargs_by_field_name` callers | `validate/mod.rs:66` | 2 | **3** | no |
+
+**Three caller-count claims across two targets; all three wrong; none gated.** ⛔ And the cure exists
+and is already in use: `rete_header_claims_are_asserted.rs` carries an arm named
+`the_termination_verifier_still_has_exactly_one_call_site` — **a caller-count claim, mechanically
+held.** The mechanism is built, proven, and applied to exactly one claim. Three others sit outside
+it. That is the arc's signature shape for the *thirteenth* time, and here it is unusually cheap to
+close: the gate's existing arm is a template.
+
+- **2R1** — CONFIRMED, and unambiguous. The doc says "three" three separate times and the fourth
+  caller (`validate/typing.rs:335`) is named in none of them. ⭐ **The ward's proposed cause is worth
+  keeping**: `partire`'s 2026-08-30 split of `validate.rs` into `mod`/`typing`/`error` created a
+  caller in the new file, and the doc lives in `matcher.rs` — **a different file entirely**. A
+  refactor verified per-file cannot see a count that lives elsewhere.
+  `[[an-item-level-move-drops-what-is-not-an-item]]`.
+- **2R2** — CONFIRMED on the count, **and I have marked it weaker than 2R1 deliberately.** The doc
+  does mention `check.rs`'s `infer_kwargs_construct_check` — but casts it as *enforcement backing the
+  runtime caller*, not as a third caller of this helper. The ward read `check.rs:13095-13118` and
+  found a direct, independent call. The number is wrong; the taxonomy is arguable. Same treatment I
+  gave R1 on target 1, where the citation was wrong and the count defensible — **the two halves of a
+  claim rot separately and must be graded separately.**
+
+⭐⭐ **AND THE JUDGMENT I REFUSED TO PRE-DECIDE CAME BACK ANSWERED, WITH COUNTS.** `reachability.rs`
+is 2,180 lines, `#[cfg(test)]`-gated, and declares itself a DISCONFIRMING PROBE. I put the question
+to the ward without a hint. **Verdict: substance, not description** — and I re-derived every number:
+**20 `#[test]` fns, 54 assertions, 42 function definitions** across 1,186 code lines. The assertion
+it cited as non-vacuous is real (`:505` — *"the two call sites must render DIFFERENT programs"*,
+an `assert_ne!` between two independently synthesized programs, not a liveness check).
+Its reasoning is the part that makes the verdict usable: the 855 comment lines are **annotation on a
+working calibration harness**, each `⛔` block sitting beside the code that closes the risk it names
+— *"an instrument that has not reproduced a known answer is not an instrument"* at `:26-34`,
+immediately followed by the four calibration cells that pin exactly that. **A ward that answers an
+open question with counts rather than an impression is one whose answer can be re-checked.**
+
+⭐ It also honoured the ratio correction exactly as on target 1: it ran the table over all 25 files,
+**marked every exemption rather than dropping the row**, and flagged the single row whose raw number
+would mislead (`mod.rs` at 0.29:1 — a module index where the count of `pub(crate) mod` lines is the
+right denominator). **Zero described-or-hollow forms** anywhere in the target, and it caught that the
+only `stub` hits are a *filename citation* (`BRIEF-the-f64-surface-is-a-stub.md`) and prose about a
+different concept — the prose-vs-thing trap that has now bitten my own greps twice.
