@@ -372,6 +372,7 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2V1 ★★** | perspicere | `compiled_cond.rs:791-792`; `alpha_tree.rs:58` vs `:228`; `expr_ir/eval.rs:1469` | ⭐⭐ **THREE SITES SPELL BY HAND A TYPE THE FILE ALREADY NAMES — AND ONE OF THEM IS THE FUNCTION'S OWN RETURN TYPE.** `invert_slot_names` returns `expr_ir::SlotNames` (= `Box<[SlotName]>`, `SlotName = Option<Arc<str>>`) and its **very next line** declares `let mut out: Vec<Option<Arc<str>>>` — re-spelling the element type of its own signature. `alpha_tree.rs:58` declares `type AlphaWildcard = Option<Arc<AlphaDiscNode>>` (used twice) while `:228` writes it longhand 170 lines below. `expr_ir/eval.rs:1469` re-spells `compiled_cond::SlotFrame` in a doc comment that **already states the equivalence in prose** two lines above. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '58p;228p' alpha_tree.rs` → alias then longhand; `sed -n '790,792p' compiled_cond.rs` → `-> SlotNames` then `Vec<Option<Arc<str>>>`; `expr_ir/mod.rs:167-168` → the alias pair. Closed by three substitutions, no new nouns |
 | **2V2** | perspicere | `export.rs:721`; `expr_ir/mod.rs:833`, `:163` | The `(field-name, slot-index)` pair — `(Arc<str>, u16)` — is spelled longhand at three sites across two modules with **no alias anywhere**, while `expr_ir/mod.rs:167-168` already hosts a `Slot*` family it would sit beside. ⭐ **The ward applied its own rule-4 bar before recommending**: 3 uses across 2 modules clears "reused, not read-once". | L2 | **OPEN** · ⚠ ward-reported | closed by `type FieldSlot = (Arc<str>, u16);` beside `SlotName` |
 | **2V3** | perspicere | `wat/rete.wat:32`, recurring at `:429` | The wat-side mint. `Token.matches` inlines `(PersistentVector :- [(Tuple :- [Record i64])])` in a `defrecord` field — 2 levels of bracket nesting, the analog the ward derived for a language with no angle brackets. The inner `(Tuple :- [Record i64])` is **one alpha-hit**; the file's own comment at `:419` says *"each tuple is (sfact, alpha-id)"*, and the identical shape recurs at `:429` as a lambda parameter. ⚠ **Confirmed NOT read-once by the twin**, and no `typealias :wat::rete::*` covers it (all six checked). | L2 | **OPEN** · ⚠ ward-reported | closed by a `:wat::rete::AlphaHit` typealias used at both sites |
+| **2Y1 ★★** | experiri | `reachability.rs:83-85`; harness at `docs/arc/2026/06/278-rules-engine/harness-experiri/` | ⭐⭐ **A CAST-LEVEL L1: THE `:then` COLUMN IS UNTESTED, AND THE INSTRUMENT TO TEST IT WAS BUILT AND SHELVED.** The live ledger sweeps `InlineConstraint` + `WhereFence` (79/79 rows, all fire) and `AccHeadFold` (1/1). The **fourth** position — `:then`, which the vocabulary's own module doc declares admissible for every rete verb — is excluded with the reason *"remains deliberately unmodelled… an un-calibrated position would add a column of findings nobody can trust."* ⛔ **That reason is falsified by the repo itself:** a calibrated harness for exactly this position exists at `harness-experiri/positions-3-4.rs.txt`, was driven 2026-08-30, and found **two real L1s since fixed**. It is saved as `.rs.txt` — the README says *"so no tooling mistakes it for a live module"* — and *"asserts nothing."* The ward reproduced its calibration clean today and drove 4 of 79 rows at `:then`, all firing. **The exclusion defers to a harness already built; `experiri`'s rune rule requires a reason that DISPOSES.** | **L1 (cast-level)** | **OPEN** · ✅ I VERIFIED | `README.md:19` → *"Saved as `.rs.txt` so no tooling mistakes it for a live module"*; `:132` → *"`positions-3-4.rs.txt` asserts nothing"*. Closed by converting the shelved sweep to an assertion, or by a reason that disposes |
 
 ## Verified by the orchestrator — target 2
 
@@ -484,7 +485,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **13** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere · probare · perspicere | perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **5** | 25 (+2 L3, +1 ward-split) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **14** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere · probare · perspicere · experiri **DROVE** | perspicere, **`circumspicere` LAST** | **6** | 25 (+2 L3, +1 ward-split) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -983,3 +984,46 @@ reuses" its own rule 4 forbids. It flagged the *one* thing that would help — a
 recommend it, calling it a crate-wide convention change rather than a per-site mint. **Naming the
 larger fix and declining to smuggle it in under a narrower ward is the restraint that keeps a cast's
 recommendations actionable.**
+
+⭐⭐ **`experiri` IS THE ONLY WARD OF THIS VIGILIA THAT EXECUTED, AND ITS RESULT SPLITS CLEANLY IN
+TWO: what it drove is spotless, and what nobody drives is the finding.**
+
+**Driven, and clean — 163 cells, zero cell-level findings:**
+· 79 rows × {`InlineConstraint`, `WhereFence`} = 158 cells, **every one fires and discriminates**;
+  both of the ledger's exclusion lists (`NOT_YET_GENERABLE`, `COMPILED_EXECUTOR_CANNOT_RUN`) are
+  **empty**. · `AccHeadFold`: 1 eligible row, fires. · `:then`: 4 rows sampled fresh, all fire and
+  agree with their other-position verdicts. **Zero asymmetric declarations.** For the ward whose
+  entire reason to exist is finding a declared surface that cannot be driven, that is a strong
+  statement about `RETE_OPS`.
+
+**The finding is the column nobody sweeps** — and the ward earned it by refusing an exemption.
+`experiri`'s rune rule says a `position-not-modelled` reason must **dispose**, not defer, and that
+this category **exempts no cell**. The ledger's stated reason — *"an un-calibrated position would
+add a column of findings nobody can trust"* — is a good reason to have waited and **not** a
+disposal, because the calibration it says is missing **exists**: I read `README.md:19` (*"Saved as
+`.rs.txt` so no tooling mistakes it for a live module"*) and `:132` (*"`positions-3-4.rs.txt`
+asserts nothing"*). A built, calibrated, twice-productive harness, deliberately shelved so tooling
+cannot load it, and never converted to an assertion. ⛔ **The reason defers to work already done.**
+
+⚠ **AND I VERIFIED THE THING I HAVE A MEMORY ABOUT.** The ward left **nine `.wat` files** in
+`wat-scripts/scratch-pad/experiri-then/` — a tree two lint gates walk on every floor run. It said it
+re-ran both. **I ran them myself** rather than take that:
+`Summary [ 136.552s] 2 tests run: 2 passed, 5497 skipped`, zero `FAIL` anywhere in the log, both
+gates green by name. `[[a-file-landing-in-a-gated-tree-needs-that-gate-run]]` — I have pushed a red
+floor from a "docs" commit that added one `.wat`; this time the gate ran before the commit.
+**The files are committed, not left untracked**: they are the reproduction evidence for 2Y1, they
+pass the gates, and an untracked `.wat` under a walked tree makes my floor and a fresh clone's
+disagree.
+
+⚠ **The header's row count is stale, and the ward reported the delta without re-filing it.**
+`reachability.rs:5` says *"a 74-row x N-kind ledger"*; `RETE_OPS` measures **79** — the ward derived
+it three independent ways (`rete_name:` rows, `ReteOp {` openings, and `operands_for`'s own
+`27 special + 52 uniform = 79`), matching the lint gate's own measured comment. **It correctly
+classified this as the same stale-count class already rowed as 2I1 rather than claiming a new
+finding.** That is the prior-art discipline working at the end of a long cast.
+
+⭐ **One curiosity it recorded without inflating.** Law A (a `:then` admits only `:wat::rete::` ops)
+holds — but `:wat::core::>` is refused by a **totality** check while `:wat::core::not` is refused by
+the **rete-primitive** check. Two controls, two different refusal mechanisms, both correct. The ward
+called it *"a curiosity, not a bypass"* and moved on. **A ward that can tell an interesting fact from
+a finding is one whose findings are worth reading.**
