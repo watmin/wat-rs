@@ -40,8 +40,11 @@
 > (3 claims, all wrong, none gated — while `rete_header_claims_are_asserted.rs` already contains a
 > working caller-count arm).
 >
-> **⛔⛔ TEN OF MY HANDED-DOWN MEASUREMENTS WERE WRONG OR STALE. EVERY ONE WAS CAUGHT BY A WARD TOLD
-> TO RE-DERIVE.** Five distinct shapes, named in the README's resume block: a grep matching *prose
+> **⛔⛔ ELEVEN MEASUREMENTS WERE WRONG OR STALE. THE TEN I HANDED TO WARDS WERE ALL CAUGHT BY A WARD
+> TOLD TO RE-DERIVE — THE ELEVENTH WAS CAUGHT BY NOTHING, AND SAT IN THE TRACKER FOR A DAY** (the
+> grid's file count, corrected to 148 by a recolligere on 2026-09-08, having sat at 147 *beside* the
+> line count I had already corrected). **A ward re-derives what it is HANDED; nothing re-derives what
+> merely sits in the tracker.** Five distinct shapes, named in the README's resume block: a grep matching *prose
 > about* a thing; a grep matching *data that looks like* the thing; a name-grep that cannot see
 > coverage-by-walk; a name-grep that cannot see consumption-by-argument; and **two numbers I
 > invalidated MYSELF** by committing a file into the directory I had just measured. ⭐ The one
@@ -52,7 +55,7 @@
 > **2X2** — a rune whose REASON is true and whose CATEGORY is wrong; `purgare` and `excusare` split
 > on which matters. `vigilia` forbids the aggregator re-classifying a child, so both stand.
 >
-> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** 83 rows open, 8 L1.
+> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** **84 rows open, 10 of them L1** (`3P1` is itself L1×5). ⛔ **The stamp said 83/8 and BOTH were wrong — a recolligere derived them 2026-09-08.** Re-derive, never copy: `grep -c '^| \*\*' FINDINGS.md` and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md`. The prose total sat three lines under a table reading 38+36+10.
 
 > ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
 > *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used

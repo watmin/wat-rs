@@ -26,7 +26,7 @@ strikes to run — the failure this scoping exists to prevent.
 |---|---|---|---|---|
 | 1 | `src/rete/kernel/` + `wat/rete/oracle/` — the fire path and the spec it must mirror | 28 | 15,771 (measured) | ✅ **CAST COMPLETE** — 14/14 wards, 38 rows |
 | 2 | `src/rete/**` minus `kernel/` + `wat/rete*.wat` — the compile side and its spec (⛔ WIDENED — see below) | 25 | 23,886 (measured) | ✅ **CAST COMPLETE** — 15/15 wards, 36 rows |
-| 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | 147 | **16,616** (measured; my 54/~8.7k counted `.wat` alone, and my later 16,345 went stale when I committed `peragrare-census.sh` into the directory mid-cast) | ⏳ MID-FLIGHT |
+| 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | **148** | **16,616** (both measured 2026-09-08 by `find wat-scripts/perf/grid -type f`; my 54/~8.7k counted `.wat` alone, and my later **147/16,345** went stale when I committed `peragrare-census.sh` into the directory mid-cast — ⛔ the LINE count was corrected that day and the FILE count beside it was NOT, so a corrected figure sat vouching for a stale one) | ⏳ MID-FLIGHT |
 | 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | 264? | ~36k? | ⛔ NOT CAST — **both figures UNVERIFIED; every scope figure I wrote at the same time as these has been wrong. MEASURE BEFORE DERIVING THE MUSTER.** |
 
 ## Muster, derived per target — with the triggers MEASURED
@@ -54,7 +54,7 @@ Later targets get their own derivation block, written before that cast.
 ⛔ **FIRST: MY OWN SCOPE FIGURE WAS WRONG, AND THIS IS THE SEVENTH.** The target table above said
 *"54 files, ~8.7k lines."* Measured: **147 files, 16,345 lines.** The 54 was the `.wat` count alone —
 I never counted the 43 `.clj`, 29 `.txt`, 19 `.sh` and 2 `.md` that make the instrument work.
-`[[a-throwaway-sweep-is-an-instrument]]`. **TARGET 3, FINAL: 147 files, 16,345 lines.**
+`[[a-throwaway-sweep-is-an-instrument]]`. **TARGET 3, AS MEASURED THAT MOMENT: 147 files, 16,345 lines.** ⛔ **SUPERSEDED — and by my own commit:** adding `peragrare-census.sh` to this directory made it **148 files, 16,616 lines**. The word FINAL was wrong the moment I wrote it; a scope figure is a measurement with a timestamp, never a constant.
 
 ⛔ **SECOND: A FALSE FINDING I NEARLY HANDED DOWN, CAUGHT BY MEASURING.** 54 `.wat` axes against 43
 `.clj` twins looks like **11 axes with no Clara reference** — a textbook `peragrare` cell. It is not.
@@ -214,7 +214,7 @@ the only copy. **Read it before casting anything.**
 |---|---|---|---|---|
 | 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
 | 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
-| 3 | `wat-scripts/perf/grid/` (147 files, 16,616 lines) | **6 cast** | **10** | ⏳ MID-FLIGHT |
+| 3 | `wat-scripts/perf/grid/` (148 files, 16,616 lines) | **6 cast** | **10** | ⏳ MID-FLIGHT |
 | 4 | `tests/rete/` + `src/rete/kernel/tests/` | **0** | 0 | ⛔ NOT CAST — **and its "264 files, ~36k" figure has NEVER been re-derived. MEASURE IT FIRST.** |
 
 **Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6), `purgare` (1),
@@ -226,15 +226,18 @@ file; two triggers measured **NO** (`secare` 0 parallel primitives, `excusare` 0
 grid) and one measured **CLEAN-not-absent** (`exigere`: my "7 TODO hits" were all `"XXX"` as a
 deliberately-nonexistent location code — the true count is **0**, same as targets 1 and 2).
 
-**NOTHING IS DRIVEN TO RESOLUTION.** 83 rows open. Eight L1s. Two decisions the builder still owes:
+**NOTHING IS DRIVEN TO RESOLUTION.** **84 rows open, 10 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 84, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 10. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. Two decisions the builder still owes:
 **X3** (three wards, one rune, two verdicts) and **2X2** (a rune's REASON is true, its CATEGORY is
 wrong — two wards split on which matters).
 
-## ⛔⛔ THE LESSON THIS CAST PAID FOR TEN TIMES: A HANDED-DOWN MEASUREMENT IS A CLAIM
+## ⛔⛔ THE LESSON THIS CAST PAID FOR ELEVEN TIMES: ANY UNRE-DERIVED MEASUREMENT IS A CLAIM
 
-**Ten numbers I gave wards were wrong or stale. Every single one was caught by a ward instructed to
-re-derive and report the delta.** They are not ten mistakes; they are **five distinct shapes**, and
-naming them is the cure:
+**Eleven numbers were wrong or stale. Ten of them I handed to wards, and every one of those ten was
+caught by a ward instructed to re-derive and report the delta.** ⛔ **The eleventh was caught by
+nothing** — it sat in this file's own target table for a day and was found only when a recolligere
+re-derived it on 2026-09-08. **That is the gap the ten successes hid: a ward re-derives what it is
+HANDED. Nothing re-derives what merely sits in the tracker.** They are not eleven mistakes; they are
+**five distinct shapes**, and naming them is the cure:
 
 1. **The grep matched PROSE ABOUT the thing.** `#[allow]` counted from a doc comment *discussing* an
    allow they deliberately did not use; **29 prose mentions of `rete_name`** counted as `RETE_OPS`
@@ -246,9 +249,14 @@ naming them is the cure:
    nearly rowed the flagship differential as ungated, twice.
 4. **A NAME-grep cannot see CONSUMPTION-BY-ARGUMENT.** 28 of 29 `GRID-*.txt` "referenced by nothing"
    — `compare-grids.sh` takes them as `$1`/`$2`.
-5. **⛔ I INVALIDATED TWO OF MY OWN NUMBERS MID-CAST.** Committing `peragrare-census.sh` (271 lines)
-   into `wat-scripts/perf/grid/` changed both the `.sh` count (19→20) and the line count
-   (16,345→16,616). **Two different wards caught the two halves independently.**
+5. **⛔ I INVALIDATED THREE OF MY OWN NUMBERS MID-CAST — AND ONLY TWO WERE CAUGHT.** Committing
+   `peragrare-census.sh` (271 lines) into `wat-scripts/perf/grid/` changed the `.sh` count (19→20), the
+   line count (16,345→16,616), **and the FILE count (147→148)**. Two different wards caught the first
+   two independently. ⛔ **Nobody caught the third for a day.** The corrected line count was written into
+   the target table *beside the uncorrected file count* — inside the very sentence explaining that the
+   figure had gone stale. **A right number vouches for the wrong one sitting next to it**
+   (`[[a-right-number-vouches-for-a-wrong-label]]`). Found 2026-09-08 by a recolligere that re-derived
+   instead of read.
 
 ⭐ **AND THE PRACTICE THAT FIXED IT, WHICH MUST BE KEPT:** for `perspicere` I handed over the number
 **together with its known contamination** — *"16 files, ~121 raw hits, **and 18 of those are inside
