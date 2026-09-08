@@ -25,9 +25,22 @@
 //! ⛔⛔ THE TRAP THIS PROBE EXISTS TO PIN — `generic_type_param`. In
 //! `(defn :user::id :- [T] [x <- :T] -> :T x)`, `:T` is a type PARAMETER. It is not in
 //! `TypeEnv`, `is-type?` answers `false` for it, and it MUST STAY ACCEPTED. A wall that asks
-//! `is-type?` and nothing else refuses every generic in the corpus. The bound parameters of the
-//! enclosing form are a THIRD store the question must consult — which is this campaign's own
-//! disease (`[[feedback_a_name_checked_against_a_partial_set]]`) reappearing inside its cure.
+//! `is-type?` and nothing else refuses every generic in the corpus.
+//!
+//! ★★★ AND THE DISCRIMINATOR ALREADY EXISTS — `is_type_var_path` (`src/declare/parse.rs:1039`),
+//! the "three lexical classes" rule arc 109 wrote and `collect_free_type_vars` already uses:
+//! a `Path` is a type VARIABLE iff, after stripping `:`, it contains neither `"::"` nor `'.'`
+//! AND its first alphabetic character is Uppercase. So the annotation universe partitions
+//! cleanly, and TWO OF THE THREE WALLS ARE ALREADY STANDING:
+//!
+//! ```text
+//!   bare + Uppercase  (:T, :Whatever)   type VARIABLE, auto-generalized   check=0  correct
+//!   bare + lowercase  (:i64)            BareLegacyPrimitive              check=1  arc 109
+//!   contains :: or .  (:usr::MadeUp)    a NAMED type                     check=0  ⛔ THE GAP
+//! ```
+//!
+//! P-1 is the missing third wall in a family of three. The class assignment is not this
+//! stone's to invent — it is already written, already used, and already load-bearing.
 //!
 //! ⚠ EVERY BAR IS A CONTROL RUN IN THE SAME TEST. Three fixtures are GREEN NOW and must stay
 //! green; two are the subject. A hand-written `== 1` would also pass on a mis-aimed harness —
@@ -78,6 +91,25 @@ fn a_bound_type_parameter_is_not_a_phantom() {
          answers false for it. A wall that consults only the type registry refuses every \
          generic in the corpus."
     );
+}
+
+/// CONTROL — the bare LOWERCASE class already has its own wall (arc 109 slice 1c). This test
+/// asserts the SIBLING wall stands, so the stone cannot be credited for a refusal it did not
+/// build, and cannot silently replace a named diagnostic with a generic one.
+#[test]
+fn a_bare_legacy_primitive_is_already_refused_by_its_own_wall() {
+    assert_eq!(
+        check("bare_legacy_primitive"),
+        1,
+        "`:i64` bare is BareLegacyPrimitive — a named diagnostic naming its FQDN replacement"
+    );
+}
+
+/// CONTROL — the bare UPPERCASE class auto-generalizes with no binder at all. Green now,
+/// must stay green: this is the widest way a wall on named types could over-reach.
+#[test]
+fn a_bare_uppercase_name_is_a_type_variable_even_with_no_binder() {
+    assert_eq!(check("phantom_bare_uppercase_is_a_var"), 0);
 }
 
 /// THE SUBJECT — param + return position.
