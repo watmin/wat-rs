@@ -4,78 +4,68 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-07 (forty-second — THE RETE VIGILIA LIST IS CLEAR. ⭐⭐ 22 COMMITS, GREEN FLOOR ON EVERY ONE, AND EXACTLY ONE OF THEM CHANGED ENGINE BEHAVIOUR).** Supersedes every earlier stamp and every dated block below.
+**CURRENT STAMP 2026-09-07 (forty-third — ⛔⛔ A VIGILIA IS MID-FLIGHT ACROSS THIS WALL. TEN OF FOURTEEN WARDS RETURNED; FOUR UNCAST).** Supersedes every earlier stamp and every dated block below.
 
-> **FLOOR 5480/5480, 19 skipped. clippy rc=0.** Was 5460 two sessions ago. Skipped fell 22 → 19:
-> Stone K moved three diagnostics out of the test binary entirely.
+> # ⛔ FIRST ACTION IF YOU ARE READING THIS COLD
 >
-> **THE SESSION IN ONE SENTENCE:** every rete row from the 2026-09-05 vigilia is now closed, driven
-> or refuted — and the useful question turned out to be **what is watching this, and does its corpus
-> contain the shape?**
+> **A vigilia cast is IN PROGRESS and its procedure is not recoverable from anything but one file.**
+> Read **`vigilia-2026-09-07-rete/README.md` § "HOW TO RESUME THIS CAST"** before you touch anything
+> in this arc. It holds the ten returns, the four wards still to cast **in order**
+> (`cernere` → `probare` → `perspicere` → **`circumspicere` LAST**), and the exact casting
+> procedure. Targets 2, 3 and 4 are not cast at all.
 >
-> **⭐ ONE REAL DEFECT, FOUND AND CURED.** `21a5f8514` — the ORACLE dropped a derived fact. A rule
-> whose `:then` head is a user fn had its stratum assigned to the FUNCTION's name, so the produced
-> type was never raised, its consumer sat BELOW its own producer, and stratified fire never
-> re-fires a lower stratum. Native `[0 1 1]`, oracle `[0 1 0]`, **Clara `[0 1 1]` — the reference
-> engine was the wrong one**, which is worse than a port bug because every differential taken
-> against it inherits the flaw. The cure was `compile.wat:775-798`'s own recipe, ~700 lines away in
-> the same subsystem: **the arc's signature shape for the ELEVENTH time**, and the sharpest form of
-> it — the fix was not merely written down elsewhere, it was *driven, proven and shipped* on a
-> sibling path that never received it.
+> **FLOOR 5480/5480, 19 skipped. clippy rc=0.** No code has changed since the vigilia opened — the
+> cast is READ-ONLY by construction and every ward was briefed so.
 >
-> **⛔⛔ THE CLASS THAT MATTERS NOW, THREE TIMES IN ONE DAY: THE INSTRUMENT WAS HONEST AND THE
-> FIXTURES DID NOT REACH THE SHAPE.** Measured and anchored each time: **0 of 46** grid axes had a
-> user-fn rule head · **0 of 13** accumulate axes bagged a derived type · F2's *"the grid fixtures
-> stage no duplicate."* ⭐ The sharpest form: **the colon-strip bug was CORRECT for all 46 axes** —
-> the grid could only ever answer the question somebody thought to ask it. Builder's standing rule
-> now: **every flaw earns a grid axis that proves it is gone.** Three landed
-> (`accum-over-derived`, `userfn-head`, `accum-lead-rule-cascade`), each mutation-proved to redden.
+> **THE SESSION IN ONE SENTENCE:** the 2026-09-05 rete list was worked to completion (one real
+> engine defect found, refereed against Clara, cured, and given a standing grid axis), then a new
+> vigilia was cast — scoped to the rete subsystem, with the FULL applicable guard.
 >
-> **⚠ THE RAW VIGILIA COUNTS WENT UP, NOT DOWN** — 08-30 was 41 L1 + 70 L2 = 111; 09-05 was 81 + 97
-> = 178. What collapsed is **defect density**: ten strikes, one engine change. The rest was record
-> rot, false documentation, missing instruments, and rows that did not survive contact. The engine
-> is converging; **the rot has migrated into the RECORD and the FIXTURES**, and the next cast should
-> be weighted for that.
+> **⭐ THE ONE REAL DEFECT, EARLIER TODAY:** `21a5f8514` — the ORACLE dropped a derived fact when a
+> `:then` head is a user fn. Native `[0 1 1]`, oracle `[0 1 0]`, **Clara `[0 1 1]`** — the reference
+> engine was the wrong one. Cured from `compile.wat`'s own recipe ~700 lines away: the arc's
+> signature shape for the ELEVENTH time, and its sharpest form — the fix had been driven, proven and
+> shipped on a sibling path that never received it.
 >
-> **★ A NEW SPELL IS FILED.** `~/work/NOTE-peragrare-a-ward-that-audits-the-corpus-not-the-code.md`
-> — no ward takes the fixture population as its target. `experiri` is the checklist (every declared
-> form driven once); this is the cross-product. Evidence: the three instances above, plus a fixture
-> header that already maintains a hand-written coverage matrix and says *"a fix for one did not
-> reach the other"* — **a discipline reinvented locally with no name is the signature of a missing
-> spell.** Same shape as the two requests this tree filed and had accepted.
+> **⭐⭐ THE BUILDER'S TWO RULES FOR THE CAST, AND WHY THEY HELD.** *SCOPE THE TARGET, NEVER THE
+> WARD* — I proposed a hand-picked roster and was refused: *"prove the others don't find anything
+> instead of assuming they won't."* That paid twice over: `sequi` and `exigere` both **CONVERGED**
+> (a result, not a waste), and `intueri` + `struere` landed on the SAME LINES through different
+> lenses. And *every flaw earns a grid axis that proves it is gone* — three landed today, each
+> mutation-proved to redden.
 >
-> **⛔ FOUR SWEEPS, THREE WRONG BEFORE ANCHORING.** A regex read `(:Type/field x)` as a produced
-> type and manufactured a hit; a half-implemented READ definition reported **54** where the truth was
-> **21**; approximating that same definition again under-counted **7** where the population was
-> **25**. Both of the last two were me re-deriving a definition **that already existed one file
-> away**. Every correction came from anchoring on a known positive first.
+> **CAST 1 SO FAR: 31 rows, 3 L1, 15 verified by me.** The sharpest:
+> · **C1 (L1)** — the oracle's `rule-negates` misses a `:not` nested under a top-level `:and`/`:or`;
+>   Rust's finds it. **This falsifies a blanket claim I wrote THIS MORNING** in `stratify.rs:26-27`.
+> · **S5** — `left_activate_join`'s doc header opens **"ONE COPY"** and it is called from exactly one
+>   of three sites; the body is still inline at both originals, in the fire hot path.
+> · **T1** — the join-key family carries 11 `panic!` sites where `outcome.rs` states the law that a
+>   failure is a value a caller matches, never a raise. `driver_of` in the same file returns `Result`.
+> · **X3** — ⭐ **THREE WARDS DISAGREE ABOUT ONE RUNE** (`fire.wat:54`): `intueri` says clear,
+>   `struere` says no action, `excusare` strikes it ILLEGITIMATE-AT-BIRTH. `vigilia` forbids the
+>   aggregator re-classifying a child, so all three stand — **the disagreement is a decision for the
+>   builder, not for me.**
+> · **X1/X2** — five bare `#[allow(clippy::too_many_arguments)]` with no arity reason, against two
+>   siblings that carry a real one. `alpha.rs:338` is a COLD path, where the hot-loop excuse cannot
+>   even apply.
+> · **F1** — a NEGATION CYCLE (a user's mistake) is raised with `rust_caller_span!()` while the
+>   caller one frame up holds `span`. `insert.rs` has **0** such sentinels; `session.rs` has **27**.
 >
-> **⛔ A PRINTED CONSTANT WHERE A MEASUREMENT BELONGS — TWICE, AND THE SECOND WAS MINE.** The first
-> SCORE of the stratify strike printed the oracle's numbers as format-string literals beside two real
-> measurements, in identical shape (refuted, `ba203bf85`'s sibling). Then I wrote *"the evidence
-> re-runs → `COMPILE: Compiled`"* into an EXPECTATIONS row — a literal emitted BEFORE any compile.
-> The executor caught it and said so instead of returning the row I asked for.
+> **⛔⛔ MY OWN TWO FAILURES TODAY, BOTH ALREADY IN MY RECORD, BOTH RECURRED.** (1) An edit used
+> `str.replace` on an anchor a prior edit had consumed, **with no assert on that replace** — a silent
+> no-op — and the commit message claimed 12 rows that were never written. (2) A second edit DID
+> assert and the assert DID fire, but `git commit` sat on the next line instead of being `&&`-joined,
+> so the shell committed anyway under a false message. **Verifying an anchor was FOUND is not
+> verifying a write LANDED.** Cure now in use: insert by line index, re-read the file, assert every
+> row present, `&&`-join the commit. `9697394c2` is the correction and the evidence.
 >
-> **CURED / CLOSED THIS SESSION:** nine board rows that read OPEN and were already cured (F1, F2,
-> D3, D2, D1, D1a, A8, A3, A9; A4's rete half) · `conferre` L2-2, L2-3 · L2-1 (**driven, the fourth
-> cell AGREES** — not a licence to forget `accumulate.rs:134-145`, which still re-seeds unguarded) ·
-> census G's `emitted ⇒ ever read` gate (**25 counters read, ZERO runed — not a ratchet**) · Stone K
-> moves 2–4 · two false `stratify.rs` headers · the probe's false purity claim.
+> **⚠ FIVE COUNTS OF ONE POPULATION, NONE AGREEING** — the target's runes counted 41 / 54 / 56 / 57
+> (58 raw lines) by four wards and by me. No finding turns on it; **a count that varies with who ran
+> it needs its method stated beside it.**
 >
-> **⚠ STATUS IS COLLAPSED TO ONE HOME.** `WORK-LIST.md:10-13` already said *"One row, one place"*;
-> `RETE-BOARD.md` shipped its own status column into the same directory four days later and both
-> copies rotted in lockstep. The board's TABLES now point at WORK-LIST. **Its prose sections still
-> carry `✅ CLOSED` and are the remaining half of that cure.**
->
-> **STILL OPEN (rete):** `tests/rete/*.wat` prose is gated by **nothing** — `no_stale_path_in_doc`'s
-> ROOTS are `src/rete`(.rs)/`wat`/`wat-tests`, `rete_citation_resolves` scans `src/rete` comments.
-> That is how the false ★ paragraph survived for weeks; widening needs its own false-RED survey ·
-> the board's prose sections above · `accumulate.rs`'s unguarded leading seed, now watched by an
-> axis but not guarded.
->
-> **⚠ PROCESS, ONCE:** a BRIEF STOP fired (`pub(crate)` reached) and the strike continued with a
-> workaround. The workaround was right and the SCORE disclosed it first. **A STOP is where the
-> orchestrator chooses** — had the trade been wrong, it would have been made without me.
+> **CLOSED TODAY, do not re-open:** the whole 2026-09-05 rete list — `conferre` L2-1/L2-2/L2-3,
+> census G's `emitted ⇒ ever read` gate (25 counters read, **zero runed** — not a ratchet), Stone K
+> moves 2–4 (skipped 22 → 19), and the probe's false purity claim.
 
 > ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
 > *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
@@ -87,8 +77,8 @@
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline ba203bf85..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat ba203bf85..HEAD --name-only
+git log --oneline 00adc868a..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat 00adc868a..HEAD --name-only
 ```
 
 **PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —

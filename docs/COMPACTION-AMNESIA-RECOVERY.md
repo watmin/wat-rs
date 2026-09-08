@@ -132,7 +132,13 @@ instances of ONE class, and working the list top-to-bottom as 178 items misses i
 directory also holds the 19 ward returns **verbatim** in `reports/` — the 2026-08-30 cast lost
 all nineteen of its own, which is why they now go to disk before any synthesis.
 
-**And the live SUBSET being worked is `vigilia-2026-09-05/RETE-BOARD.md`** — builder's ruling
+⛔ **SUPERSEDED 2026-09-07 — A NEW VIGILIA IS MID-FLIGHT.** The live work is
+`docs/arc/2026/06/278-rules-engine/vigilia-2026-09-07-rete/`. Its `README.md` § "HOW TO RESUME THIS
+CAST" is MANDATORY before touching arc 278: ten of fourteen wards have returned for target 1, four
+are uncast, and the casting procedure exists nowhere else. `FINDINGS.md` there is the ONLY status
+home. The 2026-09-05 cast's rete scope is worked to completion — history, not open rows.
+
+**And the previous subset was `vigilia-2026-09-05/RETE-BOARD.md`** — builder's ruling
 2026-09-05: this branch works rete only, main owns the cross-codebase cleanup. That file names
 what is out of scope. Start there, not at the full list.
 
