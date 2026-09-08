@@ -135,12 +135,12 @@
 (:wat::core::defn :user::node-type
   [node <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:user::type-query? node)
-    (:wat::core::Some
-      (:user::strip-colon
+    (:wat::core::Option::Some
+      {:value (:user::strip-colon
         (:wat::core::ast-name
           (:wat::core::Option/expect
             (:wat::core::get (:wat::core::ast->children node) 2)
-            "node-type: type kw"))))
+            "node-type: type kw")))})
     (:wat::core::if (:user::qbts? node)
       (:wat::core::let [ch (:wat::core::ast->children node)]
         (:wat::core::if
@@ -151,13 +151,13 @@
                                "node-type: qbts child"))
                            "string")
             false)
-          (:wat::core::Some
-            (:wat::core::ast-name
+          (:wat::core::Option::Some
+            {:value (:wat::core::ast-name
               (:wat::core::Option/expect
                 (:wat::core::get ch 2)
-                "node-type: qbts string")))
+                "node-type: qbts string"))})
           (:wat::kernel::assertion-failed! :message "type-query-to-defquery: query-by-type-string must be (session \"ns::Type\")")))
-      :wat::core::None)))
+      :wat::core::Option::None)))
 
 (:wat::core::defn :user::collect-types
   [node  <- :wat::WatAST
@@ -166,8 +166,8 @@
   (:wat::core::if (:user::quoted? node)
     acc
     (:wat::core::let [here (:wat::core::match (:user::node-type node)
-                             [:wat::core::Some {:value t} (:user::unique-conj acc t)]
-                             [:wat::core::None {} acc])]
+                             [:wat::core::Option::Some {:value t} (:user::unique-conj acc t)]
+                             [:wat::core::Option::None {} acc])]
       (:wat::core::if (:wat::fix::structural? node)
         (:user::collect-types-seq (:wat::core::ast->children node) here)
         here))))

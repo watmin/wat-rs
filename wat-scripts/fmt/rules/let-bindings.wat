@@ -9,7 +9,7 @@
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/let"))
          (:wat::grep::Node  (?b <- :id) (?p <- :parent) (?bi <- :index) (?k <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?bi 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector {})))]
   :then [(:wat::fmt::Claim :form ?b)])
 
 ;; one BINDER per line. A binder is a PAIR — name at an even index, value at the odd one after
@@ -22,8 +22,8 @@
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/let"))
          (:wat::grep::Node  (?b <- :id) (?p <- :parent) (?bi <- :index) (?k <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?bi 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector {})))
          (:wat::grep::Node  (?bind <- :id) (?b <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?ci 2 :undefined 1) 0))]
-  :then [(:wat::fmt::Break :id ?bind :kind (:wat::fmt::BreakKind::Align))])
+  :then [(:wat::fmt::Break :id ?bind :kind (:wat::fmt::BreakKind::Align {}))])

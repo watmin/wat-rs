@@ -81,7 +81,7 @@
      v69 (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role")))
      v70 (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
      v71 (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
-     v72 (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Ok {:value h} (:wat::holon::Bundle/children h)] [_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))])
-     v73 (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Ok {:value h} (:wat::holon::Bundle/first h)] [_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))])
+     v72 (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result::Ok {:value h} (:wat::holon::Bundle/children h)] [_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))])
+     v73 (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) [:wat::core::Result::Ok {:value h} (:wat::holon::Bundle/first h)] [_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))])
     ]
     (:wat::kernel::println "ALL 71 EXPRESSIONS EVALUATED WITHOUT ERROR")))

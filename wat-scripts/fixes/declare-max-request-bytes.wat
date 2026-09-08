@@ -85,13 +85,13 @@
     (:wat::core::fn [acc <- (:wat::core::Option :- [:wat::WatAST])  i <- :wat::core::i64]
       -> (:wat::core::Option :- [:wat::WatAST])
       (:wat::core::match acc 
-        [:wat::core::Some {:value v} (:wat::core::Some v)]
-        [:wat::core::None {}
+        [:wat::core::Option::Some {:value v} (:wat::core::Option::Some {:value v})]
+        [:wat::core::Option::None {}
           (:wat::core::if
             (:wat::core::= (:user::kw-name (:wat::core::Option/expect (:wat::core::get ch i) "fkv cur")) kwname)
             (:wat::core::get ch (:wat::core::+ i 1))
-            :wat::core::None)]))
-    :wat::core::None
+            :wat::core::Option::None)]))
+    :wat::core::Option::None
     (:wat::core::range 0 (:wat::core::length ch))))
 
 ;; has-max-bytes? — true iff any element of `ch` at index >= 4 (past name/argvec/arrow/rettype) is
@@ -157,8 +157,8 @@
     [nature-opt (:user::find-kw-value ch ":nature")
      is-peer
        (:wat::core::match nature-opt 
-         [:wat::core::None {} false]
-         [:wat::core::Some {:value nv} (:wat::core::= (:user::kw-name nv) ":wat::kernel::Peer'")])]
+         [:wat::core::Option::None {} false]
+         [:wat::core::Option::Some {:value nv} (:wat::core::= (:user::kw-name nv) ":wat::kernel::Peer'")])]
     (:wat::core::if (:wat::core::not is-peer)
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
@@ -168,8 +168,8 @@
              (:wat::core::ast-name name-node) "")
          features-opt (:user::find-kw-value ch ":features")]
         (:wat::core::match features-opt 
-          [:wat::core::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-          [:wat::core::Some {:value fv}
+          [:wat::core::Option::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+          [:wat::core::Option::Some {:value fv}
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
               (:user::ops-edits (:wat::core::ast->children fv) surface-name lines)
               (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))])))))

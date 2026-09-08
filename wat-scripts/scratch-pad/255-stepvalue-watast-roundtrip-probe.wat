@@ -33,7 +33,7 @@
 
 (:wat::core::defn :user::show [label <- :wat::core::String form <- :wat::WatAST] -> :wat::core::nil
   (:wat::core::match (:wat::eval-step! form)
-    [:wat::core::Ok {:value step}
+    [:wat::core::Result::Ok {:value step}
       (:wat::core::match step
         [:wat::eval::StepResult::AlreadyTerminal {:value v}
           (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  AlreadyTerminal ->") (:wat::kernel::println v))]
@@ -41,7 +41,7 @@
           (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  StepTerminal ->") (:wat::kernel::println v))]
         [:wat::eval::StepResult::StepNext {:form v}
           (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  StepNext ->") (:wat::kernel::println v))])]
-    [:wat::core::Err {:error e}
+    [:wat::core::Result::Err {:error e}
       (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  ERR ->") (:wat::kernel::println e))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

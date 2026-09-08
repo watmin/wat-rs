@@ -26,7 +26,7 @@
      _put       (:wat::query::Store/put store (:wat::query::Store::PutRequest input-rows))
      scan-resp  (:wat::query::Store/scan store
                   (:wat::query::Store::ScanRequest
-                    :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 10 :cursor :wat::core::None))]
+                    :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 10 :cursor :wat::core::Option::None))]
     (:wat::core::match scan-resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::query::Store::ScanResponse::Success {:rows rows :cursor _cursor} (:wat::core::count rows)]
       [_ -1])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

@@ -48,13 +48,13 @@
   ;; to [:wat::spawn:: :wat::test::]; corpus tests reach it THROUGH the harness.
   (:wat::core::let
     [fail (:wat::core::match (:wat::test::run-thread (:wat::test::assert-eq 42 43))
-            [:wat::kernel::RunResult::Passed {} :wat::core::None]
-            [:wat::kernel::RunResult::Failed {:failure f} (:wat::core::Some f)])]
+            [:wat::kernel::RunResult::Passed {} :wat::core::Option::None]
+            [:wat::kernel::RunResult::Failed {:failure f} (:wat::core::Option::Some {:value f})])]
     (:wat::core::match fail
-      [:wat::core::Some {:value f} (:wat::test::assert-eq
+      [:wat::core::Option::Some {:value f} (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
                   "assert-eq failed")]
-      [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
+      [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-contains — pass + fail ────────────────────────────────────
 
@@ -84,27 +84,27 @@
                [:wat::kernel::SendOutcome::Stopped {} nil]
                [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
-            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::None]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))]
+            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::Option::None]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
             ;; arc 278 #73 — a stop is neither the failure this file exists to verify
             ;; nor a clean pass; assert it distinctly rather than fold it into either
             ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
             [:wat::kernel::RecvOutcome::Stopped {}
               (:wat::kernel::assertion-failed! :message "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])]
+            [:wat::kernel::RecvOutcome::Closed {} :wat::core::Option::None])]
     (:wat::core::match fail  
-      [:wat::core::Some {:value f}
+      [:wat::core::Option::Some {:value f}
         (:wat::core::let
           [actual (:wat::kernel::Failure/actual f)
            expected (:wat::kernel::Failure/expected f)
            _
             (:wat::core::match actual  
-              [:wat::core::Some {:value a} (:wat::test::assert-eq a "hello")]
-              [:wat::core::None {} (:wat::kernel::assertion-failed! :message "actual slot empty")])]
+              [:wat::core::Option::Some {:value a} (:wat::test::assert-eq a "hello")]
+              [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "actual slot empty")])]
           (:wat::core::match expected  
-            [:wat::core::Some {:value e} (:wat::test::assert-eq e "xyz")]
-            [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected slot empty")]))]
-      [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
+            [:wat::core::Option::Some {:value e} (:wat::test::assert-eq e "xyz")]
+            [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected slot empty")]))]
+      [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-coincident — pass + fail-renders-explanation ─────────────
 
@@ -143,20 +143,20 @@
                [:wat::kernel::SendOutcome::Stopped {} nil]
                [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
-            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::None]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))]
+            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::Option::None]
+            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
             ;; arc 278 #73 — a stop is neither the failure this file exists to verify
             ;; nor a clean pass; assert it distinctly rather than fold it into either
             ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
             [:wat::kernel::RecvOutcome::Stopped {}
               (:wat::kernel::assertion-failed! :message "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} :wat::core::None])]
+            [:wat::kernel::RecvOutcome::Closed {} :wat::core::Option::None])]
     (:wat::core::match fail  
-      [:wat::core::Some {:value f}
+      [:wat::core::Option::Some {:value f}
         (:wat::core::let
           [actual (:wat::kernel::Failure/actual f)]
           (:wat::core::match actual  
-            [:wat::core::Some {:value a}
+            [:wat::core::Option::Some {:value a}
               (:wat::core::do
                 (:wat::test::assert-contains a "cosine")
                 (:wat::test::assert-contains a "floor")
@@ -165,8 +165,8 @@
                 (:wat::test::assert-contains
                             a "min-sigma-to-pass")
                 nil)]
-            [:wat::core::None {} (:wat::kernel::assertion-failed! :message "actual slot empty — explanation should populate it")]))]
-      [:wat::core::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
+            [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "actual slot empty — explanation should populate it")]))]
+      [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
@@ -372,8 +372,8 @@
       (:wat::core::macroexpand-1
         (:wat::core::quote (:wat::i64::+ 2 2))))
      
-    [:wat::core::Ok {:value _} (:wat::test::assert-eq true true)]
-    [:wat::core::Err {:error _} (:wat::test::assert-eq true false)]))
+    [:wat::core::Result::Ok {:value _} (:wat::test::assert-eq true true)]
+    [:wat::core::Result::Err {:error _} (:wat::test::assert-eq true false)]))
 
 (:wat::test::deftest :wat-tests::test::test-macroexpand-fixpoint-evaluates
   
@@ -384,8 +384,8 @@
       (:wat::core::macroexpand
         (:wat::core::quote (:wat::i64::* 3 4))))
      
-    [:wat::core::Ok {:value _} (:wat::test::assert-eq true true)]
-    [:wat::core::Err {:error _} (:wat::test::assert-eq true false)]))
+    [:wat::core::Result::Ok {:value _} (:wat::test::assert-eq true true)]
+    [:wat::core::Result::Err {:error _} (:wat::test::assert-eq true false)]))
 
 ;; ─── Substrate primitives — public sandbox-entry verbs ANNIHILATED ───
 ;;

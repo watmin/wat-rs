@@ -46,7 +46,7 @@
              (:wat::query::StoredRow :pk pk :sk sk-mid   :data "{:v 2}" :index-keys ik))
      _put  (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
      resp  (:wat::query::Store/scan store
-             (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::None))]
+             (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::Option::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::query::Store::ScanResponse::Success {:rows out :cursor _cursor}
         ;; return the scanned sks as an EDN vector (ORDERED) — the .rs golden-compares it.
@@ -85,7 +85,7 @@
      _put  (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
      resp  (:wat::query::Store/scan-index store
              (:wat::query::Store::ScanIndexRequest
-               :index "by-uuid" :ipk u1 :isk-lo "#" :isk-hi "#z" :limit 10 :cursor :wat::core::None))]
+               :index "by-uuid" :ipk u1 :isk-lo "#" :isk-hi "#z" :limit 10 :cursor :wat::core::Option::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::query::Store::ScanIndexResponse::Success {:rows out :cursor _cursor} (:wat::core::count out)]
       [_ -1])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

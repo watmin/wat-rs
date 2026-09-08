@@ -25,7 +25,7 @@
           [:wat::core::Option::None {} 0]))
       0
       :my::test::count-visit)
-    [:wat::core::Ok {:value pair}
+    [:wat::core::Result::Ok {:value pair}
       (:wat::kernel::println pair)]
-    [:wat::core::Err {:error e}
+    [:wat::core::Result::Err {:error e}
       (:wat::kernel::println e)]))

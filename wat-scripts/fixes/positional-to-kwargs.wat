@@ -24,10 +24,10 @@
 (:wat::core::defn :user::fieldvec-at [ch <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64]
   -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::>= i (:wat::core::length ch))
-    (:wat::core::None :wat::WatAST)
+    (:wat::core::Option::None :wat::WatAST)
     (:wat::core::let [c (:wat::core::Option/expect (:wat::core::get ch i) "fieldvec-at")]
       (:wat::core::if (:wat::core::= (:wat::core::ast-kind c) "vector")
-        (:wat::core::Some c)
+        (:wat::core::Option::Some {:value c})
         (:user::fieldvec-at ch (:wat::core::+ i 1))))))
 
 ;; field names of a field-vec [x <- T y <- U] → ["x" "y"] (names at 0,3,6…); [] if irregular (splice)
@@ -62,8 +62,8 @@
                                        "<"))
                               fvopt  (:user::fieldvec-at ch 2)]
               (:wat::core::match fvopt 
-                [:wat::core::None {} m]
-                [:wat::core::Some {:value fv}
+                [:wat::core::Option::None {} m]
+                [:wat::core::Option::Some {:value fv}
                   (:wat::core::let [names (:user::fieldvec-names fv)]
                     (:wat::core::if (:wat::core::empty? names)
                       m
@@ -111,8 +111,8 @@
                    (:wat::core::ast-name head) "")
            fopt  (:wat::hashmap::get m hname)
            this  (:wat::core::match fopt 
-                   [:wat::core::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-                   [:wat::core::Some {:value fields}
+                   [:wat::core::Option::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+                   [:wat::core::Option::Some {:value fields}
                      (:wat::core::if (:wat::core::= (:wat::core::length args) (:wat::core::length fields))
                        (:user::arg-edits args fields lines)
                        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))])]

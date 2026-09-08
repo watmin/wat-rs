@@ -18,7 +18,7 @@
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::List)))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::List {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
 (:wat::rete::defrule :fmt::siblings-fallback-vector
@@ -26,7 +26,7 @@
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
 (:wat::rete::defrule :fmt::siblings-fallback-map
@@ -34,7 +34,7 @@
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Map)))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Map {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
 (:wat::rete::defrule :fmt::siblings-fallback-set
@@ -42,7 +42,7 @@
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Set)))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Set {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
 ;; Withhold a Break for the child immediately AFTER a `->` sibling — the FORM
@@ -51,7 +51,7 @@
 (:wat::rete::defrule :fmt::siblings-explode-list
   :when [(:wat::fmt::Fallback (?p <- :node))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::List {})))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
@@ -67,12 +67,12 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 (:wat::rete::defrule :fmt::siblings-explode-vector
   :when [(:wat::fmt::Fallback (?p <- :node))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector {})))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
@@ -88,12 +88,12 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 (:wat::rete::defrule :fmt::siblings-explode-map
   :when [(:wat::fmt::Fallback (?p <- :node))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Map)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Map {})))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
@@ -109,12 +109,12 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 (:wat::rete::defrule :fmt::siblings-explode-set
   :when [(:wat::fmt::Fallback (?p <- :node))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Set)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Set {})))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
@@ -130,4 +130,4 @@
              (:wat::grep::Named (?dash <- :id) (?dn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])

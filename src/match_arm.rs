@@ -92,6 +92,14 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
             [WatAST::Keyword(k, path_span), WatAST::Map(pairs, _), body]
                 if is_namespaced_variant(k) =>
             {
+                if let Some(repl) = retired_bare_variant(k) {
+                    return Err(MatchArmError {
+                        span: path_span.clone(),
+                        reason: format!(
+                            "the bare variant spelling is retired; write `{repl}`"
+                        ),
+                    });
+                }
                 Ok(MatchArm::Variant {
                     path: k,
                     path_span,
@@ -158,11 +166,30 @@ pub enum BuiltinVariant {
 
 pub fn builtin_variant(path: &str) -> Option<BuiltinVariant> {
     match path {
-        ":wat::core::Some" | ":wat::core::Option::Some" => Some(BuiltinVariant::OptionSome),
-        ":wat::core::None" | ":wat::core::Option::None" => Some(BuiltinVariant::OptionNone),
-        ":wat::core::Ok" | ":wat::core::Result::Ok" => Some(BuiltinVariant::ResultOk),
-        ":wat::core::Err" | ":wat::core::Result::Err" => Some(BuiltinVariant::ResultErr),
+        ":wat::core::Option::Some" => Some(BuiltinVariant::OptionSome),
+        ":wat::core::Option::None" => Some(BuiltinVariant::OptionNone),
+        ":wat::core::Result::Ok" => Some(BuiltinVariant::ResultOk),
+        ":wat::core::Result::Err" => Some(BuiltinVariant::ResultErr),
         _ => None,
+    }
+}
+
+/// The five illegal two-segment (and legacy `:None`) spellings, with the
+/// qualified Type::Variant replacement the refusal must name (STOP-3).
+pub fn retired_bare_variant(path: &str) -> Option<&'static str> {
+    match path {
+        ":wat::core::Some" => Some(":wat::core::Option::Some"),
+        ":None" | ":wat::core::None" => Some(":wat::core::Option::None"),
+        ":wat::core::Ok" => Some(":wat::core::Result::Ok"),
+        ":wat::core::Err" => Some(":wat::core::Result::Err"),
+        _ => None,
+    }
+}
+
+pub fn bare_variant_retired_reason(path: &str) -> String {
+    match retired_bare_variant(path) {
+        Some(repl) => format!("the bare variant spelling is retired; write `{repl}`"),
+        None => format!("the bare variant spelling is retired; write a qualified Type::Variant FQDN, not `{path}`"),
     }
 }
 

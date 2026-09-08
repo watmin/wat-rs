@@ -28,7 +28,7 @@
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/cond"))
          (:wat::grep::Node  (?cl <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))]
-  :then [(:wat::fmt::Break :id ?cl :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?cl :kind (:wat::fmt::BreakKind::Block {}))])
 
 ;; Claim the clause (body rides; R11 does not explode a call-test) and
 ;; join every clause into one table group so the emitter pads tests to

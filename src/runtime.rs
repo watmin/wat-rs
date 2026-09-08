@@ -1697,7 +1697,17 @@ pub(crate) fn eval_inner(
             // `value-type "wat::core::Enum"`. Intercepting the exact qualified string
             // here, ahead of the generic lookup, keeps the qualified spelling on the
             // native `Value::Option` representation like its siblings.
-            if k == ":None" || k == ":wat::core::None" || k == ":wat::core::Option::None" {
+            if k == ":None" || k == ":wat::core::None" {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: k.clone(),
+                        reason: crate::match_arm::bare_variant_retired_reason(k),
+                    },
+                )
+                .into());
+            }
+            if k == ":wat::core::Option::None" {
                 return Ok(TrackedValue::new(
                     Value::Option(Arc::new(None)),
                     Provenance::Literal { span: span.clone() },
@@ -8664,8 +8674,20 @@ pub(crate) fn try_match_pattern(
         // via the built-in `Option` enum registration in `types.rs`). Additive
         // recognition, same move as `:wat::core::nil` (`types.rs:1056`): a third
         // spelling is added beside the existing two; nothing is removed.
+        WatAST::Keyword(k, span)
+            if k == ":None" || k == ":wat::core::None" =>
+        {
+            Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: k.clone(),
+                    reason: crate::match_arm::bare_variant_retired_reason(k),
+                },
+            )
+            .into())
+        }
         WatAST::Keyword(k, _)
-            if k == ":None" || k == ":wat::core::None" || k == ":wat::core::Option::None" =>
+            if k == ":wat::core::Option::None" =>
         {
             match value {
                 Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
@@ -8758,7 +8780,7 @@ pub(crate) fn try_match_pattern(
             // is additive alongside the bare FQDN, same move as the `None` guard above.
             let head_is_some = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Some" || k == ":wat::core::Option::Some"
+                WatAST::Keyword(k, _) if k == ":wat::core::Option::Some"
             );
             if head_is_some {
                 if items.len() != 2 {
@@ -8789,7 +8811,7 @@ pub(crate) fn try_match_pattern(
             // is additive alongside the bare FQDN.
             let head_is_ok = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Ok" || k == ":wat::core::Result::Ok"
+                WatAST::Keyword(k, _) if k == ":wat::core::Result::Ok"
             );
             if head_is_ok {
                 if items.len() != 2 {
@@ -8817,7 +8839,7 @@ pub(crate) fn try_match_pattern(
             // is additive alongside the bare FQDN.
             let head_is_err = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Err" || k == ":wat::core::Result::Err"
+                WatAST::Keyword(k, _) if k == ":wat::core::Result::Err"
             );
             if head_is_err {
                 if items.len() != 2 {
@@ -13424,10 +13446,7 @@ fn is_match_canonical(form: &WatAST) -> bool {
                 let s = k.as_str();
                 if matches!(
                     s,
-                    ":wat::core::Some"
-                        | ":wat::core::Ok"
-                        | ":wat::core::Err"
-                        | ":wat::core::Option::Some"
+                    ":wat::core::Option::Some"
                         | ":wat::core::Result::Ok"
                         | ":wat::core::Result::Err"
                 ) && items.len() >= 2

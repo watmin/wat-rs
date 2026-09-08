@@ -12,9 +12,9 @@
     (:wat::core::Option/expect
       (:wat::core::HashMap/get (:wat::core::HashMap) "k")
       "missing")
-    (:wat::core::Some {:value 1})
-    (:wat::core::Ok {:value 1})
-    (:wat::core::Err {:error "e"})
+    (:wat::core::Option::Some {:value 1})
+    (:wat::core::Result::Ok {:value 1})
+    (:wat::core::Result::Err {:error "e"})
     (:wat::core::i64::+ 1 2)
     (:wat::rete::core::i64::+ 1 2)
     nil))

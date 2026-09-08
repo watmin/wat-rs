@@ -26,7 +26,7 @@
              (:wat::telemetry::Journal::WriteMetricsRequest (:wat::core::Vector :- [:wat::telemetry::Metric] m1 m2)))
      bq    (:wat::telemetry::Journal/query-metrics journal
              (:wat::telemetry::Journal::QueryMetricsRequest :namespace "probe-ns"
-               :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::None))]
+               :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::Option::None))]
     (:wat::core::match bq [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv
       [:wat::telemetry::Journal::QueryMetricsResponse::Success {:metrics ms :cursor _c} (:wat::core::count ms)]
       [_ -1])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

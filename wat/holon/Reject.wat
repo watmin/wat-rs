@@ -48,9 +48,9 @@
                  (:wat::core::/ nxy nyy)]
                [:wat::holon::DotOutcome::DimensionMismatch {:expected _e :got _g}
                  (:wat::core::Result/expect
-                   (:wat::core::Err "Reject: dot(y, y) dimension mismatch — unreachable, a value's dimension always equals itself")
+                   (:wat::core::Result::Err {:error "Reject: dot(y, y) dimension mismatch — unreachable, a value's dimension always equals itself"})
                    "Reject: dot(y, y) dimension mismatch")])]
            [:wat::holon::DotOutcome::DimensionMismatch {:expected _e :got _g}
              (:wat::core::Result/expect
-               (:wat::core::Err "Reject: dot(x, y) dimension mismatch — x and y must share the same dimension")
+               (:wat::core::Result::Err {:error "Reject: dot(x, y) dimension mismatch — x and y must share the same dimension"})
                "Reject: dot(x, y) dimension mismatch")])))))

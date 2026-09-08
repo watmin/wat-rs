@@ -20,11 +20,11 @@
      got-a (:wat::cache::Lru::get cache :a)     ;; evicted
      n     (:wat::cache::Lru::len cache)]
 
-    (:wat::test::assert-eq e1 :wat::core::None)
-    (:wat::test::assert-eq e2 :wat::core::None)
-    (:wat::test::assert-eq e3 (:wat::core::Some (:wat::cache::Entry :key :a :value 1)))
-    (:wat::test::assert-eq got-b (:wat::core::Some 2))
-    (:wat::test::assert-eq got-a :wat::core::None)
+    (:wat::test::assert-eq e1 :wat::core::Option::None)
+    (:wat::test::assert-eq e2 :wat::core::Option::None)
+    (:wat::test::assert-eq e3 (:wat::core::Option::Some {:value (:wat::cache::Entry :key :a :value 1)}))
+    (:wat::test::assert-eq got-b (:wat::core::Option::Some {:value 2}))
+    (:wat::test::assert-eq got-a :wat::core::Option::None)
     (:wat::test::assert-eq n 2)))
 
 ;; ─── put-overwrites-same-key — closes a Cache Stone 5 coverage gap ───────────────────────────
@@ -45,9 +45,9 @@
      got   (:wat::cache::Lru::get cache :k)
      n     (:wat::cache::Lru::len cache)]
 
-    (:wat::test::assert-eq e1 :wat::core::None)
-    (:wat::test::assert-eq e2 (:wat::core::Some (:wat::cache::Entry :key :k :value 1)))
-    (:wat::test::assert-eq got (:wat::core::Some 99))
+    (:wat::test::assert-eq e1 :wat::core::Option::None)
+    (:wat::test::assert-eq e2 (:wat::core::Option::Some {:value (:wat::cache::Entry :key :k :value 1)}))
+    (:wat::test::assert-eq got (:wat::core::Option::Some {:value 99}))
     (:wat::test::assert-eq n 1)))
 
 ;; ─── HolonAST as an EXACT-match key — closes a Cache Stone 5 coverage gap ────────────────────
@@ -71,7 +71,7 @@
      k     (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :the-form)))
      _put  (:wat::cache::Lru::put cache k 42)
      got   (:wat::cache::Lru::get cache k)]
-    (:wat::test::assert-eq got (:wat::core::Some 42))))
+    (:wat::test::assert-eq got (:wat::core::Option::Some {:value 42}))))
 
 ;; distinguishes — structurally distinct holons land in distinct cache slots (no false
 ;; positives): storing under k1 and probing k2 must miss.
@@ -82,7 +82,7 @@
      k2    (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :b)))
      _put  (:wat::cache::Lru::put cache k1 1)
      got   (:wat::cache::Lru::get cache k2)]
-    (:wat::test::assert-eq got :wat::core::None)))
+    (:wat::test::assert-eq got :wat::core::Option::None)))
 
 ;; structural-equal — two holons built INDEPENDENTLY but structurally equal MUST collide in the
 ;; cache (no false negatives — this is the load-bearing property memoization needs). If the
@@ -101,4 +101,4 @@
         (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :filler))))
      _put  (:wat::cache::Lru::put cache k1 99)
      got   (:wat::cache::Lru::get cache k2)]
-    (:wat::test::assert-eq got (:wat::core::Some 99))))
+    (:wat::test::assert-eq got (:wat::core::Option::Some {:value 99}))))

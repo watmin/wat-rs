@@ -125,10 +125,10 @@
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count (:wat::program::cpu-count)
-    :label :wat::core::None))
+    :label :wat::core::Option::None))
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- [:wat::spawn::ProcessLaunch :-> :wat::core::nil]] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES :runner-count (:wat::program::cpu-count) :label :wat::core::None))
+  (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES :runner-count (:wat::program::cpu-count) :label :wat::core::Option::None))
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -136,7 +136,7 @@
     :env-fn s
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count (:wat::program::cpu-count)
-    :label :wat::core::None))
+    :label :wat::core::Option::None))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -144,7 +144,7 @@
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes n
     :runner-count (:wat::program::cpu-count)
-    :label :wat::core::None))
+    :label :wat::core::Option::None))
 
 (:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -152,7 +152,7 @@
     :env-fn "(:wat::program::EmptyEnv)"
     :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count n
-    :label :wat::core::None))
+    :label :wat::core::Option::None))
 
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
 ;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
@@ -453,7 +453,7 @@
       :env-fn            (:wat::spawn::ProcessOpts/env-fn locus)
       :max-message-bytes (:wat::spawn::ProcessOpts/max-message-bytes locus)
       :runner-count      (:wat::spawn::ProcessOpts/runner-count locus)
-      :label             (:wat::core::Some {:value r}))))
+      :label             (:wat::core::Option::Some {:value r}))))
 
 ;; ── Arc 278 Strike A — the ONE canonical Failure constructor ─────────────────
 ;; `:wat::kernel::Failure` is canonically a Record (Nature::Record, pure EDN — arc 293.W.2b:
@@ -474,8 +474,8 @@
   (:wat::kernel::Failure
     :error (:wat::core::Fault/of msg)
     :frames (:wat::core::Vector :- [:wat::kernel::Frame])
-    :actual :wat::core::None
-    :expected :wat::core::None))
+    :actual :wat::core::Option::None
+    :expected :wat::core::Option::None))
 
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).
@@ -620,7 +620,7 @@
     [:wat::kernel::RecvOutcome::Message {:msg v}
       (:wat::kernel::recv-all-loop p (:wat::core::conj acc v))]
     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-      (:wat::core::Err {:error cause})]
+      (:wat::core::Result::Err {:error cause})]
     ;; arc 278 #73 — THE ARM THIS DRAIN EXISTS TO GET RIGHT. A stop cut the drain
     ;; short: the peer is ALIVE, more values may be pending, and `acc` is a PARTIAL
     ;; collection. Returning `(Ok acc)` here would be this fn's original sin restored —
@@ -633,9 +633,9 @@
     ;; and MainSignature, none of them deaths. Renaming it is its own stone, not this one;
     ;; the VARIANT here is exact.)
     [:wat::kernel::RecvOutcome::Stopped {}
-      (:wat::core::Err {:error :wat::kernel::LociDiedError::Stopped})]
+      (:wat::core::Result::Err {:error :wat::kernel::LociDiedError::Stopped})]
     ;; the drain's SUCCESS path: a genuine clean EOF, everything collected.
-    [:wat::kernel::RecvOutcome::Closed {} (:wat::core::Ok {:value acc})]))
+    [:wat::kernel::RecvOutcome::Closed {} (:wat::core::Result::Ok {:value acc})]))
 
 (:wat::core::defn :wat::kernel::recv-all :- [I O]
   [p <- (:wat::kernel::Peer :- [I O])]

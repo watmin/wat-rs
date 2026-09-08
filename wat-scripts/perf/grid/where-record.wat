@@ -138,8 +138,8 @@
 (:wat::core::defn :wr::note-of [i <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let [nm (:wat::i64::mod i 4)]
     (:wat::core::if (:wat::core::= nm 0)
-      :wat::core::None
-      (:wat::core::Some {:value (:wat::i64::mod i 6)}))))
+      :wat::core::Option::None
+      (:wat::core::Option::Some {:value (:wat::i64::mod i 6)}))))
 
 ;; row 8's whole-record fn: takes the Client itself and reaches inside it.
 (:wat::rete::core::defn :wr::rep-pos? [c <- :wr::Client] -> :wat::core::bool
@@ -159,8 +159,8 @@
 ;; row 11's predicate over the Option field — `match` over Some/None, called from `where`.
 (:wat::rete::core::defn :wr::note-positive? [nt <- (:wat::core::Option :- [:wat::core::i64])] -> :wat::core::bool
   (:wat::rete::core::match nt
-    [:wat::core::Some {:value v} (:wat::rete::i64::> v 2)]
-    [:wat::core::None {}     false]))
+    [:wat::core::Option::Some {:value v} (:wat::rete::i64::> v 2)]
+    [:wat::core::Option::None {}     false]))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wr::conds [] -> :wat::WatAST

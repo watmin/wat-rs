@@ -25,9 +25,9 @@
     (:wat::test::assert-eq (:wat::linkedlist::empty? (:wat::core::List 1)) false)
     (:wat::test::assert-eq (:wat::linkedlist::contains? (:wat::core::List 1 2 3) 2) true)
     (:wat::test::assert-eq (:wat::linkedlist::contains? (:wat::core::List 1 2 3) 9) false)
-    (:wat::test::assert-eq (:wat::linkedlist::get (:wat::core::List 10 20 30) 0) (:wat::core::Some 10))
-    (:wat::test::assert-eq (:wat::linkedlist::get (:wat::core::List 10 20 30) 9) :wat::core::None)
+    (:wat::test::assert-eq (:wat::linkedlist::get (:wat::core::List 10 20 30) 0) (:wat::core::Option::Some {:value 10}))
+    (:wat::test::assert-eq (:wat::linkedlist::get (:wat::core::List 10 20 30) 9) :wat::core::Option::None)
     (:wat::test::assert-eq (:wat::linkedlist::length (:wat::linkedlist::conj (:wat::core::List) 1)) 1)
-    (:wat::test::assert-eq (:wat::linkedlist::get (:wat::linkedlist::conj (:wat::core::List 2 3) 1) 0) (:wat::core::Some 1))
+    (:wat::test::assert-eq (:wat::linkedlist::get (:wat::linkedlist::conj (:wat::core::List 2 3) 1) 0) (:wat::core::Option::Some {:value 1}))
 
     (:wat::kernel::println "OK: all 9 verbs (4 hashset + 5 linkedlist) run under their new spellings")))

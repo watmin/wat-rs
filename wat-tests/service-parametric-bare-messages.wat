@@ -59,8 +59,8 @@
            ;; read the T-typed durable field generically — `v` is bound at type T
            (:wat::core::match
                (:wat-tests::barebox-svc::Record/held (:wat-tests::barebox-svc::State/durable s))
-             [:wat::core::Some {:value v} 1]
-             [:wat::core::None {} 0]))})}))])
+             [:wat::core::Option::Some {:value v} 1]
+             [:wat::core::Option::None {} 0]))})}))])
 
 ;; ── the gate: stand it up, dial it, round-trip one call ──────────────────────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)`.
@@ -68,7 +68,7 @@
 (:wat::core::defn :wat-tests::barebox/run [locus <- :wat::spawn::Locus] -> :wat::core::i64
   (:wat::core::let
     [h (:wat-tests::barebox-svc/start :locus locus
-         :record (:wat-tests::barebox-svc::Record :held (:wat::core::Some {:value 42})))
+         :record (:wat-tests::barebox-svc::Record :held (:wat::core::Option::Some {:value 42})))
      c (:wat::core::match (:wat::kernel::connect (:wat-tests::barebox-svc::Handle/addr h))
          [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
          [:wat::kernel::ConnectOutcome::Refused {:cause cz}

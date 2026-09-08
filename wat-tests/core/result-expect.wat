@@ -12,7 +12,7 @@
 (:wat::test::deftest :wat-tests::core::result-expect::ok-i64
   
   (:wat::core::let
-    [res (:wat::core::Ok 99)
+    [res (:wat::core::Result::Ok {:value 99})
      v
       (:wat::core::Result/expect  
         res
@@ -25,7 +25,7 @@
 (:wat::test::deftest :wat-tests::core::result-expect::ok-string
   
   (:wat::core::let
-    [res (:wat::core::Ok "yes")
+    [res (:wat::core::Result::Ok {:value "yes"})
      v
       (:wat::core::Result/expect  
         res
@@ -45,7 +45,7 @@
            ;; as Lost (carrying the LociDiedError) BEFORE the completion send'.
            (:wat::core::do
              (:wat::core::let
-               [res (:wat::core::Err "rundb crashed")
+               [res (:wat::core::Result::Err {:error "rundb crashed"})
                 _v
                  (:wat::core::Result/expect
                    res

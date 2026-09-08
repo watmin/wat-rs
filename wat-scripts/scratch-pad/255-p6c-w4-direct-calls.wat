@@ -15,8 +15,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::i64::+)
-      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "metadata-of-i64+ :name= " (:wat::edn::write (:wat::hashmap::get hm :name))
+      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "metadata-of-i64+ :name= " (:wat::edn::write (:wat::hashmap::get hm :name))
         " :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::None {} (:wat::kernel::println "metadata-of-i64+ UNEXPECTED NONE")])
+      [:wat::core::Option::None {} (:wat::kernel::println "metadata-of-i64+ UNEXPECTED NONE")])
     (:wat::kernel::println (:wat::string::concat "field-names-of-W4Bag= " (:wat::edn::write (:wat::runtime::field-names-of :probe::W4Bag))))
     (:wat::kernel::println (:wat::string::concat "field-types-of-W4Bag= " (:wat::edn::write (:wat::runtime::field-types-of :probe::W4Bag))))))

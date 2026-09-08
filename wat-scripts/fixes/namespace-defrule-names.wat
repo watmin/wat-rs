@@ -91,9 +91,9 @@
       (:wat::core::let [namekw (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "namespaced-defn-name: name")]
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind namekw) "keyword")
           (:wat::core::let [nm (:wat::core::ast-name namekw)]
-            (:wat::core::if (:wat::string::contains? nm "::") (:wat::core::Some nm) :wat::core::None))
-          :wat::core::None))
-      :wat::core::None)))
+            (:wat::core::if (:wat::string::contains? nm "::") (:wat::core::Option::Some {:value nm}) :wat::core::Option::None))
+          :wat::core::Option::None))
+      :wat::core::Option::None)))
 
 ;; find-ns — walk top-level forms in order; the FIRST namespaced defn/defrecord names this file's
 ;; namespace (e.g. ":wsh::items" -> "wsh"). STOPS if the file has none at all — never a guessed default.
@@ -101,11 +101,11 @@
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::kernel::assertion-failed! :message "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from")
     (:wat::core::match (:user::namespaced-defn-name (:wat::core::first forms))
-      [:wat::core::Some {:value nm}
+      [:wat::core::Option::Some {:value nm}
         (:wat::core::let [seg0 (:wat::core::Option/expect (:wat::core::get (:wat::string::split nm "::") 0)
                                   "find-ns: split always yields >= 1 element")]
           (:wat::string::strip-leading-colon seg0))]
-      [:wat::core::None {} (:user::find-ns (:wat::core::rest forms))])))
+      [:wat::core::Option::None {} (:user::find-ns (:wat::core::rest forms))])))
 
 ;; ── collecting the (old, new) rule-name rename pairs ────────────────────────────────────────────
 
@@ -163,19 +163,19 @@
 ;; find-call — deep search for the (unique, per the survey) node calling exactly `head`.
 (:wat::core::defn :user::find-call [node <- :wat::WatAST  head <- :wat::core::String] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::fix::calls-to? node head)
-    (:wat::core::Some node)
+    (:wat::core::Option::Some {:value node})
     (:wat::core::if (:wat::fix::structural? node)
       (:user::find-call-seq (:wat::core::ast->children node) head)
-      :wat::core::None)))
+      :wat::core::Option::None)))
 
 (:wat::core::defn :user::find-call-seq
   [items <- (:wat::core::Vector :- [:wat::WatAST])  head <- :wat::core::String] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
-    :wat::core::None
+    :wat::core::Option::None
     (:wat::core::let [h (:wat::core::first items) tl (:wat::core::rest items)]
       (:wat::core::match (:user::find-call h head)
-        [:wat::core::Some {:value found} (:wat::core::Some found)]
-        [:wat::core::None {} (:user::find-call-seq tl head)]))))
+        [:wat::core::Option::Some {:value found} (:wat::core::Option::Some {:value found})]
+        [:wat::core::Option::None {} (:user::find-call-seq tl head)]))))
 
 ;; ── the inserted helper's source text (only the namespace varies) ──────────────────────────────
 

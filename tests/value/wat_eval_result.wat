@@ -37,7 +37,7 @@
 ;; ─── Test 6: try propagates eval err through helper ──────────────────────────
 
 (:wat::core::defn :t::test6-run-dynamic [program <- :wat::WatAST] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
-  (:wat::core::Ok (:wat::core::Result/try (:wat::eval-ast! program))))
+  (:wat::core::Result::Ok {:value (:wat::core::Result/try (:wat::eval-ast! program))}))
 
 (:wat::core::defn :t::test6 [] -> :wat::core::String
   (:wat::core::let
@@ -45,8 +45,8 @@
       (:wat::core::quote
         (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))]
     (:wat::core::match (:t::test6-run-dynamic bad) 
-      [:wat::core::Ok {:value _} "should-not-reach"]
-      [:wat::core::Err {:error e} (:wat::core::EvalError/kind e)])))
+      [:wat::core::Result::Ok {:value _} "should-not-reach"]
+      [:wat::core::Result::Err {:error e} (:wat::core::EvalError/kind e)])))
 
 ;; ─── Test 7: eval-err exposes both kind and message ─────────────────────────
 
@@ -58,9 +58,9 @@
      r
       (:wat::eval-ast! bad)]
     (:wat::core::match r 
-      [:wat::core::Ok {:value _}
+      [:wat::core::Result::Ok {:value _}
         (:wat::core::Tuple "unreachable" "unreachable")]
-      [:wat::core::Err {:error e}
+      [:wat::core::Result::Err {:error e}
         (:wat::core::Tuple
           (:wat::core::EvalError/kind e)
           (:wat::core::EvalError/message e))])))

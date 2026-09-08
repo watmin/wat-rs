@@ -2124,7 +2124,7 @@
 ;; are `Value::Option` / `Value::Result`, not a matched generated enum.
 (:wat::core::defenum :wat::core::Option :- [T] :wat::enum::Pure
   :Some [value <- :T]
-  :None)
+  :wat::core::Option::None)
 (:wat::core::defenum :wat::core::Result :- [T E] :wat::enum::Pure
   :Ok  [value <- :T]
   :Err [error <- :E])

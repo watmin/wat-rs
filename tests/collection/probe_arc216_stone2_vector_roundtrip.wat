@@ -23,8 +23,8 @@
     (:wat::core::match
       (:wat::vec::get v 0)
       
-      [:wat::core::Some {:value x} x]
-      [:wat::core::None {} -1])))
+      [:wat::core::Option::Some {:value x} x]
+      [:wat::core::Option::None {} -1])))
 
 ;; p3: empty vec round-trip length 0
 (:wat::core::defn :t::p3-empty-rt-len [] -> :wat::core::i64
@@ -48,8 +48,8 @@
     (:wat::core::match
       (:wat::vec::get v 0)
       
-      [:wat::core::Some {:value x} x]
-      [:wat::core::None {} -1])))
+      [:wat::core::Option::Some {:value x} x]
+      [:wat::core::Option::None {} -1])))
 
 ;; p5a: (Vec :- [i64]) element at index 1 = 20
 (:wat::core::defn :t::p5a-i64-elem1 [] -> :wat::core::i64
@@ -59,8 +59,8 @@
     (:wat::core::match
       (:wat::vec::get v 1)
       
-      [:wat::core::Some {:value x} x]
-      [:wat::core::None {} -1])))
+      [:wat::core::Option::Some {:value x} x]
+      [:wat::core::Option::None {} -1])))
 
 ;; p5b: (Vec :- [String]) round-trip length 3
 (:wat::core::defn :t::p5b-str-rt-len [] -> :wat::core::i64
@@ -84,8 +84,8 @@
     (:wat::core::match
       (:wat::vec::get v 0)
       
-      [:wat::core::Some {:value x} x]
-      [:wat::core::None {} -1])))
+      [:wat::core::Option::Some {:value x} x]
+      [:wat::core::Option::None {} -1])))
 
 ;; p6b: order preservation index 2 = 30
 (:wat::core::defn :t::p6b-order-idx2 [] -> :wat::core::i64
@@ -95,8 +95,8 @@
     (:wat::core::match
       (:wat::vec::get v 2)
       
-      [:wat::core::Some {:value x} x]
-      [:wat::core::None {} -1])))
+      [:wat::core::Option::Some {:value x} x]
+      [:wat::core::Option::None {} -1])))
 
 ;; p7a: nested vector outer length 2
 (:wat::core::defn :t::p7a-nested-outer-len [] -> :wat::core::i64
@@ -129,13 +129,13 @@
     (:wat::core::match
       (:wat::vec::get v 1)
       
-      [:wat::core::Some {:value inner}
+      [:wat::core::Option::Some {:value inner}
         (:wat::core::match
           (:wat::vec::get inner 0)
           
-          [:wat::core::Some {:value x} x]
-          [:wat::core::None {} -1])]
-      [:wat::core::None {} -1])))
+          [:wat::core::Option::Some {:value x} x]
+          [:wat::core::Option::None {} -1])]
+      [:wat::core::Option::None {} -1])))
 
 ;; p8a: (Vec :- [(HashSet :- [i64])]) outer length 2
 (:wat::core::defn :t::p8a-mixed-outer-len [] -> :wat::core::i64

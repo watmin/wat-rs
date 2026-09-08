@@ -48,7 +48,7 @@
           (:probe::crash::State :durable record))
   :impls
   [(boom [s ctx req]
-     (:wat::kernel::assertion-failed! :message "BOOM-CRASH-SENTINEL-9173" :actual (:wat::core::Some {:value "boom"}) :expected (:wat::core::Some {:value "ok"})))
+     (:wat::kernel::assertion-failed! :message "BOOM-CRASH-SENTINEL-9173" :actual (:wat::core::Option::Some {:value "boom"}) :expected (:wat::core::Option::Some {:value "ok"})))
    (boomrt [s ctx req]
      (:wat::core::let
        [zero (:probe::crash::Record/x (:probe::crash::State/durable s))

@@ -105,9 +105,9 @@
              key-edit (:wat::core::Tuple ks (:wat::core::ast-name k) ":emitted-from")
              nxt      (:wat::core::get ch (:wat::core::+ i 1))]
             (:wat::core::match nxt
-              [:wat::core::None {}
+              [:wat::core::Option::None {}
                 (:wat::core::concat acc (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])] key-edit))]
-              [:wat::core::Some {:value v}
+              [:wat::core::Option::Some {:value v}
                 (:wat::core::if (:wat::core::= (:wat::core::ast-kind v) "keyword")
                   (:wat::core::let
                     [vs       (:user::start-off v lines)

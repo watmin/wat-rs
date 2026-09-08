@@ -138,8 +138,8 @@
                                 (:wat::core::if (:wat::core::empty? rules)
                                   (:wat::rete::network-has-production? network)
                                   false)
-                                :wat::core::None
-                                (:wat::core::Some {:value nil}))
+                                :wat::core::Option::None
+                                (:wat::core::Option::Some {:value nil}))
                               "fire-once: oracle cannot consume an Export — empty rules, live network")
                     facts    (:wat::rete::Session/facts   session)
                     ;; WHY sort: compile mints ids left-to-right, so ascending id IS
@@ -390,8 +390,8 @@
                                 (:wat::core::if (:wat::core::empty? rules)
                                   (:wat::rete::network-has-production? net)
                                   false)
-                                :wat::core::None
-                                (:wat::core::Some {:value nil}))
+                                :wat::core::Option::None
+                                (:wat::core::Option::Some {:value nil}))
                               "fire-rules$oracle: oracle cannot consume an Export — empty rules, live network")
                     fired (:wat::rete::fire-stratified session)]
     (:wat::rete::Session

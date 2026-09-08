@@ -39,7 +39,7 @@
 (:wat::core::defn :probe::row10-bool [] -> :wat::core::bool (:wat::core::< false true)) ; -> true
 (:wat::core::defn :probe::row10-keyword [] -> :wat::core::bool (:wat::core::< :a :b)) ; -> true
 (:wat::core::defn :probe::row10-vec [] -> :wat::core::bool (:wat::core::< [1 2] [1 3])) ; -> true
-(:wat::core::defn :probe::row10-option [] -> :wat::core::bool (:wat::core::< :wat::core::None (:wat::core::Some 1))) ; -> true
+(:wat::core::defn :probe::row10-option [] -> :wat::core::bool (:wat::core::< :wat::core::Option::None (:wat::core::Option::Some {:value 1}))) ; -> true
 
 ;; row 11 — per-type spellings agree with the polymorphic ones on every NaN row.
 ;; f64:: routes through the separate `eval_f64_compare` (direct IEEE predicates on raw f64), which

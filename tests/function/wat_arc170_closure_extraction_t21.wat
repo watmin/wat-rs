@@ -3,5 +3,5 @@
   (:wat::core::let
               [n 100]
               (:wat::core::match opt 
-                [:wat::core::Some {:value n} n]
-                [:wat::core::None {}     n])))
+                [:wat::core::Option::Some {:value n} n]
+                [:wat::core::Option::None {}     n])))

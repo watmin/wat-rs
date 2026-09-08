@@ -67,9 +67,9 @@
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
-           [:wat::core::Some {:value p}
+           [:wat::core::Option::Some {:value p}
              (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))]
-           [:wat::core::None {}
+           [:wat::core::Option::None {}
              (:wat::kernel::assertion-failed! :message "peer-pid returned None on a process prober")])
      ;; hand A's addr down; the prober dials — served ONLY because we granted its pid.
      _   (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop

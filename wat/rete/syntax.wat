@@ -28,15 +28,15 @@
                                 (:wat::core::if (:wat::core::= (:wat::core::length missing) 0)
                                   (:wat::core::= (:wat::core::length extra) 0)
                                   false)
-                                (:wat::core::Some {:value nil})
-                                :wat::core::None)
+                                (:wat::core::Option::Some {:value nil})
+                                :wat::core::Option::None)
                               "query: params must match the query's :params")
                     raw (:wat::core::match
                            (:wat::map::get
                              (:wat::rete::Session/query-memory session)
                              (:wat::rete::Query/name q))
-                           [:wat::core::Some {:value pv} pv]
-                           [:wat::core::None {} (:wat::core::PersistentVector)])]
+                           [:wat::core::Option::Some {:value pv} pv]
+                           [:wat::core::Option::None {} (:wat::core::PersistentVector)])]
     (:wat::core::if (:wat::core::= (:wat::core::length want) 0)
       raw
       (:wat::core::into (:wat::core::PersistentVector)

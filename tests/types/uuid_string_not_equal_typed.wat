@@ -5,8 +5,8 @@
      s   (:wat::uuid::to-string u)
      opt (:wat::uuid::from-string s)]
     (:wat::core::match opt 
-      [:wat::core::Some {:value u2}
+      [:wat::core::Option::Some {:value u2}
         (:wat::core::if (:wat::core::= u u2) 
           (:wat::kernel::println "UUID-UUID-EQUAL")
           (:wat::kernel::println "UUID-UUID-DIFFER"))]
-      [:wat::core::None {} (:wat::kernel::println "PARSE-NONE")])))
+      [:wat::core::Option::None {} (:wat::kernel::println "PARSE-NONE")])))

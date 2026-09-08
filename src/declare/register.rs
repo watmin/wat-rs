@@ -1147,24 +1147,38 @@ pub fn register_aggregate_methods(
                                             ],
                                             crate::rust_caller_span!(),
                                         ),
-                                        // Arc 258.4 — bare if: (if cond then else); type inferred from the branches.
-                                        // then: (Some self)
+                                        // then: (:wat::core::Option::Some {:value self})
                                         WatAST::List(
                                             vec![
                                                 WatAST::Keyword(
-                                                    ":wat::core::Some".into(),
+                                                    ":wat::core::Option::Some".into(),
                                                     crate::rust_caller_span!(),
                                                 ),
-                                                WatAST::Symbol(
-                                                    crate::scope::Identifier::bare("self"),
+                                                WatAST::Map(
+                                                    vec![(
+                                                        WatAST::Keyword(
+                                                            ":value".into(),
+                                                            crate::rust_caller_span!(),
+                                                        ),
+                                                        WatAST::Symbol(
+                                                            crate::scope::Identifier::bare("self"),
+                                                            crate::rust_caller_span!(),
+                                                        ),
+                                                    )],
                                                     crate::rust_caller_span!(),
                                                 ),
                                             ],
                                             crate::rust_caller_span!(),
                                         ),
-                                        // else: :wat::core::None
-                                        WatAST::Keyword(
-                                            ":wat::core::None".into(),
+                                        // else: (:wat::core::Option::None {})
+                                        WatAST::List(
+                                            vec![
+                                                WatAST::Keyword(
+                                                    ":wat::core::Option::None".into(),
+                                                    crate::rust_caller_span!(),
+                                                ),
+                                                WatAST::Map(vec![], crate::rust_caller_span!()),
+                                            ],
                                             crate::rust_caller_span!(),
                                         ),
                                     ],

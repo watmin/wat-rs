@@ -7,8 +7,8 @@
   (:wat::core::let
               [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
                sig     (:wat::core::match sig-opt 
-                         [:wat::core::Some {:value s} s]
-                         [:wat::core::None {}     (:wat::kernel::abort "signature-of-defn returned None")])
+                         [:wat::core::Option::Some {:value s} s]
+                         [:wat::core::Option::None {}     (:wat::kernel::abort "signature-of-defn returned None")])
                head    (:wat::core::first (:wat::core::ast->children sig))
                rendered head]
               (:wat::kernel::println rendered)))

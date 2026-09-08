@@ -23,10 +23,10 @@
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2)))
      bq    (:wat::telemetry::Journal/query-logs journal
              (:wat::telemetry::Journal::QueryLogsRequest :namespace "probe-ns"
-               :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::None))
+               :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::Option::None))
      nq    (:wat::telemetry::Journal/query-logs journal
              (:wat::telemetry::Journal::QueryLogsRequest :namespace "probe-ns"
-               :time-lo 1500000000 :time-hi 3000000000 :limit 100 :cursor :wat::core::None))
+               :time-lo 1500000000 :time-hi 3000000000 :limit 100 :cursor :wat::core::Option::None))
      bc    (:wat::core::match bq [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv
              [:wat::telemetry::Journal::QueryLogsResponse::Success {:logs ls :cursor _c} (:wat::core::count ls)]
              [_ -1])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])

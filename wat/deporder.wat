@@ -248,8 +248,8 @@
         -> (:wat::core::Vector :- [:wat::deporder::Violation])
         (:wat::core::let [sym-opt (:wat::hashmap::get sym-map kwd)]
           (:wat::core::match sym-opt 
-            [:wat::core::None {} viols]
-            [:wat::core::Some {:value sym-def}
+            [:wat::core::Option::None {} viols]
+            [:wat::core::Option::Some {:value sym-def}
              ;; defined in a different file?
              (:wat::core::if (:wat::core::= (:wat::deporder::SymDef/file sym-def) path)
                viols
@@ -260,8 +260,8 @@
                  (:wat::core::let [def-path    (:wat::deporder::SymDef/file sym-def)
                                    def-pos-opt (:wat::hashmap::get pos-map def-path)]
                    (:wat::core::match def-pos-opt 
-                     [:wat::core::None {} viols]
-                     [:wat::core::Some {:value def-pos}
+                     [:wat::core::Option::None {} viols]
+                     [:wat::core::Option::Some {:value def-pos}
                       ;; violation: definer loads AFTER referencer
                       (:wat::core::if (:wat::i64::> def-pos ref-pos)
                         (:wat::core::concat viols

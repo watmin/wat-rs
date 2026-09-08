@@ -59,7 +59,7 @@
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")]))]
                     nil))))
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
-           [:wat::core::Some {:value p}
+           [:wat::core::Option::Some {:value p}
              (:wat::core::let
                [_  (:probe::echo/grant  eh (:wat::core::Vector :- [:wat::core::i64] p))
                 _  (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
@@ -76,6 +76,6 @@
                      [:wat::kernel::RecvOutcome::Closed {}
                        (:wat::kernel::assertion-failed! :message "recv': prober closed unexpectedly")])]
                (:wat::kernel::println (:wat::string::concat "NOREVOKE-REACHED-END: " r2)))]
-           [:wat::core::None {}
+           [:wat::core::Option::None {}
              (:wat::kernel::assertion-failed! :message "peer-pid None on process prober")])]
     nil))

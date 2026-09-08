@@ -91,8 +91,8 @@
               [:wat::kernel::ConnectOutcome::Rejected {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]
               [:wat::kernel::ConnectOutcome::Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
        proc (:wat::core::match (:wat::kernel::peer-process (:wat-tests::signal-observer::Handle/handle h))
-              [:wat::core::Some {:value p} p]
-              [:wat::core::None {} (:wat::kernel::assertion-failed! :message "signal-observer-measures-itself: expected a process locus")])
+              [:wat::core::Option::Some {:value p} p]
+              [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "signal-observer-measures-itself: expected a process locus")])
 
        ;; ── sighup: a bitflip only, no wake — drive `observe` to see it. ─────────────────────
        sighup-delivered
@@ -161,6 +161,6 @@
       [h (:wat-tests::signal-observer/start :locus (:wat::spawn::thread)
            :record (:wat-tests::signal-observer::Record :requests 0 :sighup false :user1 false :user2 false))]
       (:wat::core::match (:wat::kernel::peer-process (:wat-tests::signal-observer::Handle/handle h))
-        [:wat::core::Some {:value _p} false]
-        [:wat::core::None {} true]))
+        [:wat::core::Option::Some {:value _p} false]
+        [:wat::core::Option::None {} true]))
     true))

@@ -35,7 +35,7 @@
                (:wat::rete::core::enum::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
-               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
+               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::Option::None :sieve sieve))]
     (:wat::core::match sr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::telemetry::Journal::SiftLogsResponse::Success {:logs ls :cursor _c} (:wat::core::count ls)]
       [_ -1])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
@@ -61,7 +61,7 @@
                (:wat::core::do (:wat::kernel::println "impure predicate side effect") true)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
-               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
+               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::Option::None :sieve sieve))]
     (:wat::core::match sr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::telemetry::Journal::SiftLogsResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
@@ -100,7 +100,7 @@
                (:wat::rete::core::enum::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
-               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
+               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::Option::None :sieve sieve))]
     (:wat::core::match sr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::telemetry::Journal::SiftLogsResponse::Success {:logs ls :cursor _c} (:wat::core::count ls)]
       [_ -1])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
@@ -130,7 +130,7 @@
                (:wat::core::do (:wat::kernel::println "impure predicate side effect") true)))
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
-               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
+               :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::Option::None :sieve sieve))]
     (:wat::core::match sr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::telemetry::Journal::SiftLogsResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

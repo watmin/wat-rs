@@ -26,8 +26,8 @@
       (:wat::eval-step! (:wat::core::quote :outcome))
      rendered
       (:wat::core::match step-result 
-        [:wat::core::Ok {:value r} (:wat::core::show r)]
-        [:wat::core::Err {:error e} (:wat::core::show e)])]
+        [:wat::core::Result::Ok {:value r} (:wat::core::show r)]
+        [:wat::core::Result::Err {:error e} (:wat::core::show e)])]
     rendered))
 
 ;; ─── Probe 3b — from-wat(quote :outcome) identity equality ───────────────────

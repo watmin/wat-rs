@@ -14,11 +14,11 @@
 (:wat::test::deftest :wat-tests::core::option-expect-no-ascription
   
   (:wat::test::assert-eq
-    (:wat::core::Option/expect (:wat::core::Some 5) "should be present")
+    (:wat::core::Option/expect (:wat::core::Option::Some {:value 5}) "should be present")
     5))
 
 (:wat::test::deftest :wat-tests::core::result-expect-no-ascription
   
   (:wat::test::assert-eq
-    (:wat::core::Result/expect (:wat::core::Ok 7) "should be ok")
+    (:wat::core::Result/expect (:wat::core::Result::Ok {:value 7}) "should be ok")
     7))

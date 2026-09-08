@@ -12,8 +12,8 @@
 
 (:wat::core::defn :probe::dump-children [kids <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::vec::get kids i)
-    [:wat::core::Some {:value c} (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth))]
-    [:wat::core::None {} nil]))
+    [:wat::core::Option::Some {:value c} (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth))]
+    [:wat::core::Option::None {} nil]))
 
 (:wat::core::defn :probe::dump [node <- :wat::WatAST depth <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::do

@@ -34,16 +34,16 @@
         (:wat::core::match cause
           [:wat::kernel::LociDiedError::Panic {:message _message :failure failure}
             (:wat::core::match failure
-              [:wat::core::Some {:value f}
+              [:wat::core::Option::Some {:value f}
                (:wat::core::Vector :- [:wat::core::String]
                  (:wat::kernel::Failure/message f)
                  (:wat::core::match (:wat::kernel::Failure/actual f)
-                   [:wat::core::Some {:value a} a]
-                   [:wat::core::None {} ":None"])
+                   [:wat::core::Option::Some {:value a} a]
+                   [:wat::core::Option::None {} ":None"])
                  (:wat::core::match (:wat::kernel::Failure/expected f)
-                   [:wat::core::Some {:value e} e]
-                   [:wat::core::None {} ":None"]))]
-              [:wat::core::None {}
+                   [:wat::core::Option::Some {:value e} e]
+                   [:wat::core::Option::None {} ":None"]))]
+              [:wat::core::Option::None {}
                (:wat::core::Vector :- [:wat::core::String] "NO-FAILURE-PAYLOAD")])]
           [_ (:wat::core::Vector :- [:wat::core::String] "LOST-NON-PANIC")])]
       [:wat::kernel::RecvOutcome::Stopped {}

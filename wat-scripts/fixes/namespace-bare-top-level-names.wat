@@ -214,12 +214,12 @@
 ;; find-ns — the FIRST already-namespaced collected name donates its leading segment.
 (:wat::core::defn :user::find-ns [names <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:wat::core::empty? names)
-    :wat::core::None
+    :wat::core::Option::None
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
       (:wat::core::if (:user::already-ns? n)
         (:wat::core::let [nm   (:wat::core::ast-name n)
                           seg0 (:wat::core::first (:wat::string::split nm "::"))]
-          (:wat::core::Some (:wat::string::strip-leading-colon seg0)))
+          (:wat::core::Option::Some {:value (:wat::string::strip-leading-colon seg0)}))
         (:user::find-ns tl)))))
 
 ;; basename — the path's final "/"-segment (the filename with extension).
@@ -243,8 +243,8 @@
 ;; only when the file has none at all.
 (:wat::core::defn :user::resolve-ns [names <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String] -> :wat::core::String
   (:wat::core::match (:user::find-ns names)
-    [:wat::core::Some {:value ns} ns]
-    [:wat::core::None {} (:user::mint-ns path)]))
+    [:wat::core::Option::Some {:value ns} ns]
+    [:wat::core::Option::None {} (:user::mint-ns path)]))
 
 ;; ── computing each rename ────────────────────────────────────────────────────────────────
 

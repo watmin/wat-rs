@@ -121,10 +121,10 @@
 
 (:wat::core::defn :user::alias-enum [leaf <- :wat::core::String] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:wat::core::or (:wat::core::= leaf "Some") (:wat::core::= leaf "None"))
-    (:wat::core::Some ":wat::core::Option")
+    (:wat::core::Option::Some {:value ":wat::core::Option"})
     (:wat::core::if (:wat::core::or (:wat::core::= leaf "Ok") (:wat::core::= leaf "Err"))
-      (:wat::core::Some ":wat::core::Result")
-      :wat::core::None)))
+      (:wat::core::Option::Some {:value ":wat::core::Result"})
+      :wat::core::Option::None)))
 
 (:wat::core::defn :user::kw-name-text [k <- :wat::core::keyword] -> :wat::core::String
   (:wat::keyword::to-string k))
@@ -143,10 +143,10 @@
    leaf <- :wat::core::String]
   -> (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::if (:wat::core::empty? vs)
-    :wat::core::None
+    :wat::core::Option::None
     (:wat::core::let [v (:wat::core::first vs)]
       (:wat::core::if (:wat::core::= (:user::kw-name-text (:wat::runtime::TypeVariant/name v)) leaf)
-        (:wat::core::Some (:user::variant-field-names v))
+        (:wat::core::Option::Some {:value (:user::variant-field-names v)})
         (:user::find-variant-fields (:wat::core::rest vs) leaf)))))
 
 (:wat::core::defn :user::fields-from-info
@@ -156,7 +156,7 @@
   (:wat::core::match (:wat::runtime::TypeInfo/body info)
     [:wat::runtime::TypeBody::Enum {:purity _ :variants vs}
       (:user::find-variant-fields vs leaf)]
-    [_ :wat::core::None]))
+    [_ :wat::core::Option::None]))
 
 (:wat::core::defn :user::try-type-of
   [enum-path <- :wat::core::String
@@ -167,10 +167,10 @@
       (:user::type-of-form enum-path) decls)
     [:wat::eval::FormOutcome::Evaluated {:value v}
       (:wat::core::match (:wat::runtime::TypeInfo/kind v)
-        [:wat::runtime::TypeKind::Enum {} (:wat::core::Some v)]
-        [_ :wat::core::None])]
+        [:wat::runtime::TypeKind::Enum {} (:wat::core::Option::Some {:value v})]
+        [_ :wat::core::Option::None])]
     [_ (:wat::core::if (:wat::core::empty? decls)
-         :wat::core::None
+         :wat::core::Option::None
          (:user::try-type-of enum-path (:wat::core::Vector :- [:wat::WatAST])))]))
 
 (:wat::core::defn :user::resolve-fields
@@ -181,14 +181,14 @@
     [leaf (:user::leaf-of vpath)
      parent (:user::parent-path vpath)]
     (:wat::core::match (:user::try-type-of parent decls)
-      [:wat::core::Some {:value info} (:user::fields-from-info info leaf)]
-      [:wat::core::None {}
+      [:wat::core::Option::Some {:value info} (:user::fields-from-info info leaf)]
+      [:wat::core::Option::None {}
         (:wat::core::match (:user::try-type-of vpath decls)
-          [:wat::core::Some {:value info} (:user::fields-from-info info leaf)]
-          [:wat::core::None {}
+          [:wat::core::Option::Some {:value info} (:user::fields-from-info info leaf)]
+          [:wat::core::Option::None {}
             (:wat::core::match (:user::alias-enum leaf)
-              [:wat::core::Some {:value ep} (:user::resolve-fields-at ep leaf decls)]
-              [:wat::core::None {} :wat::core::None])])])))
+              [:wat::core::Option::Some {:value ep} (:user::resolve-fields-at ep leaf decls)]
+              [:wat::core::Option::None {} :wat::core::Option::None])])])))
 
 (:wat::core::defn :user::resolve-fields-at
   [enum-path <- :wat::core::String
@@ -196,8 +196,8 @@
    decls     <- (:wat::core::Vector :- [:wat::WatAST])]
   -> (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::match (:user::try-type-of enum-path decls)
-    [:wat::core::Some {:value info} (:user::fields-from-info info leaf)]
-    [:wat::core::None {} :wat::core::None]))
+    [:wat::core::Option::Some {:value info} (:user::fields-from-info info leaf)]
+    [:wat::core::Option::None {} :wat::core::Option::None]))
 
 (:wat::core::defn :user::report [msg <- :wat::core::String] -> :wat::core::nil
   (:wat::kernel::println (:wat::string::concat "[match-arm] UNRESOLVED " msg)))
@@ -366,8 +366,8 @@
   -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let [fopt (:wat::hashmap::get fmap vpath)]
     (:wat::core::match fopt
-      [:wat::core::Some {:value fields} fields]
-      [:wat::core::None {}
+      [:wat::core::Option::Some {:value fields} fields]
+      [:wat::core::Option::None {}
         (:wat::core::do
           (:user::report vpath)
           (:wat::core::Vector :- [:wat::core::String]))])))
@@ -574,7 +574,7 @@
       [vpath (:wat::core::ast-name head)
        fopt  (:wat::hashmap::get fmap vpath)]
       (:wat::core::match fopt
-        [:wat::core::Some {:value fields}
+        [:wat::core::Option::Some {:value fields}
           (:wat::core::let [vals (:user::map-value-nodes mapn)]
             (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::length fields) (:wat::core::length vals)))
               (:wat::core::do
@@ -587,7 +587,7 @@
                     (:wat::fix::node-start-offset mapn lines)
                     (:user::node-text mapn src lines)
                     (:user::map-text fields vals src lines))))))]
-        [:wat::core::None {}
+        [:wat::core::Option::None {}
           (:wat::core::do
             (:user::report vpath)
             (:user::nested-pattern-edits mapn fmap src lines))]))))
@@ -653,9 +653,9 @@
                         [vpath (:wat::core::ast-name head)
                          fopt  (:wat::hashmap::get fmap vpath)]
                         (:wat::core::match fopt
-                          [:wat::core::Some {:value fields}
+                          [:wat::core::Option::Some {:value fields}
                             (:user::variant-arm-edits arm fields src lines)]
-                          [:wat::core::None {}
+                          [:wat::core::Option::None {}
                             (:wat::core::do
                               (:user::report vpath)
                               (:wat::core::Vector :- [:wat::fix::Edit]))]))
@@ -840,8 +840,8 @@
       -> (:wat::core::Vector :- [:wat::core::String])
       (:wat::core::let [acc2 (:user::conj-unique acc (:user::parent-path vp))]
         (:wat::core::match (:user::alias-enum (:user::leaf-of vp))
-          [:wat::core::Some {:value ep} (:user::conj-unique acc2 ep)]
-          [:wat::core::None {} acc2])))
+          [:wat::core::Option::Some {:value ep} (:user::conj-unique acc2 ep)]
+          [:wat::core::Option::None {} acc2])))
     (:wat::core::Vector :- [:wat::core::String])
     vpaths))
 
@@ -861,8 +861,8 @@
          ep <- :wat::core::String]
         -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
         (:wat::core::match (:user::try-type-of ep decls)
-          [:wat::core::Some {:value info} (:user::fill-enum m info ep)]
-          [:wat::core::None {} m]))
+          [:wat::core::Option::Some {:value info} (:user::fill-enum m info ep)]
+          [:wat::core::Option::None {} m]))
       (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
       epaths)))
 

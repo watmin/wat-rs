@@ -18,7 +18,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-i64
   
   (:wat::core::let
-    [opt (:wat::core::Some 42)
+    [opt (:wat::core::Option::Some {:value 42})
      v
       (:wat::core::Option/expect  
         opt
@@ -31,7 +31,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-string
   
   (:wat::core::let
-    [opt (:wat::core::Some "hello")
+    [opt (:wat::core::Option::Some {:value "hello"})
      v
       (:wat::core::Option/expect  
         opt
@@ -44,7 +44,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
   
   (:wat::core::let
-    [opt (:wat::core::Some (:wat::core::Some 7))
+    [opt (:wat::core::Option::Some {:value (:wat::core::Option::Some {:value 7})})
      inner
       (:wat::core::Option/expect  
         opt
@@ -68,7 +68,7 @@
            ;; as Lost (carrying the LociDiedError) BEFORE the completion send'.
            (:wat::core::do
              (:wat::core::let
-               [opt :wat::core::None
+               [opt :wat::core::Option::None
                 _v
                  (:wat::core::Option/expect
                    opt

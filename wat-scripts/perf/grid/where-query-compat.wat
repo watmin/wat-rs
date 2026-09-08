@@ -74,8 +74,8 @@
     "empty"
     (:wat::core::match
       (:wat::map::get (:wat::core::first answers) k)
-      [:wat::core::Some {:value _} "yes"]
-      [:wat::core::None {} "none"])))
+      [:wat::core::Option::Some {:value _} "yes"]
+      [:wat::core::Option::None {} "none"])))
 
 (:wat::core::defn :wqc::i64-of
   [p <- :wat::core::PersistentMap k <- :wat::core::String] -> :wat::core::i64

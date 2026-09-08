@@ -2,7 +2,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [s
-      (:wat::core::match (:wat::core::Some 1) 
-        [:wat::core::Some {:value _} "yes"]
-        [:wat::core::None {} "no"])]
+      (:wat::core::match (:wat::core::Option::Some {:value 1}) 
+        [:wat::core::Option::Some {:value _} "yes"]
+        [:wat::core::Option::None {} "no"])]
     s))

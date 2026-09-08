@@ -132,7 +132,7 @@
     ((:wat::core::= lvl 7) (:wat::core::quasiquote (:strat::S7 ?k)))
     ((:wat::core::= lvl 8) (:wat::core::quasiquote (:strat::S8 ?k)))
     ((:wat::core::= lvl 9) (:wat::core::quasiquote (:strat::S9 ?k)))
-    (:else (:wat::core::Option/expect  :wat::core::None
+    (:else (:wat::core::Option/expect  :wat::core::Option::None
              (:wat::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
                :lvl-s (:wat::i64::to-string lvl))))))
@@ -151,7 +151,7 @@
     ((:wat::core::= prev 7) (:wat::core::quasiquote (:wat::rete::not (:strat::S7 (?k <- :k)))))
     ((:wat::core::= prev 8) (:wat::core::quasiquote (:wat::rete::not (:strat::S8 (?k <- :k)))))
     ((:wat::core::= prev 9) (:wat::core::quasiquote (:wat::rete::not (:strat::S9 (?k <- :k)))))
-    (:else (:wat::core::Option/expect  :wat::core::None
+    (:else (:wat::core::Option/expect  :wat::core::Option::None
              (:wat::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {prev-s}"
                :prev-s (:wat::i64::to-string prev))))))
@@ -255,7 +255,7 @@
      (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
        (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:strat::encode 9 (:strat::S9/k f))))
          (:wat::rete::query fired (:strat::q-S9)))))
-    (:else (:wat::core::Option/expect  :wat::core::None
+    (:else (:wat::core::Option/expect  :wat::core::Option::None
              (:wat::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
                :lvl-s (:wat::i64::to-string lvl))))))

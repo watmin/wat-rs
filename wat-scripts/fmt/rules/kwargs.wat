@@ -11,7 +11,7 @@
 
 (:wat::rete::defrule :fmt::kwargs-claim-from-1
   :when [(:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
@@ -21,7 +21,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -37,7 +37,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi 1))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi 1 :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -57,7 +57,7 @@
 
 (:wat::rete::defrule :fmt::kwargs-claim-later
   :when [(:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
@@ -67,7 +67,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -95,7 +95,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi ?s))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi ?s :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -115,7 +115,7 @@
              (:wat::grep::Node  (?alt <- :id) (?p <- :parent) (?s2 <- :index) (?a2k <- :kind))
              (:wat::rete::where (:wat::rete::i64::> ?s2 0))
              (:wat::rete::where (:wat::rete::i64::< ?s2 ?s))
-             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword)))
+             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword {})))
              (:wat::grep::Named (?alt <- :id) (?a2n <- :name))
              (:wat::rete::where (:wat::rete::string::not= ?a2n ":-"))
              (:wat::rete::where (:wat::rete::string::not= ?a2n "->"))
@@ -126,7 +126,7 @@
                  (:wat::grep::Node  (?ab <- :id) (?p <- :parent) (?abi <- :index) (?abk <- :kind))
                  (:wat::rete::where (:wat::rete::i64::>= ?abi ?s2))
                  (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?abi ?s2 :undefined 0) 2 :undefined 1) 0))
-                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword)))))))]
+                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword {})))))))]
   :then [(:wat::fmt::Claim :form ?p)
          (:wat::fmt::AlignPairs :form ?p)])
 
@@ -134,7 +134,7 @@
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
          (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::grep::Named (?h <- :id) (?hn <- :name))
@@ -143,7 +143,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -159,7 +159,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi 1))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi 1 :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -175,18 +175,18 @@
              (:wat::grep::Named (?ba <- :id) (?ban <- :name))
              (:wat::rete::where (:wat::rete::string::= ?ban "->"))))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index) (?ck <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?ck (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?ck (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?s))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?ci ?s :undefined 0) 2 :undefined 1) 0))
          (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?vi (:wat::rete::i64::+ ?ci 1 :undefined 0)))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 (:wat::rete::defrule :fmt::kwargs-keys-later
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
          (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::grep::Named (?h <- :id) (?hn <- :name))
@@ -195,7 +195,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -223,7 +223,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi ?s))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi ?s :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -243,7 +243,7 @@
              (:wat::grep::Node  (?alt <- :id) (?p <- :parent) (?s2 <- :index) (?a2k <- :kind))
              (:wat::rete::where (:wat::rete::i64::> ?s2 0))
              (:wat::rete::where (:wat::rete::i64::< ?s2 ?s))
-             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword)))
+             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword {})))
              (:wat::grep::Named (?alt <- :id) (?a2n <- :name))
              (:wat::rete::where (:wat::rete::string::not= ?a2n ":-"))
              (:wat::rete::where (:wat::rete::string::not= ?a2n "->"))
@@ -254,14 +254,14 @@
                  (:wat::grep::Node  (?ab <- :id) (?p <- :parent) (?abi <- :index) (?abk <- :kind))
                  (:wat::rete::where (:wat::rete::i64::>= ?abi ?s2))
                  (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?abi ?s2 :undefined 0) 2 :undefined 1) 0))
-                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword)))))))
+                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword {})))))))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index) (?ck <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?ck (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?ck (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?s))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?ci ?s :undefined 0) 2 :undefined 1) 0))
          (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?vi (:wat::rete::i64::+ ?ci 1 :undefined 0)))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 ;; Prefix of a trailing pair-run: ordinary leading-atom. First compound in
 ;; the prefix, and every prefix child after it, starts a line. Withhold after
@@ -270,7 +270,7 @@
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
          (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::grep::Named (?h <- :id) (?hn <- :name))
@@ -279,7 +279,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -295,7 +295,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi ?s))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi ?s :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -315,7 +315,7 @@
              (:wat::grep::Node  (?alt <- :id) (?p <- :parent) (?s2 <- :index) (?a2k <- :kind))
              (:wat::rete::where (:wat::rete::i64::> ?s2 0))
              (:wat::rete::where (:wat::rete::i64::< ?s2 ?s))
-             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword)))
+             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword {})))
              (:wat::grep::Named (?alt <- :id) (?a2n <- :name))
              (:wat::rete::where (:wat::rete::string::not= ?a2n ":-"))
              (:wat::rete::where (:wat::rete::string::not= ?a2n "->"))
@@ -326,9 +326,9 @@
                  (:wat::grep::Node  (?ab <- :id) (?p <- :parent) (?abi <- :index) (?abk <- :kind))
                  (:wat::rete::where (:wat::rete::i64::>= ?abi ?s2))
                  (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?abi ?s2 :undefined 0) 2 :undefined 1) 0))
-                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword)))))))
+                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword {})))))))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?fk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::List {})))
          (:wat::rete::where (:wat::rete::i64::> ?fi 0))
          (:wat::rete::where (:wat::rete::i64::< ?fi ?s))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
@@ -347,13 +347,13 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 (:wat::rete::defrule :fmt::kwargs-prefix-vector
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
          (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::grep::Named (?h <- :id) (?hn <- :name))
@@ -362,7 +362,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -378,7 +378,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi ?s))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi ?s :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -398,7 +398,7 @@
              (:wat::grep::Node  (?alt <- :id) (?p <- :parent) (?s2 <- :index) (?a2k <- :kind))
              (:wat::rete::where (:wat::rete::i64::> ?s2 0))
              (:wat::rete::where (:wat::rete::i64::< ?s2 ?s))
-             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword)))
+             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword {})))
              (:wat::grep::Named (?alt <- :id) (?a2n <- :name))
              (:wat::rete::where (:wat::rete::string::not= ?a2n ":-"))
              (:wat::rete::where (:wat::rete::string::not= ?a2n "->"))
@@ -409,9 +409,9 @@
                  (:wat::grep::Node  (?ab <- :id) (?p <- :parent) (?abi <- :index) (?abk <- :kind))
                  (:wat::rete::where (:wat::rete::i64::>= ?abi ?s2))
                  (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?abi ?s2 :undefined 0) 2 :undefined 1) 0))
-                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword)))))))
+                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword {})))))))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?fk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::Vector)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::Vector {})))
          (:wat::rete::where (:wat::rete::i64::> ?fi 0))
          (:wat::rete::where (:wat::rete::i64::< ?fi ?s))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
@@ -430,13 +430,13 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 (:wat::rete::defrule :fmt::kwargs-prefix-map
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
          (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::grep::Named (?h <- :id) (?hn <- :name))
@@ -445,7 +445,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -461,7 +461,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi ?s))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi ?s :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -481,7 +481,7 @@
              (:wat::grep::Node  (?alt <- :id) (?p <- :parent) (?s2 <- :index) (?a2k <- :kind))
              (:wat::rete::where (:wat::rete::i64::> ?s2 0))
              (:wat::rete::where (:wat::rete::i64::< ?s2 ?s))
-             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword)))
+             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword {})))
              (:wat::grep::Named (?alt <- :id) (?a2n <- :name))
              (:wat::rete::where (:wat::rete::string::not= ?a2n ":-"))
              (:wat::rete::where (:wat::rete::string::not= ?a2n "->"))
@@ -492,9 +492,9 @@
                  (:wat::grep::Node  (?ab <- :id) (?p <- :parent) (?abi <- :index) (?abk <- :kind))
                  (:wat::rete::where (:wat::rete::i64::>= ?abi ?s2))
                  (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?abi ?s2 :undefined 0) 2 :undefined 1) 0))
-                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword)))))))
+                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword {})))))))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?fk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::Map)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::Map {})))
          (:wat::rete::where (:wat::rete::i64::> ?fi 0))
          (:wat::rete::where (:wat::rete::i64::< ?fi ?s))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
@@ -513,13 +513,13 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 (:wat::rete::defrule :fmt::kwargs-prefix-set
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
          (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::List {})))
          (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::grep::Named (?h <- :id) (?hn <- :name))
@@ -528,7 +528,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?hn "wat.core/defenum"))
          (:wat::grep::Node  (?start <- :id) (?p <- :parent) (?s <- :index) (?sk <- :kind))
          (:wat::rete::where (:wat::rete::i64::> ?s 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?sk (:wat::grep::NodeKind::Keyword {})))
          (:wat::grep::Named (?start <- :id) (?sn <- :name))
          (:wat::rete::where (:wat::rete::string::not= ?sn ":-"))
          (:wat::rete::where (:wat::rete::string::not= ?sn "->"))
@@ -544,7 +544,7 @@
              (:wat::grep::Node  (?bad <- :id) (?p <- :parent) (?bi <- :index) (?bk <- :kind))
              (:wat::rete::where (:wat::rete::i64::>= ?bi ?s))
              (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?bi ?s :undefined 0) 2 :undefined 1) 0))
-             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword)))))
+             (:wat::rete::where (:wat::rete::core::enum::not= ?bk (:wat::grep::NodeKind::Keyword {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?bd <- :id) (?p <- :parent) (?bdi <- :index))
@@ -564,7 +564,7 @@
              (:wat::grep::Node  (?alt <- :id) (?p <- :parent) (?s2 <- :index) (?a2k <- :kind))
              (:wat::rete::where (:wat::rete::i64::> ?s2 0))
              (:wat::rete::where (:wat::rete::i64::< ?s2 ?s))
-             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword)))
+             (:wat::rete::where (:wat::rete::core::enum::= ?a2k (:wat::grep::NodeKind::Keyword {})))
              (:wat::grep::Named (?alt <- :id) (?a2n <- :name))
              (:wat::rete::where (:wat::rete::string::not= ?a2n ":-"))
              (:wat::rete::where (:wat::rete::string::not= ?a2n "->"))
@@ -575,9 +575,9 @@
                  (:wat::grep::Node  (?ab <- :id) (?p <- :parent) (?abi <- :index) (?abk <- :kind))
                  (:wat::rete::where (:wat::rete::i64::>= ?abi ?s2))
                  (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem (:wat::rete::i64::- ?abi ?s2 :undefined 0) 2 :undefined 1) 0))
-                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword)))))))
+                 (:wat::rete::where (:wat::rete::core::enum::not= ?abk (:wat::grep::NodeKind::Keyword {})))))))
          (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?fk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::Set)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?fk (:wat::grep::NodeKind::Set {})))
          (:wat::rete::where (:wat::rete::i64::> ?fi 0))
          (:wat::rete::where (:wat::rete::i64::< ?fi ?s))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
@@ -596,14 +596,14 @@
              (:wat::grep::Named (?dsh <- :id) (?dsn <- :name))
              (:wat::rete::where (:wat::rete::string::= ?dsn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?dsi (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Block {}))])
 
 ;; Map literal: pairs with no head. Claim + AlignPairs so values ride
 ;; their keys. Break every key after the first (index 0 rides `{`).
 ;; Completeness: last child index is odd.
 (:wat::rete::defrule :fmt::kwargs-map-claim
   :when [(:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::Map)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::Map {})))
          (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
          (:wat::grep::Node  (?last <- :id) (?p <- :parent) (?L <- :index))
          (:wat::rete::not
@@ -618,8 +618,8 @@
   :when [(:wat::fmt::Claim (?p <- :form))
          (:wat::fmt::AlignPairs (?p <- :form))
          (:wat::grep::Node  (?p <- :id) (?pk <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::Map)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?pk (:wat::grep::NodeKind::Map {})))
          (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?ci 2 :undefined 1) 0))]
-  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Align))])
+  :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind::Align {}))])

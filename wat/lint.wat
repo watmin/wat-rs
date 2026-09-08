@@ -268,7 +268,7 @@
       :col co
       :severity "warn"
       :message msg
-      :fix (:wat::core::Some {:value fe}))))
+      :fix (:wat::core::Option::Some {:value fe}))))
 
 ;; rule-nested-if-=-ladder-form — run the ladder rule on ONE form (recursive walk).
 ;; Detects the ladder at the top level OR nested anywhere inside the form.
@@ -489,9 +489,9 @@
                                     (:wat::hashmap::get ep :col)
                                     "concat-format-fix: end :col")
                         fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
-        (:wat::core::Some {:value fe}))
+        (:wat::core::Option::Some {:value fe}))
       ;; ineligible (compound slot or special-char literal) — report-only
-      :wat::core::None)))
+      :wat::core::Option::None)))
 
 ;; make-concat-finding — construct the Finding for a detected concat-abuse.
 (:wat::core::defn :wat::lint::make-concat-finding
@@ -612,7 +612,7 @@
       (:wat::i64::to-string (:wat::deporder::Violation/definer-pos v))
       ") which loads later — symbol: "
       (:wat::deporder::Violation/symbol v))
-    :fix :wat::core::None))
+    :fix :wat::core::Option::None))
 
 ;; violations->findings — map Violations to rule-zero Findings.
 (:wat::core::defn :wat::lint::violations->findings
@@ -668,8 +668,8 @@
                                              f   <- :wat::lint::Finding]
                               -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                               (:wat::core::match (:wat::lint::Finding/fix f)  
-                                [:wat::core::None {} acc]
-                                [:wat::core::Some {:value fe}
+                                [:wat::core::Option::None {} acc]
+                                [:wat::core::Option::Some {:value fe}
                                  (:wat::core::let [start-map (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]
                                                                :line (:wat::lint::FixEdit/start-line fe)
                                                                :col  (:wat::lint::FixEdit/start-col fe))

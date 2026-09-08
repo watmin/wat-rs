@@ -96,9 +96,9 @@
     [:test::S5Shape::Square {}    0]))
 
 (:wat::core::defn :user::rete-match-pattern-not-classified-as-expr-pure [] -> :wat::core::bool
-  (:wat::rete::pure? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle 5)))))
+  (:wat::rete::pure? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle {:r 5})))))
 (:wat::core::defn :user::rete-match-pattern-not-classified-as-expr-det [] -> :wat::core::bool
-  (:wat::rete::deterministic? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle 5)))))
+  (:wat::rete::deterministic? (:wat::core::quote (:test::rete-match-shape-area (:test::S5Shape::Circle {:r 5})))))
 
 ;; ── S5's last form (closing #56's leftover): `fn`, the second of the structural-guard pair ─────
 ;; The builder's target form (BRIEF-s5-fn-mirror.md) — an anonymous rete `fn` type-checks (routes

@@ -4,5 +4,5 @@
 (:wat::core::defn :my::f [x <- :wat::core::i64] -> :wat::core::i64 x)
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::match (:wat::runtime::metadata-of :my::f) 
-    [:wat::core::Some {:value _} true]
-    [:wat::core::None {}    false]))
+    [:wat::core::Option::Some {:value _} true]
+    [:wat::core::Option::None {}    false]))

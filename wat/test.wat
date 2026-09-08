@@ -61,7 +61,7 @@
 (:wat::core::defn :wat::test::assert-eq :- [T] [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Some {:value (:wat::core::show expected)}))))
+      (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Option::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option::Some {:value (:wat::core::show expected)}))))
 
 ;; ─── assert-true / assert-false ───────────────────────────────────────
 ;;
@@ -73,11 +73,11 @@
 (:wat::core::defn :wat::test::assert-true [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Some {:value "true"}))))
+      (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Option::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option::Some {:value "true"}))))
 
 (:wat::core::defn :wat::test::assert-false [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
-      (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Some {:value "false"}))
+      (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Option::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option::Some {:value "false"}))
       nil))
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
@@ -88,7 +88,7 @@
 (:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::string::contains? haystack needle) 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Some {:value haystack}) :expected (:wat::core::Some {:value needle}))))
+      (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Option::Some {:value haystack}) :expected (:wat::core::Option::Some {:value needle}))))
 
 ;; ─── assert-coincident ────────────────────────────────────────────────
 ;;
@@ -120,7 +120,7 @@
         (:wat::holon::CoincidentExplanation/coincident expl)]
       (:wat::core::if ok 
         nil
-        (:wat::kernel::assertion-failed! :message "assert-coincident failed — holons not at the same point" :actual (:wat::core::Some {:value (:wat::test::render-coincident-explanation expl)})))))
+        (:wat::kernel::assertion-failed! :message "assert-coincident failed — holons not at the same point" :actual (:wat::core::Option::Some {:value (:wat::test::render-coincident-explanation expl)})))))
 
 ;; Helper — turn a CoincidentExplanation into a multi-line, named-
 ;; field string for assertion failure displays. Each field on its own

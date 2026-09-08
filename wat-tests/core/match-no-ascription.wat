@@ -11,7 +11,7 @@
 (:wat::test::deftest :wat-tests::core::match-no-ascription-option
   
   (:wat::test::assert-eq
-    (:wat::core::match (:wat::core::Some 5)
-      [:wat::core::Some {:value v} v]
-      [:wat::core::None {} 0])
+    (:wat::core::match (:wat::core::Option::Some {:value 5})
+      [:wat::core::Option::Some {:value v} v]
+      [:wat::core::Option::None {} 0])
     5))

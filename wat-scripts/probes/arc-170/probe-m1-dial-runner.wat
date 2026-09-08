@@ -47,9 +47,9 @@
                       (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
                       (:wat::bracket::PoolMsg :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) :wat::core::String]))
                     :user::bracket::work-fn
-                    :wat::core::None))))
+                    :wat::core::Option::None))))
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
-            [:wat::core::Some {:value p}
+            [:wat::core::Option::Some {:value p}
               (:wat::core::let
                 [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Setup {:deps eab})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
@@ -77,6 +77,6 @@
                       (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))]
                 (:wat::string::concat (:wat::core::second r1)
                   (:wat::string::concat " | " (:wat::core::second r2))))]
-            [:wat::core::None {}
+            [:wat::core::Option::None {}
               (:wat::kernel::assertion-failed! :message "peer-pid None")])]
     (:wat::kernel::println out)))

@@ -23,15 +23,15 @@
 
     [:wat::edn::ReadJsonOutcome::Value {:value top}
       (:wat::core::match (:wat::hashmap::get top "params")
-        [:wat::core::Some {:value params}
+        [:wat::core::Option::Some {:value params}
           (:wat::core::match (:wat::hashmap::get params "arguments")
-            [:wat::core::Some {:value args}
+            [:wat::core::Option::Some {:value args}
               (:wat::core::match (:wat::hashmap::get args "edn")
-                [:wat::core::Some {:value s}
+                [:wat::core::Option::Some {:value s}
                   (:wat::kernel::println (:wat::string::concat "WALKS -> " s))]
-                [:wat::core::None {} (:wat::kernel::println "MISS at edn")])]
-            [:wat::core::None {} (:wat::kernel::println "MISS at arguments")])]
-        [:wat::core::None {} (:wat::kernel::println "MISS at params")])]
+                [:wat::core::Option::None {} (:wat::kernel::println "MISS at edn")])]
+            [:wat::core::Option::None {} (:wat::kernel::println "MISS at arguments")])]
+        [:wat::core::Option::None {} (:wat::kernel::println "MISS at params")])]
 
     [:wat::edn::ReadJsonOutcome::Malformed {:cause cause}
       (:wat::kernel::println cause)]))

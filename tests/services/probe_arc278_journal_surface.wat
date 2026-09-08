@@ -15,22 +15,22 @@
    (query-metrics [s ctx req]
      (:wat::service::Outcome::Reply {:state s
        :reply (:wat::telemetry::Journal::QueryMetricsResponse::Success
-         {:metrics (:wat::core::Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::None})}))
+         {:metrics (:wat::core::Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::Option::None})}))
    (query-logs [s ctx req]
      (:wat::service::Outcome::Reply {:state s
        :reply (:wat::telemetry::Journal::QueryLogsResponse::Success
-         {:logs (:wat::core::Vector :- [:wat::telemetry::Log]) :cursor :wat::core::None})}))
+         {:logs (:wat::core::Vector :- [:wat::telemetry::Log]) :cursor :wat::core::Option::None})}))
    ;; arc 278 Stone 2 — sift-logs/sift-metrics widened the Journal surface; the toy must
    ;; implement every feature to satisfy it (mirrors the query-* stubs above; the sieve is
    ;; unused by this throwaway toy).
    (sift-metrics [s ctx req]
      (:wat::service::Outcome::Reply {:state s
        :reply (:wat::telemetry::Journal::SiftMetricsResponse::Success
-         {:metrics (:wat::core::Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::None})}))
+         {:metrics (:wat::core::Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::Option::None})}))
    (sift-logs [s ctx req]
      (:wat::service::Outcome::Reply {:state s
        :reply (:wat::telemetry::Journal::SiftLogsResponse::Success
-         {:logs (:wat::core::Vector :- [:wat::telemetry::Log]) :cursor :wat::core::None})}))])
+         {:logs (:wat::core::Vector :- [:wat::telemetry::Log]) :cursor :wat::core::Option::None})}))])
 
 ;; `:probe::run` — start the toy on a thread, dial it, call `write-metrics` with a 1-element
 ;; `Metric` batch, and return the raw response (the .rs asserts it is `WriteMetricsResponse::Success`).

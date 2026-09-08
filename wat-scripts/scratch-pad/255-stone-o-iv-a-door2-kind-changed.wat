@@ -9,6 +9,6 @@
   (:wat::core::match (:wat::eval-ast! (:wat::core::quote
                         (:wat::core::apply :wat::f64::max-of
                           (:wat::core::Vector :- [:wat::core::f64] 3.0 9.0 41.0))))
-    [:wat::core::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
-    [:wat::core::Err {:error e}
+    [:wat::core::Result::Ok {:value _} (:wat::kernel::println "UNEXPECTED: ok")]
+    [:wat::core::Result::Err {:error e}
       (:wat::kernel::println (:wat::string::concat "DOOR2 max-of kind=" (:wat::core::EvalError/kind e)))]))

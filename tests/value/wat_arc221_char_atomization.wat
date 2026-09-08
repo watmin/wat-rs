@@ -32,7 +32,7 @@
      tally2  (:wat::hashmap::assoc tally \a 3)
      tally3  (:wat::hashmap::assoc tally2 \b 7)]
     (:wat::core::match (:wat::hashmap::get tally3 \a) 
-      [:wat::core::Some {:value v} v]
+      [:wat::core::Option::Some {:value v} v]
       [_ -1])))
 
 (:wat::core::defn :t::p2-b-val [] -> :wat::core::i64
@@ -41,7 +41,7 @@
      tally2  (:wat::hashmap::assoc tally \a 3)
      tally3  (:wat::hashmap::assoc tally2 \b 7)]
     (:wat::core::match (:wat::hashmap::get tally3 \b) 
-      [:wat::core::Some {:value v} v]
+      [:wat::core::Option::Some {:value v} v]
       [_ -1])))
 
 (:wat::core::defn :t::p2-len [] -> :wat::core::i64

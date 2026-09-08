@@ -62,12 +62,12 @@
    table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
   -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:wat::core::empty? table)
-    :wat::core::None
+    :wat::core::Option::None
     (:wat::core::let [pair (:wat::core::first table)
                       old  (:wat::core::first pair)
                       new  (:wat::core::second pair)]
       (:wat::core::if (:wat::core::= name old)
-        (:wat::core::Some new)
+        (:wat::core::Option::Some {:value new})
         (:user::rename-lookup name (:wat::core::rest table))))))
 
 ;; ── inside a defrule: the table is LIVE ───────────────────────────────────────────────────────
@@ -80,12 +80,12 @@
     (:user::inside-rule-edits-walk (:wat::core::ast->children node) table lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
       (:wat::core::match (:user::rename-lookup (:wat::core::ast-name node) table)
-        [:wat::core::Some {:value new}
+        [:wat::core::Option::Some {:value new}
           (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                             old-len (:wat::core::ast-name node)]
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
               (:wat::core::Tuple off old-len new)))]
-        [:wat::core::None {}
+        [:wat::core::Option::None {}
           (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])])
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
 

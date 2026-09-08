@@ -27,7 +27,6 @@ use crate::value::{
     EvalBreak, EvalSignal, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
     ValueSnapshot,
 };
-use std::sync::Arc;
 
 /// `(Some <expr>)` — tagged constructor of the built-in `(:Option :- [T])`
 /// enum (058-030). Reserved bare identifier; users cannot shadow it.
@@ -45,19 +44,15 @@ pub(crate) fn eval_some_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: "Some".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::Option(Arc::new(Some(v))))
+    let _ = (args, env, sym);
+    Err(RuntimeError::new(
+        list_span.clone(),
+        RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::Some".into(),
+            reason: crate::match_arm::bare_variant_retired_reason(":wat::core::Some"),
+        },
+    )
+    .into())
 }
 
 /// `(:wat::core::Option/try <option-expr>)` — Arc 109 slice 1j. The

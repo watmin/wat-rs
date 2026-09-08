@@ -26,8 +26,8 @@
 (:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::String
   (:wat::core::match r
-    [:wat::core::Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
-    [:wat::core::Err {:error e} (:wat::string::concat "err:" (:wat::core::EvalError/message e))]))
+    [:wat::core::Result::Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
+    [:wat::core::Result::Err {:error e} (:wat::string::concat "err:" (:wat::core::EvalError/message e))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

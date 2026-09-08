@@ -24,7 +24,7 @@
   (:wat::core::let [m (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]
                                  :foo 42 :bar 99)]
     (:wat::core::match (:wat::hashmap::get m :foo) 
-      [:wat::core::Some {:value v} v]
+      [:wat::core::Option::Some {:value v} v]
       [_ -1])))
 
 ;; Probe 2b: get miss → key :missing not present
@@ -46,7 +46,7 @@
                                  :foo 1)]
     (:wat::core::let [m2 (:wat::hashmap::assoc m :foo 999)]
       (:wat::core::match (:wat::hashmap::get m2 :foo) 
-        [:wat::core::Some {:value v} v]
+        [:wat::core::Option::Some {:value v} v]
         [_ -1]))))
 
 ;; Probe 3c: assoc does not mutate original → original :foo = 1
@@ -55,7 +55,7 @@
                                  :foo 1)]
     (:wat::core::let [_m2 (:wat::hashmap::assoc m :foo 999)]
       (:wat::core::match (:wat::hashmap::get m :foo) 
-        [:wat::core::Some {:value v} v]
+        [:wat::core::Option::Some {:value v} v]
         [_ -1]))))
 
 ;; Probe 4a: dissoc removes key → length 2
@@ -85,7 +85,7 @@
     (:wat::core::let [ks (:wat::hashmap::keys m)]
       (:wat::core::let [first-key (:wat::core::match
                                      (:wat::vec::get ks 0) 
-                                     [:wat::core::Some {:value k} k]
+                                     [:wat::core::Option::Some {:value k} k]
                                      [_ :missing])]
         (:wat::hashmap::contains-key? m first-key)))))
 
@@ -142,9 +142,9 @@
     [inner (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64] :x 42)
      outer (:wat::core::HashMap :- [:wat::core::keyword :wat::type::Infer] :inner inner)]
     (:wat::core::match (:wat::hashmap::get outer :inner) 
-      [:wat::core::Some {:value inner2}
+      [:wat::core::Option::Some {:value inner2}
         (:wat::core::match (:wat::hashmap::get inner2 :x) 
-          [:wat::core::Some {:value v} v]
+          [:wat::core::Option::Some {:value v} v]
           [_ -2])]
       [_ -1])))
 

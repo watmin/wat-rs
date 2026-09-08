@@ -47,8 +47,8 @@
 (:wat::core::defn :wat::query::sk-after-cursor?
   [sk <- :wat::core::String cursor <- (:wat::core::Option :- [:wat::core::String])] -> :wat::core::bool
   (:wat::core::match cursor 
-    [:wat::core::None {} true]
-    [:wat::core::Some {:value c} (:wat::core::> sk c)]))
+    [:wat::core::Option::None {} true]
+    [:wat::core::Option::Some {:value c} (:wat::core::> sk c)]))
 
 (:wat::core::defn :wat::query::row-in-range?
   [row <- :wat::query::StoredRow pk <- :wat::core::String lo <- :wat::core::String
@@ -137,8 +137,8 @@
         limited  (:wat::core::into [] (:wat::core::take sorted lim))
         full?    (:wat::core::= (:wat::core::count limited) lim)
         next-cur (:wat::core::if full?
-                   (:wat::core::Some {:value (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last limited) "scan: limited non-empty when full"))})
-                   :wat::core::None)]
+                   (:wat::core::Option::Some {:value (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last limited) "scan: limited non-empty when full"))})
+                   :wat::core::Option::None)]
        (:wat::service::Outcome::Reply {:state s :reply (:wat::query::Store::ScanResponse::Success {:rows limited :cursor next-cur})})))
 
    (scan-index [s ctx req]
@@ -153,8 +153,8 @@
                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::IndexRow]) r <- :wat::query::StoredRow]
                     -> (:wat::core::Vector :- [:wat::query::IndexRow])
                     (:wat::core::match (:wat::query::row-index-key r index) 
-                      [:wat::core::None {} acc]
-                      [:wat::core::Some {:value ik}
+                      [:wat::core::Option::None {} acc]
+                      [:wat::core::Option::Some {:value ik}
                         (:wat::core::if (:wat::query::index-key-in-range? ik ipk lo hi cur)
                           (:wat::core::conj acc (:wat::query::StoredRow->IndexRow r ik))
                           acc)]))
@@ -164,6 +164,6 @@
         limited  (:wat::core::into [] (:wat::core::take sorted lim))
         full?    (:wat::core::= (:wat::core::count limited) lim)
         next-cur (:wat::core::if full?
-                   (:wat::core::Some {:value (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full"))})
-                   :wat::core::None)]
+                   (:wat::core::Option::Some {:value (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full"))})
+                   :wat::core::Option::None)]
        (:wat::service::Outcome::Reply {:state s :reply (:wat::query::Store::ScanIndexResponse::Success {:rows limited :cursor next-cur})})))])

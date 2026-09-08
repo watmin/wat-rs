@@ -68,7 +68,7 @@
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
          ;; the literal into unquoted keyword syntax. See `rename-core-numerics-to-their-
          ;; homes.wat`'s header for the fuller argument; the same trap applies here verbatim.
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::i64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-i64-to-rete-i64"
@@ -86,7 +86,7 @@
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::rete-i64's comment.
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::f64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-f64-to-rete-f64"

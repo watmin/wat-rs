@@ -32,6 +32,6 @@
          [:wat::kernel::SendOutcome::Stopped {} nil]
          [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
     (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Ok {:value outputs} outputs]
-      [:wat::core::Err {:error cause}
+      [:wat::core::Result::Ok {:value outputs} outputs]
+      [:wat::core::Result::Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))

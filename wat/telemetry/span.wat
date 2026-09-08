@@ -47,8 +47,8 @@
         rec  (:wat::telemetry::span::State/durable s)
         cs   (:wat::telemetry::span::Record/counters rec)
         next (:wat::core::match (:wat::hashmap::get cs name) 
-               [:wat::core::None {} 1]
-               [:wat::core::Some {:value v} (:wat::core::+ v 1)])
+               [:wat::core::Option::None {} 1]
+               [:wat::core::Option::Some {:value v} (:wat::core::+ v 1)])
         rec' (:wat::telemetry::span::Record
                :namespace (:wat::telemetry::span::Record/namespace rec)
                :uuid (:wat::telemetry::span::Record/uuid rec)
@@ -68,8 +68,8 @@
         rec   (:wat::telemetry::span::State/durable s)
         ds    (:wat::telemetry::span::Record/durations rec)
         samples (:wat::core::match (:wat::hashmap::get ds name) 
-                  [:wat::core::None {} (:wat::core::Vector :- [:wat::core::i64])]
-                  [:wat::core::Some {:value v} v])
+                  [:wat::core::Option::None {} (:wat::core::Vector :- [:wat::core::i64])]
+                  [:wat::core::Option::Some {:value v} v])
         rec'  (:wat::telemetry::span::Record
                 :namespace (:wat::telemetry::span::Record/namespace rec)
                 :uuid (:wat::telemetry::span::Record/uuid rec)

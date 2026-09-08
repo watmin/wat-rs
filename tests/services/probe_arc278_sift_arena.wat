@@ -131,7 +131,7 @@
        [journal    (:cons::consumer::State/journal s)
         ns         (:cons::Consumer::SiftRequest/namespace req)
         page-idxs  (:wat::core::range 0 8)
-        initial    (:cons::Consumer::PageState :done false :cur :wat::core::None :acc 0 :fault :wat::core::None)
+        initial    (:cons::Consumer::PageState :done false :cur :wat::core::Option::None :acc 0 :fault :wat::core::Option::None)
         ;; the cursor-loop: pages `Journal/sift-logs` (small :limit) accumulating survivor count
         ;; until `next-cur` is None (:done true) — remaining iterations then no-op. The sieve is a
         ;; class-guarded FOREIGN predicate — `ForeignRecord/class` checked BEFORE
@@ -163,8 +163,8 @@
                                           (:wat::core::if
                                             (:wat::rete::string::= (:wat::edn::ForeignRecord/class fr) "prod::Alert")
                                             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-                                              [:wat::core::Some {:value s} (:wat::core::= s "high")]
-                                              [:wat::core::None {} false])
+                                              [:wat::core::Option::Some {:value s} (:wat::core::= s "high")]
+                                              [:wat::core::Option::None {} false])
                                             false)]
                                         [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))
                             sr    (:wat::telemetry::Journal/sift-logs journal
@@ -177,26 +177,26 @@
                                  [new-acc (:wat::core::+ (:cons::Consumer::PageState/acc state)
                                             (:wat::core::count logs))]
                                  (:wat::core::match next-cur
-                                   [:wat::core::None {}
-                                     (:cons::Consumer::PageState :done true :cur :wat::core::None :acc new-acc :fault :wat::core::None)]
-                                   [:wat::core::Some {:value c}
-                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Some {:value c}) :acc new-acc :fault :wat::core::None)]))]
+                                   [:wat::core::Option::None {}
+                                     (:cons::Consumer::PageState :done true :cur :wat::core::Option::None :acc new-acc :fault :wat::core::Option::None)]
+                                   [:wat::core::Option::Some {:value c}
+                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Option::Some {:value c}) :acc new-acc :fault :wat::core::Option::None)]))]
                              [:wat::telemetry::Journal::SiftLogsResponse::Fatal {:err err}
                                ;; the fence's refusal — sift's own rejection, not a wire-breach.
                                ;; Captured, not swallowed: `err`'s `reason` is the concrete
                                ;; `:wat::query::Fault` the sift-logs implementation constructs,
                                ;; and `Fault/message` reads its text straight off it.
-                               (:cons::Consumer::PageState :done true :cur :wat::core::None
+                               (:cons::Consumer::PageState :done true :cur :wat::core::Option::None
                                  :acc (:cons::Consumer::PageState/acc state)
-                                 :fault (:wat::core::Some
+                                 :fault (:wat::core::Option::Some
                                           {:value (:wat::query::Fault/message (:wat::query::Fatal/reason err))}))]
-                             [_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1 :fault :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
+                             [_ (:cons::Consumer::PageState :done true :cur :wat::core::Option::None :acc -1 :fault :wat::core::Option::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
                      initial
                      page-idxs)]
        (:wat::service::Outcome::Reply {:state s
          :reply (:wat::core::match (:cons::Consumer::PageState/fault final)
-           [:wat::core::Some {:value message} (:cons::Consumer::SiftResponse::Refused {:message message})]
-           [:wat::core::None {} (:cons::Consumer::SiftResponse::Count {:n (:cons::Consumer::PageState/acc final)})])})))])
+           [:wat::core::Option::Some {:value message} (:cons::Consumer::SiftResponse::Refused {:message message})]
+           [:wat::core::Option::None {} (:cons::Consumer::SiftResponse::Count {:n (:cons::Consumer::PageState/acc final)})])})))])
 
 ;; ── the orchestrator (the circuit builder): mem-store' + journal' + producer' + consumer', all
 ;; PROCESS-tier, grant-before-dial at every hop. flood (block), then sift (block); return the

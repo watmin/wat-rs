@@ -13,7 +13,7 @@
 
 (:wat::rete::defrule :cg::gather
   :when [(:cg::Anchor (?x <- :x))]
-  :then [(:cg::Wrap :s (:cg::Status::Active 7))])
+  :then [(:cg::Wrap :s (:cg::Status::Active {:level 7}))])
 
 (:wat::rete::defquery :cg::q-Wrap
   :params []

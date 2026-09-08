@@ -164,7 +164,7 @@
     (:wat::core::let [pch (:wat::core::ast->children params)
                       pn  (:wat::core::length pch)]
       (:wat::core::if (:wat::core::not (:wat::core::= pn 3))
-        :wat::core::None
+        :wat::core::Option::None
         (:wat::core::let [last3 0
                           a (:wat::core::Option/expect (:wat::core::get pch last3) "rec-name a")
                           b (:wat::core::Option/expect (:wat::core::get pch (:wat::i64::+ last3 1)) "rec-name b")
@@ -175,9 +175,9 @@
                 (:user::user-type-kw? c)
                 false)
               false)
-            (:wat::core::Some (:wat::core::ast-name a))
-            :wat::core::None))))
-    :wat::core::None))
+            (:wat::core::Option::Some {:value (:wat::core::ast-name a)})
+            :wat::core::Option::None))))
+    :wat::core::Option::None))
 
 (:wat::core::defn :user::rewrite-fn-text
   [fn-node <- :wat::WatAST
@@ -243,12 +243,12 @@
                                        (:wat::core::get (:wat::core::ast->children fn-node) 1)
                                        "hof-fn-edits: params")]
               (:wat::core::match (:user::record-item-name params)
-                [:wat::core::Some {:value nm}
+                [:wat::core::Option::Some {:value nm}
                  (:wat::core::Vector :- [:wat::fix::Edit]
                    (:user::span-edit fn-node
                      (:user::rewrite-fn-text fn-node src lines nm)
                      src lines))]
-                [:wat::core::None {} (:wat::core::Vector :- [:wat::fix::Edit])]))
+                [:wat::core::Option::None {} (:wat::core::Vector :- [:wat::fix::Edit])]))
             (:wat::core::Vector :- [:wat::fix::Edit])))))
     (:wat::core::Vector :- [:wat::fix::Edit])))
 

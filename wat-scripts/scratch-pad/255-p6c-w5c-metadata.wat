@@ -10,14 +10,14 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::lower)
-      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::lower :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::None {} (:wat::kernel::println "rete::lower :arity= NONE")])
+      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::lower :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option::None {} (:wat::kernel::println "rete::lower :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::collect-rules)
-      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::collect-rules :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::None {} (:wat::kernel::println "rete::collect-rules :arity= NONE")])
+      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::collect-rules :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option::None {} (:wat::kernel::println "rete::collect-rules :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::step-payload)
-      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::step-payload :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::None {} (:wat::kernel::println "rete::step-payload :arity= NONE")])
+      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::step-payload :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option::None {} (:wat::kernel::println "rete::step-payload :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::rete::axis-violation)
-      [:wat::core::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::axis-violation :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::None {} (:wat::kernel::println "rete::axis-violation :arity= NONE")])))
+      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "rete::axis-violation :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option::None {} (:wat::kernel::println "rete::axis-violation :arity= NONE")])))

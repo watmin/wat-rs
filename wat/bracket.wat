@@ -128,7 +128,7 @@
           ;; deliberate follow-up if ever wanted, not this wall).
           (:wat::bracket::process-dial-runner self work-fn
             (:wat::core::match (:wat::kernel::connect deps)
-              [:wat::kernel::ConnectOutcome::Connected {:peer p} (:wat::core::Some {:value p})]
+              [:wat::kernel::ConnectOutcome::Connected {:peer p} (:wat::core::Option::Some {:value p})]
               [:wat::kernel::ConnectOutcome::Refused {:cause c}
                 (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
               [:wat::kernel::ConnectOutcome::Rejected {:cause c}
@@ -203,7 +203,7 @@
         (:wat::core::match m
           [:wat::bracket::PoolMsg::Setup {:deps deps}
             (:wat::bracket::thread-kwargs-runner self work-fn
-              (:wat::core::Some
+              (:wat::core::Option::Some
                 {:value (:wat::core::apply assemble-kw deps (:wat::core::Vector :- [:wat::core::nil]))}))]
           [:wat::bracket::PoolMsg::Work {:pair pair}
             (:wat::core::let
@@ -224,7 +224,7 @@
 (:wat::core::defclause :wat::bracket::thread-enter
   ([self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
     work-fn <- :wat::core::keyword] -> :wat::core::nil
-   (:wat::bracket::thread-kwargs-runner self work-fn :wat::core::None))
+   (:wat::bracket::thread-kwargs-runner self work-fn :wat::core::Option::None))
   ([self    <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 O]) (:wat::bracket::PoolMsg :- [D I])])
     work-fn <- :W] -> :wat::core::nil
    (:wat::bracket::runner-loop self
@@ -482,7 +482,7 @@
               (:wat::core::match m  
                 [:wat::bracket::PoolMsg::Setup {:deps deps}
                   (:user::bracket::dial-runner self
-                    (:wat::core::Some {:value (~kwargs-prime-kw ~@kwargs-ctor-args)}))]
+                    (:wat::core::Option::Some {:value (~kwargs-prime-kw ~@kwargs-ctor-args)}))]
                 [:wat::bracket::PoolMsg::Work {:pair pair}
                   (:wat::core::let
                     [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
@@ -506,7 +506,7 @@
        `(:wat::core::defn :user::main [] -> :wat::core::nil
           (:user::bracket::dial-runner
             (:wat::program::self-peer ~sp-out ~sp-in)
-            :wat::core::None))]
+            :wat::core::Option::None))]
       (:wat::core::concat forms (:wat::core::Vector :- [:wat::WatAST] runner-def main-def))))
   ;; ── existing Fn branch (arc 170 M1-pool, arity 3/6 dispatch) — UNCHANGED logic,
   ;; only the tail (spawn-program' call -> plain forms-vector return) is refactored so
@@ -546,7 +546,7 @@
               (:wat::bracket::process-dial-runner
                 (:wat::program::self-peer ~sp-out ~sp-in)
                 :user::bracket::work-fn
-                :wat::core::None)))
+                :wat::core::Option::None)))
          ;; NON-DIAL: recv (PoolMsg :- [Address I]) (D phantom — no Setup ever sent).
          (:wat::core::let
            [sp-in `(:wat::bracket::PoolMsg :- [:wat::kernel::Address ~arg-ty])]
@@ -718,8 +718,8 @@
                   ;; lands before the worker's work-fn dials. A thread peer (peer-pid → None)
                   ;; skips: the in-process handle IS the capability.
                   _ (:wat::core::match (:wat::kernel::peer-pid p)  
-                      [:wat::core::Some {:value pid} (grant-fn grant-handles pid)]
-                      [:wat::core::None {} nil])
+                      [:wat::core::Option::Some {:value pid} (grant-fn grant-handles pid)]
+                      [:wat::core::Option::None {} nil])
                   ;; SETUP-DIAL: fold over 0-or-1 carriers — empty (plain) sends NO Setup at
                   ;; all; one element (kwargs) sends exactly ONE `PoolMsg::Setup carrier`. Runs
                   ;; AFTER grant-boot (grant-then-dial) and BEFORE the first Work item so the
@@ -758,8 +758,8 @@
                                 p    <- (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])]
                  -> :wat::core::nil
                  (:wat::core::match (:wat::kernel::peer-pid p)  
-                   [:wat::core::Some {:value pid} (revoke-fn grant-handles pid)]
-                   [:wat::core::None {} nil]))
+                   [:wat::core::Option::Some {:value pid} (revoke-fn grant-handles pid)]
+                   [:wat::core::Option::None {} nil]))
                nil
                peers)
      sorted (:wat::core::sort-by

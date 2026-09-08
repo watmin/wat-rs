@@ -8,11 +8,11 @@
 
 (:wat::core::defn :my::compute-some [] -> :wat::core::i64
   (:wat::core::match (:rust::test::MathUtils::maybe_double 21) 
-    [:wat::core::Some {:value v} v]
-    [:wat::core::None {} -1]))
+    [:wat::core::Option::Some {:value v} v]
+    [:wat::core::Option::None {} -1]))
 
 (:wat::core::defn :my::compute-none [] -> :wat::core::i64
   (:wat::core::match (:rust::test::MathUtils::maybe_double 0) 
-    [:wat::core::Some {:value v} v]
-    [:wat::core::None {} -1]))
+    [:wat::core::Option::Some {:value v} v]
+    [:wat::core::Option::None {} -1]))
 

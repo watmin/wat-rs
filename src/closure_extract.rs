@@ -2183,21 +2183,39 @@ fn encode_value_with_path(
                 let encoded = encode_value_with_path(inner, binding_name, path, state)?;
                 Ok(WatAST::List(
                     vec![
-                        WatAST::Keyword(":wat::core::Some".into(), span.clone()),
-                        encoded,
+                        WatAST::Keyword(":wat::core::Option::Some".into(), span.clone()),
+                        WatAST::Map(
+                            vec![(
+                                WatAST::Keyword(":value".into(), span.clone()),
+                                encoded,
+                            )],
+                            span.clone(),
+                        ),
                     ],
                     span,
                 ))
             }
-            None => Ok(WatAST::Keyword(":wat::core::None".into(), span)),
+            None => Ok(WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::Option::None".into(), span.clone()),
+                    WatAST::Map(vec![], span.clone()),
+                ],
+                span,
+            )),
         },
         Value::Result(res) => match &**res {
             Ok(inner) => {
                 let encoded = encode_value_with_path(inner, binding_name, path, state)?;
                 Ok(WatAST::List(
                     vec![
-                        WatAST::Keyword(":wat::core::Ok".into(), span.clone()),
-                        encoded,
+                        WatAST::Keyword(":wat::core::Result::Ok".into(), span.clone()),
+                        WatAST::Map(
+                            vec![(
+                                WatAST::Keyword(":value".into(), span.clone()),
+                                encoded,
+                            )],
+                            span.clone(),
+                        ),
                     ],
                     span,
                 ))
@@ -2206,8 +2224,14 @@ fn encode_value_with_path(
                 let encoded = encode_value_with_path(inner, binding_name, path, state)?;
                 Ok(WatAST::List(
                     vec![
-                        WatAST::Keyword(":wat::core::Err".into(), span.clone()),
-                        encoded,
+                        WatAST::Keyword(":wat::core::Result::Err".into(), span.clone()),
+                        WatAST::Map(
+                            vec![(
+                                WatAST::Keyword(":error".into(), span.clone()),
+                                encoded,
+                            )],
+                            span.clone(),
+                        ),
                     ],
                     span,
                 ))

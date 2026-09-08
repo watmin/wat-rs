@@ -15,11 +15,11 @@
 
 (:wat::core::defn :b0::alias? [r <- :wat::intrinsic::Row] -> :wat::core::bool
   (:wat::core::match (:wat::intrinsic::Row/alias-of r)
-    [:wat::core::Some {:value _} true] [:wat::core::None {} false]))
+    [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]))
 
 (:wat::core::defn :b0::target [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::core::match (:wat::intrinsic::Row/alias-of r)
-    [:wat::core::Some {:value t} t] [:wat::core::None {} ""]))
+    [:wat::core::Option::Some {:value t} t] [:wat::core::Option::None {} ""]))
 
 (:wat::core::defn :b0::render [r <- :wat::intrinsic::Row] -> :wat::core::String
   (:wat::string::concat

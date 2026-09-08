@@ -1673,13 +1673,13 @@
                                                 ;; identical-arms discard the stone forbids, at every service
                                                 ;; this macro will ever generate.
                                                 [:wat::service::Outcome::Reply {:state new-state :reply resp}
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
+                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
                                                     [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id new-state)]
                                                     [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id new-state)]   ;; client gone → keep serving
                                                     [:wat::kernel::SendOutcome::Stopped {} nil]                                          ;; the WORLD is stopping → return, do not recurse
                                                     [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id new-state)])]
                                                 [:wat::service::Outcome::Stop {:state final-state :reply resp}
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
+                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
                                                     [:wat::kernel::SendOutcome::Sent {}   nil]
                                                     [:wat::kernel::SendOutcome::Closed {} nil]   ;; client gone → still stopping
                                                     ;; uniform here and the precondition is the whole reason:
@@ -1690,7 +1690,7 @@
                                                 [:wat::service::Outcome::NoReply {:state new-state}
                                                   (~serve-name self l selectables next-id new-state)]
                                                 [:wat::service::Outcome::ReplyAndArm {:state new-state :reply resp :arms arms}
-                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw resp))
+                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
                                                     [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]
                                                     [:wat::kernel::SendOutcome::Closed {} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]   ;; client gone → keep serving
                                                     ;; the world is stopping → return WITHOUT arming: arming a
@@ -1777,7 +1777,7 @@
                                                  ;; together), so it builds off the identical
                                                  ;; guaranteed-correct literal ctor.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
-                                                     (~reply-variant-kw (~rm-ctor-kw {:path ~mpath-sym :expected ~mexp-sym :got ~mgot-sym})))
+                                                     (~reply-variant-kw {:resp (~rm-ctor-kw {:path ~mpath-sym :expected ~mexp-sym :got ~mgot-sym})}))
                                                    [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
                                                    [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
                                                    [:wat::kernel::SendOutcome::Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
@@ -1788,7 +1788,7 @@
                                                  ;; arc 278 the send'-outcome wall — a gone client here is
                                                  ;; not fatal either; every arm keeps serving the rest.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
-                                                     (~reply-variant-kw (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})))
+                                                     (~reply-variant-kw {:resp (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})}))
                                                    [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
                                                    [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
                                                    [:wat::kernel::SendOutcome::Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
@@ -1843,13 +1843,13 @@
                          ;; method's own recv') faces a gone-owner outcome on its side; this
                          ;; send' terminates the loop regardless (all arms → nil).
                          [~admin-stop-kw {}
-                           (:wat::core::match (:wat::kernel::send self (~status-stopped-kw (~stop-project-name state)))
+                           (:wat::core::match (:wat::kernel::send self (~status-stopped-kw {:resp (~stop-project-name state)}))
                              [:wat::kernel::SendOutcome::Sent {}   nil]
                              [:wat::kernel::SendOutcome::Closed {} nil]   ;; owner's recv' already faces this
                              [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
                              [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
                          [~admin-hibernate-kw {}
-                           (:wat::core::match (:wat::kernel::send self (~status-hibernated-kw (~hibernate-project-name state)))
+                           (:wat::core::match (:wat::kernel::send self (~status-hibernated-kw {:snapshot (~hibernate-project-name state)}))
                              [:wat::kernel::SendOutcome::Sent {}   nil]
                              [:wat::kernel::SendOutcome::Closed {} nil]   ;; owner's recv' already faces this
                              [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
@@ -1938,7 +1938,7 @@
                      [:wat::spawn::ServiceEvent::Malformed {:idx idx :cause cause}
                        ;; arc 278 the send'-outcome wall — a gone client here is not fatal
                        ;; either (same "reply to a gone client" doctrine); keep serving.
-                       (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
+                       (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw {:cause cause}))
                          [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
                          [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
                          [:wat::kernel::SendOutcome::Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
@@ -1957,7 +1957,7 @@
                      ;; panic — a client-triggerable crash / DoS).
                      [:wat::spawn::ServiceEvent::Rejected {:idx idx :cause cause}
                        (:wat::core::do
-                         (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
+                         (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw {:cause cause}))
                            [:wat::kernel::TrySendOutcome::Sent {}       nil]
                            [:wat::kernel::TrySendOutcome::WouldBlock {} nil]   ;; client not draining — evict anyway (it learns via EPIPE)
                            [:wat::kernel::TrySendOutcome::Closed {}     nil]
@@ -2077,7 +2077,7 @@
                           ;; proceed regardless (faced, not `_`-swallowed). UNDER budget (or no wire
                           ;; to measure against — STOP-3) reaches this form, and ONLY this form.
                           send-recv-form  `(:wat::core::let
-                                             [~discard-sym (:wat::core::match (:wat::kernel::send c (~op-variant-kw req))
+                                             [~discard-sym (:wat::core::match (:wat::kernel::send c (~op-variant-kw {:req req}))
                                                              [:wat::kernel::SendOutcome::Sent {}   nil]
                                                              [:wat::kernel::SendOutcome::Closed {} nil]
                                                              ;; arc 278 #73 — uniform, and the precondition is
@@ -2237,11 +2237,11 @@
      ;; `peer-process` on the lineage handle (same un-erase stop/signal use).
      ;; Thread is shared memory: the handle IS the grant — no Admin::AllowPeer.
      grant-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
-                          [:wat::core::Some {:value _}
+                          [:wat::core::Option::Some {:value _}
                             (:wat::core::let
                           ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                           ;; below faces Lost/Closed; the send' just proceeds regardless.
-                          [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw pids))
+                          [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw {:pids pids}))
                                                 [:wat::kernel::SendOutcome::Sent {}   nil]
                                                 [:wat::kernel::SendOutcome::Closed {} nil]
                                                 [:wat::kernel::SendOutcome::Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
@@ -2258,7 +2258,7 @@
                               (:wat::kernel::assertion-failed! :message "defservice grant: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                             [:wat::kernel::RecvOutcome::Closed {}
                               (:wat::kernel::assertion-failed! :message "defservice grant: service peer closed during grant")]))]
-                          [:wat::core::None {} nil])
+                          [:wat::core::Option::None {} nil])
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
      methods           (:wat::core::conj methods grant-method)
@@ -2280,11 +2280,11 @@
      ;; Twin of grant: process-only via `peer-process`. Shared-memory lineage
      ;; has no pid set to revoke.
      revoke-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
-                           [:wat::core::Some {:value _}
+                           [:wat::core::Option::Some {:value _}
                              (:wat::core::let
                            ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                            ;; below faces Lost/Closed; the send' just proceeds regardless.
-                           [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw pids))
+                           [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw {:pids pids}))
                                                   [:wat::kernel::SendOutcome::Sent {}   nil]
                                                   [:wat::kernel::SendOutcome::Closed {} nil]
                                                   [:wat::kernel::SendOutcome::Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
@@ -2301,7 +2301,7 @@
                                (:wat::kernel::assertion-failed! :message "defservice revoke: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
                              [:wat::kernel::RecvOutcome::Closed {}
                                (:wat::kernel::assertion-failed! :message "defservice revoke: service peer closed during revoke")]))]
-                           [:wat::core::None {} nil])
+                           [:wat::core::Option::None {} nil])
      revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
      methods           (:wat::core::conj methods revoke-method)
@@ -2428,7 +2428,7 @@
                            ;; (spawn.wat ProcessOpts) faces a gone-owner outcome on its side; this
                            ;; send' proceeds into serve regardless (faced, not `_`-swallowed).
                            ~cm-und-sym  (:wat::core::match (:wat::kernel::send ~cm-self-sym
-                                            (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
+                                            (~status-started-kw {:addr (:wat::spawn::Bound/address ~cm-b-sym)}))
                                           [:wat::kernel::SendOutcome::Sent {}   nil]
                                           [:wat::kernel::SendOutcome::Closed {} nil]
                                           ;; arc 278 #73 — a stop arrived as the child announced
@@ -2580,7 +2580,7 @@
                                      :name (:wat::keyword::from-string ~fqdn-base)
                                      :file (:wat::kernel::Frame/file ~origin-sym)
                                      :line (:wat::kernel::Frame/line ~origin-sym)))
-                                 (~admin-init-kw ~@init-arg-names)
+                                 (~admin-init-kw ~init-arg-map-ast)
                                  (:wat::keyword::from-string ~dispatch-admin-name-str)
                                  (:wat::keyword::from-string ~serve-name-str)
                                  (~service-forms-kw)
@@ -2597,7 +2597,7 @@
                                          :name (:wat::keyword::from-string ~fqdn-base)
                                          :file (:wat::kernel::Frame/file ~origin-sym)
                                          :line (:wat::kernel::Frame/line ~origin-sym)))
-                                     (~admin-init-kw ~@init-arg-names)
+                                     (~admin-init-kw ~init-arg-map-ast)
                                      (:wat::keyword::from-string ~dispatch-admin-name-str)
                                      (:wat::keyword::from-string ~serve-name-str)
                                      (~service-forms-kw)
@@ -2612,7 +2612,7 @@
                                           :name (:wat::keyword::from-string ~fqdn-base)
                                           :file (:wat::kernel::Frame/file ~origin-sym)
                                           :line (:wat::kernel::Frame/line ~origin-sym)))
-                                      (~admin-init-kw ~@init-arg-names)
+                                      (~admin-init-kw ~init-arg-map-ast)
                                       (:wat::keyword::from-string ~dispatch-admin-name-str)
                                       (:wat::keyword::from-string ~serve-name-str)
                                       (~service-forms-kw)
@@ -2705,7 +2705,7 @@
                                       :name (:wat::keyword::from-string ~fqdn-base)
                                       :file (:wat::kernel::Frame/file ~origin-sym)
                                       :line (:wat::kernel::Frame/line ~origin-sym)))
-                                  (~admin-resume-kw ~@init-arg-names)
+                                  (~admin-resume-kw ~init-arg-map-ast)
                                   (:wat::keyword::from-string ~dispatch-admin-name-str)
                                   (:wat::keyword::from-string ~serve-name-str)
                                   (~service-forms-kw)
@@ -2721,7 +2721,7 @@
                                           :name (:wat::keyword::from-string ~fqdn-base)
                                           :file (:wat::kernel::Frame/file ~origin-sym)
                                           :line (:wat::kernel::Frame/line ~origin-sym)))
-                                      (~admin-resume-kw ~@init-arg-names)
+                                      (~admin-resume-kw ~init-arg-map-ast)
                                       (:wat::keyword::from-string ~dispatch-admin-name-str)
                                       (:wat::keyword::from-string ~serve-name-str)
                                       (~service-forms-kw)
@@ -2736,7 +2736,7 @@
                                            :name (:wat::keyword::from-string ~fqdn-base)
                                            :file (:wat::kernel::Frame/file ~origin-sym)
                                            :line (:wat::kernel::Frame/line ~origin-sym)))
-                                       (~admin-resume-kw ~@init-arg-names)
+                                       (~admin-resume-kw ~init-arg-map-ast)
                                        (:wat::keyword::from-string ~dispatch-admin-name-str)
                                        (:wat::keyword::from-string ~serve-name-str)
                                        (~service-forms-kw)

@@ -58,7 +58,7 @@
          ;; corrupt the literal into unquoted keyword syntax. The char-walk this replaces
          ;; guaranteed the same exclusion structurally ("rewrites for every keyword LEAF");
          ;; a fact-based finder must say so explicitly, because `Named` alone does not.
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::string::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-string-to-string"
@@ -77,7 +77,7 @@
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-string's comment; the same corpus file's Tuple
          ;; carries a rete-prefixed string literal too (`rete-where-per-type-spelling.wat:108`).
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::string::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-string-to-string"

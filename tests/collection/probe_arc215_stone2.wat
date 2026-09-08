@@ -10,8 +10,8 @@
   (:wat::core::match
     (:wat::vec::get [1 2 3] 0)
     
-    [:wat::core::Some {:value v} v]
-    [:wat::core::None {} -1]))
+    [:wat::core::Option::Some {:value v} v]
+    [:wat::core::Option::None {} -1]))
 
 ;; probe 2: [1.5 2.5] length 2 (f64)
 (:wat::core::defn :t::p2-float-vec-len [] -> :wat::core::i64

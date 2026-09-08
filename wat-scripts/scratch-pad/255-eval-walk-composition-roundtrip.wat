@@ -41,14 +41,14 @@
                (:wat::holon::leaf "v")))]
     (:wat::core::match
       (:wat::eval::walk source 0 :my::test::count-visit)
-      [:wat::core::Ok {:value pair}
+      [:wat::core::Result::Ok {:value pair}
         (:wat::core::let
           [before-src (:wat::core::ast->source source)
            after-src (:wat::core::ast->source (:wat::core::first pair))
            acc (:wat::core::second pair)]
           (:wat::kernel::println
             (:wat::core::Tuple acc before-src after-src (:wat::core::= after-src "(\"k\" \"v\")"))))]
-      [:wat::core::Err {:error e}
+      [:wat::core::Result::Err {:error e}
         (:wat::kernel::println e)])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

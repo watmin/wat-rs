@@ -58,7 +58,7 @@
 (:wat::rete::defrule :w::report
   :when [(:w::Width          (?id <- :id) (?w <- :w))
          (:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::rete::where  (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::List)))
+         (:wat::rete::where  (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::List {})))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match

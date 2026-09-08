@@ -101,7 +101,7 @@
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
         (:wat::core::if (:wat::regex::matches? "err" (:wat::kernel::LociDiedError/message cause))
           nil
-          (:wat::kernel::assertion-failed! :message "eprintln-string: crash reason did not carry the emitted value" :actual (:wat::core::Some (:wat::kernel::LociDiedError/message cause)) :expected (:wat::core::Some "err")))]
+          (:wat::kernel::assertion-failed! :message "eprintln-string: crash reason did not carry the emitted value" :actual (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/message cause)}) :expected (:wat::core::Option::Some {:value "err"})))]
       ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
       [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::assertion-failed! :message "eprintln-string: stop requested before the child sent its value — child was ALIVE")]
@@ -125,9 +125,9 @@
                (:wat::kernel::println "second")
                nil))))]
     (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Ok {:value outputs}
+      [:wat::core::Result::Ok {:value outputs}
         (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "first" "second"))]
-      [:wat::core::Err {:error cause}
+      [:wat::core::Result::Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))
 
 ;; ─── Layer 4 — readln round trip via the bidirectional peer wire ─────────
@@ -154,7 +154,7 @@
          [:wat::kernel::SendOutcome::Stopped {} nil]
          [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
     (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Ok {:value outputs}
+      [:wat::core::Result::Ok {:value outputs}
         (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "echo me"))]
-      [:wat::core::Err {:error cause}
+      [:wat::core::Result::Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))

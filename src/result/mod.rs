@@ -30,7 +30,6 @@ use crate::value::{
     EvalBreak, EvalSignal, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
     ValueSnapshot,
 };
-use std::sync::Arc;
 
 /// `(Ok <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
 /// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
@@ -44,19 +43,15 @@ pub(crate) fn eval_ok_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: "Ok".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::Result(Arc::new(Ok(v))))
+    let _ = (args, env, sym);
+    Err(RuntimeError::new(
+        list_span.clone(),
+        RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::Ok".into(),
+            reason: crate::match_arm::bare_variant_retired_reason(":wat::core::Ok"),
+        },
+    )
+    .into())
 }
 
 /// `(Err <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
@@ -71,19 +66,15 @@ pub(crate) fn eval_err_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: "Err".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    Ok(Value::Result(Arc::new(Err(v))))
+    let _ = (args, env, sym);
+    Err(RuntimeError::new(
+        list_span.clone(),
+        RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::Err".into(),
+            reason: crate::match_arm::bare_variant_retired_reason(":wat::core::Err"),
+        },
+    )
+    .into())
 }
 
 /// `(:wat::core::Result/try <result-expr>)` — unwrap a `(:Result :- [T E])`

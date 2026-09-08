@@ -17,7 +17,7 @@
   :ephemeral []
   :impls
   [(boom [s ctx req]
-     (:wat::kernel::assertion-failed! :message "RST-BASELINE-SENTINEL-7731 — the handler crashed on purpose" :actual (:wat::core::Some {:value "boom"}) :expected (:wat::core::Some {:value "ok"})))])
+     (:wat::kernel::assertion-failed! :message "RST-BASELINE-SENTINEL-7731 — the handler crashed on purpose" :actual (:wat::core::Option::Some {:value "boom"}) :expected (:wat::core::Option::Some {:value "ok"})))])
 
 ;; arc 278 recv'-wall: the generated client method `/boom` returns a matchable (RecvOutcome :- [BoomResponse])
 ;; VALUE, never a raise. A genuine far-side handler panic makes the client's recv' surface a DISTINCT

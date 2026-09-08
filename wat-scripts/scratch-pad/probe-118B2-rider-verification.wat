@@ -28,7 +28,7 @@
       (:wat::string::join ","
         (:wat::core::into [] (:wat::core::keep
           (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
-            (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2)) (:wat::core::Some x) :wat::core::None))
+            (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2)) (:wat::core::Option::Some {:value x}) :wat::core::Option::None))
           (:wat::core::List 1 2 3 4 5 6)))))
 
     ;; keep-indexed — f : [i64 T :-> (Option :- [U])]; keep values at even indices.
@@ -36,7 +36,7 @@
       (:wat::string::join ","
         (:wat::core::into [] (:wat::core::keep-indexed
           (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
-            (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Some x) :wat::core::None))
+            (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Option::Some {:value x}) :wat::core::Option::None))
           (:wat::core::Vector :- [:wat::core::i64] 10 11 12 13 14 15)))))
 
     ;; map-indexed — f : [i64 T :-> U]; pair index with value via a string.
@@ -80,5 +80,5 @@
         (:wat::core::into []
           (:wat::core::into (:wat::core::PersistentVector)
             (:wat::core::keep (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
-                                 (:wat::core::Some x))
+                                 (:wat::core::Option::Some {:value x}))
               (:wat::core::Vector :- [:wat::core::i64] 7 8 9))))))))

@@ -61,7 +61,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.String/concat"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-string-concat-to-string-colon"
@@ -74,7 +74,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.String/starts-with?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-string-starts-with-to-string-colon"
@@ -87,7 +87,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.String/ends-with?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-string-ends-with-to-string-colon"
@@ -100,7 +100,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.String/contains?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-string-contains-to-string-colon"
@@ -113,7 +113,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.String/empty?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-string-empty-to-string-colon"
@@ -126,7 +126,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.rete.core.String/concat"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-string-concat-to-rete-string-colon"
@@ -139,7 +139,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.rete.core.String/starts-with?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-string-starts-with-to-rete-string-colon"
@@ -152,7 +152,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.rete.core.String/ends-with?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-string-ends-with-to-rete-string-colon"
@@ -165,7 +165,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.rete.core.String/contains?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-string-contains-to-rete-string-colon"
@@ -178,7 +178,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.rete.core.String/empty?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-string-empty-to-rete-string-colon"

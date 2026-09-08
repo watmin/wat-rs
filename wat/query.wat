@@ -439,7 +439,7 @@
                           true
                           logs)
                         (~resp-ded-kw
-                          (:wat::core::foldl
+                          {:items (:wat::core::foldl
                             (:wat::core::fn [~acc-sym <- (:wat::core::PersistentVector :- [:wat::core::Value])
                                              ~log-sym <- :wat::telemetry::Log]
                               -> (:wat::core::PersistentVector :- [:wat::core::Value])
@@ -451,12 +451,12 @@
                                   ~concat-chain)))
                             (:wat::core::PersistentVector)
                             logs)
-                          next-cur)
+                          :cursor next-cur})
                         (~resp-fat-kw
-                          (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs")))]
+                          {:err (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs")}))]
                     ;; propagate the budget signal EXPLICITLY — never lump RequestTooLarge into Fatal (ruling A).
                     [:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge {:bytes bytes :cap cap}
-                      (~resp-rtl-kw bytes cap)]
+                      (~resp-rtl-kw {:bytes bytes :cap cap})]
                     ;; …and the SHAPE signal identically (arc 278 Stone 2). The codemod could not
                     ;; decide this arm structurally — the RequestTooLarge arm above propagates through
                     ;; an UNQUOTED head (`~resp-rtl-kw`, a macro-built keyword), not a literal one, so
@@ -464,19 +464,19 @@
                     ;; wrong and dangerous: a shape refusal from the journal peer would kill THIS
                     ;; service for every client — the exact DoS this stone closes, one tier up.
                     [:wat::telemetry::Journal::QueryLogsResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                      (~resp-rm-kw mpath mexpected mgot)]
-                    [_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed"))])]
+                      (~resp-rm-kw {:path mpath :expected mexpected :got mgot})]
+                    [_ (~resp-fat-kw {:err (:wat::query::Fault :message "sift-rules: journal query-logs failed")})])]
                 [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                  (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))]
+                  (~resp-fat-kw {:err (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape (the sift
                 ;; cannot complete either way) with the TRUE reason: the journal peer was alive.
                 ;; This arm is macro-generated, so it reports at the `sift-rules-defsvc` CALL SITE,
                 ;; never here — which is why it was missed on the first stdlib pass and found by a
                 ;; rider hitting STOP-1 in tests/services.
                 [:wat::kernel::RecvOutcome::Stopped {}
-                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE"))]
+                  (~resp-fat-kw {:err (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE")})]
                 [:wat::kernel::RecvOutcome::Closed {}
-                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))])}))]))))
+                  (~resp-fat-kw {:err (:wat::query::Fault :message "query.wat: journal peer closed")})])}))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed

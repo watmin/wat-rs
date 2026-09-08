@@ -13,8 +13,8 @@
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
           [:wat::edn::ReadForeignOutcome::Value {:value fr}
             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-              [:wat::core::Some {:value s} (:wat::core::= s "high")]
-              [:wat::core::None {} false])]
+              [:wat::core::Option::Some {:value s} (:wat::core::= s "high")]
+              [:wat::core::Option::None {} false])]
           [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))))
 
 (:wat::core::defn :user::foreign-pred-is-deterministic [] -> :wat::core::bool
@@ -25,8 +25,8 @@
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
           [:wat::edn::ReadForeignOutcome::Value {:value fr}
             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-              [:wat::core::Some {:value s} (:wat::core::= s "high")]
-              [:wat::core::None {} false])]
+              [:wat::core::Option::Some {:value s} (:wat::core::= s "high")]
+              [:wat::core::Option::None {} false])]
           [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))))
 
 (:wat::core::defn :user::foreign-pred-is-total [] -> :wat::core::bool
@@ -37,8 +37,8 @@
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
           [:wat::edn::ReadForeignOutcome::Value {:value fr}
             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-              [:wat::core::Some {:value s} (:wat::core::= s "high")]
-              [:wat::core::None {} false])]
+              [:wat::core::Option::Some {:value s} (:wat::core::= s "high")]
+              [:wat::core::Option::None {} false])]
           [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))))
 
 ;; GUARD: the SAME predicate with an impure op (println) in the body must STILL be rejected — the

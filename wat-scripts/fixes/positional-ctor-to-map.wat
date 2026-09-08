@@ -24,15 +24,23 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)
                       h  (:wat::core::if (:wat::core::empty? ch) "" (:wat::fix::kw-name (:wat::core::first ch)))]
-      (:wat::core::if (:wat::core::= h ":wat::core::unquote")
-        (:wat::string::concat "~"
-          (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch 1) "unquote name")))
-        (:wat::core::if (:wat::core::= h ":wat::core::unquote-splicing")
-          (:wat::string::concat "~@"
-            (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch 1) "unquote-splicing name")))
-          (:wat::string::subs src
-            (:wat::fix::node-start-offset node lines)
-            (:wat::fix::node-end-offset node lines)))))
+      (:wat::core::if (:wat::core::or
+                        (:wat::core::= h ":wat::core::unquote")
+                        (:wat::core::= h ":wat::core::unquote-splicing"))
+        (:wat::core::let
+          [inner (:wat::core::Option/expect (:wat::core::get ch 1) "unquote inner")
+           k (:wat::core::ast-kind inner)]
+          (:wat::core::if (:wat::core::or (:wat::core::= k "symbol")
+                            (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "string")))
+            (:wat::string::concat
+              (:wat::core::if (:wat::core::= h ":wat::core::unquote") "~" "~@")
+              (:wat::core::ast-name inner))
+            (:wat::string::subs src
+              (:wat::fix::node-start-offset node lines)
+              (:wat::fix::node-end-offset node lines))))
+        (:wat::string::subs src
+          (:wat::fix::node-start-offset node lines)
+          (:wat::fix::node-end-offset node lines))))
     (:wat::string::subs src
       (:wat::fix::node-start-offset node lines)
       (:wat::fix::node-end-offset node lines))))
@@ -102,10 +110,10 @@
 
 (:wat::core::defn :user::alias-enum [leaf <- :wat::core::String] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:wat::core::or (:wat::core::= leaf "Some") (:wat::core::= leaf "None"))
-    (:wat::core::Some {:value ":wat::core::Option"})
+    (:wat::core::Option::Some {:value ":wat::core::Option"})
     (:wat::core::if (:wat::core::or (:wat::core::= leaf "Ok") (:wat::core::= leaf "Err"))
-      (:wat::core::Some {:value ":wat::core::Result"})
-      :wat::core::None)))
+      (:wat::core::Option::Some {:value ":wat::core::Result"})
+      :wat::core::Option::None)))
 
 (:wat::core::defn :user::kw-name-text [k <- :wat::core::keyword] -> :wat::core::String
   (:wat::keyword::to-string k))
@@ -128,10 +136,10 @@
       (:user::type-of-form enum-path) decls)
     [:wat::eval::FormOutcome::Evaluated {:value v}
       (:wat::core::match (:wat::runtime::TypeInfo/kind v)
-        [:wat::runtime::TypeKind::Enum {} (:wat::core::Some {:value v})]
-        [_ :wat::core::None])]
+        [:wat::runtime::TypeKind::Enum {} (:wat::core::Option::Some {:value v})]
+        [_ :wat::core::Option::None])]
     [_ (:wat::core::if (:wat::core::empty? decls)
-         :wat::core::None
+         :wat::core::Option::None
          (:user::try-type-of enum-path (:wat::core::Vector :- [:wat::WatAST])))]))
 
 (:wat::core::defn :user::report [msg <- :wat::core::String] -> :wat::core::nil
@@ -171,8 +179,8 @@
    fields <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::match (:wat::hashmap::get m leaf)
-    [:wat::core::None {} (:wat::hashmap::assoc m leaf fields)]
-    [:wat::core::Some {:value existing}
+    [:wat::core::Option::None {} (:wat::hashmap::assoc m leaf fields)]
+    [:wat::core::Option::Some {:value existing}
       (:wat::core::if (:user::names-eq? existing fields)
         m
         m)]))
@@ -194,8 +202,10 @@
              fields (:user::variant-field-names v)
              fq     (:wat::string::concat enum-path (:wat::string::concat "::" leaf))
              acc2   (:wat::hashmap::assoc acc fq fields)
-             acc3   (:user::index-leaf acc2 leaf fields)]
-            acc3))
+             acc3   (:user::index-leaf acc2 leaf fields)
+             short  (:wat::string::concat (:user::leaf-of enum-path) (:wat::string::concat "::" leaf))
+             acc4   (:user::index-leaf acc3 short fields)]
+            acc4))
         m vs)]
     [_ m]))
 
@@ -223,8 +233,8 @@
       (:wat::core::let [acc2 (:user::conj-unique acc vp)
                         acc3 (:user::conj-unique acc2 (:user::parent-path vp))]
         (:wat::core::match (:user::alias-enum (:user::leaf-of vp))
-          [:wat::core::Some {:value ep} (:user::conj-unique acc3 ep)]
-          [:wat::core::None {} acc3])))
+          [:wat::core::Option::Some {:value ep} (:user::conj-unique acc3 ep)]
+          [:wat::core::Option::None {} acc3])))
     (:wat::core::Vector :- [:wat::core::String])
     vpaths))
 
@@ -261,12 +271,12 @@
       -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
       (:wat::core::let [seen (:wat::string::concat "#seen#" ep)]
         (:wat::core::match (:wat::hashmap::get acc seen)
-          [:wat::core::Some {:value _} acc]
-          [:wat::core::None {}
+          [:wat::core::Option::Some {:value _} acc]
+          [:wat::core::Option::None {}
             (:wat::core::let [acc2 (:wat::hashmap::assoc acc seen (:wat::core::Vector :- [:wat::core::String]))]
               (:wat::core::match (:user::try-type-of ep decls)
-                [:wat::core::Some {:value info} (:user::fill-enum acc2 info ep)]
-                [:wat::core::None {} acc2]))])))
+                [:wat::core::Option::Some {:value info} (:user::fill-enum acc2 info ep)]
+                [:wat::core::Option::None {} acc2]))])))
     m epaths))
 
 (:wat::core::defn :user::stdlib-fmap []
@@ -287,38 +297,126 @@
                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
      decls (:user::file-decls tree)
      vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
-     epaths (:user::enum-paths-of vpaths)]
-    (:user::fill-paths base epaths decls)))
+     epaths (:user::enum-paths-of vpaths)
+     filled (:user::fill-paths base epaths decls)]
+    (:user::bind-kw-ctors filled tree)))
 
-;; ── gensym → variant leaf (defservice templates in wat/service.wat) ──────────
-;; The FQDN is interpolated at expand time; the VARIANT leaf is LAW. Field names
-;; still come from type-of (indexed by leaf from every *Response we asked).
+;; Derive unquote-ctor bindings from let-bound `*-kw` names whose value
+;; interpolates a `::Leaf` (STOP-4: not a hand-list). Field names still
+;; come from type-of, indexed by that leaf.
+
+(:wat::core::defn :user::last-colon-leaf [s <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let [parts (:wat::string::split s "::")
+                    n     (:wat::core::length parts)]
+    (:wat::core::if (:wat::core::< n 2)
+      ""
+      (:wat::core::let [leaf (:wat::core::Option/expect (:wat::core::get parts (:wat::i64::- n 1)) "leaf")]
+        (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split leaf "{")) 1)
+          ""
+          leaf)))))
+
+;; Prefer `Status::Stopped` over `Stopped` so RecvOutcome::Stopped (unit) does
+;; not steal Status::Stopped's fields (STOP-4: derived from the interpolate).
+(:wat::core::defn :user::last-two-colon [s <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let [parts (:wat::string::split s "::")
+                    n     (:wat::core::length parts)]
+    (:wat::core::if (:wat::core::< n 3)
+      ""
+      (:wat::core::let
+        [a (:wat::core::Option/expect (:wat::core::get parts (:wat::i64::- n 2)) "parent")
+         b (:wat::core::Option/expect (:wat::core::get parts (:wat::i64::- n 1)) "leaf")]
+        (:wat::core::if (:wat::core::or
+                          (:wat::core::> (:wat::core::length (:wat::string::split a "{")) 1)
+                          (:wat::core::> (:wat::core::length (:wat::string::split b "{")) 1))
+          ""
+          (:wat::string::concat a (:wat::string::concat "::" b)))))))
+
+(:wat::core::defn :user::string-lits
+  [acc  <- (:wat::core::Vector :- [:wat::core::String])
+   node <- :wat::WatAST]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "string")
+    (:wat::core::conj acc (:wat::core::ast-name node))
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::core::foldl :user::string-lits acc (:wat::core::ast->children node))
+      acc)))
+
+(:wat::core::defn :user::leaf-in-form [node <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [best <- :wat::core::String s <- :wat::core::String] -> :wat::core::String
+      (:wat::core::let [two (:user::last-two-colon s)]
+        (:wat::core::if (:wat::core::not (:wat::core::= two ""))
+          two
+          (:wat::core::let [leaf (:user::last-colon-leaf s)]
+            (:wat::core::if (:wat::core::= leaf "") best leaf)))))
+    ""
+    (:user::string-lits (:wat::core::Vector :- [:wat::core::String]) node)))
+
+(:wat::core::defn :user::bind-let-vec
+  [m   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   vec <- :wat::WatAST]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::let [ch (:wat::core::ast->children vec)
+                    n  (:wat::core::length ch)]
+    (:wat::core::foldl
+      (:wat::core::fn
+        [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+         i   <- :wat::core::i64]
+        -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+        (:wat::core::if (:wat::core::not (:wat::core::= (:wat::i64::rem i 2) 0))
+          acc
+          (:wat::core::if (:wat::core::>= (:wat::i64::+ i 1) n)
+            acc
+            (:wat::core::let
+              [nm-node (:wat::core::Option/expect (:wat::core::get ch i) "let name")
+               val     (:wat::core::Option/expect (:wat::core::get ch (:wat::i64::+ i 1)) "let val")]
+              (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind nm-node) "symbol"))
+                acc
+                (:wat::core::let [nm (:wat::core::ast-name nm-node)]
+                  (:wat::core::if (:wat::core::not (:wat::string::ends-with? nm "-kw"))
+                    acc
+                    (:wat::core::let [leaf (:user::leaf-in-form val)]
+                      (:wat::core::if (:wat::core::= leaf "")
+                        acc
+                        (:wat::core::match (:wat::hashmap::get acc leaf)
+                          [:wat::core::Option::Some {:value fields} (:wat::hashmap::assoc acc nm fields)]
+                          [:wat::core::Option::None {} acc]))))))))))
+      m
+      (:wat::core::range 0 n))))
+
+(:wat::core::defn :user::bind-kw-ctors
+  [m    <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   node <- :wat::WatAST]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::if (:wat::core::not (:wat::fix::structural? node))
+    m
+    (:wat::core::let [ch (:wat::core::ast->children node)
+                      m2 (:wat::core::if (:wat::core::if (:wat::core::= (:wat::fix::head-name node) ":wat::core::let")
+                                           (:wat::core::if (:wat::core::> (:wat::core::length ch) 1)
+                                             (:wat::core::= (:wat::core::ast-kind (:wat::core::Option/expect (:wat::core::get ch 1) "let vec")) "vector")
+                                             false)
+                                           false)
+                         (:user::bind-let-vec m (:wat::core::Option/expect (:wat::core::get ch 1) "let vec"))
+                         m)]
+      (:wat::core::foldl :user::bind-kw-ctors m2 ch))))
 
 (:wat::core::defn :user::unquote-ctor-leaf [inner <- :wat::core::String] -> (:wat::core::Option :- [:wat::core::String])
-  (:wat::core::if (:wat::core::= inner "rtl-ctor-kw")
-    (:wat::core::Some {:value ":wat::cache::Cache::GetResponse::RequestTooLarge"})
-    (:wat::core::if (:wat::core::= inner "rm-ctor-kw")
-      (:wat::core::Some {:value ":wat::cache::Cache::GetResponse::RequestMalformed"})
-      (:wat::core::if (:wat::core::= inner "reply-variant-kw")
-        (:wat::core::Some {:value ":wat::cache::Cache::Reply::Get"})
-        (:wat::core::if (:wat::core::= inner "op-variant-kw")
-          (:wat::core::Some {:value ":wat::cache::Cache::Op::Get"})
-          (:wat::core::if (:wat::core::= inner "reply-failed-kw")
-            (:wat::core::Some {:value ":wat::cache::Cache::Reply::Failed"})
-            (:wat::core::if (:wat::core::= inner "admin-allow-peer-kw")
-              (:wat::core::Some {:value ":wat::cache::lru-svc::Admin::AllowPeer"})
-              (:wat::core::if (:wat::core::= inner "admin-deny-peer-kw")
-                (:wat::core::Some {:value ":wat::cache::lru-svc::Admin::DenyPeer"})
-                (:wat::core::if (:wat::core::= inner "status-stopped-kw")
-                  (:wat::core::Some {:value ":wat::cache::lru-svc::Status::Stopped"})
-                  (:wat::core::if (:wat::core::= inner "status-hibernated-kw")
-                    (:wat::core::Some {:value ":wat::cache::lru-svc::Status::Hibernated"})
-                    (:wat::core::if (:wat::core::= inner "status-started-kw")
-                      (:wat::core::Some {:value ":wat::cache::lru-svc::Status::Started"})
-                      :wat::core::None)))))))))))
+  (:wat::core::if (:wat::core::= inner "")
+    :wat::core::Option::None
+    (:wat::core::Option::Some {:value inner})))
 
 (:wat::core::defn :user::unquote-form? [n <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::= (:wat::fix::head-name n) ":wat::core::unquote"))
+
+(:wat::core::defn :user::unquote-splicing-form? [n <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::= (:wat::fix::head-name n) ":wat::core::unquote-splicing"))
+
+(:wat::core::defn :user::has-splice? [args <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool a <- :wat::WatAST] -> :wat::core::bool
+      (:wat::core::or acc (:user::unquote-splicing-form? a)))
+    false
+    args))
 
 (:wat::core::defn :user::unquote-inner-name [n <- :wat::WatAST] -> :wat::core::String
   (:wat::core::let
@@ -333,9 +431,9 @@
 
 (:wat::core::defn :user::alias-ctor-name? [nm <- :wat::core::String] -> :wat::core::bool
   (:wat::core::or
-    (:wat::core::= nm ":wat::core::Some")
+    (:wat::core::= nm ":wat::core::Option::Some")
     (:wat::core::or
-      (:wat::core::= nm ":wat::core::None")
+      (:wat::core::= nm ":wat::core::Option::None")
       (:wat::core::or
         (:wat::core::= nm ":wat::core::Ok")
         (:wat::core::= nm ":wat::core::Err")))))
@@ -345,7 +443,7 @@
                     n  (:wat::core::length ch)]
     (:wat::core::if (:wat::core::= n 2)
       (:wat::core::get ch 1)
-      :wat::core::None)))
+      :wat::core::Option::None)))
 
 (:wat::core::defn :user::unwrap-alias-edits
   [node  <- :wat::WatAST
@@ -357,14 +455,14 @@
     (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::let [m (:wat::core::first args)]
       (:wat::core::match (:user::map-value-node m)
-        [:wat::core::Some {:value v}
+        [:wat::core::Option::Some {:value v}
           (:wat::core::Vector :- [:wat::fix::Edit]
             (:wat::core::Tuple
               (:wat::fix::node-start-offset m lines)
               (:user::node-text m src lines)
               (:user::node-text v src lines)))]
-        [:wat::core::None {}
-          ;; unit None: `(:wat::core::None {})` → drop the map, leave `(:wat::core::None)`
+        [:wat::core::Option::None {}
+          ;; unit None: `(:wat::core::Option::None {})` → drop the map, leave `(:wat::core::Option::None)`
           (:wat::core::Vector :- [:wat::fix::Edit]
             (:wat::core::Tuple
               (:wat::fix::node-start-offset m lines)
@@ -379,9 +477,11 @@
 (:wat::core::defn :user::type-app? [args <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
   (:wat::core::if (:wat::core::empty? args)
     false
-    (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first args)) "symbol")
-      (:wat::core::= (:wat::core::ast-name (:wat::core::first args)) ":-")
-      false)))
+    (:wat::core::let [a (:wat::core::first args)
+                      k (:wat::core::ast-kind a)]
+      (:wat::core::if (:wat::core::or (:wat::core::= k "symbol") (:wat::core::= k "keyword"))
+        (:wat::core::= (:wat::core::ast-name a) ":-")
+        false))))
 
 ;; Insert-only wrap: `(:V a b)` → inserts `{:`field0` ` at a, `:`fieldi` ` at later args, `}` after last.
 ;; Nested ctors keep disjoint offsets so high-offset-first apply is sound.
@@ -421,7 +521,7 @@
   [arg   <- :wat::WatAST
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
-  (:wat::core::if (:user::unquote-form? arg)
+  (:wat::core::if (:wat::core::or (:user::unquote-form? arg) (:user::unquote-splicing-form? arg))
     (:wat::fix::node-end-offset
       (:wat::core::Option/expect
         (:wat::core::get (:wat::core::ast->children arg) 1)
@@ -461,13 +561,13 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
     (:wat::core::let [nm (:wat::core::ast-name head)]
       (:wat::core::if (:user::has-slash? nm)
-        :wat::core::None
+        :wat::core::Option::None
         (:wat::hashmap::get fmap nm)))
     (:wat::core::if (:user::unquote-form? head)
       (:wat::core::match (:user::unquote-ctor-leaf (:user::unquote-inner-name head))
-        [:wat::core::Some {:value leaf} (:wat::hashmap::get fmap leaf)]
-        [:wat::core::None {} :wat::core::None])
-      :wat::core::None)))
+        [:wat::core::Option::Some {:value leaf} (:wat::hashmap::get fmap leaf)]
+        [:wat::core::Option::None {} :wat::core::Option::None])
+      :wat::core::Option::None)))
 
 (:wat::core::defn :user::ctor-edits
   [node  <- :wat::WatAST
@@ -483,22 +583,23 @@
         (:wat::core::let
           [head (:wat::core::first ch)
            args (:wat::core::into [] (:wat::core::rest ch))]
-          (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-                            (:user::alias-ctor-name? (:wat::core::ast-name head))
-                            false)
-            (:wat::core::concat
-              (:user::unwrap-alias-edits node args src lines)
-              (:user::walk-seq args fmap src lines))
           (:wat::core::if (:user::type-app? args)
             (:user::walk-seq (:wat::core::into [] (:wat::core::drop args 1)) fmap src lines)
             (:wat::core::if (:user::already-map? args)
               (:user::walk-seq args fmap src lines)
+              (:wat::core::if (:user::has-splice? args)
+                (:wat::core::do
+                  (:user::report
+                    (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+                      (:wat::core::ast-name head)
+                      (:user::node-text head src lines)))
+                  (:user::walk-seq args fmap src lines))
               (:wat::core::match (:user::fields-for-head head fmap)
-                [:wat::core::None {}
+                [:wat::core::Option::None {}
                   (:wat::core::concat
                     (:user::walk-edits head fmap src lines)
                     (:user::walk-seq args fmap src lines))]
-                [:wat::core::Some {:value fields}
+                [:wat::core::Option::Some {:value fields}
                   (:wat::core::if (:wat::core::= (:wat::core::length args) (:wat::core::length fields))
                     (:wat::core::concat
                       (:wat::core::if (:wat::core::empty? fields)
@@ -550,7 +651,9 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
 
 (:wat::core::defn :user::skip-path? [path <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::= path "tests/types/probe_arc296_enum_map_ctor__positional.wat"))
+  (:wat::core::or
+    (:wat::core::= path "tests/types/probe_arc296_enum_map_ctor__positional.wat")
+    (:wat::core::= path "wat-scripts/fixes/positional-ctor-to-map.wat")))
 
 (:wat::core::defn :user::rewrite-each
   [paths <- (:wat::core::Vector :- [:wat::core::String])

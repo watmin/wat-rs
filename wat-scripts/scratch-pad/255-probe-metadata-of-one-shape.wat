@@ -60,14 +60,14 @@
   [got <- (:wat::core::Option :- [:wat::core::Value]) want <- :wat::core::Value]
   -> :wat::core::bool
   (:wat::core::match got
-    [:wat::core::Some {:value v} (:wat::core::= v want)]
-    [:wat::core::None {} false]))
+    [:wat::core::Option::Some {:value v} (:wat::core::= v want)]
+    [:wat::core::Option::None {} false]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match (:wat::runtime::metadata-of :wat::core::sort$native)
-    [:wat::core::Some {:value intrinsic-hm}
+    [:wat::core::Option::Some {:value intrinsic-hm}
      (:wat::core::match (:wat::runtime::metadata-of :wat::string::capitalize)
-       [:wat::core::Some {:value wat-hm}
+       [:wat::core::Option::Some {:value wat-hm}
         (:wat::core::do
           (:wat::kernel::println "── raw maps, for eyeball comparison ──")
           (:wat::kernel::pprintln intrinsic-hm)
@@ -80,5 +80,5 @@
           (:wat::kernel::println (:wat::string::concat "category:     intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :category) :wat::runtime::Category::Transform)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :category) :wat::runtime::Category::Transform))))
           (:wat::kernel::println "── :defined-in discriminates (STOP-4) ──")
           (:wat::kernel::println (:wat::string::concat "defined-in:   intrinsic=Rust? " (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :defined-in) :wat::runtime::DefinedIn::Rust)) " wat=Wat? " (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :defined-in) :wat::runtime::DefinedIn::Wat)))))]
-       [:wat::core::None {} (:wat::kernel::println "capitalize metadata-of => NONE (unexpected)")])]
-    [:wat::core::None {} (:wat::kernel::println "sort$native metadata-of => NONE (unexpected)")]))
+       [:wat::core::Option::None {} (:wat::kernel::println "capitalize metadata-of => NONE (unexpected)")])]
+    [:wat::core::Option::None {} (:wat::kernel::println "sort$native metadata-of => NONE (unexpected)")]))

@@ -23,11 +23,11 @@
     (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")
       [:wat::edn::ReadJsonOutcome::Value {:value m}
         (:wat::core::match (:wat::hashmap::get m "edn")
-          [:wat::core::Some {:value s}
+          [:wat::core::Option::Some {:value s}
             (:wat::core::do
               (:wat::test::assert-eq s "42")
               (:wat::kernel::println (:wat::string::concat "2 CRUX-1 HashMap/get -> " s)))]
-          [:wat::core::None {} (:wat::test::assert-true false)])]
+          [:wat::core::Option::None {} (:wat::test::assert-true false)])]
       [:wat::edn::ReadJsonOutcome::Malformed {:cause cause} (:wat::test::assert-true false)])
 
     ;; 3 — a malformed line leaves the caller ALIVE: ::Malformed, THEN a form

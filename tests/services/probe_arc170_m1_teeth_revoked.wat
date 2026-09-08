@@ -93,7 +93,7 @@
                                 (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] ;; dial #2 reply UP — ONLY reached if ADMITTED. makes the test DISCRIMINATE: if the revoke ever regressed, dial #2 admits, this fires, the owner's r2 = "echo:hi" → compute Ok → the test (asserts Err) goes RED. without it, the prober's clean exit ALSO disconnects the channel → recv' raises → Err either way (vacuous).
                     nil))))
      r2  (:wat::core::match (:wat::kernel::peer-pid prober) 
-           [:wat::core::Some {:value p}
+           [:wat::core::Option::Some {:value p}
              (:wat::core::let
                [_  (:probe::echo/grant  eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; ack'd PeersAllowed
                 _  (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])                                   ;; arc 278 #73 — the recv' below already faces the stop ;; give addr → dial #1
@@ -116,6 +116,6 @@
                      [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Bounced {})]
                      [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Bounced {})])]      ;; prober closed without a reply = not served
                r2)]                                                                  ;; the enum outcome
-           [:wat::core::None {}
+           [:wat::core::Option::None {}
              (:wat::kernel::assertion-failed! :message "peer-pid None on process prober")])]
     r2))

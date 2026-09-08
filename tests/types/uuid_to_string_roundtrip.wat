@@ -9,8 +9,8 @@
         (:wat::kernel::println "LEN-36-OK")
         (:wat::kernel::println "LEN-36-FAIL"))
       (:wat::core::match reparsed 
-        [:wat::core::Some {:value u2}
+        [:wat::core::Option::Some {:value u2}
           (:wat::core::if (:wat::core::= (:wat::uuid::to-string u2) s) 
             (:wat::kernel::println "ROUNDTRIP-OK")
             (:wat::kernel::println "ROUNDTRIP-FAIL"))]
-        [:wat::core::None {} (:wat::kernel::println "ROUNDTRIP-NONE")]))))
+        [:wat::core::Option::None {} (:wat::kernel::println "ROUNDTRIP-NONE")]))))

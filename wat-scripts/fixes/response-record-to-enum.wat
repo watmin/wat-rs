@@ -56,8 +56,8 @@
         [cur  (:wat::core::Option/expect (:wat::core::get ch i) "returns cur")
          nxt  (:wat::core::get ch (:wat::core::+ i 1))]
         (:wat::core::match nxt 
-          [:wat::core::None {} s]
-          [:wat::core::Some {:value nn}
+          [:wat::core::Option::None {} s]
+          [:wat::core::Option::Some {:value nn}
             (:wat::core::if
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind cur) "symbol")
                 (:wat::core::if (:wat::core::= (:wat::core::ast-name cur) "->")

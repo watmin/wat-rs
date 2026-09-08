@@ -1947,24 +1947,21 @@ pub(crate) fn infer(
         // exception. Pattern 2 poison fires synthetic TypeMismatch
         // with redirect to the FQDN form; the type still resolves
         // so the program type-checks the rest of the way.
-        WatAST::Keyword(k, kw_span) if (k == ":None" || k == ":wat::core::None") => {
-            if k == ":None" {
-                local_errors.push(CheckError { span: kw_span.clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":None".into(),
-                    param: "(retired bare-keyword exception)".into(),
-                    expected: ":wat::core::None".into(),
-                    got: ":None".into(),
-                } });
-            }
-            let ty = TypeExpr::Parametric {
+        WatAST::Keyword(k, kw_span) if crate::match_arm::retired_bare_variant(k).is_some() => {
+            CheckResult::errs(vec![CheckError {
+                span: kw_span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: k.clone(),
+                    reason: crate::match_arm::bare_variant_retired_reason(k),
+                    remedies: vec![],
+                },
+            }])
+        }
+        WatAST::Keyword(k, _) if k == ":wat::core::Option::None" => {
+            CheckResult::ok(TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![fresh.fresh()],
-            };
-            if local_errors.is_empty() {
-                CheckResult::ok(ty)
-            } else {
-                CheckResult::partial_with(ty, local_errors)
-            }
+            })
         }
         // Arc 048 — user-enum unit variant. The bare keyword resolves
         // to the enum's type (e.g. `:trading::types::PhaseLabel::Valley`
@@ -4912,35 +4909,16 @@ fn infer_list(
             // are intercepted HERE instead of falling to `_ => {}` and
             // returning None. Region B's bare-Symbol path still handles
             // `(Ok 418)` (with poison error) via the same helpers.
-            ":wat::core::Ok" => {
-                let (val, mut errs) = infer_ok_constructor(
-                    items, head_span, /*is_bare=*/ false, env, locals, fresh, subst,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            ":wat::core::Err" => {
-                let (val, mut errs) = infer_err_constructor(
-                    items, head_span, /*is_bare=*/ false, env, locals, fresh, subst,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            ":wat::core::Some" => {
-                let (val, mut errs) = infer_some_constructor(
-                    items, head_span, /*is_bare=*/ false, env, locals, fresh, subst,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
+            ":wat::core::Ok" | ":wat::core::Err" | ":wat::core::Some" => {
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: k.to_string(),
+                        reason: crate::match_arm::bare_variant_retired_reason(k),
+                        remedies: vec![],
+                    },
+                });
+                return CheckResult::errs(local_errors);
             }
             // Arc 278 item-c Strike B — the `struct-new` NATURE WALL. `struct-new`
             // builds a `Nature::Struct` aggregate (runtime.rs `eval_struct_new`,
@@ -5549,6 +5527,17 @@ fn infer_list(
 
         // Arc 296 M — enum variant map ctor. Intercept BEFORE the synthesized
         // positional Function scheme (tagged) / UnknownCallee (unit).
+        if let Some(repl) = crate::match_arm::retired_bare_variant(k) {
+            local_errors.push(CheckError {
+                span: head_span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: k.to_string(),
+                    reason: format!("the bare variant spelling is retired; write `{repl}`"),
+                    remedies: vec![],
+                },
+            });
+            return CheckResult::errs(local_errors);
+        }
         if let Some(result) = infer_enum_map_ctor(k, args, head_span, env, locals, fresh, subst) {
             return result;
         }
@@ -6305,15 +6294,13 @@ fn infer_match(
                                         if matches!(
                                             sub_items.first(),
                                             Some(WatAST::Keyword(k, _))
-                                                if k == ":wat::core::Some"
-                                                    || k == ":wat::core::Option::Some"
+                                                if k == ":wat::core::Option::Some"
                                         ) =>
                                     {
                                         covers_result_ok_inner_some = true;
                                     }
                                     WatAST::Keyword(k, _)
-                                        if k == ":wat::core::None"
-                                            || k == ":wat::core::Option::None" =>
+                                        if k == ":wat::core::Option::None" =>
                                     {
                                         covers_result_ok_inner_none = true;
                                     }
@@ -6867,7 +6854,18 @@ fn pattern_coverage(
     errors: &mut Vec<CheckError>,
 ) -> Option<Coverage> {
     match pattern {
-        WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match shape {
+        WatAST::Keyword(k, span) if crate::match_arm::retired_bare_variant(k).is_some() => {
+            errors.push(CheckError {
+                span: span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: k.clone(),
+                    reason: crate::match_arm::bare_variant_retired_reason(k),
+                    remedies: vec![],
+                },
+            });
+            None
+        }
+        WatAST::Keyword(k, _) if k == ":wat::core::Option::None" => match shape {
             MatchShape::Option(_) => Some(Coverage::OptionNone),
             MatchShape::Result(_, _) | MatchShape::Enum(_, _) => {
                 errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -7000,9 +6998,20 @@ fn pattern_coverage(
             // are NOT user enums; let them fall through to the
             // built-in dispatch below (line ~2620).
             if let WatAST::Keyword(variant_path, _) = head {
-                let is_builtin_fqdn = variant_path == ":wat::core::Some"
-                    || variant_path == ":wat::core::Ok"
-                    || variant_path == ":wat::core::Err";
+                if crate::match_arm::retired_bare_variant(variant_path).is_some() {
+                    errors.push(CheckError {
+                        span: pattern.span().clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: variant_path.clone(),
+                            reason: crate::match_arm::bare_variant_retired_reason(variant_path),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+                let is_builtin_fqdn = variant_path == ":wat::core::Option::Some"
+                    || variant_path == ":wat::core::Result::Ok"
+                    || variant_path == ":wat::core::Result::Err";
                 if !is_builtin_fqdn {
                 let (enum_path, enum_shape_args) = match shape {
                     MatchShape::Enum(p, a) => (p, a),
@@ -7150,9 +7159,20 @@ fn pattern_coverage(
             // the `other` arm's dedicated hint (a user-enum look-alike, etc).
             let ident = match head {
                 WatAST::Symbol(i, _) => i.as_str(),
-                WatAST::Keyword(k, _) if k == ":wat::core::Some" => "Some",
-                WatAST::Keyword(k, _) if k == ":wat::core::Ok" => "Ok",
-                WatAST::Keyword(k, _) if k == ":wat::core::Err" => "Err",
+                WatAST::Keyword(k, sp) if crate::match_arm::retired_bare_variant(k).is_some() => {
+                    errors.push(CheckError {
+                        span: sp.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: k.clone(),
+                            reason: crate::match_arm::bare_variant_retired_reason(k),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+                WatAST::Keyword(k, _) if k == ":wat::core::Option::Some" => "Some",
+                WatAST::Keyword(k, _) if k == ":wat::core::Result::Ok" => "Ok",
+                WatAST::Keyword(k, _) if k == ":wat::core::Result::Err" => "Err",
                 other => {
                     errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
@@ -7621,7 +7641,18 @@ fn check_subpattern(
         // - `:None` — only valid at (Option :- [U]) position; partial (only None).
         // - `:enum::Variant` (unit) — valid at enum position.
         // - bare keyword payload (rare in pattern position) — error.
-        WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match expected_ty {
+        WatAST::Keyword(k, span) if crate::match_arm::retired_bare_variant(k).is_some() => {
+            errors.push(CheckError {
+                span: span.clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: k.clone(),
+                    reason: crate::match_arm::bare_variant_retired_reason(k),
+                    remedies: vec![],
+                },
+            });
+            None
+        }
+        WatAST::Keyword(k, _) if k == ":wat::core::Option::None" => match expected_ty {
             TypeExpr::Parametric { head, .. } if head == "wat::core::Option" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -7740,10 +7771,23 @@ fn check_subpattern(
             // neither "Some"/"Ok"/"Err" (refused above) — leave `Symbol`
             // out of this table so it falls through to tuple-destructure
             // below, same as any other unrecognized sub-pattern head.
+            if let WatAST::Keyword(k, sp) = head {
+                if crate::match_arm::retired_bare_variant(k).is_some() {
+                    errors.push(CheckError {
+                        span: sp.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: k.clone(),
+                            reason: crate::match_arm::bare_variant_retired_reason(k),
+                            remedies: vec![],
+                        },
+                    });
+                    return None;
+                }
+            }
             let builtin_ident = match head {
-                WatAST::Keyword(k, _) if k == ":wat::core::Some" => Some("Some"),
-                WatAST::Keyword(k, _) if k == ":wat::core::Ok" => Some("Ok"),
-                WatAST::Keyword(k, _) if k == ":wat::core::Err" => Some("Err"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Option::Some" => Some("Some"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Result::Ok" => Some("Ok"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Result::Err" => Some("Err"),
                 _ => None,
             };
             if let Some(ident) = builtin_ident {
@@ -7816,9 +7860,9 @@ fn check_subpattern(
             // exactly one field" or similar, not a spurious "user enum"
             // mismatch.
             if let WatAST::Keyword(variant_path, _) = head {
-                let is_builtin_fqdn = variant_path == ":wat::core::Some"
-                    || variant_path == ":wat::core::Ok"
-                    || variant_path == ":wat::core::Err";
+                let is_builtin_fqdn = variant_path == ":wat::core::Option::Some"
+                    || variant_path == ":wat::core::Result::Ok"
+                    || variant_path == ":wat::core::Result::Err";
                 if is_builtin_fqdn {
                     // Built-in already dispatched above; if we reach
                     // here, the `expected_ty` didn't match the

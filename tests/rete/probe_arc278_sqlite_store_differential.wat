@@ -57,17 +57,17 @@
 
      page1    (:probe::expect-scan
                 (:wat::query::Store/scan store
-                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor :wat::core::None)))
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor :wat::core::Option::None)))
      page2    (:probe::expect-scan
                 (:wat::query::Store/scan store
-                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Some "b"))))
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Option::Some {:value "b"}))))
      page3    (:probe::expect-scan
                 (:wat::query::Store/scan store
-                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Some "d"))))
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Option::Some {:value "d"}))))
      ipage    (:probe::expect-scan-index
                 (:wat::query::Store/scan-index store
                   (:wat::query::Store::ScanIndexRequest
-                    :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor :wat::core::None)))]
+                    :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor :wat::core::Option::None)))]
     (:probe::RunResult :page1 page1 :page2 page2 :page3 page3 :ipage ipage)))
 
 (:wat::test::deftest :user::run-ops-on-mem-store
@@ -77,7 +77,7 @@
      mem-store (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      result    (:probe::run-ops mem-store)]
     (:wat::test::assert-eq (:wat::core::count (:wat::query::Page/rows (:probe::RunResult/page1 result))) 2)
-    (:wat::test::assert-eq (:wat::query::Page/next-cursor (:probe::RunResult/page3 result)) :wat::core::None)
+    (:wat::test::assert-eq (:wat::query::Page/next-cursor (:probe::RunResult/page3 result)) :wat::core::Option::None)
     (:wat::test::assert-eq (:wat::core::count (:wat::query::IndexPage/rows (:probe::RunResult/ipage result))) 2)))
 
 (:wat::test::deftest :user::sqlite_store_differential 
@@ -107,5 +107,5 @@
     ;; and independently, both must match the S-mem-gate's known-correct shape (a second witness —
     ;; not a substitute for the differential above).
     (:wat::test::assert-eq (:wat::core::count (:wat::query::Page/rows (:probe::RunResult/page1 mem-result))) 2)
-    (:wat::test::assert-eq (:wat::query::Page/next-cursor (:probe::RunResult/page3 mem-result)) :wat::core::None)
+    (:wat::test::assert-eq (:wat::query::Page/next-cursor (:probe::RunResult/page3 mem-result)) :wat::core::Option::None)
     (:wat::test::assert-eq (:wat::core::count (:wat::query::IndexPage/rows (:probe::RunResult/ipage sqlite-result))) 2)))

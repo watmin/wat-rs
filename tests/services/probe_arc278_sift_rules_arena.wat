@@ -206,7 +206,7 @@
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      page-idxs (:wat::core::range 0 12)
-     initial (:arena::PageAcc :done false :cur :wat::core::None :acc 0 :clean true)
+     initial (:arena::PageAcc :done false :cur :wat::core::Option::None :acc 0 :clean true)
      final (:wat::core::foldl
              (:wat::core::fn [state <- :arena::PageAcc _i <- :wat::core::i64] -> :arena::PageAcc
                (:wat::core::if (:arena::PageAcc/done state)
@@ -232,10 +232,10 @@
                           new-acc (:wat::core::+ (:arena::PageAcc/acc state) (:wat::core::length items))
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
                          (:wat::core::match cur 
-                           [:wat::core::None {} (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean)]
-                           [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some {:value c}) :acc new-acc :clean new-clean)]))]
+                           [:wat::core::Option::None {} (:arena::PageAcc :done true :cur :wat::core::Option::None :acc new-acc :clean new-clean)]
+                           [:wat::core::Option::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Option::Some {:value c}) :acc new-acc :clean new-clean)]))]
                      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
-                       (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false)]
+                       (:arena::PageAcc :done true :cur :wat::core::Option::None :acc -999999 :clean false)]
                      [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
                        (:wat::kernel::assertion-failed! :message "sift-rules-arena: unexpected RequestTooLarge")]
                      [:arena::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
@@ -284,7 +284,7 @@
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      page-idxs (:wat::core::range 0 12)
-     initial (:arena::PageAcc :done false :cur :wat::core::None :acc 0 :clean true)
+     initial (:arena::PageAcc :done false :cur :wat::core::Option::None :acc 0 :clean true)
      final (:wat::core::foldl
              (:wat::core::fn [state <- :arena::PageAcc _i <- :wat::core::i64] -> :arena::PageAcc
                (:wat::core::if (:arena::PageAcc/done state)
@@ -310,10 +310,10 @@
                           new-acc (:wat::core::+ (:arena::PageAcc/acc state) (:wat::core::length items))
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
                          (:wat::core::match cur 
-                           [:wat::core::None {} (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean)]
-                           [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some {:value c}) :acc new-acc :clean new-clean)]))]
+                           [:wat::core::Option::None {} (:arena::PageAcc :done true :cur :wat::core::Option::None :acc new-acc :clean new-clean)]
+                           [:wat::core::Option::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Option::Some {:value c}) :acc new-acc :clean new-clean)]))]
                      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
-                       (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false)]
+                       (:arena::PageAcc :done true :cur :wat::core::Option::None :acc -999999 :clean false)]
                      [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
                        (:wat::kernel::assertion-failed! :message "sift-rules-arena: unexpected RequestTooLarge")]
                      [:arena::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
@@ -347,7 +347,7 @@
      svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
-               :limit 50 :cursor :wat::core::None))]
+               :limit 50 :cursor :wat::core::Option::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:arena::my-sift::SiftRulesResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
@@ -384,7 +384,7 @@
      svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
-               :limit 50 :cursor :wat::core::None))]
+               :limit 50 :cursor :wat::core::Option::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:arena::my-sift::SiftRulesResponse::Fatal {:err _err} true]
       [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

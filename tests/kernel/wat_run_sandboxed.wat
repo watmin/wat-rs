@@ -184,8 +184,8 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match
                (:wat::eval-file! "/nonexistent-in-child-loader.wat")
-               [:wat::core::Ok {:value h} (:wat::kernel::println "ok")]
-               [:wat::core::Err {:error _} (:wat::kernel::eprintln "err")]))))]
+               [:wat::core::Result::Ok {:value h} (:wat::kernel::println "ok")]
+               [:wat::core::Result::Err {:error _} (:wat::kernel::eprintln "err")]))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
@@ -204,8 +204,8 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::match
                (:wat::eval-file! "/also-nonexistent-in-child-loader.wat")
-               [:wat::core::Ok {:value _} (:wat::kernel::println "leaked")]
-               [:wat::core::Err {:error _} (:wat::kernel::eprintln "blocked")]))))]
+               [:wat::core::Result::Ok {:value _} (:wat::kernel::println "leaked")]
+               [:wat::core::Result::Err {:error _} (:wat::kernel::eprintln "blocked")]))))]
     (:wat::core::match (:wat::kernel::recv p)
       [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}

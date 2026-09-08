@@ -10,14 +10,14 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::lower 1 2)))
-      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "lower UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "lower kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "lower UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "lower kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::collect-rules)))
-      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "collect-rules UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "collect-rules kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "collect-rules UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "collect-rules kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::step-payload 1)))
-      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "step-payload UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "step-payload kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "step-payload UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "step-payload kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::axis-violation)))
-      [:wat::core::Ok {:value v} (:wat::kernel::println (:wat::string::concat "axis-violation UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Err {:error e} (:wat::kernel::println (:wat::string::concat "axis-violation kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])))
+      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "axis-violation UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "axis-violation kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])))

@@ -3,5 +3,5 @@
   (:wat::core::let
     [result (:wat::uuid::from-string "not-a-uuid")]
     (:wat::core::match result 
-      [:wat::core::Some {:value u} (:wat::kernel::println "GARBAGE-SOME")]
-      [:wat::core::None {}     (:wat::kernel::println "GARBAGE-NONE")])))
+      [:wat::core::Option::Some {:value u} (:wat::kernel::println "GARBAGE-SOME")]
+      [:wat::core::Option::None {}     (:wat::kernel::println "GARBAGE-NONE")])))

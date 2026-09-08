@@ -36,7 +36,7 @@
      jclient (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      resp    (:wat::telemetry::Journal/query-logs jclient
                (:wat::telemetry::Journal::QueryLogsRequest
-                 :namespace "probe-ns" :time-lo 0 :time-hi 9223372036854775807 :limit 20 :cursor :wat::core::None))]
+                 :namespace "probe-ns" :time-lo 0 :time-hi 9223372036854775807 :limit 20 :cursor :wat::core::Option::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::telemetry::Journal::QueryLogsResponse::Success {:logs logs :cursor _cursor}
         (:wat::core::if (:wat::core::= (:wat::core::count logs) 2)

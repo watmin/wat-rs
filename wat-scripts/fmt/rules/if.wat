@@ -23,4 +23,4 @@
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/if"))
          (:wat::grep::Node  (?br <- :id) (?p <- :parent) (?bi <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?bi 1))]
-  :then [(:wat::fmt::Break :id ?br :kind (:wat::fmt::BreakKind::Block))])
+  :then [(:wat::fmt::Break :id ?br :kind (:wat::fmt::BreakKind::Block {}))])

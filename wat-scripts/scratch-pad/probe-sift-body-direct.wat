@@ -51,7 +51,7 @@
                idxs))
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
      qr    (:wat::telemetry::Journal/query-logs journal
-             (:wat::telemetry::Journal::QueryLogsRequest :namespace "sift-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
+             (:wat::telemetry::Journal::QueryLogsRequest :namespace "sift-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::Option::None))]
     (:wat::core::match qr [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::telemetry::Journal::QueryLogsResponse::Success {:logs qlogs :cursor _cur}
         (:wat::core::let

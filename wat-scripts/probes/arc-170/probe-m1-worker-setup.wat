@@ -48,7 +48,7 @@
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv self) 
                     [:probe::Msg::Setup {:addr addr}
-                      (:probe::serve self (:wat::core::Some {:value (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])}))]   ;; DIAL-and-HOLD
+                      (:probe::serve self (:wat::core::Option::Some {:value (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])}))]   ;; DIAL-and-HOLD
                     [:probe::Msg::Work {:s s}
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")
@@ -62,9 +62,9 @@
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String :probe::Msg)]
-                    (:probe::serve self :wat::core::None)))))
+                    (:probe::serve self :wat::core::Option::None)))))
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
-            [:wat::core::Some {:value p}
+            [:wat::core::Option::Some {:value p}
               (:wat::core::let
                 [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; grant BEFORE the setup dial
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup {:addr ea})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])            ;; worker dials-and-holds (admitted)
@@ -89,6 +89,6 @@
                        [:wat::kernel::RecvOutcome::Closed {}
                          (:wat::kernel::assertion-failed! :message "recv': worker closed unexpectedly")])]
                 (:wat::string::concat r1 (:wat::string::concat " " r2)))]
-            [:wat::core::None {}
+            [:wat::core::Option::None {}
               (:wat::kernel::assertion-failed! :message "peer-pid None on process worker")])]
     (:wat::kernel::println out)))

@@ -12,7 +12,7 @@
 ;;   ./target/release/wat wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat
 
 (:wat::core::defn :cx::pos? [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
-  (:wat::core::if (:wat::core::>= x 0) (:wat::core::Some x) :wat::core::None))
+  (:wat::core::if (:wat::core::>= x 0) (:wat::core::Option::Some {:value x}) :wat::core::Option::None))
 
 (:wat::core::defn :cx::build-list [n <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
   (:wat::core::foldl
@@ -32,7 +32,7 @@
 ;; counting printed lines (rather than eyeballing timing).
 (:wat::core::defn :cx::counting-keep [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let [__ (:wat::kernel::println (:wat::i64::to-string x))]
-    (:wat::core::Some x)))
+    (:wat::core::Option::Some {:value x})))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [

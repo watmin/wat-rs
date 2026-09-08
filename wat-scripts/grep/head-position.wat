@@ -19,7 +19,7 @@
 ;; a node in head position — index 0 of its parent form
 (:wat::rete::defrule :hp::head
   :when [(:wat::grep::Node (?id <- :id) (?k <- :kind) (?i <- :index))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))]
   :then [(:hp::IsHead :id ?id)])
 

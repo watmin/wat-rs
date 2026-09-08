@@ -129,10 +129,10 @@
    suffix <- :wat::core::String]
   -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? forms)
-    :wat::core::None
+    :wat::core::Option::None
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
       (:wat::core::if (:user::helper-defn? f suffix)
-        (:wat::core::Some f)
+        (:wat::core::Option::Some {:value f})
         (:user::find-helper tl suffix)))))
 
 ;; helper-text-opt — the verbatim FORM text inside a helper's `(quasiquote FORM)` body, if the
@@ -144,11 +144,11 @@
    suffix <- :wat::core::String]
   -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::match (:user::find-helper forms suffix)
-    [:wat::core::Some {:value h}
+    [:wat::core::Option::Some {:value h}
       (:wat::core::let [ch   (:wat::core::ast->children h)
                         body (:wat::core::Option/expect (:wat::core::get ch 5) "helper-text-opt: body")]
-        (:wat::core::Some (:user::quasi-text body lines src)))]
-    [:wat::core::None {} :wat::core::None]))
+        (:wat::core::Option::Some {:value (:user::quasi-text body lines src)}))]
+    [:wat::core::Option::None {} :wat::core::Option::None]))
 
 ;; build-defrule-text — the replacement source text for one migrated rule.
 (:wat::core::defn :user::build-defrule-text

@@ -13,12 +13,12 @@
 (:wat::core::defn :app::drain [remaining <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match
               (:wat::core::if (:wat::core::> remaining 0) 
-                (:wat::core::Some remaining)
-                :wat::core::None)
+                (:wat::core::Option::Some {:value remaining})
+                :wat::core::Option::None)
               
-              [:wat::core::Some {:value v}
+              [:wat::core::Option::Some {:value v}
                 (:app::drain (:wat::i64::- v 1) (:wat::i64::+ acc 1))]
-              [:wat::core::None {} acc]))
+              [:wat::core::Option::None {} acc]))
 
 (:wat::core::defn :user::compute_t2 [] -> :wat::core::i64 (:app::drain 100000 0))
 
@@ -56,14 +56,14 @@
 ;; T6: try + TailCall coexistence (short-circuits with Ok 0)
 (:wat::core::defn :app::check [n <- :wat::core::i64] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::if (:wat::core::< n 0) 
-              (:wat::core::Err "negative")
-              (:wat::core::Ok n)))
+              (:wat::core::Result::Err {:error "negative"})
+              (:wat::core::Result::Ok {:value n})))
 
 (:wat::core::defn :app::loop_t6 [n <- :wat::core::i64] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
               [valid (:wat::core::Result/try (:app::check n))]
               (:wat::core::if (:wat::core::= valid 0) 
-                (:wat::core::Ok 0)
+                (:wat::core::Result::Ok {:value 0})
                 (:app::loop_t6 (:wat::i64::- valid 1)))))
 
 (:wat::core::defn :user::compute_t6 [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String]) (:app::loop_t6 50000))
@@ -73,7 +73,7 @@
   (:wat::core::let
               [valid (:wat::core::Result/try (:app::check n))]
               (:wat::core::if (:wat::core::<= valid (:wat::i64::- 0 1)) 
-                (:wat::core::Ok 0)
+                (:wat::core::Result::Ok {:value 0})
                 (:app::loop_t7 (:wat::i64::- valid 1)))))
 
 ;; Start at -1 so `check` immediately returns Err and `try` propagates.

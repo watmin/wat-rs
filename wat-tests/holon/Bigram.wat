@@ -22,14 +22,14 @@
        (:wat::core::match
          (:wat::holon::Bigram xs)
          
-         [:wat::core::Ok {:value h} h]
-         [:wat::core::Err {:error _} a])
+         [:wat::core::Result::Ok {:value h} h]
+         [:wat::core::Result::Err {:error _} a])
      ngram2
        (:wat::core::match
          (:wat::holon::Ngram 2 xs)
          
-         [:wat::core::Ok {:value h} h]
-         [:wat::core::Err {:error _} a])]
+         [:wat::core::Result::Ok {:value h} h]
+         [:wat::core::Result::Err {:error _} a])]
     (:wat::test::assert-eq
       (:wat::holon::coincident? bigram ngram2)
       true)))
@@ -49,8 +49,8 @@
        (:wat::core::match
          (:wat::holon::Bigram (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
          
-         [:wat::core::Ok {:value h} h]
-         [:wat::core::Err {:error _} a])]
+         [:wat::core::Result::Ok {:value h} h]
+         [:wat::core::Result::Err {:error _} a])]
     (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
 
 (:wat::test::deftest :wat-tests::holon::Bigram::test-bigram-outsider-below-floor
@@ -64,6 +64,6 @@
        (:wat::core::match
          (:wat::holon::Bigram (:wat::core::Vector :- [:wat::holon::HolonAST] a b c))
          
-         [:wat::core::Ok {:value h} h]
-         [:wat::core::Err {:error _} a])]
+         [:wat::core::Result::Ok {:value h} h]
+         [:wat::core::Result::Err {:error _} a])]
     (:wat::test::assert-eq (:wat::holon::presence? z full) false)))

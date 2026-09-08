@@ -87,8 +87,8 @@
                                  "count-kinds: node not found")
                           kind (:wat::rete::node-kind-label node)
                           cur  (:wat::core::match (:wat::hashmap::get acc kind)
-                                 [:wat::core::Some {:value v} v]
-                                 [:wat::core::None {} 0])]
+                                 [:wat::core::Option::Some {:value v} v]
+                                 [:wat::core::Option::None {} 0])]
           (:wat::hashmap::assoc acc kind (:wat::i64::+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
       (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])

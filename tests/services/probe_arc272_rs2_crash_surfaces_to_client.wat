@@ -17,7 +17,7 @@
   :ephemeral []
   :impls
   [(boom [s ctx req]
-     (:wat::kernel::assertion-failed! :message "boom — the handler crashed on purpose" :actual (:wat::core::Some {:value "boom"}) :expected (:wat::core::Some {:value "ok"})))])
+     (:wat::kernel::assertion-failed! :message "boom — the handler crashed on purpose" :actual (:wat::core::Option::Some {:value "boom"}) :expected (:wat::core::Option::Some {:value "ok"})))])
 
 ;; arc 278 recv'-wall: recv' surfaces the far-side crash as a MATCHABLE RecvOutcome::Lost VALUE
 ;; (never a raise — a raise unwinds past the reader, which is the mask the wall kills). The client

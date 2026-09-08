@@ -29,7 +29,7 @@
      pk    (:wat::edn::write (:wat::telemetry::PartitionKey
                                :namespace "probe-ns" :kind :wat::telemetry::Kind::Metric))
      resp  (:wat::query::Store/scan client
-             (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::None))]
+             (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::Option::None))]
     (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:wat::query::Store::ScanResponse::Success {:rows rows :cursor _cursor}
         (:wat::core::if (:wat::core::= (:wat::core::count rows) 1)

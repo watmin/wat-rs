@@ -36,8 +36,8 @@
     (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
     [:wat::edn::ReadForeignOutcome::Value {:value fr}
       (:wat::core::match (:wat::edn::ForeignRecord/get fr :nope)
-        [:wat::core::None {} true]
-        [:wat::core::Some {:value _} false])]
+        [:wat::core::Option::None {} true]
+        [:wat::core::Option::Some {:value _} false])]
     [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false]))
 
 ;; :my::malformed-is-malformed — junk EDN is :Malformed, never a raise.

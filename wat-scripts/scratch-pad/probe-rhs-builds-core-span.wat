@@ -57,7 +57,7 @@
                    :line ?l
                    :col  ?c
                    ;; ⚠ QUALIFIED, and it is not a style choice — see the finding at the foot.
-                   :end  (:wat::core::Option::Some (:wat::core::Pos :line ?el :col ?ec)))
+                   :end  (:wat::core::Option::Some {:value (:wat::core::Pos :line ?el :col ?ec)}))
            :why "complete Span — Pos inside Some inside Span, all four coords LHS-bound")])
 
 (:wat::rete::defquery :p::q-Hit

@@ -241,7 +241,7 @@
      ;; Drain the peer to a clean close (arc 278 IPC de-prime: recv-all' replaces
      ;; Process/drain-and-join). The peer's death rides in the Err — surfaced, never swallowed.
      _drained     (:wat::core::match (:wat::kernel::recv-all peer!)
-                    [:wat::core::Ok {:value _} nil]
-                    [:wat::core::Err {:error cause}
+                    [:wat::core::Result::Ok {:value _} nil]
+                    [:wat::core::Result::Err {:error cause}
                       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])]
     nil))

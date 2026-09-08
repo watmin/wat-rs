@@ -81,7 +81,7 @@
          ;; `nameable?`) — a string literal's span covers its surrounding quotes while its
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
          ;; the literal into unquoted keyword syntax.
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword)))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::keyword/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-keyword-slash-to-keyword-colon"

@@ -217,8 +217,8 @@
   :when
   [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
                                  (:wat::rete::core::match ?o
-                                   [:wat::core::Some {:value v} (:wat::rete::i64::> v 90)]
-                                   [:wat::core::None {} false]))]
+                                   [:wat::core::Option::Some {:value v} (:wat::rete::i64::> v 90)]
+                                   [:wat::core::Option::None {} false]))]
   :then
   [(:wsc::Hit ?k)])
 
@@ -289,7 +289,7 @@
                           b       (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 9) 9))
                           n       (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 6) 6)))
                           is-mult3 (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
-                          o       (:wat::core::if is-mult3 :wat::core::None (:wat::core::Some i))]
+                          o       (:wat::core::if is-mult3 :wat::core::Option::None (:wat::core::Option::Some {:value i}))]
           (:wat::vector::conj acc
             (:wsc::Req :k i :a a :b b :n n :o o))))
       (:wat::core::PersistentVector)

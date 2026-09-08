@@ -29,10 +29,10 @@
      jclient (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      oq    (:wat::telemetry::Journal/query-metrics jclient
              (:wat::telemetry::Journal::QueryMetricsRequest :namespace "outer-ns"
-               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::None))
+               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::Option::None))
      iq    (:wat::telemetry::Journal/query-metrics jclient
              (:wat::telemetry::Journal::QueryMetricsRequest :namespace "inner-ns"
-               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::None))
+               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::Option::None))
      oc    (:wat::core::match oq [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
              [:wat::telemetry::Journal::QueryMetricsResponse::Success {:metrics ms :cursor _c} (:wat::core::count ms)]
              [_ -1])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])

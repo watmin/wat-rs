@@ -43,11 +43,11 @@
 (:wat::core::defn :list::get-found [] -> :wat::core::bool
   (:wat::core::match (:wat::linkedlist::get (:wat::core::List 10 20 30) 1)
     
-    [:wat::core::Some {:value x} (:wat::core::= x 20)]
-    [:wat::core::None {} false]))
+    [:wat::core::Option::Some {:value x} (:wat::core::= x 20)]
+    [:wat::core::Option::None {} false]))
 
 (:wat::core::defn :list::get-oob [] -> :wat::core::bool
   (:wat::core::match (:wat::linkedlist::get (:wat::core::List 10 20 30) 99)
     
-    [:wat::core::Some {:value _} false]
-    [:wat::core::None {} true]))
+    [:wat::core::Option::Some {:value _} false]
+    [:wat::core::Option::None {} true]))

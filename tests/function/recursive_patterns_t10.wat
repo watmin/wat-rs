@@ -2,13 +2,13 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
               [row
-                (:wat::core::Some (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5))
+                (:wat::core::Option::Some {:value (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)})
                line
                 (:wat::core::match row 
-                  [:wat::core::Some {:value (ts open high low close volume)}
+                  [:wat::core::Option::Some {:value (ts open high low close volume)}
                     (:wat::string::concat
                       (:wat::i64::to-string ts)
                       (:wat::string::concat ":"
                         (:wat::f64::to-string close)))]
-                  [:wat::core::None {} "end"])]
+                  [:wat::core::Option::None {} "end"])]
               (:wat::kernel::println line)))

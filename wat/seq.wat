@@ -487,8 +487,8 @@
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::match (f value)
-          [:wat::core::Some {:value v} (:wat::stream::cons v (:wat::core::keep f rest))]
-          [:wat::core::None {} (:wat::core::keep f rest)])]
+          [:wat::core::Option::Some {:value v} (:wat::stream::cons v (:wat::core::keep f rest))]
+          [:wat::core::Option::None {} (:wat::core::keep f rest)])]
       [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 ;; ─── keep-indexed — as `keep`, `f : [i64 T :-> (Option :- [U])]` ────────────────────────────────
@@ -508,9 +508,9 @@
     (:wat::core::match (:wat::stream::next s)
       [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::match (f idx value)
-          [:wat::core::Some {:value v}
+          [:wat::core::Option::Some {:value v}
             (:wat::stream::cons v (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest))]
-          [:wat::core::None {} (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest)])]
+          [:wat::core::Option::None {} (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest)])]
       [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::keep-indexed :- [T U]
@@ -554,17 +554,17 @@
     (:wat::core::match (:wat::stream::next s)
       [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::match prev
-          [:wat::core::None {}
-            (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some {:value value}) rest))]
-          [:wat::core::Some {:value p}
+          [:wat::core::Option::None {}
+            (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Option::Some {:value value}) rest))]
+          [:wat::core::Option::Some {:value p}
             (:wat::core::if (:wat::core::= p value)
-              (:wat::core::dedupe-walk (:wat::core::Some {:value value}) rest)
-              (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some {:value value}) rest)))])]
+              (:wat::core::dedupe-walk (:wat::core::Option::Some {:value value}) rest)
+              (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Option::Some {:value value}) rest)))])]
       [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::dedupe :- [T]
   [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
-  (:wat::core::dedupe-walk :wat::core::None (:wat::core::Seqable/seq coll)))
+  (:wat::core::dedupe-walk :wat::core::Option::None (:wat::core::Seqable/seq coll)))
 
 ;; ─── distinct — drop ALL duplicates (keep first) ───────────────────────────────────────────────
 ;; 118.B2 — ONE clause over `(Seqable :- [T])`. `distinct-stream`'s `seen : (HashSet :- [T])` accumulator is

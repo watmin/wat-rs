@@ -2,9 +2,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
               [row
-                (:wat::core::Some (:wat::core::Tuple 100 99 98))
+                (:wat::core::Option::Some {:value (:wat::core::Tuple 100 99 98)})
                mid
                 (:wat::core::match row 
-                  [:wat::core::Some {:value (_ x _)} x]
-                  [:wat::core::None {} 0])]
+                  [:wat::core::Option::Some {:value (_ x _)} x]
+                  [:wat::core::Option::None {} 0])]
               (:wat::kernel::println (:wat::i64::to-string mid))))

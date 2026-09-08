@@ -14,5 +14,5 @@
   :Pair [code <- :wat::core::i64  msg <- :wat::core::String])   ;; a TWO-field variant (positional tuple)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:probe::Error::Err1 (:probe::Err1 "boom")))    ;; 1 field -> [record]
-  (:wat::kernel::println (:probe::Error::Pair 42 "boom")))               ;; 2 fields -> [42 "boom"]
+  (:wat::kernel::println (:probe::Error::Err1 {:err (:probe::Err1 "boom")}))    ;; 1 field -> [record]
+  (:wat::kernel::println (:probe::Error::Pair {:code 42 :msg "boom"})))               ;; 2 fields -> [42 "boom"]

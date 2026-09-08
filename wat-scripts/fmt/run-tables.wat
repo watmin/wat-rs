@@ -16,8 +16,8 @@
    g <- :wat::core::i64]
   -> (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::match (:wat::core::get m g)
-    [:wat::core::None {} (:wat::hashmap::assoc m g 1)]
-    [:wat::core::Some {:value n} (:wat::hashmap::assoc m g (:wat::i64::+ n 1))]))
+    [:wat::core::Option::None {} (:wat::hashmap::assoc m g 1)]
+    [:wat::core::Option::Some {:value n} (:wat::hashmap::assoc m g (:wat::i64::+ n 1))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
