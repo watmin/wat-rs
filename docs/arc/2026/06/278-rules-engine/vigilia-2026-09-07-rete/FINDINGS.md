@@ -369,6 +369,9 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2N2** | cernere | `clause.rs:551` | `":wat::rete::core::vector::="` appears in `unrelated_heads_are_not_constraints`'s list of heads that must NOT classify. No `RETE_OPS` row has ever borne that name (checked against the full 79-row extraction) and it appears nowhere else in the tree. ⚠ **The ward graded its own confidence LOWER here and said why**: the name is used correctly as a *negative probe*, which is what `cernere`'s `spell-probe` rune category exists for — it simply carries no rune. Test-only data, never user-visible. | L3 | **OPEN** · ⚠ ward-reported | closed by a `rune:cernere(spell-probe)` naming the test, or by using a real inadmissible head |
 | **2R1 ★★** | probare | `matcher.rs:114-131` | ⭐⭐ **"THREE INDEPENDENT SITES" — THERE ARE FOUR, AND THE FOURTH IS NAMED NOWHERE.** The doc justifies `enum_variant_ctor`'s `(enum, variant, arity)` return shape by *"the three callers"* and says so three times (`:115`, `:124`, `:127`). Actual callers: `purity.rs:976`, `expr_ir/mod.rs:1087`, `validate/mod.rs:1056`, **and `validate/typing.rs:335`** — the last resolving `Unit`/`Tagged` for a diagnostic classification, a fourth purpose the doc does not mention. ⚠ **The ward proposed a cause worth keeping**: this likely postdates `partire`'s 2026-08-30 split of `validate.rs` into `mod`/`typing`/`error` — the split created a caller in the new file that the doc in the *other* file never absorbed. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `grep -rn 'enum_variant_ctor(' src/` → 4 callers of `matcher::enum_variant_ctor` (`check.rs`'s `literal_enum_variant_ctor` is a different, local fn — correctly excluded). `grep tests/lint/` → **no gate pins this count.** Closed by correcting the number and naming the fourth |
 | **2R2** | probare | `validate/mod.rs:66-67` | *"Full coverage is each CALLER's job, and **both callers** now enforce it"* — naming `eval_kwargs_construct` (runtime.rs) and `validate_rule_when_and_reorder_then`. There are **three** production call sites: `runtime.rs:18965`, `check.rs:13115`, `validate/mod.rs:1284`. ⚠ **Weaker than 2R1 and I am saying so**: the doc DOES mention `check.rs`'s `infer_kwargs_construct_check` — but as *enforcement backing the runtime caller*, not as a caller of this helper. The ward read `check.rs:13095-13118` and found it a **direct, independent call**. So the call-site count is wrong; whether the doc's own taxonomy makes "both" defensible is arguable. | L2 | **OPEN** · ✅ I VERIFIED | 3 production sites + 2 `#[cfg(test)]` in-file (`:1664`, `:1675`, correctly excluded); no gate pins it |
+| **2V1 ★★** | perspicere | `compiled_cond.rs:791-792`; `alpha_tree.rs:58` vs `:228`; `expr_ir/eval.rs:1469` | ⭐⭐ **THREE SITES SPELL BY HAND A TYPE THE FILE ALREADY NAMES — AND ONE OF THEM IS THE FUNCTION'S OWN RETURN TYPE.** `invert_slot_names` returns `expr_ir::SlotNames` (= `Box<[SlotName]>`, `SlotName = Option<Arc<str>>`) and its **very next line** declares `let mut out: Vec<Option<Arc<str>>>` — re-spelling the element type of its own signature. `alpha_tree.rs:58` declares `type AlphaWildcard = Option<Arc<AlphaDiscNode>>` (used twice) while `:228` writes it longhand 170 lines below. `expr_ir/eval.rs:1469` re-spells `compiled_cond::SlotFrame` in a doc comment that **already states the equivalence in prose** two lines above. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '58p;228p' alpha_tree.rs` → alias then longhand; `sed -n '790,792p' compiled_cond.rs` → `-> SlotNames` then `Vec<Option<Arc<str>>>`; `expr_ir/mod.rs:167-168` → the alias pair. Closed by three substitutions, no new nouns |
+| **2V2** | perspicere | `export.rs:721`; `expr_ir/mod.rs:833`, `:163` | The `(field-name, slot-index)` pair — `(Arc<str>, u16)` — is spelled longhand at three sites across two modules with **no alias anywhere**, while `expr_ir/mod.rs:167-168` already hosts a `Slot*` family it would sit beside. ⭐ **The ward applied its own rule-4 bar before recommending**: 3 uses across 2 modules clears "reused, not read-once". | L2 | **OPEN** · ⚠ ward-reported | closed by `type FieldSlot = (Arc<str>, u16);` beside `SlotName` |
+| **2V3** | perspicere | `wat/rete.wat:32`, recurring at `:429` | The wat-side mint. `Token.matches` inlines `(PersistentVector :- [(Tuple :- [Record i64])])` in a `defrecord` field — 2 levels of bracket nesting, the analog the ward derived for a language with no angle brackets. The inner `(Tuple :- [Record i64])` is **one alpha-hit**; the file's own comment at `:419` says *"each tuple is (sfact, alpha-id)"*, and the identical shape recurs at `:429` as a lambda parameter. ⚠ **Confirmed NOT read-once by the twin**, and no `typealias :wat::rete::*` covers it (all six checked). | L2 | **OPEN** · ⚠ ward-reported | closed by a `:wat::rete::AlphaHit` typealias used at both sites |
 
 ## Verified by the orchestrator — target 2
 
@@ -481,7 +484,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **12** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere · probare | perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **13** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere · probare · perspicere | perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **5** | 25 (+2 L3, +1 ward-split) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -932,3 +935,51 @@ would mislead (`mod.rs` at 0.29:1 — a module index where the count of `pub(cra
 right denominator). **Zero described-or-hollow forms** anywhere in the target, and it caught that the
 only `stub` hits are a *filename citation* (`BRIEF-the-f64-surface-is-a-stub.md`) and prose about a
 different concept — the prose-vs-thing trap that has now bitten my own greps twice.
+
+- **2V1 ★★** — CONFIRMED, all three, and the `compiled_cond.rs` one is the sharpest instance of
+  "reuse before inventing" this vigilia has produced. `:791` reads `-> crate::rete::expr_ir::SlotNames`
+  and `:792` reads `let mut out: Vec<Option<Arc<str>>>`. **The alias is not a sibling in another
+  module — it is the type the function is declared to return**, one line above, already imported.
+  `alpha_tree.rs` is the same shape with 170 lines of distance: `type AlphaWildcard` at `:58`, used
+  twice, and `:228` writing it out.
+
+⭐⭐ **AND THE EqBuckets SECOND READING STRENGTHENS 2M1 — from a different ward, on a site it was only
+invited to comment on.** `temperare` rowed `EqChildren` because `alpha_tree.rs` uses `FxHashMap`
+(with a measured stone) and `where_tree.rs` uses `std` `HashMap`. `perspicere` looked at the same twin
+files and found a **second** identically-named alias: `type EqBuckets = HashMap<Value, Vec<i64>>` at
+`alpha_tree.rs:53` **and** `where_tree.rs:41` — byte-identical, `std` on both sides, **no divergence.**
+⛔ **That is evidence about 2M1's nature, not just a DRY note.** The two files declare two aliases
+with the same two names; one pair diverged and one did not. If the twins were deliberately different
+engines you would expect divergence in both. **The `EqBuckets` match is the control that makes the
+`EqChildren` mismatch read as an accident** — a fix applied to one file and not carried to the other —
+rather than a considered choice. `perspicere` was invited to give a second reading and gave one that
+changes how the first row should be read.
+
+⭐⭐ **IT CONFIRMED MY MEASUREMENT EXACTLY — AND THEN FOUND WHAT I HAD MISSED.** *"Same 121 raw hits
+across the same 16 files"*; my disclosed 18 comment-line hits confirmed at ~19. **This is the first
+handed-down measurement of this cast to survive re-derivation on every figure** — and it survived
+because I disclosed the pattern's contamination alongside the number instead of just the number.
+But the ward did not stop at agreeing:
+· **A fourth false-positive category I never named** — `Option<Fact<'_>>`, `Vec<WrapperBind<'a>>`,
+  `Option<AlphaPattern<'_>>`: the second `<` is a **lifetime**, not a hidden noun. The noun is already
+  at the surface. It judged these not-flagged, correctly.
+· ⛔ **And it demolished my framing of `reachability.rs`.** I called its 27 hits *"the largest bucket
+  AND the least consequential."* Wrong on the second half in a way that matters: the ward read all 27
+  and found them **100% wat-DSL text inside Rust string literals** — `<-` bind arrows and `<12`/`<18`
+  format specifiers. **Not one real Rust generic.** It is not a low-value bucket; it is an **empty**
+  one. A ward that reads what a count contains, rather than weighing the count, is the only kind that
+  can tell those apart.
+
+⭐ **The runes: 3 of 3 clear, and the two `read-once` claims were CHECKED, not assumed.** Both
+`purity.rs:2587` and `:2593` assert their type appears exactly once; the ward grepped each exact type
+string whole-repo and got **one hit each**. Same discipline it applied to target 1's seven, same
+outcome. ⚠ It also noted both sit inside a `#[cfg(test)]` block, so the stakes were low either way —
+saying so rather than inflating the result.
+
+⭐ **And it declined 20 sites in one group with a stated bar.** The `Result<_, EvalBreak>` idiom is
+attested 35× in `export.rs` alone; minting per-`T` aliases is precisely the "dozen aliases nobody
+reuses" its own rule 4 forbids. It flagged the *one* thing that would help — a generic
+`type EvalResult<T> = Result<T, EvalBreak>` covering all 35 at once — and then explicitly refused to
+recommend it, calling it a crate-wide convention change rather than a per-site mint. **Naming the
+larger fix and declining to smuggle it in under a narrower ward is the restraint that keeps a cast's
+recommendations actionable.**
