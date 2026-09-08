@@ -2275,6 +2275,12 @@
      t-arm0 (:wat::time::epoch-nanos (:wat::time::now))
      _go-late (:wat::core::if fill-first? (:fanout::arm-workers! wpeers) nil)
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
+     ;; Drain-store samples sit inside the wall-clock span: before-sample
+     ;; immediately after t-drain0, after-sample immediately before t-collect0.
+     ;; After-sample's 8 stats calls land in the store delta; before-sample's
+     ;; 8 do not (they are in sc-before). Timestamps were not moved.
+     sc-before (:fanout::sum-store-calls qclients)
+     ns-before (:fanout::sum-store-ns qclients)
      ;; One 5 ms poll slot per delivered pair (n×m). Hang if drain is slower
      ;; than 200 pairs/sec. Scales with the work; not a raised constant.
      drain-pair (:fanout::poll-until-drained qclients topic (:wat::i64::* n m))
@@ -2289,6 +2295,8 @@
                     :me (:wat::core::second (:wat::core::second dp))
                     :ar (:wat::core::third dp)))))
      poll-calls (:wat::core::second drain-pair)
+     sc-after (:fanout::sum-store-calls qclients)
+     ns-after (:fanout::sum-store-ns qclients)
      t-collect0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
@@ -2335,7 +2343,7 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2358,6 +2366,8 @@
               :polls poll-calls
               :sc store-calls
               :sms (:wat::i64::/ store-ns 1000000)
+              :dsc (:wat::i64::/ (:wat::i64::- sc-after sc-before) m)
+              :dsms (:wat::i64::/ (:wat::i64::- ns-after ns-before) (:wat::i64::* 1000000 m))
               :total (ms t-setup0 t-end))
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
