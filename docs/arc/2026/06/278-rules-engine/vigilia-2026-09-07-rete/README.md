@@ -214,16 +214,18 @@ the only copy. **Read it before casting anything.**
 |---|---|---|---|---|
 | 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
 | 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
-| 3 | `wat-scripts/perf/grid/` (148 files, 16,616 lines) | **13 cast** | **30** | ⏳ MID-FLIGHT |
+| 3 | `wat-scripts/perf/grid/` (148 files, 16,616 lines) | **14 cast** | **30** | ⏳ MID-FLIGHT |
 | 4 | `tests/rete/` + `src/rete/kernel/tests/` | **0** | 0 | ⛔ NOT CAST — **and its "264 files, ~36k" figure has NEVER been re-derived. MEASURE IT FIRST.** |
 
 **Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6), `purgare` (1),
 `conferre` (2), `intueri` (4, incl. one L1), `struere` (5, incl. one L1), `sequi` (1 + 1 of mine, incl. one L1), `temperare` (2, incl. one L1), `conformare` (3, two L1),
-`probare` (3), `perspicere` (1). `cernere` was cast alongside `perspicere` and is IN FLIGHT at this
-writing — if no `reports-target3/cernere.md` exists, its return was lost to the wall and it must be recast. ⭐ **`purgare` LANDED before the wall** (1 row, `3G1`) — it is in `reports-target3/purgare.md`.
+`probare` (3), `perspicere` (1), `cernere` **CLEAN** (0 rows — but see its doctrine correction in
+`FINDINGS.md`'s orchestrator section: a BUILDER item about `wat-rs/CLAUDE.md`, deliberately NOT rowed
+against target 3, because the defect is in the doctrine and not in this corpus). ⭐ **`purgare` LANDED before the wall** (1 row, `3G1`) — it is in `reports-target3/purgare.md`.
 
-**Target 3 — still to cast:** `cernere` (in flight),
-then **`circumspicere` LAST**. (`perspicere` was upgraded from *evaluate at cast time* to a measured
+**Target 3 — still to cast: `circumspicere`, and it is the LAST WARD OF THIS TARGET.** On both prior
+targets the final `circumspicere` returned the sharpest finding of the whole cast — it closed target 1
+at 14/14 and target 2 at 15/15. **Do not skip it and do not cast it early.** (`perspicere` was upgraded from *evaluate at cast time* to a measured
 MUSTER on 2026-09-08 — see its row in the muster table.) Muster with measured triggers is above in this
 file; two triggers measured **NO** (`secare` 0 parallel primitives, `excusare` 0 runes in the whole
 grid) and one measured **CLEAN-not-absent** (`exigere`: my "7 TODO hits" were all `"XXX"` as a
