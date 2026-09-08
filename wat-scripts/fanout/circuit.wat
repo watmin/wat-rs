@@ -1100,7 +1100,7 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _)
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _ _)
           (:wat::core::Tuple visible unacked))
         (_ (:wat::core::Tuple -1 -1))))
     (_ (:wat::core::Tuple -1 -1))))
@@ -1817,7 +1817,7 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok calls _ticks _visible _unacked _ _)
+            ((:queue::Queue::StatsResponse::Ok calls _ticks _visible _unacked _ _ _)
               (:wat::i64::+ acc calls))
             (_ acc)))
         (_ acc)))
@@ -1831,7 +1831,7 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls ticks _visible _unacked _ _)
+            ((:queue::Queue::StatsResponse::Ok _calls ticks _visible _unacked _ _ _)
               (:wat::i64::+ acc ticks))
             (_ acc)))
         (_ acc)))
@@ -1845,7 +1845,7 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked sc _)
+            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked sc _ _)
               (:wat::i64::+ acc sc))
             (_ acc)))
         (_ acc)))
@@ -1859,8 +1859,22 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked _ sns)
+            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked _ sns _)
               (:wat::i64::+ acc sns))
+            (_ acc)))
+        (_ acc)))
+    0
+    qclients))
+
+(:wat::core::defn :fanout::sum-handler-ns
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64  q <- :queue::Queue] -> :wat::core::i64
+      (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+        ((:wat::kernel::RecvOutcome::Message r)
+          (:wat::core::match r
+            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked _ _ hn)
+              (:wat::i64::+ acc hn))
             (_ acc)))
         (_ acc)))
     0
@@ -2281,6 +2295,7 @@
      ;; 8 do not (they are in sc-before). Timestamps were not moved.
      sc-before (:fanout::sum-store-calls qclients)
      ns-before (:fanout::sum-store-ns qclients)
+     hn-before (:fanout::sum-handler-ns qclients)
      ;; One 5 ms poll slot per delivered pair (n×m). Hang if drain is slower
      ;; than 200 pairs/sec. Scales with the work; not a raised constant.
      drain-pair (:fanout::poll-until-drained qclients topic (:wat::i64::* n m))
@@ -2297,6 +2312,7 @@
      poll-calls (:wat::core::second drain-pair)
      sc-after (:fanout::sum-store-calls qclients)
      ns-after (:fanout::sum-store-ns qclients)
+     hn-after (:fanout::sum-handler-ns qclients)
      t-collect0 (:wat::time::epoch-nanos (:wat::time::now))
      calls (:fanout::sum-calls qclients)
      ticks (:fanout::sum-ticks qclients)
@@ -2343,7 +2359,7 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2368,6 +2384,7 @@
               :sms (:wat::i64::/ store-ns 1000000)
               :dsc (:wat::i64::/ (:wat::i64::- sc-after sc-before) m)
               :dsms (:wat::i64::/ (:wat::i64::- ns-after ns-before) (:wat::i64::* 1000000 m))
+              :dbms (:wat::i64::/ (:wat::i64::- hn-after hn-before) (:wat::i64::* 1000000 m))
               :total (ms t-setup0 t-end))
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls

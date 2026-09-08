@@ -67,7 +67,7 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _)
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _ _)
           (:wat::core::format "[{v}/{u}]" :v visible :u unacked))
         (_ "[not-ok]")))
     (_ "[lost]")))

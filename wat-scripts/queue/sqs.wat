@@ -74,7 +74,8 @@
      :Ok [receive-calls <- :wat::core::i64  ticks <- :wat::core::i64
           visible <- :wat::core::i64  unacked <- :wat::core::i64
           store-calls <- :wat::core::i64
-          store-ns <- :wat::core::i64]
+          store-ns <- :wat::core::i64
+          handler-ns <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
@@ -141,6 +142,7 @@
               ticks         <- :wat::core::i64
               store-calls   <- :wat::core::i64
               store-ns      <- :wat::core::i64
+              handler-ns    <- :wat::core::i64
               depth         <- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply]) :wat::core::String :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
               total         <- [(:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply]) :wat::core::String :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
               q-name        <- :wat::core::String
@@ -372,6 +374,7 @@
               :ticks 0
               :store-calls 0
               :store-ns 0
+              :handler-ns 0
               :depth depth
               :total total
               :q-name ""
@@ -380,7 +383,8 @@
   :impls
   [(send [s ctx req]
      (:wat::core::let
-       [store (:queue::queue::State/store s)
+       [start-ns (:wat::service::Invocation/start-ns ctx)
+        store (:queue::queue::State/store s)
         q      (:queue::Queue::SendRequest/queue req)
         now-ns (:queue::Queue::SendRequest/now-ns req)
         bodies (:queue::Queue::SendRequest/bodies req)
@@ -408,7 +412,7 @@
                  :waiters (:queue::queue::State/waiters s)
                  :outbox (:queue::queue::State/outbox s)
                  :receive-calls (:queue::queue::State/receive-calls s)
-                 :store-calls sc0 :store-ns sn0
+                 :store-calls sc0 :store-ns sn0 :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                  :ticks (:queue::queue::State/ticks s)
                  :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                  :q-name q
@@ -453,7 +457,7 @@
                        :waiters (:queue::queue::State/waiters s)
                        :outbox (:queue::queue::State/outbox s)
                        :receive-calls (:queue::queue::State/receive-calls s)
-                       :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns)
+                       :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                        :ticks (:queue::queue::State/ticks s)
                        :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                        :q-name q
@@ -470,7 +474,7 @@
                            :take (:queue::queue::State/take s')
                            :waiters (:queue::queue::State/waiters s')
                            :outbox (:queue::queue::State/outbox s')
-                           :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s')
+                           :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s') :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                            :ticks (:queue::queue::State/ticks s')
                            :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                            :q-name (:queue::queue::State/q-name s')
@@ -541,7 +545,7 @@
                            :waiters keep
                            :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                            :receive-calls (:queue::queue::State/receive-calls s')
-                           :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s') (:queue::TakeAcc/calls (:wat::core::first wpair))) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s') (:queue::TakeAcc/ns (:wat::core::first wpair)))
+                           :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s') (:queue::TakeAcc/calls (:wat::core::first wpair))) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s') (:queue::TakeAcc/ns (:wat::core::first wpair))) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                            :ticks (:queue::queue::State/ticks s')
                            :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                            :q-name (:queue::queue::State/q-name s')
@@ -556,7 +560,7 @@
                            :take (:queue::queue::State/take s2)
                            :waiters (:queue::queue::State/waiters s2)
                            :outbox (:queue::queue::State/outbox s2)
-                           :receive-calls (:queue::queue::State/receive-calls s2) :store-calls (:queue::queue::State/store-calls s2) :store-ns (:queue::queue::State/store-ns s2)
+                           :receive-calls (:queue::queue::State/receive-calls s2) :store-calls (:queue::queue::State/store-calls s2) :store-ns (:queue::queue::State/store-ns s2) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                            :ticks (:queue::queue::State/ticks s2)
                            :depth (:queue::queue::State/depth s2) :total (:queue::queue::State/total s2)
                            :q-name (:queue::queue::State/q-name s2)
@@ -576,13 +580,13 @@
                         :waiters (:queue::queue::State/waiters s)
                         :outbox (:queue::queue::State/outbox s)
                         :receive-calls (:queue::queue::State/receive-calls s)
-                        :store-calls (:wat::i64::+ sc0 (:wat::i64::+ 1 n-retry)) :store-ns (:wat::i64::+ sn0 (:wat::i64::+ put-ns retry-ns))
+                        :store-calls (:wat::i64::+ sc0 (:wat::i64::+ 1 n-retry)) :store-ns (:wat::i64::+ sn0 (:wat::i64::+ put-ns retry-ns)) :handler-ns (:queue::queue::State/handler-ns s)
                         :ticks (:queue::queue::State/ticks s)
                         :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                         :q-name q
                         :tick-armed? (:queue::queue::State/tick-armed? s)
                         :arm-tick (:queue::queue::State/arm-tick s))]
-                 (:queue::queue::send-after-put s-r store q now-ns take)))
+                 (:queue::queue::send-after-put s-r store q now-ns take start-ns)))
              ((:wat::query::Store::PutResponse::Constraint _e)
                (:wat::kernel::assertion-failed! "queue.send: store put Constraint" :wat::core::None :wat::core::None))
              ((:wat::query::Store::PutResponse::Fatal _e)
@@ -605,7 +609,7 @@
                     :waiters (:queue::queue::State/waiters s)
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
-                    :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns)
+                    :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
@@ -633,7 +637,7 @@
                     :waiters (:queue::queue::State/waiters s)
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
-                    :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns)
+                    :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
@@ -644,11 +648,12 @@
                (:wat::core::Some (:queue::Queue::Reply::Send
                  (:queue::Queue::SendResponse::Accepted 0)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
+               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns)) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
 
    (receive [s ctx req]
      (:wat::core::let
-       [store0 (:queue::queue::State/store s)
+       [start-ns (:wat::service::Invocation/start-ns ctx)
+        store0 (:queue::queue::State/store s)
         q      (:queue::Queue::ReceiveRequest/queue req)
         now-ns (:queue::Queue::ReceiveRequest/now-ns req)
         vis-ns (:queue::Queue::ReceiveRequest/visibility-ns req)
@@ -681,7 +686,7 @@
                  :waiters (:queue::queue::State/waiters s)
                  :outbox (:queue::queue::State/outbox s)
                  :receive-calls calls
-                 :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) take-sc) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) take-ns)
+                 :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) take-sc) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) take-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                  :ticks (:queue::queue::State/ticks s)
                  :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                  :q-name q
@@ -698,7 +703,7 @@
                   :take (:queue::queue::State/take s-n)
                   :waiters (:queue::queue::State/waiters s-n)
                   :outbox (:queue::queue::State/outbox s-n)
-                  :receive-calls calls :store-calls (:queue::queue::State/store-calls s-n) :store-ns (:queue::queue::State/store-ns s-n)
+                  :receive-calls calls :store-calls (:queue::queue::State/store-calls s-n) :store-ns (:queue::queue::State/store-ns s-n) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                   :ticks (:queue::queue::State/ticks s-n)
                   :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                   :q-name (:queue::queue::State/q-name s-n)
@@ -722,7 +727,7 @@
                     :take (:queue::queue::State/take s-n)
                     :waiters (:queue::queue::State/waiters s-n)
                     :outbox (:queue::queue::State/outbox s-n)
-                    :receive-calls calls :store-calls (:queue::queue::State/store-calls s-n) :store-ns (:queue::queue::State/store-ns s-n)
+                    :receive-calls calls :store-calls (:queue::queue::State/store-calls s-n) :store-ns (:queue::queue::State/store-ns s-n) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s-n)
                     :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                     :q-name (:queue::queue::State/q-name s-n)
@@ -750,7 +755,7 @@
                     :take (:queue::queue::State/take s-n)
                     :waiters (:wat::vector::conj (:queue::queue::State/waiters s-n) w)
                     :outbox (:queue::queue::State/outbox s-n)
-                    :receive-calls calls :store-calls (:queue::queue::State/store-calls s-n) :store-ns (:queue::queue::State/store-ns s-n)
+                    :receive-calls calls :store-calls (:queue::queue::State/store-calls s-n) :store-ns (:queue::queue::State/store-ns s-n) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s-n)
                     :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                     :q-name (:queue::queue::State/q-name s-n)
@@ -766,7 +771,7 @@
                     :take (:queue::queue::State/take s-w)
                     :waiters (:queue::queue::State/waiters s-w)
                     :outbox (:queue::queue::State/outbox s-w)
-                    :receive-calls calls :store-calls (:queue::queue::State/store-calls s-w) :store-ns (:queue::queue::State/store-ns s-w)
+                    :receive-calls calls :store-calls (:queue::queue::State/store-calls s-w) :store-ns (:queue::queue::State/store-ns s-w) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s-w)
                     :depth (:queue::queue::State/depth s-w) :total (:queue::queue::State/total s-w)
                     :q-name (:queue::queue::State/q-name s-w)
@@ -779,7 +784,8 @@
 
    (ack [s ctx req]
      (:wat::core::let
-       [store (:queue::queue::State/store s)
+       [start-ns (:wat::service::Invocation/start-ns ctx)
+        store (:queue::queue::State/store s)
         q     (:queue::Queue::AckRequest/queue req)
         ids   (:queue::Queue::AckRequest/ids req)
         rec   (:queue::queue::State/durable s)
@@ -821,7 +827,7 @@
                        :waiters (:queue::queue::State/waiters s)
                        :outbox (:queue::queue::State/outbox s)
                        :receive-calls (:queue::queue::State/receive-calls s)
-                       :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns)
+                       :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                        :ticks (:queue::queue::State/ticks s)
                        :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                        :q-name q
@@ -836,7 +842,7 @@
                         :take (:queue::queue::State/take s')
                         :waiters (:queue::queue::State/waiters s')
                         :outbox (:queue::queue::State/outbox s')
-                        :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s')
+                        :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s') :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                         :ticks (:queue::queue::State/ticks s')
                         :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                         :q-name (:queue::queue::State/q-name s')
@@ -861,13 +867,13 @@
                         :outbox (:queue::queue::State/outbox s)
                         :receive-calls (:queue::queue::State/receive-calls s)
                         :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s)
-                                        (:wat::i64::+ 1 n-retry)) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) (:wat::i64::+ del-ns retry-ns))
+                                        (:wat::i64::+ 1 n-retry)) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) (:wat::i64::+ del-ns retry-ns)) :handler-ns (:queue::queue::State/handler-ns s)
                         :ticks (:queue::queue::State/ticks s)
                         :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                         :q-name q
                         :tick-armed? (:queue::queue::State/tick-armed? s)
                         :arm-tick (:queue::queue::State/arm-tick s))]
-                 (:queue::queue::ack-after-delete s-r store q rec' hit?)))
+                 (:queue::queue::ack-after-delete s-r store q rec' hit? start-ns)))
              ((:wat::query::Store::DeleteResponse::Constraint _e)
                (:wat::kernel::assertion-failed! "queue.ack: store delete Constraint" :wat::core::None :wat::core::None))
              ((:wat::query::Store::DeleteResponse::Fatal _e)
@@ -889,7 +895,7 @@
                     :waiters (:queue::queue::State/waiters s)
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
-                    :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns)
+                    :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
@@ -916,7 +922,7 @@
                     :waiters (:queue::queue::State/waiters s)
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
-                    :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns)
+                    :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
@@ -941,7 +947,7 @@
                     :waiters (:queue::queue::State/waiters s)
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
-                    :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns)
+                    :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 1) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) del-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
@@ -956,7 +962,8 @@
 
    (stats [s ctx req]
      (:wat::core::let
-       [now-ns (:wat::service::Invocation/start-ns ctx)
+       [start-ns (:wat::service::Invocation/start-ns ctx)
+        now-ns start-ns
         q      (:queue::queue::State/q-name s)
         cap    (:queue::queue::Record/cap (:queue::queue::State/durable s))
         lim    (:wat::i64::+ cap 1)
@@ -973,7 +980,7 @@
               :waiters (:queue::queue::State/waiters s)
               :outbox (:queue::queue::State/outbox s)
               :receive-calls (:queue::queue::State/receive-calls s)
-              :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 2) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) depth-ns)
+              :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) 2) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) depth-ns) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
               :ticks (:queue::queue::State/ticks s)
               :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
               :q-name q
@@ -986,7 +993,8 @@
            (:wat::core::first vu)
            (:wat::core::second vu)
            (:queue::queue::State/store-calls s-a)
-           (:queue::queue::State/store-ns s-a))))
+           (:queue::queue::State/store-ns s-a)
+           (:queue::queue::State/handler-ns s-a))))
          (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
          (:wat::core::second pair))))
 
@@ -995,7 +1003,8 @@
    ;; one SelfOutcome — no extra arm, no 1 ms stand-in for "and".
    (-tick [s ctx]
      (:wat::core::let
-       [now   (:wat::service::SelfInvocation/start-ns ctx)
+       [start-ns (:wat::service::SelfInvocation/start-ns ctx)
+        now   start-ns
         store (:queue::queue::State/store s)
         ticks (:wat::i64::+ (:queue::queue::State/ticks s) 1)
         pair  (:wat::core::foldl
@@ -1059,7 +1068,7 @@
              :waiters keep
              :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
              :receive-calls (:queue::queue::State/receive-calls s)
-             :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) (:queue::TakeAcc/calls (:wat::core::first pair))) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) (:queue::TakeAcc/ns (:wat::core::first pair)))
+             :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s) (:queue::TakeAcc/calls (:wat::core::first pair))) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s) (:queue::TakeAcc/ns (:wat::core::first pair))) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
              :ticks ticks
              :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
              :q-name (:queue::queue::State/q-name s)
@@ -1087,7 +1096,7 @@
               :take (:queue::queue::State/take s')
               :waiters keep
               :outbox (:queue::queue::State/outbox s')
-              :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s')
+              :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s') :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
               :ticks ticks
               :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
               :q-name (:queue::queue::State/q-name s')
@@ -1214,7 +1223,8 @@
    store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
    q <- :wat::core::String
    rec' <- :queue::queue::Record
-   hit? <- :wat::core::bool]
+   hit? <- :wat::core::bool
+   start-ns <- :wat::core::i64]
   -> (:wat::service::Outcome :- [:queue::queue::State :queue::Queue::Reply :queue::queue::Op])
   (:wat::core::let
     [s' (:queue::queue::State
@@ -1223,7 +1233,7 @@
           :take (:queue::queue::State/take s)
           :waiters (:queue::queue::State/waiters s)
           :outbox (:queue::queue::State/outbox s)
-          :receive-calls (:queue::queue::State/receive-calls s) :store-calls (:queue::queue::State/store-calls s) :store-ns (:queue::queue::State/store-ns s)
+          :receive-calls (:queue::queue::State/receive-calls s) :store-calls (:queue::queue::State/store-calls s) :store-ns (:queue::queue::State/store-ns s) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
           :ticks (:queue::queue::State/ticks s)
           :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
           :q-name q
@@ -1238,7 +1248,7 @@
            :take (:queue::queue::State/take s')
            :waiters (:queue::queue::State/waiters s')
            :outbox (:queue::queue::State/outbox s')
-           :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s')
+           :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s') :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
            :ticks (:queue::queue::State/ticks s')
            :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
            :q-name (:queue::queue::State/q-name s')
@@ -1259,7 +1269,8 @@
    store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
    q <- :wat::core::String
    now-ns <- :wat::core::i64
-   n-ok <- :wat::core::i64]
+   n-ok <- :wat::core::i64
+   start-ns <- :wat::core::i64]
   -> (:wat::service::Outcome :- [:queue::queue::State :queue::Queue::Reply :queue::queue::Op])
   (:wat::core::let
     [s' (:queue::queue::State
@@ -1268,7 +1279,7 @@
           :take (:queue::queue::State/take s)
           :waiters (:queue::queue::State/waiters s)
           :outbox (:queue::queue::State/outbox s)
-          :receive-calls (:queue::queue::State/receive-calls s) :store-calls (:queue::queue::State/store-calls s) :store-ns (:queue::queue::State/store-ns s)
+          :receive-calls (:queue::queue::State/receive-calls s) :store-calls (:queue::queue::State/store-calls s) :store-ns (:queue::queue::State/store-ns s) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
           :ticks (:queue::queue::State/ticks s)
           :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
           :q-name q
@@ -1285,7 +1296,7 @@
               :take (:queue::queue::State/take s')
               :waiters (:queue::queue::State/waiters s')
               :outbox (:queue::queue::State/outbox s')
-              :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s')
+              :receive-calls (:queue::queue::State/receive-calls s') :store-calls (:queue::queue::State/store-calls s') :store-ns (:queue::queue::State/store-ns s') :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
               :ticks (:queue::queue::State/ticks s')
               :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
               :q-name (:queue::queue::State/q-name s')
@@ -1356,7 +1367,7 @@
               :waiters keep
               :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               :receive-calls (:queue::queue::State/receive-calls s')
-              :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s') (:queue::TakeAcc/calls (:wat::core::first wpair))) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s') (:queue::TakeAcc/ns (:wat::core::first wpair)))
+              :store-calls (:wat::i64::+ (:queue::queue::State/store-calls s') (:queue::TakeAcc/calls (:wat::core::first wpair))) :store-ns (:wat::i64::+ (:queue::queue::State/store-ns s') (:queue::TakeAcc/ns (:wat::core::first wpair))) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
               :ticks (:queue::queue::State/ticks s')
               :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
               :q-name (:queue::queue::State/q-name s')
@@ -1371,7 +1382,7 @@
               :take (:queue::queue::State/take s2)
               :waiters (:queue::queue::State/waiters s2)
               :outbox (:queue::queue::State/outbox s2)
-              :receive-calls (:queue::queue::State/receive-calls s2) :store-calls (:queue::queue::State/store-calls s2) :store-ns (:queue::queue::State/store-ns s2)
+              :receive-calls (:queue::queue::State/receive-calls s2) :store-calls (:queue::queue::State/store-calls s2) :store-ns (:queue::queue::State/store-ns s2) :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
               :ticks (:queue::queue::State/ticks s2)
               :depth (:queue::queue::State/depth s2) :total (:queue::queue::State/total s2)
               :q-name (:queue::queue::State/q-name s2)
@@ -1433,7 +1444,7 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok calls ticks _visible _unacked _ _)
+        ((:queue::Queue::StatsResponse::Ok calls ticks _visible _unacked _ _ _)
           (:wat::core::Tuple calls ticks))
         (_ (:wat::kernel::assertion-failed! "stats not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "stats: recv failed" :wat::core::None :wat::core::None))))
@@ -1443,7 +1454,7 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _)
+        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _ _)
           (:wat::core::Tuple visible unacked))
         (_ (:wat::kernel::assertion-failed! "depth not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "depth: recv failed" :wat::core::None :wat::core::None))))
