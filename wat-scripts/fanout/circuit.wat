@@ -2087,17 +2087,22 @@
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool
    drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64
-   sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool]
+   sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool
+   vis-ms <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
      ;; Drop runs: 200 ms vis so an unacked envelope (no claim-reply) becomes
      ;; visible again. T1's 200 ms claim deadline retries the same worker;
      ;; vis expiry is the other worker. Both are retries of a dropped reply.
-     vis (:wat::core::if (:wat::core::or
-                           (:wat::core::or (:wat::i64::> drop-check-bp 0) (:wat::i64::> drop-mark-bp 0))
-                           (:wat::core::or (:wat::i64::> drop-recv-bp 0) (:wat::i64::> drop-ack-bp 0)))
-            200000000 1000000000000)
+     ;; vis-ms > 0 is the sweep knob (milliseconds → nanoseconds). 0 means
+     ;; exactly today's behaviour: 200 ms if any drop rate is set, else 1000 s.
+     vis (:wat::core::if (:wat::i64::> vis-ms 0)
+            (:wat::i64::* vis-ms 1000000)
+            (:wat::core::if (:wat::core::or
+                               (:wat::core::or (:wat::i64::> drop-check-bp 0) (:wat::i64::> drop-mark-bp 0))
+                               (:wat::core::or (:wat::i64::> drop-recv-bp 0) (:wat::i64::> drop-ack-bp 0)))
+              200000000 1000000000000))
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::sqlite-store::Handle])
                                _i  <- :wat::core::i64]
@@ -2386,25 +2391,25 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false))
+  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false))
+  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false))
+  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false))
+  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -2422,10 +2427,10 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0)))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -2500,7 +2505,7 @@
   (:wat::core::let
     [argv (:wat::runtime::argv)
      proof (:user::deadline-redial-is-fresh)
-     usage "usage: circuit.wat [n m j sub-cap fill-first?]"
+     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms]]"
      triple
        (:wat::core::match (:wat::core::get argv 2)
          (:wat::core::None (:user::run* 2000 4 3))
@@ -2511,7 +2516,10 @@
              (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 4) usage))
              1 0 0 0 0 0 false 0 0
              (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 5) usage))
-             (:wat::core::= (:wat::core::Option/expect (:wat::core::get argv 6) usage) "true"))))]
+             (:wat::core::= (:wat::core::Option/expect (:wat::core::get argv 6) usage) "true")
+             (:wat::core::match (:wat::core::get argv 7)
+               (:wat::core::None 0)
+               ((:wat::core::Some vs) (:fanout::parse-i64 vs))))))]
     (:wat::core::let
       [_ (:wat::kernel::println proof)
        _ (:wat::kernel::println
