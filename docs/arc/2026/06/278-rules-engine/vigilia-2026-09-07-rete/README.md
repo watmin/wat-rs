@@ -26,8 +26,8 @@ strikes to run — the failure this scoping exists to prevent.
 |---|---|---|---|---|
 | 1 | `src/rete/kernel/` + `wat/rete/oracle/` — the fire path and the spec it must mirror | 28 | 15,771 (measured) | ✅ **CAST COMPLETE** — 14/14 wards, 38 rows |
 | 2 | `src/rete/**` minus `kernel/` + `wat/rete*.wat` — the compile side and its spec (⛔ WIDENED — see below) | 25 | 23,886 (measured) | ✅ **CAST COMPLETE** — 15/15 wards, 36 rows |
-| 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | 147 | 16,345 (measured — my 54/~8.7k was the `.wat` count alone) | CASTING |
-| 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | 264 | ~36k | PENDING |
+| 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | 147 | **16,616** (measured; my 54/~8.7k counted `.wat` alone, and my later 16,345 went stale when I committed `peragrare-census.sh` into the directory mid-cast) | ⏳ MID-FLIGHT |
+| 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | 264? | ~36k? | ⛔ NOT CAST — **both figures UNVERIFIED; every scope figure I wrote at the same time as these has been wrong. MEASURE BEFORE DERIVING THE MUSTER.** |
 
 ## Muster, derived per target — with the triggers MEASURED
 
@@ -204,58 +204,66 @@ it should be re-checked before anyone acts on it.
 
 # ⛔ HOW TO RESUME THIS CAST — read this FIRST if you are picking it up cold
 
-**TARGET 1 IS COMPLETE — all fourteen wards cast, returned, and weighed against the disk.** The
-casting procedure below is not recoverable from anything else on disk: it lived in the
-orchestrator's context, and this section is the only copy. **Read it before casting target 2.**
+**TWO TARGETS COMPLETE, ONE MID-FLIGHT, ONE NEVER MEASURED.** The casting procedure below is not
+recoverable from anything else on disk — it lived in the orchestrator's context, and this section is
+the only copy. **Read it before casting anything.**
 
-## State — target 1 CLOSED 2026-09-07
+## State — 2026-09-08
 
-**`src/rete/kernel/**` + `wat/rete/oracle/**` — 28 files, 15,771 lines (measured), 14 of 14 wards.**
-**38 rows · 6 L1 · 22 L2 · 1 L3 · 9 in solvere's own vocabulary · 20 verified by the orchestrator.**
-No code was changed by the cast — it was READ-ONLY by construction and every ward was briefed so.
+| # | target | wards | rows | status |
+|---|---|---|---|---|
+| 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
+| 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
+| 3 | `wat-scripts/perf/grid/` (147 files, 16,616 lines) | **6 cast** | **9** | ⏳ MID-FLIGHT |
+| 4 | `tests/rete/` + `src/rete/kernel/tests/` | **0** | 0 | ⛔ NOT CAST — **and its "264 files, ~36k" figure has NEVER been re-derived. MEASURE IT FIRST.** |
 
-| ward | verdict |
-|---|---|
-| intueri | 1 L2 |
-| purgare | 2 L2 |
-| solvere | 9 (2 structural ★) |
-| struere | 6 L2 |
-| conferre | **1 L1** + 2 L2 |
-| sequi | **CLEAN** + 2 notes |
-| temperare | 2 L2, 5/5 runes upheld |
-| excusare | 65 weighed, 59 HOLD, **6 struck** |
-| exigere | **CLEAN** + 1 wording row |
-| conformare | 2 L2 (⚠ its report ends "CONVERGED" — see the convergence clause below) |
-| cernere | 1 L2 — a phantom form in user-facing error text; ~130 oracle names all resolve |
-| probare | **1 L1** + 1 L2 — a deferral resting on a citation that points at no call |
-| perspicere | 3 L2; **all 10 runes CLEAR** (⚠ its report also ends "CONVERGED") |
-| circumspicere | **1 L1** — a shipped ceiling contract sampled only at round/batch boundaries |
+**Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6),
+`conferre` (2). ⚠ **`purgare` WAS CAST AND ITS RETURN MAY BE LOST TO THE COMPACTION** — if
+`reports-target3/purgare.md` does not exist, it never landed: **re-cast it.**
 
-**⭐ WHAT THE FULL GUARD BOUGHT, since this is the evidence for casting it again on targets 2–4:**
+**Target 3 — still to cast:** `intueri` · `struere` · `sequi` · `temperare` · `conformare` ·
+`probare` · `cernere`, then **`circumspicere` LAST**. Muster with measured triggers is above in this
+file; two triggers measured **NO** (`secare` 0 parallel primitives, `excusare` 0 runes in the whole
+grid) and one measured **CLEAN-not-absent** (`exigere`: my "7 TODO hits" were all `"XXX"` as a
+deliberately-nonexistent location code — the true count is **0**, same as targets 1 and 2).
 
-- **Two wards came back CLEAN** (`sequi`, `exigere`) — results, not waste, because both said what
-  they swept. `exigere` re-derived the zero TODO count independently rather than inheriting it.
-- **Wards landed on the same site through different lenses** — `intueri`+`struere` (I1/T5),
-  `cernere`+`conformare` (N1/F2, the same decode family: one says the error cannot name the user's
-  line, the other that it cannot name a real form).
-- **Three wards DISAGREED about one rune** (X3) — a decision for the builder, which no single cast
-  could have produced.
-- **The LAST ward found the sharpest L1** (W1), on ground `sequi` had already pronounced clean —
-  correctly, on its own axis. That is the whole argument for `circumspicere` being cast last, and
-  the whole argument against hand-picking a roster.
-- **65 exemptions weighed, 59 upheld; all 10 `perspicere` runes upheld; the one
-  `rune:circumspicere` upheld.** This subsystem's runes are overwhelmingly real — a fact only a
-  cast ward can establish.
+**NOTHING IS DRIVEN TO RESOLUTION.** 83 rows open. Eight L1s. Two decisions the builder still owes:
+**X3** (three wards, one rune, two verdicts) and **2X2** (a rune's REASON is true, its CATEGORY is
+wrong — two wards split on which matters).
 
-⛔ **NEXT: TARGET 2** (`src/rete/*.rs`, the compile side, 15 files). Derive its muster block with
-MEASURED triggers before casting, as this one did. `experiri` fires there — `RETE_OPS` is declared
-at `vocabulary.rs:307` — and it is the one ward that EXECUTES rather than reads, so scope it to a
-target whose side effects are undoable.
+## ⛔⛔ THE LESSON THIS CAST PAID FOR TEN TIMES: A HANDED-DOWN MEASUREMENT IS A CLAIM
 
-**Targets 2, 3 and 4 have not been cast at all.** See the table above in this README. ⛔ Before
-casting them, read the rewritten convergence clause below — the old wording split two of twelve
-reports and must not be reused.
+**Ten numbers I gave wards were wrong or stale. Every single one was caught by a ward instructed to
+re-derive and report the delta.** They are not ten mistakes; they are **five distinct shapes**, and
+naming them is the cure:
 
+1. **The grep matched PROSE ABOUT the thing.** `#[allow]` counted from a doc comment *discussing* an
+   allow they deliberately did not use; **29 prose mentions of `rete_name`** counted as `RETE_OPS`
+   rows (108 vs the true **79**).
+2. **The grep matched DATA that looks like the thing.** *"7 TODO-family hits"* in the grid — all
+   seven were `"XXX"`, a deliberately-nonexistent location code in query test data. True count **0**.
+3. **A NAME-grep cannot see COVERAGE.** `check-grid-three-way.sh` is "referenced by 0 test files" —
+   because its gate **discovers by walking the directory**, and CI invokes it at `ci.yml:262`. I
+   nearly rowed the flagship differential as ungated, twice.
+4. **A NAME-grep cannot see CONSUMPTION-BY-ARGUMENT.** 28 of 29 `GRID-*.txt` "referenced by nothing"
+   — `compare-grids.sh` takes them as `$1`/`$2`.
+5. **⛔ I INVALIDATED TWO OF MY OWN NUMBERS MID-CAST.** Committing `peragrare-census.sh` (271 lines)
+   into `wat-scripts/perf/grid/` changed both the `.sh` count (19→20) and the line count
+   (16,345→16,616). **Two different wards caught the two halves independently.**
+
+⭐ **AND THE PRACTICE THAT FIXED IT, WHICH MUST BE KEPT:** for `perspicere` I handed over the number
+**together with its known contamination** — *"16 files, ~121 raw hits, **and 18 of those are inside
+comment lines**"* — and it came back confirming every figure, then found a **fourth** false-positive
+category I had not named. **That is the only handed-down measurement of the entire vigilia to survive
+re-derivation intact.** Disclose the query, its population, and how it over-counts — or hand nothing.
+
+## ⛔ THE CONVERGENCE CLAUSE WAS REWRITTEN MID-VIGILIA — USE THE NEW ONE
+
+`conformare` and `perspicere` both ended **divergent** reports with the word CONVERGED. The old
+clause was ambiguous between *"the target is clean"* and *"my sweep was thorough"*. Every brief now
+demands one of two words — **CLEAN** or **FINDINGS** — and forbids *converged* by name. `sequi` was
+the first ward cast under the new wording and used it correctly. **The full replacement text is in
+the casting procedure below; do not paraphrase it.**
 ## The casting procedure — follow it exactly
 
 1. **Fetch the ward's text from the datamancy MCP** (`fetch_spell` with the short name). Do NOT read
