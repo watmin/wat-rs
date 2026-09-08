@@ -1190,3 +1190,48 @@ accurate when measured and stale by my own hand by the time it was read. ⚠ Thi
 mode, distinct from the eight prose-vs-thing and reachability errors before it: **a measurement can
 be invalidated by the measurer's own subsequent action.** A handed-down number needs the commit it
 was taken at, not just the command.
+
+⭐⭐ **`exigere` RETURNS CLEAN ON TARGET 3 — AND THE "REAL POPULATION" I HANDED IT WAS NOT ONE.**
+I briefed it that this was *"the first target in this vigilia where your trigger has a real
+population"* — **7** TODO-family hits, against zero on both prior targets. It re-derived and split
+the number:
+
+    grep -rniE '\b(TODO|FIXME|XXX|HACK)\b'   → 7
+    grep -rniE '\b(TODO|FIXME|HACK)\b'       → 0     ← XXX excluded
+
+**All seven are `XXX`, and every one is `"XXX"` as a deliberately-nonexistent location code** in a
+query axis's missing-loc row — I read them: `(count (query s temps-at :?loc "XXX"))`. The identifiers
+`at-xxx` / `params-xxx` are derived from that literal. ⛔ **So the grid's true TODO-family count is
+ZERO, the same as targets 1 and 2** — and my "7" was a pattern matching **domain data**, not a
+marker. `[[a-throwaway-sweep-is-an-instrument]]` in yet another form: not prose-about-the-thing this
+time, but **data-that-looks-like-the-thing.**
+
+⛔⛔ **AND I INVALIDATED MY OWN LINE COUNT WITH THE SAME COMMIT THAT INVALIDATED THE `.sh` COUNT.**
+I handed it *"16,345 lines"*; it measured **16,616** and reported the delta rather than adopting
+mine. `peragrare-census.sh` — which I committed into that directory two commits earlier — is
+**exactly 271 lines**, and 16,345 + 271 = **16,616**. So one commit of mine invalidated **two**
+handed-down numbers, and **two different wards caught them independently** (`mora` the `.sh` count,
+`exigere` the line count). ⚠ That is the strongest possible confirmation of the failure mode the
+`mora` note names: **a measurement carries the state of the tree at the moment it was taken, and the
+measurer is one of the things that can change it.**
+
+⭐ **The dismissal list is again the product, and one dismissal is a small masterpiece.**
+`REMAINING-CLARA-MOUTHS.md` — a file whose *title* is "Remaining" — turns out to have all seven of
+its numbered items marked `— DONE (where-*)` and to close with `## This list is empty.` /
+`2026-08-17: items 1–7 locked.` **A backlog file whose entire content is a closure record.** A
+title-level grep would have filed it; reading it dismissed it. Others in the same shape:
+`run-all.sh:46`'s *"RED until task #94 is closed"* cross-checked against `neg-consumer.wat:38`'s
+*"★ THIS AXIS FOUND AND THEN CLOSED task #94 … Fixed in ff581b6f"*; two "defers" that belong to
+**Clara's** evaluation ordering, not ours; and a *"not yet built"* that is a comparative statement
+about Clara having no per-round index at all.
+
+⭐⭐ **AND IT ANSWERED THE COLLISION I SET UP BETWEEN TWO WARDS — with a result, not a hedge.**
+I told it `peragrare` had cast on this same corpus and that a fixture header's coverage matrix is
+*"exactly your quarry AND exactly `peragrare`'s"*, then asked which shape it found. It searched for
+the open-cell form (`not yet covered`, `NEXT AXIS`, `not visited`) and got **zero hits**: every
+matrix header here uses only **"covered"** (past-tense, closed) and **"THIS AXIS"** (naming the
+present file). ⛔ **So the two wards do not collide on this corpus, and the reason is documented in
+the corpus itself**: `peragrare`'s 5 unvisited cells are a *structural absence its census found by
+walking the grid*, not prose promising to fill them. **No coverage note in this directory is written
+as a promise.** That is a real fact about how this corpus documents itself, and it took casting both
+wards to establish it.
