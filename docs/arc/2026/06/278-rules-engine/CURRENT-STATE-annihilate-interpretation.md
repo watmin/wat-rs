@@ -55,7 +55,7 @@
 > **2X2** — a rune whose REASON is true and whose CATEGORY is wrong; `purgare` and `excusare` split
 > on which matters. `vigilia` forbids the aggregator re-classifying a child, so both stand.
 >
-> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** **95 rows open, 13 of them L1** (`3P1` is itself L1×5). ⛔ **The stamp said 83/8 and BOTH were wrong — a recolligere derived them 2026-09-08.** Re-derive, never copy: `grep -c '^| \*\*' FINDINGS.md` and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md`. The prose total sat three lines under a table reading 38+36+10.
+> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** **97 rows open, 14 of them L1** (`3P1` is itself L1×5). ⛔ **The stamp said 83/8 and BOTH were wrong — a recolligere derived them 2026-09-08.** Re-derive, never copy: `grep -c '^| \*\*' FINDINGS.md` and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md`. The prose total sat three lines under a table reading 38+36+10.
 
 > ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
 > *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
