@@ -17,116 +17,127 @@ Same fixture this morning: **109 deliveries/s, e2e ~12 s, non-deterministic.**
 
 ---
 
-## ⛔ WHERE WE ARE NOW — 2026-09-07
+## ⛔ WHERE WE ARE NOW — 2026-09-08
 
-**Floor green 5221/5221 through every stone.** 41 commits this session, 0 unpushed.
+**Floor green 5221/5221, 0 FAIL, 0 TIMEOUT, quiet box.** HEAD `9f84eefe6`, 0 dirty, 0 unpushed.
+31 commits this session.
 
-### ⛔⛔ THE HEADLINE — "publish" was never publish
+### ⛔⛔ THE HEADLINE — a perf question found a months-old IPC bug
 
-With backpressure removed (`cap 16384` instead of 64/32), the same 8000 pairs:
-
-```
-                  publish   drain   retries
-cap 64/32 (ship)    20700     190      1375
-cap 16384            4872   22804         0
-```
-
-★★★ **Accepting 8000 pairs takes 4.9 s. Draining them takes 22.8 s = 351 pairs/sec.** The 20.7 s
-we called "publish" all session was the publisher *waiting for the drain*, and `drain=190ms` was
-only the tail because everything had already drained during publish.
-
-★★ And the per-message trace agrees — a message that did not bounce:
+`probe_arc278_partial_frame_residue` went RED on the floor after a drain benchmark at depth. **A
+partially-written `send` could not be stopped.** Three ingredients:
 
 ```
-pub-work      0.506 ms    3.0%
-inbox-wait   11.119 ms   67.0%
-worker-proc   0.052 ms    0.3%
-fanout-work   0.077 ms    0.5%
-subq-wait     4.853 ms   29.2%
-e2e          16.608 ms
+poll([fd → POLLOUT, broadcast → POLLIN])   POLLOUT promises ONE BYTE
+break                                      "writable — proceed"
+libc::write(fd, buf, FULL remaining len)   on a BLOCKING fd
+  → kernel writes what fits, BLOCKS for the rest
+  → SIGTERM → libc::signal() → glibc BSD semantics → SA_RESTART → auto-restart
+  → nothing can wake it
 ```
 
-**96.2 % queueing, 0.8 % processing.** Even attributing both `Store/put`s in full (675 µs each),
-durability is ≤8 % of e2e. The system is **queue-bound** — not durability-bound, not
-interpretation-bound.
+★★★ **The guard promised one byte; the call demanded all of them.** Every existing test fills the
+pipe **completely**, so `POLLOUT` never fires and the shutdown arm works — the bug needs *partial*
+room, a state no test built. Eleven green floors ran over it.
 
-⚠ Uncapped *total* is worse (27.7 s vs 20.9 s): backpressure was also pacing, overlapping the
-publisher with the workers. Both regimes are real; we had only ever measured one.
+★★ **The pattern was inherited.** `comms/process.rs`'s header line 10:
+`newline-framed bytes → libc::write → io_uring Read → …`. **The reactor got the reads; the writes
+kept the 1970s.** `src/io.rs` has ten blocking libc calls and **zero** io_uring, and `comms` copied
+its write pattern from there.
 
-### ⛔ THE NEXT STONE — is 351 pairs/sec a constant or a curve?
+Full record: **`FINDING-the-writes-kept-the-1970s.md`** and **R70** in `REALIZATIONS.md`.
 
-The builder's own benchmark shape: **fill deep, then drain, and plot pairs/sec against depth.**
-Never run here. If flat, the system paces honestly under load; if it degrades, that is the thing
-to attack.
+### WHAT SHIPPED — three stones, all green
 
-★ `a count never reads more than it needs` (`e6f840dc9`) was drawn **as its prerequisite** — before
-it, a deep drain would have spent its time in our own unbounded `COUNT(*)`.
-
-### THE OTHER OPEN ITEMS
-
-1. **`collect` 5.9 s** — the harness measuring itself: `collect-stop` ships 8000 Outcome records,
-   `Worker::disrupts` returns an accumulated `points` String. Both unbounded responses, and
-   `:max-page` + `scan-index-all` already exist unused by the harness.
-2. **The 2.4× at m=8** — fanout-worker buckets: `:limit 10` over 8 destinations is 1.25 per bucket.
-   Now *safe* to address because responses are bounded.
-3. **`setup` 12.4 s** — cold boot. **Parked by the builder.**
-4. **`drain` 0.2 s / `stop` 0.4 s** — nothing left in either. Done.
-
-### ⛔ THE LAYER THAT EMERGED — surface vs userland
-
-The builder's framing, now the arc's shape:
-
-| layer | what it is |
+| stone | what |
 |---|---|
-| **surface + service** | the wire contract. Declares limits, **rejects** violations, one round trip, no policy. The DoS wall. |
-| **userland** (`-all`) | makes a bound invisible without violating it. Opt-in **by name**. |
+| `a write never blocks outside the multiplexer` | `O_NONBLOCK` via RAII `NonblockGuard`; the poll owns every wait. Probe 20 s hang → **3.026 s PASS** |
+| `sigaction, not signal` | five installs, `SA_RESTART` **written down** not changed. ★ The row (*"no `libc::signal(` in `src/`"*) found a **second** installer in `src/host/entry.rs` my brief never named |
+| `a reconnect is not an abandonment` | `Lost`/`Closed` redial **and retry**; `Exhausted` only from the time bound; `ack-exhausted` added |
 
-- **write:** `:max-entries` bounds the request; `<op>-all` chunks and sums the prefix
-- **read:** `:max-page` bounds the response; `<op>-all` follows the cursor, yields a `Stream`
-- both emit the tool **iff** the declarations that make it sound are present
+### ⛔ THE PERF QUESTION IS STILL OPEN — and much narrower
 
-⚠ **Limits are contract; nobody raises one to fit a caller** (SNS 10, SQS 10, DDB 25). The instinct
-to raise one means the flaw is elsewhere. I removed `Queue::send`'s cap to paper over an oversized
-caller and had to put it back.
+The drain is **superlinear** and nobody knows why. **Eleven mechanisms are dead**, each by
+measurement or by reading: the count · store contention (structural: one grantee, serializing
+client) · the poller (5 ms → 50 ms poll moved the drain 0–8 %, slope unchanged) · queue saturation
+(ρ **falls** 0.574 → 0.516) · the O(depth) `count-index` · a blocked send (tested directly).
 
-★★ **`circuit.wat` still holds eight hand-rolled userland helpers** (`publish-until-accepted!*`,
-`drop-first`, `backoff-delay`, …) — **already duplicated once** into the Publisher child, because a
-process child cannot see script helpers. That duplication is why its bugs kept surfacing. The layer
-belongs in `wat/`, frozen into the binary.
+Last measured decomposition, per queue, per pair:
+
+```
+drain +55%   store +40%   NOT-in-queue +72%   ρ FALLING
+```
+
+★ The biggest, fastest-growing term is time the queue is **idle** and the workers are elsewhere.
+
+★★ **`Seen`'s map clone was real and paid off**: `hashmap::assoc` **clones the whole map**
+(`src/collection/eval.rs:367`), `claimed` grows to n×m, so it was O(N²). Swapped to `PersistentMap`
+(`:594` — *"Trie shares"*). **n=500 unchanged, n=1000 −18 %** — the exact signature of a quadratic
+term leaving.
+
+### ⛔ THE BLOCKER — n=2000 will not complete
+
+```
+[0/0][0/20][0/20][0/10]   50 unacked   check/mark-exhausted=0  ack-retries=0  ack-exhausted=0
+```
+
+All counters zero while messages sit claimed. **The IPC fix did NOT fix this** — tested directly.
+`vis` = 10¹² ns = **1000 s on a ~40 s run**, and it is *also* the retry bound
+(`limit-ms = vis-ns/1e6`), so a worker retrying correctly outlasts the drain's 215 s patience.
+
+**`vis is swept, not chosen` is DRAWN** — parameterise it, sweep it, let the measurement name the
+constant. Both branches informative: some `vis` completes → the value was wrong; none does →
+`limit-ms = vis/1e6` is the wrong **coupling**.
+
+### IN FLIGHT
+
+**`can an io_uring write be raced`** — with grok. Stone 3's first step. `opcode::Write` has **zero**
+occurrences in this repo; the migration's whole promise (an io_uring write is cancellable where
+`libc::write` is not) has never been tested. All three outcomes pass; one of them says the migration
+**relocates** the flaw.
+
+### OPEN, NAMED, UNTOUCHED
+
+1. **The same O(N²) map clone** at `circuit.wat:2075` (the `distinct` fold, in `collect`) and across
+   `wat/query/mem.wat:165 :182 :193 :202 :224 :237 :262 :275` — the mem-store's indexes, **in the
+   stdlib**. `wat/` is the builder's call.
+2. **Three tests at 19–25 s against a 30 s terminate wall.** Under 1.2× headroom. This — not code —
+   reddened floor11 (516 s) and floor12 (600 s, 7 TIMEOUTs). It will keep doing so whenever two
+   things run at once.
+3. **`circuit.wat`** — 36 nested-Tuple access chains, 33 nested constructions, a 268-line `-tick`
+   arm. `sqs.wat` is now the worked example (`TakeAcc` in `:messages`, 5 → 0).
+4. **`Lost`/`Closed` → `Exhausted 0`** conflation in the *counters* — a broken pipe would still be
+   reported as an abandonment.
+5. **`collect`** — 15.7 s measured, the untouched `:2075` fold.
+6. **Stone 3's arc home** — 278 is the rules engine; this is transport substrate. **The builder's.**
 
 ### RULES EARNED — they cost stones
 
-1. **`publish` alone is a Goodhart metric.** Measure `publish + drain`.
-2. **A row gates what the stone CONTROLS**, never what it expects to follow.
-3. **State what must HOLD, not what was last OBSERVED.**
-4. **Every perf stone names the NEW DOMINANT TERM**, with numbers.
-5. **"Provably cannot fail that way" is usually "we never injected it."**
-6. **A perf delta against a stale baseline understates itself twice over.**
-7. **A micro-probe that does not reproduce the production SHAPE proves nothing.**
-8. **Name an exemplar by where it is DEFINED, not where you last saw it used.**
-9. **A macro must never splice a handler body into more than one branch** — invisible in the
-   source, ~30 µs per op in a `defservice` arm.
-10. **We bounded what a read RETURNS and never what it EXAMINES.** `count-index` returned one i64
-    and walked every row. Ask both questions of every read.
-11. **Pin BOTH delay sites or neither** — `circuit.wat`'s parent helper and the Publisher child's
-    inlined copy are separate; patching one silently measures the other.
+1. **Gate on the PROPERTY, not the PATH.** *"no `libc::signal(` in `src/`"* found a second installer
+   that *"change `child.rs`"* could not. Both were in the same document, disagreeing.
+2. **Never band a number measured once.** `store-calls` at n=1000, same code, zero retries:
+   4959 / 4982 / 4996 / 5002.
+3. **A fork must be able to refute.** `is the queue saturated` killed its own model in one strike;
+   `store-ns` passed all 13 rows and missed its purpose.
+4. **Read a field's DEFINITION, not its name.** `workers=` counts distinct worker IDs in outcomes,
+   not live processes.
+5. **Grep the callers of a type before declaring a blast radius**, not the file you are editing.
+6. **The box must be quiet before timing** — including for the floor. Handing grok a stone
+   mid-floor cost a red.
+7. **A type reaches an EmptyEnv child iff it is stdlib or in the surface's `:messages`** — and a
+   `:messages` declaration may name only `:messages` types and stdlib.
+8. **`Tuple` is 3 on purpose.** Wide tuples are unwieldy; `defrecord` for pure/EDN-expressible,
+   `defstruct` when a live handle rides along.
 
 ### MEASURED UNITS
 
 ```
-bare round trip, thread    143 us     the interpretation floor
-bare round trip, process   179 us
-Store/put                  675 us
-Store/count-index          517 us
-unused match arm, defn       0 ns
-unused match arm, SERVICE   30 us     keep service impl arms small
-two closures               1.6 us     capture is BY REFERENCE
-await-timer-ms 1          1269 us     ~270 us of it is timer machinery
+clock read (epoch-nanos ∘ now)     322 ns      20,000 reads = 6.4 ms
+bare round trip, process           179 us
+Store/put                          675 us
+one Queue/stats                    2 store calls   (sqs.wat:976 — observing costs work)
+drain, n=2000, per pair           0.43 ms
 ```
-
-★ 8000 × 143 µs ≈ 1.1 s against a ~40 s run. **Interpretation is nowhere near the leader**, and the
-trace now says why: 96 % of a message's life is waiting.
-
 ## THE MAIN LINE
 
 ### 1. Prove redelivery works — ✅ DONE 2026-09-02
