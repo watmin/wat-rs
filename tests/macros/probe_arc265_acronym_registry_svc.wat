@@ -30,12 +30,12 @@
   :impls
   [(create-web-acl [s ctx req]
      (:wat::service::Outcome::Reply {:state s
-       :reply (:my::aws::Waf::CreateWebACLResponse::Ok (:my::waf::Record/count (:my::waf::State/durable s)))}))])
+       :reply (:my::aws::Waf::CreateWebACLResponse::Ok {:value (:my::waf::Record/count (:my::waf::State/durable s))})}))])
 
 ;; Prove the surface synthesized `:my::aws::Waf::Op::CreateWebACL` (acronym-cased). Constructing
 ;; and matching that EXACT variant type-checks + evals ONLY if S1 threaded the `ACL` acronym; with
 ;; the pre-fix `&[]` it would be `::Op::CreateWebAcl` and this name would not resolve.
 (:wat::core::defn :user::req-n [] -> :wat::core::i64
-  (:wat::core::match (:my::aws::Waf::Op::CreateWebACL (:my::aws::Waf::CreateWebACLRequest :n 7))
+  (:wat::core::match (:my::aws::Waf::Op::CreateWebACL {:req (:my::aws::Waf::CreateWebACLRequest :n 7)})
     
     [:my::aws::Waf::Op::CreateWebACL {:req req} (:my::aws::Waf::CreateWebACLRequest/n req)]))

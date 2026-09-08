@@ -12,6 +12,11 @@
     (:wat::core::Option/expect
       (:wat::core::HashMap/get (:wat::core::HashMap) "k")
       "missing")
+    ;; Census bait for wat-scripts/grep/bare-variant-constructors.wat —
+    ;; that program asks for the RETIRED head spelling. Parse-only; not type-checked.
+    (:wat::core::Some 1)
+    (:wat::core::Ok 1)
+    (:wat::core::Err "e")
     (:wat::core::Option::Some {:value 1})
     (:wat::core::Result::Ok {:value 1})
     (:wat::core::Result::Err {:error "e"})

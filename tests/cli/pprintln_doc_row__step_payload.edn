@@ -95,7 +95,7 @@
       (:wat.rete/DerivationStep
         :supporting  (:wat.rete/DerivationNode
                        :fact (:probe/StepPayloadExampleTemp :celsius 10)
-                       :rule :wat.core/None
+                       :rule :wat.core.Option/None
                        :via  (:wat.core/PersistentVector))
         :pattern     "probe::StepPayloadExampleTemp"
         :bindings    (:wat.core/PersistentMap "?c" 10)

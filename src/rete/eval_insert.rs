@@ -28,6 +28,16 @@ pub(crate) fn rete_is_kwargs(args: &[WatAST]) -> bool {
         && args.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)))
 }
 
+/// Arc 296 M — a unit variant's map ctor is `(:Enum::Unit {})`.
+/// Positional arity would count that empty map as one field and refuse
+/// a legal unit. Empty map → 0; anything else is still `args.len()`.
+pub(crate) fn rete_enum_unit_arg_count(args: &[WatAST]) -> usize {
+    match args {
+        [WatAST::Map(pairs, _)] if pairs.is_empty() => 0,
+        _ => args.len(),
+    }
+}
+
 // ─── Public entry point: RHS insert-form evaluator ───────────────────────────
 
 /// `build_insert_fact` — the pure inner of `eval_insert`.

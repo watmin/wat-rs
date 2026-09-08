@@ -833,14 +833,57 @@ fn lower_construct(
                 ),
             };
             let args = &items[1..];
-            if args.len() != arity {
-                return Err(LowerError::unsupported(span.clone(), format!(
-                        "constructor {head} wants {arity} fields, got {}",
-                        args.len()
+            if arity == 0 {
+                let got = crate::rete::eval_insert::rete_enum_unit_arg_count(args);
+                if got != 0 {
+                    return Err(LowerError::unsupported(span.clone(), format!(
+                        "constructor {head} wants 0 fields, got {got}"
                     )));
+                }
+                return Ok(Some(Expr::Variant {
+                    type_path: enum_path.to_string(),
+                    variant_name: variant.to_string(),
+                    names,
+                    fields: Box::new([]),
+                }));
             }
-            let mut fields = Vec::with_capacity(args.len());
-            for a in args {
+            // Arc 296 M — tagged map ctor `(:E::V {:field v})`. One Map
+            // argument whose keys are the declared fields, in any order.
+            let field_asts: Vec<&WatAST> = match args {
+                [WatAST::Map(pairs, map_span)] => {
+                    let parsed = crate::match_arm::parse_key_first_pairs(pairs, map_span)
+                        .map_err(|e| {
+                            LowerError::unsupported(e.span, e.reason)
+                        })?;
+                    if parsed.len() != arity {
+                        return Err(LowerError::unsupported(span.clone(), format!(
+                            "constructor {head} wants {arity} fields, got {}",
+                            parsed.len()
+                        )));
+                    }
+                    let mut ordered = Vec::with_capacity(arity);
+                    for n in names.iter() {
+                        let Some((_, ast)) = parsed.iter().find(|(k, _)| k == n) else {
+                            return Err(LowerError::unsupported(span.clone(), format!(
+                                "constructor {head} map ctor missing field `:{n}`"
+                            )));
+                        };
+                        ordered.push(*ast);
+                    }
+                    ordered
+                }
+                _ => {
+                    if args.len() != arity {
+                        return Err(LowerError::unsupported(span.clone(), format!(
+                            "constructor {head} wants {arity} fields, got {}",
+                            args.len()
+                        )));
+                    }
+                    args.iter().collect()
+                }
+            };
+            let mut fields = Vec::with_capacity(field_asts.len());
+            for a in field_asts {
                 fields.push(lower_expr(a, cx)?);
             }
             return Ok(Some(Expr::Variant {

@@ -1493,7 +1493,11 @@ fn walk_nested_constructors(
                     _ => None,
                 });
                 if let Some(expected) = expected {
-                    let got = args.len();
+                    let got = if expected == 0 {
+                        crate::rete::eval_insert::rete_enum_unit_arg_count(args)
+                    } else {
+                        args.len()
+                    };
                     if got != expected {
                         errors.push(ReteCheckError {
                             span: span.clone(),
