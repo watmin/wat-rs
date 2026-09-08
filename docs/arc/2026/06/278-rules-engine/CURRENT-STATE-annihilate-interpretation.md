@@ -4,68 +4,55 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-07 (forty-third — ⛔⛔ A VIGILIA IS MID-FLIGHT ACROSS THIS WALL. TEN OF FOURTEEN WARDS RETURNED; FOUR UNCAST).** Supersedes every earlier stamp and every dated block below.
+**CURRENT STAMP 2026-09-08 (forty-fourth — ⛔⛔ A FOUR-TARGET VIGILIA IS MID-FLIGHT. TWO TARGETS CLOSED, ONE HALF-CAST, ONE NEVER MEASURED).** Supersedes every earlier stamp and every dated block below.
 
 > # ⛔ FIRST ACTION IF YOU ARE READING THIS COLD
 >
-> **A vigilia cast is IN PROGRESS and its procedure is not recoverable from anything but one file.**
-> Read **`vigilia-2026-09-07-rete/README.md` § "HOW TO RESUME THIS CAST"** before you touch anything
-> in this arc. It holds the ten returns, the four wards still to cast **in order**
-> (`cernere` → `probare` → `perspicere` → **`circumspicere` LAST**), and the exact casting
-> procedure. Targets 2, 3 and 4 are not cast at all.
+> **Read `vigilia-2026-09-07-rete/README.md` § "HOW TO RESUME THIS CAST" before you touch anything
+> in this arc.** It holds the four-target state table, the wards still to cast, the exact casting
+> procedure, and the two builder decisions still owed. **The procedure exists nowhere else on disk.**
 >
-> **FLOOR 5480/5480, 19 skipped. clippy rc=0.** No code has changed since the vigilia opened — the
-> cast is READ-ONLY by construction and every ward was briefed so.
+> **FLOOR 5480/5480, 19 skipped. clippy rc=0.** ⚠ **NO ENGINE CODE HAS CHANGED IN THE ENTIRE
+> VIGILIA** — every cast was READ-ONLY by construction, and the only two files added are evidence:
+> `wat-scripts/perf/grid/peragrare-census.sh` and nine `.wat` probes under
+> `wat-scripts/scratch-pad/experiri-then/`. Both lint gates over `wat-scripts/` were run before those
+> landed: `2 tests run: 2 passed`.
 >
-> **THE SESSION IN ONE SENTENCE:** the 2026-09-05 rete list was worked to completion (one real
-> engine defect found, refereed against Clara, cured, and given a standing grid axis), then a new
-> vigilia was cast — scoped to the rete subsystem, with the FULL applicable guard.
+> **THE SESSION IN ONE SENTENCE:** targets 1 and 2 are closed at 14/14 and 15/15 wards (74 rows);
+> target 3 is six wards in (9 rows); target 4 has never been cast and its scope figure has never been
+> re-derived.
 >
-> **⭐ THE ONE REAL DEFECT, EARLIER TODAY:** `21a5f8514` — the ORACLE dropped a derived fact when a
-> `:then` head is a user fn. Native `[0 1 1]`, oracle `[0 1 0]`, **Clara `[0 1 1]`** — the reference
-> engine was the wrong one. Cured from `compile.wat`'s own recipe ~700 lines away: the arc's
-> signature shape for the ELEVENTH time, and its sharpest form — the fix had been driven, proven and
-> shipped on a sibling path that never received it.
+> **⭐ THE THREE SHARPEST FINDINGS, ALL VERIFIED BY ME:**
+> · **2W1 (L1)** — `expr_ir/mod.rs` promises *"`lower` IS TOTAL OR IT REFUSES … never on shape"* and
+>   has **no depth guard at all**; `LowerCx` carries four fields and none is a depth. The cure exists
+>   one file over and is a model one: `MAX_IMPORT_DEPTH`, *"MEASURED, not chosen for roundness,"*
+>   with both numbers written down — and it never reached the recursive descent every rete expression
+>   compiles through.
+> · **3P1 (5×L1)** — the grid proves every mechanism **alone and no two together**. All three defects
+>   that birthed `peragrare` are closed as isolated axes; **no fixture combines any two.**
+> · **3C1** — `CLARA-TRANSLATIONS.md` is the corpus's single translation authority and **the token
+>   `:or` does not appear in it at all**, while 16 of 43 twins carry a defensive `(count (set …))`
+>   collapse for Clara's duplicate-insert.
 >
-> **⭐⭐ THE BUILDER'S TWO RULES FOR THE CAST, AND WHY THEY HELD.** *SCOPE THE TARGET, NEVER THE
-> WARD* — I proposed a hand-picked roster and was refused: *"prove the others don't find anything
-> instead of assuming they won't."* That paid twice over: `sequi` and `exigere` both **CONVERGED**
-> (a result, not a waste), and `intueri` + `struere` landed on the SAME LINES through different
-> lenses. And *every flaw earns a grid axis that proves it is gone* — three landed today, each
-> mutation-proved to redden.
+> **⭐⭐ TWO CLASSES WERE PROMOTED FROM SITE TO CLASS**, both spanning two targets: **phantom error
+> heads** (`head: ":wat::rete::<rust_fn_name>"` — 5 sites, 3 names, every one the Rust function's own
+> name in snake_case inside a kebab-case namespace) and **false caller counts in doc comments**
+> (3 claims, all wrong, none gated — while `rete_header_claims_are_asserted.rs` already contains a
+> working caller-count arm).
 >
-> **CAST 1 SO FAR: 31 rows, 3 L1, 15 verified by me.** The sharpest:
-> · **C1 (L1)** — the oracle's `rule-negates` misses a `:not` nested under a top-level `:and`/`:or`;
->   Rust's finds it. **This falsifies a blanket claim I wrote THIS MORNING** in `stratify.rs:26-27`.
-> · **S5** — `left_activate_join`'s doc header opens **"ONE COPY"** and it is called from exactly one
->   of three sites; the body is still inline at both originals, in the fire hot path.
-> · **T1** — the join-key family carries 11 `panic!` sites where `outcome.rs` states the law that a
->   failure is a value a caller matches, never a raise. `driver_of` in the same file returns `Result`.
-> · **X3** — ⭐ **THREE WARDS DISAGREE ABOUT ONE RUNE** (`fire.wat:54`): `intueri` says clear,
->   `struere` says no action, `excusare` strikes it ILLEGITIMATE-AT-BIRTH. `vigilia` forbids the
->   aggregator re-classifying a child, so all three stand — **the disagreement is a decision for the
->   builder, not for me.**
-> · **X1/X2** — five bare `#[allow(clippy::too_many_arguments)]` with no arity reason, against two
->   siblings that carry a real one. `alpha.rs:338` is a COLD path, where the hot-loop excuse cannot
->   even apply.
-> · **F1** — a NEGATION CYCLE (a user's mistake) is raised with `rust_caller_span!()` while the
->   caller one frame up holds `span`. `insert.rs` has **0** such sentinels; `session.rs` has **27**.
+> **⛔⛔ TEN OF MY HANDED-DOWN MEASUREMENTS WERE WRONG OR STALE. EVERY ONE WAS CAUGHT BY A WARD TOLD
+> TO RE-DERIVE.** Five distinct shapes, named in the README's resume block: a grep matching *prose
+> about* a thing; a grep matching *data that looks like* the thing; a name-grep that cannot see
+> coverage-by-walk; a name-grep that cannot see consumption-by-argument; and **two numbers I
+> invalidated MYSELF** by committing a file into the directory I had just measured. ⭐ The one
+> measurement that survived re-derivation intact was the one I handed over **with its contamination
+> disclosed**.
 >
-> **⛔⛔ MY OWN TWO FAILURES TODAY, BOTH ALREADY IN MY RECORD, BOTH RECURRED.** (1) An edit used
-> `str.replace` on an anchor a prior edit had consumed, **with no assert on that replace** — a silent
-> no-op — and the commit message claimed 12 rows that were never written. (2) A second edit DID
-> assert and the assert DID fire, but `git commit` sat on the next line instead of being `&&`-joined,
-> so the shell committed anyway under a false message. **Verifying an anchor was FOUND is not
-> verifying a write LANDED.** Cure now in use: insert by line index, re-read the file, assert every
-> row present, `&&`-join the commit. `9697394c2` is the correction and the evidence.
+> **⚠ TWO DECISIONS ARE THE BUILDER'S, NOT MINE.** **X3** — three wards, one rune, two verdicts.
+> **2X2** — a rune whose REASON is true and whose CATEGORY is wrong; `purgare` and `excusare` split
+> on which matters. `vigilia` forbids the aggregator re-classifying a child, so both stand.
 >
-> **⚠ FIVE COUNTS OF ONE POPULATION, NONE AGREEING** — the target's runes counted 41 / 54 / 56 / 57
-> (58 raw lines) by four wards and by me. No finding turns on it; **a count that varies with who ran
-> it needs its method stated beside it.**
->
-> **CLOSED TODAY, do not re-open:** the whole 2026-09-05 rete list — `conferre` L2-1/L2-2/L2-3,
-> census G's `emitted ⇒ ever read` gate (25 counters read, **zero runed** — not a ratchet), Stone K
-> moves 2–4 (skipped 22 → 19), and the probe's false purity claim.
+> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** 83 rows open, 8 L1.
 
 > ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
 > *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
@@ -77,13 +64,26 @@
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline 00adc868a..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat 00adc868a..HEAD --name-only
+git log --oneline bb306bd3c..HEAD      # every commit since the last one that touched CODE
+git diff --stat bb306bd3c..HEAD --name-only
 ```
 
-**PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —
-then trust the log and the source over every line below, and re-read before you move.
+**PASS:** every path is under `docs/`, **or is one of these three known evidence paths** —
 
+| path | why it is not code drift |
+|---|---|
+| `wat-scripts/scratch-pad/**/*.wat` | probes and repros; the scratch-pad convention makes these durable, and two lint gates read every `.wat` there |
+| `wat-scripts/perf/grid/peragrare-census.sh` | the `peragrare` census, committed **beside the corpus it counts** because the spell requires it |
+| `tests/rete/probe_arc278_then_user_forms_userfn.wat` | comment-only strike (`ce6c1e35c`); its SCORE records *every `+`/`-` content line begins `;;`* |
+
+**STALE:** any `src/` or `wat/` path, or any `tests/` path other than the one above — then trust the
+log and the source over every line below, and re-read before you move.
+
+⛔ **An ENUMERATED allowlist, not a widened glob, and that is deliberate.** The previous wording said
+*"under `docs/` or `wat-scripts/scratch-pad/`"*; two later commits of mine landed outside both — a
+census and a comment-only probe strike — and a glob loose enough to admit them would also admit a
+real engine change. **A probe that cannot distinguish expected evidence from new drift has stopped
+being a probe.** If you add a fourth evidence path, add a row; do not relax the rule.
 > ⚠ Previous wordings pinned to a COUNT and to a `curare:` PREFIX; both rotted, because the cadence
 > is `strike:` (draw, docs) → `fix:`/`lint:` (the work, src) → `score:` + `curare:` (docs). **Pin to
 > the last commit that touched code, and test the PATHS.** That survives any number of docs commits.
