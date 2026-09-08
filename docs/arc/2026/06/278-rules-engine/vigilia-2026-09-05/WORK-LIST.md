@@ -12,6 +12,12 @@
 > in two places IS the defect — `exigere` found exactly that in this arc's TRACKED DECISIONS.
 > One row, one place.
 
+> ✅ **2026-09-07 — THE RETE SCOPE OF THIS CAST IS WORKED TO COMPLETION.** Every row on
+> `RETE-BOARD.md` is closed, driven or refuted. One real engine defect came out of it (`21a5f8514`,
+> the oracle dropping a derived fact); everything else was record rot, false documentation, missing
+> instruments, or a row that did not survive contact. **The non-rete rows below are untouched and
+> still carry their cast-time status** — they belong to main.
+
 > ⭐ **2026-09-07 — THIS RULE WAS BROKEN BY THE FILE NEXT TO IT, AND BOTH COPIES THEN ROTTED.**
 > `RETE-BOARD.md`, written into this same directory four days later, shipped its own `status`
 > column — the second place this rule forbids. Nine rete rows read **OPEN** in both files while
@@ -199,7 +205,7 @@ wrong half in two of the three closed precedents in this tree."*
 |---|---|---|---|
 | **F1 ★** | `wat/rete/oracle/explain.wat:10-49`, `:53` | **`fire-rules-explain$oracle` is NONDETERMINISTIC.** 8 samples, 8 producing rules: native stable `vex::aaa` 8/8; oracle returns **4 distinct rules** (`ggg`,`zzz`,`aaa`,`ccc`), agreeing 2/8. Single-producer control stable on both. `harvest-support` folds `PersistentMap/keys` (HAMT order) with no sort; its sibling `fire.wat:157` sorts and says why in writing. **The referee for explain is not a function.** The differential compares only `PersistentMap/length`. | ✅ **CLOSED 2026-09-07** — re-derived against HEAD `b6ffdff1d`. Status authority for rete rows is `RETE-BOARD.md`. `explain.wat:49` folds `(:wat::rete::topological-node-ids network)`. Instrument landed: `tests/rete/probe_arc278_explain_order.rs`. |
 | F2 | `wat/rete/oracle/insert.wat:100` | `retract` removes **every** equal fact; `insert` stages one. **DRIVEN:** 2 identical inserts → 3 facts; 1 retract → 1 fact; the derived consequence vanishes. Ranked L2 by `experiri`: the docstring says "by value equality", so it is a documented asymmetry, not a divergence from its own spec. | ✅ **CLOSED 2026-09-07** — re-derived against HEAD `b6ffdff1d`. Status authority for rete rows is `RETE-BOARD.md`. retract removes ONE; instrument landed as the `retract-multiplicity` grid axis (`wat_scripts_grid_port_check.rs:168-175`). |
-| F3 | `conferre` L2-1..3 | leading accumulate re-seeds every round into a cumulative beta; `insert-all`'s hardcoded `OP`; stratify `+1` divergence for `:exists`/accumulate-`:from` over a derived type | OPEN |
+| F3 | `conferre` L2-1..3 | leading accumulate re-seeds every round into a cumulative beta; `insert-all`'s hardcoded `OP`; stratify `+1` divergence for `:exists`/accumulate-`:from` over a derived type | ✅ **ALL THREE CLOSED 2026-09-07.** L2-2 cured (`e95b5ba33`, `insert` reports `insert`). L2-3 driven — the strata DO differ (native 1 / oracle 0, gate `stratify_numbers.rs`) but the FACTS agree; the defect was a false lockstep claim in two headers, struck in `66a24d288`. L2-1 driven as the matrix's fourth cell (`accum-lead-rule-cascade` axis, depths 1/3/6, Clara live): **no round leak.** ⚠ `accumulate.rs:134-145` still re-seeds unguarded — watched now, not guarded. |
 
 ---
 

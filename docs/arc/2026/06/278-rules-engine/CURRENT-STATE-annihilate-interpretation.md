@@ -4,80 +4,78 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-07 (forty-first — 49 CODE COMMITS THIS SESSION, GREEN FLOOR ON EVERY ONE. ⭐⭐ THE CENSUS IS COMPLETE A–M, AND THE QUESTION THAT DECIDED EVERY ROW WAS "WHAT IS WATCHING THIS NUMBER?").** Supersedes every earlier stamp and every dated block below.
+**CURRENT STAMP 2026-09-07 (forty-second — THE RETE VIGILIA LIST IS CLEAR. ⭐⭐ 22 COMMITS, GREEN FLOOR ON EVERY ONE, AND EXACTLY ONE OF THEM CHANGED ENGINE BEHAVIOUR).** Supersedes every earlier stamp and every dated block below.
 
-> **FLOOR 5472/5472, 22 skipped. clippy rc=0.** Was 5460 at session start (5420 the session before).
+> **FLOOR 5480/5480, 19 skipped. clippy rc=0.** Was 5460 two sessions ago. Skipped fell 22 → 19:
+> Stone K moved three diagnostics out of the test binary entirely.
 >
-> **THE SESSION IN ONE SENTENCE:** the rete census A–M was worked to closure, and the useful axis was
-> never *"is the name wrong"* — it was **what, if anything, is watching the number**, which produced
-> genuinely different work each time: four renames, one split, one deletion, one armed tripwire, one
-> gate, one no-op, and **two strikes that correctly produced no mutation proof and said so.**
+> **THE SESSION IN ONE SENTENCE:** every rete row from the 2026-09-05 vigilia is now closed, driven
+> or refuted — and the useful question turned out to be **what is watching this, and does its corpus
+> contain the shape?**
 >
-> **★ THE LINE THAT RECONCILED THE EXTREMES.** Census G deleted two counters; census E kept a guard
-> that has **never once fired**. Both are correct: **an unread truth is fine; an unread falsehood is
-> a trap with nobody standing near it.** G's counters reported a hardcoded constant nobody read;
-> E's `None` arm correctly handles a malformed `cond` and merely has no instance.
+> **⭐ ONE REAL DEFECT, FOUND AND CURED.** `21a5f8514` — the ORACLE dropped a derived fact. A rule
+> whose `:then` head is a user fn had its stratum assigned to the FUNCTION's name, so the produced
+> type was never raised, its consumer sat BELOW its own producer, and stratified fire never
+> re-fires a lower stratum. Native `[0 1 1]`, oracle `[0 1 0]`, **Clara `[0 1 1]` — the reference
+> engine was the wrong one**, which is worse than a port bug because every differential taken
+> against it inherits the flaw. The cure was `compile.wat:775-798`'s own recipe, ~700 lines away in
+> the same subsystem: **the arc's signature shape for the ELEVENTH time**, and the sharpest form of
+> it — the fix was not merely written down elsewhere, it was *driven, proven and shipped* on a
+> sibling path that never received it.
 >
-> **⛔ AND THE RECURRING MECHANISM, SIX TIMES IN ONE SESSION:** a check that cannot fail proves
-> nothing. Census D and G had **no mutation available at all** (consumers assert zero; a deleted
-> counter keeps them green). E's assertion held identically with and without the fix — *measured*,
-> 245583 hoisted / 206 re-derives. H's `assert_eq!(total, 0)` was one deletion from a tautology,
-> rescued only by both bumps sharing one `#[cfg(test)]` block. I found one arm of a two-arm test
-> blind. **A suite's ability to notice a deleted instrument lives entirely in its NONZERO
-> assertions.**
+> **⛔⛔ THE CLASS THAT MATTERS NOW, THREE TIMES IN ONE DAY: THE INSTRUMENT WAS HONEST AND THE
+> FIXTURES DID NOT REACH THE SHAPE.** Measured and anchored each time: **0 of 46** grid axes had a
+> user-fn rule head · **0 of 13** accumulate axes bagged a derived type · F2's *"the grid fixtures
+> stage no duplicate."* ⭐ The sharpest form: **the colon-strip bug was CORRECT for all 46 axes** —
+> the grid could only ever answer the question somebody thought to ask it. Builder's standing rule
+> now: **every flaw earns a grid axis that proves it is gone.** Three landed
+> (`accum-over-derived`, `userfn-head`, `accum-lead-rule-cascade`), each mutation-proved to redden.
 >
-> **CURED THIS SESSION:** F2 (retract removed every equal fact; `acc::count` said the engine could
-> COUNT a duplicate but not REMOVE it — the argument needed no Clara) · FactBag (the fact base had
-> six sites each inventing their own multiplicity) · census A–M · A4's `SeenSet` · A1's last remnant
-> (`key_and_index` now refuses a second keying) · `conferre` L2-2 (`insert` reported `insert-all`).
+> **⚠ THE RAW VIGILIA COUNTS WENT UP, NOT DOWN** — 08-30 was 41 L1 + 70 L2 = 111; 09-05 was 81 + 97
+> = 178. What collapsed is **defect density**: ten strikes, one engine change. The rest was record
+> rot, false documentation, missing instruments, and rows that did not survive contact. The engine
+> is converging; **the rot has migrated into the RECORD and the FIXTURES**, and the next cast should
+> be weighted for that.
 >
-> **⭐ THE ARC'S SIGNATURE SHAPE, NOW NINE TIMES: the tree had already written the correct rule
-> down and applied it in exactly one place.** L2-2 is the sharpest — the checker takes `op`
-> *specifically* so it reports the verb the user wrote, and its caller fed it a constant.
+> **★ A NEW SPELL IS FILED.** `~/work/NOTE-peragrare-a-ward-that-audits-the-corpus-not-the-code.md`
+> — no ward takes the fixture population as its target. `experiri` is the checklist (every declared
+> form driven once); this is the cross-product. Evidence: the three instances above, plus a fixture
+> header that already maintains a hand-written coverage matrix and says *"a fix for one did not
+> reach the other"* — **a discipline reinvented locally with no name is the signature of a missing
+> spell.** Same shape as the two requests this tree filed and had accepted.
 >
-> **★ THE VOCABULARY LOOP CLOSED.** `excusare` lacked a word for *"no gate is constructible here"*.
-> Filed from ~15 instances (`~/work/NOTE-excusare-lacks-a-term-for-a-gate-that-cannot-be-built.md`);
-> **both accepted upstream with the proposed names** — `no-falsifier`, `below-resolution` — and with
-> a STRICTER bar than proposed, which immediately caught one of my own reasons citing the 5.3×
-> *excursion* (how far the outlier moved) where the bar asks the *margin* (the size of the effect).
-> Registering the ward also revealed **five `rune:excusare(perennial)` sites already in the tree and
-> ungated** — the most-scrutinized category in the grimoire was the one nothing was scrutinizing.
+> **⛔ FOUR SWEEPS, THREE WRONG BEFORE ANCHORING.** A regex read `(:Type/field x)` as a produced
+> type and manufactured a hit; a half-implemented READ definition reported **54** where the truth was
+> **21**; approximating that same definition again under-counted **7** where the population was
+> **25**. Both of the last two were me re-deriving a definition **that already existed one file
+> away**. Every correction came from anchoring on a known positive first.
 >
-> **⚠ TWO AUDIT ROWS DID NOT SURVIVE CONTACT** (census K/L's *"neither can emit a 0 row"* — CATCHUP
-> can; census M's second key — no such call exists). **Eleven of thirteen did.** A sweep worth
-> trusting, with a known non-zero error rate, and both misses were in the same direction: claiming a
-> defect broader than the code had.
+> **⛔ A PRINTED CONSTANT WHERE A MEASUREMENT BELONGS — TWICE, AND THE SECOND WAS MINE.** The first
+> SCORE of the stratify strike printed the oracle's numbers as format-string literals beside two real
+> measurements, in identical shape (refuted, `ba203bf85`'s sibling). Then I wrote *"the evidence
+> re-runs → `COMPILE: Compiled`"* into an EXPECTATIONS row — a literal emitted BEFORE any compile.
+> The executor caught it and said so instead of returning the row I asked for.
 >
-> **⛔ A FLOOR RED HAPPENED AND IS NOT A FLAKE.** `binding_repr_bench.rs:762` — a bare `<` between
-> two floats, each a mean over ONE wall-clock window, the two windows timed SEQUENTIALLY, at
-> `nice -n 19` against 12–14 processes. Cured by moving the claim off the floor into a dated
-> six-sample measurement, not by a tolerance. **NOTHING GOT FASTER** — the 3.0× is the standing
-> margin between the shipping trie and the rejected array, measured, not created.
+> **CURED / CLOSED THIS SESSION:** nine board rows that read OPEN and were already cured (F1, F2,
+> D3, D2, D1, D1a, A8, A3, A9; A4's rete half) · `conferre` L2-2, L2-3 · L2-1 (**driven, the fourth
+> cell AGREES** — not a licence to forget `accumulate.rs:134-145`, which still re-seeds unguarded) ·
+> census G's `emitted ⇒ ever read` gate (**25 counters read, ZERO runed — not a ratchet**) · Stone K
+> moves 2–4 · two false `stratify.rs` headers · the probe's false purity claim.
 >
-> **⛔⛔ MY PROCESS FAILURE, AND THE RULE IT BOUGHT.** I ran a mutation build in the tree **while
-> grok held an unanswered brief** — two writers, one checkout. Then I reported the probe files
-> permanently lost from a snapshot of a tree still being written; grok rebuilt them 11 minutes
-> later. **Once `.pulsare/to-grok` carries an unanswered brief, I READ AND DO NOT BUILD.** It had a
-> real consequence: grok's floor predated the restored probe, so the committed tip had never been
-> floored until I re-ran it.
+> **⚠ STATUS IS COLLAPSED TO ONE HOME.** `WORK-LIST.md:10-13` already said *"One row, one place"*;
+> `RETE-BOARD.md` shipped its own status column into the same directory four days later and both
+> copies rotted in lockstep. The board's TABLES now point at WORK-LIST. **Its prose sections still
+> carry `✅ CLOSED` and are the remaining half of that cure.**
 >
-> **STILL OPEN (rete):** `conferre` L2-1 (leading-accumulate seed rebuilt every round unguarded,
-> `accumulate.rs:138`, while `filter.rs:107,135` carries the `leading_emitted` guard — **its own
-> report forbids calling it a defect until someone fires a leading accumulate into a HashJoin across
-> ≥2 rounds and counts rows**) · `conferre` L2-3 (native stratify `+1` vs the oracle's *"NOT +1"*,
-> `stratify.rs:211,220` vs `stratify.wat:233`, whose header claims lockstep — **nothing compares
-> strata**, so it needs an instrument before a cure) · census G's deferred **`emitted ⇒ ever read`**
-> gate (the census-name lint enforces read ⇒ emitted; the reverse is enforced by nothing, which is
-> how three `prod:` counters reached HEAD unobserved — G removed two) · Stone K's `benches/`
-> relocation for the three timing diagnostics.
+> **STILL OPEN (rete):** `tests/rete/*.wat` prose is gated by **nothing** — `no_stale_path_in_doc`'s
+> ROOTS are `src/rete`(.rs)/`wat`/`wat-tests`, `rete_citation_resolves` scans `src/rete` comments.
+> That is how the false ★ paragraph survived for weeks; widening needs its own false-RED survey ·
+> the board's prose sections above · `accumulate.rs`'s unguarded leading seed, now watched by an
+> axis but not guarded.
 >
-> **CLOSED, do not re-open:** `sequi` L2-a (D1's cure took it; the row was stale) · derived-fact
-> multiplicity (set semantics IS the termination proof) · the combinator-inner `ensure_gather`
-> (**measured**: 206 / 245583 = 0.084%, the rune's premise holds and is now dated).
->
-> **THREE NOTES PARKED IN ARC 109 FOR MAIN** — record-nature `:restricted-to` is parsed, stored and
-> never enforced; `TestSummary`'s `passed + failed` can exceed `total`; `Hash for Value` has two
-> functions selected by a stamped flag, safe only because `from_parts` is the sole stamping site.
+> **⚠ PROCESS, ONCE:** a BRIEF STOP fired (`pub(crate)` reached) and the strike continued with a
+> workaround. The workaround was right and the SCORE disclosed it first. **A STOP is where the
+> orchestrator chooses** — had the trade been wrong, it would have been made without me.
 
 > ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
 > *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
@@ -89,8 +87,8 @@
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline e95b5ba33..HEAD      # every commit since the last SUBSTANTIVE one
-git diff --stat e95b5ba33..HEAD --name-only
+git log --oneline ba203bf85..HEAD      # every commit since the last SUBSTANTIVE one
+git diff --stat ba203bf85..HEAD --name-only
 ```
 
 **PASS:** every path is under `docs/` **or `wat-scripts/scratch-pad/`** (repros are record, not engine). **STALE:** any `src/`, `wat/`, or `tests/` path —
