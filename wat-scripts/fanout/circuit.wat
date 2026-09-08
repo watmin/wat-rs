@@ -92,10 +92,10 @@
               drop-mark-bp   <- :wat::core::i64
               drop-seed      <- :wat::core::i64
               drop-after?    <- :wat::core::bool]
-  :ephemeral [claimed <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])]
+  :ephemeral [claimed <- (:wat::core::PersistentMap :- [:wat::core::String :wat::core::bool])]
   :init (:wat::core::fn [record <- :fanout::seen::Record] -> :fanout::seen::State
           (:fanout::seen::State :durable record
-            :claimed (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])))
+            :claimed (:wat::core::PersistentMap :- [:wat::core::String :wat::core::bool])))
   :impls
   [(check [s ctx req]
      (:wat::core::let
@@ -120,7 +120,7 @@
                  -> (:wat::core::Vector :- [:fanout::Seen::Verdict])
                  (:wat::core::let
                    [key (:wat::string::concat qname (:wat::string::concat "/" seq))
-                    already? (:wat::core::match (:wat::hashmap::get claimed key)
+                    already? (:wat::core::match (:wat::map::get claimed key)
                                ((:wat::core::Some _) true)
                                (:wat::core::None false))]
                    (:wat::core::conj acc
@@ -160,22 +160,22 @@
         hit?  (:wat::core::and (:wat::i64::> rate 0) (:wat::i64::< bp rate))
         folded (:wat::core::foldl
                  (:wat::core::fn
-                   [acc <- (:wat::core::Tuple :- [(:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                   [acc <- (:wat::core::Tuple :- [(:wat::core::PersistentMap :- [:wat::core::String :wat::core::bool])
                                                   :wat::core::i64 :wat::core::i64])
                     seq <- :wat::core::String]
-                   -> (:wat::core::Tuple :- [(:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                   -> (:wat::core::Tuple :- [(:wat::core::PersistentMap :- [:wat::core::String :wat::core::bool])
                                              :wat::core::i64 :wat::core::i64])
                    (:wat::core::let
                      [claimed (:wat::core::first acc)
                       recd    (:wat::core::second acc)
                       skip    (:wat::core::third acc)
                       key (:wat::string::concat qname (:wat::string::concat "/" seq))
-                      already? (:wat::core::match (:wat::hashmap::get claimed key)
+                      already? (:wat::core::match (:wat::map::get claimed key)
                                  ((:wat::core::Some _) true)
                                  (:wat::core::None false))]
                      (:wat::core::if already?
                        (:wat::core::Tuple claimed recd (:wat::i64::+ skip 1))
-                       (:wat::core::Tuple (:wat::hashmap::assoc claimed key true) (:wat::i64::+ recd 1) skip))))
+                       (:wat::core::Tuple (:wat::map::assoc claimed key true) (:wat::i64::+ recd 1) skip))))
                  (:wat::core::Tuple
                    (:fanout::seen::State/claimed s)
                    (:fanout::seen::Record/recorded rec0)
