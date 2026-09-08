@@ -127,6 +127,54 @@ pub fn reset_user_signals() {
     KERNEL_SIGHUP.store(false, Ordering::SeqCst);
 }
 
+/// Has this process received `sig`? Atomic first (latched: no syscall);
+/// pending-set second. Consumes exactly one signal via `sigtimedwait`
+/// with a zero timeout — NULL would block forever. EAGAIN/EINTR mean
+/// nothing observed this call. Latch on consume so a later `reset-*!`
+/// has something to clear.
+///
+/// STOP-1: never pass SIGINT or SIGTERM. Those belong to the worker.
+pub fn observed_user_signal(flag: &AtomicBool, sig: libc::c_int) -> bool {
+    debug_assert!(
+        sig != libc::SIGINT && sig != libc::SIGTERM,
+        "stop-class signals must not be consumed at a reader"
+    );
+    if flag.load(Ordering::SeqCst) {
+        return true;
+    }
+    let mut set: libc::sigset_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        libc::sigemptyset(&mut set);
+        libc::sigaddset(&mut set, sig);
+    }
+    let zero = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    let rc = unsafe { libc::sigtimedwait(&set, std::ptr::null_mut(), &zero) };
+    if rc == sig {
+        flag.store(true, Ordering::SeqCst);
+        return true;
+    }
+    false
+}
+
+/// Has this process received SIGINT or SIGTERM? Atomic first; then
+/// non-destructive `sigpending`. Must not dequeue — if a reader ate
+/// SIGTERM the worker would never wake and shutdown would not cascade.
+pub fn stop_signal_is_pending() -> bool {
+    if KERNEL_STOPPED.load(Ordering::SeqCst) {
+        return true;
+    }
+    let mut pending: libc::sigset_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        libc::sigemptyset(&mut pending);
+        libc::sigpending(&mut pending);
+        libc::sigismember(&pending, libc::SIGTERM) == 1
+            || libc::sigismember(&pending, libc::SIGINT) == 1
+    }
+}
+
 /// Process-wide argv ambient — populated once by wat-cli (or any
 /// embedder) before `:user::main` runs; thereafter accessible from
 /// any wat code via `(:wat::runtime::argv)`.
@@ -299,6 +347,32 @@ fn fill_substrate_sigset(mask: &mut libc::sigset_t) {
     }
 }
 
+/// What a signalfd `read` of `n <= 0` means. Pure — no syscalls, so
+/// tests reach every arm without a broken fd. `n > 0` is a siginfo
+/// and is dispatched by the caller, not classified here.
+#[derive(Debug, PartialEq, Eq)]
+enum DrainStep {
+    /// `EAGAIN`/`EWOULDBLOCK` — the drain is complete.
+    Done,
+    /// `EINTR` — retry the read.
+    Retry,
+    /// Unexpected errno, or `n == 0`. The signalfd cannot be read;
+    /// continuing would spin. Substrate-fatal.
+    Fatal,
+}
+
+fn classify_signalfd_read(n: isize, errno_kind: std::io::ErrorKind) -> DrainStep {
+    if n == 0 {
+        return DrainStep::Fatal;
+    }
+    debug_assert!(n < 0, "n > 0 is a siginfo; the caller dispatches, not classify");
+    match errno_kind {
+        std::io::ErrorKind::WouldBlock => DrainStep::Done,
+        std::io::ErrorKind::Interrupted => DrainStep::Retry,
+        _ => DrainStep::Fatal,
+    }
+}
+
 /// Drain `signalfd` until EAGAIN. Returns true if a stop-class signal
 /// (SIGINT/SIGTERM) was among the events. SIGUSR1/2/HUP only flip
 /// their atomics — they do not stop the process.
@@ -313,33 +387,84 @@ fn drain_signalfd(sfd: i32) -> bool {
                 std::mem::size_of::<libc::signalfd_siginfo>(),
             )
         };
-        if n < 0 {
-            let err = std::io::Error::last_os_error();
-            if err.kind() == std::io::ErrorKind::WouldBlock
-                || err.kind() == std::io::ErrorKind::Interrupted
-            {
-                if err.kind() == std::io::ErrorKind::Interrupted {
-                    continue;
+        if n > 0 {
+            match info.ssi_signo as i32 {
+                libc::SIGINT | libc::SIGTERM => {
+                    KERNEL_STOPPED.store(true, Ordering::SeqCst);
+                    stop_class = true;
                 }
-                break;
+                libc::SIGUSR1 => set_kernel_sigusr1(),
+                libc::SIGUSR2 => set_kernel_sigusr2(),
+                libc::SIGHUP => set_kernel_sighup(),
+                _ => {}
             }
-            break;
+            continue;
         }
-        if n == 0 {
-            break;
-        }
-        match info.ssi_signo as i32 {
-            libc::SIGINT | libc::SIGTERM => {
-                KERNEL_STOPPED.store(true, Ordering::SeqCst);
-                stop_class = true;
+        let kind = std::io::Error::last_os_error().kind();
+        match classify_signalfd_read(n, kind) {
+            DrainStep::Done => break,
+            DrainStep::Retry => continue,
+            DrainStep::Fatal => {
+                let msg = b"substrate: signalfd(2) read failed; the process can no longer observe stop signals\n";
+                unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
+                unsafe { libc::_exit(1) };
             }
-            libc::SIGUSR1 => set_kernel_sigusr1(),
-            libc::SIGUSR2 => set_kernel_sigusr2(),
-            libc::SIGHUP => set_kernel_sighup(),
-            _ => {}
         }
     }
     stop_class
+}
+
+#[cfg(test)]
+mod classify_signalfd_read_tests {
+    use super::{classify_signalfd_read, DrainStep};
+
+    fn kind(errno: i32) -> std::io::ErrorKind {
+        std::io::Error::from_raw_os_error(errno).kind()
+    }
+
+    #[test]
+    fn eagain_is_done() {
+        assert_eq!(
+            classify_signalfd_read(-1, kind(libc::EAGAIN)),
+            DrainStep::Done
+        );
+    }
+
+    #[test]
+    fn ewouldblock_is_done() {
+        assert_eq!(
+            classify_signalfd_read(-1, kind(libc::EWOULDBLOCK)),
+            DrainStep::Done
+        );
+    }
+
+    #[test]
+    fn eintr_is_retry() {
+        assert_eq!(
+            classify_signalfd_read(-1, kind(libc::EINTR)),
+            DrainStep::Retry
+        );
+    }
+
+    #[test]
+    fn unexpected_errno_is_fatal() {
+        for errno in [libc::EBADF, libc::EINVAL, libc::EIO] {
+            assert_eq!(
+                classify_signalfd_read(-1, kind(errno)),
+                DrainStep::Fatal,
+                "errno {errno} must be Fatal, not Done"
+            );
+        }
+    }
+
+    #[test]
+    fn n_zero_is_fatal() {
+        assert_eq!(
+            classify_signalfd_read(0, kind(libc::EAGAIN)),
+            DrainStep::Fatal,
+            "n == 0 is Fatal even if the stale errno looks like Done"
+        );
+    }
 }
 
 /// Arc 170 Phase 2 — substrate-owned shutdown broadcast read-fd.
@@ -19537,8 +19662,8 @@ use crate::value::{snapshot_call_stack, FrameInfo};
 // ─── Kernel primitives: stopped / send / recv ───────────────────────────
 
 /// `(:wat::kernel::stopped?)` — nullary predicate; returns the kernel
-/// stop flag as a `:bool`. The wat's signal handler sets the flag
-/// on SIGINT / SIGTERM; user programs poll it in their loops.
+/// stop flag as a `:bool`. Atomic first; pending-set second via
+/// non-destructive `sigpending`. Does not dequeue SIGINT/SIGTERM.
 ///
 /// `?` suffix per the 2026-04-19 naming-convention stance —
 /// predicates end in `?`.
@@ -19554,7 +19679,7 @@ pub(crate) fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<V
         )
         .into());
     }
-    Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
+    Ok(Value::bool(stop_signal_is_pending()))
 }
 
 /// `(:wat::kernel::call-site)` — nullary; returns the caller's
@@ -19856,13 +19981,15 @@ fn eval_runtime_current_thread() -> Result<Value, EvalBreak> {
     Ok(Value::String(Arc::new(format!("{:?}", id))))
 }
 
-/// Shared body for the three user-signal predicates — nullary, reads a
-/// given atomic flag. `op` is the wat-facing keyword path for error
-/// messages.
+/// Shared body for the three user-signal predicates — nullary.
+/// Atomic first; pending-set second. Consumes exactly `sig`
+/// (`sigtimedwait` with a zero timeout) and latches. `op` is the
+/// wat-facing keyword path for error messages.
 pub(crate) fn eval_user_signal_query(
     args: &[WatAST],
     op: &str,
     flag: &AtomicBool,
+    sig: libc::c_int,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
@@ -19876,7 +20003,7 @@ pub(crate) fn eval_user_signal_query(
         )
         .into());
     }
-    Ok(Value::bool(flag.load(Ordering::SeqCst)))
+    Ok(Value::bool(observed_user_signal(flag, sig)))
 }
 
 /// Shared body for the three user-signal resetters — nullary, flips a

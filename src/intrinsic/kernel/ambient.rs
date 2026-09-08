@@ -15,11 +15,15 @@
 //! `runtime::is_effectful_op` classifies by NAMESPACE PREFIX:
 //! `head.starts_with(":wat::kernel::")` is effectful, full stop. It cannot
 //! see inside a body. The four readers here — `stopped?`, `sigusr1?`,
-//! `sigusr2?`, `sighup?` — each do nothing but `AtomicBool::load`: no
-//! observable side effect, exactly the shape `:wat::time::now`
-//! (`src/intrinsic/time.rs`) reads the wall clock. `:Pure`'s shipped prose
+//! `sigusr2?`, `sighup?` — load the matching atomic first and consult the
+//! pending set only while it is false. `stopped?` uses non-destructive
+//! `sigpending`; the other three consume their one signal with
+//! `sigtimedwait` and latch. The `@Purity Pure` declaration is the
+//! observation contract, the same cell as `:wat::time::now`
+//! (`src/intrinsic/time.rs`). `:Pure`'s shipped prose
 //! is "same output for the same input, with no observable side effect" —
-//! a `load` satisfies that; the varying-output half lives entirely in
+//! a latched `load` satisfies that; the consume is how `reset-*!` stays
+//! honest, not a user-facing mutation. The varying-output half lives entirely in
 //! `@Determinism`, which is `Nondeterministic` here for the same reason
 //! `time::now` is. So these four declare `@Purity Pure`, independently
 //! derived from the body — and `is_effectful_op`'s prefix rule still says
@@ -79,8 +83,9 @@ use crate::span::Span;
 use crate::value::{EvalBreak, Value};
 
 /// `(:wat::kernel::stopped?)` → `:wat::core::bool`. Reads the kernel stop
-/// flag (`KERNEL_STOPPED`, set by the wat CLI's SIGINT/SIGTERM handlers).
-/// User programs poll it to decide whether to continue their main loops.
+/// flag (`KERNEL_STOPPED`) and, while it is false, the pending set
+/// (non-destructive `sigpending` of SIGINT/SIGTERM). User programs poll
+/// it to decide whether to continue their main loops.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -108,7 +113,7 @@ pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> 
 #[wat_intrinsic(":wat::kernel::sigusr1?")]
 pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_query(
-        &[], ":wat::kernel::sigusr1?", &crate::runtime::KERNEL_SIGUSR1, list_span,
+        &[], ":wat::kernel::sigusr1?", &crate::runtime::KERNEL_SIGUSR1, libc::SIGUSR1, list_span,
     )
 }
 
@@ -125,7 +130,7 @@ pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> 
 #[wat_intrinsic(":wat::kernel::sigusr2?")]
 pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_query(
-        &[], ":wat::kernel::sigusr2?", &crate::runtime::KERNEL_SIGUSR2, list_span,
+        &[], ":wat::kernel::sigusr2?", &crate::runtime::KERNEL_SIGUSR2, libc::SIGUSR2, list_span,
     )
 }
 
@@ -142,7 +147,7 @@ pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> 
 #[wat_intrinsic(":wat::kernel::sighup?")]
 pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_query(
-        &[], ":wat::kernel::sighup?", &crate::runtime::KERNEL_SIGHUP, list_span,
+        &[], ":wat::kernel::sighup?", &crate::runtime::KERNEL_SIGHUP, libc::SIGHUP, list_span,
     )
 }
 
