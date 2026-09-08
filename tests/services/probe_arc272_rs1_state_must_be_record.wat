@@ -19,7 +19,7 @@
   :impls
   [(increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c)) (:my::Counter::IncrementResponse::Ok c))))])
+       (:wat::service::Outcome::Reply {:state (:my::counter::State :durable (:my::counter::Record :count c)) :reply (:my::Counter::IncrementResponse::Ok {:value c})})))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let

@@ -8,7 +8,7 @@
     [:my::Event::Hold {}        "hold"]))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [line1 (:my::act (:my::Event::Open 7.5))
+    [line1 (:my::act (:my::Event::Open {:size 7.5}))
      line2 (:my::act :my::Event::Hold)]
     (:wat::core::do
       (:wat::kernel::println line1)

@@ -128,7 +128,7 @@
           ;; deliberate follow-up if ever wanted, not this wall).
           (:wat::bracket::process-dial-runner self work-fn
             (:wat::core::match (:wat::kernel::connect deps)
-              [:wat::kernel::ConnectOutcome::Connected {:peer p} (:wat::core::Some p)]
+              [:wat::kernel::ConnectOutcome::Connected {:peer p} (:wat::core::Some {:value p})]
               [:wat::kernel::ConnectOutcome::Refused {:cause c}
                 (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
               [:wat::kernel::ConnectOutcome::Rejected {:cause c}
@@ -204,7 +204,7 @@
           [:wat::bracket::PoolMsg::Setup {:deps deps}
             (:wat::bracket::thread-kwargs-runner self work-fn
               (:wat::core::Some
-                (:wat::core::apply assemble-kw deps (:wat::core::Vector :- [:wat::core::nil]))))]
+                {:value (:wat::core::apply assemble-kw deps (:wat::core::Vector :- [:wat::core::nil]))}))]
           [:wat::bracket::PoolMsg::Work {:pair pair}
             (:wat::core::let
               [k   (:wat::core::Option/expect ctx "bracket thread-kwargs-runner: Work before Setup")
@@ -482,7 +482,7 @@
               (:wat::core::match m  
                 [:wat::bracket::PoolMsg::Setup {:deps deps}
                   (:user::bracket::dial-runner self
-                    (:wat::core::Some (~kwargs-prime-kw ~@kwargs-ctor-args)))]
+                    (:wat::core::Some {:value (~kwargs-prime-kw ~@kwargs-ctor-args)}))]
                 [:wat::bracket::PoolMsg::Work {:pair pair}
                   (:wat::core::let
                     [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
@@ -611,7 +611,7 @@
                         (:wat::core::match (:wat::kernel::send
                                               (:wat::core::nth peers peer-pos)
                                               (:wat::bracket::PoolMsg::Work
-                                                (:wat::core::Tuple cursor (:wat::core::nth items cursor))))
+                                                {:pair (:wat::core::Tuple cursor (:wat::core::nth items cursor))}))
                           [:wat::kernel::SendOutcome::Sent {}   (:wat::core::+ cursor 1)]
                           [:wat::kernel::SendOutcome::Stopped {} (:wat::core::+ cursor 1)]  ;; arc 278 #73 — same: this loop's select' arm faces the stop
                           [:wat::kernel::SendOutcome::Closed {} (:wat::core::+ cursor 1)]   ;; surfaces via this loop's own select' arm
@@ -730,7 +730,7 @@
                         ;; a dead runner at setup time surfaces later via collect-loop's own
                         ;; select' arm (Closed/Lost raises there); this fold's job is only to
                         ;; fire every worker's Setup, so every arm continues the fold.
-                        (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Setup c))
+                        (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Setup {:deps c}))
                           [:wat::kernel::SendOutcome::Sent {}   nil]
                           [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
                           [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
@@ -740,7 +740,7 @@
                       setup-carrier)
                   ;; arc 278 the send'-outcome wall — the initial per-worker item primer. A dead
                   ;; runner surfaces via collect-loop's own select' arm; face all three explicitly.
-                  _ (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))
+                  _ (:wat::core::match (:wat::kernel::send p (:wat::bracket::PoolMsg::Work {:pair (:wat::core::Tuple i (:wat::core::nth items i))}))
                       [:wat::kernel::SendOutcome::Sent {}   nil]
                       [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: collect-loop's select' arm faces the stop
                       [:wat::kernel::SendOutcome::Closed {} nil]   ;; surfaces via collect-loop's select' arm

@@ -18,8 +18,8 @@
   :ephemeral []
   :impls
   [(is-holon-record [s ctx req]
-     (:wat::service::Outcome::Reply s (:my::HCounter::IsHolonRecordResponse::Ok
-                                        (:wat::core::record? (:my::hcounter::State/durable s)))))]
+     (:wat::service::Outcome::Reply {:state s :reply (:my::HCounter::IsHolonRecordResponse::Ok
+                                        {:yes (:wat::core::record? (:my::hcounter::State/durable s))})}))]
   :durable-parent :wat::holon::Record)
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool

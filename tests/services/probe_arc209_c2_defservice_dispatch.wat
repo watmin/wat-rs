@@ -25,13 +25,13 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:my::Counter::GetResponse::Ok {:value (:my::counter::Record/count (:my::counter::State/durable s))})}))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
-                                      (:my::Counter::IncrementResponse::Ok c))))])
+       (:wat::service::Outcome::Reply {:state (:my::counter::State :durable (:my::counter::Record :count c))
+                                      :reply (:my::Counter::IncrementResponse::Ok {:value c})})))])
 
 ;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
 ;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
@@ -82,7 +82,7 @@
                 0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Increment {:req (:my::Counter::IncrementRequest :n 5)})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      r1   (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}
@@ -91,7 +91,7 @@
               (:wat::kernel::assertion-failed! :message "recv': stopped before the Increment reply — the peer was ALIVE")]
             [:wat::kernel::RecvOutcome::Closed {}
               (:wat::kernel::assertion-failed! :message "recv': c closed before the Increment reply")])
-     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Get (:my::Counter::GetRequest))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+     _    (:wat::core::match (:wat::kernel::send c (:my::Counter::Op::Get {:req (:my::Counter::GetRequest)})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      r2   (:wat::core::match (:wat::kernel::recv c)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}

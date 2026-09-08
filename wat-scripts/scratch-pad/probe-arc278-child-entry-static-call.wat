@@ -41,7 +41,7 @@
           (:probe::ce::State :durable record))
   :impls
   [(ping [s ctx req]
-     (:wat::service::Outcome::Reply s (:probe::CE::PingResponse::Ok true)))])
+     (:wat::service::Outcome::Reply {:state s :reply (:probe::CE::PingResponse::Ok {:ok true})}))])
 
 ;; ── CLAIM A — the STATIC call, with a wire-safe `Peer'` in the `self` slot ────────────────────
 ;; This is the shape `<fqdn>::child-entry` will have. Every argument is spelled exactly as the

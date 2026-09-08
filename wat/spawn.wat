@@ -453,7 +453,7 @@
       :env-fn            (:wat::spawn::ProcessOpts/env-fn locus)
       :max-message-bytes (:wat::spawn::ProcessOpts/max-message-bytes locus)
       :runner-count      (:wat::spawn::ProcessOpts/runner-count locus)
-      :label             (:wat::core::Some r))))
+      :label             (:wat::core::Some {:value r}))))
 
 ;; ── Arc 278 Strike A — the ONE canonical Failure constructor ─────────────────
 ;; `:wat::kernel::Failure` is canonically a Record (Nature::Record, pure EDN — arc 293.W.2b:
@@ -620,7 +620,7 @@
     [:wat::kernel::RecvOutcome::Message {:msg v}
       (:wat::kernel::recv-all-loop p (:wat::core::conj acc v))]
     [:wat::kernel::RecvOutcome::Lost {:cause cause}
-      (:wat::core::Err cause)]
+      (:wat::core::Err {:error cause})]
     ;; arc 278 #73 — THE ARM THIS DRAIN EXISTS TO GET RIGHT. A stop cut the drain
     ;; short: the peer is ALIVE, more values may be pending, and `acc` is a PARTIAL
     ;; collection. Returning `(Ok acc)` here would be this fn's original sin restored —
@@ -633,9 +633,9 @@
     ;; and MainSignature, none of them deaths. Renaming it is its own stone, not this one;
     ;; the VARIANT here is exact.)
     [:wat::kernel::RecvOutcome::Stopped {}
-      (:wat::core::Err :wat::kernel::LociDiedError::Stopped)]
+      (:wat::core::Err {:error :wat::kernel::LociDiedError::Stopped})]
     ;; the drain's SUCCESS path: a genuine clean EOF, everything collected.
-    [:wat::kernel::RecvOutcome::Closed {} (:wat::core::Ok acc)]))
+    [:wat::kernel::RecvOutcome::Closed {} (:wat::core::Ok {:value acc})]))
 
 (:wat::core::defn :wat::kernel::recv-all :- [I O]
   [p <- (:wat::kernel::Peer :- [I O])]

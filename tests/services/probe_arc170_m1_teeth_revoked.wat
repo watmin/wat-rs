@@ -26,9 +26,9 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok
-                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Echo::EchoResponse::Ok
+                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
 
 ;; arc 278 VALUE-CONTRACT: the owner FACES the prober's death as a matchable RecvOutcome VALUE and
 ;; RETURNS this enum — never re-raises it with assertion-failed! (which panic_any's past apply_function).
@@ -108,13 +108,13 @@
                 _  (:probe::echo/revoke eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; ack'd PeersDenied — pid GONE
                 _  (:wat::core::match (:wat::kernel::send prober ea) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])                                   ;; arc 278 #73 — the recv' below already faces the stop ;; re-dial signal (AFTER revoke ack)
                 r2 (:wat::core::match (:wat::kernel::recv prober)                    ;; owner FACES the outcome as a VALUE, returns the enum
-                     [:wat::kernel::RecvOutcome::Message {:msg m} (:probe::Outcome::Served m)]  ;; dial #2 admitted (the regression) — carries the reply
-                     [:wat::kernel::RecvOutcome::Lost {:cause cause} (:probe::Outcome::Bounced)]  ;; prober crashed on bounce = correct
+                     [:wat::kernel::RecvOutcome::Message {:msg m} (:probe::Outcome::Served {:reply m})]  ;; dial #2 admitted (the regression) — carries the reply
+                     [:wat::kernel::RecvOutcome::Lost {:cause cause} (:probe::Outcome::Bounced {})]  ;; prober crashed on bounce = correct
                      ;; arc 278 #73 — a stop is neither a bounce nor a serve; this enum has no third
                      ;; arm, and Bounced is the closer read ("not served" holds under Stopped too) —
                      ;; JUDGEMENT CALL, flagged for review.
-                     [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Bounced)]
-                     [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Bounced)])]      ;; prober closed without a reply = not served
+                     [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Bounced {})]
+                     [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Bounced {})])]      ;; prober closed without a reply = not served
                r2)]                                                                  ;; the enum outcome
            [:wat::core::None {}
              (:wat::kernel::assertion-failed! :message "peer-pid None on process prober")])]

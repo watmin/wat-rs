@@ -9,28 +9,28 @@
   :ephemeral []
   :impls
   [(write-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteMetricsResponse::Success)))
+     (:wat::service::Outcome::Reply {:state s :reply (:wat::telemetry::Journal::WriteMetricsResponse::Success {})}))
    (write-logs [s ctx req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteLogsResponse::Success)))
+     (:wat::service::Outcome::Reply {:state s :reply (:wat::telemetry::Journal::WriteLogsResponse::Success {})}))
    (query-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryMetricsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::telemetry::Journal::QueryMetricsResponse::Success
+         {:metrics (:wat::core::Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::None})}))
    (query-logs [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::QueryLogsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None)))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::telemetry::Journal::QueryLogsResponse::Success
+         {:logs (:wat::core::Vector :- [:wat::telemetry::Log]) :cursor :wat::core::None})}))
    ;; arc 278 Stone 2 — sift-logs/sift-metrics widened the Journal surface; the toy must
    ;; implement every feature to satisfy it (mirrors the query-* stubs above; the sieve is
    ;; unused by this throwaway toy).
    (sift-metrics [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::SiftMetricsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Metric]) :wat::core::None)))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::telemetry::Journal::SiftMetricsResponse::Success
+         {:metrics (:wat::core::Vector :- [:wat::telemetry::Metric]) :cursor :wat::core::None})}))
    (sift-logs [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::telemetry::Journal::SiftLogsResponse::Success
-         (:wat::core::Vector :- [:wat::telemetry::Log]) :wat::core::None)))])
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::telemetry::Journal::SiftLogsResponse::Success
+         {:logs (:wat::core::Vector :- [:wat::telemetry::Log]) :cursor :wat::core::None})}))])
 
 ;; `:probe::run` — start the toy on a thread, dial it, call `write-metrics` with a 1-element
 ;; `Metric` batch, and return the raw response (the .rs asserts it is `WriteMetricsResponse::Success`).
@@ -47,7 +47,7 @@
                :time-ns       123                             ;; spliced
                :start-time-ns 100                             ;; own
                :name          :requests                       ;; own
-               :value         (:wat::telemetry::Numeric::I64 7) ;; own
+               :value         (:wat::telemetry::Numeric::I64 {:val 7}) ;; own
                :unit          :wat::telemetry::Unit::Count)    ;; own
      batch   (:wat::core::Vector :- [:wat::telemetry::Metric] m)]
     ;; arc 278 recv'-wall: the client-method returns a matchable RecvOutcome — unwrap the ::Message

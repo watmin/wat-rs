@@ -35,7 +35,7 @@
 ;; ARM A — equality against a variant constructor in :where
 (:wat::rete::defrule :user::enum-eq-in-where
   :when [(:user::EnumNode (?i <- :id) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:user::NodeKind::List)))]
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:user::NodeKind::List {})))]
   :then [(:user::HitA :id ?i)])
 
 ;; ARM C — the CONTROL. Same shape, String. Must pass, or the probe proves nothing.
@@ -57,11 +57,11 @@
                   (:wat::rete::insert
                     (:wat::rete::insert
                       (:wat::rete::insert template
-                        (:user::EnumNode :id 1 :kind (:user::NodeKind::List)))
+                        (:user::EnumNode :id 1 :kind (:user::NodeKind::List {})))
                       ;; ★ THE DISCRIMINATOR — a NON-matching variant. If the :where is
                       ;; ignored rather than evaluated, ARM-A counts these too.
-                      (:user::EnumNode :id 3 :kind (:user::NodeKind::Vector)))
-                    (:user::EnumNode :id 4 :kind (:user::NodeKind::Keyword)))
+                      (:user::EnumNode :id 3 :kind (:user::NodeKind::Vector {})))
+                    (:user::EnumNode :id 4 :kind (:user::NodeKind::Keyword {})))
                   (:user::StrNode :id 2 :kind "list")))]
     (:wat::kernel::println
       (:wat::string::interpolate "ARM-A-enum={a} (MUST be 1 of 3 inserted) ARM-C-string-control={c}"

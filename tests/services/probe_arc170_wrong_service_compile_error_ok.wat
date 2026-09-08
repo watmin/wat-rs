@@ -16,8 +16,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))}))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
@@ -31,8 +31,8 @@
 (:wat::service::defservice :probe::kv
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Kv::GetResponse::Ok (:probe::Kv::GetRequest/k req))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Kv::GetResponse::Ok {:v (:probe::Kv::GetRequest/k req)})}))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

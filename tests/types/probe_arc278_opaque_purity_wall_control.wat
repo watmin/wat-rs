@@ -37,4 +37,4 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s (:probe::opq::Ctr::GetResponse::Ok 1)))])
+     (:wat::service::Outcome::Reply {:state s :reply (:probe::opq::Ctr::GetResponse::Ok {:value 1})}))])

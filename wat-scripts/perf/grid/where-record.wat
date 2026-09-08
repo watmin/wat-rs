@@ -129,9 +129,9 @@
 (:wat::core::defn :wr::status-of [i <- :wat::core::i64] -> :wr::Status
   (:wat::core::let [m (:wat::i64::mod i 3)]
     (:wat::core::cond
-      ((:wat::core::= m 0) (:wr::Status::Active  (:wat::i64::mod i 5)))
+      ((:wat::core::= m 0) (:wr::Status::Active  {:level (:wat::i64::mod i 5)}))
       ((:wat::core::= m 1) :wr::Status::Inactive)
-      (:else               (:wr::Status::Pending (:wat::i64::mod i 4))))))
+      (:else               (:wr::Status::Pending {:reason (:wat::i64::mod i 4)})))))
 
 ;; row 11's field-value builder. None is bare (mirrors :wat::core::None used bare elsewhere); Some
 ;; wraps a value positionally.
@@ -139,7 +139,7 @@
   (:wat::core::let [nm (:wat::i64::mod i 4)]
     (:wat::core::if (:wat::core::= nm 0)
       :wat::core::None
-      (:wat::core::Some (:wat::i64::mod i 6)))))
+      (:wat::core::Some {:value (:wat::i64::mod i 6)}))))
 
 ;; row 8's whole-record fn: takes the Client itself and reaches inside it.
 (:wat::rete::core::defn :wr::rep-pos? [c <- :wr::Client] -> :wat::core::bool

@@ -94,11 +94,11 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::PCache::GetResponse::Ok
-         (:wat-tests::PCache::GetRequest/probes req)
-         (:wat-tests::pcache-svc::Record/fills (:wat-tests::pcache-svc::State/durable s))
-         (:wat-tests::PCache::GetRequest/limit req))))])
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat-tests::PCache::GetResponse::Ok
+         {:echo (:wat-tests::PCache::GetRequest/probes req)
+         :results (:wat-tests::pcache-svc::Record/fills (:wat-tests::pcache-svc::State/durable s))
+         :limit (:wat-tests::PCache::GetRequest/limit req)})}))])
 
 ;; ── the gate: stand it up, dial it, run the three probes ────────────────────────────────────
 ;; K is pinned to String and V to i64 at the `/start` + call sites — two DIFFERENT concrete types.

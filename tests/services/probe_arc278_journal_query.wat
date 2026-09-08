@@ -16,10 +16,10 @@
      tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      m1    (:wat::telemetry::Metric :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :start-time-ns 0 :name :a
-             :value (:wat::telemetry::Numeric::I64 1) :unit :wat::telemetry::Unit::Count)
+             :value (:wat::telemetry::Numeric::I64 {:val 1}) :unit :wat::telemetry::Unit::Count)
      m2    (:wat::telemetry::Metric :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 2000000000 :start-time-ns 0 :name :b
-             :value (:wat::telemetry::Numeric::I64 2) :unit :wat::telemetry::Unit::Count)
+             :value (:wat::telemetry::Numeric::I64 {:val 2}) :unit :wat::telemetry::Unit::Count)
      _wr   (:wat::telemetry::Journal/write-metrics journal
              (:wat::telemetry::Journal::WriteMetricsRequest (:wat::core::Vector :- [:wat::telemetry::Metric] m1 m2)))
      bq    (:wat::telemetry::Journal/query-metrics journal

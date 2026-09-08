@@ -13,14 +13,14 @@
   :when [(:en::Box (?label <- :label))])
 
 (:wat::core::defn :user::direct [] -> :wat::core::String
-  (:wat::core::variant-name (:en::K::Bb)))
+  (:wat::core::variant-name (:en::K::Bb {})))
 
 (:wat::core::defn :user::via-then [] -> :wat::core::String
   (:wat::core::let
     [rules (:wat::rete::collect-rules :en)
      s0    (:wat::rete::insert
              (:wat::rete::compile-all rules (:wat::core::PersistentVector (:en::q-Box)))
-             (:en::Src :k (:en::K::Bb)))
+             (:en::Src :k (:en::K::Bb {})))
      fired (:wat::rete::fire-rules s0)
      hits  (:wat::rete::query fired (:en::q-Box))]
     (:wat::core::Option/expect

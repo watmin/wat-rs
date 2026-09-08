@@ -45,7 +45,7 @@
              
             [:wat::spawn::ServiceEvent::Message {:idx _idx :msg mm} mm]
             [_ :no-tick])]
-       (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse::Ok m))))])
+       (:wat::service::Outcome::Reply {:state s :reply (:wat-tests::Deadline::WaitTickResponse::Ok {:fired m})})))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::timer::env-grab-on-thread

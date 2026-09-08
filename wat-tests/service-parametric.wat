@@ -52,15 +52,15 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Box::PutResponse::Ok
-         (:wat::i64::+
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat-tests::Box::PutResponse::Ok
+         {:echo (:wat::i64::+
            (:wat-tests::Box::PutRequest/item req)
            ;; read the T-typed durable field generically — `v` is bound at type T
            (:wat::core::match
                (:wat-tests::box-svc::Record/held (:wat-tests::box-svc::State/durable s))
              [:wat::core::Some {:value v} 1]
-             [:wat::core::None {} 0])))))])
+             [:wat::core::None {} 0]))})}))])
 
 ;; ── the gate: stand it up on the thread locus and round-trip one call ───────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)` — the generic
@@ -71,7 +71,7 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::box-svc/start :locus (:wat::spawn::thread)
-           :record (:wat-tests::box-svc::Record :held (:wat::core::Some 42)))
+           :record (:wat-tests::box-svc::Record :held (:wat::core::Some {:value 42})))
        c (:wat::core::match (:wat::kernel::connect (:wat-tests::box-svc::Handle/addr h))
            [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
            [:wat::kernel::ConnectOutcome::Refused {:cause c}

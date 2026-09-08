@@ -23,13 +23,13 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:my::Counter::GetResponse::Ok {:value (:my::counter::Record/count (:my::counter::State/durable s))})}))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
-                                      (:my::Counter::IncrementResponse::Ok c))))])
+       (:wat::service::Outcome::Reply {:state (:my::counter::State :durable (:my::counter::Record :count c))
+                                      :reply (:my::Counter::IncrementResponse::Ok {:value c})})))])
 
 ;; Drive through the client face; start takes a LOCUS — `(thread)` selects the shared-memory
 ;; launch via the Locus protocol. Same round-trip as C.3 (increment 5 → get → 5).

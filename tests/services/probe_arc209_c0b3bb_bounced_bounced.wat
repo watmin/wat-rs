@@ -85,11 +85,11 @@
      ;; hand the (leaked) service capability DOWN to the stranger.
      _   (:wat::core::match (:wat::kernel::send stranger svc-addr) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
      got (:wat::core::match (:wat::kernel::recv stranger)  ;; owner FACES the outcome as a VALUE, returns the enum
-           [:wat::kernel::RecvOutcome::Lost {:cause cause} (:probe::Outcome::Bounced)]   ;; child crashed on bounce = correct
+           [:wat::kernel::RecvOutcome::Lost {:cause cause} (:probe::Outcome::Bounced {})]   ;; child crashed on bounce = correct
            ;; arc 278 #73 — a stop is neither a crash nor a clean exit; this enum has no third arm,
            ;; and Bounced is the closer read (does not falsely claim the regression) — JUDGEMENT
            ;; CALL, flagged for review.
-           [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Bounced)]
+           [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Bounced {})]
            [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Served)]          ;; stranger served then exited cleanly = regression
            [:wat::kernel::RecvOutcome::Message {:msg m} (:probe::Outcome::Served)])]   ;; defensive (stranger never sends up)
     got))

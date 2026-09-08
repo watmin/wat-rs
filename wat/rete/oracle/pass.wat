@@ -223,7 +223,7 @@
                               -1
                               (:wat::map::keys network))]
       (:wat::core::if (:wat::i64::>= found 0)
-        (:wat::core::Some found)
+        (:wat::core::Some {:value found})
         :wat::core::None))))
 
 ;; alpha-els-for-cond — Some(els) if that cond has an alpha (possibly empty);
@@ -236,8 +236,8 @@
   (:wat::core::match (:wat::rete::alpha-id-for-cond network cond)
     [:wat::core::Some {:value id}
      (:wat::core::match (:wat::map::get alpha-mem id)
-       [:wat::core::Some {:value pv} (:wat::core::Some pv)]
-       [:wat::core::None {} (:wat::core::Some (:wat::core::PersistentVector))])]
+       [:wat::core::Some {:value pv} (:wat::core::Some {:value pv})]
+       [:wat::core::None {} (:wat::core::Some {:value (:wat::core::PersistentVector)})])]
     [:wat::core::None {} :wat::core::None]))
 
 ;; token-exists-under — mid-chain :exists / :not. Fact inner → seeded rematch
@@ -435,7 +435,7 @@
           [:wat::core::Some {:value _} found]
           [:wat::core::None {}
            (:wat::core::if (:wat::core::= (:wat::rete::Rule/name rule) rname)
-             (:wat::core::Some rule)
+             (:wat::core::Some {:value rule})
              :wat::core::None)]))
       :wat::core::None
       rules)

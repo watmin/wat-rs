@@ -65,8 +65,8 @@
                              "acc: var unbound")]
         (:wat::core::match acc 
           [:wat::core::Some {:value cur}
-           (:wat::core::Some (:wat::core::if (:wat::core::< v cur) v cur))]
-          [:wat::core::None {} (:wat::core::Some v)])))
+           (:wat::core::Some {:value (:wat::core::if (:wat::core::< v cur) v cur)})]
+          [:wat::core::None {} (:wat::core::Some {:value v})])))
     :wat::core::None
     els))
 
@@ -84,8 +84,8 @@
                              "acc: var unbound")]
         (:wat::core::match acc 
           [:wat::core::Some {:value cur}
-           (:wat::core::Some (:wat::core::if (:wat::core::> v cur) v cur))]
-          [:wat::core::None {} (:wat::core::Some v)])))
+           (:wat::core::Some {:value (:wat::core::if (:wat::core::> v cur) v cur)})]
+          [:wat::core::None {} (:wat::core::Some {:value v})])))
     :wat::core::None
     els))
 
@@ -100,7 +100,7 @@
                     n (:wat::rete::acc::count els)]
     (:wat::core::if (:wat::core::= n 0)
       :wat::core::None
-      (:wat::core::Some (:wat::core::/ s n)))))
+      (:wat::core::Some {:value (:wat::core::/ s n)}))))
 
 ;; acc::distinct — dedup bindings[var] via fold + contains?. empty → [] → bare PV, never Option.
 ;; v1: element type is i64 (the probe stores i64 port/bytes values).

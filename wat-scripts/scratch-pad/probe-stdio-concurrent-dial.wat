@@ -35,13 +35,13 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Counter::GetResponse::Ok (:probe::counter::Record/count (:probe::counter::State/durable s)))))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:probe::Counter::GetResponse::Ok {:value (:probe::counter::Record/count (:probe::counter::State/durable s))})}))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+ (:probe::counter::Record/count (:probe::counter::State/durable s))
                                              (:probe::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:probe::counter::State :durable (:probe::counter::Record :count c))
-                                      (:probe::Counter::IncrementResponse::Ok c))))])
+       (:wat::service::Outcome::Reply {:state (:probe::counter::State :durable (:probe::counter::Record :count c))
+                                      :reply (:probe::Counter::IncrementResponse::Ok {:value c})})))])
 
 ;; ── A recursive worker helper: do `remaining` increments of n=1 on a connected client peer,
 ;;    counting how many typed IncrementResponse::Ok replies came back (a cross-talk / lost-reply

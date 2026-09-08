@@ -555,11 +555,11 @@
       [:wat::stream::NextOutcome::Item {:value value :rest rest}
         (:wat::core::match prev
           [:wat::core::None {}
-            (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some value) rest))]
+            (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some {:value value}) rest))]
           [:wat::core::Some {:value p}
             (:wat::core::if (:wat::core::= p value)
-              (:wat::core::dedupe-walk (:wat::core::Some value) rest)
-              (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some value) rest)))])]
+              (:wat::core::dedupe-walk (:wat::core::Some {:value value}) rest)
+              (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some {:value value}) rest)))])]
       [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
 
 (:wat::core::defn :wat::core::dedupe :- [T]

@@ -32,9 +32,9 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::SeededCounter::GetResponse::Ok
-         (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat-tests::SeededCounter::GetResponse::Ok
+         {:value (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s))})}))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; start takes the Record (seeded-counter::Record 42); init defaults to State/new(d).

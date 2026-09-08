@@ -9,7 +9,7 @@
 
 ;; (1) construct + match the dash variant
 (:wat::core::defn :probe-dv::fire [] -> :wat::core::i64
-  (:wat::core::match (:probe-dv::Op::-Tick) 
+  (:wat::core::match (:probe-dv::Op::-Tick {}) 
     [:probe-dv::Op::-Tick {} 42]
     [:probe-dv::Op::Ping {:req n} n]))
 

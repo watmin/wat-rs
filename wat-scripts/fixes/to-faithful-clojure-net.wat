@@ -176,7 +176,7 @@
                                   (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
                                     (:wat::core::ast-name h)
                                     "")))]
-      (:fix::walk-seq ch (:fix::Parent::Enclosed my-id my-head) 0 lines))
+      (:fix::walk-seq ch (:fix::Parent::Enclosed {:id my-id :head my-head}) 0 lines))
     (:wat::core::let [kind (:wat::core::ast-kind node)]
       (:wat::core::if (:wat::core::or (:wat::core::= kind "keyword") (:wat::core::= kind "symbol"))
         (:wat::core::let [name (:wat::core::ast-name node)

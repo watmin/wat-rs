@@ -17,7 +17,7 @@
   :ephemeral []
   :impls
   [(boom [s ctx req]
-     (:wat::kernel::assertion-failed! :message "boom — the handler crashed on purpose" :actual (:wat::core::Some "boom") :expected (:wat::core::Some "ok")))])
+     (:wat::kernel::assertion-failed! :message "boom — the handler crashed on purpose" :actual (:wat::core::Some {:value "boom"}) :expected (:wat::core::Some {:value "ok"})))])
 
 ;; arc 278 recv'-wall: recv' surfaces the far-side crash as a MATCHABLE RecvOutcome::Lost VALUE
 ;; (never a raise — a raise unwinds past the reader, which is the mask the wall kills). The client
@@ -28,7 +28,7 @@
   (:wat::core::let
     [h  (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
      c  (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s (:wat::kernel::send c (:my::Svc::Op::Boom (:my::Svc::BoomRequest)))]
+     _s (:wat::kernel::send c (:my::Svc::Op::Boom {:req (:my::Svc::BoomRequest)}))]
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome::Message {:msg _m} "MESSAGE"]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}

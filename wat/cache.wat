@@ -91,7 +91,7 @@
   (:wat::core::match (:rust::cache::Lru::put cache k v)
     [:wat::core::Some {:value pair}
       (:wat::core::Some
-        (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair)))]
+        {:value (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair))})]
     [:wat::core::None {} :wat::core::None]))
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
@@ -210,21 +210,21 @@
   ;; `nil` accumulator, mirrors `wat/bracket.wat`'s per-item fan-out folds) — `PutResponse` carries
   ;; nothing back (file-header departure note).
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::cache::Cache::GetResponse::Ok
-         (:wat::core::foldl
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::cache::Cache::GetResponse::Ok
+         {:results (:wat::core::foldl
            (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
                             k   <- :K]
              -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s) k)
-                 [:wat::core::Some {:value v} (:wat::cache::Cache::GetResult::Hit v)]
-                 [:wat::core::None {} (:wat::cache::Cache::GetResult::Miss)])))
+                 [:wat::core::Some {:value v} (:wat::cache::Cache::GetResult::Hit {:value v})]
+                 [:wat::core::None {} (:wat::cache::Cache::GetResult::Miss {})])))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
-           (:wat::cache::Cache::GetRequest/probes req)))))
+           (:wat::cache::Cache::GetRequest/probes req))})}))
    (put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::core::let
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
                                e    <- (:wat::cache::Entry :- [K V])]
@@ -235,7 +235,7 @@
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse::Ok))))])
+         (:wat::cache::Cache::PutResponse::Ok {}))}))])
 
 ;; ═══ Stone 3 — :wat::cache::HolographicLru, the SIMILARITY-KEYED composite ═══════════════════
 ;;
@@ -328,7 +328,7 @@
           [matched-key (:wat::holon::Match/key m)
            val (:wat::holon::Match/value m)
            _ (:wat::cache::Lru::put lru matched-key nil)]
-          (:wat::core::Some val))]
+          (:wat::core::Some {:value val}))]
       [:wat::core::None {} :wat::core::None])))
 
 ;; ─── len — total entries, read via the Hologram (the value-holding half) ──────────────────────
@@ -403,21 +403,21 @@
   ;; the whole-batch level instead of a per-entry `Option`. Eviction is still OBSERVABLE through
   ;; the service — just via a later `get` miss, exactly as the gate proves.
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::cache::Cache::GetResponse::Ok
-         (:wat::core::foldl
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::cache::Cache::GetResponse::Ok
+         {:results (:wat::core::foldl
            (:wat::core::fn [acc   <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
                             probe <- :wat::holon::HolonAST]
              -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s) probe)
-                 [:wat::core::Some {:value v} (:wat::cache::Cache::GetResult::Hit v)]
-                 [:wat::core::None {} (:wat::cache::Cache::GetResult::Miss)])))
+                 [:wat::core::Some {:value v} (:wat::cache::Cache::GetResult::Hit {:value v})]
+                 [:wat::core::None {} (:wat::cache::Cache::GetResult::Miss {})])))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
-           (:wat::cache::Cache::GetRequest/probes req)))))
+           (:wat::cache::Cache::GetRequest/probes req))})}))
    (put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::core::let
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
                                e    <- (:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
@@ -428,4 +428,4 @@
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse::Ok))))])
+         (:wat::cache::Cache::PutResponse::Ok {}))}))])

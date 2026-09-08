@@ -233,7 +233,7 @@
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
                          (:wat::core::match cur 
                            [:wat::core::None {} (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean)]
-                           [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)]))]
+                           [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some {:value c}) :acc new-acc :clean new-clean)]))]
                      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false)]
                      [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
@@ -311,7 +311,7 @@
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
                          (:wat::core::match cur 
                            [:wat::core::None {} (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean)]
-                           [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)]))]
+                           [:wat::core::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Some {:value c}) :acc new-acc :clean new-clean)]))]
                      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false)]
                      [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}

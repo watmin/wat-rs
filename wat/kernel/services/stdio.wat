@@ -51,7 +51,7 @@
   [(write [s ctx req]
      (:wat::core::let [_bytes (:wat::io::IOWriter/write-string (:wat::kernel::stdout-svc::State/out s)
                                 (:wat::kernel::StdOut::WriteRequest/bytes req))]
-       (:wat::service::Outcome::Reply s (:wat::kernel::StdOut::WriteResponse::Ok))))])
+       (:wat::service::Outcome::Reply {:state s :reply (:wat::kernel::StdOut::WriteResponse::Ok {})})))])
 
 ;; ─── StdErr (raw write-serializer — identical to StdOut; the eprintln TERMINATE stays the verb's own
 ;;     act, never the service loop's — see DESIGN §3) ────────────────────────────────────────────
@@ -77,7 +77,7 @@
   [(write [s ctx req]
      (:wat::core::let [_bytes (:wat::io::IOWriter/write-string (:wat::kernel::stderr-svc::State/out s)
                                 (:wat::kernel::StdErr::WriteRequest/bytes req))]
-       (:wat::service::Outcome::Reply s (:wat::kernel::StdErr::WriteResponse::Ok))))])
+       (:wat::service::Outcome::Reply {:state s :reply (:wat::kernel::StdErr::WriteResponse::Ok {})})))])
 
 ;; ─── StdIn (EOF-as-matchable-value upgrade: today's EOF panics-kills-the-loop; here it is a
 ;;     matchable `ReadFrameResponse::Eof`, no-hidden-failures R55/R57 — DESIGN §7(c)) ─────────────
@@ -110,17 +110,17 @@
           (:wat::kernel::stdin-svc::State :durable record :in (:wat::io::IOReader/from-fd fd)))
   :impls
   [(read-frame [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat::core::match (:wat::io::IOReader/read-frame (:wat::kernel::stdin-svc::State/in s)
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat::core::match (:wat::io::IOReader/read-frame (:wat::kernel::stdin-svc::State/in s)
                             (:wat::kernel::StdIn::ReadFrameRequest/max-buffer-bytes req))
          ;; a full line read → ::Line; EOF → the matchable ::Eof value (NOT a panic that
          ;; kills the serve loop — the no-hidden-failures upgrade). Arc 170: IOReader/read-frame's
          ;; return became :wat::io::IOReader::ReadFrameOutcome (was (Option :- [String])) so a stop
          ;; request could get its OWN outcome rather than being folded into ::Eof — ::Stopped
          ;; carries it straight through.
-         [:wat::io::IOReader::ReadFrameOutcome::Frame {:text line} (:wat::kernel::StdIn::ReadFrameResponse::Frame line)]
-         [:wat::io::IOReader::ReadFrameOutcome::Eof {}          (:wat::kernel::StdIn::ReadFrameResponse::Eof)]
-         [:wat::io::IOReader::ReadFrameOutcome::Stopped {}      (:wat::kernel::StdIn::ReadFrameResponse::Stopped)])))])
+         [:wat::io::IOReader::ReadFrameOutcome::Frame {:text line} (:wat::kernel::StdIn::ReadFrameResponse::Frame {:line line})]
+         [:wat::io::IOReader::ReadFrameOutcome::Eof {}          (:wat::kernel::StdIn::ReadFrameResponse::Eof {})]
+         [:wat::io::IOReader::ReadFrameOutcome::Stopped {}      (:wat::kernel::StdIn::ReadFrameResponse::Stopped {})])}))])
 
 ;; ─── freeze-bootstrap helper (arc 170 PHASE 1) ──────────────────────────────────────────────────
 ;; Called ONCE from Rust (src/freeze.rs `bootstrap_wat_vm_process`) via `apply_function` with the
@@ -309,7 +309,7 @@
     [:wat::kernel::RecvOutcome::Message {:msg resp}
       (:wat::core::match resp
         [:wat::kernel::StdIn::ReadFrameResponse::Frame {:line line}
-          (:wat::kernel::ReadFrameOutcome::Frame line)]
+          (:wat::kernel::ReadFrameOutcome::Frame {:text line})]
         [:wat::kernel::StdIn::ReadFrameResponse::Eof {}
           ;; a unit variant is a bare keyword, not a call — it evaluates straight to its
           ;; pre-built EnumValue via the SymbolTable's unit_variants table

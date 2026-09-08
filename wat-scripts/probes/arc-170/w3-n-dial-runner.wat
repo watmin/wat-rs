@@ -16,8 +16,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))}))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
@@ -29,8 +29,8 @@
 (:wat::service::defservice :probe::kv
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Kv::GetResponse::Ok (:probe::Kv::GetRequest/k req))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Kv::GetResponse::Ok {:v (:probe::Kv::GetRequest/k req)})}))])
 
 ;; The hand-written N=2 dial-runner — the shape W3's codegen would emit. Item I = String,
 ;; O = String. The carrier D = (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]); ctx holds the dialed pair.
@@ -46,9 +46,9 @@
           ;; deps : (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]) — connect' EACH component into its typed Peer'
           (:probe::multi-dial-runner self work-fn
             (:wat::core::Some
-              (:wat::core::Tuple
+              {:value (:wat::core::Tuple
                 (:wat::core::match (:wat::kernel::connect (:wat::core::first deps)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-                (:wat::core::match (:wat::kernel::connect (:wat::core::second deps)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))))]
+                (:wat::core::match (:wat::kernel::connect (:wat::core::second deps)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))}))]
         [:wat::bracket::PoolMsg::Work {:pair pair}
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")

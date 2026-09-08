@@ -53,7 +53,7 @@
         ok (:wat::core::match t
              [:probe::FFXTag::Alpha {} true]
              [:probe::FFXTag::Beta {}  false])]
-       (:wat::service::Outcome::Reply s (:probe::FFX::PingResponse::Ok ok))))])
+       (:wat::service::Outcome::Reply {:state s :reply (:probe::FFX::PingResponse::Ok {:ok ok})})))])
 
 ;; ── the DECLARED NAME of a top-level form ────────────────────────────────────────────────
 ;; Shapes seen in a prologue: (defn :n …) · (def :n …) · (defenum :n …) · (recordtype :n …) ·
@@ -142,7 +142,7 @@
 (:wat::core::defn :user::child-main-form [] -> :wat::WatAST
   `(:wat::core::defn :user::main [] -> :wat::core::nil
      (:wat::core::let
-       [st (:user::root-init (:probe::ffx::Record :tag (:probe::FFXTag::Alpha)))
+       [st (:user::root-init (:probe::ffx::Record :tag (:probe::FFXTag::Alpha {})))
         t  (:probe::ffx::Record/tag (:probe::ffx::State/durable st))
         ok (:wat::core::match t
              [:probe::FFXTag::Alpha {} 0]

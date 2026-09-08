@@ -18,9 +18,9 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok
-                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Echo::EchoResponse::Ok
+                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
 
 (:wat::core::defenum :probe::Msg :wat::enum::Pure
   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
@@ -64,7 +64,7 @@
                     [:wat::kernel::RecvOutcome::Message {:msg m}
                       (:wat::core::match m
                         [:probe::Msg::Setup {:addr addr}
-                          (:probe::serve self (:wat::core::Some (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))]
+                          (:probe::serve self (:wat::core::Some {:value (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])}))]
                         [:probe::Msg::Work {:s s}
                           (:wat::core::let
                             [c (:wat::core::Option/expect held "Work before Setup")
@@ -86,8 +86,8 @@
             [:wat::core::Some {:value p}
               (:wat::core::let
                 [_  (:probe::echo/grant eh [p])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup ea)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "a")) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup {:addr ea})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work {:s "a"})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
                  r1 (:wat::core::match (:wat::kernel::recv worker)
                       [:wat::kernel::RecvOutcome::Message {:msg m} m]
                       [:wat::kernel::RecvOutcome::Lost {:cause cause}
@@ -96,7 +96,7 @@
                         (:wat::kernel::assertion-failed! :message "recv': stopped before reply a — the peer was ALIVE")]
                       [:wat::kernel::RecvOutcome::Closed {}
                         (:wat::kernel::assertion-failed! :message "recv': worker closed before reply a")])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "b")) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work {:s "b"})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
                  r2 (:wat::core::match (:wat::kernel::recv worker)
                       [:wat::kernel::RecvOutcome::Message {:msg m} m]
                       [:wat::kernel::RecvOutcome::Lost {:cause cause}
@@ -105,7 +105,7 @@
                         (:wat::kernel::assertion-failed! :message "recv': stopped before reply b — the peer was ALIVE")]
                       [:wat::kernel::RecvOutcome::Closed {}
                         (:wat::kernel::assertion-failed! :message "recv': worker closed before reply b")])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "c")) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work {:s "c"})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
                  r3 (:wat::core::match (:wat::kernel::recv worker)
                       [:wat::kernel::RecvOutcome::Message {:msg m} m]
                       [:wat::kernel::RecvOutcome::Lost {:cause cause}

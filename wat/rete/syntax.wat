@@ -28,7 +28,7 @@
                                 (:wat::core::if (:wat::core::= (:wat::core::length missing) 0)
                                   (:wat::core::= (:wat::core::length extra) 0)
                                   false)
-                                (:wat::core::Some nil)
+                                (:wat::core::Some {:value nil})
                                 :wat::core::None)
                               "query: params must match the query's :params")
                     raw (:wat::core::match

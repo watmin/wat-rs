@@ -94,7 +94,7 @@
     ;; A payload frame: accept it, ack it, keep going.
     [:proto::Frame::Chunk {:text text}
       (:wat::core::do
-        (:wat::kernel::println (:proto::Ack::Got n))
+        (:wat::kernel::println (:proto::Ack::Got {:n n}))
         (:proto::read-section (:wat::string::concat acc text)
                               (:wat::i64::+ n 1)))]
 
@@ -102,7 +102,7 @@
     ;; with the sender's, the sender is the one who can act on it.
     [:proto::Frame::SectionDone {:count _count}
       (:wat::core::do
-        (:wat::kernel::println (:proto::Ack::SectionAck n))
+        (:wat::kernel::println (:proto::Ack::SectionAck {:count n}))
         acc)]))
 
 ;; ── The program ───────────────────────────────────────────────────────────────

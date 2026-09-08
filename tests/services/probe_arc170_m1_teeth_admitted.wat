@@ -21,9 +21,9 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok
-                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Echo::EchoResponse::Ok
+                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let

@@ -61,7 +61,7 @@
 (:wat::core::defn :wat::test::assert-eq :- [T] [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Some (:wat::core::show actual)) :expected (:wat::core::Some (:wat::core::show expected)))))
+      (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Some {:value (:wat::core::show expected)}))))
 
 ;; ─── assert-true / assert-false ───────────────────────────────────────
 ;;
@@ -73,11 +73,11 @@
 (:wat::core::defn :wat::test::assert-true [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Some (:wat::core::show actual)) :expected (:wat::core::Some "true"))))
+      (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Some {:value "true"}))))
 
 (:wat::core::defn :wat::test::assert-false [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
-      (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Some (:wat::core::show actual)) :expected (:wat::core::Some "false"))
+      (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Some {:value "false"}))
       nil))
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
@@ -88,7 +88,7 @@
 (:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::string::contains? haystack needle) 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Some haystack) :expected (:wat::core::Some needle))))
+      (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Some {:value haystack}) :expected (:wat::core::Some {:value needle}))))
 
 ;; ─── assert-coincident ────────────────────────────────────────────────
 ;;
@@ -120,7 +120,7 @@
         (:wat::holon::CoincidentExplanation/coincident expl)]
       (:wat::core::if ok 
         nil
-        (:wat::kernel::assertion-failed! :message "assert-coincident failed — holons not at the same point" :actual (:wat::core::Some (:wat::test::render-coincident-explanation expl))))))
+        (:wat::kernel::assertion-failed! :message "assert-coincident failed — holons not at the same point" :actual (:wat::core::Some {:value (:wat::test::render-coincident-explanation expl)})))))
 
 ;; Helper — turn a CoincidentExplanation into a multi-line, named-
 ;; field string for assertion failure displays. Each field on its own
@@ -315,17 +315,17 @@
       [:wat::kernel::RecvOutcome::Message {:msg _m}
         :wat::kernel::RunResult::Passed]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause))]
+        (:wat::kernel::RunResult::Failed {:failure (:wat::kernel::LociDiedError/to-failure cause)})]
       ;; arc 278 #73 — a stop reached the harness while it awaited the child's
       ;; completion signal. The test did NOT pass and the child did NOT close: it
       ;; was cut short. Failing with the true reason keeps the harness honest — the
       ;; R55 lesson is that the VERIFIER is the last place a mask may live.
       [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-thread': stop requested before the test child signaled completion — child was ALIVE, the run was cut short"))]
+          {:failure (:wat::kernel::message-only-failure "run-thread': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")})]
       [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion"))])))
+          {:failure (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion")})])))
 
 ;; ── The peer-returning holders ──────────────────────────────────────────────
 ;;
@@ -424,7 +424,7 @@
       [:wat::kernel::RecvOutcome::Message {:msg _m}
         :wat::kernel::RunResult::Passed]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::RunResult::Failed (:wat::kernel::LociDiedError/to-failure cause))]
+        (:wat::kernel::RunResult::Failed {:failure (:wat::kernel::LociDiedError/to-failure cause)})]
       ;; arc 278 #73 — the process-tier twin of the thread harness above. Note this
       ;; arm was UNREACHABLE on this tier until today: `classify_peer_error`'s
       ;; wildcard folded the stop into Closed, so a hermetic test cut short by a
@@ -432,10 +432,10 @@
       ;; the harness's own interruption.
       [:wat::kernel::RecvOutcome::Stopped {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-hermetic': stop requested before the test child signaled completion — child was ALIVE, the run was cut short"))]
+          {:failure (:wat::kernel::message-only-failure "run-hermetic': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")})]
       [:wat::kernel::RecvOutcome::Closed {}
         (:wat::kernel::RunResult::Failed
-          (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion"))])))
+          {:failure (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")})])))
 
 (:wat::core::defmacro :wat::test::run-hermetic
   [body <- :wat::WatAST]

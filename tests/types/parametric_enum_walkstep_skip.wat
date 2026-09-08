@@ -5,8 +5,8 @@
 ;; (STOP-3: no new verb minted).
 (:wat::core::defn :my::test::halt [n <- :wat::core::i64] -> (:wat::eval::WalkStep :- [:wat::core::i64])
   (:wat::eval::WalkStep::Skip
-    (:wat::holon::to-wat (:wat::holon::leaf 999))
-    n))
+    {:terminal (:wat::holon::to-wat (:wat::holon::leaf 999))
+    :acc n}))
 (:wat::core::defn :my::compute [] -> :wat::core::i64
   (:wat::core::let
     [halted (:my::test::halt 3)]

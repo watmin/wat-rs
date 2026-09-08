@@ -90,7 +90,7 @@
     (:wat::kernel::println
       (:wat::string::concat "variant (via = against sugar) => "
         (:wat::edn::write (:wat::core::= (:wat::core::variant :probe255rf::VariantEx :V 6)
-                                          (:probe255rf::VariantEx::V 6)))))
+                                          (:probe255rf::VariantEx::V {:sk 6})))))
     (:wat::kernel::println "── section 2 — metadata-of :totality (all seven, this binary) ──")
     (:wat::kernel::println
       (:wat::string::concat "Record/field-at    :totality => "

@@ -14,8 +14,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
 
 ;; PARENT-side PoolMsg alias: bare-D Setup so we can send the erased address.
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -52,8 +52,8 @@
             [:wat::core::Some {:value p}
               (:wat::core::let
                 [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))
-                 _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Setup eab)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
-                 _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 0 "a"))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Setup {:deps eab})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work {:pair (:wat::core::Tuple 0 "a")})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
                  r1 (:wat::core::ann-form
                       (:wat::core::match (:wat::kernel::recv worker)
                         [:wat::kernel::RecvOutcome::Message {:msg m} m]
@@ -64,7 +64,7 @@
                         [:wat::kernel::RecvOutcome::Closed {}
                           (:wat::kernel::assertion-failed! :message "recv': worker closed unexpectedly")])
                       (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))
-                 _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 1 "b"))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work {:pair (:wat::core::Tuple 1 "b")})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
                  r2 (:wat::core::ann-form
                       (:wat::core::match (:wat::kernel::recv worker)
                         [:wat::kernel::RecvOutcome::Message {:msg m} m]

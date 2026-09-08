@@ -48,16 +48,16 @@
   :impls
   [(record [s ctx req]
      (:wat::service::Outcome::Reply
-       (:wat-tests::recorder::State :durable
+       {:state (:wat-tests::recorder::State :durable
          (:wat-tests::recorder::Record :total
            (:wat::i64::+
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
              (:wat-tests::Recorder::RecordRequest/n req))))
-       (:wat-tests::Recorder::RecordResponse::Ok true)))
+       :reply (:wat-tests::Recorder::RecordResponse::Ok {:ok true})}))
    (total [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Recorder::TotalResponse::Ok
-         (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)))))])
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat-tests::Recorder::TotalResponse::Ok
+         {:value (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))})}))])
 
 ;; ── the worker service — wears :wat-tests::Worker, dials a :wat-tests::Recorder peer ─────────────
 (:wat::service::defservice :wat-tests::worker
@@ -78,13 +78,13 @@
                 (:wat-tests::Recorder::RecordRequest :n (:wat-tests::Worker::WorkRequest/n req)))
         wresp (:wat::core::match rresp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
                 [:wat-tests::Recorder::RecordResponse::Ok {:ok _ok}
-                  (:wat-tests::Worker::WorkResponse::Ok true)]
+                  (:wat-tests::Worker::WorkResponse::Ok {:done true})]
                 ;; s2s consumer: a downstream wire-breach propagates outward as our own op's breach.
                 [:wat-tests::Recorder::RecordResponse::RequestTooLarge {:bytes bytes :cap cap}
-                  (:wat-tests::Worker::WorkResponse::RequestTooLarge bytes cap)]
+                  (:wat-tests::Worker::WorkResponse::RequestTooLarge {:bytes bytes :cap cap})]
                 [:wat-tests::Recorder::RecordResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                  (:wat-tests::Worker::WorkResponse::RequestMalformed mpath mexpected mgot)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the recorder peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
-       (:wat::service::Outcome::Reply s wresp)))])
+                  (:wat-tests::Worker::WorkResponse::RequestMalformed {:path mpath :expected mexpected :got mgot})])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the recorder peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
+       (:wat::service::Outcome::Reply {:state s :reply wresp})))])
 
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
 ;; start threads the LIVE recorder address as the worker's 2nd start arg (the :init operating-input).

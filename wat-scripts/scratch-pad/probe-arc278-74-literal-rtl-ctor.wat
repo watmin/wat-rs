@@ -51,13 +51,13 @@
 ;;   PARAMETRIC response enum, in exactly the position the macro will splice it.
 (:wat::core::defn :probe::mk-rtl-parametric []
     -> (:probe::PCtor::GetResponse :- [:wat::core::i64])
-  (:probe::PCtor::GetResponse::RequestTooLarge 9999 1024))
+  (:probe::PCtor::GetResponse::RequestTooLarge {:bytes 9999 :cap 1024}))
 
 ;; The RequestMalformed twin — the same strike lands on it, so it is under test too.
 (:wat::core::defn :probe::mk-rm-parametric []
     -> (:probe::PCtor::GetResponse :- [:wat::core::i64])
   (:probe::PCtor::GetResponse::RequestMalformed
-    (:wat::core::Vector :- [:wat::core::String] "limit") "i64" "String"))
+    {:path (:wat::core::Vector :- [:wat::core::String] "limit") :expected "i64" :got "String"}))
 
 ;; ── NON-VACUITY CONTROL: the MONOMORPHIC case, which the pre-#72 concatenation
 ;;    already built literally for the whole corpus. If the parametric arms above
@@ -76,4 +76,4 @@
      -> :probe::MCtor::PutResponse :max-request-bytes 1024)])
 
 (:wat::core::defn :probe::mk-rtl-mono [] -> :probe::MCtor::PutResponse
-  (:probe::MCtor::PutResponse::RequestTooLarge 9999 1024))
+  (:probe::MCtor::PutResponse::RequestTooLarge {:bytes 9999 :cap 1024}))

@@ -59,7 +59,7 @@
 
 (:wat::test::deftest :wat-tests::edn::roundtrip-enum-variant
   (:wat::core::let
-    [e (:test::Event::Buy 100.5 7)
+    [e (:test::Event::Buy {:price 100.5 :qty 7})
      s (:wat::edn::write e)
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back e)))
@@ -80,7 +80,7 @@
 (:wat::test::deftest :wat-tests::edn::roundtrip-nested
   (:wat::core::let
     [w
-      (:test::Wrapper :label "trade" :value (:test::Event::Sell 102.25 3 "stop"))
+      (:test::Wrapper :label "trade" :value (:test::Event::Sell {:price 102.25 :qty 3 :reason "stop"}))
      s (:wat::edn::write w)
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back w)))

@@ -96,7 +96,7 @@
      [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])
       n     <- :wat::core::i64]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Increment n))
+     (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Increment {:n n}))
        [:wat::kernel::SendOutcome::Sent {}
          (:wat::core::match (:wat::kernel::recv peer!)
            [:wat::kernel::RecvOutcome::Message {:msg resp}
@@ -204,21 +204,21 @@
                ;; Read — no state change; reply current value; recur
                [:counter::Request::Get {}
                   (:wat::core::do
-                    (:wat::kernel::println (:counter::Response::Value state))
+                    (:wat::kernel::println (:counter::Response::Value {:v state}))
                     (:counter::dispatch state))]
                ;; Mutate-computed — let-bind new state; reply + recur
                [:counter::Request::Increment {:n n}
                   (:wat::core::let [new-n (:wat::i64::+ state n)]
-                    (:wat::kernel::println (:counter::Response::Ok new-n))
+                    (:wat::kernel::println (:counter::Response::Ok {:v new-n}))
                     (:counter::dispatch new-n))]
                ;; Mutate-literal — reply 0; recur with literal
                [:counter::Request::Reset {}
                   (:wat::core::do
-                    (:wat::kernel::println (:counter::Response::Ok 0))
+                    (:wat::kernel::println (:counter::Response::Ok {:v 0}))
                     (:counter::dispatch 0))]
                ;; Terminal — send Final; return nil; process exits
                [:counter::Request::Shutdown {}
-                  (:wat::kernel::println (:counter::Response::Final state))]))
+                  (:wat::kernel::println (:counter::Response::Final {:v state}))]))
            ;; Entry point — the substrate calls :user::main when the subprocess
            ;; starts. Per user 2026-05-16: "processes must always define
            ;; :user::main ... there is no :user::main-process".

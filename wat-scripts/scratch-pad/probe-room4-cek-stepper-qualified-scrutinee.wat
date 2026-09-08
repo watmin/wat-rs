@@ -14,13 +14,13 @@
 (:wat::core::defn :my::test::count-visit
   [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult]
   -> (:wat::eval::WalkStep :- [:wat::core::i64])
-  (:wat::eval::WalkStep::Continue (:wat::i64::+ acc 1)))
+  (:wat::eval::WalkStep::Continue {:acc (:wat::i64::+ acc 1)}))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match
     (:wat::eval::walk
       (:wat::core::quote
-        (:wat::core::match (:wat::core::Option::Some 5)
+        (:wat::core::match (:wat::core::Option::Some {:value 5})
           [:wat::core::Option::Some {:value n} n]
           [:wat::core::Option::None {} 0]))
       0

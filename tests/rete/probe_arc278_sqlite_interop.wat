@@ -18,7 +18,7 @@
      n    (:wat::core::Result/expect
             (:wat::sqlite::execute conn "INSERT INTO t (id, v) VALUES (?, ?)"
               (:wat::core::Vector :- [:wat::sqlite::Param]
-                (:wat::sqlite::Param::I64 1) (:wat::sqlite::Param::Str "hello")))
+                (:wat::sqlite::Param::I64 {:v 1}) (:wat::sqlite::Param::Str {:v "hello"})))
             "insert failed")
      rows (:wat::core::Result/expect
             (:wat::sqlite::select conn "SELECT id, v FROM t ORDER BY id"
@@ -27,14 +27,14 @@
      row1 (:wat::core::first rows)
      dup  (:wat::sqlite::execute conn "INSERT INTO t (id, v) VALUES (?, ?)"
             (:wat::core::Vector :- [:wat::sqlite::Param]
-              (:wat::sqlite::Param::I64 1) (:wat::sqlite::Param::Str "dup")))
+              (:wat::sqlite::Param::I64 {:v 1}) (:wat::sqlite::Param::Str {:v "dup"})))
      bad  (:wat::sqlite::open "/nonexistent-dir-arc278/x.db")]
 
     (:wat::test::assert-eq n 1)
     (:wat::test::assert-eq (:wat::core::count rows) 1)
     (:wat::test::assert-eq (:wat::core::count row1) 2)
-    (:wat::test::assert-eq (:wat::core::first row1) (:wat::sqlite::Cell::I64 1))
-    (:wat::test::assert-eq (:wat::core::second row1) (:wat::sqlite::Cell::Str "hello"))
+    (:wat::test::assert-eq (:wat::core::first row1) (:wat::sqlite::Cell::I64 {:v 1}))
+    (:wat::test::assert-eq (:wat::core::second row1) (:wat::sqlite::Cell::Str {:v "hello"}))
 
     (:wat::test::assert-eq
       (:wat::core::match dup 

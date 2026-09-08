@@ -86,6 +86,6 @@
   ;; hoisted. A defservice is a separate top-level form, so reaching it here means the
   ;; write crossed the boundary on the same registry instance — past `scratch.clone()`.
   [(count [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::Chan::CountResponse::Ok
-         (:probe::Chan::Tally :n (:probe::chan-svc::Record/seen (:probe::chan-svc::State/durable s))))))])
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:probe::Chan::CountResponse::Ok
+         {:tally (:probe::Chan::Tally :n (:probe::chan-svc::Record/seen (:probe::chan-svc::State/durable s)))})}))])

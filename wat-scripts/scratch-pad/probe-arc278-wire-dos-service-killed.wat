@@ -43,10 +43,10 @@
   :impls
   [(put [s ctx req]
      ;; uses the field AT ITS DECLARED TYPE — correct against the declaration
-     (:wat::service::Outcome::Reply s
-       (:dos::Bag::PutResponse::Ok
-         (:wat::string::length
-           (:wat::core::nth (:dos::Bag::PutRequest/items req) 0)))))])
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:dos::Bag::PutResponse::Ok
+         {:n (:wat::string::length
+           (:wat::core::nth (:dos::Bag::PutRequest/items req) 0))})}))])
 
 (:wat::core::defn :dos::try
   [c <- (:wat::kernel::Peer :- [:dos::Bag::Op :dos::Bag::Reply])  label <- :wat::core::String

@@ -39,7 +39,7 @@
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :user::Op])]))))
      c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c1 (:user::Op::Compute 5)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil] [:wat::kernel::SendOutcome::Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
+     _    (:wat::core::match (:wat::kernel::send c1 (:user::Op::Compute {:n 5})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil] [:wat::kernel::SendOutcome::Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      r1   (:wat::core::match (:wat::kernel::recv c1)
             [:wat::kernel::RecvOutcome::Message {:msg m} m]
             [:wat::kernel::RecvOutcome::Lost {:cause cause}

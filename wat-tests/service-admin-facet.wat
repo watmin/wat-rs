@@ -38,8 +38,8 @@
                            (:wat-tests::admin-counter::Record/count (:wat-tests::admin-counter::State/durable s))
                            (:wat-tests::AdminCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::admin-counter::State :durable (:wat-tests::admin-counter::Record :count c))
-         (:wat-tests::AdminCounter::IncrementResponse::Ok c))))])
+         {:state (:wat-tests::admin-counter::State :durable (:wat-tests::admin-counter::Record :count c))
+         :reply (:wat-tests::AdminCounter::IncrementResponse::Ok {:value c})})))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.

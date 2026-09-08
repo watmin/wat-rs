@@ -22,7 +22,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse::Ok 7)))])
+  [(put [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:probe::Big::PutResponse::Ok {:ok 7})}))])
 
 ;; (b) a SMALL-FOO service: declares FOO = 4096, so a > 4 KiB request is rejected + closed.
 (:wat::service::defservice :probe::smallfoo
@@ -31,7 +31,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse::Ok 7)))])
+  [(put [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:probe::Big::PutResponse::Ok {:ok 7})}))])
 
 ;; Build a String of exactly n*32 bytes.
 (:wat::core::defn :probe::payload-of [n <- :wat::core::i64] -> :wat::core::String
@@ -78,7 +78,7 @@
     [big  (:probe::payload-of 400)     ;; 400*32 = 12800 bytes > 4096
      h    (:probe::smallfoo/start :locus (:wat::spawn::process) :record (:probe::smallfoo::Record))
      c    (:wat::core::match (:wat::kernel::connect (:probe::smallfoo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s   (:wat::kernel::send c (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big)))]
+     _s   (:wat::kernel::send c (:probe::Big::Op::Put {:req (:probe::Big::PutRequest :payload big)}))]
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message)]
       [:wat::kernel::RecvOutcome::Lost {:cause cause}
@@ -97,7 +97,7 @@
      addr (:probe::smallfoo::Handle/addr h)
      c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      c2   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c1 (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+     _    (:wat::core::match (:wat::kernel::send c1 (:probe::Big::Op::Put {:req (:probe::Big::PutRequest :payload big)})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
      r    (:probe::Big/put c2 (:probe::Big::PutRequest :payload "small"))]
     (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
       [:probe::Big::PutResponse::Ok {:ok ok} ok]

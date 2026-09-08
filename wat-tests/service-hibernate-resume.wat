@@ -39,8 +39,8 @@
                            (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s))
                            (:wat-tests::HibCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::hib-counter::State :durable (:wat-tests::hib-counter::Record :count c))
-         (:wat-tests::HibCounter::IncrementResponse::Ok c))))  ]
+         {:state (:wat-tests::hib-counter::State :durable (:wat-tests::hib-counter::Record :count c))
+         :reply (:wat-tests::HibCounter::IncrementResponse::Ok {:value c})})))  ]
   ;; :stop projects State → i64 (the count) via State/durable
   :stop (:wat::core::fn [s <- :wat-tests::hib-counter::State] -> :wat::core::i64
           (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s))))

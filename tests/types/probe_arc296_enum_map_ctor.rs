@@ -33,10 +33,11 @@
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+/// Fixture-local error count: how many `--check` diagnostics cite THIS file.
+/// Never a bare exit code — while the stdlib is red, every `--check` exits 1.
 fn check(case: &str) -> i32 {
-    let path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/types")
-        .join(format!("probe_arc296_enum_map_ctor__{case}.wat"));
+    let rel = format!("tests/types/probe_arc296_enum_map_ctor__{case}.wat");
+    let path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&rel);
     assert!(path.exists(), "fixture missing: {}", path.display());
     let out = Command::new(env!("CARGO_BIN_EXE_wat"))
         .arg("--check")
@@ -46,7 +47,13 @@ fn check(case: &str) -> i32 {
         .stderr(Stdio::piped())
         .output()
         .expect("spawn wat --check");
-    out.status.code().unwrap_or(-1)
+    let hay = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let needle = format!("\"{rel}\"");
+    hay.matches(&needle).count() as i32
 }
 
 /// The bar. GREEN at HEAD and must stay green — if this fails, nothing below means anything.

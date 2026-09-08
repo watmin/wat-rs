@@ -1777,7 +1777,7 @@
                                                  ;; together), so it builds off the identical
                                                  ;; guaranteed-correct literal ctor.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
-                                                     (~reply-variant-kw (~rm-ctor-kw ~mpath-sym ~mexp-sym ~mgot-sym)))
+                                                     (~reply-variant-kw (~rm-ctor-kw {:path ~mpath-sym :expected ~mexp-sym :got ~mgot-sym})))
                                                    [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
                                                    [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
                                                    [:wat::kernel::SendOutcome::Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
@@ -1788,7 +1788,7 @@
                                                  ;; arc 278 the send'-outcome wall — a gone client here is
                                                  ;; not fatal either; every arm keeps serving the rest.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
-                                                     (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
+                                                     (~reply-variant-kw (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})))
                                                    [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
                                                    [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
                                                    [:wat::kernel::SendOutcome::Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
@@ -2092,16 +2092,16 @@
                                              (:wat::core::match ~r-sym
                                                [:wat::kernel::RecvOutcome::Message {:msg recvd}
                                                  (:wat::kernel::RecvOutcome::Message
-                                                   (:wat::core::match recvd
+                                                   {:msg (:wat::core::match recvd
                                                      [~reply-variant-kw {:resp resp} resp]
-                                                     [_ (:wat::kernel::assertion-failed! :message "defservice method: misrouted reply variant (protocol violation)")]))]
+                                                     [_ (:wat::kernel::assertion-failed! :message "defservice method: misrouted reply variant (protocol violation)")])})]
                                                ;; arc 278 the LociDiedError stone — forward the real
                                                ;; loci-agnostic death cause to the client's caller
                                                ;; (no-hidden-failures: never mask it with a generic
                                                ;; message-only Failure). RecvOutcome::Lost now carries
                                                ;; a :wat::kernel::LociDiedError, which `cause` already is.
                                                [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                                                 (:wat::kernel::RecvOutcome::Lost cause)]
+                                                 (:wat::kernel::RecvOutcome::Lost {:cause cause})]
                                                ;; ★ arc 278 #73 — THE CLIENT-FACING PAYOFF. This generated
                                                ;; method is what every caller of every service actually
                                                ;; holds, and until today a stop reached them through the
@@ -2129,7 +2129,7 @@
                           method-body     `(:wat::core::if (:wat::kernel::peer-wire? c)
                                              (:wat::core::let [~n-sym (:wat::string::length (:wat::edn::write req))]
                                                (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
-                                                 (:wat::kernel::RecvOutcome::Message (~rtl-ctor-kw ~n-sym ~cap-const-kw))
+                                                 (:wat::kernel::RecvOutcome::Message {:msg (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})})
                                                  ~send-recv-form))
                                              ~send-recv-form)]
                          (:wat::core::if is-internal

@@ -58,9 +58,9 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Pair::PutResponse::Ok
-         (:wat::i64::+
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat-tests::Pair::PutResponse::Ok
+         {:echo (:wat::i64::+
            (:wat-tests::Pair::PutRequest/item req)
            (:wat::i64::+
              ;; read the K-typed durable field generically — `kk` is bound at type K
@@ -72,7 +72,7 @@
              (:wat::core::match
                  (:wat-tests::pair-svc::Record/v (:wat-tests::pair-svc::State/durable s))
                [:wat::core::Some {:value vv} 100]
-               [:wat::core::None {} 0]))))))])
+               [:wat::core::None {} 0])))})}))])
 
 ;; ── the gate: stand it up on the thread locus and round-trip one call ───────────────────────
 ;; K is pinned to String and V to i64 BY THE SEED — two DIFFERENT concrete types, so a split
@@ -84,8 +84,8 @@
     (:wat::core::let
       [h (:wat-tests::pair-svc/start :locus (:wat::spawn::thread)
            :record (:wat-tests::pair-svc::Record
-                     :k (:wat::core::Some "hi")
-                     :v (:wat::core::Some 42)))
+                     :k (:wat::core::Some {:value "hi"})
+                     :v (:wat::core::Some {:value 42})))
        c (:wat::core::match (:wat::kernel::connect (:wat-tests::pair-svc::Handle/addr h))
            [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
            [:wat::kernel::ConnectOutcome::Refused {:cause c}

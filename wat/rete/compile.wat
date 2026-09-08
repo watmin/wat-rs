@@ -398,7 +398,7 @@
                                  (:wat::core::range 1 (:wat::core::length or-ch)))
                         _or-n (:wat::core::Option/expect
                                  (:wat::core::if (:wat::i64::> (:wat::core::length arms) 0)
-                                   (:wat::core::Some nil)
+                                   (:wat::core::Some {:value nil})
                                    :wat::core::None)
                                  "compile-condition: or of conditions has no arms")
                         incoming parent-ids]
@@ -434,7 +434,7 @@
                                  (:wat::core::range 1 (:wat::core::length and-ch)))
                         _and-n (:wat::core::Option/expect
                                  (:wat::core::if (:wat::i64::> (:wat::core::length kids) 0)
-                                   (:wat::core::Some nil)
+                                   (:wat::core::Some {:value nil})
                                    :wat::core::None)
                                  "compile-condition: and of conditions has no children")]
         (:wat::core::foldl :wat::rete::compile-condition acc kids))
@@ -461,7 +461,7 @@
                         is-rete   (:wat::rete::primitive? expr)
                         _fence    (:wat::core::Option/expect
                                       (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                        (:wat::core::Some nil)
+                                        (:wat::core::Some {:value nil})
                                         :wat::core::None)
                                       (:wat::rete::axis-violation-message "where" expr
                                         ;; the axis is EXACT: first-failing-axis walks all four
@@ -607,9 +607,9 @@
                             is-rete      (:wat::rete::primitive? fence-call)
                             _acc-fence   (:wat::core::Option/expect
                                              (:wat::core::if is-builtin
-                                               (:wat::core::Some nil)
+                                               (:wat::core::Some {:value nil})
                                                (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                                 (:wat::core::Some nil)
+                                                 (:wat::core::Some {:value nil})
                                                  :wat::core::None))
                                              (:wat::rete::axis-violation-message "accumulator" fence-call
                                                ;; the axis is EXACT: first-failing-axis walks all four
@@ -621,7 +621,7 @@
                                              "compile-condition: accumulate missing :from")
                             _from-check  (:wat::core::Option/expect  
                                              (:wat::core::if (:wat::core::= (:wat::core::ast-name from-kw) ":from")
-                                               (:wat::core::Some nil)
+                                               (:wat::core::Some {:value nil})
                                                :wat::core::None)
                                              "compile-condition: accumulate expected :from at position 3")
                             ;; inner: items[4] — the :from fact-pattern condition
@@ -795,7 +795,7 @@
                     is-rete   (:wat::rete::primitive? item)
                     _fence    (:wat::core::Option/expect
                                   (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                    (:wat::core::Some nil)
+                                    (:wat::core::Some {:value nil})
                                     :wat::core::None)
                                   (:wat::rete::axis-violation-message "then" item
                                     ;; exact: first-failing-axis walks all four conjuncts;
@@ -808,7 +808,7 @@
                     _no-match (:wat::core::Option/expect
                                 (:wat::core::if (:wat::rete::then-item-contains-match? item)
                                   :wat::core::None
-                                  (:wat::core::Some nil))
+                                  (:wat::core::Some {:value nil}))
                                 "a :then admits only what the fence can prove TOTAL. `match` is total as a HEAD, but a match's exhaustiveness is a property of ITS ARMS — form-level, which a head-level axis cannot see. Use :wat::rete::core::variant-name for a variant's name, or bind the value in :when.")
                     item-ch   (:wat::core::ast->children item)
                     head      (:wat::core::first item-ch)

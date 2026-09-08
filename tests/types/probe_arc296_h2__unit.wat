@@ -3,4 +3,4 @@
   :Dot [])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:usr::Shape::Dot)))
+  (:wat::kernel::println (:usr::Shape::Dot {})))

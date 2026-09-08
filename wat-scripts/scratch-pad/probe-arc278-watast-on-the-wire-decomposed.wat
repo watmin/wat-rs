@@ -120,12 +120,12 @@
           (:probe::wirekindsvc::State :durable record))
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::WireKind::EchoResponse::Ok (:probe::WireKind::EchoRequest/n req))))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:probe::WireKind::EchoResponse::Ok {:n (:probe::WireKind::EchoRequest/n req)})}))
    (count [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:probe::WireKind::CountResponse::Ok
-         (:wat::core::length (:probe::WireKind::CountRequest/defs req)))))])
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:probe::WireKind::CountResponse::Ok
+         {:n (:wat::core::length (:probe::WireKind::CountRequest/defs req))})}))])
 
 (:wat::core::defn :probe::connect! [h <- :probe::wirekindsvc::Handle] -> :probe::WireKind
   (:wat::core::match (:wat::kernel::connect (:probe::wirekindsvc::Handle/addr h))

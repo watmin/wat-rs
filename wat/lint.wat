@@ -268,7 +268,7 @@
       :col co
       :severity "warn"
       :message msg
-      :fix (:wat::core::Some fe))))
+      :fix (:wat::core::Some {:value fe}))))
 
 ;; rule-nested-if-=-ladder-form — run the ladder rule on ONE form (recursive walk).
 ;; Detects the ladder at the top level OR nested anywhere inside the form.
@@ -489,7 +489,7 @@
                                     (:wat::hashmap::get ep :col)
                                     "concat-format-fix: end :col")
                         fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
-        (:wat::core::Some fe))
+        (:wat::core::Some {:value fe}))
       ;; ineligible (compound slot or special-char literal) — report-only
       :wat::core::None)))
 

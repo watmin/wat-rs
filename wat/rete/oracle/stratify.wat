@@ -74,9 +74,9 @@
         (:wat::core::if (:wat::core::if q? true rete?)
           :wat::core::None
           (:wat::core::Some
-            (:wat::core::if (:wat::core::= (:wat::string::subs raw 0 1) ":")
+            {:value (:wat::core::if (:wat::core::= (:wat::string::subs raw 0 1) ":")
               (:wat::string::subs raw 1 n)
-              raw)))))))
+              raw)}))))))
 
 ;; negated-types-under — leaves under :not, including :and/:or combinators.
 (:wat::core::defn :wat::rete::negated-types-under
@@ -273,7 +273,7 @@
       ;; still changing — check for cycle before recursing
       (:wat::core::let [_cycle (:wat::core::Option/expect
                                   (:wat::core::if (:wat::i64::> remaining 0)
-                                    (:wat::core::Some nil)
+                                    (:wat::core::Some {:value nil})
                                     :wat::core::None)
                                   "stratify: negation cycle detected — rule set is not stratifiable")]
         (:wat::rete::stratify-fix rules new-ts (:wat::i64::- remaining 1))))))

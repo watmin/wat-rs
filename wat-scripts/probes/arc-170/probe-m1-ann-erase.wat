@@ -15,8 +15,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))}))])
 
 ;; PARENT-side PoolMsg with BARE Address' payload (erased D).
 (:wat::core::defenum :probe::PMsg :- [I] :wat::enum::Pure
@@ -49,7 +49,7 @@
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv self) 
                     [:probe::CMsg::Setup {:addr addr}
-                      (:probe::serve self (:wat::core::Some (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))]
+                      (:probe::serve self (:wat::core::Some {:value (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])}))]
                     [:probe::CMsg::Work {:s s}
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")
@@ -69,8 +69,8 @@
               (:wat::core::let
                 [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))
                  ;; parent sends a BARE-typed Setup; child decodes into concrete slot.
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Setup (:wat::core::first erased))) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
-                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Work "z")) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Setup {:addr (:wat::core::first erased)})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                 _  (:wat::core::match (:wat::kernel::send worker (:probe::PMsg::Work {:s "z"})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
                  r1 (:wat::kernel::recv worker)]
                 r1)]
             [:wat::core::None {}

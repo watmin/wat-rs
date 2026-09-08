@@ -3,7 +3,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
               [row
-                (:wat::core::Some (:wat::core::Tuple 1 2))
+                (:wat::core::Some {:value (:wat::core::Tuple 1 2)})
                v
                 (:wat::core::match row 
                   [:wat::core::Some {:value (1 x)} x]

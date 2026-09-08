@@ -37,8 +37,8 @@
                            (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))
                            (:wat-tests::RespCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::resp-counter::State :durable (:wat-tests::resp-counter::Record :count c))
-         (:wat-tests::RespCounter::IncrementResponse::Ok c))))  ]
+         {:state (:wat-tests::resp-counter::State :durable (:wat-tests::resp-counter::Record :count c))
+         :reply (:wat-tests::RespCounter::IncrementResponse::Ok {:value c})})))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
   ;; decoupled from the ::Record. Read count through State/durable.
   :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> :wat::core::i64

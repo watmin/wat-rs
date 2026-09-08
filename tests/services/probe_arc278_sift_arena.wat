@@ -74,7 +74,7 @@
         journal  (:prod::producer::State/journal s)
         _wr      (:wat::telemetry::Journal/write-logs journal
                    (:wat::telemetry::Journal::WriteLogsRequest logs))]
-       (:wat::service::Outcome::Reply s (:prod::Producer::FloodResponse::Done count))))])
+       (:wat::service::Outcome::Reply {:state s :reply (:prod::Producer::FloodResponse::Done {:written count})})))])
 
 ;; ── CONSUMER: :cons::Consumer — NEVER peers/satisfies anything Producer-shaped and NEVER
 ;; defines `:prod::*`. Its inability to typed-decode `:prod::*` IS the guarantee: it pages the
@@ -180,7 +180,7 @@
                                    [:wat::core::None {}
                                      (:cons::Consumer::PageState :done true :cur :wat::core::None :acc new-acc :fault :wat::core::None)]
                                    [:wat::core::Some {:value c}
-                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Some c) :acc new-acc :fault :wat::core::None)]))]
+                                     (:cons::Consumer::PageState :done false :cur (:wat::core::Some {:value c}) :acc new-acc :fault :wat::core::None)]))]
                              [:wat::telemetry::Journal::SiftLogsResponse::Fatal {:err err}
                                ;; the fence's refusal — sift's own rejection, not a wire-breach.
                                ;; Captured, not swallowed: `err`'s `reason` is the concrete
@@ -189,14 +189,14 @@
                                (:cons::Consumer::PageState :done true :cur :wat::core::None
                                  :acc (:cons::Consumer::PageState/acc state)
                                  :fault (:wat::core::Some
-                                          (:wat::query::Fault/message (:wat::query::Fatal/reason err))))]
+                                          {:value (:wat::query::Fault/message (:wat::query::Fatal/reason err))}))]
                              [_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1 :fault :wat::core::None)])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
                      initial
                      page-idxs)]
-       (:wat::service::Outcome::Reply s
-         (:wat::core::match (:cons::Consumer::PageState/fault final)
-           [:wat::core::Some {:value message} (:cons::Consumer::SiftResponse::Refused message)]
-           [:wat::core::None {} (:cons::Consumer::SiftResponse::Count (:cons::Consumer::PageState/acc final))]))))])
+       (:wat::service::Outcome::Reply {:state s
+         :reply (:wat::core::match (:cons::Consumer::PageState/fault final)
+           [:wat::core::Some {:value message} (:cons::Consumer::SiftResponse::Refused {:message message})]
+           [:wat::core::None {} (:cons::Consumer::SiftResponse::Count {:n (:cons::Consumer::PageState/acc final)})])})))])
 
 ;; ── the orchestrator (the circuit builder): mem-store' + journal' + producer' + consumer', all
 ;; PROCESS-tier, grant-before-dial at every hop. flood (block), then sift (block); return the

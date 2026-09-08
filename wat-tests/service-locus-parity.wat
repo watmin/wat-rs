@@ -38,16 +38,16 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply s
-       (:wat-tests::Counter::GetResponse::Ok
-         (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)))))
+     (:wat::service::Outcome::Reply {:state s
+       :reply (:wat-tests::Counter::GetResponse::Ok
+         {:value (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s))})}))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+
                            (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s))
                            (:wat-tests::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::counter::State :durable (:wat-tests::counter::Record :count c))
-         (:wat-tests::Counter::IncrementResponse::Ok c))))])
+         {:state (:wat-tests::counter::State :durable (:wat-tests::counter::Record :count c))
+         :reply (:wat-tests::Counter::IncrementResponse::Ok {:value c})})))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::counter-on-thread

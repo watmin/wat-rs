@@ -26,7 +26,7 @@
      tags    (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      m       (:wat::telemetry::Metric
                :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :time-ns 123
-               :start-time-ns 100 :name :requests :value (:wat::telemetry::Numeric::I64 7)
+               :start-time-ns 100 :name :requests :value (:wat::telemetry::Numeric::I64 {:val 7})
                :unit :wat::telemetry::Unit::Count)
      batch   (:wat::core::Vector :- [:wat::telemetry::Metric] m)
      _wr     (:wat::telemetry::Journal/write-metrics journal

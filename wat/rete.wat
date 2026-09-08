@@ -304,7 +304,7 @@
                                           (:wat::rete::step-payload session alpha-id bindings sfact
                                             (:wat::rete::explain ex sfact))))
                                       matches))]
-         (:wat::rete::DerivationNode :fact fact :rule (:wat::core::Some rule) :via via))]
+         (:wat::rete::DerivationNode :fact fact :rule (:wat::core::Some {:value rule}) :via via))]
       [:wat::core::None {}
        ;; base/asserted fact — leaf node, rule=None, via is empty.
        (:wat::rete::DerivationNode :fact fact :rule :wat::core::None :via (:wat::core::PersistentVector))])))

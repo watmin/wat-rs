@@ -102,7 +102,7 @@
   (:wat::core::let
     [h (:wat::cache::hologram-svc/start :locus locus
          :record (:wat::cache::hologram-svc::Record :capacity 2
-                   :filter (:wat::cache::HologramFilterKind::Coincident)))
+                   :filter (:wat::cache::HologramFilterKind::Coincident {})))
      a (:wat-tests::hologram-svc/dial (:wat::cache::hologram-svc::Handle/addr h))
      b (:wat-tests::hologram-svc/dial (:wat::cache::hologram-svc::Handle/addr h))
      ;; k1 — a Thermometer @ 50.0; probe-near-k1 is a DIFFERENT HolonAST, coincident by cosine.
@@ -136,9 +136,9 @@
                   (:wat::cache::Cache::GetRequest
                     :probes (:wat::core::Vector :- [:wat::holon::HolonAST] probe-near-k1 probe-far k2))))
               (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
-                (:wat::cache::Cache::GetResult::Hit v1)
-                (:wat::cache::Cache::GetResult::Miss)
-                (:wat::cache::Cache::GetResult::Hit v2)))
+                (:wat::cache::Cache::GetResult::Hit {:value v1})
+                (:wat::cache::Cache::GetResult::Miss {})
+                (:wat::cache::Cache::GetResult::Hit {:value v2})))
      ;; BATCH-OF-ONE put — overflow: k3 pushes past capacity 2; k1 is LRU (dual-evicted from the
      ;; Hologram too). `PutResponse` carries nothing back — eviction provable only via a later get.
      _put-k3 (:wat-tests::hologram-svc/assert-put-ok
@@ -152,7 +152,7 @@
                   (:wat::cache::hologram-svc/get b
                     (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::holon::HolonAST] k1))))
                 (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
-                  (:wat::cache::Cache::GetResult::Miss)))
+                  (:wat::cache::Cache::GetResult::Miss {})))
      ;; EMPTY PROBE VECTOR — `Ok` with an empty results Vector, not an error.
      _empty (:wat::test::assert-eq
               (:wat-tests::hologram-svc/get-results

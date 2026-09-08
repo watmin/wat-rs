@@ -13,12 +13,12 @@
     [:wat::core::Err {:error _} 99]))
 
 (:wat::core::defn :my::compute-user-ok [] -> :wat::core::i64
-  (:wat::core::match (:wat::core::Ok 7) 
+  (:wat::core::match (:wat::core::Ok {:value 7}) 
     [:wat::core::Ok {:value v} v]
     [:wat::core::Err {:error _} -1]))
 
 (:wat::core::defn :my::compute-user-err [] -> :wat::core::i64
-  (:wat::core::match (:wat::core::Err "x") 
+  (:wat::core::match (:wat::core::Err {:error "x"}) 
     [:wat::core::Ok {:value _} 0]
     [:wat::core::Err {:error _} 11]))
 

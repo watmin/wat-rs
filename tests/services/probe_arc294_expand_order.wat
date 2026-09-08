@@ -43,12 +43,12 @@
   :impls
   [(ping [s ctx req]
      ;; CONTROL — no minted construction; state returned unchanged.
-     (:wat::service::Outcome::Reply s (:probe::Echo::PingResponse::Ok 1)))
+     (:wat::service::Outcome::Reply {:state s :reply (:probe::Echo::PingResponse::Ok {:value 1})}))
    (bump [s ctx req]
      ;; THE REGRESSION — constructs this defservice's OWN minted `::State`/`::Record`.
      (:wat::service::Outcome::Reply
-       (:probe::echo::State :durable (:probe::echo::Record :count 7))
-       (:probe::Echo::BumpResponse::Ok 7)))])
+       {:state (:probe::echo::State :durable (:probe::echo::Record :count 7))
+       :reply (:probe::Echo::BumpResponse::Ok {:value 7})}))])
 
 ;; CONTROL: ping round-trips (and proves the caller-world construction at /start works).
 (:wat::core::defn :user::compute-ping [] -> :wat::core::i64

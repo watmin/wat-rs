@@ -102,7 +102,7 @@
   [(ensure-schema [s ctx req]
      ;; idempotent no-op — mem-store' has no physical schema to establish (the contract's
      ;; promise is satisfied trivially; sqlite's satisfier is where CREATE TABLE/INDEX happens).
-     (:wat::service::Outcome::Reply s (:wat::query::Store::EnsureSchemaResponse::Success)))
+     (:wat::service::Outcome::Reply {:state s :reply (:wat::query::Store::EnsureSchemaResponse::Success {})}))
 
    (put [s ctx req]
      (:wat::core::let
@@ -115,8 +115,8 @@
                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s))
                  new-rows)]
        (:wat::service::Outcome::Reply
-         (:wat::query::mem-store::State (:wat::query::mem-store::Record merged))
-         (:wat::query::Store::PutResponse::Success))))
+         {:state (:wat::query::mem-store::State (:wat::query::mem-store::Record merged))
+         :reply (:wat::query::Store::PutResponse::Success {})})))
 
    (scan [s ctx req]
      (:wat::core::let
@@ -137,9 +137,9 @@
         limited  (:wat::core::into [] (:wat::core::take sorted lim))
         full?    (:wat::core::= (:wat::core::count limited) lim)
         next-cur (:wat::core::if full?
-                   (:wat::core::Some (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last limited) "scan: limited non-empty when full")))
+                   (:wat::core::Some {:value (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last limited) "scan: limited non-empty when full"))})
                    :wat::core::None)]
-       (:wat::service::Outcome::Reply s (:wat::query::Store::ScanResponse::Success limited next-cur))))
+       (:wat::service::Outcome::Reply {:state s :reply (:wat::query::Store::ScanResponse::Success {:rows limited :cursor next-cur})})))
 
    (scan-index [s ctx req]
      (:wat::core::let
@@ -164,6 +164,6 @@
         limited  (:wat::core::into [] (:wat::core::take sorted lim))
         full?    (:wat::core::= (:wat::core::count limited) lim)
         next-cur (:wat::core::if full?
-                   (:wat::core::Some (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full")))
+                   (:wat::core::Some {:value (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full"))})
                    :wat::core::None)]
-       (:wat::service::Outcome::Reply s (:wat::query::Store::ScanIndexResponse::Success limited next-cur))))])
+       (:wat::service::Outcome::Reply {:state s :reply (:wat::query::Store::ScanIndexResponse::Success {:rows limited :cursor next-cur})})))])

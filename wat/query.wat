@@ -102,7 +102,7 @@
 (:wat::core::defmacro :wat::query::sieve-pred
   [fn-form <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::let [src (:wat::core::ast->source fn-form)]
-    `(:wat::query::Sieve::Predicate ~src)))
+    `(:wat::query::Sieve::Predicate {:pred ~src})))
 
 ;; ─── sift-rules-defsvc — arc 278 task #6: the Rules form (the chaos engine's inference tier) ────
 ;; DESIGN-sift-server-side-filter.md / BRIEF-STONE-sift-rules.md. The user hands `:defs` (their
@@ -407,8 +407,8 @@
          ;; top-level `defservice`-form census BOTH skipped every consumer of this macro. The new
          ;; arity wall is what surfaced it, by name, at load. One template, every consumer fixed.
          [(sift-rules [s ctx req]
-            (:wat::service::Outcome::Reply s
-              (:wat::core::match
+            (:wat::service::Outcome::Reply {:state s
+              :reply (:wat::core::match
                 (:wat::telemetry::Journal/query-logs (~state-journal-kw s)
                   (:wat::telemetry::Journal::QueryLogsRequest
                     :namespace (~req-ns-kw req)
@@ -476,7 +476,7 @@
                 [:wat::kernel::RecvOutcome::Stopped {}
                   (~resp-fat-kw (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE"))]
                 [:wat::kernel::RecvOutcome::Closed {}
-                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))])))]))))
+                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))])}))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed
