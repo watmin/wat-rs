@@ -12687,8 +12687,8 @@ fn process_let_binding(
                     };
                 }
                 crate::ast::MapDestructureKind::Keys => {
-                    // Keys-destructure check path (arc 169 / arc 257.2).
-                    // Same struct-field lookup as the old struct-destructure binder.
+                    // Keys-destructure check path (arc 169 / arc 257.2 / arc 296 O).
+                    // Field lookup against any AggregateDef (named fields, any nature).
                     let span = map_span;
                     let field_names: Vec<String> = m.bindings
                         .iter()
@@ -12703,39 +12703,39 @@ fn process_let_binding(
                         Some(t) => apply_subst(&t, subst),
                         None => return CheckResult::errs(binding_errors),
                     };
-                    // The rhs must be a struct type — TypeExpr::Path naming a
-                    // registered StructDef. Parametric struct instances flow
-                    // through Path uniformly (the struct registry is keyed on
-                    // the bare name; type parameters are resolved at use site).
-                    let struct_name = match &rhs_ty {
+                    // The rhs must be an aggregate type — TypeExpr::Path naming a
+                    // registered AggregateDef. Natures differ in purity, not shape;
+                    // {:keys} reads named fields. Peer is TypeDef::Aggregate, so it
+                    // is in (explicit: destructuring reads fields, it does not send).
+                    // HashMap / enum / surface are other TypeDef arms and stay out.
+                    let type_name = match &rhs_ty {
                         TypeExpr::Path(n) => n.clone(),
-                        // Parametric structs: head is the struct's name.
                         TypeExpr::Parametric { head, .. } => crate::types::parametric_head_fqdn(head),
                         other => {
                             binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: form.into(),
-                                param: format!("struct-destructure ({})", field_names.join(" ")),
-                                expected: "a struct type".into(),
+                                param: format!("keys-destructure ({})", field_names.join(" ")),
+                                expected: "an aggregate type".into(),
                                 got: format_type(other)
                             } });
                             return CheckResult::errs(binding_errors);
                         }
                     };
-                    let struct_def = match env.types().get(&struct_name) {
-                        // Arc 293.2b — struct-destructure requires Aggregate with kind==Struct.
-                        Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => a.clone(),
+                    let struct_def = match env.types().get(&type_name) {
+                        // Arc 296 O — {:keys} is an aggregate test, not a nature list.
+                        Some(crate::types::TypeDef::Aggregate(a)) => a.clone(),
                         _ => {
                             binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: form.into(),
-                                param: format!("struct-destructure ({})", field_names.join(" ")),
-                                expected: "a struct type".into(),
+                                param: format!("keys-destructure ({})", field_names.join(" ")),
+                                expected: "an aggregate type".into(),
                                 got: format_type(&rhs_ty)
                             } });
                             return CheckResult::errs(binding_errors);
                         }
                     };
                     // Look up each requested field; emit MalformedForm naming
-                    // the offending field + listing the struct's actual fields
+                    // the offending field + listing the aggregate's actual fields
                     // when a name doesn't match (substrate-as-teacher).
                     for fname in &field_names {
                         match struct_def.fields.iter().find(|(n, _)| n == fname) {
@@ -12752,7 +12752,7 @@ fn process_let_binding(
                                 binding_errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
                                     head: form.into(),
                                     reason: format!(
-                                        "struct-destructure: field {:?} is not declared on struct {} (declared fields: {})",
+                                        "keys-destructure: field {:?} is not declared on {} (declared fields: {})",
                                         fname, struct_def.name, declared
                                     ),
                                     remedies: vec![],

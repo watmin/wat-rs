@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::let: parameter struct-destructure (outcome) expects a struct type; got :wat::core::i64"
+      :message ":wat::core::let: parameter keys-destructure (outcome) expects an aggregate type; got :wat::core::i64"
       :location #wat.core/Span {
         :file "tests/types/struct_destructure_non_struct_subject.wat.bad"
         :line 7
@@ -18,8 +18,8 @@
       }
       :causes []
       :callee ":wat::core::let"
-      :param "struct-destructure (outcome)"
-      :expected "a struct type"
+      :param "keys-destructure (outcome)"
+      :expected "an aggregate type"
       :got ":wat::core::i64"
       :remedies []
     }

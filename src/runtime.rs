@@ -4022,54 +4022,38 @@ fn bind_let_binding(
             }
             Ok(builder.build())
         }
-        // Arc 169 slice 1 — struct destructure. The 12-word rule:
-        // *bind the field's value to the field's name in this
-        // scope*. RHS must evaluate to a `Value::Aggregate(Struct)`; each
-        // requested field-name resolves against the struct type's
-        // declared fields (looked up via the SymbolTable's TypeEnv);
-        // the field's value is bound to the local of the same name.
-        //
-        // The type-checker (arc 169 check arm) catches struct-type
-        // mismatches and unknown field names ahead of time; runtime
-        // posture is defense-in-depth — clear diagnostics for
-        // programs that reach here without having been checked.
+        // Arc 169 / 257.2 / 296 O — keys-destructure. Bind the field's
+        // value to the field's name. RHS is any Value::Aggregate; natures
+        // differ in purity, not shape. Peer is an aggregate (explicit:
+        // reading a named field does not send on the channel).
         LetBinding::StructDestructure { field_names, rhs } => {
             let value = eval_inner(rhs, scope, sym)?.value_owned();
-            // Arc 293.R2.1 — Aggregate with nature==Struct.
             let sv = match &value {
-                Value::Aggregate(a) if a.nature == Nature::Struct => a.clone(),
+                Value::Aggregate(a) => a.clone(),
                 other => {
                     return Err(RuntimeError::new(
                         rhs.span().clone(),
                         RuntimeErrorKind::TypeMismatch {
                             op: ":wat::core::let".into(),
-                            expected: "wat::core::Struct",
+                            expected: "an aggregate type",
                             got: Box::new(ValueSnapshot::of(other)),
                         },
                     )
                     .into());
                 }
             };
-            // Resolve field-name → field-index via the struct's
-            // declared field list. SymbolTable carries the TypeEnv
-            // post-freeze; runtime callers always have it attached.
             let types = sym.types().ok_or_else(|| RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "struct destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
+                reason: "keys-destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
             }))?;
-            // Arc 293.2b/R2.1 — class is colon-free; TypeEnv keys have leading ':'.
             let type_key = format!(":{}", sv.class);
             let struct_def = match types.get(&type_key) {
-                Some(crate::types::TypeDef::Aggregate(a))
-                    if a.nature == crate::types::Nature::Struct =>
-                {
-                    a
-                }
+                Some(crate::types::TypeDef::Aggregate(a)) => a,
                 _ => {
                     return Err(RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
-                            "struct destructure: rhs type :{} is not registered as a struct in the TypeEnv (programmer error: a Value::Aggregate{{nature=Struct}} exists at runtime without a corresponding AggregateDef{{kind=Struct}})",
+                            "keys-destructure: rhs type :{} is not registered as an aggregate in the TypeEnv",
                             sv.class
                         )
                     }).into());
@@ -4084,7 +4068,7 @@ fn bind_let_binding(
                     .ok_or_else(|| RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
-                            "struct destructure: field {:?} is not declared on struct :{} (declared fields: {})",
+                            "keys-destructure: field {:?} is not declared on :{} (declared fields: {})",
                             fname,
                             sv.class,
                             struct_def
@@ -4102,7 +4086,7 @@ fn bind_let_binding(
                     .ok_or_else(|| RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
-                            "struct destructure: field {:?} index {} is out of range on struct :{} (value has {} fields, declaration has {})",
+                            "keys-destructure: field {:?} index {} is out of range on :{} (value has {} fields, declaration has {})",
                             fname,
                             idx,
                             sv.class,
@@ -4289,11 +4273,11 @@ fn destructure_tuple(
 ///   tuple-element type from that declaration. Structural destructure
 ///   — types flow from the RHS's declared shape through the pattern;
 ///   no inference from literals.
-/// - **StructDestructure** (arc 169 / arc 257.2) — binder is a
+/// - **StructDestructure** (arc 169 / arc 257.2 / 296 O) — binder is a
 ///   `WatAST::Map` with `:keys`-destructure form (`{:keys [f1 f2 ...]}`);
 ///   each name is BOTH the field-name AND the local binding-name.
-///   RHS must be a struct-typed expression; each field name resolves
-///   against the struct type's registered fields.
+///   RHS must be an aggregate; each field name resolves against the
+///   AggregateDef's registered fields.
 ///
 /// Arc 233 Stone 233.2.e: added per-name spans to all three variants so
 /// bind_let_binding can store binding_span in BoundEntry and env.lookup

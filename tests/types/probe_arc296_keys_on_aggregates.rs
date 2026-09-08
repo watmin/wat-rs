@@ -72,7 +72,6 @@ fn keys_destructures_a_defstruct() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 {:keys} on every aggregate; un-ignored BY that stone"]
 fn keys_destructures_a_defrecord() {
     assert_eq!(
         check("defrecord"),
@@ -83,13 +82,11 @@ fn keys_destructures_a_defrecord() {
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 {:keys} on every aggregate; un-ignored BY that stone"]
 fn keys_destructures_a_holon_defrecord() {
     assert_eq!(check("holon_defrecord"), check("binder_first_control"));
 }
 
 #[test]
-#[ignore = "RED at HEAD — arc 296 {:keys} on every aggregate; un-ignored BY that stone"]
 fn keys_destructures_a_defholon() {
     assert_eq!(check("defholon"), check("binder_first_control"));
 }
