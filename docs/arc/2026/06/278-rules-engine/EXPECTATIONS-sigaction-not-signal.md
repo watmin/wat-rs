@@ -16,9 +16,13 @@ Written **before** the strike. A declaration: **"nothing moved" is the pass cond
 | 8 | the circuit is unaffected | `… circuit.wat` no-args | every field identical |
 | 9 | the floor | `scripts/floor.sh` | **read the Summary line** |
 
-⚠ **Row 7 is the stone.** If stone 1 has **not** landed, `probe_arc278_partial_frame_residue` is
-**still expected to fail** — and that is a *pass* for this stone. Clearing that RED is stone 1's job,
-and if this stone appears to fix it, something changed that should not have.
+⚠ **Row 7 is the stone. Stone 1 IS in the tree**, struck and verified, so
+`probe_arc278_partial_frame_residue` **passes at 3.0 s today** and must **still** pass after this
+stone — unchanged, not faster. If this stone moves that probe in either direction, something changed
+that should not have: a declaration cannot alter behaviour.
+
+★ Measured before this stone, on the same tree you will strike on:
+`partial_frame_residue` **3.019 s PASS**, `send_poll_arm` **0.016 s PASS**.
 
 ⚠ **Row 2 preserves a default rather than choosing one.** The value of `SA_RESTART` is a separate
 ruling; this stone only makes it visible.
