@@ -61,12 +61,13 @@ row first for days.
 | **V1 ★** | perspicere | 1 | `pass.wat` (12 sites), `accum-pass.wat` (2) vs `fire.wat` (11) | ⭐ **THE ALIAS EXISTS AND ONE ORACLE FILE ADOPTED IT WHILE TWO DID NOT.** `wat/rete.wat:157-161` declares `:wat::rete::AlphaMemory` / `BetaMemory` / `ProductionMemory`. `fire.wat` uses those names **11 times**. `pass.wat` spells the longhand `(PersistentMap :- [i64 (PersistentVector :- [Element])])` **12 times and uses the alias zero times**; `accum-pass.wat` 2 and zero. ⛔ **I CORRECTED THE WARD HERE:** it reported the alias *"simply isn't being used"* — false, it is used 11×. The true shape is a **per-file split inside one corpus**, which is stronger: not an unminted noun but a migration that stopped halfway. | L2 | **OPEN** · ✅ I VERIFIED | `grep -c ':wat::rete::AlphaMemory\|BetaMemory\|ProductionMemory' wat/rete/oracle/*.wat` → `fire.wat:11`, others 0; `grep -c 'PersistentMap :- \[:wat::core::i64'` → `pass.wat:12`, `accum-pass.wat:2`. ⛔ Closed by a **wat-fix codemod**, never a hand-edit — `CLAUDE.md` mandates it for exactly this shape |
 | **V2** | perspicere | 1 | `census.rs:503` vs `:108,130,194,630,676,735,837` | ⛔ **I INVERTED THE WARD'S VERDICT ON THE FACTS, AND THE ROW IS THE INVERSION.** The ward called `census.rs:509` (`RefCell<Option<GatherKeyMap>>`) *"a real gap"* — an eighth TLS slot that should have been runed like its seven siblings. **It is the opposite.** `GatherKeyMap` is a typealias declared six lines above at `census.rs:503`; `:509` is therefore depth-2 **with the noun already named** — it is precisely the cure this ward prescribes, already applied. It needs no rune because it is not deep. The seven runed siblings are the ones that never got an alias. **So `census.rs` contains its own cure, applied once and not to the other seven.** | L2 | **OPEN** · ✅ I VERIFIED | `grep -rn 'type GatherKeyMap' src/` → `census.rs:503`. Closed by either aliasing the seven to match `:503`, or recording `:503` as the file's model form so the next hand copies it |
 | **V3** | perspicere | 1 | `filter.rs:237`, `filter_after_join.rs:130`, `:256`; and 9 further shapes | Eleven repeated nested-generic shapes with no alias, the strongest being `Option<std::sync::Arc<[Value]>>` at three sites across two files **carrying the identical local name `hoisted_keys` at all three** — the noun is already agreed, just never written as a type. Others: `Result<Arc<InternedNetwork>, EvalBreak>` ×3 in `arm.rs`; `impl Iterator<Item = Result<i64, EvalBreak>>` ×3 in `acc.rs`; `Result<HashMap<String, i64>, EvalBreak>` ×2 in `stratify.rs`, which the ORACLE already names `type-strata` in prose at `stratify.wat:41`. | L2 | **OPEN** · ⚠ ward-reported (I verified only the `hoisted_keys` and `GatherKeyMap` claims myself) | ward's own whole-repo greps per shape; closed shape-by-shape, not as one sweep |
+| **W1 ★★** | circumspicere | 1 | claims: `session.rs:1759-1765`, `fire/delta.rs:472-473`, `wat/rete/oracle/insert.wat:63-66` · code: `delta.rs:715`, `insert.rs:205` vs `:214` | ⭐⭐ **THE CEILING IS SAMPLED AT BOUNDARIES; THE SHIPPED SENTENCE SAYS IT IS A BOUND.** Three sites ship the builder's ruling verbatim — *"the session is the boundary — it may not consume more than the configured amount of memory, 1G by default"* — and the oracle's says *"enforced at BOTH doors."* But `session_ceiling_breach` runs **after** a whole round's passes have materialised `next_delta`, and `check_insert_ceiling` runs **after** `vector_concat_inner` has materialised the entire batch (`insert.rs:205`, checked `:214`). A single round or a single `insert-all` big enough to breach does so **before** any check can fire — the same 2.5M-facts/4.0 GB failure the ceiling was built for, one level down. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `grep -rn 'session_ceiling_breach' src/` → 2 decision sites in-target; `sed -n '196,216p' insert.rs` → concat at `:205`, check at `:214`. ⚠ **Read my note below before acting — the qualification EXISTS, in one file, and never travels.** Closed by qualifying the three claim sites + a `rune:circumspicere(accepted-by-design)` pointing at `delta.rs:450` |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | RETURNED (13): cernere · probare · perspicere · intueri · purgare · solvere · struere · conferre · sequi **CONV** · temperare · excusare · exigere **CONV** · conformare — **STILL TO CAST (1): circumspicere — LAST, and it needs the aggregate** | **5** | 22 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | RETURNED (14 of 14 — TARGET 1 COMPLETE): cernere · probare · perspicere · circumspicere · intueri · purgare · solvere · struere · conferre · sequi **CONV** · temperare · excusare · exigere **CONV** · conformare — **ALL FOURTEEN CAST.** | **6** | 22 |
 
 ## Verified by the orchestrator, not taken
 
@@ -112,6 +113,7 @@ the ✅ rows may be cited as fact. This distinction is the whole reason the stat
 | cernere | 1 L2 — **DIVERGES**, narrowly. ⭐ But its headline is the CLEAN half: ~130 distinct `:wat::rete::` names across the six oracle files, **all resolve**; 44 distinct `:wat::` tokens across the 22 Rust files, all resolve but one. The live question — *is `wat/rete/oracle/**` covered by anything, given the name-resolution gate scans `wat-scripts/` only?* — came back **measured, not assumed**: every oracle fn is on a forced entry path, so no unforced-`def` phantom exists there today |
 | probare | 2 (1 L1 + 1 L2) — **DIVERGES**. ⭐ Notable for refusing its own headline metric: told the target is deliberately comment-dense and that the spell exempts doc-comment-rich code, it ran the 28-file ratio table anyway, marked every exemption explicitly instead of dropping rows, and declined to verdict on the Rust declaration-count measure because it *"produces nonsense ratios like 1:57"* here. Third independent re-derivation of the zero TODO/FIXME count |
 | perspicere | 3 L2 — **DIVERGES**. ⭐ Its headline is the adjudication, not the findings: told seven of ten runes are near-identical boilerplate and warned off a block verdict, it grepped each of the seven exact type strings whole-repo and found **each genuinely unique** — seven distinct instruments, not one template. **All 10 runes CLEAR.** ⚠ Two of its three findings I had to correct on the facts (V1, V2) — in opposite directions, both ending stronger. ⛔ It also closed a divergent report with the word CONVERGED, as `conformare` did: a defect in the brief's wording, not the ward's judgment |
+| circumspicere | **1 L1 — and it is the cast's best argument for itself.** Cast last, given the aggregate of the other thirteen, it found the one thing an inward lens structurally cannot: a gap between what the engine SHIPS as a guarantee and where the guarantee is actually sampled. `sequi` read the same ceiling chain and pronounced it clean — correctly, on its own axis. Also adjudicated the single `rune:circumspicere` VALID under the heaviest rune burden in the grimoire |
 
 - **C1 ★★** — CONFIRMED, and the falsified claim is my own. Oracle `stratify.wat:150` tests
   `hd = ":wat::rete::not"` on the TOP-LEVEL head and returns `acc` unchanged for anything else —
@@ -288,3 +290,41 @@ converge, say CONVERGED — and say what you looked at."* Read one way that mean
 clean*; read another it means *my sweep converged / I was exhaustive*, and both wards took the
 second reading. **The wording must be fixed before targets 2–4 are cast** — see the README's resume
 protocol. A ward is not wrong to answer the question it was asked.
+
+- **W1 ★★** — CONFIRMED on every coordinate, **and the nuance is load-bearing enough that acting on
+  the row without it would overcorrect.**
+  · **The three claim sites are real and none carries a rune.** `grep -c 'rune:'` over
+    `session.rs:1750-1760` → 0, over `delta.rs:465-475` → 0. The oracle's `insert.wat:63-66` states
+    *"The session ceiling is enforced at BOTH doors"* with no qualifier at all.
+  · **The placement is real.** `insert.rs:205` materialises the whole concatenated batch; the check
+    is at `:214`. The fire door's check sits after the round epilogue.
+  · ⛔ **BUT THE AUTHOR KNEW, AND SAID SO — IN ONE FILE.** `delta.rs:707` reads: *"A single round can
+    allocate without bound (this file's own header: `fanout` derives 40_000 facts in one round), so
+    'it converged' is not evidence it was cheap."* That is the exact hazard, disclosed at the CHECK
+    site — where it appears as the reason the check was moved above the `break`, not as a
+    qualification of the contract. And `delta.rs:450-451` says the round cap *"bounds
+    NON-TERMINATION, not memory … a legitimate workload shape this deliberately does not limit."*
+  · **So this is not an engine that does not know its own limit. It is a QUALIFICATION THAT NEVER
+    TRAVELS.** `grep -n 'without bound\|does not limit'` across the three claim files returns
+    **three hits, all in `delta.rs`** — none in `session.rs`, none in the oracle. The honest
+    sentence exists and stayed where it was written; the universal-sounding one is what shipped to
+    the other two sites and to the wat-facing spec.
+  ⭐ **That makes the closure clearly documentation, and the ward said so unprompted** — it applied
+  the four questions, judged this an *inherent cost* rather than a one-line default, and pointed at
+  `delta.rs:441-443` as the precedent for how this codebase already discloses the round cap's
+  version of the same gap. A ward that proposes the smaller correct fix over the larger dramatic one
+  is a ward worth casting.
+
+⭐ **AND IT ADJUDICATED THE ONE `rune:circumspicere` AS VALID, WHICH IS THE HARDER VERDICT.** Its own
+spell gives this rune the heaviest burden in the grimoire — the reason must name WHERE the bound is
+documented, and an undocumented "it's fine" IS the blind spot. `arm.rs:717` cites two design stones;
+the ward confirmed both exist and are substantive, and noted the bound was already tightened once
+after an unwind-safety bug in the pre-guard `release-session` path. It called it the model form.
+
+⛔ **THE LAST WARD FOUND THE THING THIRTEEN LENSES WALKED PAST, WHICH IS THE ENTIRE ARGUMENT FOR
+CASTING IT.** `sequi` read this exact ceiling chain and pronounced it clean — correctly: the state
+threading IS clean, and it rowed only the unruned global read (Q1). What it could not see, because
+it faces inward at the code, is that the sentence the code SHIPS describes a stronger guarantee than
+the placement delivers. Thirteen inward lenses passed over `session.rs:1759` and none was pointed at
+the gap between a claim and its enforcement. That is the surround, and it is exactly what
+`circumspicere` exists for.

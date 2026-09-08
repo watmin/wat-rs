@@ -24,7 +24,7 @@ strikes to run — the failure this scoping exists to prevent.
 
 | # | target | files | lines | status |
 |---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` — the fire path and the spec it must mirror | 28 | ~15.8k | PENDING |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` — the fire path and the spec it must mirror | 28 | 15,771 (measured) | ✅ **CAST COMPLETE** — 14/14 wards, 38 rows |
 | 2 | `src/rete/*.rs` — the compile side | 15 | ~15.7k | PENDING |
 | 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | 54 | ~8.7k | PENDING |
 | 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | 264 | ~36k | PENDING |
@@ -81,17 +81,17 @@ line citations here to rot.
 
 # ⛔ HOW TO RESUME THIS CAST — read this FIRST if you are picking it up cold
 
-**This cast is MID-FLIGHT.** **Thirteen of fourteen wards have returned for target 1.** Only
-`circumspicere` remains, and it must be cast LAST because its quarry is the negative space the
-inward thirteen leave. The casting procedure below is not recoverable from anything else on disk —
-it lived in the orchestrator's context, and this section is the only copy.
+**TARGET 1 IS COMPLETE — all fourteen wards cast, returned, and weighed against the disk.** The
+casting procedure below is not recoverable from anything else on disk: it lived in the
+orchestrator's context, and this section is the only copy. **Read it before casting target 2.**
 
-## State (updated 2026-09-07, after cernere · probare · perspicere)
+## State — target 1 CLOSED 2026-09-07
 
-**Target 1 — `src/rete/kernel/**` + `wat/rete/oracle/**` — 13 of 14 wards returned.**
-**37 rows · 5 L1 · 22 L2 · 1 L3 · 9 in solvere's own vocabulary · 19 verified by the orchestrator.**
+**`src/rete/kernel/**` + `wat/rete/oracle/**` — 28 files, 15,771 lines (measured), 14 of 14 wards.**
+**38 rows · 6 L1 · 22 L2 · 1 L3 · 9 in solvere's own vocabulary · 20 verified by the orchestrator.**
+No code was changed by the cast — it was READ-ONLY by construction and every ward was briefed so.
 
-| returned | verdict |
+| ward | verdict |
 |---|---|
 | intueri | 1 L2 |
 | purgare | 2 L2 |
@@ -106,13 +106,28 @@ it lived in the orchestrator's context, and this section is the only copy.
 | cernere | 1 L2 — a phantom form in user-facing error text; ~130 oracle names all resolve |
 | probare | **1 L1** + 1 L2 — a deferral resting on a citation that points at no call |
 | perspicere | 3 L2; **all 10 runes CLEAR** (⚠ its report also ends "CONVERGED") |
+| circumspicere | **1 L1** — a shipped ceiling contract sampled only at round/batch boundaries |
 
-**STILL TO CAST on target 1:**
+**⭐ WHAT THE FULL GUARD BOUGHT, since this is the evidence for casting it again on targets 2–4:**
 
-1. **`circumspicere` — ALWAYS LAST, and it is now castable.** Its quarry is the negative space the
-   inward set leaves, so it needs the aggregate the other thirteen produced. Give it the 37 rows,
-   the runes weighed, and the measured non-firing triggers (`secare` 0, `mora` 0) — the last are
-   facts about the target it may want to look behind.
+- **Two wards came back CLEAN** (`sequi`, `exigere`) — results, not waste, because both said what
+  they swept. `exigere` re-derived the zero TODO count independently rather than inheriting it.
+- **Wards landed on the same site through different lenses** — `intueri`+`struere` (I1/T5),
+  `cernere`+`conformare` (N1/F2, the same decode family: one says the error cannot name the user's
+  line, the other that it cannot name a real form).
+- **Three wards DISAGREED about one rune** (X3) — a decision for the builder, which no single cast
+  could have produced.
+- **The LAST ward found the sharpest L1** (W1), on ground `sequi` had already pronounced clean —
+  correctly, on its own axis. That is the whole argument for `circumspicere` being cast last, and
+  the whole argument against hand-picking a roster.
+- **65 exemptions weighed, 59 upheld; all 10 `perspicere` runes upheld; the one
+  `rune:circumspicere` upheld.** This subsystem's runes are overwhelmingly real — a fact only a
+  cast ward can establish.
+
+⛔ **NEXT: TARGET 2** (`src/rete/*.rs`, the compile side, 15 files). Derive its muster block with
+MEASURED triggers before casting, as this one did. `experiri` fires there — `RETE_OPS` is declared
+at `vocabulary.rs:307` — and it is the one ward that EXECUTES rather than reads, so scope it to a
+target whose side effects are undoable.
 
 **Targets 2, 3 and 4 have not been cast at all.** See the table above in this README. ⛔ Before
 casting them, read the rewritten convergence clause below — the old wording split two of twelve
