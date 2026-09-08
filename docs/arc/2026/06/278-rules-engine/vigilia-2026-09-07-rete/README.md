@@ -81,13 +81,15 @@ line citations here to rot.
 
 # ⛔ HOW TO RESUME THIS CAST — read this FIRST if you are picking it up cold
 
-**This cast is MID-FLIGHT.** Ten of fourteen wards have returned for target 1. Four have not. The
-casting procedure below is not recoverable from anything else on disk — it lived in the
-orchestrator's context, and this section is the only copy.
+**This cast is MID-FLIGHT.** **Thirteen of fourteen wards have returned for target 1.** Only
+`circumspicere` remains, and it must be cast LAST because its quarry is the negative space the
+inward thirteen leave. The casting procedure below is not recoverable from anything else on disk —
+it lived in the orchestrator's context, and this section is the only copy.
 
-## State as of the compaction (2026-09-07)
+## State (updated 2026-09-07, after cernere · probare · perspicere)
 
-**Target 1 — `src/rete/kernel/**` + `wat/rete/oracle/**` — 10 of 14 wards returned.**
+**Target 1 — `src/rete/kernel/**` + `wat/rete/oracle/**` — 13 of 14 wards returned.**
+**37 rows · 5 L1 · 22 L2 · 1 L3 · 9 in solvere's own vocabulary · 19 verified by the orchestrator.**
 
 | returned | verdict |
 |---|---|
@@ -96,24 +98,25 @@ orchestrator's context, and this section is the only copy.
 | solvere | 9 (2 structural ★) |
 | struere | 6 L2 |
 | conferre | **1 L1** + 2 L2 |
-| sequi | **CONVERGED** + 2 notes |
+| sequi | **CLEAN** + 2 notes |
 | temperare | 2 L2, 5/5 runes upheld |
 | excusare | 65 weighed, 59 HOLD, **6 struck** |
-| exigere | **CONVERGED** + 1 wording row |
-| conformare | 2 L2 |
+| exigere | **CLEAN** + 1 wording row |
+| conformare | 2 L2 (⚠ its report ends "CONVERGED" — see the convergence clause below) |
+| cernere | 1 L2 — a phantom form in user-facing error text; ~130 oracle names all resolve |
+| probare | **1 L1** + 1 L2 — a deferral resting on a citation that points at no call |
+| perspicere | 3 L2; **all 10 runes CLEAR** (⚠ its report also ends "CONVERGED") |
 
-**STILL TO CAST on target 1, in this order:**
+**STILL TO CAST on target 1:**
 
-1. **`cernere`** — phantom forms; every form used traces to the language spec. `wat/rete/oracle/**`
-   is the DSL half; this is its ward.
-2. **`probare`** — substance vs description. This target is extremely comment-dense; that is
-   exactly what probare weighs.
-3. **`perspicere`** — deep nested type expressions hiding a noun. **Trigger measured: 14 files carry
-   2+ `<` in a type.** Ten `rune:perspicere` marks already exist — adjudicate them.
-4. **`circumspicere` — ALWAYS LAST.** Its quarry is the negative space the inward set leaves, so it
-   cannot be cast until the other thirteen have returned. Give it the aggregate.
+1. **`circumspicere` — ALWAYS LAST, and it is now castable.** Its quarry is the negative space the
+   inward set leaves, so it needs the aggregate the other thirteen produced. Give it the 37 rows,
+   the runes weighed, and the measured non-firing triggers (`secare` 0, `mora` 0) — the last are
+   facts about the target it may want to look behind.
 
-**Targets 2, 3 and 4 have not been cast at all.** See the table above in this README.
+**Targets 2, 3 and 4 have not been cast at all.** See the table above in this README. ⛔ Before
+casting them, read the rewritten convergence clause below — the old wording split two of twelve
+reports and must not be reused.
 
 ## The casting procedure — follow it exactly
 
@@ -127,9 +130,23 @@ orchestrator's context, and this section is the only copy.
    - the exact target paths, and "read ONLY these; do not read the whole repo";
    - **READ-ONLY. No edits, no cargo runs.**
    - "Ground every finding in a `file:line` you actually read this session. No citation, no finding."
-   - "If it converges, say CONVERGED **and say what you looked at** — a clean result must be
-     distinguishable from a cast that did not happen." (This is what made `sequi` and `exigere`
-     valuable.)
+   - ⛔ **THE CONVERGENCE CLAUSE — REWRITTEN 2026-09-07 BECAUSE THE FIRST WORDING WAS AMBIGUOUS AND
+     TWO OF TWELVE WARDS READ IT THE WRONG WAY.** It used to read: *"If it converges, say CONVERGED
+     and say what you looked at."* `conformare` (`reports/conformare.md:59`) and `perspicere` both
+     ended a report with **CONVERGED** while returning findings — `perspicere`'s very next sentence
+     was *"The result is not 'clean': there are 13 genuine findings."* They read "converge" as
+     **my sweep converged / I was exhaustive**, not **the target is clean**. Both readings are
+     legitimate English and the wards answered honestly; the clause was the defect. Use this
+     instead, verbatim:
+     > "End with exactly one of two words. **CLEAN** — you found nothing to report; then say what
+     > you swept, with the commands and counts, so a clean result is distinguishable from a cast
+     > that never ran. **FINDINGS** — you are returning at least one, however small. Do not use the
+     > word *converged*: it is ambiguous between 'the target is clean' and 'my sweep was thorough',
+     > and reports have already split on it. If your sweep was exhaustive AND you found things, that
+     > is **FINDINGS**, and you may say the sweep was exhaustive in your own words."
+     (The value the old clause was reaching for is real and must be kept: `sequi` and `exigere` both
+     came back clean *having said what they looked at*, which is what made them evidence rather than
+     silence.)
    - **the PRIOR ART, by name** — settled work the ward must not re-report. Without it the count
      inflates with things already done. See each returned report for what was named.
    - any **scope correction** the ward needs (e.g. `conformare` was told this target owns no error
