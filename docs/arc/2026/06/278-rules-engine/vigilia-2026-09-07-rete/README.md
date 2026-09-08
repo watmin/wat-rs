@@ -250,7 +250,7 @@ it should be re-checked before anyone acts on it.
 
 # ⛔ HOW TO RESUME THIS CAST — read this FIRST if you are picking it up cold
 
-**TWO TARGETS COMPLETE, ONE MID-FLIGHT, ONE NEVER MEASURED.** The casting procedure below is not
+**THREE TARGETS CLOSED, ONE MID-FLIGHT AT 12 OF ~17 WARDS.** The casting procedure below is not
 recoverable from anything else on disk — it lived in the orchestrator's context, and this section is
 the only copy. **Read it before casting anything.**
 
@@ -274,14 +274,29 @@ the target for the THIRD target running (`3W1`): the CI speed floors were measur
 recorded, and CI now pins one that was never checked against them. **The pattern is now three for
 three — cast it last, every time.**
 
-**⛔ NEXT: TARGET 4 — `tests/rete/` + `src/rete/kernel/tests/`. NOT CAST, and its "264 files, ~36k"
-figure has NEVER been re-derived. MEASURE IT FIRST** — every scope figure written at the same time as
-that one has since been wrong, target 3's by 93 files and again by one. `complectens` and `vocare`
-muster there and have fired nowhere in this vigilia. (`perspicere` was upgraded from *evaluate at cast time* to a measured
-MUSTER on 2026-09-08 — see its row in the muster table.) Muster with measured triggers is above in this
-file; two triggers measured **NO** (`secare` 0 parallel primitives, `excusare` 0 runes in the whole
-grid) and one measured **CLEAN-not-absent** (`exigere`: my "7 TODO hits" were all `"XXX"` as a
-deliberately-nonexistent location code — the true count is **0**, same as targets 1 and 2).
+**⛔ TARGET 4 — MEASURED AND MID-FLIGHT. Its muster with measured triggers is above in this file.**
+The old *"264 files, ~36k"* was **off by 42 files**: it is **306 files, 38,058 lines, 613 `#[test]`
+functions**. ⚠ **That 613 took FIVE independent derivations to settle** — two wards reported 615 and
+neither could reproduce the other; three derived 613 and two of them named the identical pair of `//`
+comment lines that account for the gap. **Re-derive it with `grep -rhE '^\s*#\[test\]'` over `.rs`
+only.**
+
+**Target 4 — cast so far (12):** `excusare` (1 L1 — 81 exemptions weighed, **80 HOLD**), `complectens`
+(3), `vocare` (2), `perspicere` (3), `purgare` (1), `peragrare` (**6×L1**), `secare` (1 L1), `probare`
+(1), `cernere` (1), `exigere` (2 L1), `solvere` (2), `intueri` **CLEAN**.
+
+**Target 4 — still to cast:** `struere` · `sequi` · `temperare` · `conformare`, then
+**`circumspicere` LAST — three targets, three times the sharpest finding of the cast.**
+
+⚠ **`conformare` will find NO literal surface here** — measured: **zero** `enum *Error` definitions in
+either tree. On target 3 it gave the honest "this target defines no error type" answer and that
+pointed at something worth finding; expect to give it a translated surface (assertion/panic-message
+shape) or accept a short honest cast.
+
+⭐ **Two POSITIVES already established that a later ward must not re-derive:** the fixture corpus is
+**143/144 `.wat`, 19/19 `.wat.bad`, 23/23 `.edn` reached** (`purgare`), and `datamancer.src.wat` — the
+one unreached file, which **no gate parses either** — was traced form-by-form and is **clean**
+(`cernere`).
 
 **NOTHING IS DRIVEN TO RESOLUTION.** **126 rows open, 22 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 126, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 22. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
 **X3** (three wards, one rune, two verdicts), **2X2** (a rune's REASON is true, its CATEGORY is

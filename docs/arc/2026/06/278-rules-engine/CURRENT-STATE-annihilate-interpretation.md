@@ -18,8 +18,10 @@
 > `wat-scripts/scratch-pad/experiri-then/`. Both lint gates over `wat-scripts/` were run before those
 > landed: `2 tests run: 2 passed`.
 >
-> **THE SESSION IN ONE SENTENCE:** **targets 1, 2 AND 3 are now CLOSED** at 14/14, 15/15 and 15/15
-> wards (108 rows); **target 4 has never been cast and its scope figure has never been re-derived.**
+> **THE SESSION IN ONE SENTENCE:** **targets 1, 2 AND 3 are CLOSED** at 14/14, 15/15 and 15/15 wards.
+> **Target 4 is MEASURED (306 files / 38,058 lines — the tracker said 264/~36k) and 12 of ~17 wards in**,
+> with 18 rows. **126 rows total, 22 L1. Remaining: `struere` · `sequi` · `temperare` · `conformare`,
+> then `circumspicere` LAST.**
 >
 > **⭐ THE THREE SHARPEST FINDINGS, ALL VERIFIED BY ME:**
 > · **2W1 (L1)** — `expr_ir/mod.rs` promises *"`lower` IS TOTAL OR IT REFUSES … never on shape"* and
@@ -39,7 +41,7 @@
 > (3 claims, all wrong, none gated — while `rete_header_claims_are_asserted.rs` already contains a
 > working caller-count arm).
 >
-> **⛔⛔ ELEVEN MEASUREMENTS WERE WRONG OR STALE. THE TEN I HANDED TO WARDS WERE ALL CAUGHT BY A WARD
+> **⛔⛔ EIGHTEEN MEASUREMENTS WERE WRONG OR STALE (was eleven at the last wall). THE TEN I HANDED TO WARDS WERE ALL CAUGHT BY A WARD
 > TOLD TO RE-DERIVE — THE ELEVENTH WAS CAUGHT BY NOTHING, AND SAT IN THE TRACKER FOR A DAY** (the
 > grid's file count, corrected to 148 by a recolligere on 2026-09-08, having sat at 147 *beside* the
 > line count I had already corrected). **A ward re-derives what it is HANDED; nothing re-derives what
@@ -49,6 +51,24 @@
 > invalidated MYSELF** by committing a file into the directory I had just measured. ⭐ The one
 > measurement that survived re-derivation intact was the one I handed over **with its contamination
 > disclosed**.
+>
+>
+> **⭐⭐⭐ TARGET 4'S THREE SHARPEST, ALL VERIFIED BY ME:**
+> · **`4D1` (L1)** — `ARM_BUILDS`, a process-global counter, drives exact-equality assertions in six
+>   tests. Race-free **only because nextest forks per test**. ⛔ **The builder has already ruled on this
+>   exact shape, in this arc**: *"the tests must never have a race, period… **Not 'green under our
+>   runner.' Race-free by construction.**"* Unfixed and undeclared.
+> · **`4S2`** — `render_phase_table`'s doc says *"two copies is how one of them silently stops
+>   subtracting"* — and the formula it centralises is **hand-rolled at 20 further sites**. The failure
+>   the comment names is the present shape.
+> · **`4P1` (6×L1)** — the `.wat.bad` gate's exemption path is a **7-state machine** and **one state has
+>   ever been driven**. Its advertised self-clearing branch — *"the day arc 255 lands… this gate goes
+>   RED"* — has never fired.
+>
+> **⭐⭐ AND THE STRONGEST NEGATIVE OF THE VIGILIA:** `intueri` was asked whether `4L1` (a test whose
+> name promises two things and delivers one) was **isolated or a class**. It read **99 of 99** candidates
+> matching a stated risk-vocabulary plus 40 at random — **128 of 613** — and found **zero** more.
+> Isolated. **A negative earned with a method is a fact; without one it is silence.**
 >
 > **⚠ TWO DECISIONS ARE THE BUILDER'S, NOT MINE.** **X3** — three wards, one rune, two verdicts.
 > **2X2** — a rune whose REASON is true and whose CATEGORY is wrong; `purgare` and `excusare` split
@@ -77,6 +97,7 @@ git diff --stat bb306bd3c..HEAD --name-only
 | `wat-scripts/scratch-pad/**/*.wat` | probes and repros; the scratch-pad convention makes these durable, and two lint gates read every `.wat` there |
 | `wat-scripts/perf/grid/peragrare-census.sh` | the `peragrare` census, committed **beside the corpus it counts** because the spell requires it |
 | `tests/rete/probe_arc278_then_user_forms_userfn.wat` | comment-only strike (`ce6c1e35c`); its SCORE records *every `+`/`-` content line begins `;;`* |
+| `tests/lint/peragrare-bad-census.sh` | the SECOND `peragrare` census, for `every_wat_bad_fixture_actually_fails.rs`. ⚠ **Placed in `tests/lint/` and NOT `tests/rete/` on the ward's argument**: only 19 of its 268 members sit under `tests/rete/`, so *"beside the corpus"* has no single home, and `tests/lint/` is where this repo keeps corpus-wide walk gates. ✅ **Confirmed inert to every gate before landing**: `every_walking_gate_declares_non_vacuity` scopes to `tests/lint/*.rs`; `every_parity_script_is_invoked` walks `wat-scripts/perf/grid` for `check-*.sh` |
 
 **STALE:** any `src/` or `wat/` path, or any `tests/` path other than the one above — then trust the
 log and the source over every line below, and re-read before you move.
