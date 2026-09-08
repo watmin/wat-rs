@@ -16,6 +16,7 @@
 //! shape), `preregister.rs` (the earlier stub-before-bodies pass).
 
 use crate::declare::parse::is_type_var_path;
+use crate::types::{TypeEnv, TypeExpr};
 
 /// Arc 109 — the lexer's type-head predicate, applied to a MINTED name.
 ///
@@ -103,34 +104,72 @@ pub(crate) fn collect_free_type_vars_in(types: &[crate::types::TypeExpr]) -> Vec
 /// [`collect_free_type_vars_in`]. See both callers' docs for the var test
 /// and the recursion shape (`Parametric.args`, `Fn.args`/`Fn.ret`, `Tuple`
 /// elements; `Var(_)` synthetic, ignored).
-fn walk_free_type_vars(ty: &crate::types::TypeExpr, seen: &mut Vec<String>) {
-    use crate::types::TypeExpr;
-    match ty {
-        TypeExpr::Path(p) => {
-            if is_type_var_path(p) {
-                let name = p.strip_prefix(':').unwrap_or(p).to_string();
-                if !seen.contains(&name) {
-                    seen.push(name);
-                }
+///
+/// Arc 296 P-1 — the match lives in [`walk_type_expr`]; this is the free-var
+/// visitor over that recursion, not a second walker.
+fn walk_free_type_vars(ty: &TypeExpr, seen: &mut Vec<String>) {
+    walk_type_expr(ty, &mut |p| {
+        if is_type_var_path(p) {
+            let name = p.strip_prefix(':').unwrap_or(p).to_string();
+            if !seen.contains(&name) {
+                seen.push(name);
             }
         }
+    });
+}
+
+/// Arc 296 P-1 — the ONE recursion over a `TypeExpr` tree (`Path` / `Parametric.args` /
+/// `Fn.args`+`Fn.ret` / `Tuple` elements; `Var(_)` synthetic, ignored).
+/// [`walk_free_type_vars`] and [`first_unknown_named_type`] are visitors, not walkers.
+fn walk_type_expr(ty: &TypeExpr, visit_path: &mut dyn FnMut(&str)) {
+    match ty {
+        TypeExpr::Path(p) => visit_path(p),
         TypeExpr::Parametric { args, .. } => {
             for a in args {
-                walk_free_type_vars(a, seen);
+                walk_type_expr(a, visit_path);
             }
         }
         TypeExpr::Fn { args, ret } => {
             for a in args {
-                walk_free_type_vars(a, seen);
+                walk_type_expr(a, visit_path);
             }
-            walk_free_type_vars(ret, seen);
+            walk_type_expr(ret, visit_path);
         }
         TypeExpr::Tuple(elements) => {
             for e in elements {
-                walk_free_type_vars(e, seen);
+                walk_type_expr(e, visit_path);
             }
         }
         TypeExpr::Var(_) => {}
     }
+}
+
+/// Arc 296 P-1 — first `TypeExpr::Path` in `ty` that is a NAMED type (the third
+/// lexical class: contains `::` or `.`) and is not in `bound` (type-params,
+/// names without `:`) and is not `TypeEnv::contains` ∪ `is_builtin_primitive`.
+/// Type variables (`is_type_var_path`) are accepted without asking the registry.
+pub(crate) fn first_unknown_named_type(
+    ty: &TypeExpr,
+    bound: &[String],
+    env: &TypeEnv,
+) -> Option<String> {
+    let mut found = None;
+    walk_type_expr(ty, &mut |p| {
+        if found.is_some() {
+            return;
+        }
+        if is_type_var_path(p) {
+            return;
+        }
+        let stripped = p.strip_prefix(':').unwrap_or(p);
+        if bound.iter().any(|b| b == stripped) {
+            return;
+        }
+        if env.contains(p) || crate::runtime::is_builtin_primitive(stripped) {
+            return;
+        }
+        found = Some(p.to_string());
+    });
+    found
 }
 

@@ -114,7 +114,6 @@ fn a_bare_uppercase_name_is_a_type_variable_even_with_no_binder() {
 
 /// THE SUBJECT — param + return position.
 #[test]
-#[ignore = "arc 296 P-1 — the annotation position does not yet validate its type name"]
 fn a_phantom_type_name_is_refused_in_param_and_return_position() {
     assert_eq!(
         check("phantom_param_and_return"),
@@ -126,7 +125,6 @@ fn a_phantom_type_name_is_refused_in_param_and_return_position() {
 
 /// THE SUBJECT — aggregate field position.
 #[test]
-#[ignore = "arc 296 P-1 — the annotation position does not yet validate its type name"]
 fn a_phantom_type_name_is_refused_in_a_field_annotation() {
     assert_eq!(check("phantom_record_field"), 1);
 }

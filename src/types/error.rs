@@ -268,6 +268,18 @@ pub enum TypeErrorKind {
         /// The offending param's bare name (no leading colon), e.g. `"O"`.
         param: String,
     },
+    /// Arc 296 P-1 — an annotation named a type that does not exist.
+    /// The third wall of the three-lexical-classes family (`is_type_var_path`):
+    /// bare Uppercase is a variable, bare lowercase is `BareLegacyPrimitive`,
+    /// a Path containing `::` or `.` is a named type and must be in
+    /// `TypeEnv::contains` ∪ `is_builtin_primitive`.
+    ///
+    /// Shape mirrors `CheckErrorKind::BareLegacyPrimitive`: the offending
+    /// path is a named field; the span rides on the outer `TypeError`.
+    UnknownNamedType {
+        /// The annotation's own text, colon-included (e.g. `:usr::TotallyMadeUp`).
+        path: String,
+    },
 }
 
 
@@ -415,6 +427,11 @@ impl fmt::Display for TypeErrorKind {
                  `x <- (Vector <- [{param}])`) — an unused parameter still discriminates types, \
                  but that discrimination must be written, not inferred. Remove \"{param}\" from \
                  {decl}'s param-spec, or use it."
+            ),
+            TypeErrorKind::UnknownNamedType { path } => write!(
+                f,
+                "annotation names unknown type {path} — not a declared type, not a type variable, \
+                 and not a builtin"
             ),
         }
     }

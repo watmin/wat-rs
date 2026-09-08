@@ -15240,6 +15240,115 @@ pub(crate) fn validate_aggregate_containment(
     Ok(())
 }
 
+/// Arc 296 P-1 — after types AND functions are registered, refuse any annotation
+/// whose named type does not exist. Forward references are resolved (same reason
+/// as [`validate_aggregate_containment`]). Type variables (`is_type_var_path`)
+/// and bound type-params are accepted without asking the registry.
+pub(crate) fn validate_named_type_annotations(
+    env: &crate::types::TypeEnv,
+    symbols: &crate::value::SymbolTable,
+) -> Result<(), TypeError> {
+    use crate::declare::typevar::first_unknown_named_type;
+    use crate::types::{EnumVariant, SurfaceMember, TypeDef};
+
+    let refuse = |path: String| {
+        Err(TypeError::new(
+            crate::rust_caller_span!(),
+            TypeErrorKind::UnknownNamedType { path },
+        ))
+    };
+
+    for (name, def) in env.iter() {
+        if crate::resolve::is_reserved_prefix(name) {
+            continue;
+        }
+        match def {
+            TypeDef::Aggregate(a) => {
+                for (_fname, fty) in &a.fields {
+                    if let Some(p) = first_unknown_named_type(fty, &a.type_params, env) {
+                        return refuse(p);
+                    }
+                }
+            }
+            TypeDef::Enum(e) => {
+                for variant in &e.variants {
+                    if let EnumVariant::Tagged { fields, .. } = variant {
+                        for (_fname, fty) in fields {
+                            if let Some(p) = first_unknown_named_type(fty, &e.type_params, env) {
+                                return refuse(p);
+                            }
+                        }
+                    }
+                }
+            }
+            TypeDef::Newtype(n) => {
+                if let Some(p) = first_unknown_named_type(&n.inner, &n.type_params, env) {
+                    return refuse(p);
+                }
+            }
+            TypeDef::Alias(a) => {
+                if let Some(p) = first_unknown_named_type(&a.expr, &a.type_params, env) {
+                    return refuse(p);
+                }
+            }
+            TypeDef::Union(u) => {
+                for m in &u.members {
+                    if let Some(p) = first_unknown_named_type(m, &u.type_params, env) {
+                        return refuse(p);
+                    }
+                }
+            }
+            TypeDef::Surface(s) => {
+                for member in &s.members {
+                    match member {
+                        SurfaceMember::Field { ty, .. } => {
+                            if let Some(p) = first_unknown_named_type(ty, &s.type_params, env) {
+                                return refuse(p);
+                            }
+                        }
+                        SurfaceMember::Method { args, ret, type_params, .. } => {
+                            let bound: Vec<String> = s
+                                .type_params
+                                .iter()
+                                .chain(type_params.iter())
+                                .cloned()
+                                .collect();
+                            for (_n, ty) in args.fixed_params.iter() {
+                                if let Some(p) = first_unknown_named_type(ty, &bound, env) {
+                                    return refuse(p);
+                                }
+                            }
+                            if let Some(p) = first_unknown_named_type(ret, &bound, env) {
+                                return refuse(p);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (name, func) in symbols.functions_iter() {
+        if crate::resolve::is_reserved_prefix(name) {
+            continue;
+        }
+        for ty in &func.param_types {
+            if let Some(p) = first_unknown_named_type(ty, &func.type_params, env) {
+                return refuse(p);
+            }
+        }
+        if let Some(p) = first_unknown_named_type(&func.ret_type, &func.type_params, env) {
+            return refuse(p);
+        }
+        if let Some(rest) = &func.rest_param_type {
+            if let Some(p) = first_unknown_named_type(rest, &func.type_params, env) {
+                return refuse(p);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bundle`.
 ///
 /// Extends Bundle to accept a `(Vector :- [T])` where each element T is either

@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use crate::ast::WatAST;
 use crate::check::{
     validate_aggregate_containment, validate_arc170_legacy_callsites,
-    validate_bare_legacy_primitives, CheckError, CheckErrors,
+    validate_bare_legacy_primitives, validate_named_type_annotations, CheckError, CheckErrors,
 };
 use crate::macros::{
     expand_all, register_aggregate_kwargs_companions, register_defmacros,
@@ -240,6 +240,10 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         })
         .collect();
     let mut residue = register_defines(post_types, &mut symbols)?;
+    // Arc 296 P-1 — named-type annotations must name a type. After types AND
+    // user functions are registered so forward references resolve (same
+    // posture as `validate_aggregate_containment`).
+    validate_named_type_annotations(&types, &symbols)?;
 
     // 6a. Struct auto-methods (ctor only; accessors now in 6.8a).
     register_struct_methods(&types, &mut symbols)?;
