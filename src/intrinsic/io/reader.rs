@@ -22,7 +22,7 @@
 //!   pure+det rows in this home and so the only two that owe a RUNNABLE
 //!   `@example` (`purity_mandated_examples`).
 //! - **`open-file`/`from-fd`** (`io.rs:1237`/`1319`) — a real syscall
-//!   (`open(2)` / `dup(2)`) that claims a fresh, kernel-tracked fd and wraps
+//!   (`open(2)` / `fcntl(F_DUPFD_CLOEXEC)`) that claims a fresh, kernel-tracked fd and wraps
 //!   it in an `OwnedFd`-backed `PipeReader` whose `Drop` closes it. Textbook
 //!   `:Resource` ACQUISITION — the read-side mirror of `kernel/resource.rs`'s
 //!   `pipe` (`libc::pipe2(2)`, same shape, same reasoning). `Effectful`; both
@@ -200,7 +200,7 @@ pub(crate) fn eval_ioreader_open_file(
 }
 
 /// `(:wat::io::IOReader/from-fd fd)` → `:wat::io::IOReader`. Arc 170
-/// stdio-as-defservice. `dup(2)`-then-own: the reader owns ONLY the dup, so
+/// stdio-as-defservice. `fcntl(F_DUPFD_CLOEXEC)`-then-own: the reader owns ONLY the dup, so
 /// dropping it closes the dup, never the caller's original fd. **Restricted
 /// to `:wat::kernel::` callers** (`#[restricted_to]` in `src/io.rs`) — the
 /// primed StdIn defservice's generated `::init` is the only legal caller.
@@ -216,10 +216,10 @@ pub(crate) fn eval_ioreader_open_file(
 // Registered `TypeScheme` — `check.rs:15740` — gate LIVE.
 //
 // Deciding line for `@Category Resource`: `src/io.rs:1319`
-// `eval_ioreader_from_fd` — `libc::dup(fd)` claims a fresh, kernel-tracked
+// `eval_ioreader_from_fd` — `fcntl(F_DUPFD_CLOEXEC)` claims a fresh, kernel-tracked
 // fd (a private copy of the caller's) and wraps it in an `OwnedFd`-backed
-// `PipeReader`. Same acquisition shape as `open-file`, via `dup(2)` instead
-// of `open(2)`.
+// `PipeReader`. Same acquisition shape as `open-file`, via `F_DUPFD_CLOEXEC`
+// instead of `open(2)`.
 //
 // Deciding line for `@Purity Effectful` / `@Determinism Deterministic`:
 // identical reasoning to `open-file` — a real syscall, immediate return, no

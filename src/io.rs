@@ -1328,11 +1328,12 @@ pub fn eval_ioreader_open_file(
 
 /// `(:wat::io::IOWriter/from-fd fd)` → `:wat::io::IOWriter`. Arc 170 stdio-as-defservice.
 ///
-/// **DUP-then-own (load-bearing).** `dup(2)` the caller's raw fd first, then wrap the DUP in an
-/// `OwnedFd`-backed [`PipeWriter`]. The returned writer owns ONLY the dup: its `Drop` closes the
-/// dup, NEVER the process's original fd (so a primed StdOut/StdErr service holding the writer in
-/// `:ephemeral` can shut down without closing the real fd 1/2). Mirror of `eval_kernel_pipe`'s
-/// `from_owned_fd` ownership (io.rs) and `process/verbs.rs`'s stdio-fd wrapping.
+/// **DUP-then-own (load-bearing).** `fcntl(F_DUPFD_CLOEXEC)` the caller's raw fd first, then wrap
+/// the DUP in an `OwnedFd`-backed [`PipeWriter`]. The returned writer owns ONLY the dup: its
+/// `Drop` closes the dup, NEVER the process's original fd (so a primed StdOut/StdErr service
+/// holding the writer in `:ephemeral` can shut down without closing the real fd 1/2). The
+/// CLOEXEC is atomic at the dup so the copy does not survive an unrelated exec. Mirror of
+/// `eval_kernel_pipe`'s `from_owned_fd` ownership (io.rs) and `process/verbs.rs`'s stdio-fd wrapping.
 ///
 /// **Restricted to `:wat::kernel::` callers** — forging an `IOWriter` from an arbitrary raw fd is a
 /// capability; only kernel-internal wat (the primed stdio defservices' generated `::init`) may call
@@ -1359,9 +1360,9 @@ pub fn eval_iowriter_from_fd(
             }));
         }
     };
-    // dup(2): the service owns a PRIVATE copy of the fd; dropping the writer closes the dup only,
-    // never the caller's real fd 0/1/2.
-    let dup_fd = unsafe { libc::dup(fd as libc::c_int) };
+    // F_DUPFD_CLOEXEC: the service owns a PRIVATE copy of the fd; dropping the writer closes
+    // the dup only, never the caller's real fd 0/1/2. Atomic CLOEXEC at the dup.
+    let dup_fd = unsafe { libc::fcntl(fd as libc::c_int, libc::F_DUPFD_CLOEXEC, 0) };
     if dup_fd < 0 {
         let e = std::io::Error::last_os_error();
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
@@ -1369,16 +1370,16 @@ pub fn eval_iowriter_from_fd(
             reason: format!("dup(2) on fd {fd} failed: {e}"),
         }));
     }
-    // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
+    // SAFETY: F_DUPFD_CLOEXEC returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
     let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
     let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(owned));
     Ok(Value::io__IOWriter(writer))
 }
 
 /// `(:wat::io::IOReader/from-fd fd)` → `:wat::io::IOReader`. Arc 170 stdio-as-defservice. The read
-/// mirror of [`eval_iowriter_from_fd`]: `dup(2)`-then-own, wrap the DUP in an `OwnedFd`-backed
-/// [`PipeReader`]. Dropping the reader closes the dup only, never the process's real fd 0.
-/// Restricted to `:wat::kernel::` callers (the primed StdIn defservice's generated `::init`).
+/// mirror of [`eval_iowriter_from_fd`]: `fcntl(F_DUPFD_CLOEXEC)`-then-own, wrap the DUP in an
+/// `OwnedFd`-backed [`PipeReader`]. Dropping the reader closes the dup only, never the process's
+/// real fd 0. Restricted to `:wat::kernel::` callers (the primed StdIn defservice's generated `::init`).
 #[restricted_to(":wat::io::IOReader/from-fd", ":wat::kernel::")]
 pub fn eval_ioreader_from_fd(
     args: &[WatAST],
@@ -1399,7 +1400,7 @@ pub fn eval_ioreader_from_fd(
             }));
         }
     };
-    let dup_fd = unsafe { libc::dup(fd as libc::c_int) };
+    let dup_fd = unsafe { libc::fcntl(fd as libc::c_int, libc::F_DUPFD_CLOEXEC, 0) };
     if dup_fd < 0 {
         let e = std::io::Error::last_os_error();
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
@@ -1407,7 +1408,7 @@ pub fn eval_ioreader_from_fd(
             reason: format!("dup(2) on fd {fd} failed: {e}"),
         }));
     }
-    // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
+    // SAFETY: F_DUPFD_CLOEXEC returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
     let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
     let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(owned));
     Ok(Value::io__IOReader(reader))

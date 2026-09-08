@@ -22,7 +22,7 @@
 //!
 //! - **`new`/`open-file`/`from-fd`** (`io.rs:1173`/`1198`/`1279`) — mint or
 //!   claim a fresh `:wat::io::IOWriter`-typed handle. `open-file`/`from-fd`
-//!   are unambiguous: a real syscall (`open(2)`/`dup(2)`) claims a
+//!   are unambiguous: a real syscall (`open(2)`/`fcntl(F_DUPFD_CLOEXEC)`) claims a
 //!   kernel-tracked fd and wraps it in an `OwnedFd`-backed `PipeWriter`,
 //!   textbook `:Resource` acquisition — the write-side mirror of
 //!   `reader.rs`'s `open-file`/`from-fd`. `new` is the weaker member of the
@@ -197,7 +197,7 @@ pub(crate) fn eval_iowriter_open_file(
 }
 
 /// `(:wat::io::IOWriter/from-fd fd)` → `:wat::io::IOWriter`. Arc 170
-/// stdio-as-defservice. `dup(2)`-then-own: the writer owns ONLY the dup, so
+/// stdio-as-defservice. `fcntl(F_DUPFD_CLOEXEC)`-then-own: the writer owns ONLY the dup, so
 /// dropping it closes the dup, never the caller's original fd. **Restricted
 /// to `:wat::kernel::` callers** (`#[restricted_to]` in `src/io.rs`) — the
 /// primed StdOut/StdErr defservices' generated `::init` is the only legal
@@ -214,10 +214,10 @@ pub(crate) fn eval_iowriter_open_file(
 // Registered `TypeScheme` — `check.rs:15838` — gate LIVE.
 //
 // Deciding line for `@Category Resource`: `src/io.rs:1279`
-// `eval_iowriter_from_fd` — `libc::dup(fd)` claims a fresh, kernel-tracked
+// `eval_iowriter_from_fd` — `fcntl(F_DUPFD_CLOEXEC)` claims a fresh, kernel-tracked
 // fd (a private copy of the caller's) and wraps it in an `OwnedFd`-backed
-// `PipeWriter`. Same acquisition shape as `open-file`, via `dup(2)` instead
-// of `open(2)` — the write-side mirror of `reader.rs`'s `from-fd`.
+// `PipeWriter`. Same acquisition shape as `open-file`, via `F_DUPFD_CLOEXEC`
+// instead of `open(2)` — the write-side mirror of `reader.rs`'s `from-fd`.
 //
 // Deciding line for `@Purity Effectful` / `@Determinism Deterministic`:
 // identical reasoning to `open-file` — a real syscall, immediate return, no

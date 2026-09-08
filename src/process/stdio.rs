@@ -67,7 +67,8 @@ use std::sync::Arc;
 ///
 /// # SAFETY
 ///
-/// `libc::dup` returns a freshly-opened fd on success or -1 on error.
+/// `fcntl(F_DUPFD_CLOEXEC)` returns a freshly-opened fd on success or -1 on
+/// error — the same fd `dup` would have picked, with `FD_CLOEXEC` set atomically.
 /// On failure (EMFILE / ENFILE) this function aborts the child with a
 /// diagnostic to fd 2 rather than handing -1 to `OwnedFd::from_raw_fd`
 /// (which is undefined behaviour — the fd precondition requires a valid
@@ -77,7 +78,7 @@ use std::sync::Arc;
 pub fn lend_ambient() -> crate::services::AmbientStdio {
     use std::os::fd::FromRawFd;
     fn dup_fd(fd: i32, name: &[u8]) -> i32 {
-        let r = unsafe { libc::dup(fd) };
+        let r = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 0) };
         if r < 0 {
             // EMFILE / ENFILE: substrate cannot safely operate. Emit a
             // minimal raw diagnostic and abort. This is the child process;
