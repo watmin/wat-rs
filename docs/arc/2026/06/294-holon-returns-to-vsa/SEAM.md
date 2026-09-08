@@ -1,190 +1,120 @@
-# SEAM — the ONE live breadcrumb. 2026-09-07. ⛔⛔ **THE TREE IS DIRTY AND NOTHING RUNS.**
+# SEAM — the ONE live breadcrumb. 2026-09-08. **GREEN · CLEAN · PUSHED · NO PEER IN FLIGHT.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
 > the failure.** Run the datamancy bootstrap (grimoire + the 4 primers from the **SIGNED MCP**,
-> never a disk copy), then run the commands below and read this whole file before you touch anything.
+> never a disk copy), then run the commands below before you touch anything.
 
 > `251/SEAM.md` · `255/SEAM.md` · `278/SEAM.md` PARKED and point HERE. ⛔ **PARKED IS NOT DEAD.**
 
-## ⛔⛔ FIRST — THIS IS THE MOST DANGEROUS STATE THIS SESSION HAS PRODUCED
+## FIRST — RUN THESE. DO NOT READ THE NUMBERS.
 
 ```bash
-git status --porcelain     # expect 6 DIRTY: 4 src/ + 1 probe .rs + 1 SCORE .md
-git log --oneline -1       # expect db547fa67 or later
-./target/release/wat tests/types/probe_arc296_enum_map_ctor__control.wat; echo "EXIT=$?"
+git status --porcelain          # expect EMPTY
+git log --oneline @{u}..HEAD    # expect EMPTY (0 unpushed)
+grep -aE "^ +Summary" .floor/latest/raw.log
 ```
 
 ```
-floor .... 5238 run: 2447 passed, 2773 FAILED, 18 TIMED OUT, 18 skipped     FLOOR EXIT=100
-control .. run EXIT=3     ← ⛔ NO WAT PROGRAM STARTS. THE STDLIB DOES NOT LOAD.
+floor ... 5243 tests run: 5243 passed, 18 skipped   FLOOR EXIT=0   clippy 0   0 unpushed
+peer .... HALTED. `.pulsare/to-claude` holds a kind=halt.
 ```
 
-✅ **COMMIT LOCALLY — OFTEN.** ⛔ **DO NOT PUSH A BROKEN MAIN.** ⛔ **DO NOT REVERT — THE WORK IS
-CORRECT.** ⛔ **DO NOT "FIX" THE FLOOR.**
-
-> **Builder, 2026-09-07:** *"we can commit, just don't push a broken main - the commits allow save
-> undos without losing work…. grok (or sonnet, or yourself) are likely to reflexively undo something
-> to re-attempt another way... if they accidentally revert something they shouldn't have, we've lost
-> work we need to recover."*
->
-> ★ **A LOCAL COMMIT IS THE UNDO BUFFER.** The green-tree rule governs what reaches the DR site, not
-> what reaches the object store. An agent mid-migration WILL reflexively `git checkout` / revert to
-> try another approach — that is normal, and it is only destructive against an UNCOMMITTED tree.
-> Commit before every re-attempt. `git push` is the gate; `git commit` is the seatbelt.
-
-**Arc 296 STONE M landed in the working tree, UNCOMMITTED, and it is RIGHT.** It refuses positional
-enum construction — and the stdlib is written in the positional form, so the loaded world now fails
-to check. That is **one cause with everything downstream of it**, verified, not assumed:
+## ★★★ THE ENUM CAMPAIGN IS CLOSED. THE TREE IS WHOLE.
 
 ```
-every :reason in the floor log   "positional variant construction is retired; write
-                                  `(:ns::E::V {:field value …})` or `(… {})` for a unit variant"
-the 18 TIMEOUTS                  14 are wat_mcp::* + 2 sigterm + 2 process-label — tests that SPAWN
-                                 a wat process. The child now dies at startup, so the parent waits
-                                 30s for a handshake that never comes. NOT a second defect.
+296 M    an enum variant is constructed by a MAP naming its declared fields, and ONLY that way.
+         (:ns::E::V {:f v}) · (:ns::E::V {}) for unit. POSITIONAL IS REFUSED.
+         Variant construction was the LAST positional constructor in the language.
+296 N    the bare spelling is HERESY. :wat::core::{Some,None,Ok,Err} and the arc-109 :None REFUSE,
+         naming their replacement. All 62 Rust arms across 10 files are GONE — the bare form is
+         UNREPRESENTABLE, not merely unused.
+M2+R1-10 the corpus: 1875 .wat files by the self-hosted codemod, twice, idempotent.
+296 O    {:keys …} destructures EVERY aggregate — defstruct · defrecord · holon::defrecord ·
+         defholon. Verified by RUNNING, not just --check.
 ```
 
-## ⛔⛔ IF A CODEMOD SWEEP IS RUNNING, IT IS NOT HUNG. DO NOT KILL IT.
-
-> `/home/john/work/NOTE-the-codemod-asks-type-of-and-that-is-a-freeze.md` (builder, 2026-09-08)
-
-A full `positional-ctor-to-map.wat` sweep over ~1875 `.wat` files takes **tens of minutes** — eight
-parallel procs, still going at ~40 min / ~1500 files. **THAT IS CORRECT BEHAVIOUR.**
+One shape in all three places, per kind: **wire `#ns/E.V {…}` · pattern `[E::V {:f v} body]` ·
+ctor `(E::V {:f v})`** — and `declare :None []`, an explicit empty field vector.
 
 ```
-the wrap ASKS type-of for declared field names   (it must: byte-observation cannot see
-                                                  defservice/defsurface-generated enums — M2)
-type-of goes through eval-with-defs!
-eval-with-defs! RE-DERIVES THE ENTIRE WORLD PER CALL — by design, the R1/R9 correct-but-slow ORACLE
-  -> every ASK is a freeze; a MISS pays the first freeze AND its retry chain
-     (all decls -> without defservice -> simple type decls -> stdlib)
+M    2447 passed · 2773 FAILED · 18 TIMED OUT   ← no wat program could start
+N 473 · R1 291 · R2 128 · R3 69 · R4 50 · R5 47 · R6 45 · R8 17 · R9 4 · R10 0 · O 5243/5243
 ```
 
-★ **RELAND 1 looked fast because it was SKIPPING.** `rewrite-each` threaded the per-file fmap
-forward and `#seen#<ep>` suppressed later files' asks — that WAS the defect (five `:probe::Outcome`
-declarations, five variant sets, four never asked). RELAND 2's repair un-threaded it and thereby
-**restored the true cost**. Slower-after-the-fix is right.
-
-⚠ Eight parallel procs each pay the `stdlib-fmap` seed startup independently — a cost the
-parallelisation added, not the tool.
-
-⬜ **THE STONE THIS NAMES:** an incremental `type-of` against the already-frozen driver world.
-`eval_form_with_defs`'s own header says the fast data plane "gets built later, behind a differential
-against this." Until then a corpus sweep of this kind is a freeze farm, and it will keep reading as
-"wat is slow" when the bill is "we froze the world a few thousand times to ask what `:Open`'s field
-is called."
-
-## ⛔ THE WAY OUT IS WRITTEN DOWN — `wat/fix.wat:23` THE STASH-DANCE
-
-The codemod that fixes this is itself a `.wat` program, **and no `.wat` program can run.** That
-chicken/egg is documented, and its header says a prior self abandoned the tool because the dance was
-not written down. It is now:
-
-```bash
-1.  git stash push -m "stone M" src/check.rs src/runtime.rs src/types.rs src/record/construct.rs
-2.  cargo build --release                    # OLD checker (accepts positional) + any NEW fix verb
-3.  printf '["pathA" …]\n' | cargo wat ./wat-scripts/fixes/<the-fix>.wat    # EVERY path; a missed
-                                                                            # file breaks the build
-4.  git stash pop
-5.  cargo build --release && scripts/floor.sh
-```
-
-⚠ Dry-run step 3 on a `/tmp` COPY first and `diff` it. ⚠ **`git stash` is load-bearing here — do
-NOT drop it.**
-
-## WHAT IS UNCOMMITTED (all of it correct, none of it committable alone)
+## ⛔ FOUR DEFECTS FOUND THAT WERE NEVER ABOUT ENUMS
 
 ```
-src/types.rs               EnumDef::variant_fields — unit variant -> empty slice
-src/record/construct.rs    try_eval_enum_map_ctor + enum_runtime_value
-src/runtime.rs             intercept in dispatch_keyword_head_value before Function lookup
-src/check.rs               infer_enum_map_ctor before scheme lookup; refuse positional
-tests/types/probe_arc296_enum_map_ctor.rs      the four #[ignore] removed
-docs/…/296…/SCORE-STONE-M-the-enum-ctor-is-a-map.md    grok's score, untracked
+eval_tail TCO bypassed the map-ctor intercept   OURS. Tagged ctors are registered Functions, so
+                                                eval_match_tail trampolined past the intercept.
+                                                Found by REMOVING a consumer-side accommodation.
+Option's OWN DECLARATION corrupted by our       OURS. :None -> :wat::core::Option::None INSIDE its
+rename                                          defenum. type-of named it in ONE command. A
+                                                ONE-TOKEN repair healed 28 tests and proved the
+                                                purity classifier RIGHT to refuse an unresolvable name.
+:wat::rete::query never re-expanded when        PRE-EXISTING. The serve thread invoked a MACRO as a
+macro-spliced into a defservice body            function and died; the client saw Lost; FOUR RELANDS
+                                                read that corpse as migration residue.
+sort$native classifies a comparator BEFORE      PRE-EXISTING. Unmasked by the corruption, then
+any use                                         re-masked by a workaround, then proven compensating
+                                                by REVERTING it and measuring.
 ```
 
-**The corpus migration is NOT "the next stone" — it is the OTHER HALF OF THIS ONE.** They were drawn
-sequentially and that framing was wrong the moment the refusal reddened the loaded world. Section 7's
-atomic-commit pattern governs: A dirty, B against the dirty tree, ONE commit when green.
-
-**The worklist starts at the 659 stdlib sites `--check` already named** (grok's SCORE has the
-per-file and per-enum tables): `journal.wat` 160 · `sqlite-store.wat` 116 · `cache.wat` 96 ·
-`span.wat` 91 · `stdio.wat` 90 · `mem.wat` 80 — and by enum, `RecvOutcome` 125 · `Store::Reply` 44 ·
-`Journal::Reply` 32 · `Outcome` 25. **Then every positional site in `tests/`, `wat-tests/`,
-`wat-scripts/` — the floor will name them.**
-
-## ★★★ WHERE THE CRUSADE IS
+## ⛔ QUEUED — the builder's order
 
 ```
-296 H/J/K/L   enum wire · 26 enums into wat + a wall · aliases + an ORACLE · type-of      ✅
-109 the arm   108 → 38 → 16 → 7 → 0. 1869 files by codemod.                              ✅
-251.8b · 251.9  Identifier stores (ns,name) · a symbol-headed declaration DECLARES       ✅
-109 kwargs    assertion-failed! takes kwargs. 453 files. bare None 5818 → 650 (−5168)    ✅
-296 M         the enum ctor is a MAP; positional REFUSED                    ⛔ IN TREE, UNCOMMITTED
-```
-
-## ⛔ QUEUED — the order is the builder's and it is RULED
-
-```
-1  296 M's SECOND HALF   the corpus migration by wat-fix, via THE STASH DANCE. Blocks everything.
-2  Option/Result         bare-name retirement: None 650 · Some 633 · Err 561 · Ok 365 = 2209
-   completion            THREE spellings legal at once (:None · :wat::core::None ·
-                         :wat::core::Option::None); 62 Rust sites across 10 files keep the bare
-                         one alive; the 4 `builtin_variant` arms (match_arm.rs:159) must DIE so
-                         the bare spelling is UNREPRESENTABLE, not merely unused.
-3  {:keys} on defrecord  A MEASURED 4-cell asymmetry — defstruct gets :keys, defrecord does not,
-                         because arc 257.2's probe only ever exercised defstruct. The measurement
-                         IS the acceptance test. Builder ruled: ITS OWN STONE.
-4  variant <: enum       ONE ENTRY in `subtype_edges` (types.rs:542, a GENERAL map), refused by a
-                         parse-time wall that admits only `:Name <: <nature root>` (types.rs:304).
-                         ⚠ FIRST ACT IS A MEASUREMENT, NOT A DESIGN: can `Shape.Circle` be a type
-                         WITHOUT becoming a second way to spell a record? Likely a NARROWING for
-                         parameter/dispatch position only.
-5  :wat::* whitelist     RE-MEASURED 2026-09-07: 143/833 FAIL (17%), 35 names — NOT the NOTE's
-                         578/599 (96%) and 121. Every special form (`fn` `def` `match` `quote`
-                         `do` `derive`) is at ZERO. Four families; rete numerics are ~87% of sites
-                         at ~11 names. THE NOTE'S FORCED ORDERING NO LONGER HOLDS.
-   head_of residual      runtime.rs:12232, Keyword-only, in eval-with-defs!. Unreachable ONLY
-                         because macro templates emit keyword heads (core.wat:1348/1351/1393; 51
-                         stdlib template sites). THE HEAD MIGRATION REWRITES THOSE. Needs a probe.
-   assertion-span        the kwargs refusal points at the MACRO (assertion.wat:34), not the caller.
+1  variant <: enum      ★ THE SMALL STONE NOW. ONE ENTRY in `subtype_edges`
+                        (types.rs:542, a GENERAL HashMap<String,Vec<String>>), refused by a
+                        parse-time wall admitting only `:Name <: <nature root>` (types.rs:304).
+                        THE REAL QUESTION: is `Variant <: Enum` INHERITANCE? Arc 293 annihilated
+                        inheritance and KEPT subtyping. Inheritance is "Circle inherits Shape's
+                        fields"; Variant<:Enum is TAGGED-UNION MEMBERSHIP — a sum type, not a
+                        hierarchy. Two relations sharing an arrow, and a wall that cannot tell them
+                        apart refuses both.
+                        ⚠ FIRST ACT IS A MEASUREMENT, NOT A DESIGN: can `Shape.Circle` be a type
+                        WITHOUT becoming a second way to spell a record? Likely a NARROWING for
+                        parameter/dispatch position only.
+                        ★ PAYOFF: `defclause` (72 live sites, already the open-surface router)
+                        dispatches PER VARIANT — a DISPATCH answer via an existing entity kind, not
+                        a type-system reach. And `{:keys}` on a variant follows for free from O.
+2  :wat::* whitelist    RE-MEASURED 2026-09-07: 143/833 FAIL (17%), 35 names — NOT the NOTE's
+                        578/599 (96%) / 121. Every special form (fn def match quote do derive) at
+                        ZERO. Four families; rete numerics ~87% of sites at ~11 names.
+                        THE NOTE'S FORCED ORDERING NO LONGER HOLDS.
+3  the head migration   keyword heads -> symbols. 251.9 unblocked it. `head_of` (runtime.rs:12232)
+                        is a Keyword-ONLY closure in eval-with-defs! that will fire the moment
+                        macro templates emit symbol heads (core.wat:1348/1351/1393; 51 sites).
+   incremental type-of  the wrap pays a FREEZE per ASK; eval_form_with_defs's own header says the
+                        fast data plane is owed. A corpus sweep is a freeze farm until then.
+   the scream predicate `pascal-leaf?` asks to-uppercase(c)==c, true of EVERY non-letter, so ~3835
+                        of 9494 screams were operators. 3 real in 9494. Safety net, NOT a worklist.
 ```
 
 ## ⚠ RULINGS — do not re-litigate
 
-- **The enum ctor is a MAP, and only that.** `(:ns::E::V {:field v})` / `(… {})`. Positional dies.
-- **A variant is named the same way in all three places** — wire, pattern, ctor.
-- **The match arm is `[Variant {:k v} body]`, KEY-FIRST.** `{a :x}` is `let` order.
-- **`:keys` is for ONE-SHAPE aggregates** (record · struct · eventually variant). **Match is for
-  many-shape.** Destructuring is total; a match arm is a test that can fail. Do not unify them.
-- **A type wat uses is DECLARED IN WAT** — categorical, not "if it has bitten".
-- **A golden pinning a stdlib line: RECAPTURE, KEEP PINNING.** Do NOT extend the normaliser.
-- **⛔ SIDE BRANCHES DO NOT SERVE US** — 3 parked, 15 days, 0 merged.
-- **⛔ THE RECORD'S SETTLED NUMBERS EXPIRE.** 296 R20 `HAERESIS EST ITERVM ROGARE`. Before a number
-  becomes a premise for an ORDERING, a SCOPE CUT, or a REFUSAL — re-derive it.
+- **An enum ctor is a MAP.** Declare `:None []` · construct `(…::None {})` · match `[…::None {} b]`.
+- **`{:keys}` is for ONE-SHAPE aggregates; match is for many-shape.** Destructuring is total; a
+  match arm is a test that can fail. Do not unify them.
+- **The natures differ in PURITY, not SHAPE** — so a predicate about shape must not ask about nature.
+- **`:keys` is right, not `:attrs`** — it means the declared FIELD NAMES; a record is not a map.
+- **A golden pinning a stdlib line: RECAPTURE, KEEP PINNING.** Never extend the normaliser.
+- **⛔ SIDE BRANCHES DO NOT SERVE US** · **COMMIT LOCALLY OFTEN; PUSH ONLY GREEN.**
 
-## ⛔ THE FAILURE PATTERN — NOW ELEVEN
+## ⛔ THE FAILURE PATTERNS — TWO NOW, AND THE SECOND IS NEW
 
-**I COUNT SOMETHING CORRECTLY AND SAY THE WRONG THING ABOUT WHAT I COUNTED.** Never caught by me:
+**① I COUNT TEXT AND CALL IT A CENSUS.** ~13 instances. The worst: an unvalidated regex put a FALSE
+PROOF into a brief whose own subject was *"use the tool, not hand-inspection"* — `[^{)]` consumed the
+space before a map, so a correctly-migrated form read as positional. The form tree, `macroexpand`,
+`type-of`, and the wall's own error stream were right EVERY time.
 
-```
-25/26 · "no live producer" · "17 .wat.bad" (11) · "4 failures" (108) · nested arms · "[~@ {" ·
-"teach the arm reader"
-  ⑧ THE BISECT — a first-bad commit names where a symptom became VISIBLE, never a cause.
-  ⑨ THE FRAMING — "5816 :wat::core::None" reported as neutral; it was the ILLEGAL spelling's size.
-  ⑩ THE PIPE, 3rd in a day — read a stone's own load-bearing exit code through `| head -5`.
-  ⑪ ★ THE CONTROL-DERIVED BAR WENT VACUOUSLY GREEN. Every probe today derived its bar from a
-    control run in the same test, precisely so no literal could deceive it. Stone M's refusal
-    reddened THE CONTROL — three rows passed on `1 == 1`. THE PEER CAUGHT IT, NOT ME. And my
-    EXPECTATIONS carried a contradiction I never saw: row 1 (`control EXIT=0`) and STOP-5 (don't
-    migrate the corpus) CANNOT BOTH HOLD.
-    ⛔ THE FIX, OWED: measure FIXTURE-LOCAL errors, never the shared exit code.
-```
+**② ★ A FALLING FAILURE COUNT IS NOT CONVERGENCE.** `2773 → 473 → 291 → 128` read as progress for
+THREE RELANDS while a behavioural regression and a corrupted declaration sat underneath it. What
+broke the pattern each time was reading a **VERBATIM failure** instead of a total.
+⛔ **A count going down is not the same as the thing getting better.**
 
-★ **THE CURE: GO TO THE SOURCE, NOT THE BRIEF.** `parse.rs`'s own doc stopped a wrong "7,816" from
-shipping. `EnumValue`'s own comment collapsed three stones into one finding. The disk answers; the
-note remembers.
+★ **AND THE FOUR QUESTIONS OVERTURNED ME THREE TIMES**, always for one reason: I reach for the
+smaller-feeling move and it leaves an exception or a landmine alive. *When you prefer the smaller
+change, check whether the larger one deletes a class.*
 
 ---
 
@@ -193,12 +123,8 @@ note remembers.
 >
 > ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Re-run the commands. Do not read the numbers.
 >
-> ⛔⛔ **NOTHING RUNS, AND THE WORK THAT BROKE IT IS CORRECT.** The instinct on waking to a dead
-> toolchain is to revert. **REVERTING IS A LOSS.** `wat/fix.wat:23` is the way out and it was
-> written for exactly this.
->
-> ✅ **COMMIT LOCALLY BEFORE EVERY RE-ATTEMPT. DO NOT PUSH UNTIL GREEN.** `git log` is the undo
-> buffer; an uncommitted tree has none.
+> ⛔ **GREEN AND QUIET IS THE MOST DANGEROUS STATE THIS FILE DESCRIBES** — no red to stop you, no
+> peer to wait for, nothing external to interrupt a wrong move. `git status` before anything else.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.` ·
 > `HAERESIS EST ITERVM ROGARE.`
