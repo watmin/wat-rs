@@ -207,6 +207,18 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
 
     // 6. Function definitions.
     let mut symbols = SymbolTable::new();
+    // Arc 296 P-1 RELAND-1 — collect `use!` from stdlib AND user residue so
+    // annotation membership can ask the same store call-head resolution asks.
+    // Stdlib `use!` (e.g. wat/sqlite.wat) would otherwise be dropped when
+    // `stdlib_residue` is filtered to runtime-def forms.
+    let mut use_decls = crate::rust_deps::UseDeclarations::new();
+    {
+        let registry = crate::rust_deps::registry();
+        let mut unused = Vec::new();
+        for form in &stdlib_post_types {
+            crate::resolve::collect_use_declarations(form, registry, &mut use_decls, &mut unused);
+        }
+    }
     // Stone 237.8b — capture stdlib residue so defclause forms reach
     // register_runtime_defs.
     let stdlib_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
@@ -240,10 +252,17 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         })
         .collect();
     let mut residue = register_defines(post_types, &mut symbols)?;
-    // Arc 296 P-1 — named-type annotations must name a type. After types AND
-    // user functions are registered so forward references resolve (same
-    // posture as `validate_aggregate_containment`).
-    validate_named_type_annotations(&types, &symbols)?;
+    {
+        let registry = crate::rust_deps::registry();
+        let mut unused = Vec::new();
+        for form in &residue {
+            crate::resolve::collect_use_declarations(form, registry, &mut use_decls, &mut unused);
+        }
+    }
+    // Arc 296 P-1 RELAND-1 — named-type annotations must name a type.
+    // Four stores: TypeEnv::contains ∪ is_builtin_primitive ∪ UseDeclarations::covers
+    // ∪ subtype-edge parents (derive markers). No reserved-prefix skip.
+    validate_named_type_annotations(&types, &symbols, &use_decls)?;
 
     // 6a. Struct auto-methods (ctor only; accessors now in 6.8a).
     register_struct_methods(&types, &mut symbols)?;

@@ -95,12 +95,14 @@ fn t2_legacy_3arg_main_rejected_at_freeze() {
 
 #[test]
 fn t2_slice2_4arg_main_rejected_at_freeze() {
-    // The slice-2-shape (4-arg with argv + ExitCode return) is non-canonical
-    // and rejected at FREEZE. It fails at the CHECK step first — its body
-    // produces :u8 where the signature declares :wat::kernel::ExitCode
-    // (ReturnTypeMismatch) — before reaching the arc-170 param-count wall, so
-    // the rejection surfaces as StartupError::Check (superseding the old
-    // brittle rust-debug ExitCode-diagnostic golden with a structural match).
+    // The slice-2-shape (4-arg with argv) is non-canonical and rejected at
+    // FREEZE. It fails at the CHECK step first — its body produces :u8 where
+    // the signature declares :wat::core::nil (ReturnTypeMismatch) — before
+    // reaching the arc-170 param-count wall, so the rejection surfaces as
+    // StartupError::Check (superseding the old brittle rust-debug
+    // ExitCode-diagnostic golden with a structural match).
+    // Arc 296 P-1 RELAND-1 — `:wat::kernel::ExitCode` was a phantom (retired
+    // 2026-05-10; nil IS the exit code). The fixture now names `:wat::core::nil`.
     let err = startup_from_file(
         "tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat.bad",
     )

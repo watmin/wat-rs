@@ -15247,6 +15247,7 @@ pub(crate) fn validate_aggregate_containment(
 pub(crate) fn validate_named_type_annotations(
     env: &crate::types::TypeEnv,
     symbols: &crate::value::SymbolTable,
+    use_decls: &crate::rust_deps::UseDeclarations,
 ) -> Result<(), TypeError> {
     use crate::declare::typevar::first_unknown_named_type;
     use crate::types::{EnumVariant, SurfaceMember, TypeDef};
@@ -15258,14 +15259,11 @@ pub(crate) fn validate_named_type_annotations(
         ))
     };
 
-    for (name, def) in env.iter() {
-        if crate::resolve::is_reserved_prefix(name) {
-            continue;
-        }
+    for (_name, def) in env.iter() {
         match def {
             TypeDef::Aggregate(a) => {
                 for (_fname, fty) in &a.fields {
-                    if let Some(p) = first_unknown_named_type(fty, &a.type_params, env) {
+                    if let Some(p) = first_unknown_named_type(fty, &a.type_params, env, use_decls) {
                         return refuse(p);
                     }
                 }
@@ -15274,7 +15272,7 @@ pub(crate) fn validate_named_type_annotations(
                 for variant in &e.variants {
                     if let EnumVariant::Tagged { fields, .. } = variant {
                         for (_fname, fty) in fields {
-                            if let Some(p) = first_unknown_named_type(fty, &e.type_params, env) {
+                            if let Some(p) = first_unknown_named_type(fty, &e.type_params, env, use_decls) {
                                 return refuse(p);
                             }
                         }
@@ -15282,18 +15280,18 @@ pub(crate) fn validate_named_type_annotations(
                 }
             }
             TypeDef::Newtype(n) => {
-                if let Some(p) = first_unknown_named_type(&n.inner, &n.type_params, env) {
+                if let Some(p) = first_unknown_named_type(&n.inner, &n.type_params, env, use_decls) {
                     return refuse(p);
                 }
             }
             TypeDef::Alias(a) => {
-                if let Some(p) = first_unknown_named_type(&a.expr, &a.type_params, env) {
+                if let Some(p) = first_unknown_named_type(&a.expr, &a.type_params, env, use_decls) {
                     return refuse(p);
                 }
             }
             TypeDef::Union(u) => {
                 for m in &u.members {
-                    if let Some(p) = first_unknown_named_type(m, &u.type_params, env) {
+                    if let Some(p) = first_unknown_named_type(m, &u.type_params, env, use_decls) {
                         return refuse(p);
                     }
                 }
@@ -15302,7 +15300,7 @@ pub(crate) fn validate_named_type_annotations(
                 for member in &s.members {
                     match member {
                         SurfaceMember::Field { ty, .. } => {
-                            if let Some(p) = first_unknown_named_type(ty, &s.type_params, env) {
+                            if let Some(p) = first_unknown_named_type(ty, &s.type_params, env, use_decls) {
                                 return refuse(p);
                             }
                         }
@@ -15314,11 +15312,11 @@ pub(crate) fn validate_named_type_annotations(
                                 .cloned()
                                 .collect();
                             for (_n, ty) in args.fixed_params.iter() {
-                                if let Some(p) = first_unknown_named_type(ty, &bound, env) {
+                                if let Some(p) = first_unknown_named_type(ty, &bound, env, use_decls) {
                                     return refuse(p);
                                 }
                             }
-                            if let Some(p) = first_unknown_named_type(ret, &bound, env) {
+                            if let Some(p) = first_unknown_named_type(ret, &bound, env, use_decls) {
                                 return refuse(p);
                             }
                         }
@@ -15328,20 +15326,17 @@ pub(crate) fn validate_named_type_annotations(
         }
     }
 
-    for (name, func) in symbols.functions_iter() {
-        if crate::resolve::is_reserved_prefix(name) {
-            continue;
-        }
+    for (_name, func) in symbols.functions_iter() {
         for ty in &func.param_types {
-            if let Some(p) = first_unknown_named_type(ty, &func.type_params, env) {
+            if let Some(p) = first_unknown_named_type(ty, &func.type_params, env, use_decls) {
                 return refuse(p);
             }
         }
-        if let Some(p) = first_unknown_named_type(&func.ret_type, &func.type_params, env) {
+        if let Some(p) = first_unknown_named_type(&func.ret_type, &func.type_params, env, use_decls) {
             return refuse(p);
         }
         if let Some(rest) = &func.rest_param_type {
-            if let Some(p) = first_unknown_named_type(rest, &func.type_params, env) {
+            if let Some(p) = first_unknown_named_type(rest, &func.type_params, env, use_decls) {
                 return refuse(p);
             }
         }

@@ -1,19 +1,19 @@
 ;; tests/collection/list.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Named defns for each WAT-backed test.
 
-(:wat::core::defn :list::length-of-3 [] -> :wat::core::Int
+(:wat::core::defn :list::length-of-3 [] -> :wat::core::i64
   (:wat::linkedlist::length (:wat::core::List 1 2 3)))
 
-(:wat::core::defn :list::length-of-2 [] -> :wat::core::Int
+(:wat::core::defn :list::length-of-2 [] -> :wat::core::i64
   (:wat::linkedlist::length (:wat::core::List 1 2)))
 
 (:wat::core::defn :list::empty-q-of-empty [] -> :wat::core::bool
   (:wat::linkedlist::empty? (:wat::core::List)))
 
-(:wat::core::defn :list::length-3 [] -> :wat::core::Int
+(:wat::core::defn :list::length-3 [] -> :wat::core::i64
   (:wat::linkedlist::length (:wat::core::List 10 20 30)))
 
-(:wat::core::defn :list::length-0 [] -> :wat::core::Int
+(:wat::core::defn :list::length-0 [] -> :wat::core::i64
   (:wat::linkedlist::length (:wat::core::List)))
 
 (:wat::core::defn :list::empty-q-true [] -> :wat::core::bool
@@ -25,7 +25,7 @@
 (:wat::core::defn :list::first-some [] -> :wat::core::bool
   (:wat::core::= (:wat::core::first (:wat::core::List 10 20 30)) 10))
 
-(:wat::core::defn :list::rest-tail-len [] -> :wat::core::Int
+(:wat::core::defn :list::rest-tail-len [] -> :wat::core::i64
   (:wat::linkedlist::length (:wat::core::rest (:wat::core::List 1 2 3))))
 
 (:wat::core::defn :list::conj-prepends [] -> :wat::core::bool

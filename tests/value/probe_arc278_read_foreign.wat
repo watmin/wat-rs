@@ -19,7 +19,7 @@
 ;; :my::compute — read-foreign the nested-unknown EDN, navigate to the NESTED variant's name.
 ;; Proves: read-foreign builds a ForeignRecord; get reaches the :kind field; that field is
 ;; itself a ForeignVariant (recursion); its variant is :Click.
-(:wat::core::defn :my::compute [] -> :wat::core::Keyword
+(:wat::core::defn :my::compute [] -> :wat::core::keyword
   (:wat::core::match
     (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
     [:wat::edn::ReadForeignOutcome::Value {:value fr}

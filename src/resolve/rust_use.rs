@@ -17,7 +17,7 @@ use wat_macros::wat_special_form_impl;
 /// `resolve_references`, called from `freeze.rs` step 7, strictly before evaluation). See
 /// `src/intrinsic/special/use_form.rs`'s module doc for the full finding.
 #[wat_special_form_impl(":wat::core::use!", role = declare)]
-pub(super) fn collect_use_declarations(
+pub(crate) fn collect_use_declarations(
     form: &WatAST,
     registry: &crate::rust_deps::RustDepsRegistry,
     use_decls: &mut crate::rust_deps::UseDeclarations,

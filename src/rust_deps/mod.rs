@@ -294,4 +294,15 @@ impl UseDeclarations {
     pub fn list(&self) -> impl Iterator<Item = &str> {
         self.declared.iter().map(|s| s.as_str())
     }
+
+    /// Prefix coverage: `head` equals a declared type or starts with it
+    /// followed by `::`. Same rule as `resolve/walk.rs` (a `use!` of
+    /// `:rust::lru::LruCache` covers `:rust::lru::LruCache::new`).
+    /// Allocation-free: path segments are ASCII, so `decl.len()` is a
+    /// char boundary.
+    pub fn covers(&self, head: &str) -> bool {
+        self.list().any(|decl| {
+            head == decl || (head.starts_with(decl) && head[decl.len()..].starts_with("::"))
+        })
+    }
 }

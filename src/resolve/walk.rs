@@ -109,10 +109,7 @@ pub(super) fn check_form(
                 // Checked allocation-free (path segments are ASCII, so `decl.len()`
                 // is always a char boundary) rather than building `format!("{decl}::")`
                 // per declaration per call head.
-                let covered = use_decls.list().any(|decl| {
-                    head == decl
-                        || (head.starts_with(decl) && head[decl.len()..].starts_with("::"))
-                });
+                let covered = use_decls.covers(head);
                 if !covered {
                     unresolved.push(UnresolvedReference {
                         path: head.clone(),

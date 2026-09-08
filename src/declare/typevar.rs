@@ -16,6 +16,7 @@
 //! shape), `preregister.rs` (the earlier stub-before-bodies pass).
 
 use crate::declare::parse::is_type_var_path;
+use crate::rust_deps::UseDeclarations;
 use crate::types::{TypeEnv, TypeExpr};
 
 /// Arc 109 — the lexer's type-head predicate, applied to a MINTED name.
@@ -144,14 +145,16 @@ fn walk_type_expr(ty: &TypeExpr, visit_path: &mut dyn FnMut(&str)) {
     }
 }
 
-/// Arc 296 P-1 — first `TypeExpr::Path` in `ty` that is a NAMED type (the third
-/// lexical class: contains `::` or `.`) and is not in `bound` (type-params,
-/// names without `:`) and is not `TypeEnv::contains` ∪ `is_builtin_primitive`.
-/// Type variables (`is_type_var_path`) are accepted without asking the registry.
+/// Arc 296 P-1 RELAND-1 — first `TypeExpr::Path` in `ty` that is a NAMED type
+/// and is in none of the four membership stores:
+/// `TypeEnv::contains` ∪ `is_builtin_primitive` ∪ `UseDeclarations::covers`
+/// ∪ `TypeEnv::is_subtype_parent` (derive markers). Type variables
+/// (`is_type_var_path`) are accepted without asking any store.
 pub(crate) fn first_unknown_named_type(
     ty: &TypeExpr,
     bound: &[String],
     env: &TypeEnv,
+    use_decls: &UseDeclarations,
 ) -> Option<String> {
     let mut found = None;
     walk_type_expr(ty, &mut |p| {
@@ -165,7 +168,11 @@ pub(crate) fn first_unknown_named_type(
         if bound.iter().any(|b| b == stripped) {
             return;
         }
-        if env.contains(p) || crate::runtime::is_builtin_primitive(stripped) {
+        if env.contains(p)
+            || crate::runtime::is_builtin_primitive(stripped)
+            || use_decls.covers(p)
+            || env.is_subtype_parent(p)
+        {
             return;
         }
         found = Some(p.to_string());

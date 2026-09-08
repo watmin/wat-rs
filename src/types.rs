@@ -840,6 +840,15 @@ impl TypeEnv {
     fn subtype_parents(&self, name: &str) -> Option<&[String]> {
         self.subtype_edges.get(name).map(|v| v.as_slice())
     }
+
+    /// Arc 296 P-1 RELAND-1 — is `name` a derive-marker / typesub parent?
+    /// Markers are stored as VALUES of `subtype_edges` (`(derive :Child :Parent)`
+    /// pushes Parent onto Child's parent list) and are not `types` keys.
+    pub(crate) fn is_subtype_parent(&self, name: &str) -> bool {
+        self.subtype_edges
+            .values()
+            .any(|parents| parents.iter().any(|p| p == name))
+    }
 }
 
 /// Heads to try for extend-type edges of a Handle-like parametric: bare `Handle`,
