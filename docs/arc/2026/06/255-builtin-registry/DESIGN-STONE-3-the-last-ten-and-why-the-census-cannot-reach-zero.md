@@ -9,7 +9,18 @@ Two of the ten must **stay refused**. A stone that registers all ten to make a n
 bury the two findings the gate exists to produce. `DESIGN-the-blanket-dies-in-three.md` said this
 about the four type names; it is now literally true of the endgame.
 
-## A · MEMBERSHIP ROWS — 6 census names
+## ⛔ ③ DECOMPOSES BY SHAPE, NOT BY COUNT
+
+```
+③a  the eval CLUSTER — 10 names, one dispatch arm, one family rationale
+③b  :wat::core::stream->pvec — has a scheme AND an arm
+③c  :wat::core::i64/to-string — has an arm and NO scheme; needs a real CONTRACT, not membership
+```
+
+Three different shapes, so three stones. ③a is the population; ③b and ③c are singletons that
+differ from it and from each other.
+
+## A · MEMBERSHIP ROWS — the ③a/③b population
 
 ★ **The arc has already ruled what a row means for a verb that carries a scheme.**
 `src/check.rs:5823`, in its own words:
@@ -43,27 +54,35 @@ population; it enters as one.
 (`runtime.rs:2704`) and **no scheme**. It is a genuine contract-less verb and needs a REAL row,
 not membership. Named separately so it is not swept in with the six above.
 
-## B · CORPUS FIXES — 2 census names, both PHANTOMS
+## B · ⛔ NOT PART OF ③ — THEY ARE STONE ④, AND ④ GATES THE BLANKET
 
-These are not registration candidates. **Nothing implements them.** The blanket is why they
-type-check.
+⚠ **CORRECTED.** These were first written up as "two-line corpus fixes." **Both premises were
+measured and refuted:**
 
 ```
-:wat::kernel::panic!    grep -rn "kernel::panic" src/  →  EMPTY.  The verb is :wat::kernel::raise!
-                        (src/intrinsic/kernel/abort.rs:73)
-                        site: wat-scripts/scratch-pad/arc109-type-equal-acceptance.wat:16,
-                              inside a live `match` arm
-
-:wat::string::=         registered nowhere. The `:wat::string::*` surface has concat/contains?/
-                        empty?/ends-with?/interpolate/join/length/split/starts-with? — and no `=`.
-                        `:wat::rete::string::=` ALIASES TO `:wat::core::=` (vocabulary.rs:1114),
-                        which is the real verb.
-                        sites: wat-scripts/fmt/fixtures/cond-overflow.wat:8,9 — formatter
-                              fixtures, never executed, which is why nobody noticed
+:wat::kernel::panic!   raise! expects :wat::core::Error — `(raise! "a string")` is a
+                       TypeMismatch. Not a substitution; the call site's SHAPE changes.
+:wat::string::=        its file is a FORMATTER FIXTURE consumed by wat-scripts/fmt/run-*.wat
+                       and gated by `every_wat_scripts_file_loads`.
 ```
 
-★ This is arc 255's founding sentence collecting its scalps: *"the undefined-func class dies as a
-SIDE EFFECT of fixing the real defect."* Two live corpus calls to functions that do not exist.
+★★★ And that exposes the real class. `cond-overflow.wat` type-checks **only because of the
+blanket** — the same as the `>X` witness in § C, for a different reason. So this is not hygiene:
+
+> **STONE ④ — the corpus's blanket-dependents. THREE files that type-check only because the
+> blanket accepts any `:wat::*` head, and that will turn `every_wat_scripts_file_loads` RED the
+> moment it dies.** It is a HARD PREREQUISITE of the blanket's death, not a cleanup, and it will
+> fail in a way that reads as an unrelated floor red.
+
+```
+wat-scripts/scratch-pad/arc109-type-equal-acceptance.wat   :wat::kernel::panic!   phantom
+wat-scripts/fmt/fixtures/cond-overflow.wat                 :wat::string::=        phantom
+wat-scripts/scratch-pad/probe-f64-comparator-bogus-head.wat :wat::rete::f64::>X   premise expired
+```
+
+Three files, three DIFFERENT reasons to change — which is why ④ is its own stone and not a rider
+on ③, and why its brief cannot be written until the `Error` shape and the fixture's semantics are
+measured.
 
 ## C · STAYS REFUSED BY DESIGN — 2 census names
 
@@ -88,6 +107,28 @@ type-checks. It must keep failing; that is its job.
 notation and is not live yet. It cannot be registered (the flip has not happened) and it cannot be
 "fixed" (the file exists to measure precisely this). It is refused, correctly, until the dot flip —
 which the seam's ordering caveat puts AFTER the blanket dies.
+
+## The MECHANISM — per-site declaration, never a hand-list
+
+①′ folded `RETE_OPS` because it is a TABLE. The eval cluster has no table: its names live in a
+`match` arm and in a block of `env.register` calls, neither enumerable. **A literal list of ten
+names in the registry builder would be a NEW HAND-LIST** — `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`.
+
+`#[wat_special_form(":name")]` on a unit struct is the shape that avoids it: each name declares
+itself at its own site and `inventory` collects them — how the 52 rete aliases already enter
+(`src/intrinsic/special/rete_alias.rs`). Measured requirements per declaration: prose, `@added`,
+`@Category`, `@Purity`, `@Determinism`, `@Totality`, `@ExpandTime`, `@ret`, and ≥1
+`@example`/`@example-norun`. `@arg` is OPTIONAL — `:wat::core::let` carries `@syntax` and `@ret`
+and no `@arg`, because its arguments are not a fixed list. The eval family is that same shape.
+
+★ The axis candidate, by analogy to `if`/`let` (`src/intrinsic/special/control_flow.rs:26`): the
+eval family runs whatever form it is handed, so `Preserving` on Purity / Determinism / Totality is
+the defensible reading, and the `!` suffix marks that the evaluand MAY be effectful. **Argued, not
+assumed — and if it does not hold for a member, that member is a STOP, not a guess.**
+
+⚠ `@example-norun` is the accepted escape where an input cannot be synthesized inline
+(`:wat::kernel::raise!` uses it), but `[[NOTE-a-norun-example-asserts-nothing]]` stands: prefer a
+runnable example, and say why when you cannot.
 
 ## The arithmetic
 
