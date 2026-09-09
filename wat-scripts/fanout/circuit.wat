@@ -2089,22 +2089,22 @@
   -> :wat::core::String
   (:wat::core::let
     [total (:wat::core::count outs)
-     id-map (:wat::core::foldl
-              (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+     id-set (:wat::core::foldl
+              (:wat::core::fn [acc <- (:wat::core::PersistentSet :- [:wat::core::String])
                                o   <- :fanout::Outcome]
-                -> (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
-                (:wat::hashmap::assoc acc (:fanout::key-of o) true))
-              (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+                -> (:wat::core::PersistentSet :- [:wat::core::String])
+                (:wat::set::conj acc (:fanout::key-of o)))
+              (:wat::core::PersistentSet :- [:wat::core::String])
               outs)
-     w-map (:wat::core::foldl
-             (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+     w-set (:wat::core::foldl
+             (:wat::core::fn [acc <- (:wat::core::PersistentSet :- [:wat::core::String])
                               o   <- :fanout::Outcome]
-               -> (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
-               (:wat::hashmap::assoc acc (:fanout::Outcome/worker o) true))
-             (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
+               -> (:wat::core::PersistentSet :- [:wat::core::String])
+               (:wat::set::conj acc (:fanout::Outcome/worker o)))
+             (:wat::core::PersistentSet :- [:wat::core::String])
              outs)
-     distinct (:wat::core::count (:wat::hashmap::keys id-map))
-     wcount   (:wat::core::count (:wat::hashmap::keys w-map))
+     distinct (:wat::set::length id-set)
+     wcount   (:wat::set::length w-set)
      dup      (:wat::core::- total distinct)]
     (:wat::core::format
       "n={n};m={m};j={j};total={total};distinct={distinct};dup={dup};workers={workers};empty={empty}"
