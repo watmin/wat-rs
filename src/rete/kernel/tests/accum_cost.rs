@@ -695,9 +695,8 @@ fn accum_leftover_split() {
         hash_raw = hash_raw.min(of("hash-join").0 as f64);
         out_raw = out_raw.min(of("OUT: to_persistent").0 as f64);
     }
-    let net = |raw: f64, pairs: u64| raw - pairs as f64 * cal;
-    let kid_net: [f64; 4] = std::array::from_fn(|i| net(kid_raw[i], kid_pairs[i]));
-    let pk_net: [f64; 2] = std::array::from_fn(|i| net(pk_raw[i], pk_pairs[i]));
+    let kid_net: [f64; 4] = std::array::from_fn(|i| net_ns(kid_raw[i], kid_pairs[i], cal));
+    let pk_net: [f64; 2] = std::array::from_fn(|i| net_ns(pk_raw[i], pk_pairs[i], cal));
     // Child timers retired: remainder/tax of those pairs is 0, and
     // the outer `alpha` row *is* honest_alpha (`DESIGN-STONE-retire-alpha-child-marks`).
     let kids_retired = kid_pairs.iter().all(|k| *k == 0);
@@ -712,7 +711,7 @@ fn accum_leftover_split() {
         kid_pairs.iter().map(|k| *k as f64 * cal).sum()
     };
     let honest_alpha: f64 = if kids_retired {
-        net(alpha_raw, alpha_pairs).max(0.0)
+        net_ns(alpha_raw, alpha_pairs, cal).max(0.0)
     } else {
         kid_net.iter().map(|n| n.max(0.0)).sum()
     };
@@ -774,16 +773,16 @@ fn accum_leftover_split() {
         ms(tax_alpha),
         ms(honest_alpha),
         ms(seen_raw),
-        ms(net(seen_raw, seen_pairs)),
+        ms(net_ns(seen_raw, seen_pairs, cal)),
         seen_pairs,
         ms(drop_raw),
-        ms(net(drop_raw, drop_pairs)),
+        ms(net_ns(drop_raw, drop_pairs, cal)),
         drop_pairs,
         ms(accum_raw),
         ms(snap_raw),
         ms(index_raw),
         ms(fold_raw),
-        ms(net(fold_raw, fold_pairs)),
+        ms(net_ns(fold_raw, fold_pairs, cal)),
         fold_pairs,
         ms(prod_raw),
         prod_pairs,
