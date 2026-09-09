@@ -83,6 +83,37 @@ fn a_nonexistent_variant_is_refused() {
     assert_eq!(check("nonexistent_variant"), 1);
 }
 
+/// ⛔ THE ROW THAT CATCHES A SCOPE CUT. A STDLIB enum's variant. RELAND-1 exists because every
+/// other fixture spells `:usr::Box`, so scoping `register_variant_types` to `!is_reserved_prefix`
+/// passed all fourteen rows while excluding `Option`, `Result` and every service `Op`/`Reply` —
+/// the population the capability is FOR.
+#[test]
+#[ignore = "arc 296 A-2 — the ctor erases; and a user-only scope would leave this red"]
+fn a_stdlib_enums_variant_is_a_type_too() {
+    let (code, out) = run_check("stdlib_enum_variant");
+    assert_eq!(code, 0, "(:wat::core::Option::Some {{:value 42}}) must satisfy an \
+        (:wat::core::Option::Some :- [i64]) parameter; got: {out}");
+}
+
+/// ⛔⛔ THE JOIN CONTROL — GREEN TODAY AND MUST STAY GREEN. The builder's canonical conditional
+/// option: two SIBLING variants in one form. Neither is a subtype of the other; their join is
+/// `Option`. It passes now only because the ctor ERASES both branches to the same type. **600 of
+/// RELAND-0's 103 floor failures were this shape, and no fixture had it.** This row is not a
+/// subject — it is the row that can only fail if the stone breaks it.
+#[test]
+fn two_sibling_variants_still_join_in_an_if() {
+    let (code, out) = run_check("sibling_variants_join");
+    assert_eq!(code, 0, "(if b (Option::Some …) (Option::None …)) is the canonical conditional \
+        option; got: {out}");
+}
+
+/// ⛔ THE SAME GAP THROUGH `match` — 277 of the 600 arrived via match arms, not `if`.
+#[test]
+fn two_sibling_variants_still_join_across_match_arms() {
+    let (code, out) = run_check("sibling_variants_join_in_match");
+    assert_eq!(code, 0, "got: {out}");
+}
+
 /// SUBJECT — the builder's `process-full-box`: a function that takes ONLY full boxes and
 /// destructures the payload directly, with no match ceremony to reach a field it has already proved
 /// is there.
