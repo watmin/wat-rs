@@ -14,6 +14,13 @@ use super::super::*;
 use super::{record_token, record_tokens, RoundScratch};
 
 /// Drain the frontier pass 3.6 produced, dispatching the trailing filters.
+// `wm`/`arm`/`scratch`/`d_beta`/`left_idx`/`right_idx`/`sym` are the fire pass's standing working
+// set — the same list `hash_join_delta` and `join_after_filter` carry for the same reason (`sym`
+// so a computed inline operand runs through the one `Op::Eval` core; a context struct would have
+// to be rebuilt at every call site in this per-fact hot path purely to satisfy a lint). This pass
+// adds two of its own: `gather_cache`, the index cache its `:exists`/`:not` dispatch needs, and
+// `after_join_frontier`, which arrives by value because the body consumes it. Nine args, all of
+// them either the shared working set or this pass's own inputs — not an accidental pile.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn filter_after_join(
     wm: &mut FireSession,

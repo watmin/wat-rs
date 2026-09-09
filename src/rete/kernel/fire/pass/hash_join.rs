@@ -500,6 +500,10 @@ phase_end("  ├ hj:step4-term2", __s4);
 /// was never blocked by the `AlphaNews` lifetime — it simply had nowhere to go
 /// while its twin was stuck. Builds and returns the round's `new_tokens`, which
 /// step 4 then extends and step 6 drains.
+// Same working set as `hj_step4_term2` above, extracted from the same nesting-nine block for the
+// same reason — `dl`/`right_idx` play the role `dr`/`left_idx` play there. Keeping the two
+// signatures shaped alike matters more than shaving one field out of one twin via a struct that
+// would still leave the other twin unbundled and drifting out of sync with it.
 #[allow(clippy::too_many_arguments)]
 fn hj_step3_term1(
     sym: &SymbolTable,

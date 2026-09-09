@@ -466,6 +466,13 @@ fn fact_bindings_under<B: Bindings + ?Sized>(
 /// The leaf arm is the hot one and stays on `BindView` — no map is built. Only a COMBINATOR
 /// inner (`and`/`or`/`where`) falls through to `exists_cond_under`, which needs a real `PMap`
 /// seed; that path is rare, and the rune on it records the trade rather than hiding it.
+// `wm`/`compiled_conds`/`scratch`/`sym`/`gather_cache` are the fire engine's exists/not working
+// set — the same five `any_seeded_keyed` and `exists_cond_under` need for the same `Op::Eval` /
+// gather-cache reasons. `driver`/`tok`/`join_keys` are this call's own: which condition, seeded by
+// which token, under which already-hoisted keys. A struct holding the shared five would still
+// leave three call-specific args outside it, and every match arm below forwards the fields it
+// needs to its own callee individually regardless — bundling buys no reduction here, only an
+// extra layer between this fn and the ones it dispatches to.
 #[allow(clippy::too_many_arguments)]
 fn token_exists_under<B: Bindings + ?Sized>(
     driver: &CondDriver,
@@ -2125,6 +2132,12 @@ fn ensure_indexed<'a>(
 }
 
 /// Exists/Not Leaf: probe the token's bucket. Empty bucket is absence (contract clause 2).
+// `sym`/`wm`/`scratch` are the fire engine's `Op::Eval` working set (as elsewhere in this pass);
+// `cache` is the gather-index cache this whole exists/not family shares. `alpha_id`/`seed`/
+// `compiled`/`join_keys` are this probe's own: which leaf, seeded by which token, compiled how,
+// keyed how. Same shape as `token_exists_under` above — the shared refs recur across the
+// recursion but each caller still needs the call-specific ones on their own, so a context struct
+// would wrap four fields and still leave four positional on the hottest function in this family.
 #[allow(clippy::too_many_arguments)]
 fn any_seeded_keyed<B: Bindings + ?Sized>(
     sym: &SymbolTable,

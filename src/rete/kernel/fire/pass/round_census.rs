@@ -22,6 +22,11 @@ use super::super::*;
 
 /// Record one round into the fire census. Reads only; the caller owns
 /// `round_no` and advances it.
+// Nine reads of nine DISTINCT round facts — `wm`/`node_ids` for the round's own facts, the two
+// join indexes and `d_beta` for beta/join counts, `feeding_alpha_of` to resolve alpha ids, plus
+// the caller's `seen`/`round_no`/`this_round_in` bookkeeping — not fields that travel together
+// anywhere else. `#[cfg(test)]`-only, one call site (`fire/delta.rs`): a struct minted to hold
+// nine otherwise-unrelated read-only references would exist only to satisfy this lint.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn record_round_census(
     wm: &FireSession,
