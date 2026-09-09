@@ -101,10 +101,13 @@
 //! three onto `:wat::rete::core::first`, caught immediately by
 //! `rete_name_is_core_name_with_rete_inserted_after_wat` going red (three rows, one name — the
 //! exact class the equality trio already needed an exception for). Same fix, same reasoning:
-//! these three also keep their per-container qualifier. Nine rows total in
-//! `NAMING_RULE_EXCEPTIONS`, not six — "one core verb serving several rete rows" is not a
-//! one-off, it recurs whenever a core op is polymorphic across something the rete surface wants
-//! to monomorphise per-leaf (per-type for equality, per-container for `first`).
+//! these three also keep their per-container qualifier. `NAMING_RULE_EXCEPTIONS` totals
+//! **fourteen** rows today (six original, plus this three-row `first` trio, plus the later enum
+//! quartet and `Tuple` accessors named beside the list below) — enforced by
+//! `naming_rule_exceptions_are_exactly_the_documented_fourteen`, not restated as a number here.
+//! "One core verb serving several rete rows" is not a one-off, it recurs whenever a core op is
+//! polymorphic across something the rete surface wants to monomorphise per-leaf (per-type for
+//! equality, per-container for `first`).
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -1842,8 +1845,8 @@ mod naming_rule_tests {
         }
     }
 
-    /// The exception list itself is exactly the eleven rows the module doc names — no more, no
-    /// fewer. Catches the exception set silently growing (a real collision nobody explained) or
+    /// The exception list itself is exactly the fourteen rows frozen below — no more, no fewer.
+    /// Catches the exception set silently growing (a real collision nobody explained) or
     /// shrinking without the corresponding row being deleted.
     ///
     /// The exception NAMES are frozen (this list) AND counted. A silent

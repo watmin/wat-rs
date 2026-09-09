@@ -305,3 +305,129 @@ fn the_import_door_still_does_not_call_the_termination_verifier() {
          AST to walk it can only answer `NotAnalysable`."
     );
 }
+
+/// `matcher::enum_variant_ctor`'s doc said "THREE independent sites" wrote this resolution by
+/// hand before it was unified; a fourth (`validate/typing.rs`'s `classify_keyword_constant`,
+/// added by D1 on 2026-08-31) was never folded into the count. Re-derived 2026-09-08 (strike
+/// `strike-header-claims-gated-or-gone`, row `2R1`): grepping the fully-qualified call form
+/// finds four, not three, and `validate/typing.rs`'s own doc already calls itself "the fourth...
+/// site" — only `matcher.rs`'s prose had not caught up.
+#[test]
+fn enum_variant_ctor_still_has_exactly_the_four_documented_callers() {
+    let want: [(&str, &str); 4] = [
+        ("src/rete/purity.rs", "purity's constructor_meta"),
+        ("src/rete/expr_ir/mod.rs", "the lowerer"),
+        ("src/rete/validate/mod.rs", "walk_nested_constructors"),
+        ("src/rete/validate/typing.rs", "classify_keyword_constant"),
+    ];
+
+    let mut found: Vec<&str> = Vec::new();
+    for (rel, _) in &want {
+        let src = rete_source(rel);
+        // The fully-qualified call form: comments referring to the function use backticks
+        // (`` `matcher::enum_variant_ctor` ``, no `crate::rete::` prefix, no paren), so this
+        // substring matches CALLS only, never prose about the function.
+        let hits = src.matches("crate::rete::matcher::enum_variant_ctor(").count();
+        assert!(
+            hits <= 1,
+            "{rel} now calls `enum_variant_ctor` {hits} times — matcher.rs's doc names one call \
+             per site; a second call in the same file means the count and the per-site story both \
+             need re-deriving"
+        );
+        if hits == 1 {
+            found.push(rel);
+        }
+    }
+
+    assert_eq!(
+        found.len(),
+        4,
+        "expected all four documented sites ({want:?}) to call `enum_variant_ctor` exactly once \
+         each; found calls in {found:?}. `matcher.rs`'s doc above `enum_variant_ctor` must be \
+         updated alongside this test if a site was added, removed, or renamed."
+    );
+}
+
+/// `outcome.rs`'s doc used to cite the query path's call to `fire_fixpoint_delta_armed` at
+/// `fire/rules.rs:425` — a LINE NUMBER, which rotted: by the time this was re-derived (strike
+/// `strike-header-claims-gated-or-gone`, row `R1`, 2026-09-08), line 425 was a session-field data
+/// literal three lines above the real call (line 433). A line number is not a fact a future edit
+/// preserves; a function name is closer to one, and the call-site COUNT is the actual structural
+/// claim ("it has four call sites across three doors") — both are pinned here instead.
+#[test]
+fn fire_fixpoint_delta_armed_still_has_exactly_its_four_documented_call_sites() {
+    fn calls_in(rel: &str) -> Vec<(usize, String)> {
+        rete_source(rel)
+            .lines()
+            .enumerate()
+            .filter(|(_, l)| {
+                l.contains("fire_fixpoint_delta_armed(") && !l.trim_start().starts_with("pub(crate) fn ")
+            })
+            .map(|(i, l)| (i + 1, l.trim().to_string()))
+            .collect()
+    }
+
+    let mod_calls = calls_in("src/rete/kernel/fire/mod.rs");
+    let delta_calls = calls_in("src/rete/kernel/fire/delta.rs");
+    let rules_calls = calls_in("src/rete/kernel/fire/rules.rs");
+
+    assert_eq!(
+        mod_calls.len(),
+        1,
+        "the `fire-once` door's call to `fire_fixpoint_delta_armed` moved or multiplied in \
+         fire/mod.rs: {mod_calls:?}"
+    );
+    assert_eq!(
+        delta_calls.len(),
+        1,
+        "the `fire-rules` unstratified delegation (`fire_fixpoint_delta` -> \
+         `fire_fixpoint_delta_armed`) moved or multiplied in fire/delta.rs: {delta_calls:?}"
+    );
+    assert_eq!(
+        rules_calls.len(),
+        2,
+        "fire/rules.rs should carry exactly two call sites — the `fire-rules` stratified \
+         per-stratum call and the query path's call — found {rules_calls:?}"
+    );
+
+    // The query path specifically, by FUNCTION rather than by line: this is the exact claim
+    // that rotted under a line-number citation.
+    let rules_src = rete_source("src/rete/kernel/fire/rules.rs");
+    let fn_start = rules_src
+        .find("fn harvest_stratified_queries")
+        .expect("`harvest_stratified_queries` is gone from fire/rules.rs");
+    let fn_body = &rules_src[fn_start..];
+    let fn_end = fn_body.find("\n}\n").unwrap_or(fn_body.len());
+    let still_calls_it = fn_body[..fn_end].matches("fire_fixpoint_delta_armed(").count() >= 1;
+    assert!(
+        still_calls_it,
+        "`harvest_stratified_queries` no longer calls `fire_fixpoint_delta_armed` — `outcome.rs`'s \
+         header names this function as the query path's door; if it moved, update the header \
+         alongside this test"
+    );
+}
+
+/// `arm.rs:706`'s `DESIGN-STONE-intern-zero-mutex` "THE ONE CONTRACT: Session stays 8 fields",
+/// and `kernel/mod.rs`'s module doc repeating the same 8, were both true and both unenforced
+/// (vigilia 2026-09-07, row `R2`) — the identical unasserted-totality class this file exists to
+/// close, one door over from `FireCtx`'s field count above, which already is gated.
+#[test]
+fn session_record_field_count_matches_its_doc() {
+    let src = rete_source("wat/rete.wat");
+    let start = src
+        .find("defrecord :wat::rete::Session")
+        .expect("`:wat::rete::Session` defrecord is gone from wat/rete.wat");
+    let body = &src[start..];
+    let end = body
+        .find("\n\n")
+        .expect("Session defrecord block never ends (no blank line found after it)");
+    let fields = body[..end].matches("<-").count();
+
+    assert_eq!(
+        fields, 8,
+        "`:wat::rete::Session`'s defrecord has {fields} fields; `arm.rs`'s \
+         DESIGN-STONE-intern-zero-mutex ONE CONTRACT and `kernel/mod.rs`'s module doc both say 8. \
+         Update all three together — the zero-mutex intern design (no lease/version field carried \
+         on Session) is the actual invariant this number stands in for."
+    );
+}

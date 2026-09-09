@@ -20,9 +20,11 @@
 //! module converts it at the verb boundary. That raise is **rust-to-rust**: it never reaches wat,
 //! because every wat-facing fire verb passes through here. The wall is at the LANGUAGE boundary,
 //! which is where totality is owed. Pushing the enum down into `fire_fixpoint_delta_armed` itself
-//! is the tidier shape and is deliberately NOT done yet — it has three callers (`fire-once`,
-//! `fire-rules`, and the query path at `fire/rules.rs:425`), so it becomes worth doing when the
-//! second door arrives, not on the strength of one.
+//! is the tidier shape and is deliberately NOT done yet — it has four call sites across three
+//! doors (`fire-once` in `fire/mod.rs`; `fire-rules`'s stratified and unstratified paths, in
+//! `fire/rules.rs` and `fire/delta.rs` respectively; and the query path in `fire/rules.rs`'s
+//! `harvest_stratified_queries`), so it becomes worth doing when a fourth door arrives, not on
+//! the strength of one.
 //!
 //! ⛔ **DO NOT ADD A SECOND CONVERSION SITE.** If a new fire verb needs an outcome, call
 //! [`fire_result_to_outcome`]. Two places deciding which breach maps to which arm is the drift

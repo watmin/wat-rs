@@ -112,21 +112,25 @@ pub(crate) fn aggregate_field_names(
 /// Resolve a bare `{EnumPath}::{Variant}` head against the frozen registry.
 ///
 /// ONE COPY. This resolution — `rsplit_once("::")`, registry `get`, match `TypeDef::Enum`,
-/// find the variant by name across `Unit`/`Tagged` — was hand-written at THREE independent
+/// find the variant by name across `Unit`/`Tagged` — was hand-written at FOUR independent
 /// sites: `purity.rs`'s `constructor_meta` (is this head pure/deterministic/total?),
-/// `expr_ir/mod.rs`'s lowerer (what arity must the call match?), and `validate/mod.rs`'s
-/// `walk_nested_constructors` (does the written arity agree?). `validate/mod.rs`'s own comment
-/// admitted it "mirrors `constructor_meta`'s own resolution".
+/// `expr_ir/mod.rs`'s lowerer (what arity must the call match?), `validate/mod.rs`'s
+/// `walk_nested_constructors` (does the written arity agree?), and `validate/typing.rs`'s
+/// `classify_keyword_constant` (is a bare keyword constant a unit variant? — the fourth,
+/// hand-written site, and the only one that disagreed with the runtime; D1, 2026-08-31).
+/// `validate/mod.rs`'s own comment admitted it "mirrors `constructor_meta`'s own resolution".
 ///
 /// Verified AGREEING before unification, unlike the `CallFallback` triplication earlier in
 /// this arc, which looked identical and was a live native-vs-oracle divergence. Same shape,
 /// different luck — which is the reason to collapse them rather than to trust the next one.
-/// The three callers still differ in what they DO with the answer, and that part stays
+/// The four callers still differ in what they DO with the answer, and that part stays
 /// theirs: purity returns an `OpMeta`, the lowerer raises `LowerError` on a mismatch, the
-/// validator pushes a `ReteCheckError`.
-/// Returns `(the enum, the variant name, its arity)` — all three, because the three callers
+/// validator pushes a `ReteCheckError`, and `typing.rs` classifies the constant as a unit
+/// variant or falls through to keyword.
+/// Returns `(the enum, the variant name, its arity)` — all three, because the four callers
 /// need different parts: the lowerer wants the `EnumDef` to reach `variant_names_arc`, the
-/// validator wants the arity, and the purity classifier only wants to know it resolved.
+/// validator wants the arity, the purity classifier only wants to know it resolved, and
+/// `typing.rs` wants only the arity, to test it against zero.
 pub(crate) fn enum_variant_ctor<'a>(
     types: &'a crate::types::TypeEnv,
     head: &'a str,

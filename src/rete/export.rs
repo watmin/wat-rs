@@ -2271,10 +2271,11 @@ fn check_node_graph(network: &Value, span: &Span) -> Result<(), EvalBreak> {
 ///    separate calls: the key does not exist until phase 4 has run, and a reading taken here would
 ///    exclude every phase above.
 ///
-/// Its 194 lines are phase COUNT rather than depth — brace nesting peaks at 3 inside the body,
+/// Its size is phase COUNT rather than depth — brace nesting peaks at 3 inside the body,
 /// and every level of it is a `for` over one table's pairs. Splitting it would put six one-caller
 /// helpers between a gate and the gate that must follow it, which is the ordering the phase list
-/// above exists to make legible.
+/// above exists to make legible. (No line count here: it moves on every edit and a gate that
+/// checked it would mean nothing — see `rete_header_claims_are_asserted.rs`'s header.)
 fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     // ★ THE SESSION'S ZERO POINT, CAPTURED BEFORE IT CAN BE FILED. See phase 8 below and
     // `alloc_counter::mark_session_origin_at` for why the reading and the filing are split: the
