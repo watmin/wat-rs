@@ -70,7 +70,6 @@ fn a_phantom_in_argument_position_is_already_refused() {
 
 /// SUBJECT — the head of a parametric annotation names nothing, and is accepted.
 #[test]
-#[ignore = "arc 296 P-1b — walk_type_expr's Parametric arm never visits the head"]
 fn a_phantom_parametric_head_is_refused() {
     assert_eq!(
         check("parametric_head_phantom"),

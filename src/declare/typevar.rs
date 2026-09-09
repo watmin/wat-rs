@@ -17,7 +17,7 @@
 
 use crate::declare::parse::is_type_var_path;
 use crate::rust_deps::UseDeclarations;
-use crate::types::{TypeEnv, TypeExpr};
+use crate::types::{parametric_head_fqdn, TypeEnv, TypeExpr};
 
 /// Arc 109 — the lexer's type-head predicate, applied to a MINTED name.
 ///
@@ -120,6 +120,7 @@ fn walk_free_type_vars(ty: &TypeExpr, seen: &mut Vec<String>) {
             }
         },
         &mut |_| {},
+        &mut |_| {},
     );
 }
 
@@ -127,26 +128,34 @@ fn walk_free_type_vars(ty: &TypeExpr, seen: &mut Vec<String>) {
 /// `Fn.args`+`Fn.ret` / `Tuple` elements). [`walk_free_type_vars`] and
 /// [`first_unknown_named_type`] are visitors, not walkers.
 ///
-/// Arc 296 A-1 — `TypeExpr::Var` is reported through `visit_var` so
-/// "contains an unsolved unification variable?" shares this recursion
-/// rather than a fifth walker.
-fn walk_type_expr(ty: &TypeExpr, visit_path: &mut dyn FnMut(&str), visit_var: &mut dyn FnMut(u64)) {
+/// Arc 296 A-1 — `TypeExpr::Var` is reported through `visit_var`.
+/// Arc 296 P-1b — a parametric HEAD is reported through `visit_head`, as an
+/// FQDN (`parametric_head_fqdn`: storage is colon-free). The free-var
+/// caller ignores it — a head is not a type variable.
+fn walk_type_expr(
+    ty: &TypeExpr,
+    visit_path: &mut dyn FnMut(&str),
+    visit_var: &mut dyn FnMut(u64),
+    visit_head: &mut dyn FnMut(&str),
+) {
     match ty {
         TypeExpr::Path(p) => visit_path(p),
-        TypeExpr::Parametric { args, .. } => {
+        TypeExpr::Parametric { head, args } => {
+            let fqdn = parametric_head_fqdn(head);
+            visit_head(&fqdn);
             for a in args {
-                walk_type_expr(a, visit_path, visit_var);
+                walk_type_expr(a, visit_path, visit_var, visit_head);
             }
         }
         TypeExpr::Fn { args, ret } => {
             for a in args {
-                walk_type_expr(a, visit_path, visit_var);
+                walk_type_expr(a, visit_path, visit_var, visit_head);
             }
-            walk_type_expr(ret, visit_path, visit_var);
+            walk_type_expr(ret, visit_path, visit_var, visit_head);
         }
         TypeExpr::Tuple(elements) => {
             for e in elements {
-                walk_type_expr(e, visit_path, visit_var);
+                walk_type_expr(e, visit_path, visit_var, visit_head);
             }
         }
         TypeExpr::Var(id) => visit_var(*id),
@@ -169,6 +178,7 @@ pub(crate) fn contains_type_var(ty: &TypeExpr) -> bool {
         &mut |_| {
             found.set(true);
         },
+        &mut |_| {},
     );
     found.get()
 }
@@ -188,27 +198,69 @@ pub(crate) fn first_unknown_named_type(
     env: &TypeEnv,
     use_decls: &UseDeclarations,
 ) -> Option<String> {
-    let mut found = None;
-    walk_type_expr(ty, &mut |p| {
-        if found.is_some() {
-            return;
-        }
-        if is_type_var_path(p) {
-            return;
-        }
-        let stripped = p.strip_prefix(':').unwrap_or(p);
-        if bound.iter().any(|b| b == stripped) {
-            return;
-        }
-        if env.contains(p)
-            || crate::runtime::is_builtin_primitive(stripped)
-            || use_decls.covers(p)
-            || env.is_subtype_parent(p)
-        {
-            return;
-        }
-        found = Some(p.to_string());
-    }, &mut |_| {});
-    found
+    let found = std::cell::RefCell::new(None);
+    walk_type_expr(
+        ty,
+        &mut |p| consider_named_path(p, &found, bound, env, use_decls),
+        &mut |_| {},
+        &mut |h| consider_named_path(h, &found, bound, env, use_decls),
+    );
+    found.into_inner()
+}
+
+/// Shared named-type check for Path nodes and parametric heads. A head is
+/// not special-cased — same four-store union, same type-var / bound-param
+/// accepts.
+fn consider_named_path(
+    p: &str,
+    found: &std::cell::RefCell<Option<String>>,
+    bound: &[String],
+    env: &TypeEnv,
+    use_decls: &UseDeclarations,
+) {
+    if found.borrow().is_some() {
+        return;
+    }
+    if is_type_var_path(p) {
+        return;
+    }
+    let stripped = p.strip_prefix(':').unwrap_or(p);
+    if bound.iter().any(|b| b == stripped) {
+        return;
+    }
+    if env.contains(p)
+        || crate::runtime::is_builtin_primitive(stripped)
+        || use_decls.covers(p)
+        || env.is_subtype_parent(p)
+    {
+        return;
+    }
+    *found.borrow_mut() = Some(p.to_string());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Arc 296 P-1b row 11 — a parametric HEAD is not a free type variable.
+    /// If this fails, every parametric annotation auto-generalizes.
+    #[test]
+    fn collect_free_type_vars_ignores_a_var_shaped_parametric_head() {
+        // ⛔ THE DISCRIMINATING PIN. The head is `T` — VAR-SHAPED. The sibling test's head contains "::" so
+        // is_type_var_path rejects it regardless of whether heads are visited; only this one can
+        // actually fail if visit_head is ever wired to the free-var visitor.
+        let ty = TypeExpr::Parametric { head: "T".into(), args: vec![TypeExpr::Path(":U".into())] };
+        assert_eq!(collect_free_type_vars_in(&[ty]), vec!["U".to_string()]);
+    }
+
+    #[test]
+    fn collect_free_type_vars_ignores_parametric_head() {
+        let ty = TypeExpr::Parametric {
+            head: "usr::TotallyMadeUp".into(),
+            args: vec![TypeExpr::Path(":T".into())],
+        };
+        let seen = collect_free_type_vars_in(&[ty]);
+        assert_eq!(seen, vec!["T".to_string()]);
+    }
 }
 
