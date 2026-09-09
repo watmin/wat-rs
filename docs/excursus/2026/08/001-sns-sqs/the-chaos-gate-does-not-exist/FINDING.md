@@ -99,3 +99,101 @@ is. A resilience property tuned to an idle machine is a finding in its own right
    plausibly gate; the two n=2000 ones take ~31 s and cannot. Any that stay ignored need a
    **checkable reason**, per the existing lint's own standard.
 5. ⚠ Do **not** widen a rate, a cap, or a timeout to make a red go green. The reds are the product.
+
+---
+
+# ⭑ THE INVESTIGATION — read on the disk, not reasoned
+
+## ⛔⛔ THE HARNESS HAS A HOLE EXACTLY WHERE THE NEWEST SAFETY PROPERTY LIVES
+
+`circuit.wat:2168` — the **subscriber** queues, built in a fold:
+
+```
+:record (:queue::queue::Record :cap sub-cap :store-addr … 
+          :drop-recv-bp drop-recv-bp :drop-ack-bp drop-ack-bp :drop-seed drop-seed)
+```
+
+`circuit.wat:2178` — the **inbox** queue:
+
+```
+:record (:queue::queue::Record :cap 64 :store-addr …
+          :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0)     ← HARDCODED ZERO
+```
+
+**Fault injection reaches tier 2 only. Tier 1 — the inbox — can never drop anything.**
+
+★★ Which means **the inbox stone's safety property has never been executed.** `ack-after-sends`
+with `ok = min over subscribers`, the thing `e0c552bf0` was written to protect and whose comment says
+*"reverse the order and a crash mid-expansion loses the message SILENTLY"* — is verified by **reading
+the code only.** No test can reach it as this harness is wired, because reaching it requires the
+inbox's own receive or ack to fail, and both are pinned to zero.
+
+## ⛔ And the code that would handle it is untested and silent
+
+`sns-fanout.wat`, the worker's inbox-ack arms:
+
+```
+((RecvOutcome::Message _ar)  inbox)               ← success, keep the peer
+((RecvOutcome::Lost _cause)  → reconnect)          ← continues
+(RecvOutcome::Stopped        → assertion-failed!)
+((RecvOutcome::Closed)       → reconnect)          ← continues
+((RecvOutcome::TimedOut)     → reconnect)          ← continues
+```
+
+Three of the five arms **reconnect and move on. No retry of the ack, and no counter incremented.**
+So a lost inbox-ack reply would be absorbed *invisibly* — which is why `ack-retries=0` and
+`ack-exhausted=0` are not reassuring: those counters live in the circuit's consumer, not here, and
+this path has no counter at all.
+
+⚠ **This code is on the safety-critical path and is currently unreachable by any test.**
+
+## The queue applies the mutation, then drops the reply
+
+`sqs.wat:1097`, reached **after** the store delete has already returned:
+
+```
+(:wat::service::Outcome::Continue s-a
+  (:wat::core::if hit? :wat::core::None                     ← reply suppressed
+                       (Some (Reply::Ack (AckResponse::Ok)))))
+```
+
+So a "dropped ack" is a **lost reply to a completed mutation**, not a lost mutation. The rows are
+gone; only the acknowledgement vanished. That is the right fault to model (it is what a network
+partition after commit looks like), and it makes ack idempotence the property under test.
+
+## ⚠ The `outbox=19` chain — a HYPOTHESIS, labelled, with its test named
+
+Because the drops are on tier 2, the inbox backing up is a **downstream consequence**, not a direct
+fault. The chain that fits every number observed:
+
+1. A consumer's ack to a sub queue is applied but its reply is lost.
+2. The consumer treats the ack as unfinished; the sub entry stays until visibility expiry.
+3. Sub queues retain entries and approach **`sub-cap 32`**.
+4. A full sub queue **refuses** the worker's fan-out send, so `ok = min over subs` falls.
+5. The worker therefore acks **less of the inbox** — by design, that is the safety property working.
+6. The inbox stops draining. `outbox=19` at budget exhaustion.
+
+★ **This is not established.** It is consistent with `[0/0][0/0]` (subs eventually drain) and with
+every retry counter reading zero (the counters that would move live on paths the drops never touch).
+**Its test: vary `sub-cap` alone and see whether `outbox` tracks it.** If raising `sub-cap` clears
+the 19, the chain holds and this is a *liveness/backpressure* interaction, not message loss. If it
+does not, the hypothesis dies and something else is holding the inbox.
+
+## What the investigation changes about the stone
+
+The stone I sketched asked "lost or slow?". The investigation says ask two questions, and the second
+is bigger:
+
+1. **Is it backpressure?** Vary `sub-cap` alone (32 → 64 → 128) at fixed seed and rate. `outbox`
+   tracking `sub-cap` confirms the chain. **Do not** raise it as a fix — raise it as an instrument,
+   then put it back.
+2. ⛔ **Wire the inbox into the fault injection.** `circuit.wat:2178`'s three hardcoded zeros are the
+   reason tier 1's safety property is untested. Passing the same knobs there — or a separate pair —
+   makes `ack-after-sends` and `ok = min` reachable for the first time. **That is the stone with the
+   most value in it**, because it tests the newest and least-exercised invariant in the system.
+3. Give the seven scenarios assertions (`distinct = n×m`, `dup = 0`) so they can fail on their own
+   rather than only when the wat raises.
+4. Rule on their ignore status against the 30 s wall: the five tiny ones run 8–10 s; the two n=2000
+   ones take ~31 s and cannot gate.
+
+⛔ Still: do not widen a rate, a cap, or a timeout to turn a red green. The reds are the product.
