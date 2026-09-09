@@ -125,6 +125,11 @@ AXES=("$@")
 if [ ${#AXES[@]} -eq 0 ]; then AXES=("${ORDER[@]}"); fi
 
 rc=0
+COMPLETED=0
+# Captures every #grid/Verdict line from every axis, so the tally below can see them, WITHOUT
+# changing what reaches our own stdout: `tee` still streams the exact same lines through, in the
+# exact same order, that a bare `bash run-axis.sh` would have written directly.
+ALL_OUT="$(mktemp)"; trap 'rm -f "$ALL_OUT"' EXIT
 for axis in "${AXES[@]}"; do
   spec="${LADDER[$axis]:-}"
   if [ -z "$spec" ]; then
@@ -136,10 +141,24 @@ for axis in "${AXES[@]}"; do
   echo "── $axis ──────────────────────────────────────────────" >&2
   # A failing axis must not abort the sweep — the whole point is the WHOLE grid, and a broken
   # axis is itself a finding. Record it and carry on.
-  if ! bash "$GRID_DIR/run-axis.sh" "$axis" "${rungs[@]}"; then
-    echo "run-all: axis '$axis' FAILED (rc=$?) — see its stderr above" >&2
+  if bash "$GRID_DIR/run-axis.sh" "$axis" "${rungs[@]}" | tee -a "$ALL_OUT"; then
+    COMPLETED=$(( COMPLETED + 1 ))
+  else
+    axis_rc=$?
+    echo "run-all: axis '$axis' FAILED (rc=$axis_rc) — see its stderr above" >&2
     rc=1
   fi
 done
+
+# ── THE SUMMARY TALLY, PROMISED AT THE TOP OF THIS FILE AND NEVER BUILT ────────────────────────
+# `ACCURACY`/`ORACLE_ACCURACY`/`PORT_ACCURACY` (run-axis.sh) never reach THIS script's exit
+# code — that wiring is `3T1`, a separate row, deliberately untouched here. This tally is where
+# that signal becomes visible at all: on stderr, without touching the exit code.
+VERDICTS=$(grep -c '^#grid/Verdict' "$ALL_OUT" || true)
+MATCHES=$(grep -c ':match' "$ALL_OUT" || true)
+MISMATCHES=$(grep -c ':MISMATCH' "$ALL_OUT" || true)
+echo "run-all: TALLY — axes $COMPLETED/${#AXES[@]} completed, $VERDICTS verdict(s) emitted," \
+     "$MATCHES :match, $MISMATCHES :MISMATCH (:accuracy + :oracle-accuracy + :port-accuracy" \
+     "combined)" >&2
 
 exit $rc
