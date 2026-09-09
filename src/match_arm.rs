@@ -34,7 +34,6 @@ pub enum MatchArm<'a> {
     },
     Binding {
         ident: &'a Identifier,
-        ident_span: &'a Span,
         body: &'a WatAST,
     },
     /// 2-element literal arm: `[0 false]`, `[true body]`, … — the delimiter
@@ -82,11 +81,7 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
         }),
         WatAST::Vector(items, span) => match items.as_slice() {
             [WatAST::Symbol(s, _), body] if s.as_str() == "_" => Ok(MatchArm::Wildcard { body }),
-            [WatAST::Symbol(s, ident_span), body] => Ok(MatchArm::Binding {
-                ident: s,
-                ident_span,
-                body,
-            }),
+            [WatAST::Symbol(s, _), body] => Ok(MatchArm::Binding { ident: s, body }),
             [WatAST::Map(pairs, _), body] => Ok(MatchArm::HashDestructure { pairs, body }),
             [pat, body] if is_literal_ast(pat) => Ok(MatchArm::Literal { pat, body }),
             [WatAST::Keyword(k, path_span), WatAST::Map(pairs, _), body]
