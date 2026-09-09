@@ -1,103 +1,131 @@
-# ⛔ NOTE — the blanket census does NOT reproduce, and `registry().contains` is not its replacement
+# ⛔ CORRECTED 2026-09-09 — THE HEADLINE BELOW WAS WRONG. THE CENSUS REPRODUCES.
 
-**2026-09-09, re-derived on a quiescent tree at HEAD `74951196a`** (clean, 0 unpushed, floor
-5292/5292, clippy 0). `HAERESIS EST ITERVM ROGARE` — the settled number was re-asked and it moved.
+**This NOTE was published claiming the 143/35 census did not reproduce. It does. My instrument was
+defective, and the defect is the finding worth keeping.** The original text is preserved below the
+correction, because the wrong instrument is the whole lesson.
 
-## The instrument
+## The instrument defect — an early `return` that short-circuits four checks
 
-`DESIGN-the-blanket-dies-in-three.md` and `BRIEF-STONE-resolve-asks-the-registry.md` scope the whole
-queue from **143 of 845 files · 35 distinct names**. That instrument was recorded as preserved at the
-session scratchpad; **the scratchpad was empty** — the reboot wiped it. Rebuilt from the brief's own
-recipe, `src/resolve/walk.rs`:
+`is_resolvable_call_head` (`src/resolve/walk.rs:269`) is a CHAIN. The blanket is its FIRST rung and
+it is an **early return**:
 
 ```rust
-if is_reserved_prefix(head) {
-    return crate::intrinsic::registry().lookup_entry(head).is_some();   // the brief's recipe
+if is_reserved_prefix(head) { return true; }   // ← never falls through
+if sym.get(head).is_some() { return true; }    // 2628 stdlib + user functions
+if sym.has_unit_variant(head) { return true; }
+if macros.contains(head) { return true; }
+/* surface methods, single-segment accessors */
+```
+
+On clean main the blanket returns `true`, so the four rungs below it **never mattered for a
+reserved-prefix name**. `BRIEF-STONE-resolve-asks-the-registry.md`'s recipe —
+
+```rust
+return registry().lookup_entry(head).is_some();   // ⛔ still an early RETURN
+```
+
+— keeps the early return and makes it return **`false`**, which severs `sym.get` and the three rungs
+under it for every `:wat::*` name in the corpus. That is not "resolve asks the registry." That is
+"resolve asks the registry INSTEAD OF everything else."
+
+## The measurement, both ways, same tree, same 845 files
+
+```
+                                                    files    names
+clean main (baseline)                                  36        —
+⛔ registry as an early RETURN   (the brief's text)    600      309
+✅ registry as a GATE, falling through                  97       14
+```
+
+`845 = wat-scripts/ (702) + wat-tests/ (81) + wat/ (62)`. The arc's own 2026-09-07 figure was
+**143/35**; the fall-through instrument now measures **97/14**, and the difference is stone ①′ (the
+membership facet, +75 rete names) landing in between. **The census held, and got better.**
+
+The corrected instrument, verbatim:
+
+```rust
+if is_reserved_prefix(head) && crate::intrinsic::registry().contains(head) {
+    return true;
 }
+// fall through to sym.get / unit variants / macros / surface methods
 ```
 
-Scope recovered exactly: `845 = wat-scripts/ (702) + wat-tests/ (81) + wat/ (62)`.
+★ **The terminal step of the queue must be written this way.** "Delete the blanket and let `resolve`
+ask `registry().contains`" is ambiguous between the two shapes above, and the shapes differ by
+**564 files**. The blanket does not become a *replacement*; it becomes a **gate that falls through**.
 
-## The measurement — it does not reproduce
-
-```
-clean main, 845 files                       36 refuse   (the standing baseline)
-registry().lookup_entry instrument         600 refuse · 309 distinct reserved names
-registry().contains      instrument        595 refuse · 289 distinct reserved names
-DIFFERENTIAL — pass today, break then      564 files
-```
-
-`contains` minus `lookup_entry` is 20 names — the membership facet (stone ①′) doing exactly and only
-what it claimed. That axis is sound. **The 143/35 figure is not.**
-
-## ★★★ WHY — resolve asks ONE store, and the stdlib's own surface is not in it
-
-Of the 309 refused names, **46 are defined by a `defn`/`defmacro` in an EMBEDDED stdlib file** —
-`:wat::core::map-indexed`, `:wat::core::take-while`, `:wat::core::remove`, `:wat::core::keep`,
-`:wat::fix::structural?`, `:wat::test::assert-eq`, the `:wat::bracket::*` workers, `:wat::cache::Lru::*`.
-
-The worked example, one process, two passes disagreeing about one name:
+## ★★★ THE REMAINING WORK IS 14 NAMES IN 97 FILES
 
 ```
-(:wat::test::assert-eq 1 1)      → resolve: ":wat::test::assert-eq"
-                                    "call head — not a builtin, not a registered function"
-(:wat::test::assert-eq 1 1 "x")  → check:   ":wat::test::assert-eq: expected 2 argument(s); got 3"
+② the `:- [...]` BOUNDARY — 4 names · 23 occurrences · pass = normalize.rs:461
+   wat.type/Tuple 9 · wat.type/i64 7 · wat.type/String 5 · wat.type/Vector 2
+
+③ real verbs with dispatch arms and no rows — 4 names · 350 occurrences · pass = walk.rs
+   :wat::eval-ast! 337 · :wat::eval-with-defs! 6 · :wat::core::stream->pvec 5 · :wat::string::= 2
+
+④ A FIFTH FAMILY THE DESIGN NEVER NAMED — 6 names · 8 occurrences · pass = walk.rs
+   :wat::eval::walk 2 · :wat::core::Option.Some 2 · :wat::rete::f64::>X 1 ·
+   :wat::kernel::panic! 1 · :wat::eval-step! 1 · :wat::core::i64/to-string 1
 ```
 
-The **type-checker knows its exact arity** while **resolve calls it unresolved**. `wat/test.wat` is
-embedded (`src/load/stdlib.rs:309`) and `register_stdlib_defines` (`src/declare/register.rs:711`)
-does `sym.register_function` at step 6, before resolve at step 7 — so the ordering is not the
-explanation, and `sym.get`/`has_function` read the same `functions` map. **The gap is real and its
-mechanism is unmeasured.** It is the next thing to measure, not to assume.
+★ `:wat::rete::f64::>X` is **not a typo** — it is `wat-scripts/scratch-pad/probe-f64-comparator-bogus-head.wat`,
+a deliberate witness whose own header records that it *"TYPE-CHECKS despite `:wat::rete::f64::>X`
+never existing."* Under the gate instrument it goes RED. That is arc 255's founding promise —
+*"the undefined-func class dies as a side effect"* — becoming visible for the first time.
 
-> **The blanket is not merely hiding un-homed verbs. It is what makes the stdlib's own wat-defined
-> surface resolvable at all.** `resolve` asking `registry().contains` replaces one blanket with one
-> store, when the truth lives in a union — the fourth occurrence of
-> `[[feedback_a_name_checked_against_a_partial_set]]` in this campaign.
+★ `:wat::core::Option.Some` is **the dot spelling**, already in the corpus and already unresolvable.
+It is the migration's own target, and it is in the worklist before the flip, exactly as the seam's
+ordering caveat predicted.
 
-## ② is real, and the DESIGN names the wrong pass
+## ② is real, and the DESIGN still names the wrong pass
 
-Within the 845 the normalize-pass refusals are exactly the four the DESIGN names:
+Every one of the four type names carries `"namespaced symbol ref — not a builtin, not a registered
+function (arc 251)"` — `src/resolve/normalize.rs:461` — **not** `walk.rs`'s `"call head …"`. They are
+`WatAST::Symbol`s (`wat.type/Tuple`), refused by `resolve_namespaced_symbol`, which asks
+`is_resolvable_call_head` **"may this symbol be rewritten to this keyword FQDN?"** — a call-head
+predicate answering a question about a TYPE position.
 
-```
-9 :wat::type::Tuple · 7 :wat::type::i64 · 5 :wat::type::String · 2 :wat::type::Vector · 1 :wat::core::+
-```
+`walk.rs:87` carries the arc-109 `:-` type-reference guard. `normalize.rs` runs FIRST and has none.
+The walk.rs comment already names this class — *"the expander was taught this first; the resolver is
+a SECOND, INDEPENDENT consumer of the same shape and was not"* — and normalize is its **third**
+consumer. `[[feedback_a_slot_with_two_implementations_is_two_slots]]`
 
-But the context string on every one is **`"namespaced symbol ref — not a builtin, not a registered
-function (arc 251)"`** — `src/resolve/normalize.rs:461`, **not** `walk.rs`'s `"call head …"`.
-
-The DESIGN says *"Type ARGUMENTS are being walked as CALL HEADS"* and points at `resolve/walk.rs`.
-The four names are `WatAST::Symbol`s — `wat.type/Tuple` — and they are refused by
-`resolve_namespaced_symbol`, which asks `is_resolvable_call_head` **"may this symbol be rewritten to
-this keyword FQDN?"** — a call-head predicate answering a question about a TYPE position.
-
-`walk.rs:87` carries the `:-` type-reference guard (arc 109). `normalize.rs` runs FIRST and has no
-such guard. The walk.rs comment already names this exact class — *"the expander was taught this
-first; the resolver is a SECOND, INDEPENDENT consumer of the same shape and was not"* — and this is
-its **third** consumer. `[[feedback_a_slot_with_two_implementations_is_two_slots]]`
-
-⚠ Corpus-wide (1952 files, incl. `tests/`) the family is **eight**, not four: `+ bool (4) · nil (2)
-· f64 (2) · HashMap (1)`. Four is a property of the 845 scope, not of the defect.
+⚠ Corpus-wide (1952 files, incl. `tests/`) the family is **eight**: `+ bool · nil · f64 · HashMap`.
+Four is a property of the 845 scope, not of the defect.
 
 ## The DESIGN's own arithmetic
 
-`DESIGN-the-blanket-dies-in-three.md` states **35 distinct names** and then decomposes
-**11 (rete) + 4 (type) + 4 (verbs) = 19**. Sixteen names are named nowhere in the three dispositions.
+`DESIGN-the-blanket-dies-in-three.md` states **35 distinct names** and decomposes
+**11 (rete) + 4 (type) + 4 (verbs) = 19**. Sixteen were unaccounted for; ①′ has since absorbed the
+rete eleven, and the fall-through measurement resolves the rest — the residue is the ④ family above.
 
-## What this does NOT overturn
+---
 
-- **①′ landed and is sound.** The membership facet is measurable, and its 20-name delta is visible
-  in the two instrument runs above.
-- **③ stands** — four real verbs with live dispatch arms and no rows is still true.
-- **The order still stands.** `(:wat::core::Option.Some {:value 7})` → `check=0` →
-  `#wat.core/Option.None {}` on clean main. The blanket still dies before the dot flip.
+# ─── ORIGINAL TEXT, PRESERVED AS WRITTEN (headline REFUTED above) ───
 
-## What must happen before another stone
+The original claimed: *"the census does not reproduce — 564 of 845 files break, on 309 names,"* and
+concluded that `registry().contains` was insufficient because *"46 of the 309 refused names are
+defined by a `defn` in an embedded stdlib file"* — naming `:wat::test::assert-eq`,
+`:wat::core::map-indexed`, `:wat::fix::structural?` among them.
 
-The queue's terminal step — *"then `resolve` asks `registry().contains`, the blanket dies"* — is
-**under-specified**, and ①②③ move the census from 309 names to roughly 290. The blocking question is
-not which names to register. It is **which stores answer "does this name exist?"**, and the campaign
-has already paid for that lesson three times.
+**Every one of those 46 was a false positive manufactured by the early `return`.** A dump of
+`symbols.functions` taken at step 7 — immediately before `normalize_symbol_refs` — shows **2628
+registered functions, with `:wat::test::assert-eq`, `:wat::fix::structural?`,
+`:wat::core::map-indexed`, `:wat::core::take-while` and `:wat::core::remove` all PRESENT.** The
+stdlib's surface was in `sym` the whole time; my instrument simply never let resolve reach it.
 
-**⛔ The disposition-by-count trap applies to this NOTE too:** 309 is not a worklist. It is the
-measure of a predicate asking one store.
+The one observation that survives intact, and that led to the correction:
+
+> `(:wat::test::assert-eq 1 1)` → resolve says unresolved, while `(:wat::test::assert-eq 1 1 "x")` →
+> the type-checker reports its exact arity. Two passes, one process, one name, disagreeing.
+
+That contradiction was real and it was the thread worth pulling. The conclusion drawn from it —
+*"resolve asks one store; the truth is a union"* — was **wrong**: resolve asks a five-rung chain that
+already IS the union, and the instrument had cut four rungs off it.
+
+★ **The lesson, and it is the expensive one:** I built the instrument from the brief's own prose,
+measured 4× the expected result, and wrote the discrepancy up as a finding about the CODE instead of
+first suspecting the INSTRUMENT. A number that disagrees with the record by 4× is a claim about the
+measuring device until the device has been controlled. The control that would have caught it costs
+one line: *does a name I KNOW resolves today still resolve under the instrument?*
+`[[feedback_a_green_from_a_mis_aimed_probe_is_indistinguishable_from_a_working_gate]]`
