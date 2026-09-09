@@ -1065,7 +1065,7 @@ immediately above it.
 | category | the state is | what a reader loses | example |
 |---|---|---|---|
 | `ambient-context` | real DOMAIN state, reached globally or per-thread instead of threaded | the ability to reason about the answer — this state can change what is computed | `EXEC_ARENA`, `ARM_TABLE`, the rust-deps registry |
-| `performance-counter` | instrumentation, off by default | nothing about the answer — arming it cannot change a result, only a measurement | the fire census TLS, `ARM_BUILDS` |
+| `performance-counter` | instrumentation, off by default | nothing about the answer — arming it cannot change a result, only a measurement | the fire census TLS. ⛔ **`ARM_BUILDS` was cited here and is NOT an example — it was recategorised `ambient-context` 2026-09-08.** It is the sole oracle of five `arm_lease.rs` tests: if it stopped counting they pass vacuously (`0 == 0`), which is the exact opposite of this row's decisive test. Kept as a worked counter-example, because *this table's own citation* is how the mislabel survived |
 | `host-idiom` | a host mechanism carrying NO domain state, whose RESULT is threaded explicitly | nothing — the global is a counter or allocator, and the value it yields does travel through signatures | `fresh_scope()`'s monotonic `AtomicU64` |
 | `reclassified-by-caller` | detail deliberately dropped, because the sole caller re-surfaces a coarser form that IS the intended UX | nothing at the boundary — the coarser message is the contract | `ArgSpecError` → `Err(())` at `:ensure :fn` |
 
