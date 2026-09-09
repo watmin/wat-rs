@@ -541,7 +541,7 @@ pub(crate) struct IntrinsicRegistry {
     /// has none. A name may legitimately sit in BOTH populations (e.g. a rete row whose
     /// `core_name` is also independently registered as a `Kind::Intrinsic`) — `contains`
     /// ORs them, so overlap is harmless, never an error.
-    membership_names: std::collections::HashSet<&'static str>,
+    membership_names: std::collections::HashSet<String>,
 }
 
 impl IntrinsicRegistry {
@@ -568,8 +568,8 @@ impl IntrinsicRegistry {
     /// 255-builtin-registry (the membership facet), mirroring
     /// `TypeEnv::register_builtin_leaf`. Not `pub`: only the `RETE_OPS` fold below calls
     /// this today.
-    fn register_membership(&mut self, name: &'static str) {
-        self.membership_names.insert(name);
+    fn register_membership(&mut self, name: &str) {
+        self.membership_names.insert(name.to_string());
     }
 
     /// The dispatch route — the native handler for `name` (255.1b-i/ii).
@@ -785,6 +785,33 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
         // harmless to also mark here — `contains` ORs the two populations.
         for op in crate::rete::vocabulary::RETE_OPS {
             r.register_membership(op.rete_name);
+        }
+
+        // Arc 255 Stone ③ — A NAME CARRYING A DECLARED `TypeScheme` IS A NAME THAT EXISTS.
+        //
+        // ⛔ DERIVED, never listed. `check_env`'s scheme store is the authority that already
+        // answers "what is this verb's contract?" for 484 names; every one of them is, by
+        // construction, a real verb. Folding it here answers the OTHER question — "does this
+        // name exist?" — from that same authority, so no hand-list can drift from it
+        // (`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`). ①′ could fold `RETE_OPS`
+        // because it is a table; this is the same move against the store that has no table.
+        //
+        // ⛔ MEMBERSHIP ONLY — `lookup_entry` still answers `None` for these, so the contract
+        // stays exactly where it is. `REGISTRY_MEMBERSHIP_GAP_A`/`_B` both ask `lookup_entry`,
+        // so this fold leaves both ratchets measuring the CONTRACT gap, untouched and still
+        // real. Two questions, two answers — `check.rs:5823`'s STOP-6 unchanged.
+        //
+        // Re-entrancy: measured — `src/types.rs`, `src/check/env.rs` and `register_builtin_types`
+        // make ZERO `registry()` calls, so building these two envs inside this `OnceLock`
+        // initializer cannot deadlock it.
+        {
+            let type_env = crate::types::TypeEnv::new();
+            let check_env = crate::check::CheckEnv::with_builtins_and_types(&type_env);
+            let names: Vec<String> =
+                check_env.registered_names().map(|s| s.to_string()).collect();
+            for n in names {
+                r.register_membership(&n);
+            }
         }
 
         r
@@ -1701,6 +1728,35 @@ mod tests {
         ":wat::rete::vector::get",
         ":wat::stdlib::sources",
     ];
+
+    /// ⛔ THE FOLD MUST STAY DERIVED. Arc 255 Stone ③ folds `check_env`'s scheme store into
+    /// `membership_names` so the registry can answer "does this name exist?" for every name that
+    /// carries a contract. This asserts the derivation is TOTAL — a hand-list would drift from
+    /// the store the moment a scheme is added, and drift is the whole failure class the fold
+    /// exists to prevent.
+    ///
+    /// Non-vacuity: measured by deleting the fold — 484 names stop being members and this test
+    /// reports every one of them.
+    #[test]
+    fn every_name_with_a_declared_scheme_is_a_registry_member() {
+        use crate::check::CheckEnv;
+        use crate::types::TypeEnv;
+
+        let type_env = TypeEnv::new();
+        let check_env = CheckEnv::with_builtins_and_types(&type_env);
+
+        let missing: Vec<&str> = check_env
+            .registered_names()
+            .filter(|name| !super::registry().contains(name))
+            .collect();
+
+        assert!(
+            missing.is_empty(),
+            "a name carrying a declared TypeScheme is a name that EXISTS, so `registry().contains` \
+             must answer for it. These carry a scheme and are not members — the derivation in \
+             `registry()` has stopped being total, or someone replaced it with a list: {missing:?}"
+        );
+    }
 
     /// The bidirectional gate for [`REGISTRY_MEMBERSHIP_GAP_A`] — exactly the shape
     /// `checker_skip_debt_is_named_and_frozen` uses above, over the OPPOSITE pair of sets
