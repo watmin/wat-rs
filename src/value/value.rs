@@ -113,6 +113,11 @@ pub enum Value {
     /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
     wat__std__HashSet(Arc<HashSet<Value>>),
+    /// A `(:wat::core::PersistentSet :- [T])` — `rpds::HashTrieSetSync`, structural
+    /// sharing. `conj`/`disj` return a NEW set; the original is unchanged.
+    /// The unmarked `:wat::set::` family names this flavor (same ruling as
+    /// `:wat::map::` / PersistentMap). `:wat::hashset::` stays the cloning HashSet.
+    wat__core__PersistentSet(Arc<rpds::HashTrieSetSync<Value>>),
     /// Generic opaque handle to a Rust-shim-owned value. The
     /// target-form for any `:rust::*` type that doesn't have its own
     /// dedicated Value variant. The inner `RustOpaqueInner` carries a
@@ -639,6 +644,7 @@ impl PartialEq for Value {
             // impl delegates to element PartialEq (order-independent set semantics).
             // Reduces to a single native comparison.
             (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => a == b,
+            (Value::wat__core__PersistentSet(a), Value::wat__core__PersistentSet(b)) => a == b,
             // HashMap: Stone 216.5c — native Arc<HashMap<Value,Value>> equality.
             // std HashMap PartialEq uses Value's PartialEq on both K and V.
             // Reduces to a single native comparison.
@@ -792,6 +798,17 @@ impl std::hash::Hash for Value {
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate s.iter()
             // directly (Values, not String canonical-keys).
             Value::wat__std__HashSet(s) => {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::Hasher;
+                let mut elem_hashes: Vec<u64> = s.iter().map(|v| {
+                    let mut h = DefaultHasher::new();
+                    v.hash(&mut h);
+                    h.finish()
+                }).collect();
+                elem_hashes.sort_unstable();
+                elem_hashes.hash(state);
+            }
+            Value::wat__core__PersistentSet(s) => {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::Hasher;
                 let mut elem_hashes: Vec<u64> = s.iter().map(|v| {
@@ -1424,6 +1441,16 @@ value_key_eligibility_table! {
             } => KeyEligibility::Hashable
         ]
     },
+    Value::wat__core__PersistentSet(_) => {
+        type_name: "wat::core::PersistentSet",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [
+            TypeExpr::Parametric {
+                head: "wat::core::PersistentSet".to_string(),
+                args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+            } => KeyEligibility::Hashable
+        ]
+    },
     // Arc 216 Stone 7 — Tuple atomizable iff every element is; is_atomizable admits it via
     // the dedicated `TypeExpr::Tuple` variant, not a bare Path or a Parametric head.
     Value::Tuple(_) => {
@@ -1757,6 +1784,7 @@ impl Value {
             Value::wat__core__PersistentMap(_) => self.type_name().to_string(),
             Value::wat__core__PersistentVector(_) => self.type_name().to_string(),
             Value::wat__std__HashSet(_) => self.type_name().to_string(),
+            Value::wat__core__PersistentSet(_) => self.type_name().to_string(),
             Value::RustOpaque(_) => self.type_name().to_string(),
             Value::io__IOReader(_) => self.type_name().to_string(),
             Value::io__IOWriter(_) => self.type_name().to_string(),

@@ -3280,6 +3280,28 @@ fn tagged_to_value(
         ));
     }
 
+    // `#wat.core/PersistentSet #{…}` tagged literal → PersistentSet.
+    // Round-trip identity: a bare `#{…}` reads back as std HashSet; the tagged
+    // form reads back as PersistentSet (distinct identity). Body must be a Set.
+    if ns == "wat.core" && name == "PersistentSet" {
+        use wat_edn::Value as Edn;
+        let items = match body {
+            Edn::Set(xs) => xs,
+            _ => return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(
+                "wat.core/PersistentSet body must be a set, got non-set".to_string()
+            ) }),
+        };
+        let mut set = rpds::HashTrieSetSync::new_sync();
+        for item in items {
+            let v_val = edn_to_value_caps(item, types, allow_caps, foreign, ctx)?;
+            if !crate::runtime::value_is_set_hashable(&v_val) {
+                return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable PersistentSet element: {}", v_val.type_name())) });
+            }
+            set.insert_mut(v_val);
+        }
+        return Ok(Value::wat__core__PersistentSet(Arc::new(set)));
+    }
+
     // Arc 294.j RELAND — `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}`, the two
     // encoding DIRECTIVES, reconstruct here too, NOT only through the narrow
     // `:wat::holon::HolonAST` typed-coercion arm (`edn_derive_holon`). MEASURED: the process
@@ -4043,6 +4065,15 @@ pub fn value_to_edn_with(
         Value::wat__std__HashSet(s) => OwnedValue::Set(
             // Stone 216.5b — iterate s.iter() (Values directly, not String keys).
             s.iter().map(|x| value_to_edn_with(x, types)).collect(),
+        ),
+        // PersistentSet writes as a TAGGED literal `#wat.core/PersistentSet #{…}`
+        // so round-trip IDENTITY is preserved: a std-HashSet `#{}` reads back as
+        // wat__std__HashSet; the tagged form reads back as PersistentSet.
+        Value::wat__core__PersistentSet(s) => OwnedValue::Tagged(
+            Tag::ns("wat.core", "PersistentSet"),
+            Box::new(OwnedValue::Set(
+                s.iter().map(|x| value_to_edn_with(x, types)).collect(),
+            )),
         ),
 
         // ── User-declared struct / record / holon-record ─────────
@@ -4915,6 +4946,23 @@ mod tests {
         );
         // Value equality: same keys, same values.
         assert_eq!(back, pm, "EDN round-trip must preserve the map");
+    }
+
+    #[test]
+    fn persistent_set_edn_round_trip() {
+        let mut set = rpds::HashTrieSetSync::new_sync();
+        set.insert_mut(Value::i64(1));
+        set.insert_mut(Value::i64(2));
+        let orig = Value::wat__core__PersistentSet(Arc::new(set));
+
+        let s = value_to_edn_string_with(&orig, None);
+        let back = edn_string_to_value(&s).expect("round-trip parse");
+
+        assert!(
+            matches!(back, Value::wat__core__PersistentSet(_)),
+            "must round-trip to PersistentSet, not {back:?}"
+        );
+        assert_eq!(back, orig, "EDN round-trip must preserve the set");
     }
 
     // ─── Arc 296 G′ gate row 3 ──────────────────────────────────────────

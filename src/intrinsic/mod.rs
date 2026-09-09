@@ -606,6 +606,7 @@ mod regex;
 // verbs (session-mutating) stay in `src/rete/` and the giant match — not this wave.
 mod rete;
 mod seq;
+mod set;
 mod stat;
 // Arc 255 Stone P6-c-W2 — the campaign's second wave. `:wat::stream::{empty,cons,next}`,
 // moved verbatim out of `runtime.rs`'s giant match with their real (0/2/1) arities

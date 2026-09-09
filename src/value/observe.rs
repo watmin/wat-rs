@@ -331,6 +331,25 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out.push('}');
             out
         }
+        // PersistentSet: same display as HashSet; prefix with #ps to distinguish.
+        // Order is unspecified per HashTrieSet semantics.
+        Value::wat__core__PersistentSet(s) => {
+            let mut out = String::from("#ps#{");
+            let mut first = true;
+            for v in s.iter() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(v, depth + 1));
+            }
+            out.push('}');
+            out
+        }
 
         // ── Arc 293.R2.1 — Aggregate (Struct/Record/HolonRecord) ────
         Value::Aggregate(a) => {

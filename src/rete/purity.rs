@@ -754,6 +754,10 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // the 4 `/`-verbs moved to `:wat::hashset::*` this stone.
             | ":wat::core::HashSet"       | ":wat::hashset::length"  | ":wat::hashset::conj"
             | ":wat::hashset::contains?" | ":wat::hashset::empty?"
+            // PersistentSet — unmarked `:wat::set::*` home; constructor stays `:wat::core::PersistentSet`.
+            | ":wat::core::PersistentSet"
+            | ":wat::set::length" | ":wat::set::empty?" | ":wat::set::contains?"
+            | ":wat::set::conj" | ":wat::set::disj"
             // The persistent sibling the `into` stone minted; its `Vector/extend` twin is above.
             // Arc 255 Stone E-ii — moved to `:wat::vector::concat`.
             | ":wat::vector::concat"

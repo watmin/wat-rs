@@ -6273,6 +6273,11 @@ fn dispatch_keyword_head_value(
             let spliced_args = crate::check::unwrap_type_param_bracket(args);
             crate::collection::eval::eval_hashset_ctor(&spliced_args, list_span, env, sym)
         }
+        ":wat::core::PersistentSet" => {
+            // Mirrors HashSet: `:- [T]` required, spliced out at eval (types erased).
+            let spliced_args = crate::check::unwrap_type_param_bracket(args);
+            crate::collection::eval::eval_persistentset_ctor(&spliced_args, list_span, env, sym)
+        }
         // Arc 146 slice 3 — `:wat::core::get` and `:wat::core::contains?`
         // are now Dispatches (declared in `wat/core.wat`). The
         // dispatch_keyword_head guard above intercepts them; the
@@ -8978,6 +8983,7 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap",
         Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector",
         Value::wat__std__HashSet(_) => ":wat::core::HashSet",
+        Value::wat__core__PersistentSet(_) => ":wat::core::PersistentSet",
         // Arc 214 Stone 4.6a-i — peer RustOpaques carry their specific type_path
         // (e.g. ":wat::kernel::Thread" / ":wat::kernel::Process"); report it
         // so the defclause dispatcher sees the real peer type, not the generic fallback.
@@ -11446,6 +11452,7 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Delegates to Value's PartialEq (arc 216.5b; storage is Arc<HashSet<Value>>).
         // Order-independent (set semantics).
         (Value::wat__std__HashSet(a), Value::wat__std__HashSet(b)) => Some(a == b),
+        (Value::wat__core__PersistentSet(a), Value::wat__core__PersistentSet(b)) => Some(a == b),
         // DESIGN-STONE-into-pv-from-vector.md — PersistentVector same-type structural
         // equality (order-dependent; a vector's order is semantic). A genuine pre-existing
         // gap surfaced by this stone's own test: `rpds::VectorSync<Value>` already implements

@@ -2158,6 +2158,34 @@ fn encode_value_with_path(
             }
             Ok(WatAST::List(out, span))
         }
+        Value::wat__core__PersistentSet(set) => {
+            let elem_kw = if let Some(v) = set.iter().next() {
+                value_static_type_keyword(v, state, &span)?
+            } else {
+                WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone())
+            };
+            let mut out = Vec::with_capacity(set.size() + 3);
+            out.push(WatAST::Keyword(":wat::core::PersistentSet".into(), span.clone()));
+            out.push(WatAST::Keyword(":-".into(), span.clone()));
+            out.push(WatAST::Vector(vec![elem_kw], span.clone()));
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let value_sort_key_set = |v: &Value| -> u64 {
+                let mut h = DefaultHasher::new();
+                v.hash(&mut h);
+                h.finish()
+            };
+            let mut entries: Vec<&Value> = set.iter().collect();
+            entries.sort_by_key(|v| value_sort_key_set(v));
+            for vv in entries {
+                let sort_key = value_sort_key_set(vv);
+                path.push(format!("{{{:x}}}", sort_key));
+                let encoded = encode_value_with_path(vv, binding_name, path, state)?;
+                path.pop();
+                out.push(encoded);
+            }
+            Ok(WatAST::List(out, span))
+        }
         Value::Option(opt) => match &**opt {
             Some(inner) => {
                 let encoded = encode_value_with_path(inner, binding_name, path, state)?;
@@ -2496,6 +2524,7 @@ fn value_static_type_keyword(
         Value::wat__core__PersistentMap(_) => WatAST::Keyword(":wat::core::PersistentMap".into(), span.clone()),
         Value::wat__core__PersistentVector(_) => WatAST::Keyword(":wat::core::PersistentVector".into(), span.clone()),
         Value::wat__std__HashSet(_) => WatAST::Keyword(":wat::core::HashSet".into(), span.clone()),
+        Value::wat__core__PersistentSet(_) => WatAST::Keyword(":wat::core::PersistentSet".into(), span.clone()),
         // Non-portable types — they should not be reaching here through
         // a portable container, but if they do, encoding fails through
         // the value-level path.

@@ -1169,6 +1169,7 @@ pub(crate) const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
     ("Vec", "wat::core::Vector"),              // slice 1f — rename + move
     ("PersistentMap", "wat::core::PersistentMap"), // arc-278-0a
     ("PersistentVector", "wat::core::PersistentVector"), // arc-278-0b
+    ("PersistentSet", "wat::core::PersistentSet"),
 ];
 
 // Arc 154 slice 2 — `validate_legacy_let_star` walker retired
@@ -1734,6 +1735,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
         TypeExpr::Parametric { head, args } => match head.as_str() {
             // Arc 216 Stone 1 — (HashSet :- [T']) is atomizable iff T' is atomizable
             "wat::core::HashSet" => args.len() == 1 && is_atomizable(&args[0]),
+            "wat::core::PersistentSet" => args.len() == 1 && is_atomizable(&args[0]),
             // Arc 216 Stone 2 — (Vector :- [T']) atomizable iff T' atomizable
             "wat::core::Vector" => args.len() == 1 && is_atomizable(&args[0]),
             // Arc 216 Stone 3 — (HashMap :- [K V]) atomizable iff K and V are atomizable
@@ -3721,6 +3723,14 @@ fn infer_list(
                 // Arc 109 stone 3 (THE WALL) — `infer_hashset_constructor` now peels
                 // its own `:- [T]` param-spec (un-spliced); see the Vector arm above.
                 let (val, mut errs) = infer_hashset_constructor(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::PersistentSet" => {
+                let (val, mut errs) = infer_persistentset_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -13082,6 +13092,69 @@ fn infer_hashset_constructor(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
+/// Type-check `(:wat::core::PersistentSet :- [T] x1 x2 ...)`. Same `:- [T]`
+/// param-spec as HashSet; returns `(PersistentSet :- [T])`.
+fn infer_persistentset_constructor(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.is_empty() {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: ":wat::core::PersistentSet".into(),
+            expected: 1,
+            got: 0
+        } });
+        let ty = TypeExpr::Parametric {
+            head: "wat::core::PersistentSet".into(),
+            args: vec![fresh.fresh()],
+        };
+        return CheckResult::partial_with(ty, local_errors);
+    }
+    let (t_ty, rest): (TypeExpr, &[WatAST]) = match crate::types::peel_param_spec(args) {
+        (Some(inner), rest) if inner.len() == 1 => {
+            (parse_param_spec_slot(":wat::core::PersistentSet", &inner[0], fresh, &mut local_errors), rest)
+        }
+        (Some(inner), rest) => {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                head: ":wat::core::PersistentSet".into(),
+                reason: format!("type param-spec `:- [...]` must declare exactly one type (T); got {}", inner.len()),
+                remedies: vec![],
+            } });
+            (fresh.fresh(), rest)
+        }
+        (None, _) => {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: ":wat::core::PersistentSet".into(),
+                reason: "first argument must be a `(Head :- [T])` type param-spec".into(),
+                remedies: vec![],
+            } });
+            (fresh.fresh(), &args[1..])
+        }
+    };
+    for (i, arg) in rest.iter().enumerate() {
+        if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            if unify(&ty, &t_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: ":wat::core::PersistentSet".into(),
+                    param: format!("element #{}", i + 1),
+                    expected: format_type(&apply_subst(&t_ty, subst)),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::PersistentSet".into(),
+        args: vec![apply_subst(&t_ty, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
 // ─── Arc 109 ②-iii — acceptance rows 1 & 3 for the CHECK-TIME twins ──────────────
 //
 // `infer_list_constructor` / `infer_hashset_constructor`'s first-arg guard now
@@ -21659,10 +21732,10 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // ── arc 255 Stone E-iii — set + list get their homes ────────────────────
-    // `:wat::hashset::*` — `HashSet`'s new, flavor-marked home (`Arc<HashSet<Value>>` is the
-    // copy-on-write flavor, same axis-side as `HashMap`/`Vector`; `:wat::set::` stays FREE for
-    // the persistent-backed sibling the builder has ruled is coming, the same reason
-    // `:wat::map::`/`:wat::vector::` stayed free above). Both spellings LIVE alongside the
+    // `:wat::hashset::*` — `HashSet`'s flavor-marked home (`Arc<HashSet<Value>>` is the
+    // copy-on-write flavor, same axis-side as `HashMap`/`Vector`). `:wat::set::*` is the
+    // persistent-backed sibling (registered just below), the same ruling as
+    // `:wat::map::`/`:wat::vector::`. Both spellings LIVE alongside the
     // `:wat::core::HashSet/*` schemes above during Phase 1/2; Phase 3 retires the old spelling
     // (see `src/remedy/retirement.rs`). Each scheme below is its old spelling's, VERBATIM —
     // name-only rename. `List`'s non-`conj` per-Type verbs (`length`/`empty?`/`contains?`/`get`)
@@ -21704,6 +21777,57 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![hashset_of(t_var()), t_var()],
             ret: hashset_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    // `:wat::set::*` — PersistentSet's unmarked home, same ruling as `:wat::map::`.
+    let persistentset_of = |t: TypeExpr| TypeExpr::Parametric {
+        head: "wat::core::PersistentSet".into(),
+        args: vec![t],
+    };
+    env.register(
+        ":wat::set::length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![persistentset_of(t_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::set::empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![persistentset_of(t_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::set::contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![persistentset_of(t_var()), t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::set::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![persistentset_of(t_var()), t_var()],
+            ret: persistentset_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::set::disj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![persistentset_of(t_var()), t_var()],
+            ret: persistentset_of(t_var()),
             rest_param_type: None,
         },
     );
@@ -21815,6 +21939,19 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: hashset_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    env.register(
+        ":wat::core::PersistentSet".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::PersistentSet".into(),
+                args: vec![t_var()],
+            },
             rest_param_type: None,
         },
     );

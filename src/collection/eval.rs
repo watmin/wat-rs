@@ -342,6 +342,92 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
     }
 }
 
+// ─── :wat::set:: — PersistentSet over rpds::HashTrieSetSync ─────────────────
+
+#[allow(clippy::mutable_key_type)]
+pub(crate) fn persistentset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__core__PersistentSet(s) => Ok(Value::i64(s.size() as i64)),
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            op: ":wat::set::length".into(),
+            expected: "(PersistentSet :- [T])",
+            got: Box::new(ValueSnapshot::of(other))
+        }).into()),
+    }
+}
+
+#[allow(clippy::mutable_key_type)]
+pub(crate) fn persistentset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__core__PersistentSet(s) => Ok(Value::bool(s.is_empty())),
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            op: ":wat::set::empty?".into(),
+            expected: "(PersistentSet :- [T])",
+            got: Box::new(ValueSnapshot::of(other))
+        }).into()),
+    }
+}
+
+#[allow(clippy::mutable_key_type)]
+pub(crate) fn persistentset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentSet(s) => {
+            if !value_is_set_hashable(item) {
+                return Ok(Value::bool(false));
+            }
+            Ok(Value::bool(s.contains(item)))
+        }
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            op: ":wat::set::contains?".into(),
+            expected: "(PersistentSet :- [T])",
+            got: Box::new(ValueSnapshot::of(other))
+        }).into()),
+    }
+}
+
+/// Persistent insert. `HashTrieSetSync::insert` returns a NEW set sharing
+/// structure with `s`. No whole-set clone.
+#[allow(clippy::mutable_key_type)]
+pub(crate) fn persistentset_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentSet(s) => {
+            if !value_is_set_hashable(item) {
+                return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::set::conj".into(),
+                    expected: "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
+                    got: Box::new(ValueSnapshot::of(item))
+                }).into());
+            }
+            let out = (**s).insert(item.clone());
+            Ok(Value::wat__core__PersistentSet(Arc::new(out)))
+        }
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            op: ":wat::set::conj".into(),
+            expected: "(PersistentSet :- [T])",
+            got: Box::new(ValueSnapshot::of(other))
+        }).into()),
+    }
+}
+
+/// Persistent remove. Absent element returns the set unchanged, not an error.
+#[allow(clippy::mutable_key_type)]
+pub(crate) fn persistentset_disj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentSet(s) => {
+            if !value_is_set_hashable(item) {
+                return Ok(Value::wat__core__PersistentSet(Arc::clone(s)));
+            }
+            let out = (**s).remove(item);
+            Ok(Value::wat__core__PersistentSet(Arc::new(out)))
+        }
+        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            op: ":wat::set::disj".into(),
+            expected: "(PersistentSet :- [T])",
+            got: Box::new(ValueSnapshot::of(other))
+        }).into()),
+    }
+}
+
 // ─── Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat impls ─
 
 // Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
@@ -1707,6 +1793,53 @@ pub(crate) fn eval_hashset_ctor(
     Ok(Value::wat__std__HashSet(Arc::new(set)))
 }
 
+#[allow(clippy::mutable_key_type)]
+pub(crate) fn eval_persistentset_ctor(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.is_empty() {
+        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentSet".into(),
+            expected: 1,
+            got: 0
+        }).into());
+    }
+    match &args[0] {
+        WatAST::Keyword(_, _) => {}
+        list @ WatAST::List(_, _) => {
+            crate::types::parse_type_node(list).map_err(|e| RuntimeError::new(
+                e.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::PersistentSet".into(),
+                    reason: e.to_string(),
+                },
+            ))?;
+        }
+        _ => {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::PersistentSet".into(),
+                reason: "first argument must be a `(Head :- [T …])` type form".into()
+            }).into());
+        }
+    }
+    let mut set = rpds::HashTrieSetSync::new_sync();
+    for a in &args[1..] {
+        let v = eval_inner(a, env, sym)?.value_owned();
+        if !value_is_set_hashable(&v) {
+            return Err(RuntimeError::new(a.span().clone(), RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentSet".into(),
+                expected: "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
+                got: Box::new(ValueSnapshot::of(&v))
+            }).into());
+        }
+        set.insert_mut(v);
+    }
+    Ok(Value::wat__core__PersistentSet(Arc::new(set)))
+}
+
 // ─── Arc-278-seq-1b — Tuple/WatAstList/HashSet helpers ─────────────────────────────────────
 
 /// seq-1b — `Tuple/length`: returns the element count of a `Value::Tuple`.
@@ -2059,5 +2192,65 @@ mod arc109_two_iii_ctor_guard_widening {
         let err = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
             .expect_err("a List that is not a valid type form must still be rejected");
         eprintln!("row2_vector_ctor_rejects_malformed_form_first_arg: {err:?}");
+    }
+}
+
+#[cfg(test)]
+mod persistentset_verbs {
+    use super::{
+        persistentset_conj_inner, persistentset_contains_q_inner, persistentset_disj_inner,
+        persistentset_empty_q_inner, persistentset_length_inner,
+    };
+    use crate::runtime::Value;
+    use std::sync::Arc;
+
+    /// PersistentSet conj/disj share structure: the original set is unchanged.
+    #[test]
+    fn persistentset_conj_disj_leave_original_unchanged() {
+        let empty = Value::wat__core__PersistentSet(Arc::new(rpds::HashTrieSetSync::new_sync()));
+        assert_eq!(
+            persistentset_length_inner(&empty).unwrap(),
+            Value::i64(0)
+        );
+        assert_eq!(
+            persistentset_empty_q_inner(&empty).unwrap(),
+            Value::bool(true)
+        );
+
+        let one = persistentset_conj_inner(&empty, &Value::i64(1)).unwrap();
+        match &empty {
+            Value::wat__core__PersistentSet(s) => assert_eq!(s.size(), 0, "conj must not mutate the original"),
+            other => panic!("expected PersistentSet, got {other:?}"),
+        }
+        match &one {
+            Value::wat__core__PersistentSet(s) => {
+                assert_eq!(s.size(), 1);
+                assert!(s.contains(&Value::i64(1)));
+            }
+            other => panic!("expected PersistentSet, got {other:?}"),
+        }
+        assert_eq!(
+            persistentset_contains_q_inner(&one, &Value::i64(1)).unwrap(),
+            Value::bool(true)
+        );
+        assert_eq!(
+            persistentset_contains_q_inner(&one, &Value::i64(9)).unwrap(),
+            Value::bool(false)
+        );
+
+        let still = persistentset_disj_inner(&one, &Value::i64(99)).unwrap();
+        match &still {
+            Value::wat__core__PersistentSet(s) => assert_eq!(s.size(), 1, "disj of absent must leave the set unchanged"),
+            other => panic!("expected PersistentSet, got {other:?}"),
+        }
+        let gone = persistentset_disj_inner(&one, &Value::i64(1)).unwrap();
+        match &gone {
+            Value::wat__core__PersistentSet(s) => assert!(s.is_empty()),
+            other => panic!("expected PersistentSet, got {other:?}"),
+        }
+        match &one {
+            Value::wat__core__PersistentSet(s) => assert_eq!(s.size(), 1, "disj must not mutate the original"),
+            other => panic!("expected PersistentSet, got {other:?}"),
+        }
     }
 }
