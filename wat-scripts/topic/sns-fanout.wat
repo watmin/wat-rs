@@ -68,8 +68,7 @@
 
 (:wat::service::defservice :demo::topic
   :satisfies :demo::Topic
-  :durable   [nsubs <- :wat::core::i64
-              inbox-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
+  :durable   [inbox-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
               inbox-lost <- :wat::core::i64
               inbox-closed <- :wat::core::i64
               inbox-timedout <- :wat::core::i64]
@@ -217,7 +216,6 @@
   [d <- :demo::topic::Record  lost <- :wat::core::i64  closed <- :wat::core::i64  timedout <- :wat::core::i64]
   -> :demo::topic::Record
   (:demo::topic::Record
-    :nsubs (:demo::topic::Record/nsubs d)
     :inbox-addr (:demo::topic::Record/inbox-addr d)
     :inbox-lost (:wat::i64::+ (:demo::topic::Record/inbox-lost d) lost)
     :inbox-closed (:wat::i64::+ (:demo::topic::Record/inbox-closed d) closed)
@@ -885,7 +883,7 @@
               (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
               (:wat::core::range 0 3))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 3 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -956,7 +954,7 @@
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:queue::queue/grant iqh (:demo::pids pl))))
-          :record (:demo::topic::Record :nsubs 3 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      wh (:demo::topic-worker/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1011,7 +1009,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _  (:demo::publish-until-accepted! tc "hello")
      n  (:demo::depth-of-topic tc)]
@@ -1030,7 +1028,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 3 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _  (:demo::publish-until-accepted! tc "hello")
      n  (:demo::depth-of-topic tc)]
@@ -1047,7 +1045,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      t0 (:wat::time::epoch-nanos (:wat::time::now))
      _  (:wat::core::match (:demo::Topic/publish tc (:demo::Topic::PublishRequest
@@ -1068,7 +1066,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      r1 (:demo::Topic/publish tc (:demo::Topic::PublishRequest
                                   :msgs (:wat::core::Vector :- [:wat::core::String] "a")))
@@ -1097,7 +1095,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _a (:demo::publish-until-accepted! tc "a")
      _b (:demo::publish-until-accepted! tc "b")
@@ -1112,7 +1110,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _  (:demo::await-timer-ms 20)
      n  (:demo::ticks-of tc)]
@@ -1137,7 +1135,7 @@
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
@@ -1179,7 +1177,7 @@
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr q0h) (:queue::queue::Handle/addr q1h))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs 2 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      q0 (:demo::dial-queue (:queue::queue::Handle/addr q0h))

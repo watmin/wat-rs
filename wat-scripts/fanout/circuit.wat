@@ -2187,7 +2187,7 @@
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:queue::queue/grant inbox-qh (:fanout::pids pl))))
-          :record (:demo::topic::Record :nsubs m :inbox-addr (:queue::queue::Handle/addr inbox-qh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr inbox-qh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      twhandles (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:demo::topic-worker::Handle])
                                   _wi <- :wat::core::i64]
@@ -2715,7 +2715,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:queue::queue/grant iqh (:fanout::pids pl))))
-           :record (:demo::topic::Record :nsubs 1 :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+           :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start

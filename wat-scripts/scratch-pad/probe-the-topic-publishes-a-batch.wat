@@ -40,7 +40,7 @@
                      :store-addr (:wat::query::mem-store::Handle/addr ish)
                      :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :nsubs nsubs :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      t  (:demo::dial-topic (:demo::topic::Handle/addr th))
      d0 (:demo::depth-of-topic t)
      t11 (:tp::publish-tag t 11)
