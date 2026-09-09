@@ -4769,35 +4769,7 @@ fn infer_list(
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = match &args[0] {
-                    WatAST::Keyword(enum_path, _) => {
-                        // Arc 296 A-2 — the erasure. `args[1]` names the variant being
-                        // built; when THAT keyword resolves to a registered variant-type
-                        // (the singleton `TypeDef::Enum` `register_variant_types` mints,
-                        // `src/types.rs`), the constructed value's type is the VARIANT, not
-                        // the enum — the point of this stone. Falls back to the bare enum
-                        // path exactly as before when no singleton is registered (stdlib
-                        // enums are scoped out — see `TypeEnv::register_variant_types`'s
-                        // reserved-prefix guard — so `:wat::core::Option::Some`'s ctor body
-                        // still erases to `:wat::core::Option`, unchanged).
-                        let narrowed = match &args[1] {
-                            WatAST::Keyword(vk, _) => {
-                                let variant_name = vk.strip_prefix(':').unwrap_or(vk);
-                                Some(format!("{enum_path}::{variant_name}"))
-                            }
-                            _ => None,
-                        };
-                        match narrowed {
-                            Some(vp)
-                                if matches!(
-                                    env.types().get(&vp),
-                                    Some(crate::types::TypeDef::Enum(_))
-                                ) =>
-                            {
-                                TypeExpr::Path(vp)
-                            }
-                            _ => TypeExpr::Path(enum_path.clone()),
-                        }
-                    }
+                    WatAST::Keyword(k, _) => TypeExpr::Path(k.clone()),
                     other => {
                         local_errors.push(CheckError {
                             span: other.span().clone(),
@@ -6205,16 +6177,7 @@ fn infer_match(
     let scrutinee_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     let expected_scrutinee = shape.as_type();
     if let Some(sty) = &scrutinee_ty {
-        // Arc 296 A-2 — `assignable`, not bare `unify` (the same "Arc 258 cascade" already
-        // applied to `if`'s branch join / a fn's body-vs-signature check, above): a
-        // variant's ctor no longer erases to its enum, so a `let`-bound scrutinee built by
-        // one now infers as the NARROWER variant type (`:usr::Box::Full`) while the arms'
-        // detected shape is still the enum (`:usr::Box`). `assignable` tries the head-level
-        // `Variant <: Enum` subtype edge (binding the enum's fresh type-param vars via the
-        // same per-arg `unify` `variant_widens_to_enum` already exercises) before falling
-        // through to its own `unify` call at the tail — so every scrutinee that unified
-        // before still does, byte-identical, and a variant-typed one now also does.
-        if !assignable(sty, &expected_scrutinee, subst, env) {
+        if unify(sty, &expected_scrutinee, subst, env.types()).is_err() {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::core::match".into(),
                 param: "scrutinee".into(),
@@ -12803,50 +12766,30 @@ fn process_let_binding(
                             return CheckResult::errs(binding_errors);
                         }
                     };
-                    // Arc 296 A-2 — the predicate widens by SHAPE ("does this carry named
-                    // fields?"), not by registering a variant as `TypeDef::Aggregate` to
-                    // satisfy it (STOP-2, refused by the builder: that shapes the TYPE to
-                    // fit the PREDICATE, exactly the move Stone O's own `nature == Struct`
-                    // guard made and was corrected out of). A tagged enum variant — the
-                    // singleton `TypeDef::Enum` synthesized by `register_variant_types`,
-                    // always exactly one variant — carries named fields the same way an
-                    // Aggregate does; a Unit variant (or any other TypeDef arm) does not,
-                    // and falls through to the same "not an aggregate type" refusal below
-                    // it already got.
-                    let (agg_name, agg_fields): (String, Vec<(String, TypeExpr)>) =
-                        match env.types().get(&type_name) {
-                            // Arc 296 O — {:keys} is an aggregate test, not a nature list.
-                            Some(crate::types::TypeDef::Aggregate(a)) => (a.name.clone(), a.fields.clone()),
-                            // Arc 296 A-2 — a tagged variant carries named fields too; a unit
-                            // variant carries none, and reports every requested key as
-                            // undeclared via the same loop below (never a distinct error shape).
-                            Some(crate::types::TypeDef::Enum(e)) if e.variants.len() == 1 => {
-                                let fields = match &e.variants[0] {
-                                    crate::types::EnumVariant::Tagged { fields, .. } => fields.clone(),
-                                    crate::types::EnumVariant::Unit(_) => Vec::new(),
-                                };
-                                (e.name.clone(), fields)
-                            }
-                            _ => {
-                                binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                    callee: form.into(),
-                                    param: format!("keys-destructure ({})", field_names.join(" ")),
-                                    expected: "an aggregate type".into(),
-                                    got: format_type(&rhs_ty)
-                                } });
-                                return CheckResult::errs(binding_errors);
-                            }
-                        };
+                    let struct_def = match env.types().get(&type_name) {
+                        // Arc 296 O — {:keys} is an aggregate test, not a nature list.
+                        Some(crate::types::TypeDef::Aggregate(a)) => a.clone(),
+                        _ => {
+                            binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: form.into(),
+                                param: format!("keys-destructure ({})", field_names.join(" ")),
+                                expected: "an aggregate type".into(),
+                                got: format_type(&rhs_ty)
+                            } });
+                            return CheckResult::errs(binding_errors);
+                        }
+                    };
                     // Look up each requested field; emit MalformedForm naming
                     // the offending field + listing the aggregate's actual fields
                     // when a name doesn't match (substrate-as-teacher).
                     for fname in &field_names {
-                        match agg_fields.iter().find(|(n, _)| n == fname) {
+                        match struct_def.fields.iter().find(|(n, _)| n == fname) {
                             Some((_, fty)) => {
                                 new_bindings.insert(fname.clone(), apply_subst(fty, subst));
                             }
                             None => {
-                                let declared = agg_fields
+                                let declared = struct_def
+                                    .fields
                                     .iter()
                                     .map(|(n, _)| n.as_str())
                                     .collect::<Vec<_>>()
@@ -12855,7 +12798,7 @@ fn process_let_binding(
                                     head: form.into(),
                                     reason: format!(
                                         "keys-destructure: field {:?} is not declared on {} (declared fields: {})",
-                                        fname, agg_name, declared
+                                        fname, struct_def.name, declared
                                     ),
                                     remedies: vec![],
                                 } });

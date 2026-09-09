@@ -370,18 +370,6 @@ pub enum EnumVariant {
     },
 }
 
-impl EnumVariant {
-    /// Arc 296 A-2 — the bare variant name, either shape. The one place that
-    /// destructures `Unit`/`Tagged` just to read the name (`register_variant_types`,
-    /// `is_variant_type`) uses this instead of re-deriving it.
-    pub fn name(&self) -> &str {
-        match self {
-            EnumVariant::Unit(n) => n,
-            EnumVariant::Tagged { name, .. } => name,
-        }
-    }
-}
-
 impl EnumDef {
     /// Field names of a tagged variant, declaration order — the enum mirror of
     /// [`AggregateDef::names_arc`] (arc 296 G′).
@@ -674,12 +662,6 @@ impl TypeEnv {
         let mut out = HashMap::new();
         for (name, def) in self.iter() {
             if let TypeDef::Enum(e) = def {
-                // Arc 296 A-2 — skip synthesized variant-types (singleton `TypeDef::Enum`
-                // per variant, see `register_variant_types`): walking one here would mint
-                // `:Enum::Variant::Variant` for a unit variant's singleton.
-                if self.is_variant_type(name) {
-                    continue;
-                }
                 for variant in &e.variants {
                     if let EnumVariant::Unit(variant_name) = variant {
                         out.insert(
@@ -881,101 +863,6 @@ impl TypeEnv {
         self.subtype_edges
             .values()
             .any(|parents| parents.iter().any(|p| p == name))
-    }
-
-    // ─── Arc 296 A-2 — a variant is a type ─────────────────────────────────
-
-    /// `name` is a registered variant-type (`:Enum::Variant`) — the singleton
-    /// `TypeDef::Enum` synthesized per variant by [`Self::register_variant_types`] —
-    /// iff its parent path (everything before the last `::`) is itself a registered
-    /// enum that declares that leaf as one of its variants.
-    ///
-    /// Reused as the ONE guard against re-walking a singleton as though it were a
-    /// fresh user enum: `register_variant_types` (skip re-synthesizing a variant's
-    /// own "variants"), `register_enum_methods` (skip minting `:Enum::Variant::Variant`
-    /// ctors / duplicate unit-variant entries), and `build_unit_variant_map` (same).
-    /// Unlike P-2a's `is_monomorphic_variant_type`, this does NOT require the parent
-    /// to be non-parametric — A-2 ships variant types for parametric enums too (the
-    /// widest control, `variant_widens_to_enum`, uses a `(:usr::Box :- [T])`).
-    pub(crate) fn is_variant_type(&self, name: &str) -> bool {
-        let Some(idx) = name.rfind("::") else {
-            return false;
-        };
-        let parent = &name[..idx];
-        let leaf = &name[idx + 2..];
-        match self.get(parent) {
-            Some(TypeDef::Enum(e)) => e.variants.iter().any(|v| v.name() == leaf),
-            _ => false,
-        }
-    }
-
-    /// Arc 296 A-2 — for every registered enum (parametric or not), register each
-    /// variant's FQDN (`:Enum::Variant`) as its own `TypeDef::Enum` singleton — a
-    /// one-variant sub-enum carrying that variant's own declared fields, sharing the
-    /// PARENT's type params (so `(:usr::Box::Full :- [T])` and `(:usr::Box :- [T])`
-    /// agree on arity) — plus a HEAD-LEVEL subtype edge `Variant <: Enum`.
-    ///
-    /// Reuses `TypeDef::Enum` rather than minting a new `TypeDef` arm (a `TypeDef::Variant`
-    /// would ripple into every exhaustive match on `TypeDef` across the tree — struct
-    /// construction, reflection, EDN render, rete — for a shape that already has a home).
-    /// NOT `TypeDef::Aggregate`: that was the builder's explicitly refused fix for
-    /// `{:keys}` (STOP-2) — `{:keys}`'s predicate widens instead (`src/check.rs`).
-    ///
-    /// Idempotent (skips an already-registered FQDN) and guarded by [`Self::is_variant_type`]
-    /// so a singleton's own lone "variant" is never re-expanded — the ONLY thing that
-    /// stopped this from minting `:Enum::Variant::Variant` in P-2a's monomorphic-only
-    /// predecessor, and the same hazard here since a parametric singleton has a live
-    /// EnumDef with exactly one variant, structurally indistinguishable from a genuine
-    /// user one-variant enum without this parent-lookup guard.
-    ///
-    /// ⛔ MEASURED, not in the brief's implementation sketch — user enums ONLY.
-    /// Applying this to `:wat::*` (`Option`/`Result`/every service `Op`/`Reply`) was tried
-    /// first, and it does not merely widen the corpus's failure count — it makes the
-    /// SUBSTRATE UNABLE TO START: 1228 errors on the widest control alone, the large
-    /// majority `:wat::core::if`/`:wat::core::match` "else-branch expects Option::Some;
-    /// got Option::None" (893) — stdlib routinely returns a DIFFERENT sibling variant per
-    /// branch (`Some`/`None`, `Ok`/`Err`) and expects both to join to the shared enum;
-    /// `join_if_branches` (`src/check.rs`) only tests one-directional `assignable` between
-    /// the two branch types, which a head-level `Variant <: Enum` edge does NOT supply for
-    /// two SIBLINGS (neither `Some <: None` nor `None <: Some`). Teaching `join_if_branches`
-    /// a real least-common-ancestor join is a change to core assignability semantics for
-    /// EVERY caller, not named in this stone's sketch or STOP triggers, and the builder has
-    /// not ruled on it — so it is out of this stone's reach. Scoping to user enums
-    /// (`!is_reserved_prefix`) leaves every stdlib enum's ctor erasing exactly as it did
-    /// before this stone (stdlib's own `if`/`match` keep joining against the shared erased
-    /// type) while every EXPECTATIONS row (all `:usr::Box`) still gets the narrowing.
-    pub(crate) fn register_variant_types(&mut self) -> Result<(), TypeError> {
-        let parents: Vec<EnumDef> = self
-            .iter()
-            .filter_map(|(name, def)| match def {
-                TypeDef::Enum(e) if !crate::resolve::is_reserved_prefix(name) && !self.is_variant_type(name) => {
-                    Some(e.clone())
-                }
-                _ => None,
-            })
-            .collect();
-        for e in parents {
-            for v in &e.variants {
-                let fqdn = format!("{}::{}", e.name, v.name());
-                if self.get(&fqdn).is_some() {
-                    continue;
-                }
-                let span = crate::rust_caller_span!();
-                let singleton = TypeDef::Enum(EnumDef {
-                    name: fqdn.clone(),
-                    type_params: e.type_params.clone(),
-                    purity: e.purity,
-                    variants: vec![v.clone()],
-                });
-                if crate::resolve::is_reserved_prefix(&fqdn) {
-                    self.register_stdlib_with_span(singleton, span.clone())?;
-                } else {
-                    self.register_with_span(singleton, span.clone())?;
-                }
-                self.register_subtype(&fqdn, &e.name, span)?;
-            }
-        }
-        Ok(())
     }
 }
 

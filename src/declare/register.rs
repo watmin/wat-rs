@@ -1313,28 +1313,18 @@ pub fn register_enum_methods(
 ) -> Result<(), RuntimeError> {
     use crate::types::{EnumVariant, TypeDef};
 
-    for (name, def) in types.iter() {
+    for (_name, def) in types.iter() {
         let enum_def = match def {
             TypeDef::Enum(e) => e,
             _ => continue,
         };
-        // Arc 296 A-2 — `types` now also holds a singleton `TypeDef::Enum` per
-        // variant (`register_variant_types`, `src/types.rs`). Walking one HERE as
-        // though it were a fresh user enum would mint `:Enum::Variant::Variant`
-        // ctors / duplicate unit-variant entries — the exact hazard trap-doored
-        // by P-2a's `is_monomorphic_variant_type` guard, generalized to parametrics.
-        if types.is_variant_type(name) {
-            continue;
-        }
 
         // Arc 071 — parametric enums (e.g., `(WalkStep :- [A])`) need
         // their constructor return types to read `(:Enum :- [A B])`, not
         // bare `:Enum`. Without this the type checker sees the body
         // produce `:Enum` and rejects against a `(:Enum :- [i64])` signature.
         // The lab harness probe at experiment/099-walkstep-probe is
-        // the regression case. Arc 296 A-2 — also the FALLBACK ret_type for
-        // a tagged variant's ctor when no singleton was registered for it
-        // (stdlib enums; see the `variant_type` comment below).
+        // the regression case.
         let enum_type = parametric_decl_type(&enum_def.name, &enum_def.type_params);
 
         for variant in &enum_def.variants {
@@ -1377,31 +1367,6 @@ pub fn register_enum_methods(
                     let param_types: Vec<crate::types::TypeExpr> =
                         fields.iter().map(|(_, t)| t.clone()).collect();
 
-                    // Arc 296 A-2 — the erasure. Was unconditionally `enum_type.clone()`:
-                    // the ctor returned the ENUM, destroying the variant at construction
-                    // and making a variant-typed parameter uninhabitable (P-2a's revert).
-                    // When `register_variant_types` (src/types.rs) has registered
-                    // `constructor_path` as its own `TypeDef::Enum` singleton, the ctor's
-                    // return type narrows to it (widens via Variant <: Enum — no new
-                    // `assignable` arm needed). MEASURED: doing this unconditionally,
-                    // including for `:wat::*` enums, does not merely widen the corpus's
-                    // failure count — it makes the substrate unable to start (1228 errors
-                    // on the widest control; stdlib's own `if`/`match` routinely join two
-                    // SIBLING variants — `Some`/`None`, `Ok`/`Err` — to their shared enum,
-                    // and a head-level subtype edge does not make siblings assignable to
-                    // each other). So this stays scoped to user enums exactly as
-                    // `register_variant_types` scoped registration — checked by asking
-                    // whether that registration actually happened, the one source of
-                    // truth, rather than re-deriving the same reserved-prefix test here.
-                    let variant_type = if matches!(
-                        types.get(&constructor_path),
-                        Some(TypeDef::Enum(_))
-                    ) {
-                        parametric_decl_type(&constructor_path, &enum_def.type_params)
-                    } else {
-                        enum_type.clone()
-                    };
-
                     // Body: (:wat::core::variant :enum-path :Variant p1 p2 ... pn)
                     let mut body_items = Vec::with_capacity(2 + fields.len());
                     body_items.push(WatAST::Keyword(
@@ -1429,7 +1394,7 @@ pub fn register_enum_methods(
                         params: param_names,
                         type_params: enum_def.type_params.clone(),
                         param_types,
-                        ret_type: variant_type,
+                        ret_type: enum_type.clone(),
                         rest_param: None,
                         rest_param_type: None,
                         body: FunctionBody::Wat(Arc::new(WatAST::List(
