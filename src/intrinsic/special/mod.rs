@@ -22,7 +22,6 @@ pub(crate) mod defsurface;
 pub(crate) mod derive_form;
 pub(crate) mod digest_load;
 pub(crate) mod do_form;
-pub(crate) mod eval_ast;
 pub(crate) mod extend_type;
 pub(crate) mod fn_form;
 pub(crate) mod forms;
