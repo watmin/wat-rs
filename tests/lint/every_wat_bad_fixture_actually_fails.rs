@@ -209,7 +209,91 @@ fn owner_state(name: &str, sources: &[String]) -> Owner {
         .unwrap_or(Owner::Absent)
 }
 
-fn check_shard(shard: usize) {
+/// One fixture's already-resolved facts, with all filesystem access finished: its relative path,
+/// whether `startup_from_file` returned `Ok` (the filename's implicit claim, inverted), and its
+/// own source text (empty when the startup was dirty — nothing downstream reads it in that case).
+///
+/// This is the SEAM: `check_shard` builds a `Vec<Fixture>` by walking the real corpus on disk;
+/// the composed test at the bottom of this file builds one by hand, in memory, with no disk at
+/// all. Both then hand it to the identical [`collect_failures`].
+type Fixture = (String, bool, String);
+
+/// The composed per-fixture verdict: walk → clean? → declaration → category → reason-length →
+/// owner-field → owner-state → verdict, exactly as `check_shard` used to inline it. Pure — no
+/// filesystem, no `startup_from_file` — so it is drivable on synthetic content directly.
+///
+/// Returns `None` when the fixture is fine: either it started up dirty (as `.wat.bad` claims), or
+/// it started up clean but carries a verified `owner-ignored` exemption. Returns `Some(message)`
+/// — formatted exactly as the gate has always reported it — for every other state.
+fn verdict_for(rel: &str, started_clean: bool, content: &str, sources: &[String]) -> Option<String> {
+    if !started_clean {
+        return None;
+    }
+
+    // The file starts up CLEAN while claiming to be bad. Either the name lies, or a banked
+    // test owns the gap and says so.
+    let Some((cat, reason)) = content.lines().find_map(declaration_on) else {
+        return Some(format!(
+            "  {rel}\n      starts up CLEAN (startup_from_file returned Ok) but is named \
+             `.wat.bad`, and declares nothing"
+        ));
+    };
+
+    if !DECLARED_CATEGORIES.contains(&cat) {
+        return Some(format!(
+            "  {rel}\n      rune:lint({cat}) is not one of {DECLARED_CATEGORIES:?} — a second \
+             category needs its own discriminating question against that one, added to this \
+             gate deliberately"
+        ));
+    }
+    if reason.chars().count() < MIN_REASON_CHARS {
+        return Some(format!(
+            "  {rel}\n      rune:lint({cat}) carries no reason ({} chars). It must say what \
+             the substrate SHOULD do with this file instead of accepting it",
+            reason.chars().count()
+        ));
+    }
+    let Some(owner) = owner_in(reason) else {
+        return Some(format!(
+            "  {rel}\n      rune:lint({cat}) names no owner. Append `{OWNER_FIELD} \
+             <test fn name>` — the ignored test that banks this gap is what makes the \
+             exemption checkable and self-clearing"
+        ));
+    };
+    match owner_state(owner, sources) {
+        Owner::Ignored => None,
+        Owner::Absent => Some(format!(
+            "  {rel}\n      rune:lint({cat}) names `{owner}` as its owner, but no `fn {owner}` \
+             exists under tests/. The exemption points at nothing"
+        )),
+        Owner::Live => Some(format!(
+            "  {rel}\n      rune:lint({cat}) names `{owner}`, which is NO LONGER #[ignore]d — \
+             the gap this fixture banked has CLOSED. The exemption is stale: either the file \
+             now fails (drop the rune) or it does not and the name is wrong (rename it .wat)"
+        )),
+    }
+}
+
+/// The composed core `check_shard` drives over the real corpus, and the composed test at the
+/// bottom of this file drives over a synthetic one: run [`verdict_for`] over every fixture and
+/// collect the failures. No filesystem here either — this is the loop-and-push wiring itself
+/// (the `continue`-equivalent short-circuit, and whether a verdict actually reaches the output),
+/// shared by both callers so a defect in either is caught by both.
+fn collect_failures(fixtures: &[Fixture], sources: &[String]) -> Vec<String> {
+    let mut failures = Vec::new();
+    for (rel, started_clean, content) in fixtures {
+        if let Some(msg) = verdict_for(rel, *started_clean, content, sources) {
+            failures.push(msg);
+        }
+    }
+    failures
+}
+
+/// Walk this shard's slice of the real corpus, resolve each fixture's startup outcome and source
+/// text (the only disk-bound step), and return this shard's failures. Returns rather than asserts
+/// — PINNED: a `Vec<String>` needs no filesystem to test and cannot leave `.wat.bad` litter in a
+/// tree four other gates walk, unlike a temporary on-disk corpus would.
+fn check_shard(shard: usize) -> Vec<String> {
     let paths = corpus();
 
     // NON-VACUITY: a walk that comes back empty asserts nothing over nothing and reports PASS —
@@ -232,102 +316,35 @@ fn check_shard(shard: usize) {
          test's green is vacuous"
     );
 
-    // Read lazily: only a fixture that starts up CLEAN needs its declaration checked, and that is
-    // the rare case. Building this eagerly in all 16 shards would read every .rs under tests/
-    // sixteen times for nothing.
-    let mut sources: Option<Vec<String>> = None;
-    let mut failures = Vec::new();
-    let mut declared = 0usize;
+    // Read lazily: only a fixture that starts up CLEAN and declares something needs the owner-test
+    // haystack, and that is the rare case. Building this eagerly in all 16 shards would read every
+    // .rs under tests/ sixteen times for nothing.
+    let mut needs_sources = false;
+    let fixtures: Vec<Fixture> = mine
+        .into_iter()
+        .map(|path| {
+            let rel = path.to_str().expect("utf8 path").to_string();
+            let started_clean = startup_from_file(&rel).is_ok();
+            let content = if started_clean {
+                std::fs::read_to_string(&rel).unwrap_or_else(|e| panic!("read {rel}: {e}"))
+            } else {
+                String::new()
+            };
+            if started_clean && content.lines().find_map(declaration_on).is_some() {
+                needs_sources = true;
+            }
+            (rel, started_clean, content)
+        })
+        .collect();
 
-    for path in mine {
-        let rel = path.to_str().expect("utf8 path");
-        if startup_from_file(rel).is_err() {
-            continue;
-        }
-
-        // The file starts up CLEAN while claiming to be bad. Either the name lies, or a banked
-        // test owns the gap and says so.
-        let src = std::fs::read_to_string(rel).unwrap_or_else(|e| panic!("read {rel}: {e}"));
-        let Some((cat, reason)) = src.lines().find_map(declaration_on) else {
-            failures.push(format!(
-                "  {rel}\n      starts up CLEAN (startup_from_file returned Ok) but is named \
-                 `.wat.bad`, and declares nothing"
-            ));
-            continue;
-        };
-        declared += 1;
-
-        if !DECLARED_CATEGORIES.contains(&cat) {
-            failures.push(format!(
-                "  {rel}\n      rune:lint({cat}) is not one of {DECLARED_CATEGORIES:?} — a second \
-                 category needs its own discriminating question against that one, added to this \
-                 gate deliberately"
-            ));
-            continue;
-        }
-        if reason.chars().count() < MIN_REASON_CHARS {
-            failures.push(format!(
-                "  {rel}\n      rune:lint({cat}) carries no reason ({} chars). It must say what \
-                 the substrate SHOULD do with this file instead of accepting it",
-                reason.chars().count()
-            ));
-            continue;
-        }
-        let Some(owner) = owner_in(reason) else {
-            failures.push(format!(
-                "  {rel}\n      rune:lint({cat}) names no owner. Append `{OWNER_FIELD} \
-                 <test fn name>` — the ignored test that banks this gap is what makes the \
-                 exemption checkable and self-clearing"
-            ));
-            continue;
-        };
-        let sources = sources.get_or_insert_with(test_sources);
-        assert!(
-            !sources.is_empty(),
-            "no .rs sources found under tests/ — the owner check cannot run, so {rel}'s \
-             declaration would be waved through unverified"
-        );
-        match owner_state(owner, sources) {
-            Owner::Ignored => {}
-            Owner::Absent => failures.push(format!(
-                "  {rel}\n      rune:lint({cat}) names `{owner}` as its owner, but no `fn {owner}` \
-                 exists under tests/. The exemption points at nothing"
-            )),
-            Owner::Live => failures.push(format!(
-                "  {rel}\n      rune:lint({cat}) names `{owner}`, which is NO LONGER #[ignore]d — \
-                 the gap this fixture banked has CLOSED. The exemption is stale: either the file \
-                 now fails (drop the rune) or it does not and the name is wrong (rename it .wat)"
-            )),
-        }
-    }
-
+    let sources = if needs_sources { test_sources() } else { Vec::new() };
     assert!(
-        failures.is_empty(),
-        "\n\n🔥 {} `.wat.bad` file(s) in shard {shard}/{N_SHARDS} START UP CLEAN and do not \
-         declare why. `.wat.bad` \
-         claims a file fails to start up; nothing checked that claim until this gate, and a \
-         fixture that starts up fine makes every assertion resting on it a coincidence.\n\
-         \n\
-         THE FIX, one of two:\n\
-         \n\
-         1. If the test that drives it asserts `is_ok()`, or starts the world up and INVOKES \
-         (asserting the error comes at EVAL), the file is a valid program and the NAME is wrong — \
-         `git mv` it to `.wat` and update every `.rs` referrer. That is the common case: 13 of the \
-         first 16 were exactly this.\n\
-         \n\
-         2. If its test asserts `is_err()` and is `#[ignore]`d as RED-at-HEAD, the badness is \
-         BANKED against a substrate change that has not landed. Declare it: \
-         `;; rune:lint(bad-is-banked) \u{2014} <what the substrate should do instead> {OWNER_FIELD} \
-         <the ignored test's fn name>`.\n\
-         \n\
-         ⛔ NOT a fix: adding a `:user::main`. This gate drives `startup_from_file`, which does \
-         not want one — that is the binary, and measuring this corpus through the binary is the \
-         error that got the first draft of this gate withdrawn.\n\
-         \n\
-         ({declared} of the offenders below declared something; the rest declared nothing.)\n\n{}\n",
-        failures.len(),
-        failures.join("\n")
+        !needs_sources || !sources.is_empty(),
+        "no .rs sources found under tests/ — the owner check cannot run, so a clean fixture's \
+         declaration would be waved through unverified"
     );
+
+    collect_failures(&fixtures, &sources)
 }
 
 /// Expand one `#[test]` per shard. Written out rather than looped so nextest can schedule them in
@@ -337,7 +354,37 @@ macro_rules! shards {
     ($($name:ident = $idx:expr;)*) => {
         $(
             #[test]
-            fn $name() { check_shard($idx); }
+            fn $name() {
+                let failures = check_shard($idx);
+                assert!(
+                    failures.is_empty(),
+                    "\n\n🔥 {} `.wat.bad` file(s) in shard {}/{N_SHARDS} START UP CLEAN and do \
+                     not declare why. `.wat.bad` \
+                     claims a file fails to start up; nothing checked that claim until this gate, \
+                     and a fixture that starts up fine makes every assertion resting on it a \
+                     coincidence.\n\
+                     \n\
+                     THE FIX, one of two:\n\
+                     \n\
+                     1. If the test that drives it asserts `is_ok()`, or starts the world up and \
+                     INVOKES (asserting the error comes at EVAL), the file is a valid program and \
+                     the NAME is wrong — `git mv` it to `.wat` and update every `.rs` referrer. \
+                     That is the common case: 13 of the first 16 were exactly this.\n\
+                     \n\
+                     2. If its test asserts `is_err()` and is `#[ignore]`d as RED-at-HEAD, the \
+                     badness is BANKED against a substrate change that has not landed. Declare it: \
+                     `;; rune:lint(bad-is-banked) \u{2014} <what the substrate should do instead> \
+                     {OWNER_FIELD} <the ignored test's fn name>`.\n\
+                     \n\
+                     ⛔ NOT a fix: adding a `:user::main`. This gate drives `startup_from_file`, \
+                     which does not want one — that is the binary, and measuring this corpus \
+                     through the binary is the error that got the first draft of this gate \
+                     withdrawn.\n\n{}\n",
+                    failures.len(),
+                    $idx,
+                    failures.join("\n")
+                );
+            }
         )*
     };
 }
@@ -429,5 +476,120 @@ mod reader {
     #[test]
     fn a_test_that_is_not_there_is_absent() {
         assert_eq!(owner_state("no_such_test_function_anywhere", &[String::from("fn t() {}")]), Owner::Absent);
+    }
+}
+
+/// Composed-path coverage — Failure mode 24 (`docs/COMPACTION-AMNESIA-RECOVERY.md`): the ten
+/// `reader` tests above each prove ONE component in isolation (`declaration_on`, `owner_in`,
+/// `owner_state_in`). None of them calls [`check_shard`]'s actual wiring, and the real corpus
+/// exercises that wiring for exactly one state (`owner-ignored`, 3 fixtures) — every other state
+/// is composed nowhere. A defect where a state is computed correctly and then routed to the wrong
+/// branch, or where `collect_failures`'s loop drops a verdict before it reaches the caller, would
+/// be invisible to both the unit tests and the floor.
+///
+/// This drives [`collect_failures`] — the exact function `check_shard` calls over the real
+/// corpus — over a SYNTHETIC, in-memory [`Fixture`] list covering all seven exemption states
+/// (`absent`, `bad-category`, `short-reason`, `no-owner-field`, `owner-absent`, `owner-live`,
+/// `owner-ignored`) plus the dirty-startup short-circuit, with no filesystem access at all.
+#[cfg(test)]
+mod composed {
+    use super::*;
+
+    /// A synthetic `tests/*.rs` haystack: one owner still `#[ignore]`d (banks a gap), one owner
+    /// that runs live (the gap closed), shaped exactly like the real files `owner_state_in`
+    /// reads — including the blank-line boundary between them, the same shape
+    /// `an_ignore_on_a_different_test_does_not_vouch_for_this_one` proves at the component level.
+    fn synthetic_sources() -> Vec<String> {
+        vec![String::from(
+            "// two synthetic gates\n#[test]\n#[ignore = \"synthetic banked gap\"]\n\
+             fn synth_ignored_owner() {}\n\n\
+             #[test]\nfn synth_live_owner() {}\n",
+        )]
+    }
+
+    #[test]
+    fn check_shard_composition_drives_every_exemption_state() {
+        let sources = synthetic_sources();
+
+        let fixtures: Vec<Fixture> = vec![
+            // Dirty startup: whatever garbage the content carries must never be read at all —
+            // this is the `continue`-equivalent short circuit. If it produced a verdict, this
+            // fixture's own unparseable, undeclared-looking content would trip `absent`.
+            (
+                "dirty-startup.wat.bad".to_string(),
+                false,
+                "not even wat source, and irrelevant".to_string(),
+            ),
+            // absent: clean startup, no `rune:lint(` anywhere.
+            ("absent.wat.bad".to_string(), true, "// no rune anywhere in this file\n".to_string()),
+            // bad-category: a well-formed rune naming a category outside the closed set.
+            (
+                "bad-category.wat.bad".to_string(),
+                true,
+                ";; rune:lint(nonsense) \u{2014} not a real category banked-by: synth_ignored_owner\n"
+                    .to_string(),
+            ),
+            // short-reason: valid category, reason under MIN_REASON_CHARS (24). Zero coverage of
+            // this state existed anywhere before this test — not per-component, not composed.
+            (
+                "short-reason.wat.bad".to_string(),
+                true,
+                ";; rune:lint(bad-is-banked) \u{2014} too short\n".to_string(),
+            ),
+            // no-owner-field: valid category, long-enough reason, no `banked-by:`.
+            (
+                "no-owner-field.wat.bad".to_string(),
+                true,
+                ";; rune:lint(bad-is-banked) \u{2014} the substrate should reject this file \
+                 entirely\n"
+                    .to_string(),
+            ),
+            // owner-absent: owner named but no such fn exists anywhere in sources.
+            (
+                "owner-absent.wat.bad".to_string(),
+                true,
+                ";; rune:lint(bad-is-banked) \u{2014} the substrate should reject this file \
+                 entirely banked-by: no_such_fn_anywhere\n"
+                    .to_string(),
+            ),
+            // owner-live: owner named and exists, but is no longer #[ignore]d — the gate's own
+            // advertised self-clearing mechanism, and the state FINDINGS names as sharpest.
+            (
+                "owner-live.wat.bad".to_string(),
+                true,
+                ";; rune:lint(bad-is-banked) \u{2014} the substrate should reject this file \
+                 entirely banked-by: synth_live_owner\n"
+                    .to_string(),
+            ),
+            // owner-ignored: the one verified PASS state — owner named, exists, still #[ignore]d.
+            (
+                "owner-ignored.wat.bad".to_string(),
+                true,
+                ";; rune:lint(bad-is-banked) \u{2014} the substrate should reject this file \
+                 entirely banked-by: synth_ignored_owner\n"
+                    .to_string(),
+            ),
+        ];
+
+        let failures = collect_failures(&fixtures, &sources);
+
+        // Exactly six of the eight synthetic fixtures must fail: everything except the
+        // dirty-startup short-circuit and the verified owner-ignored exemption. Comparing the
+        // exact SET (not just a count) catches a state routed to the WRONG branch, not merely a
+        // wrong count of branches taken.
+        let failed_paths: Vec<&str> =
+            failures.iter().map(|s| s.lines().next().unwrap().trim()).collect();
+        assert_eq!(
+            failed_paths,
+            vec![
+                "absent.wat.bad",
+                "bad-category.wat.bad",
+                "short-reason.wat.bad",
+                "no-owner-field.wat.bad",
+                "owner-absent.wat.bad",
+                "owner-live.wat.bad",
+            ],
+            "composed wiring routed the wrong fixtures to failure — full failures: {failures:#?}"
+        );
     }
 }
