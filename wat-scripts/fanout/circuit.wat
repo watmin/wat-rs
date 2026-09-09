@@ -2234,6 +2234,51 @@
       "n={n};m={m};j={j};total={total};distinct={distinct};dup={dup};workers={workers};empty={empty}"
       :n n :m m :j j :total total :distinct distinct :dup dup :workers wcount :empty empty)))
 
+;; ── the INBOX visibility, and why it is its own knob ─────────────────────────
+;;
+;; ⛔ THERE ARE TWO VISIBILITY TIMEOUTS IN THIS CIRCUIT AND THEY ARE NOT THE SAME.
+;;   sub queues (consumers): `vis-ms` above → `vis` → :471 / :943
+;;   the topic-worker's INBOX: this value → :demo::mk-tw's vis-ns → sns-fanout.wat:412
+;; Conflating them is how a ~5.2 s gap went unexplained: varying `vis-ms` 200/50/20
+;; changed nothing about the inbox and the output looked identical either way.
+;;
+;; This was `5000000000` inline at the mk-tw call, one site disagreeing with the six
+;; other :demo::mk-tw constructions in the corpus (all 200 ms) by 25×, and it is the
+;; whole of the ~5.2 s slow mode: an inbox entry whose fan-out did not fully complete
+;; is not acked (the safety property), and nothing moves until it becomes visible.
+;;
+;; ⚠ It must NOT inherit `vis-ms`'s 1000 s no-drops branch. An inbox entry that never
+;; redelivers turns one lost ack into a permanent stall, so this default is
+;; unconditional — every configuration redelivers.
+;;
+;; ⭑ 200 ms IS SWEPT, NOT INHERITED. `50 2 2 32 false 0 0 1000 42 <vis>`, 11 runs per
+;; value (3 idle + one 8-concurrent burst), `dup=0` in all 40 cells:
+;;
+;;   inbox-vis-ms   slow-mode drain (ms)   dup-fanout runs   excess bodies
+;;         5000          5165 … 5316            3 / 11             28
+;;         1000          1147 … 1281            3 / 11             29
+;;          500           587 …  739            4 / 11             38
+;;          200           357 …  405            3 / 11             48
+;;          100           341 …  358            4 / 11             36
+;;
+;; Two things the sweep found that the prior did not predict:
+;;
+;;  1. THE PAYOFF SATURATES AT ~200 ms. 100 ms buys nothing over 200 (341–358 vs
+;;     357–405, inside run-to-run spread). The residual ~350 ms floor is the worker's
+;;     OWN receive wait — `:wait (UpTo (Milliseconds 250))` at sns-fanout.wat:417 —
+;;     so once visibility drops below that wait, the wait bounds recovery, not this.
+;;     Below 200 ms the entry expires under a live claim for no latency gain.
+;;  2. THE POSITED TRADE-OFF IS NOT IN THE DATA. Duplicate fan-out happens at 5000 ms
+;;     too (3/11 runs) and its volume is flat across a 50× range of this knob. It is
+;;     caused by an ASYMMETRIC partial refusal — `ok` is the min over subs, so a sub
+;;     that took the whole batch keeps it while the un-acked suffix redelivers — and
+;;     this value only sets how LONG that recovery takes, not whether it happens.
+;;
+;; ⚠ 250–300 ms (at/just above the receive wait) was NOT swept. 200 was chosen because
+;; it is the swept value where latency saturates and it makes all seven :demo::mk-tw
+;; sites in the corpus agree.
+(:wat::core::defn :fanout::inbox-vis-default-ns [] -> :wat::core::i64 200000000)
+
 ;; Wiring + input stream. start workers → publish → drain on depth → Stop.
 ;; rate 0 (the default) arms no -disrupt alarm at all.
 (:wat::core::defn :fanout::run-with
@@ -2243,7 +2288,7 @@
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool
    drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64
    sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool
-   vis-ms <- :wat::core::i64]
+   vis-ms <- :wat::core::i64  inbox-vis-ms <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -2258,6 +2303,11 @@
                                (:wat::core::or (:wat::i64::> drop-check-bp 0) (:wat::i64::> drop-mark-bp 0))
                                (:wat::core::or (:wat::i64::> drop-recv-bp 0) (:wat::i64::> drop-ack-bp 0)))
               200000000 1000000000000))
+     ;; The INBOX's visibility — symmetric with `vis` above, deliberately NOT merged
+     ;; with it (see :fanout::inbox-vis-default-ns). ms → ns; 0 = the default.
+     inbox-vis (:wat::core::if (:wat::i64::> inbox-vis-ms 0)
+                 (:wat::i64::* inbox-vis-ms 1000000)
+                 (:fanout::inbox-vis-default-ns))
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::sqlite-store::Handle])
                                _i  <- :wat::core::i64]
@@ -2316,11 +2366,14 @@
                                         (:queue::queue/grant (:wat::core::nth queues i) pids))
                                       nil
                                       (:wat::core::range 0 m)))))
-                       ;; 5s, not the 200ms row-3 vis: under a loaded floor, send+ack
-                       ;; of one envelope can exceed 200ms, vis expires, a second
-                       ;; worker re-sends, total > N×M. Refusal retry stays on the
-                       ;; 200ms probe; the circuit happy path must not race its ack.
-                       :record (:demo::mk-tw 5000000000 (:queue::queue::Handle/addr inbox-qh) qaddrs rate seed))))
+                       ;; NOT the row-3 sub-queue `vis` — this is the inbox's own
+                       ;; visibility, `inbox-vis` (see :fanout::inbox-vis-default-ns).
+                       ;; The hazard the sweep measured: sns-fanout.wat:417 claims with
+                       ;; :wait (UpTo 250ms), so below ~250ms an entry can expire while
+                       ;; the worker that claimed it is still fanning out — a second
+                       ;; worker re-sends, and only the consumer `seen` dedupe keeps
+                       ;; `dup` at 0. That cost is the inbox tier's `redeliveries=`.
+                       :record (:demo::mk-tw inbox-vis (:queue::queue::Handle/addr inbox-qh) qaddrs rate seed))))
                  (:wat::core::Vector :- [:demo::topic-worker::Handle])
                  (:wat::core::range 0 j))
      qclients (:wat::core::foldl
@@ -2571,25 +2624,25 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0))
+  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0))
+  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0))
+  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0))
+  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -2607,10 +2660,10 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0)))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -2685,7 +2738,7 @@
   (:wat::core::let
     [argv (:wat::runtime::argv)
      proof (:user::deadline-redial-is-fresh)
-     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed]]]"
+     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms]]]]"
      ;; ⛔ THE CLI HAD NO CHAOS SURFACE. Until 2026-09-09 every one of the six fault
      ;; knobs was pinned to a literal zero here, so no sweep run through `main` could
      ;; ever exercise a drop — the injection existed only inside the `:user::` fixtures
@@ -2696,6 +2749,10 @@
      ;; byte-for-byte unchanged. `drop-after?` stays `false`: it is read only by
      ;; `:fanout::seen::Record` (circuit.wat:2252), so it is inert while
      ;; drop-check-bp/drop-mark-bp are 0 — those two are still not reachable from here.
+     ;;
+     ;; argv 11 is `inbox-vis-ms`, added 2026-09-09, also optional and 0-defaulting.
+     ;; ⚠ It is NOT argv 7 (`vis-ms`, the SUB queues). Two different timeouts; see
+     ;; :fanout::inbox-vis-default-ns. 0 means the default, not "no redelivery".
      opt-i64 (:wat::core::fn [o <- (:wat::core::Option :- [:wat::core::String])] -> :wat::core::i64
                (:wat::core::match o
                  (:wat::core::None 0)
@@ -2717,7 +2774,8 @@
              (:wat::core::= (:wat::core::Option/expect (:wat::core::get argv 6) usage) "true")
              (:wat::core::match (:wat::core::get argv 7)
                (:wat::core::None 0)
-               ((:wat::core::Some vs) (:fanout::parse-i64 vs))))))]
+               ((:wat::core::Some vs) (:fanout::parse-i64 vs)))
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 11)]))))]
     (:wat::core::let
       [_ (:wat::kernel::println proof)
        _ (:wat::kernel::println
