@@ -149,3 +149,74 @@ correct floor.
 - **The dot flip.** After the blanket, per the seam's measured ordering.
 - **The 354 hand-registered schemes in `check.rs`.** The contract-unification campaign is the arc's
   larger body of work, not this stone.
+
+---
+
+# ⛔ AMENDED — ③a IS A CAMPAIGN. "One dispatch arm" is NOT "one mechanism".
+
+Written **before** ③a's brief, by the FM 2-bis probe that brief required. The probe refuted the
+brief's load-bearing claim, which is what a probe is for.
+
+## The claim that failed
+
+*"The eval cluster is one population — ten names in one dispatch arm — so it enters as one stone
+with one family rationale (`Preserving`, by analogy to `if`/`let`)."*
+
+`src/runtime.rs:2956` really does dispatch all ten in one arm, and the arm's own comment reasons
+about them as a cluster: *"a form added later to this cluster inherits the fix instead of
+re-earning the bug."* **The arm is shared. The mechanism is not.**
+
+```
+eval_form_ast              run_constrained + eval_inner      ← FENCED
+eval_form_with_defs        eval_inner                        ← unfenced
+eval_form_step             eval_inner                        ← unfenced
+eval_walk                  eval_inner                        ← unfenced
+eval_form_edn                                                ← neither; own path
+eval_form_file                                               ← neither; own path
+eval_form_digest           digest                            ← own path
+eval_form_digest_string    digest                            ← own path
+eval_form_signed                                             ← neither; own path
+eval_form_signed_string                                      ← neither; own path
+```
+
+Three mechanisms at least, so three axis rationales at least. A single `@Purity`/`@Totality`
+argument covering all ten would be a claim about a uniformity that does not exist.
+
+## ★★★ AND THE FENCE ASYMMETRY IS REAL — measured by RUNNING both
+
+`run_constrained` (`src/runtime.rs:14154`) calls `refuse_mutation_forms_in`, which walks the whole
+AST and refuses a hand-list of declaration heads (`defmacro`, `defstruct`, `structtype`, `defenum`,
+`newtype`, `typealias`, `load-file!`, `digest-load!`, …). **Only `eval_form_ast` calls it.**
+
+```
+(:wat::eval-ast!       '(:wat::core::typealias :user::Sneak :wat::core::i64))
+    → Err "eval refused mutation form: :wat::core::typealias"
+
+(:wat::eval-with-defs! '(:wat::core::typealias :user::Sneak :wat::core::i64) [])
+    → :wat::eval::FormOutcome::Declared          ⛔ IT RAN
+```
+
+Two verbs in one dispatch arm: one refuses a declaration form, its sibling performs it.
+
+⚠ **This is probably DELIBERATE, not a defect** — `FormOutcome::Declared` is a named outcome, so
+`eval-with-defs!` was built expecting declaration forms; that is the gap it exists to close
+(`check.rs:19508`'s own doc: *"a wat program can hold an accumulated definition set … and has no
+way to run anything IN it"*). **But the distinction is written down NOWHERE**, and it means the two
+verbs' Purity and Totality axes genuinely differ. A row that declared them alike would be the first
+place this asymmetry got asserted as sameness.
+
+## The measured decomposition
+
+```
+③a-i    :wat::eval-ast!                                              the fenced one
+③a-ii   :wat::eval-with-defs! · :wat::eval-step! · :wat::eval::walk  unfenced eval_inner
+③a-iii  :wat::eval-edn! · eval-file! · eval-digest! · eval-digest-string!
+        · eval-signed! · eval-signed-string!                         the loader paths
+```
+
+Grouped by MECHANISM, which is what an axis claim is about. Not by count, and not by the arm.
+
+★ **The lesson, and it is cheap only because the probe ran first:** a shared dispatch arm is an
+implementation convenience; it says nothing about whether the verbs share a nature. I read the
+arm's own "cluster" language as evidence of a shared mechanism and was about to brief ten
+declarations on it. `[[feedback_an_adjacent_implementation_is_not_the_subject]]`
