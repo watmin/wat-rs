@@ -1129,7 +1129,10 @@
       (:wat::core::match r
         ((:queue::Queue::StatsResponse::Ok qst)
           (:wat::core::format
-            "tier={name};accepted={a};refused={rf};acks={k};redeliveries={rd};expired-waiters={ew};visible={v};unacked={u};store-calls={sc}"
+            ;; store-calls/store-ns are the AGGREGATE; the four op pairs beside them
+            ;; are its split. put+delete+count+scan must equal the aggregate within
+            ;; rounding — an unaccounted remainder names an operation nothing tracks.
+            "tier={name};accepted={a};refused={rf};acks={k};redeliveries={rd};expired-waiters={ew};visible={v};unacked={u};store-calls={sc};store-ns={sn};put-calls={pc};put-ns={pn};delete-calls={dc};delete-ns={dn};count-calls={cc};count-ns={cn};scan-calls={nc};scan-ns={nn}"
             :name name
             :a (:queue::Stats/sends-accepted qst)
             :rf (:queue::Stats/sends-refused qst)
@@ -1138,7 +1141,16 @@
             :ew (:queue::Stats/expired-waiters qst)
             :v (:queue::Stats/visible qst)
             :u (:queue::Stats/unacked qst)
-            :sc (:queue::Stats/store-calls qst)))
+            :sc (:queue::Stats/store-calls qst)
+            :sn (:queue::Stats/store-ns qst)
+            :pc (:queue::Stats/put-calls qst)
+            :pn (:queue::Stats/put-ns qst)
+            :dc (:queue::Stats/delete-calls qst)
+            :dn (:queue::Stats/delete-ns qst)
+            :cc (:queue::Stats/count-calls qst)
+            :cn (:queue::Stats/count-ns qst)
+            :nc (:queue::Stats/scan-calls qst)
+            :nn (:queue::Stats/scan-ns qst)))
         (_ (:wat::core::format "tier={name};stats=not-ok" :name name))))
     (_ (:wat::core::format "tier={name};stats=lost" :name name))))
 
