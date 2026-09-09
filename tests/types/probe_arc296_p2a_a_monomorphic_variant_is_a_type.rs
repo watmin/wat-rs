@@ -81,9 +81,24 @@ fn a_variant_value_still_flows_to_an_enum_parameter() {
     assert_eq!(code, 0, "`Colour::Red` must still be accepted where `Colour` is expected");
 }
 
-/// ⛔ THE SCOPE FENCE. A GENERIC enum's variant stays refused, and stays refused with the SAME
-/// diagnostic — so "the stone stopped where it said" is measured, not asserted.
+/// ⛔ SUPERSEDED 2026-09-09 by arc 296 A-2 (option E). This row pinned P-2a's MONOMORPHIC-ONLY
+/// scope fence — a deliberate boundary of a stone that was itself reverted (`82bacfba0`,
+/// "sibling variants have no JOIN"). A-2 covers EVERY enum, generic or not
+/// (`TypeEnv::register_variant_types` has no monomorphic guard; `is_variant_type` answers the
+/// same for `Option::Some` as for `usr::Colour::Red`), so `:wat::core::Option::Some` — a bare,
+/// argument-free annotation naming a real registered variant — is now ACCEPTED, exit 0, not
+/// refused as `UnknownNamedType`. That is the fence this stone was RULED to move past (BRIEF-
+/// STONE-A2-RELAND-4-option-E.md, "① A SUPERSEDED probe row"), not a regression: measured
+/// directly, `an_intrinsic_parameter_accepts_a_variant_like_a_user_defn_does` and
+/// `a_stdlib_enums_variant_is_a_type_too` in the A-2 RELAND-4 probe file exercise exactly this
+/// — a `wat::core::Option` FAMILY variant, parametric, accepted. Kept (not deleted) as the
+/// historical record of the boundary this design decision superseded; `#[ignore]` rather than
+/// rewritten to assert acceptance, so the diff does not read as though this row always tested
+/// for the opposite of what it was written to catch.
 #[test]
+#[ignore = "SUPERSEDED by arc 296 A-2 (option E): the monomorphic-only fence was reverted \
+            (82bacfba0) design and A-2 deliberately covers every enum, generic included — \
+            :wat::core::Option::Some now type-checks as an annotation, exit 0"]
 fn a_generic_enums_variant_stays_refused() {
     let (code, out) = check("generic_variant_stays_refused");
     assert_eq!(code, 1);

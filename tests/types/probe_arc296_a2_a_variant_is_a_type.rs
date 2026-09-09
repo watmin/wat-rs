@@ -62,6 +62,47 @@ fn run_check(case: &str) -> (i32, String) {
 
 fn check(case: &str) -> i32 { run_check(case).0 }
 
+/// Runs the fixture as a PROGRAM (no `--check`) and returns (exit code, stdout+stderr).
+/// ⛔ Every other helper in this file asks the CHECKER. A checker/runtime disagreement is
+/// invisible to all of them, and A-2 shipped one: `{:keys}` was widened in `check.rs` and not in
+/// `runtime.rs`, so the builder's own program type-checked and died with
+/// `":wat::core::let: expected an aggregate type, got wat::core::Enum"`.
+fn run_program(case: &str) -> (i32, String) {
+    let p: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/types")
+        .join(format!("probe_arc296_A2_a_variant_is_a_type__{case}.wat"));
+    assert!(p.exists(), "fixture missing: {}", p.display());
+    let out = Command::new(env!("CARGO_BIN_EXE_wat"))
+        .arg(&p)
+        .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped())
+        .output().expect("spawn wat");
+    let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
+    s.push_str(&String::from_utf8_lossy(&out.stderr));
+    (out.status.code().unwrap_or(-1), s)
+}
+
+/// ⛔⛔ THE RUN ROW — the builder's whole program, EXECUTED. Every other row in this file asserts a
+/// `--check` exit code, and A-2 passed all nine of them while this died at runtime. A probe that
+/// proves a type is USABLE must construct into it; a probe that proves a PROGRAM WORKS must RUN it.
+#[test]
+fn the_builders_program_runs_and_prints_42() {
+    let (code, out) = run_program("builder_program_runs");
+    assert_eq!(code, 0, "got: {out}");
+    // Exact, not loose: this stdout is deterministic — no path, pid, or timestamp — so the whole
+    // value is assertable and appended garbage must fail. (The lint is right here; the earlier
+    // `env.contains` case was not loose at all, which is why THAT one got a rune and this does not.)
+    assert_eq!(out.trim(), "42", "the payload must be the WHOLE of stdout");
+}
+
+/// THE SIBLING — field access on a variant. Checks CLEAN on a plain record and is refused on a
+/// variant (`"unknown callee: :inside"`), so this gap is in the CHECKER as well as the runtime.
+#[test]
+fn a_field_accessor_works_on_a_variant() {
+    let (code, out) = run_program("field_accessor_on_a_variant_runs");
+    assert_eq!(code, 0, "got: {out}");
+    assert_eq!(out.trim(), "7", "the field's value must be the WHOLE of stdout");
+}
+
 /// ⛔ THE WIDEST CONTROL. Every existing enum construction in the corpus flows where the ENUM is
 /// expected. The ctor's type changes under this stone; if widening does not carry it, this row goes
 /// red first and everything after it is noise.
@@ -91,7 +132,6 @@ fn a_nonexistent_variant_is_refused() {
 /// ⚠ GREEN on a tree without variant types (erasure makes both sides agree); RED at the WIP.
 /// Judge it against the restored tree.
 #[test]
-#[ignore = "arc 296 A-2 RELAND-4 — vacuous without variant types; red at the WIP"]
 fn a_nested_variant_literal_reaches_a_base_typed_parameter() {
     let (code, out) = run_check("nested_variant_literal");
     assert_eq!(code, 0, "got: {out}");
@@ -111,7 +151,6 @@ fn a_nested_variant_literal_reaches_a_base_typed_parameter() {
 /// ⚠ RED at the WIP and must STAY RED. Every other row in this file passes under general
 /// covariance; only this one distinguishes "widen inside ENUMS" from "widen inside anything".
 #[test]
-#[ignore = "arc 296 A-2 RELAND-4 — vacuous without variant types; must be RED under E"]
 fn a_non_enum_container_does_not_widen_its_argument() {
     let (code, out) = run_check("non_enum_container_stays_invariant");
     assert_eq!(code, 1, "a defrecord's type argument must stay invariant; got: {out}");
@@ -130,7 +169,6 @@ fn a_non_enum_container_does_not_widen_its_argument() {
 /// discriminates only against the intermediate state, so its green on main proves NOTHING; read
 /// it against `60813552a`, where it is red.
 #[test]
-#[ignore = "arc 296 A-2 RELAND-2 — vacuous until variants are types; red at 60813552a"]
 fn an_intrinsic_parameter_accepts_a_variant_like_a_user_defn_does() {
     let (code, out) = run_check("intrinsic_param_accepts_a_variant");
     assert_eq!(code, 0, "got: {out}");
@@ -148,7 +186,6 @@ fn a_user_defn_parameter_accepts_a_variant() {
 /// passed all fourteen rows while excluding `Option`, `Result` and every service `Op`/`Reply` —
 /// the population the capability is FOR.
 #[test]
-#[ignore = "arc 296 A-2 — the ctor erases; and a user-only scope would leave this red"]
 fn a_stdlib_enums_variant_is_a_type_too() {
     let (code, out) = run_check("stdlib_enum_variant");
     assert_eq!(code, 0, "(:wat::core::Option::Some {{:value 42}}) must satisfy an \
@@ -178,7 +215,6 @@ fn two_sibling_variants_still_join_across_match_arms() {
 /// destructures the payload directly, with no match ceremony to reach a field it has already proved
 /// is there.
 #[test]
-#[ignore = "arc 296 A-2 — a variant is not a registered type, and {:keys} asks for an Aggregate"]
 fn a_function_can_take_only_one_variant_and_destructure_it() {
     let (code, out) = run_check("process_full_box");
     assert_eq!(code, 0, "got: {out}");
@@ -188,7 +224,6 @@ fn a_function_can_take_only_one_variant_and_destructure_it() {
 /// parameter. This is the only row that can tell "the type exists" from "the type is inhabited",
 /// and its absence is why P-2a shipped an uninhabitable parameter and had to be reverted.
 #[test]
-#[ignore = "arc 296 A-2 — the ctor erases to the enum, so nothing can satisfy a variant parameter"]
 fn the_constructor_carries_the_variant_type() {
     let (code, out) = run_check("ctor_carries_the_variant");
     assert_eq!(
@@ -203,7 +238,6 @@ fn the_constructor_carries_the_variant_type() {
 /// to be a `Box::Full`. Same exit code, different mechanism — so the bar is the MESSAGE. A stone
 /// that registered variants as ALIASES of their enum would flip this to 0 and pass every other row.
 #[test]
-#[ignore = "arc 296 A-2 — refused today as an unknown type, not as a direction violation"]
 fn an_enum_value_does_not_flow_into_a_variant_parameter() {
     let (code, out) = run_check("enum_does_not_narrow");
     assert_eq!(code, 1, "got: {out}");

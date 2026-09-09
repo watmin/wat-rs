@@ -3677,6 +3677,12 @@ fn dispatch_keyword_head_value(
                             Value::Aggregate(a) => {
                                 return keyword_accessor_struct(bare_name, a, sym, list_span);
                             }
+                            // Arc 296 A-2 RELAND-5 — a tagged variant carries named
+                            // fields too. Checker-side twin: the `acceptable` match
+                            // in this same fall-through's check-time arm (`check.rs`).
+                            Value::Enum(e) => {
+                                return keyword_accessor_enum(bare_name, &e, list_span);
+                            }
                             Value::wat__std__HashMap(map) => {
                                 // HashMap accessor: keyword key → (Option :- [V]).
                                 // Equivalent to (:wat::core::HashMap/get map :key).
@@ -3812,6 +3818,35 @@ fn keyword_accessor_struct(
                 record_class: format!(":{}", sv.class),
                 field: bare_name.to_string(),
                 available,
+            },
+        )
+        .into()),
+    }
+}
+
+/// Arc 296 A-2 RELAND-5 — the runtime's field-reading twin of the checker's widened
+/// `{:keys}` / keyword-accessor predicate: **a tagged variant carries named fields**.
+/// Unlike `keyword_accessor_record`/`keyword_accessor_struct`, this does NOT consult
+/// the TypeEnv — `EnumValue.names` is already carried on the value itself (arc 296 G′,
+/// the enum mirror of `AggregateValue.names`), in declaration order, same length as
+/// `.fields`. Nothing to look up; this is a read. Miss → `UnknownField`.
+fn keyword_accessor_enum(
+    bare_name: &str,
+    e: &EnumValue,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    match e.names.iter().position(|n| n == bare_name) {
+        Some(i) => Ok(e.fields[i].clone()),
+        None => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::UnknownField {
+                record_class: format!(
+                    "{}::{}",
+                    e.type_path.trim_start_matches(':'),
+                    e.variant_name
+                ),
+                field: bare_name.to_string(),
+                available: e.names.as_ref().clone(),
             },
         )
         .into()),
@@ -4031,70 +4066,82 @@ fn bind_let_binding(
         // reading a named field does not send on the channel).
         LetBinding::StructDestructure { field_names, rhs } => {
             let value = eval_inner(rhs, scope, sym)?.value_owned();
-            let sv = match &value {
-                Value::Aggregate(a) => a.clone(),
-                other => {
-                    return Err(RuntimeError::new(
-                        rhs.span().clone(),
-                        RuntimeErrorKind::TypeMismatch {
-                            op: ":wat::core::let".into(),
-                            expected: "an aggregate type",
-                            got: Box::new(ValueSnapshot::of(other)),
-                        },
-                    )
-                    .into());
-                }
-            };
-            let types = sym.types().ok_or_else(|| RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::let".into(),
-                reason: "keys-destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
-            }))?;
-            let type_key = format!(":{}", sv.class);
-            let struct_def = match types.get(&type_key) {
-                Some(crate::types::TypeDef::Aggregate(a)) => a,
-                _ => {
-                    return Err(RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::let".into(),
-                        reason: format!(
-                            "keys-destructure: rhs type :{} is not registered as an aggregate in the TypeEnv",
-                            sv.class
+            // Arc 296 A-2 RELAND-5 — a tagged variant carries named fields too, the
+            // same shape `process_let_binding`'s check-time `Keys` predicate already
+            // widened to (Aggregate | singleton Tagged Enum). Aggregate's declared
+            // names/positions still come from the TypeEnv (unchanged); Enum's are
+            // read straight off the value (`EnumValue.names` — arc 296 G′, nothing to
+            // look up). Both produce the same (label, declared-names, values) shape
+            // the loop below reads uniformly.
+            let (class_label, declared_names, values): (String, Vec<String>, Arc<Vec<Value>>) =
+                match &value {
+                    Value::Aggregate(a) => {
+                        let types = sym.types().ok_or_else(|| RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
+                            head: ":wat::core::let".into(),
+                            reason: "keys-destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
+                        }))?;
+                        let type_key = format!(":{}", a.class);
+                        let struct_def = match types.get(&type_key) {
+                            Some(crate::types::TypeDef::Aggregate(sd)) => sd,
+                            _ => {
+                                return Err(RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
+                                    head: ":wat::core::let".into(),
+                                    reason: format!(
+                                        "keys-destructure: rhs type :{} is not registered as an aggregate in the TypeEnv",
+                                        a.class
+                                    )
+                                }).into());
+                            }
+                        };
+                        (
+                            format!(":{}", a.class),
+                            struct_def.fields.iter().map(|(n, _)| n.clone()).collect(),
+                            a.fields.clone(),
                         )
-                    }).into());
-                }
-            };
+                    }
+                    Value::Enum(e) => (
+                        format!("{}::{}", e.type_path.trim_start_matches(':'), e.variant_name),
+                        e.names.as_ref().clone(),
+                        Arc::new(e.fields.clone()),
+                    ),
+                    other => {
+                        return Err(RuntimeError::new(
+                            rhs.span().clone(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: ":wat::core::let".into(),
+                                expected: "an aggregate type",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into());
+                    }
+                };
             let mut builder = scope.child();
             for (fname, fname_span) in &field_names {
-                let idx = struct_def
-                    .fields
+                let idx = declared_names
                     .iter()
-                    .position(|(n, _)| n == fname)
+                    .position(|n| n == fname)
                     .ok_or_else(|| RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
-                            "keys-destructure: field {:?} is not declared on :{} (declared fields: {})",
+                            "keys-destructure: field {:?} is not declared on {} (declared fields: {})",
                             fname,
-                            sv.class,
-                            struct_def
-                                .fields
-                                .iter()
-                                .map(|(n, _)| n.as_str())
-                                .collect::<Vec<_>>()
-                                .join(", ")
+                            class_label,
+                            declared_names.join(", ")
                         )
                     }))?;
-                let elem = sv
-                    .fields
+                let elem = values
                     .get(idx)
                     .cloned()
                     .ok_or_else(|| RuntimeError::new(rhs.span().clone(), RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
-                            "keys-destructure: field {:?} index {} is out of range on :{} (value has {} fields, declaration has {})",
+                            "keys-destructure: field {:?} index {} is out of range on {} (value has {} fields, declaration has {})",
                             fname,
                             idx,
-                            sv.class,
-                            sv.fields.len(),
-                            struct_def.fields.len()
+                            class_label,
+                            values.len(),
+                            declared_names.len()
                         )
                     }))?;
                 // Arc 233 Stone 233.2.e: bind with fname_span so lookup yields SymbolBound.
@@ -4140,6 +4187,18 @@ fn bind_let_binding(
                     for (var_name, bare_field, var_span) in &bindings {
                         let field_val =
                             keyword_accessor_struct(bare_field, a.clone(), sym, rhs.span())?;
+                        builder = builder.bind(
+                            var_name.clone(),
+                            var_span.clone(),
+                            TrackedValue::from(field_val),
+                        );
+                    }
+                }
+                // Arc 296 A-2 RELAND-5 — a tagged variant carries named fields too;
+                // same shape as the keyword-as-accessor fall-through's own Enum arm.
+                Value::Enum(e) => {
+                    for (var_name, bare_field, var_span) in &bindings {
+                        let field_val = keyword_accessor_enum(bare_field, e, rhs.span())?;
                         builder = builder.bind(
                             var_name.clone(),
                             var_span.clone(),
@@ -9012,6 +9071,19 @@ pub(crate) fn try_match_pattern(
                         for (var_name, bare_field) in &pairs {
                             let field_val =
                                 keyword_accessor_struct(bare_field, a.clone(), sym, span)?;
+                            env = env
+                                .child()
+                                .bind_unknown_span(var_name.clone(), TrackedValue::from(field_val))
+                                .build();
+                        }
+                        Ok(Some(env))
+                    }
+                    // Arc 296 A-2 RELAND-5 — a tagged variant carries named fields
+                    // too; same shape as the two field-reading sites above.
+                    Value::Enum(e) => {
+                        let mut env = outer.clone();
+                        for (var_name, bare_field) in &pairs {
+                            let field_val = keyword_accessor_enum(bare_field, e, span)?;
                             env = env
                                 .child()
                                 .bind_unknown_span(var_name.clone(), TrackedValue::from(field_val))

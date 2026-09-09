@@ -4769,7 +4769,36 @@ fn infer_list(
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = match &args[0] {
-                    WatAST::Keyword(k, _) => TypeExpr::Path(k.clone()),
+                    // Arc 296 A-2 RELAND-1 — the erasure, in the ctor BODY's own
+                    // check-time inference (a second site alongside `register.rs`'s
+                    // ctor `ret_type`; both must agree or a variant ctor's declared
+                    // return type would mismatch its inferred body type). `args[1]`
+                    // names the variant being built (`:Full`, a bare keyword — the
+                    // leading `:` stripped is an ordinary caller-side op per
+                    // `identifier.rs`'s module doc, not the name grammar itself); when
+                    // `enum_path::variant` resolves to the singleton `TypeDef::Enum`
+                    // `register_variant_types` mints (`src/types.rs`), the value's type
+                    // NARROWS to the variant instead of erasing to the bare enum.
+                    WatAST::Keyword(enum_path, _) => {
+                        let narrowed = match &args[1] {
+                            WatAST::Keyword(vk, _) => {
+                                let variant_leaf = vk.trim_start_matches(':');
+                                Some(format!("{enum_path}::{variant_leaf}"))
+                            }
+                            _ => None,
+                        };
+                        match narrowed {
+                            Some(vp)
+                                if matches!(
+                                    env.types().get(&vp),
+                                    Some(crate::types::TypeDef::Enum(_))
+                                ) =>
+                            {
+                                TypeExpr::Path(vp)
+                            }
+                            _ => TypeExpr::Path(enum_path.clone()),
+                        }
+                    }
                     other => {
                         local_errors.push(CheckError {
                             span: other.span().clone(),
@@ -5671,16 +5700,33 @@ fn infer_list(
                         {
                             true
                         }
-                        Some(TypeExpr::Path(p)) => matches!(
-                            env.types().get(p.as_str()),
+                        Some(TypeExpr::Path(p)) => match env.types().get(p.as_str()) {
                             // Arc 293.2b — Struct + Record collapsed into Aggregate.
-                            Some(crate::types::TypeDef::Aggregate(_))
-                        ),
+                            Some(crate::types::TypeDef::Aggregate(_)) => true,
+                            // Arc 296 A-2 RELAND-5 — a tagged variant carries named
+                            // fields too, exactly like `{:keys}`'s own widened
+                            // predicate in `process_let_binding` (the singleton
+                            // `TypeDef::Enum` `register_variant_types` mints). A Unit
+                            // variant (or any other TypeDef arm) carries none and
+                            // stays refused.
+                            Some(crate::types::TypeDef::Enum(e)) => e.variants.len() == 1,
+                            _ => false,
+                        },
                         Some(TypeExpr::Parametric { head, .. })
                             if head == "wat::core::HashMap" =>
                         {
                             true
                         }
+                        // Arc 296 A-2 RELAND-5 — a parametric variant (e.g.
+                        // `:usr::Box::Full :- [i64]`): `register_variant_types` carries
+                        // only the type params the variant's OWN fields consume, so a
+                        // generic variant's resolved type here is `Parametric`, not a
+                        // bare `Path` — the arm above alone missed exactly this shape.
+                        // Same singleton-Enum test, same reason.
+                        Some(TypeExpr::Parametric { head, .. }) => matches!(
+                            env.types().get(crate::types::parametric_head_fqdn(head).as_str()),
+                            Some(crate::types::TypeDef::Enum(e)) if e.variants.len() == 1
+                        ),
                         Some(_) => false,
                     };
                     if acceptable {
@@ -6177,7 +6223,17 @@ fn infer_match(
     let scrutinee_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     let expected_scrutinee = shape.as_type();
     if let Some(sty) = &scrutinee_ty {
-        if unify(sty, &expected_scrutinee, subst, env.types()).is_err() {
+        // Arc 296 A-2 RELAND-1 — `assignable`, not bare `unify` (the same "Arc 258
+        // cascade" already applied to `if`'s branch join / a fn's body-vs-signature
+        // check): a variant's ctor no longer erases to its enum, so a `let`-bound
+        // scrutinee built by one now infers as the NARROWER variant type
+        // (`:usr::Box::Full`) while the arms' detected shape is still the enum
+        // (`:usr::Box`). `assignable` tries the head-level `Variant <: Enum` subtype
+        // edge (binding the enum's fresh type-param vars via the same per-arg `unify`
+        // `variant_widens_to_enum` already exercises) before falling through to its own
+        // `unify` call at the tail — so every scrutinee that unified before still does,
+        // byte-identical, and a variant-typed one now also does.
+        if !assignable(sty, &expected_scrutinee, subst, env) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::core::match".into(),
                 param: "scrutinee".into(),
@@ -6311,16 +6367,21 @@ fn infer_match(
                             .drain_errors_into(&mut local_errors);
                         if let Some(t) = arm_ty {
                             if let Some(r) = result_ty.clone() {
-                                if unify(&t, &r, subst, env.types()).is_err() {
-                                    local_errors.push(CheckError {
-                                        span: body.span().clone(),
-                                        kind: CheckErrorKind::TypeMismatch {
-                                            callee: ":wat::core::match".into(),
-                                            param: format!("arm #{} (hash-destructure)", idx + 1),
-                                            expected: format_type(&apply_subst(&r, subst)),
-                                            got: format_type(&apply_subst(&t, subst)),
-                                        },
-                                    });
+                                // Arc 296 A-2 RELAND-1 — join, not bare unify (see
+                                // `combine_match_arm`).
+                                match combine_match_arm(&t, &r, subst, env) {
+                                    Some(joined) => result_ty = Some(joined),
+                                    None => {
+                                        local_errors.push(CheckError {
+                                            span: body.span().clone(),
+                                            kind: CheckErrorKind::TypeMismatch {
+                                                callee: ":wat::core::match".into(),
+                                                param: format!("arm #{} (hash-destructure)", idx + 1),
+                                                expected: format_type(&apply_subst(&r, subst)),
+                                                got: format_type(&apply_subst(&t, subst)),
+                                            },
+                                        });
+                                    }
                                 }
                             } else {
                                 result_ty = Some(apply_subst(&t, subst));
@@ -6419,13 +6480,19 @@ fn infer_match(
         let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(t) = arm_ty {
             if let Some(r) = result_ty.clone() {
-                if unify(&t, &r, subst, env.types()).is_err() {
-                    local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                        callee: ":wat::core::match".into(),
-                        param: format!("arm #{}", idx + 1),
-                        expected: format_type(&apply_subst(&r, subst)),
-                        got: format_type(&apply_subst(&t, subst))
-                    } });
+                // Arc 296 A-2 RELAND-1 — join, not bare unify (see `combine_match_arm`).
+                // THE site: 277 of RELAND-0's 600 floor failures were a match returning a
+                // different sibling variant from different arms, arriving here.
+                match combine_match_arm(&t, &r, subst, env) {
+                    Some(joined) => result_ty = Some(joined),
+                    None => {
+                        local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: ":wat::core::match".into(),
+                            param: format!("arm #{}", idx + 1),
+                            expected: format_type(&apply_subst(&r, subst)),
+                            got: format_type(&apply_subst(&t, subst))
+                        } });
+                    }
                 }
             } else {
                 result_ty = Some(apply_subst(&t, subst));
@@ -7374,6 +7441,21 @@ fn check_nested_variant_map(
     bindings: &mut HashMap<String, TypeExpr>,
     errors: &mut Vec<CheckError>,
 ) -> Option<bool> {
+    // Arc 296 A-2 RELAND-4 loose end ② — widen to the enclosing enum ONCE, at entry.
+    // Safe here (unlike `check_subpattern`'s top level, which has a bare-symbol BINDER
+    // arm that must keep the narrow type — see its own dispatch-site NOTEs): every path
+    // through this function either errors or recurses via `bind_fields` ->
+    // `check_subpattern`, which re-derives and stores its OWN types fresh: nothing here
+    // stores `expected_ty` itself into `bindings`. Without this, a `[Variant {:k v}]`
+    // nested sub-pattern at a position whose type resolved to the scrutinee's own
+    // narrowed sibling variant (the shape's fresh var — e.g. `mm`'s inner
+    // `Option::Some<i64>` in `(Option::Some {:value (Option::Some {:value 42})})`) is
+    // refused even though the value genuinely IS that enum
+    // (`recursive_patterns::nested_options_three_levels`, whose inner `[Option::Some
+    // {:value x}]` sub-pattern is a 2-element Vector — THIS function's shape, not
+    // `check_subpattern`'s own `WatAST::List` dispatch). A non-variant / already-bare
+    // type widens to itself (no-op).
+    let expected_ty = &widen_to_enclosing_enum(expected_ty, env);
     let parsed = match crate::match_arm::parse_key_first_pairs(pairs, span) {
         Ok(p) => p,
         Err(e) => {
@@ -7726,14 +7808,23 @@ fn check_subpattern(
             });
             None
         }
-        WatAST::Keyword(k, _) if k == ":wat::core::Option::None" => match expected_ty {
+        // Arc 296 A-2 RELAND-4 loose end ② — widen to the enclosing enum for THIS
+        // DISPATCH DECISION ONLY (never stored into `bindings`; a `:None` unit
+        // variant introduces none). `expected_ty` may already be the scrutinee's
+        // own NARROWED variant here (the shape's fresh var, unified against the
+        // scrutinee's actual arg — e.g. `mm`'s inner `Option::Some<i64>` in
+        // `(Option::Some {:value (Option::Some {:value 42})})`); without widening,
+        // a `:None` sub-pattern at that position is refused even though the value
+        // genuinely IS an Option (`recursive_patterns::nested_options_three_levels`).
+        // A non-variant / already-bare type widens to itself (no-op).
+        WatAST::Keyword(k, _) if k == ":wat::core::Option::None" => match &widen_to_enclosing_enum(expected_ty, env) {
             TypeExpr::Parametric { head, .. } if head == "wat::core::Option" => Some(false),
-            other => {
+            _ => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         ":None pattern in {} position",
-                        format_type(other)
+                        format_type(expected_ty)
                     ),
                     remedies: vec![],
                 } });
@@ -7757,7 +7848,10 @@ fn check_subpattern(
                     return None;
                 }
             };
-            let enum_path = match expected_ty {
+            // Arc 296 A-2 RELAND-4 loose end ② — same widen, same reason: dispatch
+            // decision only (a Unit variant binds nothing), never stored.
+            let expected_widened = widen_to_enclosing_enum(expected_ty, env);
+            let enum_path = match &expected_widened {
                 TypeExpr::Path(p) => p.as_str(),
                 other => {
                     errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -7864,8 +7958,22 @@ fn check_subpattern(
                 WatAST::Keyword(k, _) if k == ":wat::core::Result::Err" => Some("Err"),
                 _ => None,
             };
+            // Arc 296 A-2 RELAND-4 loose end ② — widen to the enclosing enum for THIS
+            // DISPATCH DECISION and the field-type args it hands to the recursive
+            // `check_subpattern` calls below (never for a bare-symbol BINDING —
+            // measured: widening a bound symbol's stored type corrupts a LATER,
+            // unrelated check that reads that binding back out of `arm_locals`,
+            // `probe_arc278_journal_surface`'s own `resp` binder among them). Without
+            // this, a `(Some …)`/`(Ok …)`/`(Err …)` sub-pattern at a position whose
+            // type resolved to the scrutinee's own NARROWED sibling variant (the
+            // shape's fresh var — e.g. `mm`'s inner `Option::Some<i64>` in
+            // `(Option::Some {:value (Option::Some {:value 42})})`) is refused even
+            // though the value genuinely IS that enum
+            // (`recursive_patterns::nested_options_three_levels`). A non-variant /
+            // already-bare type widens to itself (no-op).
+            let expected_widened = widen_to_enclosing_enum(expected_ty, env);
             if let Some(ident) = builtin_ident {
-                match (ident, expected_ty) {
+                match (ident, &expected_widened) {
                     ("Some", TypeExpr::Parametric { head: h, args })
                         if h == "wat::core::Option" && args.len() == 1 =>
                     {
@@ -7952,7 +8060,11 @@ fn check_subpattern(
                     } });
                     return None;
                 }
-                let enum_path = match expected_ty {
+                // Arc 296 A-2 RELAND-4 loose end ② — same widen (`expected_widened`,
+                // computed above), same reason: a `(usr::Box::Full ...)`-shaped
+                // sub-pattern at a position whose type resolved to the scrutinee's own
+                // narrowed sibling variant must still resolve the enclosing enum.
+                let enum_path = match &expected_widened {
                     TypeExpr::Path(p) => p.as_str(),
                     other => {
                         errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -9806,7 +9918,14 @@ fn infer_option_expect(
         head: "wat::core::Option".into(),
         args: vec![t_var.clone()],
     };
-    if unify(&opt_ty, &expected_opt, subst, env.types()).is_err() {
+    // Arc 296 A-2 RELAND-2 mechanism ① — a scheme-based intrinsic must accept a narrowed
+    // variant exactly as a user `defn`'s call-site check already does. A user defn's param
+    // check routes through `assignable` (which knows `Option::Some <: Option` via the
+    // restored join's variant subtype edges); this hand-written intrinsic checker used bare
+    // `unify`, which is exact and rejects the narrowed variant. `assignable` still binds
+    // `t_var` — its same-head-after-widening arm falls through to a per-arg `unify` — so this
+    // is strictly a widening of ACCEPTANCE, not a loss of the var-binding this fn depends on.
+    if !assignable(&opt_ty, &expected_opt, subst, env) {
         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "opt".into(),
@@ -9875,7 +9994,9 @@ fn infer_result_expect(
         head: "wat::core::Result".into(),
         args: vec![t_var.clone(), e_var],
     };
-    if unify(&res_ty, &expected_res, subst, env.types()).is_err() {
+    // Arc 296 A-2 RELAND-2 mechanism ① — see the matching comment in `infer_option_expect`;
+    // same fix, `Result`'s sibling intrinsic.
+    if !assignable(&res_ty, &expected_res, subst, env) {
         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "res".into(),
@@ -12766,30 +12887,51 @@ fn process_let_binding(
                             return CheckResult::errs(binding_errors);
                         }
                     };
-                    let struct_def = match env.types().get(&type_name) {
-                        // Arc 296 O — {:keys} is an aggregate test, not a nature list.
-                        Some(crate::types::TypeDef::Aggregate(a)) => a.clone(),
-                        _ => {
-                            binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                callee: form.into(),
-                                param: format!("keys-destructure ({})", field_names.join(" ")),
-                                expected: "an aggregate type".into(),
-                                got: format_type(&rhs_ty)
-                            } });
-                            return CheckResult::errs(binding_errors);
-                        }
-                    };
+                    // Arc 296 A-2 RELAND-1 — the predicate widens by SHAPE ("does this
+                    // carry named fields?"), not by registering a variant as
+                    // `TypeDef::Aggregate` to satisfy it (refused by the builder: that
+                    // shapes the TYPE to fit the PREDICATE, exactly the move Stone O's own
+                    // `nature == Struct` guard made and was corrected out of). A tagged
+                    // enum variant — the singleton `TypeDef::Enum` synthesized by
+                    // `register_variant_types`, always exactly one variant — carries named
+                    // fields the same way an Aggregate does; a Unit variant (or any other
+                    // TypeDef arm) does not, and falls through to the same "not an
+                    // aggregate type" refusal below it already got.
+                    let (agg_name, agg_fields): (String, Vec<(String, TypeExpr)>) =
+                        match env.types().get(&type_name) {
+                            // Arc 296 O — {:keys} is an aggregate test, not a nature list.
+                            Some(crate::types::TypeDef::Aggregate(a)) => (a.name.clone(), a.fields.clone()),
+                            // Arc 296 A-2 RELAND-1 — a tagged variant carries named fields
+                            // too; a unit variant carries none, and reports every requested
+                            // key as undeclared via the same loop below (never a distinct
+                            // error shape).
+                            Some(crate::types::TypeDef::Enum(e)) if e.variants.len() == 1 => {
+                                let fields = match &e.variants[0] {
+                                    crate::types::EnumVariant::Tagged { fields, .. } => fields.clone(),
+                                    crate::types::EnumVariant::Unit(_) => Vec::new(),
+                                };
+                                (e.name.clone(), fields)
+                            }
+                            _ => {
+                                binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                    callee: form.into(),
+                                    param: format!("keys-destructure ({})", field_names.join(" ")),
+                                    expected: "an aggregate type".into(),
+                                    got: format_type(&rhs_ty)
+                                } });
+                                return CheckResult::errs(binding_errors);
+                            }
+                        };
                     // Look up each requested field; emit MalformedForm naming
                     // the offending field + listing the aggregate's actual fields
                     // when a name doesn't match (substrate-as-teacher).
                     for fname in &field_names {
-                        match struct_def.fields.iter().find(|(n, _)| n == fname) {
+                        match agg_fields.iter().find(|(n, _)| n == fname) {
                             Some((_, fty)) => {
                                 new_bindings.insert(fname.clone(), apply_subst(fty, subst));
                             }
                             None => {
-                                let declared = struct_def
-                                    .fields
+                                let declared = agg_fields
                                     .iter()
                                     .map(|(n, _)| n.as_str())
                                     .collect::<Vec<_>>()
@@ -12798,7 +12940,7 @@ fn process_let_binding(
                                     head: form.into(),
                                     reason: format!(
                                         "keys-destructure: field {:?} is not declared on {} (declared fields: {})",
-                                        fname, struct_def.name, declared
+                                        fname, agg_name, declared
                                     ),
                                     remedies: vec![],
                                 } });
@@ -13748,8 +13890,33 @@ fn is_type_equatable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
 ///
 /// NOT orderable: `HashMap`, `HashSet`, user enums / Records / Structs,
 /// unit `()`, fn types, `HolonAST`, channels/handles.
-fn is_type_orderable(ty: &TypeExpr, subst: &Subst) -> bool {
+///
+/// Arc 296 A-2 RELAND-3 mechanism ② sub-defect 2 — a VARIANT of an orderable enum is
+/// orderable: it is the same values, just narrowed (`Result::Ok`/`Result::Err` order
+/// exactly as `Result` does — `values_compare`, `src/runtime.rs`, dispatches on the enum,
+/// not the variant). Takes `types: &TypeEnv` (new) so a `Path`/`Parametric` head that
+/// names a registered variant can ask its own `enclosing_enum` and widen to it — same
+/// primitive `widen_to_enclosing_enum`/`join_types` already consult, never a hand-listed
+/// set of variant names (STOP-5: that is exactly what this campaign deletes). A no-op for
+/// anything that is not a variant (`enclosing_enum` answers `None`, or answers itself for
+/// an already-bare enum) — falls through to the unchanged arms below.
+fn is_type_orderable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
     let resolved = apply_subst(ty, subst);
+    if let Some((head, args)) = type_head_args(&resolved) {
+        if let Some(parent) = types.enclosing_enum(head) {
+            if parent != crate::types::parametric_head_fqdn(head) {
+                let widened = if args.is_empty() {
+                    TypeExpr::Path(parent.to_string())
+                } else {
+                    TypeExpr::Parametric {
+                        head: parent.trim_start_matches(':').to_string(),
+                        args: args.to_vec(),
+                    }
+                };
+                return is_type_orderable(&widened, subst, types);
+            }
+        }
+    }
     match &resolved {
         TypeExpr::Var(_) => true, // unresolved — defer to runtime
         TypeExpr::Path(p) => matches!(
@@ -13766,12 +13933,12 @@ fn is_type_orderable(ty: &TypeExpr, subst: &Subst) -> bool {
                 | ":wat::holon::Vector"
         ),
         TypeExpr::Parametric { head, args } => match head.as_str() {
-            "wat::core::Vector" => args.first().is_none_or(|el| is_type_orderable(el, subst)),
-            "wat::core::Option" => args.first().is_none_or(|el| is_type_orderable(el, subst)),
+            "wat::core::Vector" => args.first().is_none_or(|el| is_type_orderable(el, subst, types)),
+            "wat::core::Option" => args.first().is_none_or(|el| is_type_orderable(el, subst, types)),
             "wat::core::Result" => {
                 // (Result :- [T E]) orderable iff both T and E are orderable
-                args.first().is_none_or(|t| is_type_orderable(t, subst))
-                    && args.get(1).is_none_or(|e| is_type_orderable(e, subst))
+                args.first().is_none_or(|t| is_type_orderable(t, subst, types))
+                    && args.get(1).is_none_or(|e| is_type_orderable(e, subst, types))
             }
             _ => false,
         },
@@ -13780,7 +13947,7 @@ fn is_type_orderable(ty: &TypeExpr, subst: &Subst) -> bool {
         // split Stone 245.8's scoring caught live. Ordering a one-inhabitant
         // type is meaningless; check mirrors the runtime's refusal.
         TypeExpr::Tuple(elems) => {
-            !elems.is_empty() && elems.iter().all(|el| is_type_orderable(el, subst))
+            !elems.is_empty() && elems.iter().all(|el| is_type_orderable(el, subst, types))
         }
         TypeExpr::Fn { .. } => false,
     }
@@ -13820,7 +13987,20 @@ fn infer_ordering(
         // Cross-type (i64 vs f64) must fail here: unify rejects it, producing TypeMismatch.
         // This is the principal doc: the error KIND changes from NoMatchingClause (old defclause
         // path) to TypeMismatch (unify failure) for cross-type ordering.
-        if unify(&a_resolved, &b_resolved, subst, env.types()).is_err() {
+        //
+        // Arc 296 A-2 RELAND-3 mechanism ② sub-defect 1 — bare unify on the RAW types rejects
+        // two SIBLING variants of the same orderable enum (`Result::Ok` vs `Result::Err` — Err
+        // < Ok is exactly what `values_compare` implements) and a bare enum against its own
+        // narrowed variant (`Option` vs `Option::Some`), because unify is exact on the head.
+        // Widen EACH side independently to its own enclosing enum first —
+        // `widen_to_enclosing_enum`, the same primitive mechanism ③ already established for
+        // this reason — then unify the WIDENED forms. Widening only ever changes the head, never
+        // the argument Vec, so this binds the SAME type variables `a_resolved`/`b_resolved`
+        // already carry; a non-variant type (plain `i64`/`f64`) widens to itself (a no-op), so
+        // the numeric cross-type case below is byte-for-byte unaffected.
+        let a_widened = widen_to_enclosing_enum(&a_resolved, env);
+        let b_widened = widen_to_enclosing_enum(&b_resolved, env);
+        if unify(&a_widened, &b_widened, subst, env.types()).is_err() {
             // Arc 300 Stone C5 — both_numeric EXCEPTION: a unify failure between two DIFFERENT
             // numeric leaf types (`(< 1 2.0)`, i64 vs f64) is well-formed (matches eval + clj) —
             // only the cross-numeric unify-fail case is excepted; same-type unify success below
@@ -13837,14 +14017,21 @@ fn infer_ordering(
                 } });
             }
         } else {
-            // Types unified — now gate on the orderable class.
-            let unified = apply_subst(&a_resolved, subst);
-            if !is_type_orderable(&unified, subst) {
+            // Types unified (possibly via the widened forms above, which bound the same vars
+            // `a_resolved`/`b_resolved` hold) — now gate on the orderable class. Check BOTH
+            // operands, not just one — mirrors `infer_equality`'s own two-sided
+            // `is_type_equatable(&a_resolved, ...) || is_type_equatable(&b_resolved, ...)` check
+            // just above in this file, its sibling for the ordering family. A sibling-variant
+            // pair (`Ok`/`Err`) keeps its OWN head here (never merged into a single "unified"
+            // value) — sub-defect 2's fix to `is_type_orderable` is what accepts each one.
+            let a_final = apply_subst(&a_resolved, subst);
+            let b_final = apply_subst(&b_resolved, subst);
+            if !is_type_orderable(&a_final, subst, env.types()) || !is_type_orderable(&b_final, subst, env.types()) {
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
                     expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, (Vector :- [T]), Tuple, (Option :- [T]), (Result :- [T E]))".into(),
-                    got: format_type(&unified)
+                    got: format_type(&a_final)
                 } });
             }
         }
@@ -16931,8 +17118,26 @@ fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
 }
 
 /// Arc 296 A-1 — unify if either side still has a type variable; otherwise
-/// `assignable(actual, expected)`. Decide first, call once (`unify` mutates
-/// subst — no try/fallback). Payload-to-slot direction matches a parameter.
+/// `assignable(actual, expected)`. Payload-to-slot direction matches a parameter.
+///
+/// Arc 296 A-2 RELAND-1 — a var-present `unify` failure now falls through to
+/// `assignable` instead of failing outright. Measured: a payload can be a variant
+/// whose OWN declared type still carries a fresh inner var (`(Status::Stopped :- [:?134])`
+/// from a not-yet-resolved generic message ctor) while the slot wants the bare enum
+/// (`(Status :- [T])`) — `unify` fails on the mismatched heads (`Status::Stopped` vs
+/// `Status`) before ever reaching the head-level `Variant <: Enum` edge `assignable`
+/// tries first. This is the same subsumption the ruled contract calls "already covered"
+/// (`join(Option::Some, Option) = Option`) — it just was not reached whenever a var
+/// happened to be present on either side.
+///
+/// The `unify` attempt runs on a CLONED `subst` (the established pattern for a
+/// speculative attempt — see the forward/narrowing clause-dispatch candidates above,
+/// `~5511`), committed only on success; a failed `unify` is known to leave PARTIAL
+/// bindings behind (each recursive arm inserts into `subst` before the outer call can
+/// fail), so trying `assignable` next on an already-mutated `subst` would let a failed
+/// unify's leftovers corrupt an unrelated mechanism's decision. `assignable` itself is
+/// still called on the real `subst` (unchanged from A-1: two sequential `assignable`
+/// calls already share one `subst` in `join_if_branches`, below).
 fn relate_value_to_slot(
     actual: &TypeExpr,
     expected: &TypeExpr,
@@ -16944,7 +17149,25 @@ fn relate_value_to_slot(
     if crate::declare::typevar::contains_type_var(&a)
         || crate::declare::typevar::contains_type_var(&e)
     {
-        unify(&a, &e, subst, env.types()).is_ok()
+        // Arc 296 A-2 RELAND-2 mechanism ③ — when the SLOT side still carries a var, a
+        // bare `unify` below binds it to `a` VERBATIM. If `a` is a narrowed variant (the
+        // first concrete payload a channel ever sees — e.g. `:probe::Msg::Setup`), that
+        // PINS the channel's message-type var to the narrow variant instead of its
+        // enclosing enum (`:probe::Msg`) — every later payload of a DIFFERENT sibling
+        // variant on the same channel is then compared against the first payload's own
+        // type, not the message type the channel actually carries. Widen `a` to its
+        // enclosing enum FIRST (a no-op when `a` is not a variant, or is already the bare
+        // enum) so the var solves to the honest channel type. A slot that is already
+        // concrete never reaches this branch's `unify` (see below) — it falls to
+        // `assignable`, unchanged, which still accepts the NARROW payload via the
+        // head-level `Variant <: Enum` edge.
+        let widened = widen_to_enclosing_enum(&a, env);
+        let mut trial = subst.clone();
+        if unify(&widened, &e, &mut trial, env.types()).is_ok() {
+            *subst = trial;
+            return true;
+        }
+        assignable(&a, &e, subst, env)
     } else {
         assignable(&a, &e, subst, env)
     }
@@ -16953,6 +17176,21 @@ fn relate_value_to_slot(
 /// Arc 296 A-1 — the type both `if` branches can be seen as. Unify while a
 /// variable remains; when both are concrete, the supertype (then <: else →
 /// else; else <: then → then). Not then-authoritative.
+///
+/// Arc 296 A-2 RELAND-1 — a var-present `unify` failure no longer gives up outright.
+/// Two further mechanisms are tried, in order, on the UNMUTATED `subst` (the `unify`
+/// attempt above runs on a clone — see [`relate_value_to_slot`]'s doc for why a failed
+/// `unify` cannot be trusted not to have left partial bindings behind):
+///
+/// 1. `assignable` (both directions) — a var CAN be present while one side is still a
+///    directional subtype of the other (`(Option::None :- [:?31])` vs a caller's already
+///    fully-resolved `(Option :- [i64])` slot: `unify` fails on the mismatched heads
+///    `Option::None`/`Option`, but the head-level `Variant <: Enum` edge `assignable`
+///    tries still applies and binds `:?31` itself via its own per-arg `unify`).
+/// 2. [`join_types`] — two SIBLING variants (`Option::Some`/`Option::None`; neither
+///    assignable to the other) whose own type arguments may STILL carry a var
+///    (`Option::None`'s never-pinned inner type) — `join_types` resolves that per-argument,
+///    the same way `assignable`'s per-arg `unify` does above.
 fn join_if_branches(
     then_ty: &TypeExpr,
     else_ty: &TypeExpr,
@@ -16964,18 +17202,231 @@ fn join_if_branches(
     if crate::declare::typevar::contains_type_var(&t)
         || crate::declare::typevar::contains_type_var(&e)
     {
-        if unify(&t, &e, subst, env.types()).is_ok() {
-            Some(apply_subst(&t, subst))
-        } else {
+        let mut trial = subst.clone();
+        if unify(&t, &e, &mut trial, env.types()).is_ok() {
+            *subst = trial;
+            return Some(apply_subst(&t, subst));
+        }
+        // `trial` discarded; `subst` is untouched, so the mechanisms below still see a
+        // clean substitution.
+    }
+    if assignable(&t, &e, subst, env) {
+        return Some(e);
+    }
+    if assignable(&e, &t, subst, env) {
+        return Some(t);
+    }
+    join_types(&t, &e, subst, env)
+}
+
+/// Arc 296 A-2 RELAND-1 — THE JOIN, ruled by the builder 2026-09-08: *"The join of two
+/// types with the same head is that head applied to the pairwise joins of its arguments.
+/// The join of two variants of the same enum is that enum. Otherwise there is none."*
+///
+/// Purely structural — never searches [`TypeEnv`]'s `subtype_edges` for a common
+/// ancestor (measured: 24 of its 34 edges are `extend-type` PROTOCOL satisfaction, not
+/// enum membership, so a general least-upper-bound over it would answer a different
+/// question). A variant's enum comes from [`TypeEnv::enclosing_enum`] — variant
+/// registration (generalized to answer itself for an already-bare enum — see that
+/// function's doc for why the contract's "subsumption already covers" case still needs
+/// this one level down, inside a same-head pair's own arguments) — the only parent this
+/// function consults.
+///
+/// Shared by both callers the builder named: `join_if_branches` (`if`, above) and
+/// `infer_match`'s arm-unification loop (below) — each tries its own directional/var
+/// mechanism FIRST (bare `unify` while a var remains, `assignable` for subsumption —
+/// `Option::Some` already widens to `Option` there, unchanged) and calls this only when
+/// that fails, so nothing that unified or was assignable before takes a different path
+/// now. Both sides widening to the SAME resulting type is what avoids variance — nothing
+/// downstream of a join ever has to accept a subtype in an argument position.
+///
+/// Takes `subst` (mutably) because a sibling-variant's own type argument can still be an
+/// unresolved fresh var (`(Option::None :- [:?31])`'s `:?31`, seeded before the `None`
+/// arm's inner type was ever pinned) — the per-argument recursion below resolves that
+/// exactly as `unify` would, by falling to `unify` itself whenever a pair can't be
+/// decomposed into head+args (a bare [`TypeExpr::Var`] chief among them).
+fn join_types(a: &TypeExpr, b: &TypeExpr, subst: &mut Subst, env: &CheckEnv) -> Option<TypeExpr> {
+    let a = apply_subst(a, subst);
+    let b = apply_subst(b, subst);
+    if a == b {
+        return Some(a);
+    }
+    match (type_head_args(&a), type_head_args(&b)) {
+        (Some((a_head, a_args)), Some((b_head, b_args))) => {
+            // Same head, applied to the pairwise join of its arguments.
+            if a_head == b_head {
+                if a_args.len() != b_args.len() {
+                    return None;
+                }
+                let mut joined = Vec::with_capacity(a_args.len());
+                for (x, y) in a_args.iter().zip(b_args.iter()) {
+                    joined.push(join_types(x, y, subst, env)?);
+                }
+                return Some(if joined.is_empty() {
+                    TypeExpr::Path(a_head.to_string())
+                } else {
+                    TypeExpr::Parametric { head: a_head.to_string(), args: joined }
+                });
+            }
+
+            // Two types that share one ENCLOSING enum join to that enum, applied to the
+            // pairwise join of ITS arguments. Covers both the contract's named case (two
+            // SIBLING variants — `Option::Some`/`Option::None`) and its generalization
+            // (one side already the BARE enum — `enclosing_enum` answers itself for that
+            // side): `RecvOutcome::Message<X::RequestTooLarge>` vs bare `RecvOutcome<X>`
+            // needs exactly this, one level down inside the args, because `assignable`'s
+            // per-argument check is deliberately INVARIANT (Arc 278 Stone 2 — a channel's
+            // send/recv types are exact) and so cannot re-apply subsumption recursively —
+            // see `TypeEnv::enclosing_enum`'s doc for the full argument. A variant shares
+            // its parent enum's type params (`variant_widens_to_enum` already exercises the
+            // per-arg unify a head-level `Variant <: Enum` edge relies on), so
+            // `a_args`/`b_args` here are already the enum's own type arguments.
+            let a_parent = env.types().enclosing_enum(a_head).map(str::to_string);
+            let b_parent = env.types().enclosing_enum(b_head).map(str::to_string);
+            if let (Some(pa), Some(pb)) = (a_parent, b_parent) {
+                if pa == pb {
+                    if a_args.len() != b_args.len() {
+                        return None;
+                    }
+                    let mut joined = Vec::with_capacity(a_args.len());
+                    for (x, y) in a_args.iter().zip(b_args.iter()) {
+                        joined.push(join_types(x, y, subst, env)?);
+                    }
+                    return Some(if joined.is_empty() {
+                        TypeExpr::Path(pa)
+                    } else {
+                        // `TypeExpr::Parametric.head` is stored WITHOUT its leading
+                        // colon by convention (`parametric_head_fqdn`'s doc comment,
+                        // `src/types.rs`) — `pa` is `enclosing_enum`'s canonical,
+                        // colon-prefixed `EnumDef.name`, so it must be stripped here,
+                        // same as every other `Parametric.head` construction site.
+                        TypeExpr::Parametric { head: pa.trim_start_matches(':').to_string(), args: joined }
+                    });
+                }
+            }
             None
         }
-    } else if assignable(&t, &e, subst, env) {
-        Some(e)
-    } else if assignable(&e, &t, subst, env) {
-        Some(t)
-    } else {
-        None
+        // At least one side cannot be decomposed into head+args — a bare
+        // `TypeExpr::Var` chief among them (a sibling variant's own still-fresh type
+        // argument, e.g. `:?31`). `unify` is the mechanism that resolves a variable;
+        // for two fully concrete, structurally different, non-decomposable types it
+        // simply fails, same as "otherwise there is none".
+        _ => {
+            if unify(&a, &b, subst, env.types()).is_ok() {
+                Some(apply_subst(&a, subst))
+            } else {
+                None
+            }
+        }
     }
+}
+
+/// The head + type-argument list of a `Path`/`Parametric` type expr, uniformly — `:Foo`
+/// is `("Foo", [])`, `(:Foo :- [A B])` is `("Foo", [A, B])`. `None` for every other
+/// [`TypeExpr`] arm (`Fn`/`Var`/`Tuple`/…) — [`join_types`] has no structural rule for
+/// those, matching the ruled contract's "otherwise there is none".
+fn type_head_args(t: &TypeExpr) -> Option<(&str, &[TypeExpr])> {
+    match t {
+        TypeExpr::Path(p) => Some((p.as_str(), &[])),
+        TypeExpr::Parametric { head, args } => Some((head.as_str(), args.as_slice())),
+        _ => None,
+    }
+}
+
+/// Arc 296 A-2 RELAND-4 — option E's ONE gate. `head`'s bare type is registered as an
+/// `Enum` — a user `defenum`, OR one of [`crate::types::TypeEnv::register_variant_types`]'s
+/// one-variant singletons (a variant is itself a sum-of-one, so the same derivation
+/// applies transitively at every nesting level). Sound BY CONSTRUCTION: an enum's type
+/// parameters appear only in variant FIELD types, which `match` only ever READS — there is
+/// no method, no channel, no input position anywhere in it, so widening a type ARGUMENT
+/// inside it cannot be unsound.
+///
+/// A `defrecord` (`TypeDef::Aggregate`) may hold a resource and nothing guarantees its `T`
+/// is read-only; a typealias to a rust opaque (`:wat::kernel::Sender :- [T]`, where `T`
+/// genuinely IS an input) is `TypeDef::Alias`, not `Enum`. Both answer `false` here and the
+/// caller's plain `unify` stays the only path — invariant, as before this stone.
+///
+/// STOP-3: this is the ONLY gate — "is the container an enum" — never a hand-listed set of
+/// "safe" containers.
+fn container_is_enum(head: &str, types: &TypeEnv) -> bool {
+    matches!(
+        types.get(&crate::types::parametric_head_fqdn(head)),
+        Some(crate::types::TypeDef::Enum(_))
+    )
+}
+
+/// Arc 296 A-2 RELAND-2 mechanism ③ — widen `t` to its enclosing enum (same type
+/// arguments), the way [`join_types`]'s sibling-variant arm already computes a parent
+/// for each side (`env.types().enclosing_enum(head)`). A no-op when `t` is not a
+/// `Path`/`Parametric` (nothing to widen), when it names no enum at all, or when it is
+/// already the bare enum itself (`enclosing_enum` answers itself in that case, per its
+/// own doc — compared via [`crate::types::parametric_head_fqdn`] so the Path-vs-Parametric
+/// colon asymmetry doesn't produce a false "already bare" negative).
+///
+/// [`relate_value_to_slot`]'s ONE caller of this: it widens the ACTUAL side before a
+/// var-binding `unify`, never the expected side, and never inside `assignable`'s own
+/// subsumption (which already accepts a narrow variant into a wide enum slot via the
+/// head-level `Variant <: Enum` edge — unaffected by this fn).
+fn widen_to_enclosing_enum(t: &TypeExpr, env: &CheckEnv) -> TypeExpr {
+    if let Some((head, args)) = type_head_args(t) {
+        if let Some(parent) = env.types().enclosing_enum(head) {
+            if parent != crate::types::parametric_head_fqdn(head) {
+                return if args.is_empty() {
+                    TypeExpr::Path(parent.to_string())
+                } else {
+                    TypeExpr::Parametric {
+                        head: parent.trim_start_matches(':').to_string(),
+                        args: args.to_vec(),
+                    }
+                };
+            }
+        }
+    }
+    t.clone()
+}
+
+/// Arc 296 A-2 RELAND-1 — `infer_match`'s arm-body combinator: the EXACT same
+/// decision tree `join_if_branches` uses for `if` (unify while a var remains;
+/// `assignable` for subsumption in either direction — `Option::Some` widening to a
+/// running `Option` result, or vice versa, the case the ruled contract calls out as
+/// already covered; [`join_types`] only as the last resort for two SIBLING variants
+/// that are assignable to neither — 277 of RELAND-0's 600 floor failures arrived
+/// through match arms, not `if`). `t` is the arm's own body type; `r` is the running
+/// `result_ty` accumulated from earlier arms — `r` plays `join_if_branches`'s "else"
+/// role so a caller's existing `expected: r, got: t` error wording is unaffected.
+///
+/// `Some(new_running_result_ty)` on success — which may differ from BOTH `t` and `r`
+/// (a genuine join, not merely a pass/fail check), so the caller must reassign its
+/// running `result_ty` rather than leaving it as `r`. `None` when no mechanism agrees,
+/// so the caller reports its own `TypeMismatch` with its own arm-numbering text.
+fn combine_match_arm(
+    t: &TypeExpr,
+    r: &TypeExpr,
+    subst: &mut Subst,
+    env: &CheckEnv,
+) -> Option<TypeExpr> {
+    let t = apply_subst(t, subst);
+    let r = apply_subst(r, subst);
+    if crate::declare::typevar::contains_type_var(&t)
+        || crate::declare::typevar::contains_type_var(&r)
+    {
+        // Arc 296 A-2 RELAND-1 — speculative, on a CLONED subst (see
+        // `relate_value_to_slot`'s doc for why a failed `unify` cannot be trusted not to
+        // have left partial bindings behind); on failure `subst` is untouched, so
+        // `assignable` / `join_types` below still see a clean substitution.
+        let mut trial = subst.clone();
+        if unify(&t, &r, &mut trial, env.types()).is_ok() {
+            *subst = trial;
+            return Some(apply_subst(&r, subst));
+        }
+    }
+    if assignable(&t, &r, subst, env) {
+        return Some(r);
+    }
+    if assignable(&r, &t, subst, env) {
+        return Some(t);
+    }
+    join_types(&t, &r, subst, env)
 }
 
 /// Arc 293 K1b — when `actual` satisfies `surface_path` via an `extend-type` subtype edge, that edge
@@ -17208,10 +17659,55 @@ pub(crate) fn assignable(
                 &crate::types::parametric_head_fqdn(eh),
                 types,
             )
-            && aargs
-                .iter()
-                .zip(eargs.iter())
-                .all(|(x, y)| unify(x, y, subst, types).is_ok())
+            && aargs.iter().zip(eargs.iter()).all(|(x, y)| {
+                // Arc 296 A-2 RELAND-4 (option E) — `ah` widening to `eh` here is exactly
+                // the variant-to-enum head edge (`is_subtype` above), so `eh`'s bare type
+                // IS the enclosing enum. When it is a genuine `Enum`, a mismatched argument
+                // pair may still widen COVARIANTLY via a recursive `assignable` (which
+                // re-enters this very arm at the next nesting level — `Option::Some<Result::Err<…>>`
+                // reaching `Option<Result<…>>` widens both the outer AND the inner variant).
+                // A non-enum container never reaches this branch: `is_subtype` above has no
+                // edge for a `defrecord`'s or typealias's argument, so this arm doesn't fire
+                // for those at all — the invariant `unify` path (Stone 2, below) is what
+                // gates them, unaffected.
+                //
+                // NOTE — loose end ② (`match` refusing a scrutinee already typed as its own
+                // variant, `recursive_patterns::nested_options_three_levels`) is NOT fixed
+                // here, deliberately. An earlier version of this arm widened `x` before
+                // `unify` whenever `y` carried an unresolved var, mirroring
+                // `relate_value_to_slot`'s pinning guard — but `assignable` is the GENERAL
+                // primitive, called from every constructor/argument check in the language,
+                // not just `infer_match`'s own arm-pattern dispatch. Measured: it also fires
+                // on every `defservice` handler's `Outcome::Reply {:reply …}` construction
+                // (`Outcome :- [S R O]` is itself an enum), where widening the reply value's
+                // var-binding PINS the running `R` to the bare response enum instead of the
+                // narrow `::Success` variant — corrupting a bare-symbol pattern binder's
+                // STORED type two calls later (the auto-generated dispatcher's own `resp`
+                // destructure of a handler's `Outcome::Reply`), which a downstream check
+                // then reads back out of `arm_locals` and reports in ITS OWN error message
+                // (`probe_arc278_journal_surface::wrong_response_type_at_reply_site_is_compile_error`'s
+                // golden pins the narrow name). The fix lives in `check_subpattern` instead,
+                // scoped to widening only the DISPATCH decision (which constructor-pattern
+                // arm a value's type matches) — never a bare-symbol binder's STORED type.
+                if unify(x, y, subst, types).is_ok() {
+                    return true;
+                }
+                // Arc 296 A-2 RELAND-4 — speculative on a CLONED subst (the established
+                // pattern — `relate_value_to_slot`, `combine_match_arm`): a failed `unify`
+                // deep inside a recursive `assignable` is known to leave PARTIAL bindings
+                // behind, and committing those on an overall-failed arg pair would corrupt
+                // an unrelated mechanism's later decision (measured: it leaked into a
+                // sibling function's own error-message formatting — 296 A-2 RELAND-4's own
+                // regression against `probe_arc278_journal_surface`).
+                if container_is_enum(eh, types) {
+                    let mut trial = subst.clone();
+                    if assignable(x, y, &mut trial, env) {
+                        *subst = trial;
+                        return true;
+                    }
+                }
+                false
+            })
         {
             return true;
         }
@@ -17274,6 +17770,28 @@ pub(crate) fn assignable(
                                 if crate::types::is_subtype(xop, yop, types))
                         };
                         return reply_ok && op_ok;
+                    }
+                }
+                // Arc 296 A-2 RELAND-4 (option E) — same-head parametric whose head IS an
+                // enum (a user `defenum`, or one of its own one-variant singletons): a
+                // mismatched arg pair may still widen COVARIANTLY via a recursive
+                // `assignable`, sound for the same reason as the `ah != eh` arm above (no
+                // input position anywhere inside an enum). Gated on `ah` (== `eh` in this
+                // arm) being a genuine `Enum` — a `defrecord` or a typealias to a rust
+                // opaque answers `false` and the arg stays invariant (unify only), exactly
+                // as before this stone. STOP-1's whole point: this line is the ONLY thing
+                // that must NOT fire for a non-enum container.
+                //
+                // On a CLONED subst — a failed recursive `assignable` is known to leave
+                // partial bindings behind, and this arm's OWN outer caller (`Outcome<S,R,O>`
+                // is itself an enum, so this branch fires for every service reply-type
+                // check) must not let a rejected covariant attempt corrupt the subst an
+                // unrelated error message later formats from.
+                if container_is_enum(ah, types) {
+                    let mut trial = subst.clone();
+                    if assignable(x, y, &mut trial, env) {
+                        *subst = trial;
+                        return true;
                     }
                 }
                 false
