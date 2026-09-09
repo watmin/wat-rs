@@ -1083,15 +1083,32 @@
     :disrupt-hits 0 :disrupt-draws 0 :disrupt-points "" :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0))
 
 ;; Sentinel: -1 means unread. Matches ticks-of / q-depth. (1,1) satisfied both waits.
+;;
+;; ⭑ THE THIRD SLOT IS DELIVERY PROGRESS, AND IT COSTS NOTHING. `Queue/stats` already
+;; replies with the whole 19-field `:queue::Stats`; this kept two fields and threw the
+;; rest away. `acks` rides the SAME reply, so `poll-until-drained*`'s stall detector adds
+;; ZERO round-trips — the observer effect does not worsen (it is 2–3× the intended budget
+;; already; see the-drain-gives-up-on-a-stall-not-a-budget/DESIGN.md).
+;;
+;; It is MONOTONE: `:queue::Stats/acks` is `(:queue::Counters/acks cold)` at the one Stats
+;; construction site (sqs.wat:1282), and `Counters/acks` is written at exactly two sites
+;; (sqs.wat:1069, 1129), both `(+ acks (count ids))`; every other `State` rebuild passes the
+;; carrier through unchanged. Non-decreasing is what makes "did anything move since the last
+;; poll?" answerable by comparing two samples.
+;;
+;; ⛔ NOT a completion test. Under redelivery an entry is delivered and acked more than
+;; once, so Σacks can EXCEED n×m. Completion stays `sweep-drained?` AND `box = 0`.
 (:wat::core::defn :fanout::depth-of
-  [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  [q <- :queue::Queue]
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::StatsResponse::Ok qst)
-          (:wat::core::Tuple (:queue::Stats/visible qst) (:queue::Stats/unacked qst)))
-        (_ (:wat::core::Tuple -1 -1))))
-    (_ (:wat::core::Tuple -1 -1))))
+          (:wat::core::Tuple (:queue::Stats/visible qst) (:queue::Stats/unacked qst)
+            (:queue::Stats/acks qst)))
+        (_ (:wat::core::Tuple -1 -1 -1))))
+    (_ (:wat::core::Tuple -1 -1 -1))))
 
 (:wat::core::defn :fanout::topic-outbox [t <- :demo::Topic] -> :wat::core::i64
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
@@ -1163,46 +1180,63 @@
 (:wat::core::defn :fanout::elapsed-ms [start-ns <- :wat::core::i64] -> :wat::core::i64
   (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns) 1000000))
 
+;; One sweep = one `Queue/stats` per subscriber queue, each row (visible, unacked, acks).
+;; The third column is carried for `sweep-acks` below; nothing here re-reads the wire.
 (:wat::core::defn :fanout::sweep-of
   [qclients <- (:wat::core::Vector :- [:queue::Queue])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])
                      q   <- :queue::Queue]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])
       (:wat::core::conj acc (:fanout::depth-of q)))
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])
     qclients))
 
 (:wat::core::defn :fanout::snapshot-str
-  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])]
   -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String
-                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
       -> :wat::core::String
       (:wat::core::format "{acc}[{v}/{u}]"
         :acc acc :v (:wat::core::first d) :u (:wat::core::second d)))
     ""
     sweep))
 
+;; Σ acks over the subscriber queues, folded over a sweep ALREADY TAKEN — the same shape as
+;; :fanout::sum-store-calls but with no `Queue/stats` call of its own. Monotone (see
+;; depth-of), so `now > prev` is "something was delivered and acked since the last poll".
+;; ⛔ Never an equality/completion test: redelivery lets it exceed n×m.
+(:wat::core::defn :fanout::sweep-acks
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64
+                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
+      -> :wat::core::i64
+      (:wat::i64::+ acc (:wat::core::third d)))
+    0
+    sweep))
+
 (:wat::core::defn :fanout::sweep-unread?
-  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])]
   -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool
-                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
       -> :wat::core::bool
       (:wat::core::or acc (:wat::core::= (:wat::core::first d) -1)))
     false
     sweep))
 
 (:wat::core::defn :fanout::sweep-drained?
-  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])]
   -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [ok <- :wat::core::bool
-                     d  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+                     d  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
       -> :wat::core::bool
       (:wat::core::and ok
         (:wat::core::and (:wat::core::= (:wat::core::first d) 0)
@@ -1211,12 +1245,12 @@
     sweep))
 
 (:wat::core::defn :fanout::sweep-filled?
-  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])
    n     <- :wat::core::i64]
   -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [ok <- :wat::core::bool
-                     d  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])]
+                     d  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
       -> :wat::core::bool
       (:wat::core::and ok
         (:wat::core::and (:wat::core::= (:wat::core::first d) n)
@@ -1255,41 +1289,119 @@
   (:fanout::poll-until-filled* qclients t n attempts
     (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
+;; ── the drain's TWO give-ups, and why each number is what it is ────────────────────
+;;
+;; What makes the loop load-independent is NOT this constant — it is that the loop does not
+;; give up while deliveries are still landing. An ATTEMPT budget expires on a busy box
+;; whether or not the system is healthy; a PROGRESS bound only expires when nothing moves.
+;; K just has to sit above the longest gap a HEALTHY system can leave between two acks.
+;;
+;; ⭑ SIZED FROM MEASUREMENT, NOT FROM REASONING, AND THE TWO DISAGREED BY 3×. Reasoning
+;; from the visibility expiry (200 ms) plus the two 250 ms receive waits predicted a worst
+;; legitimate gap of ~70 polls, and 200 was chosen on that basis. The first instrumented
+;; runs of `50 2 2 32 false 0 0 1000 42` — which PASS, distinct=100 dup=0 — reported
+;; `drain-stale-max=191, 197` alone and `284, 289` under 8-way self-contention: a healthy
+;; drain of this scenario sits ~5.1–5.3 s with no ack anywhere in the system and then
+;; completes. 200 would have red-flagged a correct run by three polls.
+;;
+;; ⚠ AND A SECOND GUESS DIED HERE: "a wall-clock gap spans FEWER polls under load, so a
+;; poll-counted K is self-widening." Measured, it is the other way — the gap stayed ~5.2 s
+;; while the poll cost FELL (25.7 ms idle vs 18.5 ms under 8-way load), so the streak grew
+;; 197 → 289. K in polls is not self-widening; it is simply a number that must be checked
+;; against `drain-stale-max=` on the report line. 600 is 2.1× the largest streak yet
+;; observed (289 ≈ 11–15 s of wall silence). The write scenario reports 0.
+(:wat::core::defn :fanout::drain-stale-polls [] -> :wat::core::i64 600)
+
+;; The wall ceiling — the unconditional backstop for the one world the stall arm cannot
+;; catch: a system that keeps acking (redelivery churn) and never drains. Scaled with the
+;; work as the old attempt budget was (one slot per delivered pair), 12 ms/pair, on a 30 s
+;; floor. Both terms are bounded on two sides:
+;;   BELOW by the work — 30 s is ~5.7× the longest legitimate no-progress gap measured
+;;   (5.3 s) and 12 ms/pair is ~40× the healthy write drain's measured per-pair cost
+;;   (110 polls × 22 ms / 8000 pairs ≈ 0.3 ms/pair);
+;;   ABOVE by the runner — a ceiling-hitting drain must still PRINT its verdict inside
+;;   nextest's kill for that scenario or the arm is destroyed and we are back to arc 278's
+;;   empty TIMEOUT. 8000 pairs → 126 s, inside the r2_drop_* 90/180 s override (~25 s of
+;;   the rest around it).
+;; ⚠ It must also stay ABOVE K's wall window at every scale, or a genuine stall would be
+;; reported as a timeout. Measured, not projected: a total stall (`circuit.wat 5 1 0 32
+;; false 0` — no consumers at all) reaches the stall arm at 600 polls / 13172 ms, under the
+;; 30 s floor, and prints `drained-stalled … acks=0`.
+(:wat::core::defn :fanout::drain-ceiling-ms [pairs <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::+ 30000 (:wat::i64::* 12 pairs)))
+
 ;; Conjunction across N queues plus the topic inbox. No single wire event.
-;; Bounded, and it reports what it last saw — the check rung, taken only
-;; where the shape rung is unavailable. One sweep per iteration; the four
-;; facts are derived from it. rts counts Queue/stats + Topic/stats calls.
+;; It reports what it last saw — the check rung, taken only where the shape rung is
+;; unavailable. One sweep per iteration; every fact below is derived from it.
+;;
+;; ⛔ IT GIVES UP ON LACK OF PROGRESS, NOT ON AN ATTEMPT BUDGET, and it says WHICH world:
+;;   ""               every sub queue empty AND topic inbox 0 — UNCHANGED completion test
+;;   drained-unread   a stats reply could not be read — a different failure, outranks both
+;;   drained-stalled  Σacks did not move for K consecutive polls: THE SYSTEM STOPPED
+;;   drained-timeout  the wall ceiling was reached and NO K-poll stall was ever seen:
+;;                    slow, not stuck — and it prints stale/stale-max so the reader can
+;;                    check that claim rather than take it on trust
+;;
+;; ⛔ THE CHECK CAN STILL GO RED, and that is the property to preserve above all: the ONLY
+;; path returning "" is the completion test, and every other path is bounded — the stall arm
+;; by K, and the ceiling arm unconditionally by wall clock regardless of progress. A system
+;; that keeps acking forever without draining therefore still fails, at the ceiling.
+;;
+;; Returns (verdict, rts, stale-max): rts counts Queue/stats + Topic/stats round-trips,
+;; stale-max is the longest no-progress streak observed — the evidence for K's size.
 (:wat::core::defn :fanout::poll-until-drained*
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
-   left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64
-   rts <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
+   ceiling-ms <- :wat::core::i64  start-ns <- :wat::core::i64
+   acks-prev <- :wat::core::i64  stale <- :wat::core::i64  stale-max <- :wat::core::i64
+   polls <- :wat::core::i64  rts <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
   (:wat::core::let
-    [sweep (:fanout::sweep-of qclients)
-     box   (:fanout::topic-outbox t)
-     rts'  (:wat::i64::+ rts (:wat::i64::+ (:wat::core::count qclients) 1))]
+    [sweep  (:fanout::sweep-of qclients)
+     box    (:fanout::topic-outbox t)
+     ;; FREE: same replies the sweep just took. No stats call is added per poll.
+     acks   (:fanout::sweep-acks sweep)
+     rts'   (:wat::i64::+ rts (:wat::i64::+ (:wat::core::count qclients) 1))
+     polls' (:wat::i64::+ polls 1)
+     ;; acks-prev starts at -1, so the first poll can never be counted stale. A DECREASE
+     ;; (only reachable if a queue process restarted and reset its counters) counts as no
+     ;; progress — conservative on purpose: it surfaces as a red, not as silence.
+     stale' (:wat::core::if (:wat::i64::> acks acks-prev) 0 (:wat::i64::+ stale 1))
+     smax'  (:wat::core::if (:wat::i64::> stale' stale-max) stale' stale-max)
+     el     (:fanout::elapsed-ms start-ns)]
     (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::sweep-unread? sweep))
       (:wat::core::Tuple
-        (:wat::core::format "drained-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
-          :s (:fanout::snapshot-str sweep) :b box
-          :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
-        rts')
+        (:wat::core::format "drained-unread: last={s} outbox={b} acks={a} polls={p} elapsed={ms}"
+          :s (:fanout::snapshot-str sweep) :b box :a acks :p polls' :ms el)
+        rts' smax')
       (:wat::core::if (:wat::core::and (:fanout::sweep-drained? sweep) (:wat::core::= box 0))
-        (:wat::core::Tuple "" rts')
-        (:wat::core::if (:wat::i64::<= left 1)
+        (:wat::core::Tuple "" rts' smax')
+        (:wat::core::if (:wat::i64::>= stale' (:fanout::drain-stale-polls))
           (:wat::core::Tuple
-            (:wat::core::format "drained-never: last={s} outbox={b} attempts={a} elapsed={ms}"
-              :s (:fanout::snapshot-str sweep) :b box
-              :a total :ms (:fanout::elapsed-ms start-ns))
-            rts')
-          (:wat::core::let [_ (:fanout::await-timer-ms 5)]
-            (:fanout::poll-until-drained* qclients t (:wat::i64::- left 1) start-ns total rts')))))))
+            (:wat::core::format "drained-stalled: no delivery progress in {k} polls; last={s} outbox={b} acks={a} polls={p} elapsed={ms}"
+              :k (:fanout::drain-stale-polls) :s (:fanout::snapshot-str sweep) :b box
+              :a acks :p polls' :ms el)
+            rts' smax')
+          (:wat::core::if (:wat::i64::>= el ceiling-ms)
+            (:wat::core::Tuple
+              ;; Wording is exactly what the code knows: the ceiling was reached and no
+              ;; K-poll stall was ever seen. `stale`/`stale-max` let the reader judge how
+              ;; close it came, rather than taking "still progressing" on trust.
+              (:wat::core::format "drained-timeout: ceiling {c}ms reached with no {k}-poll stall; last={s} outbox={b} acks={a} polls={p} elapsed={ms} stale={st} stale-max={sm}"
+                :k (:fanout::drain-stale-polls)
+                :s (:fanout::snapshot-str sweep) :b box :a acks :p polls' :ms el
+                :c ceiling-ms :st stale' :sm smax')
+              rts' smax')
+            (:wat::core::let [_ (:fanout::await-timer-ms 5)]
+              (:fanout::poll-until-drained* qclients t ceiling-ms start-ns
+                acks stale' smax' polls' rts'))))))))
 
+;; `pairs` is n×m — the delivered-pair count, still the work measure, now spent on a wall
+;; ceiling instead of an attempt count.
 (:wat::core::defn :fanout::poll-until-drained
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic  attempts <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
-  (:fanout::poll-until-drained* qclients t attempts
-    (:wat::time::epoch-nanos (:wat::time::now)) attempts 0))
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic  pairs <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
+  (:fanout::poll-until-drained* qclients t (:fanout::drain-ceiling-ms pairs)
+    (:wat::time::epoch-nanos (:wat::time::now)) -1 0 0 0 0))
 
 ;; LIVENESS BOUND — only a hang may trip this. Full is correct backpressure
 ;; (the queue is bounded; a waiting producer is the design). Giving up loses
@@ -2335,8 +2447,9 @@
      sc-before (:fanout::sum-store-calls qclients)
      ns-before (:fanout::sum-store-ns qclients)
      hn-before (:fanout::sum-handler-ns qclients)
-     ;; One 5 ms poll slot per delivered pair (n×m). Hang if drain is slower
-     ;; than 200 pairs/sec. Scales with the work; not a raised constant.
+     ;; n×m is the work measure; the poller spends it as a WALL ceiling (30 s + 12 ms/pair)
+     ;; and gives up on lack of delivery progress before that. Scales with the work; not a
+     ;; raised constant. Three verdicts, not one: see poll-until-drained*.
      drain-pair (:fanout::poll-until-drained qclients topic (:wat::i64::* n m))
      drain-err (:wat::core::first drain-pair)
      _drain (:fanout::require!
@@ -2350,6 +2463,9 @@
                     :ar (:wat::core::first (:wat::core::third dp))
                     :ae (:wat::core::second (:wat::core::third dp))))))
      poll-calls (:wat::core::second drain-pair)
+     ;; The longest no-progress streak the drain saw, in polls. This is the evidence for
+     ;; :fanout::drain-stale-polls being the size it is — read it, do not trust the comment.
+     drain-stale-max (:wat::core::third drain-pair)
      sc-after (:fanout::sum-store-calls qclients)
      ns-after (:fanout::sum-store-ns qclients)
      hn-after (:fanout::sum-handler-ns qclients)
@@ -2404,7 +2520,7 @@
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2429,6 +2545,7 @@
               :asleep pub-asleep
               :pa pub-attempts
               :polls poll-calls
+              :dsm drain-stale-max
               :sc store-calls
               :sms (:wat::i64::/ store-ns 1000000)
               :dsc (:wat::i64::/ (:wat::i64::- sc-after sc-before) m)
