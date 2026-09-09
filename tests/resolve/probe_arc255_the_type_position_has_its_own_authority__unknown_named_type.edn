@@ -1,0 +1,1 @@
+#wat.type/UnknownNamedType {:message "annotation names unknown type :wat::core::Bogus — not a declared type, not a type variable, and not a builtin" :location #wat.core/Span {:file "src/check.rs" :line 15007 :col 13 :end #wat.core/Option.None {}} :causes [] :path ":wat::core::Bogus"}
