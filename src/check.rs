@@ -7463,7 +7463,8 @@ fn check_subpattern(
                 }
             };
             // STONE: the bare-symbol shorthand dies — same retirement as the
-            // outer `pattern_coverage` List-arm above; a bare-Symbol head at
+            // outer coverage List-arm above (`pattern_coverage`, retired by the
+            // purgare stone; the live check is `cover_variant_arm`); a bare-Symbol head at
             // a NESTED sub-pattern position (e.g. the `(Some v)` inside
             // `(Ok (Some v))`) reuses the identical TypeMismatch shape so the
             // remedy comes from the SAME RETIREMENT_TABLE lookup, not a
@@ -7776,7 +7777,7 @@ fn check_subpattern(
         // sub-pattern position is not one of them.
         // Arc 257 slice 1 — Map/Set literals are not valid match sub-patterns.
         // (Hash-destructure Maps are handled above in infer_match before
-        // pattern_coverage is called — they bypass shape/coverage machinery.)
+        // the coverage check is called — they bypass shape/coverage machinery.)
         WatAST::Map(_, _) | WatAST::Set(_, _) => {
             errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),

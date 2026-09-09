@@ -8754,7 +8754,8 @@ pub(crate) fn try_match_pattern(
         //
         // Stone 255-builtin-registry (the matcher gap) — `:wat::core::Option::None`
         // is the `Enum::Variant` form every user enum uses, and the checker already
-        // recognises it (`pattern_coverage` accepts it against `MatchShape::Option`
+        // recognises it (`cover_variant_arm` — the live coverage check, which replaced
+        // `pattern_coverage`, retired by the purgare stone — accepts it against `MatchShape::Option`
         // via the built-in `Option` enum registration in `types.rs`). Additive
         // recognition, same move as `:wat::core::nil` (`types.rs:1056`): a third
         // spelling is added beside the existing two; nothing is removed.
@@ -8854,7 +8855,8 @@ pub(crate) fn try_match_pattern(
             // STONE: the bare-symbol shorthand dies — only the FQDN keyword
             // form is recognized here now. The bare-Symbol "Some" alternative
             // is DELETED (arc 109 slice 1h's match-pattern half, never closed
-            // until now): the checker refuses it at `pattern_coverage` /
+            // until now): the checker refuses it at `cover_variant_arm` (formerly
+            // `pattern_coverage`, retired by the purgare stone) /
             // `check_subpattern`, and a bare `((Some v) ...)` reaching this
             // runtime dispatch anyway (e.g. via `eval-ast!`, unchecked) now
             // falls through to the tuple-destructure arm below, same as any
@@ -13574,7 +13576,8 @@ fn is_match_canonical(form: &WatAST) -> bool {
                 // `Some` evaluated. With the arm gone, `Some` behaves exactly like `Zorble`.
                 //
                 // The Keyword arm below carries the canonical FQDN spelling and is untouched.
-                // `try_match_pattern_ast`'s head comparison stays generic (Symbol-vs-Symbol by
+                // The arc-068 `try_match_pattern_ast` step-rule this note described was RETIRED by the
+                // purgare stone; its head comparison was generic (Symbol-vs-Symbol by
                 // name) — it was never the heresy; it only ever reached these forms because THIS
                 // arm blessed them as scrutinees.
                 // Stone 255-builtin-registry (the matcher gap) — the qualified
