@@ -1313,18 +1313,26 @@ pub fn register_enum_methods(
 ) -> Result<(), RuntimeError> {
     use crate::types::{EnumVariant, TypeDef};
 
-    for (_name, def) in types.iter() {
+    for (name, def) in types.iter() {
         let enum_def = match def {
             TypeDef::Enum(e) => e,
             _ => continue,
         };
+        // Arc 296 A-2 RELAND-1 — `types` also holds a singleton `TypeDef::Enum` per
+        // variant (`register_variant_types`, `src/types.rs`). Walking one HERE as though
+        // it were a fresh user enum would mint `:Enum::Variant::Variant` ctors / duplicate
+        // unit-variant entries.
+        if types.is_variant_type(name) {
+            continue;
+        }
 
         // Arc 071 — parametric enums (e.g., `(WalkStep :- [A])`) need
         // their constructor return types to read `(:Enum :- [A B])`, not
         // bare `:Enum`. Without this the type checker sees the body
         // produce `:Enum` and rejects against a `(:Enum :- [i64])` signature.
         // The lab harness probe at experiment/099-walkstep-probe is
-        // the regression case.
+        // the regression case. Arc 296 A-2 RELAND-1 — also the FALLBACK ret_type for a
+        // tagged variant's ctor when, somehow, no singleton was registered for it.
         let enum_type = parametric_decl_type(&enum_def.name, &enum_def.type_params);
 
         for variant in &enum_def.variants {
@@ -1389,12 +1397,29 @@ pub fn register_enum_methods(
                         ));
                     }
 
+                    // Arc 296 A-2 RELAND-1 — the erasure. Was unconditionally
+                    // `enum_type.clone()`: the ctor returned the ENUM, destroying the
+                    // variant at construction and making a variant-typed parameter
+                    // uninhabitable. `register_variant_types` (src/types.rs) now
+                    // registers `constructor_path` as its own `TypeDef::Enum` singleton
+                    // for EVERY enum (no scope cut — `join_types`, `src/check.rs`, is
+                    // what makes that safe), so the ctor's return type narrows to it —
+                    // widens to the bare enum via the head-level `Variant <: Enum`
+                    // subtype edge, no new `assignable` arm needed. Falls back to the
+                    // bare enum type only if, somehow, no singleton was registered.
+                    let variant_type = if matches!(types.get(&constructor_path), Some(TypeDef::Enum(_)))
+                    {
+                        parametric_decl_type(&constructor_path, &enum_def.type_params)
+                    } else {
+                        enum_type.clone()
+                    };
+
                     let func = Function {
                         name: Some(constructor_path.clone()),
                         params: param_names,
                         type_params: enum_def.type_params.clone(),
                         param_types,
-                        ret_type: enum_type.clone(),
+                        ret_type: variant_type,
                         rest_param: None,
                         rest_param_type: None,
                         body: FunctionBody::Wat(Arc::new(WatAST::List(
