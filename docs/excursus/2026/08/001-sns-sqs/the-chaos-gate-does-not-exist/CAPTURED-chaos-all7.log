@@ -1,0 +1,83 @@
+[capped] per-run ceiling 12G (swap 0), inside wat-heavy.slice
+    Finished `release` profile [optimized] target(s) in 0.09s
+────────────
+ Nextest run ID 42d2442a-dc21-4a5d-9ec8-38ff706e7bb8 with nextest profile: default
+    Starting 7 tests across 46 binaries (5252 tests skipped)
+       START [         ] (1/7) wat::services probe_arc278_sane_circuit::drop_ack_tiny
+
+running 1 test
+#wat.kernel/AssertionFailure {:thread "probe_arc278_sane_circuit::drop_ack_tiny" :message "drained-never: last=[0/0][0/0] outbox=19 attempts=100 elapsed=2086;check-exhausted=0;mark-exhausted=0;ack-retries=0;ack-exhausted=0" :location #wat.kernel/Location {:file "wat-scripts/fanout/circuit.wat" :line 2342 :col 13} :actual nil :expected nil :frames [#wat.kernel/Frame {:file "wat-scripts/fanout/circuit.wat" :line 2342 :symbol ":fanout::require!"} #wat.kernel/Frame {:file "wat-scripts/fanout/circuit.wat" :line 2496 :symbol ":fanout::run-with"} #wat.kernel/Frame {:file "/home/john/work/holon/wat-rs/tests/services/probe_arc278_sane_circuit.rs" :line 25 :symbol ":user::drop-ack-tiny"}] :upstream-chain nil}
+test probe_arc278_sane_circuit::drop_ack_tiny ... FAILED
+
+failures:
+
+failures:
+    probe_arc278_sane_circuit::drop_ack_tiny
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 196 filtered out; finished in 10.02s
+
+        FAIL [  10.027s] (1/7) wat::services probe_arc278_sane_circuit::drop_ack_tiny
+       START [         ] (2/7) wat::services probe_arc278_sane_circuit::drop_check_tiny
+
+running 1 test
+DROP-CHECK-TINY n=50;m=2;j=2;total=100;distinct=100;dup=0;workers=4;empty=1;seen-recorded=100;seen-skipped=0;check-exhausted=0;mark-exhausted=0;ack-retries=0;ack-exhausted=0
+test probe_arc278_sane_circuit::drop_check_tiny ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 196 filtered out; finished in 8.55s
+
+        PASS [   8.556s] (2/7) wat::services probe_arc278_sane_circuit::drop_check_tiny
+       START [         ] (3/7) wat::services probe_arc278_sane_circuit::drop_recv_tiny
+
+running 1 test
+DROP-RECV-TINY n=50;m=2;j=2;total=100;distinct=100;dup=0;workers=4;empty=1;seen-recorded=100;seen-skipped=0;check-exhausted=0;mark-exhausted=0;ack-retries=0;ack-exhausted=0
+test probe_arc278_sane_circuit::drop_recv_tiny ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 196 filtered out; finished in 8.67s
+
+        PASS [   8.679s] (3/7) wat::services probe_arc278_sane_circuit::drop_recv_tiny
+       START [         ] (4/7) wat::services probe_arc278_sane_circuit::r2_drop_after_tiny
+
+running 1 test
+R2 AFTER-TINY n=50;m=2;j=2;total=100;distinct=100;dup=0;workers=4;empty=1;seen-recorded=100;seen-skipped=0;check-exhausted=0;mark-exhausted=0;ack-retries=0;ack-exhausted=0
+test probe_arc278_sane_circuit::r2_drop_after_tiny ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 196 filtered out; finished in 8.99s
+
+        PASS [   9.006s] (4/7) wat::services probe_arc278_sane_circuit::r2_drop_after_tiny
+       START [         ] (5/7) wat::services probe_arc278_sane_circuit::r2_drop_after_write
+
+running 1 test
+R2 AFTER-WRITE n=2000;m=4;j=3;total=8000;distinct=8000;dup=0;workers=12;empty=1;seen-recorded=8000;seen-skipped=432;check-exhausted=0;mark-exhausted=30;ack-retries=0;ack-exhausted=1
+test probe_arc278_sane_circuit::r2_drop_after_write ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 196 filtered out; finished in 30.77s
+
+        PASS [  30.780s] (5/7) wat::services probe_arc278_sane_circuit::r2_drop_after_write
+       START [         ] (6/7) wat::services probe_arc278_sane_circuit::r2_drop_before_tiny
+
+running 1 test
+#wat.kernel/AssertionFailure {:thread "probe_arc278_sane_circuit::r2_drop_before_tiny" :message "drained-never: last=[0/0][0/0] outbox=19 attempts=100 elapsed=2226;check-exhausted=0;mark-exhausted=0;ack-retries=0;ack-exhausted=0" :location #wat.kernel/Location {:file "wat-scripts/fanout/circuit.wat" :line 2342 :col 13} :actual nil :expected nil :frames [#wat.kernel/Frame {:file "wat-scripts/fanout/circuit.wat" :line 2342 :symbol ":fanout::require!"} #wat.kernel/Frame {:file "wat-scripts/fanout/circuit.wat" :line 2475 :symbol ":fanout::run-with"} #wat.kernel/Frame {:file "/home/john/work/holon/wat-rs/tests/services/probe_arc278_sane_circuit.rs" :line 25 :symbol ":user::drop-before-tiny"}] :upstream-chain nil}
+test probe_arc278_sane_circuit::r2_drop_before_tiny ... FAILED
+
+failures:
+
+failures:
+    probe_arc278_sane_circuit::r2_drop_before_tiny
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 196 filtered out; finished in 10.68s
+
+        FAIL [  10.694s] (6/7) wat::services probe_arc278_sane_circuit::r2_drop_before_tiny
+       START [         ] (7/7) wat::services probe_arc278_sane_circuit::r2_drop_before_write
+
+running 1 test
+R2 BEFORE-WRITE n=2000;m=4;j=3;total=8000;distinct=8000;dup=0;workers=12;empty=1;seen-recorded=8000;seen-skipped=345;check-exhausted=0;mark-exhausted=25;ack-retries=0;ack-exhausted=6
+test probe_arc278_sane_circuit::r2_drop_before_write ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 196 filtered out; finished in 31.97s
+
+        PASS [  32.065s] (7/7) wat::services probe_arc278_sane_circuit::r2_drop_before_write
+────────────
+     Summary [ 109.817s] 7 tests run: 5 passed, 2 failed, 5252 skipped
+        FAIL [  10.027s] (1/7) wat::services probe_arc278_sane_circuit::drop_ack_tiny
+        FAIL [  10.694s] (6/7) wat::services probe_arc278_sane_circuit::r2_drop_before_tiny
+error: test run failed
