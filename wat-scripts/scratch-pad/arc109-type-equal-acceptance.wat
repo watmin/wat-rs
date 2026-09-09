@@ -13,7 +13,7 @@
 (:wat::core::defn :user::form-of [src <- :wat::core::String] -> :wat::WatAST
   (:wat::core::match (:wat::core::read-string src)
     [:wat::core::ReadOutcome::Forms {:forms __forms} (:wat::core::first __forms)]
-    [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::panic! "form-of: malformed source")]))
+    [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

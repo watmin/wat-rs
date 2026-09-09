@@ -23,7 +23,10 @@
 ;; clean to completion (a type error would fail to type-check at all; an UnknownFunction would
 ;; abort `main` before later assertions ran). See:
 ;;   probe-f64-domain-hole-stays-deleted.wat.bad  (row 3)
-;;   probe-f64-comparator-bogus-head.wat           (row 5)
+;;   probe-f64-comparator-bogus-head.wat           (row 5) — MOVED 2026-09-09 to
+;;     tests/resolve/probe_arc255_the_blanket_hides_a_phantom_head__bogus_rete_head.wat
+;;     (arc 255 stone ④: its containment premise was the `:wat::*` blanket, so it had to leave
+;;      the `every_wat_scripts_file_loads` gate before the blanket dies)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

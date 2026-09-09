@@ -6,6 +6,18 @@
 ;; returns None — a total lookup, never an error. The `:wat::*` blanket is what
 ;; lets a `:wat::core::` head reach that fall-through; a `:usr::` head is refused
 ;; by resolve first.
+;;
+;; MOVED 2026-09-09 (arc 255 Stone 4) from `wat-scripts/scratch-pad/keyword-accessor-vs-enum-map-
+;; ctor.wat` to `tests/resolve/`, out from under the loader gate's scan root
+;; (`tests/lint/wat_scripts_fixes_load.rs`). This file's two `:wat::core::Option.Some` lines
+;; type-check ONLY because the `:wat::*` blanket lets that head reach the keyword-accessor
+;; fall-through described above; a `:usr::` head would be refused by resolve first. Asserted (not
+;; merely exhibited) by `tests/resolve/probe_arc255_the_blanket_hides_a_phantom_head.rs`, which
+;; pins TODAY's behaviour (`--check` exit 0, all five printlns succeed at `run`) as a RATCHET
+;; aimed at the blanket: when the blanket's own stone lands, the two `Option.Some` lines are
+;; refused at resolve instead of reaching the accessor, this row goes red at exactly the right
+;; moment, and that stone owns updating it.
+;; `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
 (:wat::core::defn :user::main [] -> :wat::core::nil
   ;; the ctor — K resolves, the map is the payload
   (:wat::kernel::println (:wat::core::Option::Some {:value 7}))

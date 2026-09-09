@@ -1,0 +1,7 @@
+[
+#wat.core/Option.Some {:value 7}
+#wat.core/Option.None {}
+#wat.core/Option.Some {:value 42}
+#wat.core/Option.None {}
+#wat.core/Option.Some {:value 7}
+]

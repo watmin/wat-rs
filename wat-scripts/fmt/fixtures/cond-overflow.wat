@@ -5,6 +5,6 @@
   [k <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::cond
-    ((:wat::string::= k "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") "a")
-    ((:wat::string::= k "short") "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+    ((:wat::core::= k "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") "a")
+    ((:wat::core::= k "short") "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
     (:else "c")))
