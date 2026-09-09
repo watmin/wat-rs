@@ -134,7 +134,45 @@
           ((:wat::core::Some n) (:wat::core::PersistentVector n))
           (:wat::core::None (:wat::core::PersistentVector)))))))
 
-;; rule-negates — :not of a fact AND :not of :and/:or. Leaves, not "wat::rete::and".
+;; rule-negates-in — walk one LHS form looking for a :not, RECURSING through :and/:or at
+;; every depth (not only once already inside a :not). Mirrors native `negate_types(form, out,
+;; under_not)`: :and/:or recurse unconditionally; a bare positive leaf (not :and/:or/:not)
+;; contributes NOTHING here — only `negated-types-under`, reached once a :not is found, may
+;; turn a leaf into a negated type. This is what `rule-negates` was missing: previously its
+;; outer fold only looked for :not as a top-level form's OWN head, so
+;; `(or A (and B (not C)))` — top-level head :or — was skipped entirely and C's negation was
+;; never seen (`strike-oracle-negation-recurses`, probe: a `defrule` of this exact shape with
+;; C derived diverges from native — SCORE.md).
+(:wat::core::defn :wat::rete::rule-negates-in
+  [form <- :wat::WatAST] -> (:wat::core::PersistentVector :- [:wat::core::String])
+  (:wat::core::let [ch (:wat::core::ast->children form)
+                    hd (:wat::core::if (:wat::core::empty? ch)
+                         ""
+                         (:wat::core::ast-name (:wat::core::first ch)))]
+    (:wat::core::if (:wat::core::if (:wat::core::= hd ":wat::rete::and")
+                      true
+                      (:wat::core::= hd ":wat::rete::or"))
+      (:wat::core::foldl
+        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
+                         kid <- :wat::WatAST]
+          -> (:wat::core::PersistentVector :- [:wat::core::String])
+          (:wat::core::foldl
+            (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
+                             t <- :wat::core::String]
+              -> (:wat::core::PersistentVector :- [:wat::core::String])
+              (:wat::core::PersistentVector/conj a t))
+            acc
+            (:wat::rete::rule-negates-in kid)))
+        (:wat::core::PersistentVector)
+        (:wat::core::rest ch))
+      (:wat::core::if (:wat::core::= hd ":wat::rete::not")
+        (:wat::rete::negated-types-under (:wat::core::second ch))
+        (:wat::core::PersistentVector)))))
+
+;; rule-negates — :not of a fact AND :not of :and/:or, reachable from ANY position in the LHS
+;; list — not only a top-level form whose OWN head is :not. Delegates to `rule-negates-in`
+;; (which recurses through :and/:or looking for a nested :not) instead of the old inline
+;; `hd == :not` check that only ever fired at the top level.
 (:wat::core::defn :wat::rete::rule-negates
   [rule <- :wat::rete::Rule]
   -> (:wat::core::PersistentVector :- [:wat::core::String])
@@ -143,19 +181,13 @@
       (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
                        form <- :wat::WatAST]
         -> (:wat::core::PersistentVector :- [:wat::core::String])
-        (:wat::core::let [ch (:wat::core::ast->children form)
-                          hd (:wat::core::if (:wat::core::empty? ch)
-                               ""
-                               (:wat::core::ast-name (:wat::core::first ch)))]
-          (:wat::core::if (:wat::core::= hd ":wat::rete::not")
-            (:wat::core::foldl
-              (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
-                               t <- :wat::core::String]
-                -> (:wat::core::PersistentVector :- [:wat::core::String])
-                (:wat::core::PersistentVector/conj a t))
-              acc
-              (:wat::rete::negated-types-under (:wat::core::second ch)))
-            acc)))
+        (:wat::core::foldl
+          (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
+                           t <- :wat::core::String]
+            -> (:wat::core::PersistentVector :- [:wat::core::String])
+            (:wat::core::PersistentVector/conj a t))
+          acc
+          (:wat::rete::rule-negates-in form)))
       (:wat::core::PersistentVector)
       lhs)))
 
