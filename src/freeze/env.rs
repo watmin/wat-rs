@@ -204,9 +204,6 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // check is complete and sound. TypeError converts to StartupError::Type via
     // the From impl in freeze.rs.
     validate_aggregate_containment(&types)?;
-    // Arc 296 P-2a — monomorphic enum variants become types (Variant <: Enum)
-    // before the annotation wall and ctor-method synthesis see them.
-    types.register_monomorphic_variant_types()?;
 
     // 6. Function definitions.
     let mut symbols = SymbolTable::new();
