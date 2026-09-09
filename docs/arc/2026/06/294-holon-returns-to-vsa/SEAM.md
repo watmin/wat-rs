@@ -16,9 +16,29 @@ grep -aE "^ +Summary" .floor/latest/raw.log
 ```
 
 ```
-floor ... 5267 tests run: 5267 passed, 21 skipped   FLOOR EXIT=0   HEAD a6641ab45
-peer .... idle. Last exchange: P-2a scored, then REVERTED by me.
+floor ... 5277 tests run: 5277 passed, 21 skipped   FLOOR EXIT=0   HEAD 927d94d2b
 ```
+
+## ⛔⛔ THE PEER CHANNEL IS OUT OF CREDITS. DELEGATE LOCALLY.
+
+Builder, 2026-09-08: *"we need to delegate to opus/sonnet locally - out of credits."* **`pulsare_yield`
+is no longer the channel.** The BRIEFs transfer unchanged — they are already written tier-agnostic
+(*"you edit and report; the orchestrator runs the floor centrally, once"*), which is FM 18/19's rule.
+What changes is the spawn:
+
+```
+model: "sonnet"     EXPLICIT on every Agent call. FM 12 — omit it and the spawn silently inherits
+                    OPUS while every document says sonnet. Nine agents shipped that way once.
+isolation           OMIT IT. Never "worktree". FM 7-bis, doctrine not preference.
+cwd                 anchor /home/john/work/holon/wat-rs absolutely in the prompt; any path with
+                    `.claude/worktrees/` is harness state and illegal to operate on.
+no tool preamble    FM 16 — mentioning Bash/cargo availability AT ALL triggers the hallucinated
+                    denial. State the work; trust the tools.
+the rider           runs targeted probe binaries + per-fixture `--check`. NEVER the floor.
+```
+
+⚠ A local rider spends THIS session's context, not a separate budget. Weigh what is delegated
+against what is a genuinely small inline fix.
 
 ⚠ **`scripts/floor.sh` DOES NOT RUN CLIPPY.** Every "clippy N" in this record came from an ad-hoc
 `cargo clippy | grep -c` in the orchestrator's command line, and across three invocations that grep
@@ -26,7 +46,7 @@ returned **0, then 7, then 8** for a tree whose real answer never changed. The h
 `cargo clippy --release --all-targets -- -D warnings`; it EXITS 101 on **5 pre-existing `dead_code`
 items** that are already on `origin/main`. They are a `purgare` stone, not a regression.
 
-## ★★★ WHAT LANDED — the type authority is now one authority
+## ★★★ WHAT LANDED — the type authority is one authority, and so is assignability
 
 ```
 296 P-1     an annotation may not name a type that does not exist. It caught THREE real phantoms
@@ -38,6 +58,30 @@ items** that are already on `origin/main`. They are a `purgare` stone, not a reg
             MEASURED, both directions:
               no user use!    resolve check=1 · wall check=1 · is-type? false
               with user use!  resolve check=0 · wall check=0 · is-type? true
+296 A-1     `if`, `send`, `try-send` decide fit the way a PARAMETER always has. Same pair of
+            types, both positions, same answer. is_subtype count unchanged — assignable reused.
+296 P-1b    a PARAMETRIC annotation's HEAD is validated. It was not: P-1 reused a walk built for
+            free-VARIABLE collection, where skipping a head is correct, and inherited its blind
+            spot. `(:usr::MadeUp :- [i64])` checked CLEAN while the bare form refused.
+```
+
+## ⛔ P-2 IS NOT BLOCKED ON VARIANCE — THAT WAS MY HASTY RETREAT, AND THE BUILDER CAUGHT IT
+
+The previous seam said *"blocked on VARIANCE, a type-system decision nobody has made."* **Measured
+false.** 299 errors was a WORKLIST, not a wall (FM 15, which I had just written into this file).
+What the measurements actually found:
+
+```
+the erasure          src/declare/register.rs  `ret_type: enum_type.clone()`  — ONE LINE.
+                     `infer_enum_map_ctor`'s fallback is NOT the live path; a registered SCHEME is.
+head-level edges     ALREADY WORK: (derive Child Parent) → a Parent<i64> slot accepts Child<i64>,
+                     and args-differ is correctly refused. A VARIANT edge is head-level, so A-2
+                     needs NO new assignable arm. My "one remaining unknown" did not exist.
+{:keys} on a variant NOT free. It asks `TypeDef::Aggregate`. ⛔ The builder REFUSED my fix of
+                     registering variants AS aggregates — "why are we forcing enums to be
+                     aggregates?" — that is shaping the TYPE to fit a PREDICATE. The predicate is
+                     what is too narrow, exactly as Stone O's `nature == Struct` was.
+the builder's match  ALREADY GREEN today. Only the annotation and the ctor are subjects.
 ```
 
 ## ⛔⛔ P-2 IS NOT UNBLOCKED. THE PREVIOUS SEAM SAID "4/4, UNBLOCKED" — THAT IS SUPERSEDED.
@@ -62,12 +106,25 @@ ctor stops erasing.** (2) is a type-system decision nobody has made. It is the b
 ## ⛔ QUEUED
 
 ```
-the :wat::* call-head blanket   src/resolve/walk.rs:272. Arc 255's founding defect, still standing
-                                for CALL HEADS. Gates the dot-notation flip. STILL THE HEAD.
+A-2  a variant is a type        NEXT. Fixtures already written (untracked, tests/types/
+                                probe_arc296_A2_*.wat) FROM THE BUILDER'S OWN EXAMPLES. Room mapped:
+                                  register.rs `ret_type`      the ctor stops erasing
+                                  {:keys} predicate           widen by SHAPE, not nature
+                                  defclause routing           falls out of the 72-site router
+                                Baseline: process-full-box check=1 · posterity ctor check=1 ·
+                                match check=0 (already green).
+the :wat::* call-head blanket   src/resolve/walk.rs:272. Arc 255's founding defect. Gates the dot
+                                flip. ⚠ MY 92%/470 CENSUS WAS A DIFFERENT EXPERIMENT than 255's
+                                17%/35: they REPLACED the blanket with a registry lookup, I deleted
+                                it and put nothing there. The real finding: `is_resolvable_call_head`
+                                has NO path to the intrinsic registry at all — which is 255's
+                                founding sentence, measured.
+extend-type full-spelling       a DECLARED edge between two parametric types is ignored:
+                                `(extend-type (Child :- [i64]) (Parent :- [i64]))` then a
+                                Parent<i64> slot REFUSES a Child<i64>. Head-level edges work.
+                                Real defect, off A-2's path.
 derive's MARKER                 `(derive :usr::A :usr::Typo)` mints a new marker silently.
-                                Declared-first vs open-minting — the builder's ruling.
 5 dead_code items               pre-existing, `-D warnings` only. A purgare stone.
-P-2                             behind variance, above.
 ```
 
 ## ⚠ RULINGS — do not re-litigate
