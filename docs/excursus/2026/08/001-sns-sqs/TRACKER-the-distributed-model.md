@@ -1,7 +1,7 @@
 # TRACKER — the distributed model, and the side quests
 
 Opened 2026-09-02. **Living document — update in place, do not append a second copy.**
-No arc number is minted here; this tracks work inside arc 278 until the builder rules otherwise.
+No arc number is minted here; this tracks work inside excursus 001 (it said arc 278 until `bed480fc4` moved this campaign to its own tree) until the builder rules otherwise.
 
 ## Baseline as of 2026-09-02 (measure against this, five runs, quiet box)
 
