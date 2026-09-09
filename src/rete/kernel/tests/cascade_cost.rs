@@ -345,7 +345,7 @@ fn cascade_setup_leftover_split() {
     let mut arm_pairs = 0u64;
     let mut builds = usize::MAX;
     for _ in 0..RUNS {
-        let before = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        let before = super::arm_builds();
         let rows = cascade_phase_census(50, 100);
         // ⛔ The liveness guards below the loop are not the claim — `probare` classed this test
         // hollow. A cascade fire must exercise these phases whatever they cost; a missing row
@@ -355,7 +355,7 @@ fn cascade_setup_leftover_split() {
             &["alpha", "root-join", "hash-join", "production"],
             "",
         );
-        let after = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        let after = super::arm_builds();
         builds = builds.min(after.saturating_sub(before));
         let of = |name: &str| -> (u64, u64) {
             rows.iter()

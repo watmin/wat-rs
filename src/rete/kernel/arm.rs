@@ -723,10 +723,25 @@ thread_local! {
         RefCell::new(FxHashMap::default());
 }
 
+// rune:sequi(ambient-context) — thread-owned build counter, matching `ARM_TABLE` one line up:
+// a build is a per-thread event under the same ZERO-MUTEX contract (`DESIGN-STONE-intern-zero-
+// mutex`), so the counter counting builds must be thread-owned too, not process-global.
+// Recategorised from `performance-counter` 2026-09-08: once thread-owned it is the SOLE oracle
+// deciding five `arm_lease.rs` tests' verdicts, not merely a measurement of one — and
+// CONVENTIONS.md's own `performance-counter` definition is "arming it cannot change a result,
+// only a measurement," which was false for this counter. `ambient-context` is the honest
+// category, the same one its neighbour `ARM_TABLE` already carries, for the same reason.
 #[cfg(test)]
-// rune:sequi(performance-counter) — test-only intern-miss count; not fire domain.
-pub(crate) static ARM_BUILDS: std::sync::atomic::AtomicUsize =
-    std::sync::atomic::AtomicUsize::new(0);
+thread_local! {
+    static ARM_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Test-only read of the calling thread's build count. See the `ambient-context` rune above:
+/// thread-owned because the table it counts builds into is thread-owned.
+#[cfg(test)]
+pub(crate) fn arm_builds() -> usize {
+    ARM_BUILDS.with(std::cell::Cell::get)
+}
 
 pub(crate) fn rete_arm_lookup(id: u64) -> Option<Arc<InternedNetwork>> {
     ARM_TABLE.with(|t| t.borrow().get(&id).map(|e| Arc::clone(&e.arm)))
@@ -905,7 +920,7 @@ pub(crate) fn build_rete_arm(
     sym: &SymbolTable,
 ) -> Result<InternedNetwork, EvalBreak> {
     #[cfg(test)]
-    ARM_BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    ARM_BUILDS.with(|c| c.set(c.get() + 1));
 
     let node_ids = sorted_node_ids(network);
     let (alpha_by_type, alpha_cond) = build_alpha_index(network, &node_ids);
