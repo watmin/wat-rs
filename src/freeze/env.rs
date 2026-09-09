@@ -207,16 +207,15 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
 
     // 6. Function definitions.
     let mut symbols = SymbolTable::new();
-    // Arc 296 P-1 RELAND-1 — collect `use!` from stdlib AND user residue so
-    // annotation membership can ask the same store call-head resolution asks.
-    // Stdlib `use!` (e.g. wat/sqlite.wat) would otherwise be dropped when
-    // `stdlib_residue` is filtered to runtime-def forms.
-    let mut use_decls = crate::rust_deps::UseDeclarations::new();
+    // Arc 296 P-3 — stdlib `use!` ONLY. Kept unmerged so the annotation wall
+    // can ask each declaring scope about its own declarations (a stdlib
+    // annotation by stdlib `use!`; a user annotation by user `use!`).
+    let mut stdlib_use = crate::rust_deps::UseDeclarations::new();
     {
         let registry = crate::rust_deps::registry();
         let mut unused = Vec::new();
         for form in &stdlib_post_types {
-            crate::resolve::collect_use_declarations(form, registry, &mut use_decls, &mut unused);
+            crate::resolve::collect_use_declarations(form, registry, &mut stdlib_use, &mut unused);
         }
     }
     // Stone 237.8b — capture stdlib residue so defclause forms reach
@@ -252,10 +251,9 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         })
         .collect();
     let mut residue = register_defines(post_types, &mut symbols)?;
-    // User-source `use!` only. Stdlib `use!` (sqlite, cache) is already in
-    // `use_decls` for the annotation wall; seeding those into TypeEnv would
-    // make `is-type?` answer true for `:rust::sqlite::Connection` in every
-    // program, including one that never declared it (STOP-1).
+    // User-source `use!` only. Seeded into TypeEnv so `is-type?` agrees
+    // with resolve for names THIS program declared (P-2 prereq). Not
+    // merged into `stdlib_use` — that merge was the wall's scope-blindness.
     let mut user_use = crate::rust_deps::UseDeclarations::new();
     {
         let registry = crate::rust_deps::registry();
@@ -265,13 +263,9 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         }
     }
     for path in user_use.list() {
-        use_decls.declare(path.to_string());
         types.register_use_declared_leaf(path);
     }
-    // Arc 296 P-2 prereq — STOP-3 restored `covers`. Seeding only user
-    // `use!` into TypeEnv (STOP-1) leaves stdlib `:rust::sqlite::*` known
-    // to the wall via `use_decls` and unknown to `contains`.
-    validate_named_type_annotations(&types, &symbols, &use_decls)?;
+    validate_named_type_annotations(&types, &symbols, &stdlib_use, &user_use)?;
 
     // 6a. Struct auto-methods (ctor only; accessors now in 6.8a).
     register_struct_methods(&types, &mut symbols)?;

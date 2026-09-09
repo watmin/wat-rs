@@ -1524,9 +1524,8 @@ pub(crate) fn eval_type_of(
 ///
 /// Arc 296 Q — membership, not structure. `type-of` asks `TypeEnv::get` and
 /// raises on a leaf; this verb asks whether `name` is a type at all.
-/// `TypeEnv::contains` ∪ `is_builtin_primitive` — one query, two stores, nothing
-/// moves (`TABLE-STONE-Q-the-mechanisms.md`). A nonexistent name is `false`,
-/// not a raise: that row is the stone.
+/// `TypeEnv::contains` ∪ `is_builtin_primitive` ∪ `TypeEnv::is_subtype_parent`
+/// — membership, not structure. A nonexistent name is `false`, not a raise.
 ///
 /// The arg is a type-position keyword, taken literally (not evaluated). Doctrine 1
 /// stands: a primitive type keyword as a *value* still refuses; here it is a name.
@@ -1538,7 +1537,7 @@ pub(crate) fn eval_type_of(
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::core::keyword the type name to ask about (a literal keyword in type position)
-/// @ret     :wat::core::bool true iff the name is a type (TypeEnv member or runtime primitive)
+/// @ret     :wat::core::bool true iff the name is a type (TypeEnv member, runtime primitive, or derive-marker parent)
 /// @example (:wat::runtime::is-type? :wat::core::Option) #=> true
 /// @example (:wat::runtime::is-type? :usr::TotallyMadeUp) #=> false
 /// @see     :wat::runtime::type-of
@@ -1575,6 +1574,8 @@ pub(crate) fn eval_is_type(
         )
     })?;
     let stripped = type_kw.strip_prefix(':').unwrap_or(&type_kw);
-    let known = types.contains(&type_kw) || crate::runtime::is_builtin_primitive(stripped);
+    let known = types.contains(&type_kw)
+        || crate::runtime::is_builtin_primitive(stripped)
+        || types.is_subtype_parent(&type_kw);
     Ok(Value::bool(known))
 }

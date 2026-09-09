@@ -116,7 +116,6 @@ fn a_user_annotation_with_its_own_use_is_accepted() {
 /// HALF 1 SUBJECT — accepted today only because the wall counts the stdlib's `use!` as this
 /// program's. `resolve` refuses the same name in call-head position.
 #[test]
-#[ignore = "arc 296 P-3 — the annotation wall counts a stdlib use! as the user program's own"]
 fn a_user_annotation_without_its_own_use_is_refused() {
     assert_eq!(
         check("user_annotation_without_user_use"),
@@ -137,7 +136,6 @@ fn a_name_that_was_never_derived_to_is_not_a_type() {
 
 /// HALF 2 SUBJECT — the wall accepts a derive marker as a bound; the verb denies it.
 #[test]
-#[ignore = "arc 296 P-3 — is-type? does not ask subtype_edges (store 4)"]
 fn a_derive_marker_is_a_type() {
     assert_eq!(
         run("is_type_on_a_derive_marker"),

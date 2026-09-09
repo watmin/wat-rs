@@ -15240,20 +15240,18 @@ pub(crate) fn validate_aggregate_containment(
     Ok(())
 }
 
-/// Arc 296 P-2 prereq — after types AND functions are registered, refuse any
+/// Arc 296 P-3 — after types AND functions are registered, refuse any
 /// annotation whose named type is in none of the membership stores:
 /// `TypeEnv::contains` ∪ `is_builtin_primitive` ∪ `UseDeclarations::covers`
-/// ∪ `TypeEnv::is_subtype_parent`. `covers` restored (STOP-3): stdlib `use!`
-/// of `:rust::sqlite::*` is in `use_decls` but not seeded into TypeEnv
-/// (seeding it would flip `is-type?` for a program that never declared the
-/// type — STOP-1). No reserved-prefix skip. Type variables
-/// (`is_type_var_path`) and bound type-params are accepted without asking
-/// any store. Forward references are resolved (same reason as
-/// [`validate_aggregate_containment`]).
+/// (the declaring scope's `use!`s, not the merged set) ∪
+/// `TypeEnv::is_subtype_parent`. Type variables (`is_type_var_path`) and
+/// bound type-params are accepted without asking any store. Forward
+/// references are resolved (same reason as [`validate_aggregate_containment`]).
 pub(crate) fn validate_named_type_annotations(
     env: &crate::types::TypeEnv,
     symbols: &crate::value::SymbolTable,
-    use_decls: &crate::rust_deps::UseDeclarations,
+    stdlib_use: &crate::rust_deps::UseDeclarations,
+    user_use: &crate::rust_deps::UseDeclarations,
 ) -> Result<(), TypeError> {
     use crate::declare::typevar::first_unknown_named_type;
     use crate::types::{EnumVariant, SurfaceMember, TypeDef};
@@ -15265,7 +15263,19 @@ pub(crate) fn validate_named_type_annotations(
         ))
     };
 
-    for (_name, def) in env.iter() {
+    // SCOPE SELECTION, not the reserved-prefix SKIP RELAND-1 deleted.
+    // Every declaration is still validated; only the reference set differs.
+    // Prefix IS the scope: user source cannot define under `:wat::*` / `:rust::*`.
+    let scope_decls = |name: &str| -> &crate::rust_deps::UseDeclarations {
+        if crate::resolve::is_reserved_prefix(name) {
+            stdlib_use
+        } else {
+            user_use
+        }
+    };
+
+    for (name, def) in env.iter() {
+        let use_decls = scope_decls(name);
         match def {
             TypeDef::Aggregate(a) => {
                 for (_fname, fty) in &a.fields {
@@ -15332,7 +15342,8 @@ pub(crate) fn validate_named_type_annotations(
         }
     }
 
-    for (_name, func) in symbols.functions_iter() {
+    for (name, func) in symbols.functions_iter() {
+        let use_decls = scope_decls(name);
         for ty in &func.param_types {
             if let Some(p) = first_unknown_named_type(ty, &func.type_params, env, use_decls) {
                 return refuse(p);
