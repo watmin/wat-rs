@@ -68,9 +68,12 @@ pass.wat` merely names the symbol, being part of the compiler.)
 ## The migration is already written and validated
 
 The mechanical transform — move each single-condition literal comparison into the pattern binding
-its var — exists and its output was proven equivalent:
-`wat-scripts/scratch-pad/probe-inline-alpha-beats-trailing-where.wat`, generated from
-`wat-scripts/fixes/topic-record-drop-nsubs.wat`, 17 constraints moved, **identical 35-match set**.
+its var — is written, validated, and **already applied to this campaign's own codemod**.
+`wat-scripts/fixes/topic-record-drop-nsubs.wat` carries the inline form as of this commit: 17
+constraints moved, **identical 35-match set** against the pre-change file, and the corpus-wide
+census now runs in **one shot at 2 g in 41 s** where the trailing form was killed at every ceiling.
+The A/B probe was deleted rather than left to rot beside the real rule; the measurement lives in
+`FINDING-the-finder-hoists-nothing.md` and the trailing form lives in git history at `4b6767e3d`.
 
 It ships as a recorded codemod, which is the pleasing recursion: **a codemod that fixes codemods.**
 The `.rs` sites are hand work — rules embedded in Rust string literals are not `.wat` the tool can

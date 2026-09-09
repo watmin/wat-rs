@@ -71,12 +71,10 @@
 ;; TOKEN census — every SYMBOL leaf named `nsubs`. Hypothesis, not the rewrite population:
 ;; the worker's binding at :425 and its references are in here and MUST survive.
 (:wat::rete::defrule :tn::token-nsubs-symbol
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind) (:wat::rete::string::= ?k "symbol"))
+         (:wat::grep::Named  (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n "nsubs"))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::string::= ?n "nsubs"))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "token-nsubs-symbol"
            :captures (:wat::rete::core::PersistentVector
@@ -84,12 +82,10 @@
 
 ;; TOKEN census — every KEYWORD leaf named `:nsubs`, whatever its parent.
 (:wat::rete::defrule :tn::token-nsubs-keyword
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind) (:wat::rete::string::= ?k "keyword"))
+         (:wat::grep::Named  (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n ":nsubs"))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::string::= ?n ":nsubs"))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "token-nsubs-keyword"
            :captures (:wat::rete::core::PersistentVector
@@ -98,16 +94,12 @@
 ;; FORM 1 — a `:nsubs` keyword whose enclosing list is headed by `:demo::topic::Record`.
 ;; THIS is the rewrite population for the kwarg pairs.
 (:wat::rete::defrule :tn::record-kwarg-nsubs
-  :when [(:wat::grep::Node   (?id <- :id) (?p <- :parent) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node   (?id <- :id) (?p <- :parent) (?k <- :kind) (:wat::rete::string::= ?k "keyword"))
+         (:wat::grep::Named  (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n ":nsubs"))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::grep::Node   (?hid <- :id) (?p <- :parent) (?hi <- :index))
-         (:wat::grep::Named  (?hid <- :id) (?hn <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::string::= ?n ":nsubs"))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::rete::where (:wat::rete::string::= ?hn ":demo::topic::Record"))]
+         (:wat::grep::Node   (?hid <- :id) (?p <- :parent) (?hi <- :index) (:wat::rete::i64::= ?hi 0))
+         (:wat::grep::Named  (?hid <- :id) (?hn <- :name) (:wat::rete::string::= ?hn ":demo::topic::Record"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "record-kwarg-nsubs"
            :captures (:wat::rete::core::PersistentVector
@@ -116,12 +108,10 @@
 ;; FORM 3 — the accessor. Unique full name, so no parentage needed. Subsumed by form 1
 ;; (it is that pair's value); reported so a survivor cannot be silent.
 (:wat::rete::defrule :tn::record-accessor-nsubs
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind) (:wat::rete::string::= ?k "keyword"))
+         (:wat::grep::Named  (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n ":demo::topic::Record/nsubs"))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::string::= ?n ":demo::topic::Record/nsubs"))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "record-accessor-nsubs"
            :captures (:wat::rete::core::PersistentVector
@@ -141,22 +131,15 @@
 ;; applier will not touch one. There is no such symbol in the corpus; the asymmetry is stated so
 ;; a future one is not silently rewritten.
 (:wat::rete::defrule :tn::durable-binder-nsubs
-  :when [(:wat::grep::Node   (?id <- :id) (?vec <- :parent) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node   (?id <- :id) (?vec <- :parent) (?k <- :kind) (:wat::rete::string::= ?k "symbol"))
+         (:wat::grep::Named  (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n "nsubs"))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::grep::Node   (?vec <- :id) (?svc <- :parent) (?vk <- :kind))
-         (:wat::grep::Node   (?hid <- :id) (?svc <- :parent) (?hi <- :index))
-         (:wat::grep::Named  (?hid <- :id) (?hn <- :name))
-         (:wat::grep::Node   (?sid <- :id) (?svc <- :parent) (?si <- :index))
-         (:wat::grep::Named  (?sid <- :id) (?sn <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::string::= ?n "nsubs"))
-         (:wat::rete::where (:wat::rete::string::= ?vk "vector"))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::rete::where (:wat::rete::string::= ?hn ":wat::service::defservice"))
-         (:wat::rete::where (:wat::rete::i64::= ?si 1))
-         (:wat::rete::where (:wat::rete::string::= ?sn ":demo::topic"))]
+         (:wat::grep::Node   (?vec <- :id) (?svc <- :parent) (?vk <- :kind) (:wat::rete::string::= ?vk "vector"))
+         (:wat::grep::Node   (?hid <- :id) (?svc <- :parent) (?hi <- :index) (:wat::rete::i64::= ?hi 0))
+         (:wat::grep::Named  (?hid <- :id) (?hn <- :name) (:wat::rete::string::= ?hn ":wat::service::defservice"))
+         (:wat::grep::Node   (?sid <- :id) (?svc <- :parent) (?si <- :index) (:wat::rete::i64::= ?si 1))
+         (:wat::grep::Named  (?sid <- :id) (?sn <- :name) (:wat::rete::string::= ?sn ":demo::topic"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "durable-binder-nsubs"
            :captures (:wat::rete::core::PersistentVector
