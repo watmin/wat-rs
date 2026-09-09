@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. 2026-09-08 (late). **GREEN · CLEAN · PUSHED · NO PEER IN FLIGHT.**
+# SEAM — the ONE live breadcrumb. 2026-09-09. **GREEN · CLEAN · PUSHED · NO PEER.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -11,155 +11,117 @@
 
 ```bash
 git status --porcelain          # expect EMPTY
-git log --oneline @{u}..HEAD    # expect EMPTY (0 unpushed)
+git log --oneline @{u}..HEAD    # expect EMPTY
 grep -aE "^ +Summary" .floor/latest/raw.log
+cargo clippy --release --all-targets -- -D warnings   # expect EXIT 0
 ```
 
 ```
-floor ... 5277 tests run: 5277 passed, 21 skipped   FLOOR EXIT=0   HEAD 927d94d2b
+floor 5292/5292, 22 skipped · clippy 0 · HEAD 33a1747e3
 ```
 
-## ⛔⛔ THE PEER CHANNEL IS OUT OF CREDITS. DELEGATE LOCALLY.
+## ⛔⛔ THE PEER IS GONE. DELEGATE LOCALLY, AND MEASURE YOURSELF.
 
-Builder, 2026-09-08: *"we need to delegate to opus/sonnet locally - out of credits."* **`pulsare_yield`
-is no longer the channel.** The BRIEFs transfer unchanged — they are already written tier-agnostic
-(*"you edit and report; the orchestrator runs the floor centrally, once"*), which is FM 18/19's rule.
-What changes is the spawn:
+The pulsare MCP disconnected on a reboot and grok's tokens are spent. **`pulsare_yield` is not a
+channel any more.** Local `Agent` riders only:
 
 ```
-model: "sonnet"     EXPLICIT on every Agent call. FM 12 — omit it and the spawn silently inherits
-                    OPUS while every document says sonnet. Nine agents shipped that way once.
-isolation           OMIT IT. Never "worktree". FM 7-bis, doctrine not preference.
-cwd                 anchor /home/john/work/holon/wat-rs absolutely in the prompt; any path with
-                    `.claude/worktrees/` is harness state and illegal to operate on.
-no tool preamble    FM 16 — mentioning Bash/cargo availability AT ALL triggers the hallucinated
-                    denial. State the work; trust the tools.
-the rider           runs targeted probe binaries + per-fixture `--check`. NEVER the floor.
+model: "sonnet"   EXPLICIT on every call (FM 12 — omit it and you spawn OPUS silently)
+isolation         OMIT. Never "worktree" (FM 7-bis).
+cwd               anchor /home/john/work/holon/wat-rs absolutely in the prompt.
+no tool preamble  FM 16 — mentioning Bash/cargo availability triggers a hallucinated denial.
+the brief MUST say: do NOT background a command and end your turn · do NOT contact any peer
 ```
 
-⚠ A local rider spends THIS session's context, not a separate budget. Weigh what is delegated
-against what is a genuinely small inline fix.
+★★★ **AND THE HALF I GOT WRONG: a MEASUREMENT is the orchestrator's.** If the deliverable is a
+NUMBER — a census, a count, a corpus sweep — it is YOURS. If it is a DIFF, it is the rider's. I kept
+riders off the floor all day and then handed one an 845-file census; it backgrounded the sweep,
+ended its turn three times, and started a second sweep while the first sat finished on disk.
+`[[feedback_a_measurement_is_the_orchestrators_half_of_the_tier_rule]]`
 
-⚠ **`scripts/floor.sh` DOES NOT RUN CLIPPY.** Every "clippy N" in this record came from an ad-hoc
-`cargo clippy | grep -c` in the orchestrator's command line, and across three invocations that grep
-returned **0, then 7, then 8** for a tree whose real answer never changed. The honest gate is
-`cargo clippy --release --all-targets -- -D warnings`; it EXITS 101 on **5 pre-existing `dead_code`
-items** that are already on `origin/main`. They are a `purgare` stone, not a regression.
-
-## ★★★ WHAT LANDED — the type authority is one authority, and so is assignability
+## ★★★ WHAT LANDED — 8 stones, one sentence: ONE QUESTION, ONE ANSWER
 
 ```
-296 P-1     an annotation may not name a type that does not exist. It caught THREE real phantoms
-  +RELAND-1 nothing could see before: :wat::core::Int (16 sites), ::Keyword (7), and
-            :wat::kernel::ExitCode — RETIRED by arc 170 on 2026-05-10 and still annotated.
-            Both `is_reserved_prefix` blankets deleted; the union is FOUR stores.
-296 P-2prq  `use!` seeds its imported name into TypeEnv, so is-type? agrees with resolve.
-296 P-3     the wall asks each DECLARING SCOPE about its own use!; is-type? asks subtype_edges.
-            MEASURED, both directions:
-              no user use!    resolve check=1 · wall check=1 · is-type? false
-              with user use!  resolve check=0 · wall check=0 · is-type? true
-296 A-1     `if`, `send`, `try-send` decide fit the way a PARAMETER always has. Same pair of
-            types, both positions, same answer. is_subtype count unchanged — assignable reused.
-296 P-1b    a PARAMETRIC annotation's HEAD is validated. It was not: P-1 reused a walk built for
-            free-VARIABLE collection, where skipping a head is correct, and inherited its blind
-            spot. `(:usr::MadeUp :- [i64])` checked CLEAN while the bare form refused.
+296 P-1 (+RELAND-1)  an annotation may not name a type that does not exist. Caught THREE real
+                     phantoms nothing could see: :wat::core::Int (16 sites), ::Keyword (7), and
+                     :wat::kernel::ExitCode — RETIRED by arc 170 on 2026-05-10, still annotated.
+                     BOTH is_reserved_prefix blankets deleted.
+296 P-1b             …including a PARAMETRIC annotation's HEAD. P-1 reused a walk built for
+                     free-VARIABLE collection and inherited its blind spot.
+296 P-2prereq        `use!` seeds TypeEnv, so is-type? agrees with resolve.
+296 P-3              the wall asks each DECLARING SCOPE; is-type? asks subtype_edges.
+296 A-1              if / send / try-send decide fit the way a PARAMETER always has.
+296 A-2 (5 relands)  ⛔ A VARIANT IS A TYPE. The ctor carries it · {:keys} by SHAPE, checker AND
+                     runtime · the JOIN · option E (widening inside an ENUM's arguments).
+purgare              clippy ZERO. Six items, −605 lines. NOT "pre-existing" — arc 296 L orphaned
+                     them the day before, and I called them pre-existing in five commit messages.
+255 ①′              the registry gains a MEMBERSHIP facet: it answers "what is this verb's
+                     contract?" AND "does this name exist?" 75 rete names folded in.
 ```
 
-## ⛔ P-2 IS NOT BLOCKED ON VARIANCE — THAT WAS MY HASTY RETREAT, AND THE BUILDER CAUGHT IT
+★ **The builder's four programs run**, and each became a fixture:
+`process-full-box` with `{:keys [inside]}` · the ctor carrying `Box.Full` · the conditional-option
+join · the nested `(Option.Some {:value (Result.Err …)})` literal.
 
-The previous seam said *"blocked on VARIANCE, a type-system decision nobody has made."* **Measured
-false.** 299 errors was a WORKLIST, not a wall (FM 15, which I had just written into this file).
-What the measurements actually found:
+## ⛔ THE QUEUE — the blanket dies in THREE, then the dot flip
 
-```
-the erasure          src/declare/register.rs  `ret_type: enum_type.clone()`  — ONE LINE.
-                     `infer_enum_map_ctor`'s fallback is NOT the live path; a registered SCHEME is.
-head-level edges     ALREADY WORK: (derive Child Parent) → a Parent<i64> slot accepts Child<i64>,
-                     and args-differ is correctly refused. A VARIANT edge is head-level, so A-2
-                     needs NO new assignable arm. My "one remaining unknown" did not exist.
-{:keys} on a variant NOT free. It asks `TypeDef::Aggregate`. ⛔ The builder REFUSED my fix of
-                     registering variants AS aggregates — "why are we forcing enums to be
-                     aggregates?" — that is shaping the TYPE to fit a PREDICATE. The predicate is
-                     what is too narrow, exactly as Stone O's `nature == Struct` was.
-the builder's match  ALREADY GREEN today. Only the annotation and the ctor are subjects.
-```
-
-## ⛔⛔ P-2 IS NOT UNBLOCKED. THE PREVIOUS SEAM SAID "4/4, UNBLOCKED" — THAT IS SUPERSEDED.
-
-`296/NOTE-P2-is-blocked-on-VARIANCE-and-my-fence-was-on-the-wrong-axis.md`. Struck as P-2a,
-**reverted**; the rider's work is preserved at `7292a2c2a`, the revert is `a6641ab45`.
+`255/DESIGN-the-blanket-dies-in-three.md`. Census re-derived 2026-09-09 on a quiescent tree:
+**143 of 845 files, 35 distinct names** — IDENTICAL to the arc's own 2026-09-07 figure. The first
+settled number this week that did NOT expire.
 
 ```
-the ctor half   299 type-check errors, two clusters:
-  cluster 1     infer_send_prime (check.rs:11619) UNIFIES payload against I and never calls
-                assignable — while ordinary parameters DO (check.rs:16992).
-                TWO ARGUMENT POSITIONS, TWO RULES.
-  cluster 2     RecvOutcome :- [ScanResponse::RequestTooLarge] vs RecvOutcome :- [ScanResponse].
-                TYPE ARGS ARE INVARIANT. `Variant <: Enum` does not lift through a container.
-the reg. half   cannot stand alone: the annotation is accepted and NOTHING satisfies it —
-                "(:user::takes-red (:usr::Colour::Red {:shade 7})) -> expects Colour::Red; got Colour"
+①  ✓ LANDED   the registry's membership facet
+②  ⬜          the `:- [...]` BOUNDARY — 4 names (:wat::type::{Tuple,i64,String,Vector}) that must
+               NOT be registered. Type ARGUMENTS are being walked as CALL HEADS. Registering them
+               as callables is the wrong cure for the right symptom, and this is why a census must
+               never be driven to zero by registration.
+③  ⬜          4 real verbs with live dispatch arms and no rows: :wat::eval-ast! (337) ·
+               :wat::eval-with-defs! · :wat::string::= · :wat::core::stream->pvec
+then           resolve asks `registry().contains` — `registry()` is a FREE fn returning &'static,
+               `is_resolvable_call_head` can call it with NO plumbing. Instrument preserved at
+               the scratchpad's `walk.rs.registry-lookup`.
+then           THE BLANKET DIES · then the DOT FLIP
 ```
 
-**P-2 needs, in order: (1) one rule for argument positions · (2) a VARIANCE story · (3) then the
-ctor stops erasing.** (2) is a type-system decision nobody has made. It is the builder's.
-
-## ⛔ QUEUED
-
-```
-A-2  a variant is a type        NEXT. Fixtures already written (untracked, tests/types/
-                                probe_arc296_A2_*.wat) FROM THE BUILDER'S OWN EXAMPLES. Room mapped:
-                                  register.rs `ret_type`      the ctor stops erasing
-                                  {:keys} predicate           widen by SHAPE, not nature
-                                  defclause routing           falls out of the 72-site router
-                                Baseline: process-full-box check=1 · posterity ctor check=1 ·
-                                match check=0 (already green).
-the :wat::* call-head blanket   src/resolve/walk.rs:272. Arc 255's founding defect. Gates the dot
-                                flip. ⚠ MY 92%/470 CENSUS WAS A DIFFERENT EXPERIMENT than 255's
-                                17%/35: they REPLACED the blanket with a registry lookup, I deleted
-                                it and put nothing there. The real finding: `is_resolvable_call_head`
-                                has NO path to the intrinsic registry at all — which is 255's
-                                founding sentence, measured.
-extend-type full-spelling       a DECLARED edge between two parametric types is ignored:
-                                `(extend-type (Child :- [i64]) (Parent :- [i64]))` then a
-                                Parent<i64> slot REFUSES a Child<i64>. Head-level edges work.
-                                Real defect, off A-2's path.
-derive's MARKER                 `(derive :usr::A :usr::Typo)` mints a new marker silently.
-5 dead_code items               pre-existing, `-D warnings` only. A purgare stone.
-```
+⚠ **DO NOT flip the dot notation first.** Measured on clean main 2026-09-09:
+`(:wat::core::Option.Some {:value 7})` → **check=0** → `#wat.core/Option.None {}`. Still a silent
+wrong answer; the blanket is what lets that head reach the keyword accessor.
 
 ## ⚠ RULINGS — do not re-litigate
 
-- **An enum ctor is a MAP.** declare `:None []` · construct `(…::None {})` · match `[…::None {} b]`.
-- **`{:keys}` is for ONE-SHAPE aggregates; match is for many-shape.**
-- **Natures differ in PURITY, not SHAPE.**
-- **`type-of` is STRUCTURE; `is-type?` is MEMBERSHIP** — and membership is over the UNION, which
-  turned out to be four stores, not two. `HAERESIS EST ITERVM ROGARE`.
+- **An enum ctor is a MAP** · **`{:keys}` is for one-shape aggregates; match is for many-shape.**
+- **Natures differ in PURITY, not SHAPE.** A predicate about shape must not ask about nature.
+- **A variant widens inside an ENUM's arguments** — sound BY CONSTRUCTION: an enum is a sum of
+  records with no input position. A `defrecord` and `:wat::kernel::Sender` are NOT enums.
+- **The join**: same head → pairwise joins of the args; two variants of one enum → that enum.
+- **`git commit <paths>`, NEVER `git add` then commit.** Six occurrences of sweeping a peer's work.
+- **A golden pinning a stdlib line: RECAPTURE, KEEP PINNING.** Never extend the normaliser.
 - **⛔ SIDE BRANCHES DO NOT SERVE US** · **COMMIT LOCALLY OFTEN; PUSH ONLY GREEN.**
-- **`git commit <paths>` — NEVER `git add` then commit.** Six occurrences of sweeping a peer's
-  in-flight work into a mislabelled commit; the sixth was the fix for the fifth.
-- **Colon-quoted symbols are ACCEPTABLE transitionally.** `:wat::core::+` IS `wat.core/+`.
 
-## ⛔ THE FAILURE PATTERNS — all four fired again today
+## ⛔ THE FAILURE PATTERNS — every one fired again
 
-**① A NAME CHECKED AGAINST A PARTIAL SET.** Now at SIX positions. Every stone this session was
-this defect at a new address, and the cure for one exposed the next.
+**① A PROBE THAT ANNOTATES IS NOT A PROBE THAT USES — and one that CHECKS is not one that RUNS.**
+Nine `--check` rows and a green floor at 5289/5289 while the builder's program died on line three.
+A guard is not a guard until it has failed once; **sabotage it and watch it go red**, because four
+vacuous guards this session all looked exactly like working ones.
 
 **② I MEASURE THE DECLARATION AND NOT THE CONSUMERS.** P-2a's fence held perfectly and described
-the wrong boundary — I fenced generic ENUMS out, and a MONOMORPHIC variant hit the same class by
-being wrapped in a generic container.
+the wrong boundary. My A-2 brief said "the table carries everything a row needs" — I read one row's
+shape and never opened `IntrinsicEntry`.
 
-**③ A PROBE THAT ANNOTATES IS NOT A PROBE THAT USES.** P-2a's five rows all passed in exactly the
-state the DESIGN called "strictly worse than today's refusal." **The rider found it, not me.**
-A probe that proves a type is USABLE must construct a value INTO it.
+**③ A QUALIFIED CLAIM LOSES ITS QUALIFIER WHEN QUOTED.** The arc's note says *"registered as an
+INTRINSIC: 0/74"* — precise and TRUE. I read it as "has no entry". `Kind::SpecialForm` shares the
+same map: **52 of 75 already had entries.** My own test caught it by failing.
 
-**④ AN INSTRUMENT ANSWERING A NARROWER QUESTION.** `| tail -6` on a 27-failure floor; a JSON grep
-against EDN output returning a confident 0; `pgrep -f "cargo"` matching `~/.cargo/bin/wat --mcp` and
-reporting a phantom build TWICE, which I then wrote onto disk as the reason a measurement went
-unrun. **Run the gate unpiped and read `$?`; read `git show --stat` BEFORE writing the message.**
+**④ AN INSTRUMENT ANSWERING A NARROWER QUESTION.** `| tail -6` on a 27-failure floor · a JSON grep
+against EDN returning a confident 0 · `pgrep -f "cargo"` matching `~/.cargo/bin/wat --mcp` and
+reporting a phantom build TWICE, which I wrote onto disk as a reason · a wrap-blind `grep -v` that
+missed its own marker twice in one check · quoting a two-filter total as a one-filter count.
 
-★ **THE RIDER CAUGHT ME THREE TIMES TODAY** — a mislabelled commit, a probe that could not fail,
-and a design whose contract its own strike disproved. Weigh its report against the disk, and read
-its "what surprised" section: that is where the findings are.
+★ **THE BUILDER CAUGHT ME FOUR TIMES AND THE RIDERS THREE.** The hasty retreat from A-2 (299 errors
+read as a wall, when FM 15 says it is a worklist); shaping the TYPE to fit the `{:keys}` PREDICATE;
+a variance recommendation built on a `Sender` counterexample that was never the same KIND of thing
+as an `Option`; and "pre-existing" clippy items that were one day old.
 
 ---
 
