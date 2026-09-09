@@ -101,43 +101,41 @@
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-fn check(case: &str) -> i32 {
-    let path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/resolve")
-        .join(format!(
-            "probe_arc255_the_type_position_has_its_own_authority__{case}.wat"
-        ));
-    assert!(path.exists(), "fixture missing: {}", path.display());
+/// The fixture's path RELATIVE to the crate root, run with `current_dir` set there. A span in a
+/// golden then records exactly this relative string on every machine — an absolute path would
+/// make every golden checkout-dependent and force a loose assertion.
+fn rel(case: &str) -> String {
+    format!("tests/resolve/probe_arc255_the_type_position_has_its_own_authority__{case}.wat")
+}
+
+fn run_check(case: &str) -> (i32, String) {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    assert!(root.join(rel(case)).exists(), "fixture missing: {}", rel(case));
     let out = Command::new(env!("CARGO_BIN_EXE_wat"))
+        .current_dir(&root)
         .arg("--check")
-        .arg(&path)
+        .arg(rel(case))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
         .expect("spawn wat --check");
-    out.status.code().unwrap_or(-1)
+    (
+        out.status.code().unwrap_or(-1),
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ),
+    )
+}
+
+fn check(case: &str) -> i32 {
+    run_check(case).0
 }
 
 fn check_output(case: &str) -> String {
-    let path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/resolve")
-        .join(format!(
-            "probe_arc255_the_type_position_has_its_own_authority__{case}.wat"
-        ));
-    let out = Command::new(env!("CARGO_BIN_EXE_wat"))
-        .arg("--check")
-        .arg(&path)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .expect("spawn wat --check");
-    format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    )
+    run_check(case).1
 }
 
 /// The wall's own diagnostic, compared STRUCTURE-EXACT against the golden — not merely the
@@ -253,5 +251,41 @@ fn value_arguments_after_the_type_vector_are_still_normalized_and_the_program_ru
     assert_eq!(
         stdout, "\"[\\\"1\\\", \\\"b\\\"]\"\n",
         "the value arguments must survive normalization and the program must print them"
+    );
+}
+
+/// ★ GUARD — an EMPTY list `()`. Proven non-vacuous: the first strike at this stone tested the
+/// `:-` shape via `&items[1..]`, which PANICS on a zero-length slice —
+/// `range start index 1 out of range for slice of length 0`, EXIT 101. Clean main answers with
+/// a NAMED diagnostic (`BareLegacyUnitValue`, arc 179), and a crash is not a diagnostic.
+#[test]
+fn an_empty_list_gets_a_named_diagnostic_and_never_a_panic() {
+    let (code, out) = run_check("control_empty_list");
+    assert_eq!(code, 1, "expected the named diagnostic, not a panic (101):\n{out}");
+    wat::assert_edn_eq!(
+        out,
+        include_str!("probe_arc255_the_type_position_has_its_own_authority__empty_list.edn")
+    );
+}
+
+/// ★★★ GUARD — a BOGUS CALL HEAD carrying a `:-` type binder.
+///
+/// `(:wat::core::HashSet :- [T] "a" "b")` is a CONSTRUCTOR CALL: its head is a genuine call
+/// head that merely carries an explicit type binder. So *"the head of a `:-` form is type
+/// syntax"* is FALSE, and exempting the head from call-head validation admits an unresolvable
+/// head in silence.
+///
+/// ⛔ `walk.rs:87` ALREADY skips this shape. `normalize` having NO `:-` guard is, today, the
+/// ONLY thing that refuses this program — which makes this row the load-bearing constraint on
+/// any stone that gives normalize one. Proven non-vacuous: the first strike returned EXIT 0.
+#[test]
+fn a_bogus_call_head_carrying_a_type_binder_is_still_refused() {
+    let (code, out) = run_check("control_bogus_head_carrying_a_binder");
+    assert_eq!(code, 1, "an unresolvable head is not excused by a `:-` binder:\n{out}");
+    wat::assert_edn_eq!(
+        out,
+        include_str!(
+            "probe_arc255_the_type_position_has_its_own_authority__bogus_head_carrying_a_binder.edn"
+        )
     );
 }
