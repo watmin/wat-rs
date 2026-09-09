@@ -543,7 +543,9 @@ pub struct TypeEnv {
     /// `contains` consults both `types` and this set; `get` deliberately does NOT — a builtin
     /// leaf has membership, not structure, and `TypeEnv::get` must keep answering `None` for
     /// these names so that asymmetry stays a queryable fact of the door rather than a
-    /// fabricated `TypeDef`. Populated once, in `register_builtin_types`.
+    /// fabricated `TypeDef`. Populated in `register_builtin_types`, then by
+    /// `register_use_declared_leaf` for this program's `use!` declarations
+    /// (arc 296 P-2 prereq).
     builtin_names: std::collections::HashSet<String>,
     /// Stone S-A — the `typesub` child→parent edge registry.
     /// Maps a child FQDN (e.g. `":wat::holon::Record"`) to the list of its direct
@@ -626,6 +628,19 @@ impl TypeEnv {
             !self.builtin_names.contains(&name),
             "builtin leaf {name} registered twice"
         );
+        self.builtin_names.insert(name);
+    }
+
+    /// Arc 296 P-2 prereq — seed a `use!`d foreign type as membership-only.
+    /// Idempotent: a name already in `types` or `builtin_names` is a no-op,
+    /// not a panic (`register_builtin_leaf` `debug_assert!`s on overlap; a
+    /// seed that panics on the first name that joins both populations is a
+    /// landmine). `get` stays `None` — insert is into `builtin_names` only.
+    pub(crate) fn register_use_declared_leaf(&mut self, name: impl Into<String>) {
+        let name = name.into();
+        if self.types.contains_key(&name) || self.builtin_names.contains(&name) {
+            return;
+        }
         self.builtin_names.insert(name);
     }
 
@@ -6803,6 +6818,31 @@ mod tests {
             None,
             "get must stay None — a builtin leaf has membership, not structure"
         );
+    }
+
+    /// Arc 296 P-2 prereq — a `use!`d foreign type is membership without
+    /// structure, same door as a Group-3 leaf. Idempotent: a second seed,
+    /// or a seed of an already-listed leaf, is a no-op (not a panic).
+    #[test]
+    fn stone_296_use_declared_leaf_has_membership_without_structure() {
+        // The seeded name is BOUND once, not written twice: the test's whole point is that the
+        // name registered and the name queried are the SAME name, and two literals cannot
+        // guarantee that — a typo between them would silently test something else. (It also
+        // matches this file's existing idiom at the `contains-true` census below.)
+        let seeded = ":rust::sqlite::Connection";
+        let already_a_leaf = ":wat::core::i64";
+        let mut env = TypeEnv::with_builtins();
+        env.register_use_declared_leaf(seeded);
+        assert!(env.contains(seeded), "use!d name must have membership");
+        assert_eq!(
+            env.get(seeded),
+            None,
+            "get must stay None — a use!d rust type has membership, not structure"
+        );
+        env.register_use_declared_leaf(seeded);
+        env.register_use_declared_leaf(already_a_leaf);
+        assert_eq!(env.get(already_a_leaf), None);
+        assert!(env.contains(already_a_leaf));
     }
 
     /// Acceptance row 5 — the DERIVED gate. Reads `BARE_PRIMITIVES` and

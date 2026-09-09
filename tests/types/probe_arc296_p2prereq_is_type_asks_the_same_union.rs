@@ -99,9 +99,8 @@ fn a_phantom_rust_name_is_not_a_type() {
     assert_eq!(run("phantom_rust_name"), "false");
 }
 
-/// THE SUBJECT — the annotation wall accepts this name; `is-type?` denies it.
+/// THE SUBJECT — the annotation wall accepts this name; `is-type?` must too.
 #[test]
-#[ignore = "arc 296 P-2 prereq — is-type? does not ask the union the annotation wall asks"]
 fn a_use_declared_rust_type_is_a_type() {
     assert_eq!(
         run("use_then_is_type"),

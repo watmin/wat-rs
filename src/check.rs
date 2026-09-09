@@ -15240,10 +15240,13 @@ pub(crate) fn validate_aggregate_containment(
     Ok(())
 }
 
-/// Arc 296 P-1 RELAND-1 — after types AND functions are registered, refuse any
-/// annotation whose named type is in none of the four membership stores:
+/// Arc 296 P-2 prereq — after types AND functions are registered, refuse any
+/// annotation whose named type is in none of the membership stores:
 /// `TypeEnv::contains` ∪ `is_builtin_primitive` ∪ `UseDeclarations::covers`
-/// ∪ `TypeEnv::is_subtype_parent`. No reserved-prefix skip. Type variables
+/// ∪ `TypeEnv::is_subtype_parent`. `covers` restored (STOP-3): stdlib `use!`
+/// of `:rust::sqlite::*` is in `use_decls` but not seeded into TypeEnv
+/// (seeding it would flip `is-type?` for a program that never declared the
+/// type — STOP-1). No reserved-prefix skip. Type variables
 /// (`is_type_var_path`) and bound type-params are accepted without asking
 /// any store. Forward references are resolved (same reason as
 /// [`validate_aggregate_containment`]).

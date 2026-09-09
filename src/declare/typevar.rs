@@ -145,10 +145,14 @@ fn walk_type_expr(ty: &TypeExpr, visit_path: &mut dyn FnMut(&str)) {
     }
 }
 
-/// Arc 296 P-1 RELAND-1 — first `TypeExpr::Path` in `ty` that is a NAMED type
-/// and is in none of the four membership stores:
+/// Arc 296 P-2 prereq — first `TypeExpr::Path` in `ty` that is a NAMED type
+/// and is in none of the membership stores:
 /// `TypeEnv::contains` ∪ `is_builtin_primitive` ∪ `UseDeclarations::covers`
-/// ∪ `TypeEnv::is_subtype_parent` (derive markers). Type variables
+/// ∪ `TypeEnv::is_subtype_parent` (derive markers).
+///
+/// The `covers` arm was removed and restored (STOP-3): seeding only this
+/// program's `use!` into TypeEnv (STOP-1) leaves stdlib `use!` of
+/// `:rust::sqlite::*` in `use_decls` but not in `contains`. Type variables
 /// (`is_type_var_path`) are accepted without asking any store.
 pub(crate) fn first_unknown_named_type(
     ty: &TypeExpr,

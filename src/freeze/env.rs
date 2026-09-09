@@ -252,16 +252,25 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         })
         .collect();
     let mut residue = register_defines(post_types, &mut symbols)?;
+    // User-source `use!` only. Stdlib `use!` (sqlite, cache) is already in
+    // `use_decls` for the annotation wall; seeding those into TypeEnv would
+    // make `is-type?` answer true for `:rust::sqlite::Connection` in every
+    // program, including one that never declared it (STOP-1).
+    let mut user_use = crate::rust_deps::UseDeclarations::new();
     {
         let registry = crate::rust_deps::registry();
         let mut unused = Vec::new();
         for form in &residue {
-            crate::resolve::collect_use_declarations(form, registry, &mut use_decls, &mut unused);
+            crate::resolve::collect_use_declarations(form, registry, &mut user_use, &mut unused);
         }
     }
-    // Arc 296 P-1 RELAND-1 — named-type annotations must name a type.
-    // Four stores: TypeEnv::contains ∪ is_builtin_primitive ∪ UseDeclarations::covers
-    // ∪ subtype-edge parents (derive markers). No reserved-prefix skip.
+    for path in user_use.list() {
+        use_decls.declare(path.to_string());
+        types.register_use_declared_leaf(path);
+    }
+    // Arc 296 P-2 prereq — STOP-3 restored `covers`. Seeding only user
+    // `use!` into TypeEnv (STOP-1) leaves stdlib `:rust::sqlite::*` known
+    // to the wall via `use_decls` and unknown to `contains`.
     validate_named_type_annotations(&types, &symbols, &use_decls)?;
 
     // 6a. Struct auto-methods (ctor only; accessors now in 6.8a).
