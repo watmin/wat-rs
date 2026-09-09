@@ -27,9 +27,37 @@
 //! > **unify when either side is still a type VARIABLE; subsume when both are concrete.**
 //!
 //! Unification is not only a check — it is how a type variable gets SOLVED from the branches.
-//! `if_still_solves_a_type_var` is the row that guards that, and it is the reason the rule is
-//! conditional rather than "subsume everywhere": the unconditional version passes every other row
-//! in this file while silently weakening inference across the corpus.
+//! `if_still_solves_a_type_var` is the row that guards that.
+//!
+//! ## ⛔ CORRECTED 2026-09-08, BEFORE THIS STONE LANDED — the rationale above was WRONG
+//!
+//! The sentence originally continued: *"…and it is the reason the rule is conditional rather than
+//! 'subsume everywhere': the unconditional version passes every other row in this file while
+//! silently weakening inference across the corpus."* **That is false.** `assignable`'s LAST LINE is
+//!
+//! ```text
+//!     unify(actual, expected, subst, types).is_ok()
+//! ```
+//!
+//! so it tries its subtyping arms and then FALLS THROUGH to unification. "Subsume everywhere" never
+//! removed variable solving. Measured with a sabotage that forces the subsume path unconditionally,
+//! across three separately-constructed fixtures:
+//!
+//! ```text
+//!   if_still_solves_a_type_var           normal=0   subsume-always=0
+//!   (if is the only thing pinning T)     normal=0   subsume-always=0
+//!   (the receiving slot demands the arg) normal=0   subsume-always=0
+//! ```
+//!
+//! ★ **This row cannot fail, because the capability it guards was never at risk.** It is honest as
+//! a REGRESSION control and worthless as a discriminator, and the difference matters: a reader who
+//! believes the original sentence would credit this file with catching something it cannot catch.
+//! `[[feedback_a_green_test_can_prove_nothing]]` · `[[feedback_four_questions_cannot_see_a_shared_premise]]`
+//!
+//! ⚠ **What remains genuinely open** is `subst` HYGIENE, not acceptance. `assignable`'s arms call
+//! `unify` internally on the way through, so a failed arm can leave partial bindings before the
+//! fall-through; the conditional rule never enters those arms when a variable is present. That
+//! difference is UNMEASURED. It is the only surviving argument for the conditional shape.
 //!
 //! ⚠ The ruling's own admitted cost: a partially-concrete pair (`Box<T>` with `T` unsolved, meeting
 //! `Box.Full<i64>`) takes the unify path and does NOT widen. An annotation is the fix. Named here so
@@ -65,10 +93,10 @@ fn if_still_refuses_unrelated_branch_types() {
     assert_eq!(check("if_branches_unrelated"), 1);
 }
 
-/// ⛔⛔ THE CAPABILITY GUARD. The ruled contract exists to protect exactly this: the `None` branch
-/// leaves `Option`'s `T` unsolved and the `Some` branch pins it. UNIFICATION solves it. An
-/// unconditional "subsume everywhere" keeps every other row in this file green and breaks this one
-/// — or worse, leaves it green while the variable goes unsolved somewhere no test looks.
+/// REGRESSION CONTROL — the `None` branch leaves `Option`'s `T` unsolved and the `Some` branch
+/// pins it. ⛔ It does NOT discriminate: measured under a subsume-always sabotage, this stays
+/// green, because `assignable` falls through to `unify`. Keep it as a control; do not cite it as
+/// proof that the conditional rule is necessary. See the module header's CORRECTED section.
 #[test]
 fn if_still_solves_a_type_variable_from_its_branches() {
     assert_eq!(
@@ -81,7 +109,6 @@ fn if_still_solves_a_type_variable_from_its_branches() {
 
 /// SUBJECT — the same pair of types the parameter position already accepts.
 #[test]
-#[ignore = "arc 296 A-1 — infer_if unifies; it does not consult the subtype graph"]
 fn if_subsumes_subtype_related_concrete_branches() {
     assert_eq!(
         check("if_branches_subtype_related"),

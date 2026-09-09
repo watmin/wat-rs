@@ -109,40 +109,68 @@ pub(crate) fn collect_free_type_vars_in(types: &[crate::types::TypeExpr]) -> Vec
 /// Arc 296 P-1 — the match lives in [`walk_type_expr`]; this is the free-var
 /// visitor over that recursion, not a second walker.
 fn walk_free_type_vars(ty: &TypeExpr, seen: &mut Vec<String>) {
-    walk_type_expr(ty, &mut |p| {
-        if is_type_var_path(p) {
-            let name = p.strip_prefix(':').unwrap_or(p).to_string();
-            if !seen.contains(&name) {
-                seen.push(name);
+    walk_type_expr(
+        ty,
+        &mut |p| {
+            if is_type_var_path(p) {
+                let name = p.strip_prefix(':').unwrap_or(p).to_string();
+                if !seen.contains(&name) {
+                    seen.push(name);
+                }
             }
-        }
-    });
+        },
+        &mut |_| {},
+    );
 }
 
 /// Arc 296 P-1 — the ONE recursion over a `TypeExpr` tree (`Path` / `Parametric.args` /
-/// `Fn.args`+`Fn.ret` / `Tuple` elements; `Var(_)` synthetic, ignored).
-/// [`walk_free_type_vars`] and [`first_unknown_named_type`] are visitors, not walkers.
-fn walk_type_expr(ty: &TypeExpr, visit_path: &mut dyn FnMut(&str)) {
+/// `Fn.args`+`Fn.ret` / `Tuple` elements). [`walk_free_type_vars`] and
+/// [`first_unknown_named_type`] are visitors, not walkers.
+///
+/// Arc 296 A-1 — `TypeExpr::Var` is reported through `visit_var` so
+/// "contains an unsolved unification variable?" shares this recursion
+/// rather than a fifth walker.
+fn walk_type_expr(ty: &TypeExpr, visit_path: &mut dyn FnMut(&str), visit_var: &mut dyn FnMut(u64)) {
     match ty {
         TypeExpr::Path(p) => visit_path(p),
         TypeExpr::Parametric { args, .. } => {
             for a in args {
-                walk_type_expr(a, visit_path);
+                walk_type_expr(a, visit_path, visit_var);
             }
         }
         TypeExpr::Fn { args, ret } => {
             for a in args {
-                walk_type_expr(a, visit_path);
+                walk_type_expr(a, visit_path, visit_var);
             }
-            walk_type_expr(ret, visit_path);
+            walk_type_expr(ret, visit_path, visit_var);
         }
         TypeExpr::Tuple(elements) => {
             for e in elements {
-                walk_type_expr(e, visit_path);
+                walk_type_expr(e, visit_path, visit_var);
             }
         }
-        TypeExpr::Var(_) => {}
+        TypeExpr::Var(id) => visit_var(*id),
     }
+}
+
+/// Arc 296 A-1 — true if `ty` still contains an unsolved unification
+/// variable (`TypeExpr::Var`) or a bare uppercase type-var Path (`:T`).
+/// Callers apply substitution first. Nested (`Box` with unsolved `T`)
+/// counts — "contains a variable" is not "is a variable."
+pub(crate) fn contains_type_var(ty: &TypeExpr) -> bool {
+    let found = std::cell::Cell::new(false);
+    walk_type_expr(
+        ty,
+        &mut |p| {
+            if is_type_var_path(p) {
+                found.set(true);
+            }
+        },
+        &mut |_| {
+            found.set(true);
+        },
+    );
+    found.get()
 }
 
 /// Arc 296 P-2 prereq — first `TypeExpr::Path` in `ty` that is a NAMED type
@@ -180,7 +208,7 @@ pub(crate) fn first_unknown_named_type(
             return;
         }
         found = Some(p.to_string());
-    });
+    }, &mut |_| {});
     found
 }
 

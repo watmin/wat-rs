@@ -8151,7 +8151,9 @@ fn infer_if(
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() == 3 {
         // Arc 258.1/258.4 — the BARE form `(if cond then else)` is the ONLY form: no `-> :T`.
-        // The form's type is unify(then, else); cond must be bool. (The 5-arg `-> :T` path is retired.)
+        // Arc 296 A-1 — the form's type is the one both branches can be seen as
+        // (unify while a type variable remains; assignable join when both concrete).
+        // cond must be bool. (The 5-arg `-> :T` path is retired.)
         let cond_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(c) = cond_ty {
             if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
@@ -8167,17 +8169,29 @@ fn infer_if(
         let else_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         match (then_ty, else_ty) {
             (Some(t), Some(e)) => {
-                if unify(&t, &e, subst, env.types()).is_err() {
-                    local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                        callee: ":wat::core::if".into(),
-                        param: "else-branch".into(),
-                        expected: format_type(&apply_subst(&t, subst)),
-                        got: format_type(&apply_subst(&e, subst))
-                    } });
-                    return CheckResult::errs(local_errors);
+                // Arc 296 A-1 — the form's type is the one BOTH branches can
+                // be seen as. Unify while a type variable remains (how T is
+                // solved); when both are concrete, `assignable` in either
+                // direction (then <: else → else; else <: then → then).
+                // Decide first, call once: `unify` mutates subst.
+                match join_if_branches(&t, &e, subst, env) {
+                    Some(ty) => {
+                        return if local_errors.is_empty() {
+                            CheckResult::ok(ty)
+                        } else {
+                            CheckResult::partial_with(ty, local_errors)
+                        };
+                    }
+                    None => {
+                        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: ":wat::core::if".into(),
+                            param: "else-branch".into(),
+                            expected: format_type(&apply_subst(&t, subst)),
+                            got: format_type(&apply_subst(&e, subst))
+                        } });
+                        return CheckResult::errs(local_errors);
+                    }
                 }
-                let ty = apply_subst(&t, subst);
-                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             _ => return CheckResult::errs(local_errors),
         }
@@ -11600,12 +11614,9 @@ fn infer_send_prime(
             }
         };
 
-    // args[1]: payload — must unify with I.
-    // Arc 293.W.2d: the purity guarantee is STRUCTURAL, not a separate gate here.
-    // A wire peer's I type is pure by well-formedness (the producer enforces it);
-    // an impure payload to a wire peer is an ordinary UNIFY ERROR below (payload ≠ pure-I).
-    // ThreadSelfPeer'/Thread' are in-locus — any I/O, no purity constraint needed.
-    // The 2c runtime gate (Arc 293.W.2c) is DELETED: the peer type carries the wall.
+    // args[1]: payload — supplied TO I, same direction as an ordinary parameter.
+    // Arc 296 A-1 — unify while a type variable remains; subsume (`assignable`)
+    // when both sides are concrete. Arc 293.W.2d: the purity guarantee is STRUCTURAL.
     let payload_ty =
         match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             Some(t) => t,
@@ -11616,7 +11627,7 @@ fn infer_send_prime(
                 );
             }
         };
-    if unify(&payload_ty, &i_ty, subst, env.types()).is_err() {
+    if !relate_value_to_slot(&payload_ty, &i_ty, subst, env) {
         local_errors.push(CheckError {
             span: args[1].span().clone(),
             kind: CheckErrorKind::TypeMismatch {
@@ -11685,8 +11696,7 @@ fn infer_try_send_prime(
             }
         };
 
-    // args[1]: payload — must unify with I. Same purity reasoning as send' (Arc
-    // 293.W.2d — structural, not a separate gate here).
+    // args[1]: payload — same door as send' (Arc 296 A-1).
     let payload_ty =
         match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             Some(t) => t,
@@ -11697,7 +11707,7 @@ fn infer_try_send_prime(
                 );
             }
         };
-    if unify(&payload_ty, &i_ty, subst, env.types()).is_err() {
+    if !relate_value_to_slot(&payload_ty, &i_ty, subst, env) {
         local_errors.push(CheckError {
             span: args[1].span().clone(),
             kind: CheckErrorKind::TypeMismatch {
@@ -16917,6 +16927,54 @@ fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
         Nature::Record
     } else {
         Nature::Struct
+    }
+}
+
+/// Arc 296 A-1 — unify if either side still has a type variable; otherwise
+/// `assignable(actual, expected)`. Decide first, call once (`unify` mutates
+/// subst — no try/fallback). Payload-to-slot direction matches a parameter.
+fn relate_value_to_slot(
+    actual: &TypeExpr,
+    expected: &TypeExpr,
+    subst: &mut Subst,
+    env: &CheckEnv,
+) -> bool {
+    let a = apply_subst(actual, subst);
+    let e = apply_subst(expected, subst);
+    if crate::declare::typevar::contains_type_var(&a)
+        || crate::declare::typevar::contains_type_var(&e)
+    {
+        unify(&a, &e, subst, env.types()).is_ok()
+    } else {
+        assignable(&a, &e, subst, env)
+    }
+}
+
+/// Arc 296 A-1 — the type both `if` branches can be seen as. Unify while a
+/// variable remains; when both are concrete, the supertype (then <: else →
+/// else; else <: then → then). Not then-authoritative.
+fn join_if_branches(
+    then_ty: &TypeExpr,
+    else_ty: &TypeExpr,
+    subst: &mut Subst,
+    env: &CheckEnv,
+) -> Option<TypeExpr> {
+    let t = apply_subst(then_ty, subst);
+    let e = apply_subst(else_ty, subst);
+    if crate::declare::typevar::contains_type_var(&t)
+        || crate::declare::typevar::contains_type_var(&e)
+    {
+        if unify(&t, &e, subst, env.types()).is_ok() {
+            Some(apply_subst(&t, subst))
+        } else {
+            None
+        }
+    } else if assignable(&t, &e, subst, env) {
+        Some(e)
+    } else if assignable(&e, &t, subst, env) {
+        Some(t)
+    } else {
+        None
     }
 }
 
