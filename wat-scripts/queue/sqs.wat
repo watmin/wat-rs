@@ -108,8 +108,30 @@
    (:wat::core::defstruct :queue::RetryAcc
      [n  <- :wat::core::i64
       ns <- :wat::core::i64])
+   ;; ── the COLD counters, riding one carrier ──────────────────────────────────
+   ;; `:queue::queue::State` is rebuilt at 30 sites. These six are CHANGED at 1–2 of
+   ;; them (ticks 2, acks 2, the other four 1 each) and passed through at the other
+   ;; 28–29, so a carrier lets ≥22 sites copy them by reference instead of copying six
+   ;; fields by hand. ⛔ This is NOT a home for every counter: `handler-ns` is changed
+   ;; at 27 of 30, so a carrier would make nearly every rebuild allocate MORE
+   ;; (24-field State + 6-field carrier > 29-field State). The win is a function of
+   ;; change FREQUENCY, not of tidiness — see DESIGN.md of
+   ;; docs/excursus/2026/08/001-sns-sqs/the-cold-counters-ride-one-carrier.
+   ;; Declared in :messages for the same reason TakeAcc is: a script-level type is
+   ;; unknown in the process child, a surface type is not.
+   (:wat::core::defrecord :queue::Counters
+     [ticks <- :wat::core::i64
+      acks  <- :wat::core::i64
+      sends-accepted <- :wat::core::i64
+      sends-refused  <- :wat::core::i64
+      redeliveries   <- :wat::core::i64
+      expired-waiters <- :wat::core::i64])
    ;; Named aggregate for stats. EDN-expressible i64s only — same shape as
    ;; TakeAcc/RetryAcc: a record, not a 12-wide positional variant.
+   ;; ⛔ Stats stays FLAT and 19 fields wide, deliberately: `:queue::Stats/<field>` is
+   ;; read 32 times across 8 files, and Stats is constructed at exactly ONE site
+   ;; (the `stats` impl below), once per call — so its width never touches `drain`.
+   ;; Nesting `counters` here would cost a 32-site corpus migration for zero gain.
    (:wat::core::defrecord :queue::Stats
      [receive-calls <- :wat::core::i64  ticks <- :wat::core::i64
       visible <- :wat::core::i64  unacked <- :wat::core::i64
@@ -160,7 +182,6 @@
               waiters       <- (:wat::core::PersistentVector :- [:queue::Waiter])
               outbox        <- (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               receive-calls <- :wat::core::i64
-              ticks         <- :wat::core::i64
               store-calls   <- :wat::core::i64
               store-ns      <- :wat::core::i64
               ;; ── the aggregate above, split by store operation ──────────────────
@@ -181,11 +202,13 @@
               q-name        <- :wat::core::String
               tick-armed?   <- :wat::core::bool
               arm-tick      <- [:wat::core::bool :wat::core::i64 :wat::core::i64 :-> (:wat::core::Tuple :- [:wat::core::bool (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])])]
-              sends-accepted <- :wat::core::i64
-              sends-refused  <- :wat::core::i64
-              acks           <- :wat::core::i64
-              redeliveries   <- :wat::core::i64
-              expired-waiters <- :wat::core::i64
+              ;; ── the six COLD counters, one carrier ─────────────────────────────
+              ;; ticks · acks · sends-accepted · sends-refused · redeliveries ·
+              ;; expired-waiters. Changed at 1–2 of the 30 rebuild sites each; the
+              ;; other 22+ copy this ONE field instead of six. `handler-ns` above
+              ;; stays FLAT on purpose — 27 of 30 sites change it, so a carrier there
+              ;; makes nearly every rebuild allocate more, not less.
+              counters       <- :queue::Counters
               seen-ids       <- (:wat::core::PersistentSet :- [:wat::core::String])]
   :peers     [:wat::query::Store]
   :init (:wat::core::fn
@@ -414,7 +437,6 @@
               :waiters (:wat::core::PersistentVector :- [:queue::Waiter])
               :outbox (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
               :receive-calls 0
-              :ticks 0
               :store-calls 0
               :store-ns 0
               :put-calls 0
@@ -431,11 +453,8 @@
               :q-name ""
               :tick-armed? false
               :arm-tick arm-tick
-              :sends-accepted 0
-              :sends-refused 0
-              :acks 0
-              :redeliveries 0
-              :expired-waiters 0
+              :counters (:queue::Counters :ticks 0 :acks 0 :sends-accepted 0
+                          :sends-refused 0 :redeliveries 0 :expired-waiters 0)
               :seen-ids (:wat::core::PersistentSet :- [:wat::core::String]))))
   :impls
   [(send [s ctx req]
@@ -467,7 +486,8 @@
                  (:wat::core::if (:wat::i64::<= n0 room) n0 0))]
        (:wat::core::if (:wat::core::= take 0)
          (:wat::core::let
-           [s0 (:queue::queue::State
+           [cold (:queue::queue::State/counters s)
+            s0 (:queue::queue::State
                  :durable (:queue::queue::State/durable s)
                  :store store
                  :take (:queue::queue::State/take s)
@@ -480,17 +500,21 @@
                  :count-calls cc0 :count-ns cn0
                  :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                  :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                 :ticks (:queue::queue::State/ticks s)
                  :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                  :q-name q
                  :tick-armed? (:queue::queue::State/tick-armed? s)
                  :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:wat::i64::+ (:queue::queue::State/sends-refused s) 1)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
-              :seen-ids (:queue::queue::State/seen-ids s))]
+                 ;; One of the ≤8 sites that CHANGES a cold counter: the carrier is
+                 ;; rebuilt here (24 + 6 = 30 fields) so the other 22+ sites can copy
+                 ;; it by reference (24 fields). That asymmetry IS the win.
+                 :counters (:queue::Counters
+                             :ticks (:queue::Counters/ticks cold)
+                             :acks (:queue::Counters/acks cold)
+                             :sends-accepted (:queue::Counters/sends-accepted cold)
+                             :sends-refused (:wat::i64::+ (:queue::Counters/sends-refused cold) 1)
+                             :redeliveries (:queue::Counters/redeliveries cold)
+                             :expired-waiters (:queue::Counters/expired-waiters cold))
+                 :seen-ids (:queue::queue::State/seen-ids s))]
            (:wat::service::Outcome::Continue s0
              (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0)))
              sends
@@ -523,7 +547,8 @@
            (:wat::core::match sresp
              ((:wat::query::Store::PutResponse::Success)
                (:wat::core::let
-                 [s' (:queue::queue::State
+                 [cold (:queue::queue::State/counters s)
+                  s' (:queue::queue::State
                        :durable (:queue::queue::State/durable s)
                        :store store
                        :take (:queue::queue::State/take s)
@@ -536,17 +561,19 @@
                        :count-calls cc0 :count-ns cn0
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                       :ticks (:queue::queue::State/ticks s)
                        :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                        :q-name q
                        :tick-armed? (:queue::queue::State/tick-armed? s)
                        :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:wat::i64::+ (:queue::queue::State/sends-accepted s) take)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
-              :seen-ids (:queue::queue::State/seen-ids s))]
+                       ;; Changes a cold counter → the carrier is rebuilt here.
+                       :counters (:queue::Counters
+                                   :ticks (:queue::Counters/ticks cold)
+                                   :acks (:queue::Counters/acks cold)
+                                   :sends-accepted (:wat::i64::+ (:queue::Counters/sends-accepted cold) take)
+                                   :sends-refused (:queue::Counters/sends-refused cold)
+                                   :redeliveries (:queue::Counters/redeliveries cold)
+                                   :expired-waiters (:queue::Counters/expired-waiters cold))
+                       :seen-ids (:queue::queue::State/seen-ids s))]
                  (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s'))
                    (:wat::core::let
                      [pair (:wat::core::apply (:queue::queue::State/arm-tick s')
@@ -564,16 +591,11 @@
               :count-calls (:queue::queue::State/count-calls s') :count-ns (:queue::queue::State/count-ns s')
               :scan-calls (:queue::queue::State/scan-calls s') :scan-ns (:queue::queue::State/scan-ns s')
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                           :ticks (:queue::queue::State/ticks s')
                            :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                            :q-name (:queue::queue::State/q-name s')
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s')
-              :sends-accepted (:queue::queue::State/sends-accepted s')
-              :sends-refused (:queue::queue::State/sends-refused s')
-              :acks (:queue::queue::State/acks s')
-              :redeliveries (:queue::queue::State/redeliveries s')
-              :expired-waiters (:queue::queue::State/expired-waiters s')
+              :counters (:queue::queue::State/counters s')
               :seen-ids (:queue::queue::State/seen-ids s'))]
                      (:wat::service::Outcome::Continue s2
                        (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted take)))
@@ -657,16 +679,11 @@
               :count-calls (:queue::queue::State/count-calls s') :count-ns (:queue::queue::State/count-ns s')
               :scan-calls (:wat::i64::+ (:queue::queue::State/scan-calls s') (:queue::TakeAcc/scan-calls (:wat::core::first wpair))) :scan-ns (:wat::i64::+ (:queue::queue::State/scan-ns s') (:queue::TakeAcc/scan-ns (:wat::core::first wpair)))
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                           :ticks (:queue::queue::State/ticks s')
                            :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                            :q-name (:queue::queue::State/q-name s')
                            :tick-armed? (:queue::queue::State/tick-armed? s')
                            :arm-tick (:queue::queue::State/arm-tick s')
-              :sends-accepted (:queue::queue::State/sends-accepted s')
-              :sends-refused (:queue::queue::State/sends-refused s')
-              :acks (:queue::queue::State/acks s')
-              :redeliveries (:queue::queue::State/redeliveries s')
-              :expired-waiters (:queue::queue::State/expired-waiters s')
+              :counters (:queue::queue::State/counters s')
               :seen-ids (:queue::queue::State/seen-ids s'))
                       pair (:wat::core::apply (:queue::queue::State/arm-tick s2)
                               (:queue::queue::State/tick-armed? s2)
@@ -683,16 +700,11 @@
               :count-calls (:queue::queue::State/count-calls s2) :count-ns (:queue::queue::State/count-ns s2)
               :scan-calls (:queue::queue::State/scan-calls s2) :scan-ns (:queue::queue::State/scan-ns s2)
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                           :ticks (:queue::queue::State/ticks s2)
                            :depth (:queue::queue::State/depth s2) :total (:queue::queue::State/total s2)
                            :q-name (:queue::queue::State/q-name s2)
                            :tick-armed? (:wat::core::first pair)
                            :arm-tick (:queue::queue::State/arm-tick s2)
-              :sends-accepted (:queue::queue::State/sends-accepted s2)
-              :sends-refused (:queue::queue::State/sends-refused s2)
-              :acks (:queue::queue::State/acks s2)
-              :redeliveries (:queue::queue::State/redeliveries s2)
-              :expired-waiters (:queue::queue::State/expired-waiters s2)
+              :counters (:queue::queue::State/counters s2)
               :seen-ids (:queue::queue::State/seen-ids s2))
                       ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted take)))]
                      (:wat::service::Outcome::Continue s3 ok box (:wat::core::second pair))))))
@@ -715,16 +727,11 @@
                         :count-calls cc0 :count-ns cn0
                         :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                         :handler-ns (:queue::queue::State/handler-ns s)
-                        :ticks (:queue::queue::State/ticks s)
                         :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                         :q-name q
                         :tick-armed? (:queue::queue::State/tick-armed? s)
                         :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
                  (:queue::queue::send-after-put s-r store q now-ns take start-ns)))
              ((:wat::query::Store::PutResponse::Constraint _e)
@@ -755,16 +762,11 @@
                        :count-calls cc0 :count-ns cn0
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
              ;; Do not claim Accepted n — the put is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
@@ -794,16 +796,11 @@
                        :count-calls cc0 :count-ns cn0
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
              ;; Do not claim Accepted n — the put is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
@@ -815,12 +812,8 @@
                        :delete-calls (:queue::queue::State/delete-calls s) :delete-ns (:queue::queue::State/delete-ns s)
                        :count-calls cc0 :count-ns cn0
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
-                       :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns)) :ticks (:queue::queue::State/ticks s) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+                       :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns)) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
 
    (receive [s ctx req]
@@ -870,20 +863,16 @@
                  :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
                  :scan-calls (:wat::i64::+ (:queue::queue::State/scan-calls s) 1) :scan-ns (:wat::i64::+ (:queue::queue::State/scan-ns s) take-scan-ns)
                  :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                 :ticks (:queue::queue::State/ticks s)
                  :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                  :q-name q
                  :tick-armed? (:queue::queue::State/tick-armed? s)
                  :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
        (:wat::core::if (:wat::core::not (:wat::core::empty? envs))
          (:wat::core::let
-           [rd-pair
+           [cold (:queue::queue::State/counters s-n)
+            rd-pair
               (:wat::core::foldl
                 (:wat::core::fn
                   [acc <- (:wat::core::Tuple :- [(:wat::core::PersistentSet :- [:wat::core::String]) :wat::core::i64])
@@ -896,7 +885,7 @@
                     (:wat::core::if (:wat::set::contains? seen id)
                       (:wat::core::Tuple seen (:wat::i64::+ rd 1))
                       (:wat::core::Tuple (:wat::set::conj seen id) rd))))
-                (:wat::core::Tuple (:queue::queue::State/seen-ids s-n) (:queue::queue::State/redeliveries s-n))
+                (:wat::core::Tuple (:queue::queue::State/seen-ids s-n) (:queue::Counters/redeliveries cold))
                 envs)
             pair (:wat::core::apply (:queue::queue::State/arm-tick s-n)
                     (:queue::queue::State/tick-armed? s-n)
@@ -913,16 +902,18 @@
                     :count-calls (:queue::queue::State/count-calls s-n) :count-ns (:queue::queue::State/count-ns s-n)
                     :scan-calls (:queue::queue::State/scan-calls s-n) :scan-ns (:queue::queue::State/scan-ns s-n)
                     :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                  :ticks (:queue::queue::State/ticks s-n)
                   :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                   :q-name (:queue::queue::State/q-name s-n)
                   :tick-armed? (:wat::core::first pair)
                   :arm-tick (:queue::queue::State/arm-tick s-n)
-              :sends-accepted (:queue::queue::State/sends-accepted s-n)
-              :sends-refused (:queue::queue::State/sends-refused s-n)
-              :acks (:queue::queue::State/acks s-n)
-              :redeliveries (:wat::core::second rd-pair)
-              :expired-waiters (:queue::queue::State/expired-waiters s-n)
+                  ;; Changes a cold counter → the carrier is rebuilt here.
+                  :counters (:queue::Counters
+                              :ticks (:queue::Counters/ticks cold)
+                              :acks (:queue::Counters/acks cold)
+                              :sends-accepted (:queue::Counters/sends-accepted cold)
+                              :sends-refused (:queue::Counters/sends-refused cold)
+                              :redeliveries (:wat::core::second rd-pair)
+                              :expired-waiters (:queue::Counters/expired-waiters cold))
               :seen-ids (:wat::core::first rd-pair))]
            (:wat::service::Outcome::Continue s-a
              (:wat::core::if hit?
@@ -948,16 +939,11 @@
                     :count-calls (:queue::queue::State/count-calls s-n) :count-ns (:queue::queue::State/count-ns s-n)
                     :scan-calls (:queue::queue::State/scan-calls s-n) :scan-ns (:queue::queue::State/scan-ns s-n)
                     :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s-n)
                     :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                     :q-name (:queue::queue::State/q-name s-n)
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-n)
-              :sends-accepted (:queue::queue::State/sends-accepted s-n)
-              :sends-refused (:queue::queue::State/sends-refused s-n)
-              :acks (:queue::queue::State/acks s-n)
-              :redeliveries (:queue::queue::State/redeliveries s-n)
-              :expired-waiters (:queue::queue::State/expired-waiters s-n)
+              :counters (:queue::queue::State/counters s-n)
               :seen-ids (:queue::queue::State/seen-ids s-n))]
              (:wat::service::Outcome::Continue s-a
                (:wat::core::if hit?
@@ -987,16 +973,11 @@
                     :count-calls (:queue::queue::State/count-calls s-n) :count-ns (:queue::queue::State/count-ns s-n)
                     :scan-calls (:queue::queue::State/scan-calls s-n) :scan-ns (:queue::queue::State/scan-ns s-n)
                     :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s-n)
                     :depth (:queue::queue::State/depth s-n) :total (:queue::queue::State/total s-n)
                     :q-name (:queue::queue::State/q-name s-n)
                     :tick-armed? (:queue::queue::State/tick-armed? s-n)
                     :arm-tick (:queue::queue::State/arm-tick s-n)
-              :sends-accepted (:queue::queue::State/sends-accepted s-n)
-              :sends-refused (:queue::queue::State/sends-refused s-n)
-              :acks (:queue::queue::State/acks s-n)
-              :redeliveries (:queue::queue::State/redeliveries s-n)
-              :expired-waiters (:queue::queue::State/expired-waiters s-n)
+              :counters (:queue::queue::State/counters s-n)
               :seen-ids (:queue::queue::State/seen-ids s-n))
               pair (:wat::core::apply (:queue::queue::State/arm-tick s-w)
                       (:queue::queue::State/tick-armed? s-w)
@@ -1014,16 +995,11 @@
                     :count-calls (:queue::queue::State/count-calls s-w) :count-ns (:queue::queue::State/count-ns s-w)
                     :scan-calls (:queue::queue::State/scan-calls s-w) :scan-ns (:queue::queue::State/scan-ns s-w)
                     :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s-w)
                     :depth (:queue::queue::State/depth s-w) :total (:queue::queue::State/total s-w)
                     :q-name (:queue::queue::State/q-name s-w)
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-w)
-              :sends-accepted (:queue::queue::State/sends-accepted s-w)
-              :sends-refused (:queue::queue::State/sends-refused s-w)
-              :acks (:queue::queue::State/acks s-w)
-              :redeliveries (:queue::queue::State/redeliveries s-w)
-              :expired-waiters (:queue::queue::State/expired-waiters s-w)
+              :counters (:queue::queue::State/counters s-w)
               :seen-ids (:queue::queue::State/seen-ids s-w))]
              (:wat::service::Outcome::Continue s-a
                :wat::core::None
@@ -1062,7 +1038,9 @@
         t-del (:wat::time::epoch-nanos (:wat::time::now))
         del   (:wat::query::Store/delete store
                 (:wat::query::Store::DeleteRequest keys))
-        del-ns (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-del)]
+        del-ns (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-del)
+        ;; Both ack arms below bump `acks`, so both rebuild the carrier. Read it once.
+        cold (:queue::queue::State/counters s)]
        (:wat::core::match del
          ((:wat::kernel::RecvOutcome::Message sresp)
            (:wat::core::match sresp
@@ -1081,17 +1059,19 @@
                        :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                       :ticks (:queue::queue::State/ticks s)
                        :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                        :q-name q
                        :tick-armed? (:queue::queue::State/tick-armed? s)
                        :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:wat::i64::+ (:queue::queue::State/acks s) (:wat::core::count ids))
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
-              :seen-ids (:queue::queue::State/seen-ids s))
+                       ;; Changes a cold counter → the carrier is rebuilt here.
+                       :counters (:queue::Counters
+                                   :ticks (:queue::Counters/ticks cold)
+                                   :acks (:wat::i64::+ (:queue::Counters/acks cold) (:wat::core::count ids))
+                                   :sends-accepted (:queue::Counters/sends-accepted cold)
+                                   :sends-refused (:queue::Counters/sends-refused cold)
+                                   :redeliveries (:queue::Counters/redeliveries cold)
+                                   :expired-waiters (:queue::Counters/expired-waiters cold))
+                       :seen-ids (:queue::queue::State/seen-ids s))
                   pair (:wat::core::apply (:queue::queue::State/arm-tick s')
                           (:queue::queue::State/tick-armed? s')
                           [(:wat::core::count (:queue::queue::State/waiters s')) 1000000])
@@ -1107,16 +1087,11 @@
               :count-calls (:queue::queue::State/count-calls s') :count-ns (:queue::queue::State/count-ns s')
               :scan-calls (:queue::queue::State/scan-calls s') :scan-ns (:queue::queue::State/scan-ns s')
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                        :ticks (:queue::queue::State/ticks s')
                         :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
                         :q-name (:queue::queue::State/q-name s')
                         :tick-armed? (:wat::core::first pair)
                         :arm-tick (:queue::queue::State/arm-tick s')
-              :sends-accepted (:queue::queue::State/sends-accepted s')
-              :sends-refused (:queue::queue::State/sends-refused s')
-              :acks (:queue::queue::State/acks s')
-              :redeliveries (:queue::queue::State/redeliveries s')
-              :expired-waiters (:queue::queue::State/expired-waiters s')
+              :counters (:queue::queue::State/counters s')
               :seen-ids (:queue::queue::State/seen-ids s'))]
                  (:wat::service::Outcome::Continue s-a
                    (:wat::core::if hit?
@@ -1144,17 +1119,19 @@
                         :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
                         :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                         :handler-ns (:queue::queue::State/handler-ns s)
-                        :ticks (:queue::queue::State/ticks s)
                         :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                         :q-name q
                         :tick-armed? (:queue::queue::State/tick-armed? s)
                         :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:wat::i64::+ (:queue::queue::State/acks s) (:wat::core::count ids))
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
-              :seen-ids (:queue::queue::State/seen-ids s))]
+                        ;; Changes a cold counter → the carrier is rebuilt here.
+                        :counters (:queue::Counters
+                                    :ticks (:queue::Counters/ticks cold)
+                                    :acks (:wat::i64::+ (:queue::Counters/acks cold) (:wat::core::count ids))
+                                    :sends-accepted (:queue::Counters/sends-accepted cold)
+                                    :sends-refused (:queue::Counters/sends-refused cold)
+                                    :redeliveries (:queue::Counters/redeliveries cold)
+                                    :expired-waiters (:queue::Counters/expired-waiters cold))
+                        :seen-ids (:queue::queue::State/seen-ids s))]
                  (:queue::queue::ack-after-delete s-r store q rec' hit? start-ns)))
              ((:wat::query::Store::DeleteResponse::Constraint _e)
                (:wat::kernel::assertion-failed! "queue.ack: store delete Constraint" :wat::core::None :wat::core::None))
@@ -1183,16 +1160,11 @@
                        :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
              ;; Do not delete. Reply Ok so the worker does not hang.
              ;; Visibility + Seen absorb a possible duplicate.
@@ -1221,16 +1193,11 @@
                        :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
              ;; Do not delete. Reply Ok so the worker does not hang.
              ;; Visibility + Seen absorb a possible duplicate.
@@ -1257,16 +1224,11 @@
                        :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-                    :ticks (:queue::queue::State/ticks s)
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
                     :tick-armed? (:queue::queue::State/tick-armed? s)
                     :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
              ;; Do not delete. Reply Ok so the worker does not hang.
              ;; Visibility + Seen absorb a possible duplicate.
@@ -1285,6 +1247,12 @@
         vu     (:wat::core::apply (:queue::queue::State/depth s)
                  (:queue::queue::State/store s) q [now-ns lim])
         depth-ns (:wat::core::third vu)
+        ;; The six cold counters come out of the carrier here and go into the
+        ;; UNCHANGED flat `:queue::Stats`. ⛔ Stats does NOT gain a nested `counters`
+        ;; field: it is built at this ONE site, once per `stats` call, while its
+        ;; fields are read 32 times across 8 files. The carrier pays in `State`,
+        ;; which is rebuilt 30× per message — not here.
+        cold (:queue::queue::State/counters s)
         pair (:wat::core::apply (:queue::queue::State/arm-tick s)
                 (:queue::queue::State/tick-armed? s)
                 [(:wat::core::count (:queue::queue::State/waiters s)) 1000000])
@@ -1303,22 +1271,17 @@
               :count-calls (:wat::i64::+ (:queue::queue::State/count-calls s) 2) :count-ns (:wat::i64::+ (:queue::queue::State/count-ns s) depth-ns)
               :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-              :ticks (:queue::queue::State/ticks s)
               :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
               :q-name q
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
        (:wat::service::Outcome::Continue s-a
          (:wat::core::Some (:queue::Queue::Reply::Stats (:queue::Queue::StatsResponse::Ok
            (:queue::Stats
              :receive-calls (:queue::queue::State/receive-calls s)
-             :ticks (:queue::queue::State/ticks s)
+             :ticks (:queue::Counters/ticks cold)
              :visible (:wat::core::first vu)
              :unacked (:wat::core::second vu)
              :store-calls (:queue::queue::State/store-calls s-a)
@@ -1332,11 +1295,11 @@
              :scan-calls (:queue::queue::State/scan-calls s-a)
              :scan-ns (:queue::queue::State/scan-ns s-a)
              :handler-ns (:queue::queue::State/handler-ns s-a)
-             :sends-accepted (:queue::queue::State/sends-accepted s-a)
-             :sends-refused (:queue::queue::State/sends-refused s-a)
-             :acks (:queue::queue::State/acks s-a)
-             :redeliveries (:queue::queue::State/redeliveries s-a)
-             :expired-waiters (:queue::queue::State/expired-waiters s-a)))))
+             :sends-accepted (:queue::Counters/sends-accepted cold)
+             :sends-refused (:queue::Counters/sends-refused cold)
+             :acks (:queue::Counters/acks cold)
+             :redeliveries (:queue::Counters/redeliveries cold)
+             :expired-waiters (:queue::Counters/expired-waiters cold)))))
          (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
          (:wat::core::second pair))))
 
@@ -1348,7 +1311,11 @@
        [start-ns (:wat::service::SelfInvocation/start-ns ctx)
         now   start-ns
         store (:queue::queue::State/store s)
-        ticks (:wat::i64::+ (:queue::queue::State/ticks s) 1)
+        ;; The only site that changes TWO cold counters (`ticks` and
+        ;; `expired-waiters`), so it is also the only one that must read the
+        ;; carrier before it can rebuild it.
+        cold  (:queue::queue::State/counters s)
+        ticks (:wat::i64::+ (:queue::Counters/ticks cold) 1)
         pair  (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Tuple :- [:queue::TakeAcc
                                                                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])])
@@ -1434,17 +1401,19 @@
              :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
              :scan-calls (:wat::i64::+ (:queue::queue::State/scan-calls s) (:queue::TakeAcc/scan-calls (:wat::core::first pair))) :scan-ns (:wat::i64::+ (:queue::queue::State/scan-ns s) (:queue::TakeAcc/scan-ns (:wat::core::first pair)))
              :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-             :ticks ticks
              :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
              :q-name (:queue::queue::State/q-name s)
              :tick-armed? false
              :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:wat::i64::+ (:queue::queue::State/expired-waiters s) ew)
-              :seen-ids (:queue::queue::State/seen-ids s))
+             ;; Changes TWO cold counters → the carrier is rebuilt here.
+             :counters (:queue::Counters
+                         :ticks ticks
+                         :acks (:queue::Counters/acks cold)
+                         :sends-accepted (:queue::Counters/sends-accepted cold)
+                         :sends-refused (:queue::Counters/sends-refused cold)
+                         :redeliveries (:queue::Counters/redeliveries cold)
+                         :expired-waiters (:wat::i64::+ (:queue::Counters/expired-waiters cold) ew))
+             :seen-ids (:queue::queue::State/seen-ids s))
         delay (:wat::core::foldl
                 (:wat::core::fn [d <- :wat::core::i64  w <- :queue::Waiter] -> :wat::core::i64
                   (:wat::core::let [rem (:wat::core::- (:queue::Waiter/deadline-ns w) now)]
@@ -1473,16 +1442,12 @@
               :count-calls (:queue::queue::State/count-calls s') :count-ns (:queue::queue::State/count-ns s')
               :scan-calls (:queue::queue::State/scan-calls s') :scan-ns (:queue::queue::State/scan-ns s')
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-              :ticks ticks
               :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
               :q-name (:queue::queue::State/q-name s')
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s')
-              :sends-accepted (:queue::queue::State/sends-accepted s')
-              :sends-refused (:queue::queue::State/sends-refused s')
-              :acks (:queue::queue::State/acks s')
-              :redeliveries (:queue::queue::State/redeliveries s')
-              :expired-waiters (:queue::queue::State/expired-waiters s')
+              ;; `s'` already carries the incremented `ticks` — copy, do not rebuild.
+              :counters (:queue::queue::State/counters s')
               :seen-ids (:queue::queue::State/seen-ids s'))]
        (:wat::service::SelfOutcome::Continue s-a box (:wat::core::second pair))))])
 
@@ -1621,16 +1586,11 @@
           :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
           :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
           :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-          :ticks (:queue::queue::State/ticks s)
           :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
           :q-name q
           :tick-armed? (:queue::queue::State/tick-armed? s)
           :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))
      pair (:wat::core::apply (:queue::queue::State/arm-tick s')
              (:queue::queue::State/tick-armed? s')
@@ -1647,16 +1607,11 @@
               :count-calls (:queue::queue::State/count-calls s') :count-ns (:queue::queue::State/count-ns s')
               :scan-calls (:queue::queue::State/scan-calls s') :scan-ns (:queue::queue::State/scan-ns s')
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-           :ticks (:queue::queue::State/ticks s')
            :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
            :q-name (:queue::queue::State/q-name s')
            :tick-armed? (:wat::core::first pair)
            :arm-tick (:queue::queue::State/arm-tick s')
-              :sends-accepted (:queue::queue::State/sends-accepted s')
-              :sends-refused (:queue::queue::State/sends-refused s')
-              :acks (:queue::queue::State/acks s')
-              :redeliveries (:queue::queue::State/redeliveries s')
-              :expired-waiters (:queue::queue::State/expired-waiters s')
+              :counters (:queue::queue::State/counters s')
               :seen-ids (:queue::queue::State/seen-ids s'))]
     (:wat::service::Outcome::Continue s-a
       (:wat::core::if hit?
@@ -1689,16 +1644,11 @@
           :count-calls (:queue::queue::State/count-calls s) :count-ns (:queue::queue::State/count-ns s)
           :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
           :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-          :ticks (:queue::queue::State/ticks s)
           :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
           :q-name q
           :tick-armed? (:queue::queue::State/tick-armed? s)
           :arm-tick (:queue::queue::State/arm-tick s)
-              :sends-accepted (:queue::queue::State/sends-accepted s)
-              :sends-refused (:queue::queue::State/sends-refused s)
-              :acks (:queue::queue::State/acks s)
-              :redeliveries (:queue::queue::State/redeliveries s)
-              :expired-waiters (:queue::queue::State/expired-waiters s)
+              :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
     (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s'))
       (:wat::core::let
@@ -1717,16 +1667,11 @@
               :count-calls (:queue::queue::State/count-calls s') :count-ns (:queue::queue::State/count-ns s')
               :scan-calls (:queue::queue::State/scan-calls s') :scan-ns (:queue::queue::State/scan-ns s')
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-              :ticks (:queue::queue::State/ticks s')
               :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
               :q-name (:queue::queue::State/q-name s')
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s')
-              :sends-accepted (:queue::queue::State/sends-accepted s')
-              :sends-refused (:queue::queue::State/sends-refused s')
-              :acks (:queue::queue::State/acks s')
-              :redeliveries (:queue::queue::State/redeliveries s')
-              :expired-waiters (:queue::queue::State/expired-waiters s')
+              :counters (:queue::queue::State/counters s')
               :seen-ids (:queue::queue::State/seen-ids s'))]
         (:wat::service::Outcome::Continue s2
           (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted n-ok)))
@@ -1810,16 +1755,11 @@
               :count-calls (:queue::queue::State/count-calls s') :count-ns (:queue::queue::State/count-ns s')
               :scan-calls (:wat::i64::+ (:queue::queue::State/scan-calls s') (:queue::TakeAcc/scan-calls (:wat::core::first wpair))) :scan-ns (:wat::i64::+ (:queue::queue::State/scan-ns s') (:queue::TakeAcc/scan-ns (:wat::core::first wpair)))
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-              :ticks (:queue::queue::State/ticks s')
               :depth (:queue::queue::State/depth s') :total (:queue::queue::State/total s')
               :q-name (:queue::queue::State/q-name s')
               :tick-armed? (:queue::queue::State/tick-armed? s')
               :arm-tick (:queue::queue::State/arm-tick s')
-              :sends-accepted (:queue::queue::State/sends-accepted s')
-              :sends-refused (:queue::queue::State/sends-refused s')
-              :acks (:queue::queue::State/acks s')
-              :redeliveries (:queue::queue::State/redeliveries s')
-              :expired-waiters (:queue::queue::State/expired-waiters s')
+              :counters (:queue::queue::State/counters s')
               :seen-ids (:queue::queue::State/seen-ids s'))
          pair (:wat::core::apply (:queue::queue::State/arm-tick s2)
                  (:queue::queue::State/tick-armed? s2)
@@ -1836,16 +1776,11 @@
               :count-calls (:queue::queue::State/count-calls s2) :count-ns (:queue::queue::State/count-ns s2)
               :scan-calls (:queue::queue::State/scan-calls s2) :scan-ns (:queue::queue::State/scan-ns s2)
               :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
-              :ticks (:queue::queue::State/ticks s2)
               :depth (:queue::queue::State/depth s2) :total (:queue::queue::State/total s2)
               :q-name (:queue::queue::State/q-name s2)
               :tick-armed? (:wat::core::first pair)
               :arm-tick (:queue::queue::State/arm-tick s2)
-              :sends-accepted (:queue::queue::State/sends-accepted s2)
-              :sends-refused (:queue::queue::State/sends-refused s2)
-              :acks (:queue::queue::State/acks s2)
-              :redeliveries (:queue::queue::State/redeliveries s2)
-              :expired-waiters (:queue::queue::State/expired-waiters s2)
+              :counters (:queue::queue::State/counters s2)
               :seen-ids (:queue::queue::State/seen-ids s2))
          ok (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted n-ok)))]
         (:wat::service::Outcome::Continue s3 ok box (:wat::core::second pair))))))
