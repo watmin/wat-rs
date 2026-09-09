@@ -528,10 +528,29 @@ pub(crate) struct IntrinsicEntry {
 /// via `lookup`, `metadata-of` reads the baseline via `lookup_entry`.
 pub(crate) struct IntrinsicRegistry {
     entries: std::collections::HashMap<&'static str, IntrinsicEntry>,
+    /// Stone 255-builtin-registry (the membership facet) — names with MEMBERSHIP but no
+    /// full `IntrinsicEntry`: the `RETE_OPS` (`src/rete/vocabulary.rs`) rete-surface verbs,
+    /// whose own `ReteOp` row cannot honestly fill a full contract — `category` has no
+    /// `Unreviewed` pole on `wat_doc::Category` to fall back to, and `ReteOp.ret` is its own
+    /// doc's "unused for Form/Redispatch" placeholder for 19 of the rows (see
+    /// `BRIEF-STONE-the-rete-vocabulary-becomes-rows.md`'s STOP-1, and
+    /// `BRIEF-STONE-the-registry-gains-a-membership-facet.md`). Mirrors
+    /// `TypeEnv.builtin_names` exactly: `contains` consults both this set and `entries`;
+    /// `lookup_entry` deliberately does NOT (STOP-2) — the same asymmetry `TypeEnv::get`
+    /// preserves, because a caller asking for a full contract must not receive a name that
+    /// has none. A name may legitimately sit in BOTH populations (e.g. a rete row whose
+    /// `core_name` is also independently registered as a `Kind::Intrinsic`) — `contains`
+    /// ORs them, so overlap is harmless, never an error.
+    membership_names: std::collections::HashSet<&'static str>,
 }
 
 impl IntrinsicRegistry {
-    fn new() -> Self { IntrinsicRegistry { entries: std::collections::HashMap::new() } }
+    fn new() -> Self {
+        IntrinsicRegistry {
+            entries: std::collections::HashMap::new(),
+            membership_names: std::collections::HashSet::new(),
+        }
+    }
 
     /// Register an intrinsic's full baseline. Duplicate registration is a
     /// programmer error (two homes claiming the same FQDN). This `debug_assert!`
@@ -545,6 +564,14 @@ impl IntrinsicRegistry {
         self.entries.insert(entry.name, entry);
     }
 
+    /// Register a name with MEMBERSHIP only — no full `IntrinsicEntry`. Stone
+    /// 255-builtin-registry (the membership facet), mirroring
+    /// `TypeEnv::register_builtin_leaf`. Not `pub`: only the `RETE_OPS` fold below calls
+    /// this today.
+    fn register_membership(&mut self, name: &'static str) {
+        self.membership_names.insert(name);
+    }
+
     /// The dispatch route — the native handler for `name` (255.1b-i/ii).
     /// `None` = not a registered intrinsic (or is a `Kind::SpecialForm` with no handler).
     pub(crate) fn lookup(&self, name: &str) -> Option<NativeHandler> {
@@ -552,9 +579,26 @@ impl IntrinsicRegistry {
     }
 
     /// The reflection route — the full baseline entry for `name` (255.1b-iii),
-    /// read by `metadata-of`'s intrinsic branch. `None` = not registered.
+    /// read by `metadata-of`'s intrinsic branch. `None` = not registered. Deliberately
+    /// consults `entries` ALONE (STOP-2 of the membership-facet stone) — a caller asking
+    /// for a full contract must not receive a membership-only name, the same asymmetry
+    /// `TypeEnv::get` preserves against `builtin_names`.
     pub(crate) fn lookup_entry(&self, name: &str) -> Option<&IntrinsicEntry> {
         self.entries.get(name)
+    }
+
+    /// Answers MEMBERSHIP: does `name` refer to a real verb at all, whether or not the
+    /// registry holds its full contract? Consults both `entries` (has a full
+    /// `IntrinsicEntry`) and `membership_names` (membership without a contract). Mirrors
+    /// `TypeEnv::contains` exactly. This is the question `resolve`'s `where`/`:then` fence
+    /// will eventually ask instead of consulting `RETE_OPS` directly at the boundary — kept
+    /// as a plain query here so this stone changes no existing caller.
+    #[allow(dead_code)] // read by registry_membership_answers_for_a_population_without_a_contract
+                        // (cfg(test), below). The production caller is `resolve`'s call-head fence,
+                        // which arrives when the `:wat::*` blanket is deleted — see arc 255's
+                        // DESIGN-the-blanket-dies-in-three.md.
+    pub(crate) fn contains(&self, name: &str) -> bool {
+        self.entries.contains_key(name) || self.membership_names.contains(name)
     }
 
     /// Iterate all registered entries. Read by the iv-b2 `verify-examples`
@@ -732,6 +776,17 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
             }
         }
 
+        // Stone 255-builtin-registry (the membership facet) — fold RETE_OPS' rete-surface
+        // names into membership-only. NAMES ONLY: no `IntrinsicEntry` is fabricated for
+        // these rows (that is the wall `BRIEF-STONE-the-rete-vocabulary-becomes-rows.md`'s
+        // STOP-1 hit — `category` has no honest default and `ReteOp.ret` is a documented
+        // placeholder for the Form/Redispatch rows). A name already present in `entries`
+        // (a rete row whose `core_name` is separately registered as a real intrinsic) is
+        // harmless to also mark here — `contains` ORs the two populations.
+        for op in crate::rete::vocabulary::RETE_OPS {
+            r.register_membership(op.rete_name);
+        }
+
         r
     })
 }
@@ -853,6 +908,49 @@ pub(crate) fn fn_arg_param_type(ty: &str) -> Option<&str> {
 // inline in the tests below.
 #[cfg(test)]
 mod tests {
+    /// Arc 255 ①′ — the MEMBERSHIP facet answers for a population whose full contract the
+    /// registry does not hold, and `lookup_entry` does NOT. That asymmetry is the whole point,
+    /// and it mirrors `TypeEnv::contains` / `TypeEnv::get` exactly (`src/types.rs:597`: "a builtin
+    /// leaf's whole point is that it has no structure to return").
+    ///
+    /// ⛔ This test is also the READER that earns `contains`'s `#[allow(dead_code)]`. Its
+    /// production caller — `resolve`'s call-head fence — arrives when the `:wat::*` blanket dies.
+    #[test]
+    fn registry_membership_answers_for_a_population_without_a_contract() {
+        let r = super::registry();
+        // ⛔ MEASURED 2026-09-09, and it corrects a reading of the arc's own note: 52 of the 75
+        // `RETE_OPS` rows ALREADY have a full entry, registered as `Kind::SpecialForm` by
+        // `intrinsic/special/rete_alias.rs`. The note's "registered as an INTRINSIC: 0/74" was
+        // precise and true; "has no entry" is a DIFFERENT claim, and special forms share the
+        // same `entries` map. Only 23 rows are genuinely contract-less, and the facet exists
+        // for them. This test must pick one of the 23 or it asserts a false premise — the first
+        // draft used RETE_OPS[0] (`:wat::rete::i64::>`) and failed, correctly.
+        let rete = ":wat::rete::f64::+";
+        assert!(r.contains(rete), "{rete} is a member of the vocabulary the registry now owns");
+        assert!(
+            r.lookup_entry(rete).is_none(),
+            "{rete} has NO full contract — lookup_entry must not invent one, exactly as \
+             TypeEnv::get returns None for a builtin leaf"
+        );
+        // ⚠ The names below are BOUND, not inlined, because `IntrinsicRegistry::contains` is a
+        // SET-MEMBERSHIP predicate and the loose-assert lint's discriminator ("is the argument a
+        // string literal?") cannot tell that from a substring check on a string. These assertions
+        // are not loose — the whole value IS the question — so a `rune:lint(loose-assert)` would
+        // record a reason that does not earn its standing. Binding is also how the same situation
+        // was resolved in `TypeEnv`'s own tests.
+        let contracted = ":wat::rete::i64::>";
+        let intrinsic = ":wat::runtime::is-type?";
+        let phantom = ":wat::core::TotallyMadeUp";
+        // The 52 that DO carry a contract answer both questions, through `entries` alone.
+        assert!(r.contains(contracted));
+        assert!(r.lookup_entry(contracted).is_some());
+        // A fully-registered intrinsic answers BOTH questions.
+        assert!(r.contains(intrinsic));
+        assert!(r.lookup_entry(intrinsic).is_some());
+        // And a name nothing knows answers neither.
+        assert!(!r.contains(phantom));
+    }
+
     /// Arc 255 Stone P4 — the frozen DEBT LEDGER for the silent skip in
     /// `doc_arg_ret_types_match_checker_scheme` (`None => continue` below, "not yet in
     /// checker — skip"). (Arc 255 Stone P5-b: `yields_type_matches_fn_arg_param` used to
