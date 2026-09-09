@@ -83,6 +83,32 @@ fn a_nonexistent_variant_is_refused() {
     assert_eq!(check("nonexistent_variant"), 1);
 }
 
+/// ⛔ THE TWO-PATHS ROW. An INTRINSIC's parameter must accept a narrowed variant exactly as a
+/// USER DEFN's already does. Measured at RELAND-1's preserved tree `60813552a`:
+///
+/// ```text
+///   user defn  [o <- (Option :- [:T])] <- (Option::Some {:value 42})   check=0  ACCEPTS
+///   Option/expect                      <- the same value              check=1  REFUSES
+/// ```
+///
+/// 17 of RELAND-1's 40 floor failures were this. ⚠ **This row is GREEN on a tree without variant
+/// types** — erasure makes both sides `Option` and there is nothing to disagree about. It
+/// discriminates only against the intermediate state, so its green on main proves NOTHING; read
+/// it against `60813552a`, where it is red.
+#[test]
+#[ignore = "arc 296 A-2 RELAND-2 — vacuous until variants are types; red at 60813552a"]
+fn an_intrinsic_parameter_accepts_a_variant_like_a_user_defn_does() {
+    let (code, out) = run_check("intrinsic_param_accepts_a_variant");
+    assert_eq!(code, 0, "got: {out}");
+}
+
+/// THE PAIRED CONTROL — the same question at a user defn. Green in every state; it is what proves
+/// the two PATHS differ rather than that the value is wrong.
+#[test]
+fn a_user_defn_parameter_accepts_a_variant() {
+    assert_eq!(run_check("user_defn_param_accepts_a_variant").0, 0);
+}
+
 /// ⛔ THE ROW THAT CATCHES A SCOPE CUT. A STDLIB enum's variant. RELAND-1 exists because every
 /// other fixture spells `:usr::Box`, so scoping `register_variant_types` to `!is_reserved_prefix`
 /// passed all fourteen rows while excluding `Option`, `Result` and every service `Op`/`Reply` —
