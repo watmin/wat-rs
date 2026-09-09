@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. 2026-09-08. **GREEN · CLEAN · PUSHED · NO PEER IN FLIGHT.**
+# SEAM — the ONE live breadcrumb. 2026-09-08 (late). **GREEN · CLEAN · PUSHED · NO PEER IN FLIGHT.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -16,114 +16,93 @@ grep -aE "^ +Summary" .floor/latest/raw.log
 ```
 
 ```
-floor ... 5245 tests run: 5245 passed, 18 skipped   FLOOR EXIT=0   clippy 0   0 unpushed
-peer .... idle. Last exchange: Q2 scored.
+floor ... 5267 tests run: 5267 passed, 21 skipped   FLOOR EXIT=0   HEAD a6641ab45
+peer .... idle. Last exchange: P-2a scored, then REVERTED by me.
 ```
 
-## ★★★ WHAT LANDED — the enum campaign and the type authority
+⚠ **`scripts/floor.sh` DOES NOT RUN CLIPPY.** Every "clippy N" in this record came from an ad-hoc
+`cargo clippy | grep -c` in the orchestrator's command line, and across three invocations that grep
+returned **0, then 7, then 8** for a tree whose real answer never changed. The honest gate is
+`cargo clippy --release --all-targets -- -D warnings`; it EXITS 101 on **5 pre-existing `dead_code`
+items** that are already on `origin/main`. They are a `purgare` stone, not a regression.
+
+## ★★★ WHAT LANDED — the type authority is now one authority
 
 ```
-296 M    an enum variant is constructed by a MAP naming its declared fields, and ONLY that way.
-         POSITIONAL IS REFUSED. Variant construction was the last positional ctor in the language.
-296 N    the bare spelling is HERESY. :wat::core::{Some,None,Ok,Err} + the arc-109 :None REFUSE,
-         naming their replacement. All 62 Rust arms GONE — unrepresentable, not merely unused.
-M2+R1-10 the corpus: 1875 .wat files by the self-hosted codemod, twice, idempotent.
-         2447/2773-failed/18-timeout  ->  5238/0. NOTHING RAN at the start of that.
-296 O    {:keys …} destructures EVERY aggregate. The guard was a FOSSIL of the arc it cited:
-         293.2b UNIFIED struct+record, and the predicate kept `nature == Struct`. And backwards —
-         natures differ in PURITY not SHAPE, so it allowed the one that holds a live socket.
-296 Q    `:wat::runtime::is-type?` — ONE authority over THREE mechanisms.
-296 Q2   `subtype?` registered. It was conforms?'s TWIN and 255 registered only one.
+296 P-1     an annotation may not name a type that does not exist. It caught THREE real phantoms
+  +RELAND-1 nothing could see before: :wat::core::Int (16 sites), ::Keyword (7), and
+            :wat::kernel::ExitCode — RETIRED by arc 170 on 2026-05-10 and still annotated.
+            Both `is_reserved_prefix` blankets deleted; the union is FOUR stores.
+296 P-2prq  `use!` seeds its imported name into TypeEnv, so is-type? agrees with resolve.
+296 P-3     the wall asks each DECLARING SCOPE about its own use!; is-type? asks subtype_edges.
+            MEASURED, both directions:
+              no user use!    resolve check=1 · wall check=1 · is-type? false
+              with user use!  resolve check=0 · wall check=0 · is-type? true
 ```
 
-## ⛔ QUEUED — the order, with the reasons that decided it
+## ⛔⛔ P-2 IS NOT UNBLOCKED. THE PREVIOUS SEAM SAID "4/4, UNBLOCKED" — THAT IS SUPERSEDED.
+
+`296/NOTE-P2-is-blocked-on-VARIANCE-and-my-fence-was-on-the-wrong-axis.md`. Struck as P-2a,
+**reverted**; the rider's work is preserved at `7292a2c2a`, the revert is `a6641ab45`.
 
 ```
-1  the :wat::* blanket   ★ PROMOTED TO A CORRECTNESS DEFECT, not hygiene:
-                           (:wat::core::Option.Some {:value 7}) check=0 -> #wat.core/Option.None {}
-                           (:usr::Box.Full {:payload 7})        check=1 -> UnresolvedReference
-                         THE DOT SPELLING — the one the head migration moves TOWARD — is accepted
-                         under :wat::* and SILENTLY BUILDS THE WRONG VARIANT. A user ns catches it.
-                         Worklist 143/833 (17%), 35 names, four families; rete numerics ~87% of
-                         sites at ~11 names. ⚠ Why it yields Option.None is UNMEASURED — expand
-                         before theorising. `296/NOTE-the-dot-spelling-silently-builds-…`
-2  P-1 annotation        the annotation position VALIDATES its type name. Its authority NOW EXISTS
-   validates            (Q's is-type?). Today `[s <- :usr::TotallyMadeUp]` checks CLEAN and the
-                         mismatch is reported against a PHANTOM. A wall: expect a corpus-wide red,
-                         and that count is the worklist.
-3  P-2 variant is a type ⚠ THE SEAM PREVIOUSLY SAID "ONE ENTRY in subtype_edges". THAT WAS WRONG,
-                         measured 2026-09-08: a variant is NOT a registered type (`type-of` says
-                         unknown). Every failure in param/return/field position is ERASURE ONLY —
-                         so it is GENERAL the moment the ctor stops erasing, not a narrowing.
-                         4/4 on the four questions. Needs P-1 first so its rows rest on REFUSALS.
-   Q2's 22               short list of unregistered check.rs arms. Named, not urgent.
-   Q's (B)               complete 255's leaf list so `contains` = the union; then
-                         is_builtin_primitive can die.
-   the dot flip / heads  BLOCKED on the blanket. `#wat.core/Option.Some` is ALREADY the wire form.
+the ctor half   299 type-check errors, two clusters:
+  cluster 1     infer_send_prime (check.rs:11619) UNIFIES payload against I and never calls
+                assignable — while ordinary parameters DO (check.rs:16992).
+                TWO ARGUMENT POSITIONS, TWO RULES.
+  cluster 2     RecvOutcome :- [ScanResponse::RequestTooLarge] vs RecvOutcome :- [ScanResponse].
+                TYPE ARGS ARE INVARIANT. `Variant <: Enum` does not lift through a container.
+the reg. half   cannot stand alone: the annotation is accepted and NOTHING satisfies it —
+                "(:user::takes-red (:usr::Colour::Red {:shade 7})) -> expects Colour::Red; got Colour"
 ```
 
-## ⛔⛔ THE RECORD'S SETTLED NUMBERS EXPIRE — THREE FIRINGS THIS WEEK
+**P-2 needs, in order: (1) one rule for argument positions · (2) a VARIANCE story · (3) then the
+ctor stops erasing.** (2) is a type-system decision nobody has made. It is the builder's.
 
-`296 R20 HAERESIS EST ITERVM ROGARE`. **Before a number becomes a premise for an ORDERING, a SCOPE
-CUT, or a REFUSAL — re-derive it.**
-
-```
-255's blocker NOTE, fact 1   "578/599 FAIL, 96%, 121 names"   ->  143/833, 17%, 35 names
-255's blocker NOTE, fact 2   "the registry holds exactly TWO  ->  if let fn match def quote do
-                              special forms — let and if"        defclause, ALL REGISTERED
-this seam, on P-2            "ONE ENTRY in subtype_edges"     ->  a variant is not a type at all
-```
-
-★ Fact 2 is why 255's ordering was FORCED — *"a corpus that cannot resolve `fn` cannot be measured
-for anything else."* `fn` resolves now. **Neither fact moved because anyone worked on 255** — "as a
-side effect," exactly as its founding DESIGN predicted. The NOTE was TRUE WHEN WRITTEN.
-Corrections live BESIDE it (`255/NOTE-2026-09-08-…`); what is written stays written.
-
-## ⛔ ONE DISEASE, FOUR POSITIONS — found in a single session
-
-**A NAME CHECKED AGAINST A SET THAT IS NOT THE WHOLE.**
+## ⛔ QUEUED
 
 ```
-TYPE membership     3 mechanisms; type-of asks 1, subtype? asks 2, none asks the union   Q FIXED IT
-VERB call-heads     the :wat::* reserved-prefix blanket                                  QUEUED #1
-@see resolution     unions 2 sources; subtype? lived in a third                          Q2 FIXED IT
-the dot spelling    accepted under :wat::*, silently wrong                               QUEUED #1
+the :wat::* call-head blanket   src/resolve/walk.rs:272. Arc 255's founding defect, still standing
+                                for CALL HEADS. Gates the dot-notation flip. STILL THE HEAD.
+derive's MARKER                 `(derive :usr::A :usr::Typo)` mints a new marker silently.
+                                Declared-first vs open-minting — the builder's ruling.
+5 dead_code items               pre-existing, `-D warnings` only. A purgare stone.
+P-2                             behind variance, above.
 ```
-
-★ **They converge on ONE authority at the symbol migration** — builder, 2026-09-08: *"as we move to
-the proper clojure form with real symbols this is moot… `:wat::core::+` IS `wat.core/+`."* Once an
-`@see` names a symbol, "which registry?" becomes "does this resolve?" — the call-head question.
 
 ## ⚠ RULINGS — do not re-litigate
 
 - **An enum ctor is a MAP.** declare `:None []` · construct `(…::None {})` · match `[…::None {} b]`.
-- **`{:keys}` is for ONE-SHAPE aggregates; match is for many-shape.** Do not unify them.
-- **Natures differ in PURITY, not SHAPE** — a predicate about shape must not ask about nature.
-- **`type-of` is STRUCTURE; `is-type?` is MEMBERSHIP.** Keep that legible or the wrong one gets asked.
-- **A golden pinning a stdlib line: RECAPTURE, KEEP PINNING.** Never extend the normaliser.
+- **`{:keys}` is for ONE-SHAPE aggregates; match is for many-shape.**
+- **Natures differ in PURITY, not SHAPE.**
+- **`type-of` is STRUCTURE; `is-type?` is MEMBERSHIP** — and membership is over the UNION, which
+  turned out to be four stores, not two. `HAERESIS EST ITERVM ROGARE`.
 - **⛔ SIDE BRANCHES DO NOT SERVE US** · **COMMIT LOCALLY OFTEN; PUSH ONLY GREEN.**
-- **Colon-quoted symbols are ACCEPTABLE transitionally** — they are not keywords, they share the
-  syntax. `:wat::core::+` IS `wat.core/+`.
+- **`git commit <paths>` — NEVER `git add` then commit.** Six occurrences of sweeping a peer's
+  in-flight work into a mislabelled commit; the sixth was the fix for the fifth.
+- **Colon-quoted symbols are ACCEPTABLE transitionally.** `:wat::core::+` IS `wat.core/+`.
 
-## ⛔ THE FAILURE PATTERNS
+## ⛔ THE FAILURE PATTERNS — all four fired again today
 
-**① I COUNT TEXT AND CALL IT A CENSUS.** ~13 instances. Worst: an unvalidated regex put a FALSE
-PROOF into a brief whose subject was *"use the tool, not hand-inspection."* The form tree,
-`macroexpand`, `type-of` and the walls were right every time.
+**① A NAME CHECKED AGAINST A PARTIAL SET.** Now at SIX positions. Every stone this session was
+this defect at a new address, and the cure for one exposed the next.
 
-**② A FALLING FAILURE COUNT IS NOT CONVERGENCE.** 2773→473→291→128 read as progress for THREE
-relands while a behavioural regression and a corrupted declaration sat underneath. What broke it
-every time was ONE VERBATIM FAILURE instead of a total.
+**② I MEASURE THE DECLARATION AND NOT THE CONSUMERS.** P-2a's fence held perfectly and described
+the wrong boundary — I fenced generic ENUMS out, and a MONOMORPHIC variant hit the same class by
+being wrapped in a generic container.
 
-**③ ★ I NEARLY TOOK THE FOLD, TWICE, AND WAS STOPPED BY THE BUILDER BOTH TIMES.** A `HashMap` arm
-tolerating a bad producer (RELAND 2 — removing it found an `eval_tail` TCO bug); and removing a
-CORRECT `@see` to green a floor (Q2 — the wall and the reference were both right, the registry was
-incomplete). **When a wall complains, ask whether it is right before making it quiet.**
+**③ A PROBE THAT ANNOTATES IS NOT A PROBE THAT USES.** P-2a's five rows all passed in exactly the
+state the DESIGN called "strictly worse than today's refusal." **The rider found it, not me.**
+A probe that proves a type is USABLE must construct a value INTO it.
 
-★ **AND THE FOUR QUESTIONS OVERTURNED ME FOUR TIMES**, always the same way: I reach for the
-smaller-feeling move and it leaves an exception or a landmine alive. **When you prefer the smaller
-change, check whether the larger one deletes a class.** ⚠ And a four-questions run that is not
-SHOWN did not happen — the builder caught me citing a verdict I never displayed.
+**④ AN INSTRUMENT ANSWERING A NARROWER QUESTION.** `| tail -6` on a 27-failure floor; a JSON grep
+against EDN output returning a confident 0; `pgrep -f "cargo"` matching `~/.cargo/bin/wat --mcp` and
+reporting a phantom build TWICE, which I then wrote onto disk as the reason a measurement went
+unrun. **Run the gate unpiped and read `$?`; read `git show --stat` BEFORE writing the message.**
+
+★ **THE RIDER CAUGHT ME THREE TIMES TODAY** — a mislabelled commit, a probe that could not fail,
+and a design whose contract its own strike disproved. Weigh its report against the disk, and read
+its "what surprised" section: that is where the findings are.
 
 ---
 
@@ -132,8 +111,7 @@ SHOWN did not happen — the builder caught me citing a verdict I never displaye
 >
 > ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Re-run the commands. Do not read the numbers.
 >
-> ⛔ **GREEN AND QUIET IS THE MOST DANGEROUS STATE THIS FILE DESCRIBES** — no red to stop you, no
-> peer to wait for, nothing external to interrupt a wrong move. `git status` before anything else.
+> ⛔ **GREEN AND QUIET IS THE MOST DANGEROUS STATE THIS FILE DESCRIBES.** `git status` first.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.` ·
 > `HAERESIS EST ITERVM ROGARE.`
