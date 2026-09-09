@@ -126,5 +126,12 @@ fi
 
 # --scope runs the command synchronously in the foreground and returns ITS status.
 # Verified both directions: exit 0 propagates 0, a SIGKILL from the cap propagates 137.
-exec systemd-run --user --scope -q --slice="$SLICE" "${PROPS[@]}" \
-     --unit="wat-capped-$$-$(date -u +%s).scope" -- "$@"
+# --collect: a scope whose process is KILLED (by the cap, by the OOM killer, by a
+# signal) is left behind by systemd in `failed` state. Observed 2026-09-09: ten failed
+# wat-capped-*.scope units accumulated over one afternoon of bisecting, each needing a
+# manual `systemctl --user reset-failed`. --collect reaps them.
+# ⚠ NOT claimed: that the pile caused any failure. It was briefly blamed for an exit-3
+# that turned out to be a parse error in the probe being run. The nanosecond unit suffix
+# below is likewise hygiene against same-second collisions, not a diagnosed fix.
+exec systemd-run --user --scope -q --collect --slice="$SLICE" "${PROPS[@]}" \
+     --unit="wat-capped-$$-$(date -u +%s%N).scope" -- "$@"
