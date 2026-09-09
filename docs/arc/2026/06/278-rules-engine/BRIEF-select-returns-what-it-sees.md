@@ -52,5 +52,5 @@ expected remainder, not as a failure.**
 
 ## PRIOR RESULT TO COPY FOR SHAPE
 
-`SCORE-no-client-call-can-hang.md` and its grading — the strike that uncovered this, including
+`docs/excursus/2026/08/001-sns-sqs/no-client-call-can-hang/SCORE.md` and its grading — the strike that uncovered this, including
 the checkpoint commit `276f989dc` you can revert to freely.

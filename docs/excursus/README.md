@@ -48,3 +48,11 @@ carried it.
 - **`2026/08/001-sns-sqs/`** — SNS in userland; `:wat::query::Store` gains `delete`; the
   mem-vs-sqlite differentials; `#inst` at constant nanosecond width. Findings on the record
   accessor's receiver type, mem's `put` semantics, and journal's key collision.
+
+  ★ **Plus the September distributed-model campaign**, 417 files reclaimed from
+  `docs/arc/2026/06/278-rules-engine/` on 2026-09-08 — the queue, topic, fanout circuit, store
+  instrumentation, chaos and deadline work. That half is grouped as
+  `001-sns-sqs/<task-slug>/{DESIGN,BRIEF,EXPECTATIONS,SCORE}.md`, one directory per effort, rather
+  than flat. **This is the same failure as the `(301)` residue below, in the other direction:** the
+  work was filed into an arc that had not commissioned it. Its own README records what stayed in 278
+  and why. Read `001-sns-sqs/TRACKER-the-distributed-model.md` first.

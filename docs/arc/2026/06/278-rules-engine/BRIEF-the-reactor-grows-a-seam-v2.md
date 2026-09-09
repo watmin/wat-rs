@@ -50,7 +50,7 @@ and this one forbids it.
 
 ⚠ **Do not write `(:wat::core::None <Type>)`** — phantom form. Arc-109 NOTE.
 
-Leave your work uncommitted. Prior comparable: `SCORE-the-call-site-reads-as-english.md`.
+Leave your work uncommitted. Prior comparable: `docs/excursus/2026/08/001-sns-sqs/the-call-site-reads-as-english/SCORE.md`.
 
 ## REPORT
 

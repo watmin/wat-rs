@@ -14,7 +14,7 @@ a reproducible one.
 3. **`src/intrinsic/vector.rs:181-196`** — `#[wat_intrinsic(":wat::vector::set")]` with its doc
    comment and `@example`. **This is the shape to copy**; it is perf-3's own addition and it is
    already through the gates.
-4. **`src/check.rs:17153`** — `register_builtins`. **`SCORE-perf-3-indexed-vector-update.md` records
+4. **`src/check.rs:17153`** — `register_builtins`. **`docs/excursus/2026/08/001-sns-sqs/perf-3-indexed-vector-update/SCORE.md` records
    that a new verb registered as an intrinsic but missing from `register_builtins` /
    `intrinsic_meta` turned the floor red.** Do not rediscover that.
 

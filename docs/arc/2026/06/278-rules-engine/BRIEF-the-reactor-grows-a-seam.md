@@ -53,7 +53,7 @@ you did not intend: **do NOT re-run.** Copy the whole stdout+stderr block verbat
 
 ⚠ S24 is live: `refused_subscriber_is_retried_not_dropped` can fail loudly with `after-drain=got`.
 
-Leave your work uncommitted. Prior comparable result: `SCORE-the-vocabulary-stops-mumbling.md`.
+Leave your work uncommitted. Prior comparable result: `docs/excursus/2026/08/001-sns-sqs/the-vocabulary-stops-mumbling/SCORE.md`.
 
 ## REPORT
 
