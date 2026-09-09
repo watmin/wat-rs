@@ -89,6 +89,18 @@ if [ "$PAIRS" -eq 0 ]; then
   exit 1
 fi
 
+# NON-VACUITY on the INNER count too — PAIRS>0 is necessary but not sufficient: a "pass" over
+# real families that all compared zero rows would still print "spec == native on every shape"
+# with the zero sitting right there in the message (the vacuous-gate class, R59). check_stem()'s
+# own `wn -lt 1` check already makes this unreachable today (a 0-row family FAILS, it doesn't
+# succeed silently) — this is the belt for that suspenders, so a future change to check_stem()
+# can't reopen the gap without this also going red.
+if [ "$ROWS_TOTAL" -lt 1 ]; then
+  echo "check-spec-native: $PAIRS family(ies) but ROWS_TOTAL=0 — a pass with zero rows compared" \
+       "is the vacuous-gate class; something is wrong upstream of this count" >&2
+  exit 2
+fi
+
 if [ "$FAILED" -eq 0 ]; then
   echo "spec-native: $PAIRS family(ies), $ROWS_TOTAL rows — spec == native on every shape"
 else

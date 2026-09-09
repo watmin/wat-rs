@@ -260,16 +260,24 @@ for SIZE in "$@"; do
     # The Clara side's wall clock INCLUDES JVM cold boot + Clojure load, which is the point:
     # that is what a user of the peer actually waits for, exactly as our wall includes freeze,
     # seeding, derive and print. Neither number is flattered; both are the whole program.
+    #
+    # stderr is CAPTURED, not discarded, symmetrically with the wat side above: `2>/dev/null`
+    # here made a Clara-side failure loud but REASONLESS — a JVM exception or stack trace
+    # discarded by the one file that already wrote down, for the wat side, why discarding it
+    # is wrong.
+    CLARA_ERR="$(mktemp)"
     CLARA_W0=$(date +%s%N)
-    CLARA_OUT="$(cd "$CLJ_TMP" && clojure -Sdeps "$CLARA_DEP" -M -m "$AXIS" 2>/dev/null || true)"
+    CLARA_OUT="$(cd "$CLJ_TMP" && clojure -Sdeps "$CLARA_DEP" -M -m "$AXIS" 2>"$CLARA_ERR" || true)"
     CLARA_W1=$(date +%s%N)
     CLARA_LINE="$(echo "$CLARA_OUT" | grep -o '#grid/Result.*' || true)"
     if [ -z "$CLARA_LINE" ]; then
       echo "run-axis: Clara side produced no #grid/Result for axis=$AXIS size=[$SIZE] run=$RUN:" >&2
-      echo "$CLARA_OUT" >&2
-      rm -rf "$CLJ_TMP"
+      echo "  ── stdout ──" >&2; echo "$CLARA_OUT" >&2
+      echo "  ── stderr ──" >&2; cat "$CLARA_ERR" >&2
+      rm -f "$CLARA_ERR"; rm -rf "$CLJ_TMP"
       exit 1
     fi
+    rm -f "$CLARA_ERR"
 
     # ── canonicalize :derived (strip wat's PersistentVector tag) + compare ────
     # Checked on EVERY run, not just the first: an accuracy divergence that only appears

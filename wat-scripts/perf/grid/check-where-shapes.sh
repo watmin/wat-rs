@@ -154,6 +154,18 @@ if [ "$PAIRS" -eq 0 ]; then
   exit 1
 fi
 
+# NON-VACUITY on the INNER count too — PAIRS>0 is necessary but not sufficient: a "pass" over
+# real pairs that all compared zero rows would still print "wat == Clara on every shape" with
+# the zero sitting right there in the message (the vacuous-gate class, R59). check_pair()'s own
+# `wn -lt 1` check already makes this unreachable today (a 0-row pair FAILS, it doesn't succeed
+# silently) — this is the belt for that suspenders, so a future change to check_pair() can't
+# reopen the gap without this also going red.
+if [ "$ROWS_TOTAL" -lt 1 ]; then
+  echo "check-where-shapes: $PAIRS pair(s) but ROWS_TOTAL=0 — a pass with zero rows compared is" \
+       "the vacuous-gate class; something is wrong upstream of this count" >&2
+  exit 2
+fi
+
 if [ "$FAILED" -eq 0 ]; then
   echo "where-shapes: $PAIRS pair(s), $ROWS_TOTAL rows — wat == Clara on every shape"
 else
