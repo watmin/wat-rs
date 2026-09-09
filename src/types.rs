@@ -370,18 +370,6 @@ pub enum EnumVariant {
     },
 }
 
-impl EnumVariant {
-    /// Arc 296 A-2 RELAND-1 — the bare variant name, either shape. The one place that
-    /// destructures `Unit`/`Tagged` just to read the name (`register_variant_types`,
-    /// `is_variant_type`, `build_unit_variant_map`) uses this instead of re-deriving it.
-    pub fn name(&self) -> &str {
-        match self {
-            EnumVariant::Unit(n) => n,
-            EnumVariant::Tagged { name, .. } => name,
-        }
-    }
-}
-
 impl EnumDef {
     /// Field names of a tagged variant, declaration order — the enum mirror of
     /// [`AggregateDef::names_arc`] (arc 296 G′).
@@ -674,12 +662,6 @@ impl TypeEnv {
         let mut out = HashMap::new();
         for (name, def) in self.iter() {
             if let TypeDef::Enum(e) = def {
-                // Arc 296 A-2 RELAND-1 — skip synthesized variant-types (singleton
-                // `TypeDef::Enum` per variant, see `register_variant_types`): walking one
-                // here would mint `:Enum::Variant::Variant` for a unit variant's singleton.
-                if self.is_variant_type(name) {
-                    continue;
-                }
                 for variant in &e.variants {
                     if let EnumVariant::Unit(variant_name) = variant {
                         out.insert(
@@ -881,177 +863,6 @@ impl TypeEnv {
         self.subtype_edges
             .values()
             .any(|parents| parents.iter().any(|p| p == name))
-    }
-
-    // ─── Arc 296 A-2 RELAND-1 — a variant is a type, no scope cut ──────────
-
-    /// `name` is a registered variant-type (`:Enum::Variant`) — the singleton
-    /// `TypeDef::Enum` synthesized per variant by [`Self::register_variant_types`] —
-    /// iff its parent path is itself a registered enum that declares that leaf as one of
-    /// its variants. Delegates entirely to [`Self::variant_parent_enum`] — see there for
-    /// the name-grammar / colon-normalization notes.
-    ///
-    /// Reused as the ONE guard against re-walking a singleton as though it were a fresh
-    /// user enum: `register_variant_types` (skip re-synthesizing a variant's own
-    /// "variants"), `register_enum_methods` (skip minting `:Enum::Variant::Variant` ctors
-    /// / duplicate unit-variant entries), and `build_unit_variant_map` (same). Applies to
-    /// EVERY enum, stdlib included — RELAND-0's `!is_reserved_prefix` scope cut relocated
-    /// its 600-failure sibling-join gap into user code while cutting `Option`/`Result`;
-    /// this reland ships the join instead (`join_types`, `src/check.rs`) so no scope cut
-    /// is needed.
-    pub(crate) fn is_variant_type(&self, name: &str) -> bool {
-        self.variant_parent_enum(name).is_some()
-    }
-
-    /// Arc 296 A-2 RELAND-1 — `name`'s parent enum's CANONICAL registered name, iff
-    /// `name` is itself a registered variant-type. The ONE thing [`crate::check`]'s join
-    /// consults for a variant's parent — never `subtype_edges` (24 of its 34 edges are
-    /// `extend-type` protocol satisfaction, not enum membership; a least-upper-bound
-    /// search over it would answer a different question).
-    ///
-    /// `name` is normalized through [`parametric_head_fqdn`] before splitting — a
-    /// `TypeExpr::Parametric.head` (what `join_types` in `check.rs` passes here) is
-    /// stored WITHOUT its leading colon by convention (see that function's doc), while
-    /// every `TypeEnv` registry key IS colon-prefixed; without this normalization the
-    /// parent lookup below silently misses every parametric variant (`Option::Some`
-    /// included) and the join never fires. The path/leaf split itself goes through
-    /// `wat_reader::identifier`'s accessors — **not** a hand-rolled `rfind`; the
-    /// one-name-grammar lint bans that literal shape outside `identifier.rs`. The
-    /// returned string is the enum's OWN stored `.name` (always canonically
-    /// colon-prefixed), not a re-assembled guess — so a caller building a `TypeExpr::Path`
-    /// from it is correct as-is, and one building a `TypeExpr::Parametric.head` must
-    /// still strip the colon itself (the same asymmetry every other `Parametric.head`
-    /// caller in this file already carries).
-    pub(crate) fn variant_parent_enum(&self, name: &str) -> Option<&str> {
-        let fq = parametric_head_fqdn(name);
-        let parent = wat_reader::identifier::path(&fq);
-        if parent.is_empty() {
-            return None;
-        }
-        let leaf = wat_reader::identifier::leaf(&fq);
-        match self.get(parent) {
-            Some(TypeDef::Enum(e)) if e.variants.iter().any(|v| v.name() == leaf) => {
-                Some(e.name.as_str())
-            }
-            _ => None,
-        }
-    }
-
-    /// Arc 296 A-2 RELAND-1 — `name`'s own enum, whichever of the two shapes `name` is:
-    /// a bare registered enum (returns ITSELF, canonically) or one of its variants
-    /// (returns [`Self::variant_parent_enum`]). The generalization [`crate::check::join_types`]
-    /// needs for a case the ruled contract's own examples don't spell out but its general
-    /// principle implies: `join(RecvOutcome::Message<X::RequestTooLarge>, RecvOutcome<X>)`.
-    /// The OUTER pair is "a variant vs its own bare enum" — the contract calls that
-    /// "subsumption, already covered" — but the INNER pair (`X::RequestTooLarge` vs bare
-    /// `X`) is the identical shape one level down, and `assignable`'s per-argument check is
-    /// deliberately INVARIANT (Arc 278 Stone 2 — a channel's send/recv types are exact), so
-    /// it cannot re-apply subsumption recursively to resolve the inner pair itself. Two
-    /// types sharing one `enclosing_enum` — one of them possibly bare — still join to that
-    /// enum applied to the pairwise join of args, which is exactly rule 1
-    /// ("same head → pairwise join of args") once the bare side's "variant" is understood
-    /// to be itself. Still purely structural (variant registration + the enum's own
-    /// registry entry) — never `subtype_edges` (STOP-4).
-    pub(crate) fn enclosing_enum(&self, name: &str) -> Option<&str> {
-        if let Some(parent) = self.variant_parent_enum(name) {
-            return Some(parent);
-        }
-        let fq = parametric_head_fqdn(name);
-        match self.get(&fq) {
-            Some(TypeDef::Enum(e)) => Some(e.name.as_str()),
-            _ => None,
-        }
-    }
-
-    /// Arc 296 A-2 RELAND-1 — for every registered enum (parametric or not, stdlib
-    /// included — no scope cut), register each variant's FQDN (`:Enum::Variant`) as its
-    /// own `TypeDef::Enum` singleton — a one-variant sub-enum carrying that variant's own
-    /// declared fields, sharing the PARENT's type params (so `(:usr::Box::Full :- [T])`
-    /// and `(:usr::Box :- [T])` agree on arity) — plus a HEAD-LEVEL subtype edge
-    /// `Variant <: Enum`.
-    ///
-    /// Reuses `TypeDef::Enum` rather than minting a new `TypeDef` arm (a `TypeDef::Variant`
-    /// would ripple into every exhaustive match on `TypeDef` across the tree — struct
-    /// construction, reflection, EDN render, rete — for a shape that already has a home).
-    /// NOT `TypeDef::Aggregate`: that was the builder's explicitly refused fix for
-    /// `{:keys}` — `{:keys}`'s predicate widens instead (`src/check.rs`).
-    ///
-    /// Idempotent (skips an already-registered FQDN) and guarded by [`Self::is_variant_type`]
-    /// so a singleton's own lone "variant" is never re-expanded — the thing that stops this
-    /// from minting `:Enum::Variant::Variant`, since a parametric singleton has a live
-    /// `EnumDef` with exactly one variant, structurally indistinguishable from a genuine
-    /// user one-variant enum without this parent-lookup guard.
-    ///
-    /// ⛔ RELAND-0 scoped this to user enums (`!is_reserved_prefix`) because, without a
-    /// JOIN, stdlib's own `if`/`match` — which routinely produce a DIFFERENT sibling
-    /// variant per branch (`Some`/`None`, `Ok`/`Err`) and expect both to join to the
-    /// shared enum — could not start (1228 errors on the widest control). The scope cut
-    /// bought nothing: it relocated the identical failure shape into user namespaces
-    /// (`:probe::`, `:usr::`, `:arena::` — 600 of 103 floor failures) while excluding the
-    /// population (`Option`/`Result`) the capability is FOR. `join_types` (`src/check.rs`)
-    /// is what makes the unconditional registration below safe: `join_if_branches` and
-    /// `infer_match`'s arm-unification now widen two sibling variants to their shared enum
-    /// instead of failing, so nothing here is scoped by namespace or prefix.
-    pub(crate) fn register_variant_types(&mut self) -> Result<(), TypeError> {
-        let parents: Vec<EnumDef> = self
-            .iter()
-            .filter_map(|(name, def)| match def {
-                TypeDef::Enum(e) if !self.is_variant_type(name) => Some(e.clone()),
-                _ => None,
-            })
-            .collect();
-        for e in parents {
-            for v in &e.variants {
-                let fqdn = format!("{}::{}", e.name, v.name());
-                if self.get(&fqdn).is_some() {
-                    continue;
-                }
-                // Arc 296 A-2 RELAND-2 mechanism ④ — carry only the params THIS variant's
-                // OWN fields actually use, not the parent's full list verbatim. A unit
-                // variant (no fields at all) or a tagged variant whose fields don't
-                // mention every parent param (e.g. a service's generated `Status::Stopped
-                // [resp <- resp-ty]`, where `resp-ty` doesn't use the transport marker
-                // `Started`'s `addr-ty` does) would otherwise carry a param declared but
-                // never used by ITS OWN member types. That is inert here — nothing walks a
-                // singleton back through `check_type_params_consumed` — but
-                // `closure_extract::type_def_to_ast` reconstructs this EXACT `EnumDef` as
-                // real `defenum` SOURCE TEXT for a spawned worker (`decl_name_siblings`
-                // splices `type_params` as the declaration's own `:- […]` binder), and the
-                // worker's startup re-parses it through the ordinary declare pipeline,
-                // which DOES enforce consumption — `UnconsumedTypeParam` at the worker,
-                // never at the parent. The parent enum `e` keeps its own full
-                // `e.type_params` untouched (still validated at ITS OWN parse time,
-                // already consumed collectively across all its variants); only the
-                // per-variant singleton's stored list narrows.
-                let member_types: Vec<TypeExpr> = match v {
-                    EnumVariant::Unit(_) => Vec::new(),
-                    EnumVariant::Tagged { fields, .. } => {
-                        fields.iter().map(|(_, t)| t.clone()).collect()
-                    }
-                };
-                let consumed = crate::declare::typevar::collect_free_type_vars_in(&member_types);
-                let variant_type_params: Vec<String> = e
-                    .type_params
-                    .iter()
-                    .filter(|p| consumed.contains(p))
-                    .cloned()
-                    .collect();
-                let span = crate::rust_caller_span!();
-                let singleton = TypeDef::Enum(EnumDef {
-                    name: fqdn.clone(),
-                    type_params: variant_type_params,
-                    purity: e.purity,
-                    variants: vec![v.clone()],
-                });
-                if crate::resolve::is_reserved_prefix(&fqdn) {
-                    self.register_stdlib_with_span(singleton, span.clone())?;
-                } else {
-                    self.register_with_span(singleton, span.clone())?;
-                }
-                self.register_subtype(&fqdn, &e.name, span)?;
-            }
-        }
-        Ok(())
     }
 }
 
