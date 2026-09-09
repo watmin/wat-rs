@@ -133,8 +133,8 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _ _)
-          (:wat::core::Tuple visible unacked))
+        ((:queue::Queue::StatsResponse::Ok qst)
+          (:wat::core::Tuple (:queue::Stats/visible qst) (:queue::Stats/unacked qst)))
         (_ (:wat::core::Tuple -1 -1))))
     (_ (:wat::core::Tuple -1 -1))))
 
@@ -142,7 +142,7 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok calls _ticks _visible _unacked _ _ _) calls)
+        ((:queue::Queue::StatsResponse::Ok qst) (:queue::Stats/receive-calls qst))
         (_ -1)))
     (_ -1)))
 

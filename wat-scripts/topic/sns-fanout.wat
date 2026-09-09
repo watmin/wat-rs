@@ -232,11 +232,12 @@
        (:wat::core::match st
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
-             ((:queue::Queue::StatsResponse::Ok _calls ticks visible unacked _ _ _)
+             ((:queue::Queue::StatsResponse::Ok qst)
                (:wat::core::let [d (:demo::topic::State/durable s)]
                  (:wat::service::Outcome::Continue s
                    (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok
-                     (:wat::i64::+ visible unacked) ticks
+                     (:wat::i64::+ (:queue::Stats/visible qst) (:queue::Stats/unacked qst))
+                     (:queue::Stats/ticks qst)
                      (:demo::topic::Record/inbox-lost d)
                      (:demo::topic::Record/inbox-closed d)
                      (:demo::topic::Record/inbox-timedout d))))
@@ -830,8 +831,8 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _ _)
-          (:wat::core::Tuple visible unacked))
+        ((:queue::Queue::StatsResponse::Ok qst)
+          (:wat::core::Tuple (:queue::Stats/visible qst) (:queue::Stats/unacked qst)))
         (_ (:wat::core::Tuple -1 -1))))
     (_ (:wat::core::Tuple -1 -1))))
 

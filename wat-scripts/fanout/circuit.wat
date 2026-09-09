@@ -1088,8 +1088,8 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _ _)
-          (:wat::core::Tuple visible unacked))
+        ((:queue::Queue::StatsResponse::Ok qst)
+          (:wat::core::Tuple (:queue::Stats/visible qst) (:queue::Stats/unacked qst)))
         (_ (:wat::core::Tuple -1 -1))))
     (_ (:wat::core::Tuple -1 -1))))
 
@@ -1121,6 +1121,26 @@
           (:wat::core::Tuple lost closed timedout))
         (_ (:wat::core::Tuple -1 -1 -1))))
     (_ (:wat::core::Tuple -1 -1 -1))))
+
+(:wat::core::defn :fanout::tier-line
+  [name <- :wat::core::String  q <- :queue::Queue] -> :wat::core::String
+  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+    ((:wat::kernel::RecvOutcome::Message r)
+      (:wat::core::match r
+        ((:queue::Queue::StatsResponse::Ok qst)
+          (:wat::core::format
+            "tier={name};accepted={a};refused={rf};acks={k};redeliveries={rd};expired-waiters={ew};visible={v};unacked={u};store-calls={sc}"
+            :name name
+            :a (:queue::Stats/sends-accepted qst)
+            :rf (:queue::Stats/sends-refused qst)
+            :k (:queue::Stats/acks qst)
+            :rd (:queue::Stats/redeliveries qst)
+            :ew (:queue::Stats/expired-waiters qst)
+            :v (:queue::Stats/visible qst)
+            :u (:queue::Stats/unacked qst)
+            :sc (:queue::Stats/store-calls qst)))
+        (_ (:wat::core::format "tier={name};stats=not-ok" :name name))))
+    (_ (:wat::core::format "tier={name};stats=lost" :name name))))
 
 (:wat::core::defn :fanout::require!
   [r <- :wat::core::String] -> :wat::core::nil
@@ -1816,8 +1836,8 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok calls _ticks _visible _unacked _ _ _)
-              (:wat::i64::+ acc calls))
+            ((:queue::Queue::StatsResponse::Ok qst)
+              (:wat::i64::+ acc (:queue::Stats/receive-calls qst)))
             (_ acc)))
         (_ acc)))
     0
@@ -1830,8 +1850,8 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls ticks _visible _unacked _ _ _)
-              (:wat::i64::+ acc ticks))
+            ((:queue::Queue::StatsResponse::Ok qst)
+              (:wat::i64::+ acc (:queue::Stats/ticks qst)))
             (_ acc)))
         (_ acc)))
     0
@@ -1844,8 +1864,8 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked sc _ _)
-              (:wat::i64::+ acc sc))
+            ((:queue::Queue::StatsResponse::Ok qst)
+              (:wat::i64::+ acc (:queue::Stats/store-calls qst)))
             (_ acc)))
         (_ acc)))
     0
@@ -1858,8 +1878,8 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked _ sns _)
-              (:wat::i64::+ acc sns))
+            ((:queue::Queue::StatsResponse::Ok qst)
+              (:wat::i64::+ acc (:queue::Stats/store-ns qst)))
             (_ acc)))
         (_ acc)))
     0
@@ -1872,8 +1892,8 @@
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok _calls _ticks _visible _unacked _ _ hn)
-              (:wat::i64::+ acc hn))
+            ((:queue::Queue::StatsResponse::Ok qst)
+              (:wat::i64::+ acc (:queue::Stats/handler-ns qst)))
             (_ acc)))
         (_ acc)))
     0
@@ -2187,6 +2207,7 @@
                     (:fanout::dial-queue (:queue::queue::Handle/addr (:wat::core::nth queues i)))))
                 (:wat::core::Vector :- [:queue::Queue])
                 (:wat::core::range 0 m))
+     inbox-q (:fanout::dial-queue (:queue::queue::Handle/addr inbox-qh))
      topic (:fanout::dial-topic (:demo::topic::Handle/addr th))
      phandles (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::publisher::Handle])
@@ -2402,9 +2423,21 @@
               :dsms (:wat::i64::/ (:wat::i64::- ns-after ns-before) (:wat::i64::* 1000000 m))
               :dbms (:wat::i64::/ (:wat::i64::- hn-after hn-before) (:wat::i64::* 1000000 m))
               :total (ms t-setup0 t-end))
-     traces (:fanout::traces-report (:fanout::traces-of outs))]
+     traces (:fanout::traces-report (:fanout::traces-of outs))
+     inbox-line (:fanout::tier-line "inbox" inbox-q)
+     sub-lines
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::String
+           (:wat::core::format "{a} ;; {l}"
+             :a acc
+             :l (:fanout::tier-line
+                  (:wat::core::format "sub[{i}]" :i i)
+                  (:wat::core::nth qclients i))))
+         ""
+         (:wat::core::range 0 m))]
     (:wat::core::Tuple summary calls
-      (:wat::core::format "{p} ;; {tr}" :p phases :tr traces))))
+      (:wat::core::format "{p} ;; {tr} ;; {inbox}{subs}"
+        :p phases :tr traces :inbox inbox-line :subs sub-lines))))
 
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]

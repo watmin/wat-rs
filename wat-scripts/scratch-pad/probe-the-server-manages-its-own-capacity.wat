@@ -28,8 +28,8 @@
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok _calls _ticks visible unacked _ _ _)
-          (:wat::i64::+ visible unacked))
+        ((:queue::Queue::StatsResponse::Ok qst)
+          (:wat::i64::+ (:queue::Stats/visible qst) (:queue::Stats/unacked qst)))
         (_ (:wat::kernel::assertion-failed! "cap: stats not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "cap: stats recv failed" :wat::core::None :wat::core::None))))
 
