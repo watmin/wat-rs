@@ -204,15 +204,6 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // check is complete and sound. TypeError converts to StartupError::Type via
     // the From impl in freeze.rs.
     validate_aggregate_containment(&types)?;
-    // Arc 296 A-2 RELAND-1 — every enum variant becomes its own type (`:Enum::Variant`, a
-    // singleton `TypeDef::Enum` sharing the parent's type params) plus a head-level
-    // subtype edge `Variant <: Enum`, BEFORE the P-3 annotation wall
-    // (`validate_named_type_annotations`, below) and ctor-method synthesis
-    // (`register_enum_methods`) see them. Stdlib enums are NOT excluded (RELAND-0's
-    // `!is_reserved_prefix` scope cut relocated its failures into user code instead of
-    // avoiding them — see `TypeEnv::register_variant_types`'s doc comment); `join_types`
-    // (`src/check.rs`) is what makes registering every enum, stdlib included, safe.
-    types.register_variant_types()?;
 
     // 6. Function definitions.
     let mut symbols = SymbolTable::new();

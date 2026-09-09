@@ -59,13 +59,8 @@ fn wrong_response_type_at_reply_site_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    // Arc 296 A-2 RELAND-3 — RECAPTURE, KEEP PINNING (never normalise a golden to erase a
-    // stdlib line, per the seam's standing ruling). The restored join's ctor-narrowing now
-    // reports the VARIANT (`::PutResponse::Success`), strictly more informative than the bare
-    // enum this golden used to pin — the compile is still refused, still a located TypeMismatch,
-    // never a runtime mismatch (this test's whole point, unchanged).
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
             if expected == ":wat::telemetry::Journal::WriteMetricsResponse"
-            && got == ":wat::query::Store::PutResponse::Success");
+            && got == ":wat::query::Store::PutResponse");
 }
