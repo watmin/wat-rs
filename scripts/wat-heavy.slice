@@ -1,0 +1,27 @@
+[Unit]
+Description=Heavy wat-rs work (builds, floors, sweeps) — bounded so the box stays reachable
+
+# Sized from a measurement, not a guess. On 2026-09-09 the user slice's own
+# accounting recorded the event that killed sshd:
+#
+#   user.slice memory.peak       31G   of 31.8G total   — RAM exhausted
+#   user.slice memory.swap.peak  25G   of 25.4G swap    — swap exhausted, 100%
+#
+# ~56G of demand. The 30-minute recovery was not the OOM kill itself; it was
+# 25G of swap thrash, which starves sshd of I/O and CPU long before and after
+# the kill lands. MemorySwapMax is therefore the load-bearing limit here, not
+# MemoryMax.
+#
+# The ceiling is SHARED, deliberately. memory.peak above is an AGGREGATE across
+# everything in the user slice, and the realistic failure is two heavy runs at
+# once (an orchestrator measuring while an executor runs its own floor). A
+# per-command cap does not bound that; a slice does.
+
+[Slice]
+# Throttle and reclaim first — a build that hits this gets SLOW, not killed.
+MemoryHigh=18G
+# Hard backstop. 31.8G total, so ~9G stays for sshd, tmux, the agents and cache.
+MemoryMax=22G
+# The anti-thrash limit. Without this, 25G of swap turns a memory spike into an
+# unreachable machine.
+MemorySwapMax=2G

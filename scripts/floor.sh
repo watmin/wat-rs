@@ -49,7 +49,7 @@ ARM="$OUT/ARM.txt"
 strip_ansi() { sed 's/\x1b\[[0-9;]*m//g'; }
 
 echo "[floor] capturing to .floor/$STAMP/ (symlinked as .floor/latest)"
-echo "[floor] nice -n 19 cargo nextest run --release $*"
+echo "[floor] scripts/capped.sh nice -n 19 cargo nextest run --release $*"
 echo
 
 # Capture EVERYTHING. The tee is the point: the disk gets the whole run even if
@@ -90,10 +90,15 @@ echo
 # child's status. Verified both ways: green propagates 0, red propagates 100 with
 # ARM.txt captured. Do NOT move it to wrap the whole pipe.
 #
-# ⚠ `nice` must stay INSIDE the pipeline's first stage — `${PIPESTATUS[0]}` below is
-# nextest's own exit code, and it stays correct because `nice` exec's and returns the
-# child's status. Do NOT move it to wrap the whole pipe.
-nice -n 19 cargo nextest run --release "$@" 2>&1 | tee "$RAW"
+# ⚠ THE SAME APPLIES TO `scripts/capped.sh`, added 2026-09-09 after a run exhausted
+# RAM *and* all 25G of swap and took sshd down for ~30 minutes. It bounds the run in
+# a SHARED slice so a spike kills the work, not the box. It sits outside `nice` and
+# INSIDE this first pipeline stage for exactly the reason above: it `exec`s
+# systemd-run --scope, which runs the child synchronously and returns the child's own
+# status. Verified the same two ways — 0 propagates 0, 100 propagates 100, and a
+# cap-induced SIGKILL propagates 137. A capped red is a RED like any other; if the
+# cap is what killed the run, the Summary line will be ABSENT and that is a finding.
+scripts/capped.sh nice -n 19 cargo nextest run --release "$@" 2>&1 | tee "$RAW"
 status=${PIPESTATUS[0]}
 
 strip_ansi < "$RAW" > "$CLEAN"
