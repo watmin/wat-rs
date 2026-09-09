@@ -22,6 +22,28 @@
 //! dispatcher for every form the language admits, and every "cannot lower" it emits is a promise
 //! that `exec` will not meet that shape.
 //!
+//! ── DEPTH, AND THE THREE DOORS ────────────────────────────────────────────────────────────────
+//!
+//! This file is not self-bounded by a constant of its own. The budget is
+//! [`crate::macros::EXPANSION_DEPTH_LIMIT`] (`src/macros/expand.rs`): expansion increments it
+//! **per nested form**, not per macro — a tower of plain `:wat::rete::core::i64::+` trips it.
+//! Measured 2026-09-08: source nesting 509 accepted, 510 refused with
+//! `#wat.macro/ExpansionDepthExceeded`. Lowering binds that same constant so there is one
+//! number for the deepest form the language accepts.
+//!
+//! Three doors:
+//!
+//! - **compile path (source).** Expansion refuses first. Lowering's budget is the same limit, so
+//!   a program expansion accepts still lowers. `tests/rete/probe_arc278_lower_depth_shield.rs`
+//!   keeps that true.
+//! - **`import`.** Never reaches `lower`. `unpack_expr` (`src/rete/export.rs`) returns `Expr`
+//!   and is guarded by `MAX_IMPORT_DEPTH`.
+//! - **`:wat::rete::lower` + `quote`.** `expand_form` returns the quote family untouched —
+//!   children are not walked. This door was unbounded: 50,000-deep quoted nesting accepted on
+//!   an 8 MB stack; on a 2 MiB stack (nextest test-thread size) it aborted (`rc=134`,
+//!   `fatal runtime error: stack overflow`) at ~1539. The budget on `LowerCx` is this door's
+//!   guard. The probe drives it.
+//!
 //! ── THE FRAME MODEL ──────────────────────────────────────────────────────────────────────────
 //!
 //! A [`Program`] carries `frame_len` slots. The caller allocates `[Option<Value>; frame_len]`,
@@ -67,6 +89,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
+use crate::macros::EXPANSION_DEPTH_LIMIT;
 use crate::rete::matcher::{compare_values, Bindings, FieldNames};
 use crate::rete::vocabulary::{resolve_core_name, OpClass, RETE_OPS};
 use crate::runtime::{
@@ -196,6 +219,9 @@ pub(crate) enum LowerErrorKind {
     Unsupported { reason: String },
     NonLexicalCallee,
     Unbound { name: String },
+    /// Nesting past [`EXPANSION_DEPTH_LIMIT`]. The quote door (`:wat::rete::lower` of a
+    /// quoted tree) never passed through expansion; this is that door's refusal.
+    DepthExceeded { depth: u32, limit: usize },
 }
 
 impl LowerError {
@@ -217,6 +243,13 @@ impl LowerError {
         Self {
             span,
             kind: LowerErrorKind::Unbound { name },
+        }
+    }
+
+    pub(crate) fn depth_exceeded(span: Span, depth: u32, limit: usize) -> Self {
+        Self {
+            span,
+            kind: LowerErrorKind::DepthExceeded { depth, limit },
         }
     }
 
@@ -248,6 +281,16 @@ impl LowerError {
                 RuntimeErrorKind::UnboundSymbol(name),
             )
             .into(),
+            LowerErrorKind::DepthExceeded { depth, limit } => RuntimeError::new(
+                self.span,
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::rete::lower".into(),
+                    reason: format!(
+                        "lowering nesting depth {depth} exceeds EXPANSION_DEPTH_LIMIT {limit}"
+                    ),
+                },
+            )
+            .into(),
         }
     }
 }
@@ -259,6 +302,8 @@ struct LowerCx<'a> {
     next: u16,
     /// When true, a call-position that is not literal `fn` / named rete-defn is NonLexicalCallee.
     hof_fn_pos: bool,
+    /// Shared nesting budget. See [`LowerCx::deeper`].
+    depth: u32,
 }
 
 impl<'a> LowerCx<'a> {
@@ -270,6 +315,26 @@ impl<'a> LowerCx<'a> {
         self.next += 1;
         self.slots.insert(name.to_string(), s);
         s
+    }
+
+    /// Descend one nested form, or refuse past [`EXPANSION_DEPTH_LIMIT`].
+    ///
+    /// Every mutually recursive composite (`lower_list`, `lower_hof_callee`, `lower_pat`)
+    /// calls this as its first statement so ONE budget is shared rather than each counting
+    /// its own. `lower_expr` does **not** increment: for a `List` it dispatches into
+    /// `lower_list` on the SAME node, and counting both would double-count every call form
+    /// — a 509-deep source program (expansion's measured wall) would then refuse at lower,
+    /// which is STOP-2. Leaves (symbols, literals) are not nested forms.
+    ///
+    /// Shape is `export.rs`'s `deeper`: increment, compare, refuse as a value.
+    fn deeper(&mut self, span: &Span) -> Result<(), LowerError> {
+        let d = self.depth + 1;
+        let limit = EXPANSION_DEPTH_LIMIT;
+        if d as usize > limit {
+            return Err(LowerError::depth_exceeded(span.clone(), d, limit));
+        }
+        self.depth = d;
+        Ok(())
     }
 }
 
@@ -300,6 +365,7 @@ pub(crate) fn lower_in_frame(
         slots: std::mem::take(slots),
         next: *next,
         hof_fn_pos: false,
+        depth: 0,
     };
     let out = lower_expr(expr, &mut cx);
     // Write the counter and map back WHATEVER the outcome: a failed lowering may still have
@@ -327,6 +393,7 @@ pub(crate) fn lower(expr: &WatAST, sym: &SymbolTable) -> Result<Program, LowerEr
         slots: HashMap::new(),
         next: 0,
         hof_fn_pos: false,
+        depth: 0,
     };
     let root = lower_expr(expr, &mut cx)?;
     let mut reads: Vec<(Value, u16)> = cx
@@ -429,6 +496,7 @@ pub(crate) fn keyword_value(k: &str, sym: &SymbolTable) -> Value {
 /// not — a literal `fn`, a named rete `defn` — and refuses shapes an operand would accept. It sets
 /// `cx.hof_fn_pos` so a nested call knows it is being lowered as a callee, not as a value.
 fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
+    cx.deeper(ast.span())?;
     match ast {
         WatAST::List(items, span) => {
             let head = match items.first() {
@@ -471,6 +539,7 @@ fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> 
 /// ⛔ **EVERY REFUSAL HERE IS A PROMISE `exec` WILL NOT MEET THAT SHAPE** (the module's totality
 /// invariant). Adding a form means adding it here, not adding an arm to `exec`.
 fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
+    cx.deeper(span)?;
     let head = match items.first() {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
         Some(other) => {
@@ -767,6 +836,7 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
 /// pattern's binders are in scope for that arm's body ONLY — the slots are shared with the parent
 /// frame, so an arm must not read a binder another arm introduced.
 fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
+    cx.deeper(ast.span())?;
     if let Some(v) = crate::rete::matcher::ast_literal_value(ast) {
         return Ok(Pat::Lit(v));
     }
@@ -923,6 +993,7 @@ fn lower_rete_defn(
         slots: HashMap::new(),
         next: 0,
         hof_fn_pos: false,
+        depth: 0,
     };
     let mut params = Vec::with_capacity(func.params.len());
     for p in &func.params {
