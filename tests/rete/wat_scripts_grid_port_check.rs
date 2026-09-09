@@ -159,6 +159,17 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
          S1..S6 cascade (which is the property this axis exists to hold).",
     ),
     (
+        "leading-neg-consumer",
+        &[20],
+        20,
+        "size=[items]; a LEADING :exists over Wind (asserted twice per loc) produces Signal, \
+         bound per DISTINCT loc, consumed positively by Ok (NOT Bad, Bad never seeded) then \
+         Final (joined with Tag, seeded for every loc). :derived is the sorted Final locs, \
+         NOT deduped. Correct answer: exactly [0..items) — 20. Compound cell of \
+         leading-exists (L=leading) and neg-consumer (N=consumed); see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
+    ),
+    (
         "min-finding",
         &[100, 3],
         49,
@@ -196,6 +207,34 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
          3 * 200 = 600. ★ This is the axis that carries D7's shape; see its header.",
     ),
     (
+        "retract-accum-derived",
+        &[9],
+        10,
+        "size=[depth]; accum-over-derived's shape (Seed anchors [?n <- acc/count :from Step]; \
+         Step(k):-Step(k-1)), with Step(0) — the accumulate's own :from source AND the \
+         cascade's root — duplicated then ONE copy retracted before re-fire. :derived is \
+         enc(0,k,0) per derived Step level plus enc(1,0,n) per Tally, sorted not deduped. \
+         PREDICTED expected count = depth + 1 = 10 under correct remove-one/truth-\
+         maintenance semantics (the population converges to accum-over-derived's own \
+         canonical state) — this prediction is itself the hypothesis the cell exists to \
+         test; see its .wat header and DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
+    ),
+    (
+        "retract-lead-accum",
+        &[3, 2, 3],
+        2,
+        "size=[items anchors depth]; accum-lead-rule-cascade's shape (leading \
+         [?n <- acc/count :from Reading] joined to Anchor(k), plus an inert Link cascade), \
+         with Reading(0) duplicated then ONE copy retracted before re-fire. :derived is \
+         enc(k,n) per Busy, sorted not deduped. Post-retract Reading population returns to \
+         items=3, so n=3 and expected count = anchors = 2, re-derived from the formula \
+         (constancy in depth, exactly accum-lead-rule-cascade's own assertion). Compound \
+         cell of retract-multiplicity (R=present) and accum-lead-rule-cascade (L=leading); \
+         see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
+    ),
+    (
         "retract-multiplicity",
         &[3],
         3,
@@ -217,6 +256,19 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
         5,
         "size=[locs reads]; sum-of-squares over each location's non-empty reading vector emits \
          exactly ONE Agg fact per location — 5.",
+    ),
+    (
+        "userfn-accum-derived",
+        &[9],
+        10,
+        "size=[depth]; accum-over-derived's shape (Seed anchors [?n <- acc/count :from \
+         Step]; Step(k):-Step(k-1)), with the accumulate's :then head calling a user fn \
+         `mk-tally` instead of constructing Tally directly. :derived is enc(0,k,0) per \
+         derived Step level plus enc(1,0,n) per Tally, sorted not deduped. Expected count = \
+         depth + 1 = 10 — identical to accum-over-derived's own number, since mk-tally is a \
+         pure 1:1 wrapper and changes no cardinality. Compound cell of userfn-head \
+         (H=userfn) and accum-over-derived (A=derived); see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
     ),
     (
         "userfn-head",

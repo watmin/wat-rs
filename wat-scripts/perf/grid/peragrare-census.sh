@@ -77,8 +77,9 @@ cd "$GRID_DIR"
 
 # ── MEMBERSHIP: reconcile against check-grid-three-way.sh's own discovery ──────────────────────
 EXPECTED_FIXTURES=(accum accum-lead-derived accum-lead-rule-cascade accum-over-derived asym-join
-  deep-cascade fanout leading-exists min-finding negation neg-consumer node-share
-  parametric-erasure retract-multiplicity strat-neg userfn-head user-reduce)
+  deep-cascade fanout leading-exists leading-neg-consumer min-finding negation neg-consumer
+  node-share parametric-erasure retract-accum-derived retract-lead-accum retract-multiplicity
+  strat-neg userfn-accum-derived userfn-head user-reduce)
 
 live_discovered() {
   for wat in *.wat; do
@@ -114,13 +115,17 @@ asym-join record absent none none na
 deep-cascade record absent none none na
 fanout record absent none none na
 leading-exists record absent none leading na
+leading-neg-consumer record absent none leading consumed
 min-finding record absent base nonleading na
 negation record absent none none not-consumed
 neg-consumer record absent none none consumed
 node-share record absent none none na
 parametric-erasure record absent none none na
+retract-accum-derived record present derived nonleading na
+retract-lead-accum record present base leading na
 retract-multiplicity record present none none na
 strat-neg record absent none none not-consumed
+userfn-accum-derived userfn absent derived nonleading na
 userfn-head userfn absent none none consumed
 user-reduce record absent base nonleading na
 EOF
@@ -129,6 +134,13 @@ EOF
 # `;;` full-line comments are stripped first (comments are exempt from code-position
 # analysis — the same doctrine this repo's own rete-name lint applies to `.wat` code).
 stripped() { grep -v '^\s*;;' "$1.wat"; }
+
+# Per-fixture H=userfn witness: the exact `:then` call site that proves the head is a user
+# fn, not a record constructor. One row per H=userfn fixture — see verify_fixture below.
+declare -A USERFN_SNIPPET=(
+  [userfn-head]=':then [(:ufh::mk-rate ?k)]'
+  [userfn-accum-derived]=':cad::mk-tally ?n'
+)
 
 verify_fixture() {  # name H R A L N
   local name="$1" H="$2" R="$3" A="$4" L="$5" N="$6" s ok=0
@@ -158,10 +170,18 @@ verify_fixture() {  # name H R A L N
     echo "  [$name] table says N=na but file DOES call wat::rete::not" >&2; ok=1; fi
   if [ "$N" != na ] && [ "${not_n:-0}" -eq 0 ]; then
     echo "  [$name] table says N=$N but file has NO wat::rete::not call" >&2; ok=1; fi
-  # H=userfn: only userfn-head.wat: the exact cited construction must still be present.
+  # H=userfn: the exact cited :then-head-is-a-userfn construction must still be present,
+  # PER FIXTURE (each H=userfn fixture mints its own fn — this used to hardcode
+  # userfn-head's own ':then [(:ufh::mk-rate ?k)]' regardless of which row was being
+  # checked, which would have wrongly reported drift the moment a SECOND H=userfn fixture
+  # existed with a different fn name; see USERFN_SNIPPET below).
   if [ "$H" = userfn ]; then
-    grep -qF ':then [(:ufh::mk-rate ?k)]' <<<"$s" || {
-      echo "  [$name] table says H=userfn but the cited '(:ufh::mk-rate ?k)' :then is gone" >&2; ok=1; }
+    local snippet="${USERFN_SNIPPET[$name]:-}"
+    if [ -z "$snippet" ]; then
+      echo "  [$name] table says H=userfn but no USERFN_SNIPPET row is registered for it" >&2; ok=1
+    elif ! grep -qF "$snippet" <<<"$s"; then
+      echo "  [$name] table says H=userfn but the cited '$snippet' :then is gone" >&2; ok=1
+    fi
   fi
   return $ok
 }

@@ -112,6 +112,16 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          emitted one token PER ROUND, and the row count must be independent of the cascade.",
     ),
     (
+        "leading-neg-consumer",
+        &[3],
+        "size=[items]; a LEADING :exists over Wind produces Signal (bound per distinct loc), \
+         consumed positively by Ok (NOT Bad, Bad never seeded) then Final (joined with Tag) \
+         — items=3 derives Final for every loc in [0,3), non-empty. The correctness size is \
+         20; this is liveness. Compound cell of leading-exists (L=leading) and neg-consumer \
+         (N=consumed) — see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
+    ),
+    (
         "deep-cascade",
         &[2, 3],
         "size=[depth width]; every seeded id survives every level by construction (\"the \
@@ -163,6 +173,26 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          items>=3 to hold both interleavings.",
     ),
     (
+        "retract-accum-derived",
+        &[4],
+        "size=[depth]; accum-over-derived's shape (Seed anchors acc::count :from Step; \
+         Step(k):-Step(k-1)) but Step(0) is duplicated then ONE copy retracted before \
+         re-fire. depth=4 derives depth+1=5 facts (4 Step levels + 1 Tally) — non-empty. \
+         The correctness size is 9; this is liveness. Compound cell of retract-multiplicity \
+         (R=present) and accum-over-derived (A=derived) — see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
+    ),
+    (
+        "retract-lead-accum",
+        &[2, 1, 2],
+        "size=[items anchors depth]; accum-lead-rule-cascade's shape (leading acc::count \
+         :from Reading joined to Anchor) but Reading(0) is duplicated then ONE copy \
+         retracted before re-fire. anchors=1 derives one Busy — non-empty. The correctness \
+         size is [3 2 3]; this is liveness. Compound cell of retract-multiplicity \
+         (R=present) and accum-lead-rule-cascade (L=leading) — see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
+    ),
+    (
         "retract-multiplicity",
         &[3],
         "size=[items]; F(0)×2, F(k)×1 for k>0, G(k)×1; fire; retract F(0) ONCE; re-fire. \
@@ -179,6 +209,16 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
         &[2, 3],
         "size=[locs reads]; every location gets `reads` readings and sum-of-squares over a \
          non-empty PV is always emitted as one Agg fact per location — 2 locs is non-empty.",
+    ),
+    (
+        "userfn-accum-derived",
+        &[4],
+        "size=[depth]; accum-over-derived's shape (Seed anchors acc::count :from Step; \
+         Step(k):-Step(k-1)) but the accumulate's :then head calls a user fn `mk-tally` \
+         instead of constructing Tally directly. depth=4 derives depth+1=5 facts (4 Step \
+         levels + 1 Tally) — non-empty. The correctness size is 9; this is liveness. \
+         Compound cell of userfn-head (H=userfn) and accum-over-derived (A=derived) — see \
+         DESIGN at docs/arc/2026/06/278-rules-engine/strike-grid-remaining-compound-cells/.",
     ),
     (
         "userfn-head",

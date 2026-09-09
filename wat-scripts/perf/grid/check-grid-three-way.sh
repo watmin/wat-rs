@@ -80,14 +80,18 @@ declare -A SIZES=(
   [deep-cascade]="5 20"
   [fanout]="500"
   [leading-exists]="20"
+  [leading-neg-consumer]="20"
   [min-finding]="100 3"
   [negation]="50"
   [neg-consumer]="50"
   [node-share]="10 20"
   [parametric-erasure]="200"
+  [retract-accum-derived]="9"
+  [retract-lead-accum]="3 2 3"
   [retract-multiplicity]="3"
   [strat-neg]="3 50"
   [user-reduce]="5 20"
+  [userfn-accum-derived]="9"
   [userfn-head]="5"
 )
 
