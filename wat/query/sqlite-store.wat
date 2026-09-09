@@ -209,11 +209,43 @@
        name (:wat::query::IndexSchema/name ix)
        ddl  (:wat::core::format
               "CREATE TABLE IF NOT EXISTS [index_{name}] (ipk TEXT NOT NULL, isk TEXT NOT NULL, pk TEXT NOT NULL, sk TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(ipk, isk, pk, sk))"
-              :name name)]
+              :name name)
+       ;; ─── the base-key REVERSE MAPPING — completing the replication, not tuning it ────────────
+       ;; DynamoDB's contract is delete-by-BASE-key: a caller never addresses a GSI entry, DDB
+       ;; propagates the removal. This store replicated that interface exactly (`delete`'s
+       ;; `clear-index-projections` and `put`'s clear step both run
+       ;; `DELETE FROM [index_<name>] WHERE pk=? AND sk=?`) — but not the structure that makes it
+       ;; cheap. DDB keeps an internal base-key -> GSI-entry mapping; here the GSI table's only
+       ;; index was `PRIMARY KEY(ipk, isk, pk, sk)`, whose b-tree LEADS with (ipk, isk). A lookup by
+       ;; the TRAILING segments (pk, sk) cannot use it, so every GSI-row clear was a full table
+       ;; scan of `index_<name>` — measured at `4000/1000 = 1.966` per-call growth on `delete`
+       ;; (SCORE-the-store-reports-time-per-operation), against `scan-index`'s flat 0.890 on the
+       ;; same table with the same code.
+       ;;
+       ;; This is the mapping. It is ADDITIVE: no interface changes, the DELETE statement is
+       ;; byte-identical, and exactly the same rows are removed — only the access path changes.
+       ;; It does NOT serve `scan`/`scan-index`/`count-index`, which all predicate on `ipk` with an
+       ;; `isk` range and keep using the primary key.
+       ;;
+       ;; ⚠ It is not free: every `put` now maintains a THIRD b-tree per GSI row (main's PK, the
+       ;; GSI PK, and this). The net effect on the drain is a measurement, not an assumption — see
+       ;; SCORE-the-gsi-delete-gets-its-reverse-mapping.md.
+       ;;
+       ;; `IF NOT EXISTS` because `ensure-schema` runs on every store start and must stay
+       ;; idempotent. The name derives from the GSI's own name, so it cannot collide across GSI
+       ;; tables (a collision would be SILENT under `IF NOT EXISTS` — the second table would simply
+       ;; go unindexed — which is why the probe reads `sqlite_master` for both names).
+       bykey (:wat::core::format
+               "CREATE INDEX IF NOT EXISTS [index_{name}_by_key] ON [index_{name}] (pk, sk)"
+               :name name)]
       (:wat::core::match (:wat::sqlite::execute-ddl conn ddl)
-        
+
         ((:wat::core::Err e) (:wat::core::Err e))
-        ((:wat::core::Ok _) (:wat::query::ensure-index-tables conn tl))))))
+        ((:wat::core::Ok _)
+          (:wat::core::match (:wat::sqlite::execute-ddl conn bykey)
+
+            ((:wat::core::Err e) (:wat::core::Err e))
+            ((:wat::core::Ok _) (:wat::query::ensure-index-tables conn tl))))))))
 
 ;; ─── put — clear-then-insert, one row at a time inside the caller's BEGIN/COMMIT ────────────────
 (:wat::core::defn :wat::query::clear-index-projections
