@@ -83,6 +83,40 @@ fn a_nonexistent_variant_is_refused() {
     assert_eq!(check("nonexistent_variant"), 1);
 }
 
+/// SUBJECT — the builder's expression, and the reason mechanism ② unfenced. A nested literal
+/// construction passed to a parameter declared with the BASE enums. The nesting was never the
+/// problem: `{:value {:error "inner"}}` works, and the enum-variant spelling of the same shape
+/// must too.
+///
+/// ⚠ GREEN on a tree without variant types (erasure makes both sides agree); RED at the WIP.
+/// Judge it against the restored tree.
+#[test]
+#[ignore = "arc 296 A-2 RELAND-4 — vacuous without variant types; red at the WIP"]
+fn a_nested_variant_literal_reaches_a_base_typed_parameter() {
+    let (code, out) = run_check("nested_variant_literal");
+    assert_eq!(code, 0, "got: {out}");
+}
+
+/// ⛔⛔ THE ROW THAT SCOPES OPTION E, AND THE ONLY ROW A GENERAL-COVARIANCE IMPLEMENTATION FAILS.
+///
+/// E is sound because an ENUM is a sum of records: its type parameters appear only in variant
+/// FIELD positions, which are read by `match`. There is no place to put a value IN, so widening
+/// inside an enum's arguments cannot be unsound.
+///
+/// A `defrecord` is NOT an enum. It may hold a resource, and nothing guarantees its `T` is
+/// read-only — the same reason `:wat::kernel::Sender :- [T]` (a typealias to a rust opaque, also
+/// not an enum) must never widen. So widening a variant INSIDE a non-enum container must STAY
+/// REFUSED.
+///
+/// ⚠ RED at the WIP and must STAY RED. Every other row in this file passes under general
+/// covariance; only this one distinguishes "widen inside ENUMS" from "widen inside anything".
+#[test]
+#[ignore = "arc 296 A-2 RELAND-4 — vacuous without variant types; must be RED under E"]
+fn a_non_enum_container_does_not_widen_its_argument() {
+    let (code, out) = run_check("non_enum_container_stays_invariant");
+    assert_eq!(code, 1, "a defrecord's type argument must stay invariant; got: {out}");
+}
+
 /// ⛔ THE TWO-PATHS ROW. An INTRINSIC's parameter must accept a narrowed variant exactly as a
 /// USER DEFN's already does. Measured at RELAND-1's preserved tree `60813552a`:
 ///
