@@ -197,3 +197,77 @@ is bigger:
    ones take ~31 s and cannot gate.
 
 ⛔ Still: do not widen a rate, a cap, or a timeout to turn a red green. The reds are the product.
+
+---
+
+# ⭑⭑ PROBE B — RUN, AND IT REFUTED MY HYPOTHESIS. TWICE.
+
+The CLI had no chaos surface at all — all six knobs were literal zeros at `circuit.wat:2580` — so
+this probe first required giving it one. `argv 8/9/10` are now optional `drop-recv-bp` /
+`drop-ack-bp` / `drop-seed`, defaulting to 0, so every existing invocation is unchanged (verified:
+`200 2 2 32 false 1000` still gives `distinct=400 dup=0 disrupts=0`).
+
+## The failure is LOAD-INDUCED, and nothing else
+
+Same binary, same arguments, same `drop-seed 42`:
+
+| condition | result |
+|---|---|
+| alone on a quiet box, `sub-cap` 32 / 64 / 128 / 256 | **PASS, all four** |
+| 8 concurrent copies of the identical command | **4 of 8 FAIL** (exit 2) |
+
+`attempts=100` is exhausted in every failure; `elapsed` 1627–2083 ms.
+
+## ⛔ Hypothesis 1 — backpressure via `sub-cap` — REFUTED
+
+The chain I wrote up (sub-ack reply lost → entries held → sub queues hit `cap 32` → worker's fan
+refused → `ok = min` falls → inbox stops draining) predicted that `outbox` would track `sub-cap`.
+**It does not.** `sub-cap=32`, the fixture's own value, passes cleanly when run alone. Capacity is
+not the binding constraint.
+
+## ⛔ Hypothesis 2 — `19` is seed-determined — REFUTED
+
+I noted both failing tests reported exactly `outbox=19` and guessed the count came from the seed's
+draw pattern. Under load with **the same seed 42**, `outbox` comes out **9, 10, and 19**. It tracks
+contention, not the seed.
+
+## ⛔ Hypothesis 3 — the budget cannot cover redelivery latency — REFUTED
+
+If the 100-attempt budget were losing a race against 200 ms visibility expiries, shortening
+visibility should have fixed it. Under identical 8-way load:
+
+```
+vis-ms = 200 (default)   4/8 fail
+vis-ms =  50             4/8 fail
+vis-ms =  20             3/8 fail
+```
+
+**Redelivery latency is not the variable.** Making redelivery 10× faster changed essentially nothing.
+
+## ⭑ What IS established, and the arithmetic that points at the next hypothesis
+
+- The failure is **purely load-induced**: passes alone at every `sub-cap`, fails 3–4 of 8 under
+  self-contention.
+- The budget is **always fully consumed** — `attempts=100` in every failure.
+- **The budget is spent observing, not waiting.** 100 attempts × 5 ms of intended sleep = **500 ms**,
+  yet `elapsed` is **1627–2083 ms**. So **1.1–1.6 s — two to three times the intended budget — goes
+  into the poller's own round-trips**: `poll-until-drained*` makes `count(qclients) + 1 = 3` stats
+  calls per attempt, i.e. **300 round-trips into the very queue processes the workers need**.
+
+★★ **Next hypothesis, stated as one: the poller starves the system it is polling.** Its stats traffic
+is a material share of the contention, so under load the completion check perturbs the completion it
+is checking. If true, adding budget makes it *worse*, and the fix is a cheaper or rarer poll — which
+means changing `poll-until-drained*`, a stone rather than a probe.
+
+⚠ **Still unproven, and it is the correctness question:** whether those 9–19 inbox entries would
+ever deliver. Every probe so far bounds *why the check fails*, not *whether delivery completes*. The
+strongest evidence is indirect — the identical run completes cleanly when unloaded — and indirect is
+not proof.
+
+## ⛔ What this says about every green we have
+
+The two chaos reds are **not flakes**, and now they are not mysteries either: they are a completion
+check that fails under CPU contention. But the same fact indicts the harness's authority in the other
+direction — **a `drained-never` failure does not distinguish "the system did not deliver" from "the
+poller ran out of budget while measuring."** Until it does, neither its red nor its green carries the
+meaning we have been reading into it.

@@ -2568,7 +2568,21 @@
   (:wat::core::let
     [argv (:wat::runtime::argv)
      proof (:user::deadline-redial-is-fresh)
-     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms]]"
+     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed]]]"
+     ;; ⛔ THE CLI HAD NO CHAOS SURFACE. Until 2026-09-09 every one of the six fault
+     ;; knobs was pinned to a literal zero here, so no sweep run through `main` could
+     ;; ever exercise a drop — the injection existed only inside the `:user::` fixtures
+     ;; the (ignored) Rust tests call. Every timing and correctness number this harness
+     ;; has produced from the CLI was therefore a happy-path number, and nothing said so.
+     ;;
+     ;; argv 8/9/10 are OPTIONAL and default to 0, so every existing invocation is
+     ;; byte-for-byte unchanged. `drop-after?` stays `false`: it is read only by
+     ;; `:fanout::seen::Record` (circuit.wat:2252), so it is inert while
+     ;; drop-check-bp/drop-mark-bp are 0 — those two are still not reachable from here.
+     opt-i64 (:wat::core::fn [o <- (:wat::core::Option :- [:wat::core::String])] -> :wat::core::i64
+               (:wat::core::match o
+                 (:wat::core::None 0)
+                 ((:wat::core::Some v) (:fanout::parse-i64 v))))
      triple
        (:wat::core::match (:wat::core::get argv 2)
          (:wat::core::None (:user::run* 2000 4 3))
@@ -2577,7 +2591,11 @@
              (:fanout::parse-i64 ns)
              (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 3) usage))
              (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 4) usage))
-             1 0 0 0 0 0 false 0 0
+             1 0 0 0 0
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 10)])
+             false
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 8)])
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 9)])
              (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 5) usage))
              (:wat::core::= (:wat::core::Option/expect (:wat::core::get argv 6) usage) "true")
              (:wat::core::match (:wat::core::get argv 7)
