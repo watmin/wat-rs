@@ -72,6 +72,16 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          is already non-empty.",
     ),
     (
+        "accum-lead-derived",
+        &[4],
+        "size=[depth]; Step(k):-Step(k-1) for k in [1,depth] plus one LEADING Tally (no \
+         anchor, no join) of every Step including seeded Step(0). depth=4 derives \
+         depth+1=5 facts (4 Step levels + 1 Tally) — non-empty. The correctness size is \
+         9; this is liveness. Compound cell of accum-over-derived (A=derived) and \
+         leading-exists/accum-lead-rule-cascade (L=leading) — see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-first-compound-cell/.",
+    ),
+    (
         "accum-lead-rule-cascade",
         &[2, 1, 2],
         "size=[items anchors depth]; leading acc::count :from Reading joined to Anchor. \

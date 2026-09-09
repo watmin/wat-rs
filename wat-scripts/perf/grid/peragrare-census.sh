@@ -76,9 +76,9 @@ GRID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$GRID_DIR"
 
 # ── MEMBERSHIP: reconcile against check-grid-three-way.sh's own discovery ──────────────────────
-EXPECTED_FIXTURES=(accum accum-lead-rule-cascade accum-over-derived asym-join deep-cascade
-  fanout leading-exists min-finding negation neg-consumer node-share parametric-erasure
-  retract-multiplicity strat-neg userfn-head user-reduce)
+EXPECTED_FIXTURES=(accum accum-lead-derived accum-lead-rule-cascade accum-over-derived asym-join
+  deep-cascade fanout leading-exists min-finding negation neg-consumer node-share
+  parametric-erasure retract-multiplicity strat-neg userfn-head user-reduce)
 
 live_discovered() {
   for wat in *.wat; do
@@ -107,6 +107,7 @@ check_membership() {
 # name H R A L N
 read -r -d '' TABLE <<'EOF' || true
 accum record absent base nonleading na
+accum-lead-derived record absent derived leading na
 accum-lead-rule-cascade record absent base leading na
 accum-over-derived record absent derived nonleading na
 asym-join record absent none none na

@@ -98,6 +98,18 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
          facts (count/sum/min/max/exists) — 10 groups * 5 = 50.",
     ),
     (
+        "accum-lead-derived",
+        &[9],
+        10,
+        "size=[depth]; Step(k):-Step(k-1) for k in [1,depth] plus one LEADING Tally (its \
+         only condition — no anchor, no join) of every Step including seeded Step(0). \
+         :derived is enc(0,k,0) per derived Step level plus enc(1,0,n) per Tally, sorted \
+         not deduped. Expected count = depth + 1 = 10. A leaked intermediate tally \
+         (accum-over-derived's failure shape) or a per-round duplicate (leading-exists's \
+         failure shape) is an extra element either way. Compound cell — see DESIGN at \
+         docs/arc/2026/06/278-rules-engine/strike-grid-first-compound-cell/.",
+    ),
+    (
         "accum-lead-rule-cascade",
         &[3, 2, 3],
         2,
