@@ -67,13 +67,53 @@ My three axes were wrong, and the precedent's own argument is what caught it.
 mechanism (control transferred into a runtime-supplied subject), so a DIFFERENT verdict would be
 the thing needing an argument.
 
-## The mechanism
+## ⛔ CORRECTED AFTER THE FIRST STRIKE — TWO CLAIMS BELOW WERE FALSE
+
+The declaration was built exactly as drawn and the floor refused it, **4 red at 5301/5305**. Every
+refusal is one of this arc's own gates, working:
+
+```
+every_special_form_carries_check_and_eval_impls
+    ":wat::eval-ast! — missing role: check / missing role: eval"
+probe_can_doc_types_reconstruct_the_checker_scheme
+    "a registered row's @arg/@ret types no longer reconstruct its checker TypeScheme"
+registry_membership_gap_a / _b       the ratchets, now STALE for this name — mechanical
+```
+
+**① "No `NativeHandler`… the arm is untouched" — FALSE.** `#[wat_special_form]` is not a bare
+declaration in this arc. A registered special form MUST carry `#[wat_special_form_impl]` pointers
+for roles `check` and `eval`, which means its dispatch runs THROUGH the registry and its literal
+arm in `runtime.rs:2956`'s ten-way match **dies**. That is
+`[[BRIEF-STONE-the-eval-door]]`'s shape, in its own words: *"Give `role = eval` a callable pointer,
+so the four registered special forms dispatch through the registry and their four literal arms
+die."*
+
+★ **That brief was open in front of me earlier the same session.** I read its opening paragraph
+and moved on. `[[feedback_read_the_epitaph_before_you_build_on_prior_art]]`
+
+**② "The contract is NOT restated" — FALSE.** `probe_can_doc_types_reconstruct_the_checker_scheme`
+requires a registered row's `@arg`/`@ret` to RECONSTRUCT its checker `TypeScheme`. `check.rs:5823`'s
+STOP-6 governs which authority WINS at check time; it does not excuse the doc from expressing the
+same contract. The row and the scheme must agree, or the divergence goes on
+`FROZEN_SPELLING_MISMATCHES` with a measured reason.
+
+★ **The five axes are UNAFFECTED and stand** — they were argued from mechanism and precedent, and
+no gate touched them. The retracted-axes note and the axis grounds in the first strike's doc block
+(commit `62448d367`, reverted but kept) are the redraw's starting point.
+
+## The mechanism — CORRECTED
 
 `#[wat_special_form(":wat::eval-ast!")]` on a unit struct, in a new
 `src/intrinsic/special/eval_ast.rs`, registered in `special/mod.rs`. Per-site declaration collected
 by `inventory` — never a hand-list in the registry builder
-(`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`). No `NativeHandler`: the macro's own doc
-says a special form is dispatched by the runtime engine, so `runtime.rs:2956`'s arm is untouched.
+(`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`).
+
+⛔ **PLUS the two role pointers the wall requires** — `#[wat_special_form_impl]` for `role = check`
+and `role = eval` — and the retirement of `:wat::eval-ast!`'s literal arm from `runtime.rs:2956`'s
+ten-way match. ⚠ That match peels the type binder ONCE for all ten members
+(`let (_binder, args) = peel_param_spec(args)`); removing one member must not strand the other
+nine, and the arm's own comment says the shared peel is deliberate. **Measure that before drawing
+the strike.**
 
 ## ⛔ The contract is NOT restated
 
