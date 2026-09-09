@@ -370,6 +370,15 @@ pub enum EnumVariant {
     },
 }
 
+impl EnumVariant {
+    pub fn name(&self) -> &str {
+        match self {
+            EnumVariant::Unit(n) => n,
+            EnumVariant::Tagged { name, .. } => name,
+        }
+    }
+}
+
 impl EnumDef {
     /// Field names of a tagged variant, declaration order — the enum mirror of
     /// [`AggregateDef::names_arc`] (arc 296 G′).
@@ -662,6 +671,11 @@ impl TypeEnv {
         let mut out = HashMap::new();
         for (name, def) in self.iter() {
             if let TypeDef::Enum(e) = def {
+                // Arc 296 P-2a — skip singleton variant-types so we do not
+                // mint `:Enum::Variant::Variant` keywords.
+                if self.is_monomorphic_variant_type(name) {
+                    continue;
+                }
                 for variant in &e.variants {
                     if let EnumVariant::Unit(variant_name) = variant {
                         out.insert(
@@ -854,6 +868,63 @@ impl TypeEnv {
     /// Internal helper consumed by [`is_subtype`].
     fn subtype_parents(&self, name: &str) -> Option<&[String]> {
         self.subtype_edges.get(name).map(|v| v.as_slice())
+    }
+
+    /// Arc 296 P-2a — `name` is a registered monomorphic-variant type
+    /// (`:Enum::Variant`) iff its parent path is a monomorphic enum that
+    /// declares that leaf as a variant. Used to skip method synthesis and
+    /// unit-variant-map entries for the singleton TypeDef.
+    pub(crate) fn is_monomorphic_variant_type(&self, name: &str) -> bool {
+        let Some(idx) = name.rfind("::") else {
+            return false;
+        };
+        let parent = &name[..idx];
+        let leaf = &name[idx + 2..];
+        match self.get(parent) {
+            Some(TypeDef::Enum(e)) if e.type_params.is_empty() => {
+                e.variants.iter().any(|v| v.name() == leaf)
+            }
+            _ => false,
+        }
+    }
+
+    /// Arc 296 P-2a — for every monomorphic enum, register each variant FQDN
+    /// as a TypeDef (structure = that variant's fields) and a subtype edge
+    /// `Variant <: Enum`. Generic enums are untouched. Idempotent.
+    pub(crate) fn register_monomorphic_variant_types(&mut self) -> Result<(), TypeError> {
+        let parents: Vec<EnumDef> = self
+            .iter()
+            .filter_map(|(name, def)| match def {
+                TypeDef::Enum(e)
+                    if e.type_params.is_empty() && !self.is_monomorphic_variant_type(name) =>
+                {
+                    Some(e.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        for e in parents {
+            for v in &e.variants {
+                let fqdn = format!("{}::{}", e.name, v.name());
+                if self.get(&fqdn).is_some() {
+                    continue;
+                }
+                let span = crate::rust_caller_span!();
+                let singleton = TypeDef::Enum(EnumDef {
+                    name: fqdn.clone(),
+                    type_params: vec![],
+                    purity: e.purity.clone(),
+                    variants: vec![v.clone()],
+                });
+                if crate::resolve::is_reserved_prefix(&fqdn) {
+                    self.register_stdlib_with_span(singleton, span.clone())?;
+                } else {
+                    self.register_with_span(singleton, span.clone())?;
+                }
+                self.register_subtype(&fqdn, &e.name, span)?;
+            }
+        }
+        Ok(())
     }
 
     /// Arc 296 P-1 RELAND-1 — is `name` a derive-marker / typesub parent?

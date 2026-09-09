@@ -1313,11 +1313,15 @@ pub fn register_enum_methods(
 ) -> Result<(), RuntimeError> {
     use crate::types::{EnumVariant, TypeDef};
 
-    for (_name, def) in types.iter() {
+    for (name, def) in types.iter() {
         let enum_def = match def {
             TypeDef::Enum(e) => e,
             _ => continue,
         };
+        // Arc 296 P-2a — singleton variant-types must not mint `:Enum::Variant::Variant`.
+        if types.is_monomorphic_variant_type(name) {
+            continue;
+        }
 
         // Arc 071 — parametric enums (e.g., `(WalkStep :- [A])`) need
         // their constructor return types to read `(:Enum :- [A B])`, not

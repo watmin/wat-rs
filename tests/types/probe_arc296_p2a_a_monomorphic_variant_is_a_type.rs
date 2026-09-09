@@ -96,7 +96,6 @@ fn a_generic_enums_variant_stays_refused() {
 
 /// SUBJECT — the annotation position accepts a monomorphic variant.
 #[test]
-#[ignore = "arc 296 P-2a — a variant is not a registered type"]
 fn a_monomorphic_variant_is_accepted_in_annotation_position() {
     let (code, out) = check("variant_annotation");
     assert_eq!(code, 0, "`:usr::Colour::Red` names a real variant of a declared enum; got: {out}");
@@ -104,7 +103,6 @@ fn a_monomorphic_variant_is_accepted_in_annotation_position() {
 
 /// SUBJECT — the verb agrees with the wall, per P-3's rule.
 #[test]
-#[ignore = "arc 296 P-2a — a variant is not a registered type"]
 fn is_type_answers_true_for_a_variant() {
     assert_eq!(run("is_type_on_a_variant"), "true");
 }
@@ -115,7 +113,6 @@ fn is_type_answers_true_for_a_variant() {
 /// bar is the MESSAGE. A stone that registered variants as ALIASES of their enum would flip this
 /// to 0 and pass every other row in this file.
 #[test]
-#[ignore = "arc 296 P-2a — refused today as UnknownNamedType, not as a direction violation"]
 fn an_enum_value_does_not_flow_into_a_variant_parameter() {
     let (code, out) = check("enum_does_not_flow_to_variant_param");
     assert_eq!(code, 1);
