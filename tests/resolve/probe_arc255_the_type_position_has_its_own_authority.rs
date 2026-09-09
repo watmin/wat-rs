@@ -289,3 +289,55 @@ fn a_bogus_call_head_carrying_a_type_binder_is_still_refused() {
         )
     );
 }
+
+/// ★ GUARD — a BOUNDARY head that also carries a `:-` binder.
+///
+/// This pass's one invariant is *never rewrite a symbol in a data position*, and a boundary
+/// head captures its arguments as DATA. That outranks the binder shape, so the `:-` path is
+/// classified AFTER `quote_boundary` and gated on `Boundary::Ordinary`.
+///
+/// Proven non-vacuous: with the binder tested FIRST, this file resolved `my.app/never-defined`
+/// from inside QUOTED data and reported `UnresolvedReferences`. Clean main reports the
+/// enclosing form's own `ArityMismatch`, and so must this.
+#[test]
+fn a_boundary_head_still_captures_its_arguments_as_data() {
+    let (code, out) = run_check("control_boundary_head_with_a_binder");
+    assert_eq!(code, 1, "expected the enclosing form's own diagnostic:\n{out}");
+    wat::assert_edn_eq!(
+        out,
+        include_str!(
+            "probe_arc255_the_type_position_has_its_own_authority__boundary_head_with_a_binder.edn"
+        )
+    );
+}
+
+/// ★ GUARD — the ONE DOOR canonicalizes, and `:wat::runtime::is-type?` INHERITS that.
+///
+/// Stone ② routed `is-type?` and normalize's binder head through one `TypeEnv::is_known_type`,
+/// which canonicalizes `:wat::type::X` → `:wat::core::X` first because every store it consults
+/// answers false for a `:wat::type::` spelling. Measured before the stone: all four of these
+/// printed `false`. Two spellings of one type now agree — which is the point — but it is a
+/// BEHAVIOUR CHANGE to a shipped verb, pinned here rather than left to be discovered.
+///
+/// `:wat::type::Infer` stays `false` in BOTH spellings: it is a type-position MARKER
+/// (`src/types.rs:74`), not a type, and it must never be asked as a binder head.
+#[test]
+fn the_type_namespace_spelling_now_answers_is_type() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let rel = "tests/resolve/probe_arc255_the_type_position_has_its_own_authority__\
+               control_is_type_canonicalizes.wat";
+    let out = Command::new(env!("CARGO_BIN_EXE_wat"))
+        .current_dir(&root)
+        .arg(rel)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("spawn wat");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code().unwrap_or(-1), 0, "stdout:\n{stdout}");
+    assert_eq!(
+        stdout, "true\ntrue\ntrue\nfalse\n",
+        "Tuple and i64 answer true in BOTH spellings; Infer is a marker and stays false"
+    );
+}

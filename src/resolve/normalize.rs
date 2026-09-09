@@ -79,7 +79,7 @@ fn normalize_form(
     match form {
         // Namespaced symbol: the only node type this pass rewrites.
         WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
-            match resolve_namespaced_symbol(ident.as_str(), span, sym, macros) {
+            match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, false) {
                 Ok(kw) => kw,
                 Err(e) => {
                     errors.push(e);
@@ -100,6 +100,26 @@ fn normalize_form(
                 Some(WatAST::Keyword(k, _)) => quote_boundary(k),
                 _ => Boundary::Ordinary,
             };
+            // Arc 255 Stone ② — `(Head :- [T …] rest…)` is a TYPE BINDER. `peel_param_spec`
+            // is arc 109's one door for this triple; `items.len() >= 3` guards it against
+            // the empty-list panic (`&items[1..]` on a 0-len slice — the first strike's
+            // STOP-4 regression). It applies whether the head is a `Symbol` or an
+            // already-normalized `Keyword`.
+            //
+            // ⛔ CLASSIFIED AFTER the `Boundary`, and gated on `Ordinary`. A boundary head
+            // CAPTURES ITS ARGUMENTS AS DATA, and this pass's one invariant — *never
+            // rewrite a symbol in a data position* — outranks the binder shape. Measured:
+            // testing the binder first made `(:wat::core::quote :- [T] (my.app/undefined 1))`
+            // resolve a symbol inside QUOTED data, where clean main never looks. No corpus
+            // form pairs a boundary head with a binder today, so this costs nothing and
+            // keeps the invariant structural rather than incidental.
+            if matches!(boundary, Boundary::Ordinary)
+                && items.len() >= 3
+                && crate::types::peel_param_spec(&items[1..]).0.is_some()
+            {
+                let new_items = normalize_type_binder_form(items, sym, macros, errors);
+                return WatAST::List(new_items, span);
+            }
             let new_items = match boundary {
                 // Ordinary call: every child is live code — rewrite throughout.
                 Boundary::Ordinary => items
@@ -422,11 +442,20 @@ fn normalize_quasiquote_template(
 /// Map a namespaced symbol name (`wat.core/+`) to its keyword FQDN candidate
 /// (`:wat::core::+`) and validate it resolves. Returns the rewritten
 /// `WatAST::Keyword` on success, or a located `UnresolvedReference` error.
+///
+/// `also_accept_type` widens acceptance to the UNION of "resolvable call head"
+/// OR "known type" — arc 255 Stone ②'s contract for the HEAD of a `(Head :- […]
+/// rest…)` binder, where the position's grammar admits either a genuine call
+/// head (`(:wat::core::HashSet :- [T] "a" "b")`, a constructor call) or a type
+/// reference (`(wat.type/Tuple :- [wat.type/i64])`). `false` for every other
+/// caller — a type is legal in the binder head position because that
+/// position's grammar admits one, not in an arbitrary call position.
 fn resolve_namespaced_symbol(
     symbol_text: &str,
     span: &crate::span::Span,
     sym: &SymbolTable,
     macros: &MacroRegistry,
+    also_accept_type: bool,
 ) -> Result<WatAST, UnresolvedReference> {
     // Split on the LAST `/` → (namespace, local_name).
     assert!(symbol_text.contains('/'), "caller guarantees '/' present");
@@ -438,6 +467,15 @@ fn resolve_namespaced_symbol(
     let primary = ns_to_wat_path(namespace, local_name);
 
     if is_resolvable_call_head(&primary, sym, macros) {
+        return Ok(WatAST::Keyword(primary, span.clone()));
+    }
+
+    // Arc 255 Stone ② — the binder-head union's second acceptance. Routed
+    // through `TypeEnv::is_known_type`, the ONE DOOR also used by
+    // `:wat::runtime::is-type?` (`src/reflect/verbs.rs`), so the
+    // `:wat::type::` canonicalization and the three-store union are never
+    // written a second time here.
+    if also_accept_type && sym.types().is_some_and(|types| types.is_known_type(&primary)) {
         return Ok(WatAST::Keyword(primary, span.clone()));
     }
 
@@ -463,4 +501,100 @@ fn resolve_namespaced_symbol(
         context: "namespaced symbol ref — not a builtin, not a registered function (arc 251)",
         span: span.clone(),
     })
+}
+
+/// Normalize a `(Head :- [T …] rest…)` type-binder form (arc 255 Stone ②). The
+/// caller (`normalize_form`'s `List` arm) has already established `items.len()
+/// >= 3` and that `items[1..]` peels as `(marker, [types], rest…)`.
+///
+/// - `items[0]` (head): the UNION — resolvable call head OR known type (see
+///   [`normalize_type_binder_head`]).
+/// - `items[1]` (`:-`): unchanged.
+/// - `items[2]` (type vector): rewritten to keyword FQDNs with NO validation —
+///   arc 296 P-1's annotation wall independently owns whether the names are
+///   real types (DESIGN "shapes ruled out (b)": validating here against
+///   `TypeEnv::contains` refuses `Tuple`, which is structural type syntax, and
+///   `:wat::type::Infer`, a marker, not a registered type).
+/// - `items[3..]` (value args): ordinary code — `(:wat::core::HashSet :- [T]
+///   v1 v2)` carries live values after the type vector, and they normalize
+///   exactly as today (STOP-2's guard: this must NOT be treated as opaque data).
+fn normalize_type_binder_form(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut iter = items.into_iter();
+    let head = iter.next().expect("caller checked items.len() >= 3");
+    let marker = iter.next().expect("caller checked items.len() >= 3");
+    let type_vec = iter.next().expect("caller checked items.len() >= 3");
+
+    let new_head = normalize_type_binder_head(head, sym, macros, errors);
+    let new_type_vec = normalize_type_vector(type_vec);
+
+    let mut out = Vec::with_capacity(3);
+    out.push(new_head);
+    out.push(marker);
+    out.push(new_type_vec);
+    out.extend(iter.map(|c| normalize_form(c, sym, macros, errors)));
+    out
+}
+
+/// The head of a `:-` type binder is asked the UNION: is it a resolvable call
+/// head (a genuine constructor call, `(:wat::core::HashSet :- [T] "a" "b")`) OR
+/// a known type (a type reference, `(wat.type/Tuple :- [wat.type/i64])`)? Both
+/// are legal in this position's grammar, so both are asked — nothing is
+/// exempted (the first strike's defect: treating the head as type syntax and
+/// skipping call-head validation let `(my.app/totally-bogus :- [i64] 1)`
+/// through silently).
+///
+/// Widened in THIS position only, via `resolve_namespaced_symbol`'s
+/// `also_accept_type` flag — never inside the ordinary Symbol arm above, where
+/// a type is not a legal call target.
+fn normalize_type_binder_head(
+    head: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    match head {
+        WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
+            match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, true) {
+                Ok(kw) => kw,
+                Err(e) => {
+                    errors.push(e);
+                    head // leave the symbol in place so the walk continues
+                }
+            }
+        }
+        other => normalize_form(other, sym, macros, errors),
+    }
+}
+
+/// Rewrite a `:-` binder's type-argument vector to keyword FQDNs with NO
+/// validation — arc 296 P-1's annotation wall independently owns whether the
+/// names are real types (see [`normalize_type_binder_form`]'s doc). A
+/// referencing `Symbol` (`wat.type/i64`) becomes the `Keyword` it names
+/// (`ns_to_wat_path`, the same mapping `resolve_namespaced_symbol` uses); a
+/// bare symbol (no `/`) is a type VARIABLE and is left untouched. Recurses
+/// through `List`/`Vector` so a nested parametric (`(V :- [T])`) is reached —
+/// including a nested binder's own head, which is type syntax here too, not a
+/// call head to validate.
+fn normalize_type_vector(node: WatAST) -> WatAST {
+    match node {
+        WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
+            let namespace = wat_reader::identifier::receiver(ident.as_str());
+            let local_name = wat_reader::identifier::method(ident.as_str());
+            WatAST::Keyword(ns_to_wat_path(namespace, local_name), span.clone())
+        }
+        WatAST::List(items, span) => WatAST::List(
+            items.into_iter().map(normalize_type_vector).collect(),
+            span,
+        ),
+        WatAST::Vector(items, span) => WatAST::Vector(
+            items.into_iter().map(normalize_type_vector).collect(),
+            span,
+        ),
+        other => other,
+    }
 }

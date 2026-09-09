@@ -616,6 +616,29 @@ impl TypeEnv {
         self.types.contains_key(name) || self.builtin_names.contains(name)
     }
 
+    /// Arc 255 Stone ②'s ONE DOOR — the three-store union `:wat::runtime::is-type?`
+    /// used to compute inline (`src/reflect/verbs.rs`'s `eval_is_type`) and that
+    /// `normalize`'s `:-` type position (`src/resolve/normalize.rs`) also needs:
+    /// is `kw` a known type at all — membership, not structure?
+    /// `contains` (registered `TypeDef` or builtin leaf) ∪ `is_builtin_primitive`
+    /// (runtime primitive/container table) ∪ `is_subtype_parent` (derive-marker
+    /// parent). Both callers route through this fn so the union is written once.
+    ///
+    /// Canonicalizes `:wat::type::X` → `:wat::core::X` FIRST: measured, every
+    /// store here answers `false` for a `:wat::type::` spelling — the only other
+    /// copy of this mapping is inline in `parse_type_expr`, below — so a caller
+    /// asking about the `wat.type/` spelling can never forget the canonicalization.
+    pub(crate) fn is_known_type(&self, kw: &str) -> bool {
+        let canonical = match kw.strip_prefix(":wat::type::") {
+            Some(tail) => std::borrow::Cow::Owned(format!(":wat::core::{tail}")),
+            None => std::borrow::Cow::Borrowed(kw),
+        };
+        let stripped = canonical.strip_prefix(':').unwrap_or(&canonical);
+        self.contains(&canonical)
+            || crate::runtime::is_builtin_primitive(stripped)
+            || self.is_subtype_parent(&canonical)
+    }
+
     /// Answers STRUCTURE. Deliberately unchanged by the builtin-leaf population
     /// (stone 255-builtin-registry) — a primitive/container/opaque type has
     /// membership (`contains` → true) but no `TypeDef` to return, so this stays

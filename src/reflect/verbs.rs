@@ -1523,9 +1523,10 @@ pub(crate) fn eval_type_of(
 /// `(:wat::runtime::is-type? :TypeKeyword) -> :wat::core::bool`
 ///
 /// Arc 296 Q — membership, not structure. `type-of` asks `TypeEnv::get` and
-/// raises on a leaf; this verb asks whether `name` is a type at all.
-/// `TypeEnv::contains` ∪ `is_builtin_primitive` ∪ `TypeEnv::is_subtype_parent`
-/// — membership, not structure. A nonexistent name is `false`, not a raise.
+/// raises on a leaf; this verb asks whether `name` is a type at all, via the
+/// ONE DOOR `TypeEnv::is_known_type` (arc 255 Stone ②) — `TypeEnv::contains` ∪
+/// `is_builtin_primitive` ∪ `TypeEnv::is_subtype_parent`, canonicalizing
+/// `:wat::type::` → `:wat::core::` first. A nonexistent name is `false`, not a raise.
 ///
 /// The arg is a type-position keyword, taken literally (not evaluated). Doctrine 1
 /// stands: a primitive type keyword as a *value* still refuses; here it is a name.
@@ -1573,9 +1574,10 @@ pub(crate) fn eval_is_type(
             },
         )
     })?;
-    let stripped = type_kw.strip_prefix(':').unwrap_or(&type_kw);
-    let known = types.contains(&type_kw)
-        || crate::runtime::is_builtin_primitive(stripped)
-        || types.is_subtype_parent(&type_kw);
+    // Arc 255 Stone ② — the union lives once, at `TypeEnv::is_known_type`
+    // (`src/types.rs`), which both this verb and `normalize`'s `:-` type
+    // position call. It also canonicalizes `:wat::type::` → `:wat::core::`
+    // internally, which this inline formula did not.
+    let known = types.is_known_type(&type_kw);
     Ok(Value::bool(known))
 }
