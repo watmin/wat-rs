@@ -4,7 +4,10 @@
 ;;   cap 10, depth 6, send 8 (8 <= cap) → Accepted 0, depth unchanged
 ;;   drain 5 (depth 1, room 9), send 8 → Accepted 8
 ;;   cap 10, send 15 (15 > cap) → Accepted 10, first 10 bodies in order
-;; nsubs 7, publish 10 against cap 64 (70 > 64) → a count, no assertion.
+;; nsubs 7, publish 10 against cap 64 → a count, no assertion. ⚠ That publish used
+;; to offer 70 pairs against cap 64 and cross the `n0 > cap` prefix branch; since
+;; "the inbox holds messages, not pairs" it offers 10 bodies and does not. The
+;; prefix branch above is still exercised directly by the `cap 10, send 15` case.
 
 (:wat::config::set-redef! true)
 (:wat::load-file! "../topic/sns-fanout.wat")

@@ -10,10 +10,16 @@
 ;;   reader has to remember to run twice. Prints "3 3". Any other pair is a defect.
 ;;
 ;; Shape: topic-service = publish surface + ONE queue-service instance + J internal
-;; workers. publish writes N rows (one per subscription) into the internal queue, then
-;; replies Ok — the write is the durability. Workers drain to subscriber queues and
-;; ack only on Queue/send Ok; Full is "do not ack" and visibility expiry is the retry.
-;; The unit is (message, subscriber), not message.
+;; workers. publish writes ONE row per MESSAGE into the internal queue, then replies
+;; Ok — the write is the durability. Workers take a message and FAN IT OUT to every
+;; subscriber queue, acking the inbox only after every sub write returned Accepted;
+;; a refusal is "do not ack" and visibility expiry is the retry.
+;;
+;; ★ TIER 1'S UNIT IS THE MESSAGE. The (message, subscriber) pair is TIER 2's unit —
+;;   a row in that subscriber's own queue — because the pair is what a retry targets.
+;;   The subscriber index is therefore never written into a body: the worker holds
+;;   `sub-addrs` and fans directly, so no routing tag is smuggled through a data field
+;;   and no `pairs / nsubs` arithmetic stands between the publisher and its count.
 ;;
 ;; ── the shape, established by bisecting UP from wat-scripts/probes/arc-278/s2s-process-probe.wat ──
 ;;   · a service MAY hold N peers of ONE surface as a `(Vector :- [(Peer :- [Op Reply])])`
@@ -83,27 +89,22 @@
   [(publish [s ctx req]
      (:wat::core::let
        [msgs  (:demo::Topic::PublishRequest/msgs req)
-        nsubs (:demo::topic::Record/nsubs (:demo::topic::State/durable s))
         now   (:wat::time::epoch-nanos (:wat::time::now))
         ;; t0b rides in the payload. The instant send-all *returns* is after
         ;; persist, so it cannot. This is the last moment the body can carry,
         ;; still inside Topic::publish (not the publisher — that would fold
         ;; the reply hop into "durable work").
         t0b   (:wat::time::epoch-nanos (:wat::time::now))
+        ;; ONE body per MESSAGE. No `×nsubs` expansion and no subscriber index:
+        ;; the worker holds `sub-addrs` and performs the fanout. Admission is
+        ;; therefore in the publisher's own unit, and `nsubs` is not read here.
         bodies (:wat::core::foldl
                  (:wat::core::fn
                    [acc <- (:wat::core::Vector :- [:wat::core::String])
                     msg <- :wat::core::String]
                    -> (:wat::core::Vector :- [:wat::core::String])
-                   (:wat::core::foldl
-                     (:wat::core::fn
-                       [acc2 <- (:wat::core::Vector :- [:wat::core::String])
-                        i    <- :wat::core::i64]
-                       -> (:wat::core::Vector :- [:wat::core::String])
-                       (:wat::core::conj acc2
-                         (:wat::core::format "{i}|{m}|{t0b}" :i i :m msg :t0b t0b)))
-                     acc
-                     (:wat::core::range 0 nsubs)))
+                   (:wat::core::conj acc
+                     (:wat::core::format "{m}|{t0b}" :m msg :t0b t0b)))
                  (:wat::core::Vector :- [:wat::core::String])
                  msgs)
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:demo::Topic::Reply])])
@@ -115,77 +116,17 @@
        (:wat::core::match sr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
-             ((:queue::Queue::SendResponse::Accepted pairs)
-               (:wat::core::let
-                 [floor (:wat::i64::/ pairs nsubs)
-                  rem   (:wat::i64::mod pairs nsubs)]
-                 (:wat::core::if (:wat::core::= rem 0)
-                   (:wat::service::Outcome::Continue s
-                     (:wat::core::Some (:demo::Topic::Reply::Publish
-                       (:demo::Topic::PublishResponse::Accepted floor)))
-                     sends none-alarms)
-                   (:wat::core::let
-                     [need (:wat::i64::- nsubs rem)
-                      msg  (:wat::core::nth msgs floor)
-                      now2 (:wat::time::epoch-nanos (:wat::time::now))
-                      tail (:wat::core::foldl
-                             (:wat::core::fn
-                               [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                i   <- :wat::core::i64]
-                               -> (:wat::core::Vector :- [:wat::core::String])
-                               (:wat::core::conj acc
-                                 (:wat::core::format "{i}|{m}|{t0b}" :i i :m msg :t0b now2)))
-                             (:wat::core::Vector :- [:wat::core::String])
-                             (:wat::core::range rem nsubs))
-                      tr (:queue::Queue/send (:demo::topic::State/inbox s)
-                           (:queue::Queue::SendRequest :queue "inbox" :bodies tail :now-ns now2))]
-                     (:wat::core::match tr
-                       ((:wat::kernel::RecvOutcome::Message r2)
-                         (:wat::core::match r2
-                           ((:queue::Queue::SendResponse::Accepted ntop)
-                             (:wat::service::Outcome::Continue s
-                               (:wat::core::Some (:demo::Topic::Reply::Publish
-                                 (:demo::Topic::PublishResponse::Accepted
-                                   (:wat::core::if (:wat::core::= ntop need)
-                                     (:wat::i64::+ floor 1)
-                                     floor))))
-                               sends none-alarms))
-                           (_ (:wat::kernel::assertion-failed! "topic publish: top-up send not Accepted" :wat::core::None :wat::core::None))))
-                       ((:wat::kernel::RecvOutcome::Lost _cause)
-                         (:wat::core::let
-                           [fresh (:wat::core::match
-                                    (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                                    ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                    (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
-                            s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
-                           (:wat::service::Outcome::Continue s'
-                             (:wat::core::Some (:demo::Topic::Reply::Publish
-                               (:demo::Topic::PublishResponse::Accepted floor)))
-                             sends none-alarms)))
-                       (:wat::kernel::RecvOutcome::Stopped
-                         (:wat::kernel::assertion-failed! "topic publish: top-up stopped" :wat::core::None :wat::core::None))
-                       (:wat::kernel::RecvOutcome::Closed
-                         (:wat::core::let
-                           [fresh (:wat::core::match
-                                    (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                                    ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                    (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
-                            s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
-                           (:wat::service::Outcome::Continue s'
-                             (:wat::core::Some (:demo::Topic::Reply::Publish
-                               (:demo::Topic::PublishResponse::Accepted floor)))
-                             sends none-alarms)))
-                       (:wat::kernel::RecvOutcome::TimedOut
-                         (:wat::core::let
-                           [fresh (:wat::core::match
-                                    (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                                    ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                    (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
-                            s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
-                           (:wat::service::Outcome::Continue s'
-                             (:wat::core::Some (:demo::Topic::Reply::Publish
-                               (:demo::Topic::PublishResponse::Accepted floor)))
-                             sends none-alarms))))))))
+             ((:queue::Queue::SendResponse::Accepted accepted)
+               ;; ★ Accepted is in MESSAGES. The inbox row IS the message, so the
+               ;; count the queue returns is already the prefix of `msgs` that was
+               ;; admitted — no `pairs / nsubs`, no remainder, and no top-up send.
+               ;; The state the top-up repaired (a single message smeared across the
+               ;; two tiers, some of its subscriber rows written and some refused)
+               ;; CANNOT OCCUR: a message is one row, admitted or not.
+               (:wat::service::Outcome::Continue s
+                 (:wat::core::Some (:demo::Topic::Reply::Publish
+                   (:demo::Topic::PublishResponse::Accepted accepted)))
+                 sends none-alarms))
              (_ (:wat::kernel::assertion-failed! "topic publish: send not Accepted" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
@@ -482,66 +423,41 @@
              ((:queue::Queue::ReceiveResponse::Ok envs)
                (:wat::core::let
                  [nsubs (:wat::core::count subs)
-                  empty-bucket (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-                  empty-buckets (:wat::core::foldl
-                                  (:wat::core::fn
-                                    [acc <- (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                                     _i  <- :wat::core::i64]
-                                    -> (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                                    (:wat::core::conj acc empty-bucket))
-                                  (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                                  (:wat::core::range 0 nsubs))
                   t1 (:wat::time::epoch-nanos (:wat::time::now))
-                  buckets (:wat::core::foldl
-                            (:wat::core::fn
-                              [acc <- (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                               e   <- :queue::Envelope]
-                              -> (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                              (:wat::core::let
-                                [eid   (:queue::Envelope/id e)
-                                 body  (:queue::Envelope/body e)
-                                 parts (:wat::string::split body "|")
-                                 nparts (:wat::core::count parts)]
-                                (:wat::core::if (:wat::i64::< nparts 2)
-                                  (:wat::kernel::assertion-failed! "topic-worker: body missing idx prefix" :wat::core::None :wat::core::None)
-                                  (:wat::core::let
-                                    [idx (:wat::edn::read (:wat::core::nth parts 0))
-                                     rest (:wat::core::foldl
-                                            (:wat::core::fn [a <- :wat::core::String  i <- :wat::core::i64]
-                                              -> :wat::core::String
-                                              (:wat::core::let [p (:wat::core::nth parts i)]
-                                                (:wat::core::if (:wat::core::= a "")
-                                                  p
-                                                  (:wat::string::concat a (:wat::string::concat "|" p)))))
-                                            ""
-                                            (:wat::core::range 1 nparts))
-                                     t3 (:wat::time::epoch-nanos (:wat::time::now))
-                                     stamped (:wat::core::format "{b}|{t1}|{t3}" :b rest :t1 t1 :t3 t3)
-                                     pair (:wat::core::Tuple eid stamped)]
-                                    (:wat::core::foldl
-                                      (:wat::core::fn
-                                        [bacc <- (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                                         i    <- :wat::core::i64]
-                                        -> (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                                        (:wat::core::conj bacc
-                                          (:wat::core::if (:wat::core::= i idx)
-                                            (:wat::core::conj (:wat::core::nth acc i) pair)
-                                            (:wat::core::nth acc i))))
-                                      (:wat::core::Vector :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])])
-                                      (:wat::core::range 0 nsubs))))))
-                            empty-buckets
-                            envs)
-                  peers (:wat::core::foldl
-                      (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                                     (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])])
+                  ;; ★ THE FANOUT LIVES HERE. Tier 1 carries MESSAGES, so one received
+                  ;; envelope becomes one body on EVERY subscriber queue. There is no
+                  ;; `split body "|"` recovering a subscriber index and no bucketing by
+                  ;; it — the index was never written, so it is never parsed back out.
+                  ;; `items` is (envelope-id, stamped-body) in receive order; the id is
+                  ;; the inbox ack key and the body is what every sub gets.
+                  items (:wat::core::foldl
+                          (:wat::core::fn
+                            [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                             e   <- :queue::Envelope]
+                            -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                            (:wat::core::let
+                              [t3 (:wat::time::epoch-nanos (:wat::time::now))
+                               stamped (:wat::core::format "{b}|{t1}|{t3}"
+                                         :b (:queue::Envelope/body e) :t1 t1 :t3 t3)]
+                              (:wat::core::conj acc
+                                (:wat::core::Tuple (:queue::Envelope/id e) stamped))))
+                          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                          envs)
+                  nitems (:wat::core::count items)
+                  ;; `ok` is the LONGEST PREFIX of `items` that EVERY subscriber took:
+                  ;; the min over subs of the Accepted count, and 0 for a sub whose
+                  ;; send tore. Only that prefix may be acked below — a message acked
+                  ;; while any subscriber does not yet hold it is a message lost.
+                  fan (:wat::core::foldl
+                      (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
+                                                                     :wat::core::i64])
                                        i   <- :wat::core::i64]
-                        -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                  (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])])
+                        -> (:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
+                                                  :wat::core::i64])
                         (:wat::core::let
-                          [inb (:wat::core::first acc)
-                           ss  (:wat::core::second acc)
-                           bucket (:wat::core::nth buckets i)]
-                          (:wat::core::if (:wat::core::empty? bucket)
+                          [ss  (:wat::core::first acc)
+                           ok  (:wat::core::second acc)]
+                          (:wat::core::if (:wat::core::empty? items)
                             acc
                             (:wat::core::let
                               [t3b (:wat::time::epoch-nanos (:wat::time::now))
@@ -554,7 +470,7 @@
                                             (:wat::core::format "{b}|{t3b}"
                                               :b (:wat::core::second p) :t3b t3b)))
                                         (:wat::core::Vector :- [:wat::core::String])
-                                        bucket)
+                                        items)
                                qpeer (:wat::core::nth ss i)
                                qname (:wat::core::format "q{i}" :i i)
                                sr (:queue::Queue/send qpeer
@@ -563,44 +479,17 @@
                                 ((:wat::kernel::RecvOutcome::Message sresp)
                                   (:wat::core::match sresp
                                     ((:queue::Queue::SendResponse::Accepted nacc)
-                                      (:wat::core::if (:wat::i64::<= nacc 0)
-                                        acc
-                                      (:wat::core::let
-                                        [ack-ids (:wat::core::foldl
-                                                   (:wat::core::fn
-                                                     [bacc <- (:wat::core::Vector :- [:wat::core::String])
-                                                      i    <- :wat::core::i64]
-                                                     -> (:wat::core::Vector :- [:wat::core::String])
-                                                     (:wat::core::conj bacc
-                                                       (:wat::core::first (:wat::core::nth bucket i))))
-                                                   (:wat::core::Vector :- [:wat::core::String])
-                                                   (:wat::core::range 0 nacc))
-                                         inb2 (:wat::core::match
-                                                 (:queue::Queue/ack inb
-                                                   (:queue::Queue::AckRequest :queue "inbox" :ids ack-ids))
-                                                 ((:wat::kernel::RecvOutcome::Message _ar) inb)
-                                                 ((:wat::kernel::RecvOutcome::Lost _cause)
-                                                   (:wat::core::match
-                                                     (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                                                     ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                                     (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
-                                                 (:wat::kernel::RecvOutcome::Stopped
-                                                   (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
-                                                 (:wat::kernel::RecvOutcome::Closed
-                                                   (:wat::core::match
-                                                     (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                                                     ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                                     (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
-                                                 (:wat::kernel::RecvOutcome::TimedOut
-                                                   (:wat::core::match
-                                                     (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                                                     ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                                     (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))))]
-                                        (:wat::core::Tuple inb2 ss))))
+                                      ;; This sub holds the first `nacc` of `items`.
+                                      ;; Carry the running minimum: no ack happens
+                                      ;; inside this loop, so no message can be
+                                      ;; consumed before every sub has been written.
+                                      (:wat::core::Tuple ss
+                                        (:wat::core::if (:wat::i64::< nacc ok) nacc ok)))
                                     (_ (:wat::kernel::assertion-failed! "topic-worker: send not Accepted" :wat::core::None :wat::core::None))))
                                 ((:wat::kernel::RecvOutcome::Lost _cause)
-                                  ;; Hard site: this sub may have taken the batch. Do not ack
-                                  ;; the bucket — visibility redelivers; Seen absorbs if it landed.
+                                  ;; Hard site: this sub may have taken the batch. Drive `ok`
+                                  ;; to 0 so NOTHING in this tick is acked — visibility
+                                  ;; redelivers; Seen absorbs whatever already landed.
                                   (:wat::core::let
                                     [fresh (:wat::core::match
                                              (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i))
@@ -615,12 +504,13 @@
                                                (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j))))
                                            (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
                                            (:wat::core::range 0 nsubs))]
-                                    (:wat::core::Tuple inb ss')))
+                                    (:wat::core::Tuple ss' 0)))
                                 (:wat::kernel::RecvOutcome::Stopped
                                   (:wat::kernel::assertion-failed! "topic-worker: send stopped" :wat::core::None :wat::core::None))
                                 (:wat::kernel::RecvOutcome::Closed
-                                  ;; Hard site: this sub may have taken the batch. Do not ack
-                                  ;; the bucket — visibility redelivers; Seen absorbs if it landed.
+                                  ;; Hard site: this sub may have taken the batch. Drive `ok`
+                                  ;; to 0 so NOTHING in this tick is acked — visibility
+                                  ;; redelivers; Seen absorbs whatever already landed.
                                   (:wat::core::let
                                     [fresh (:wat::core::match
                                              (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i))
@@ -635,13 +525,58 @@
                                                (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j))))
                                            (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
                                            (:wat::core::range 0 nsubs))]
-                                    (:wat::core::Tuple inb ss'))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic-worker: redial sub failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) ss' (:wat::core::foldl (:wat::core::fn [bacc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) j <- :wat::core::i64] -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::conj bacc (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j)))) (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::range 0 nsubs))] (:wat::core::Tuple inb ss'))))))))
-                      (:wat::core::Tuple inbox subs)
+                                    (:wat::core::Tuple ss' 0))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic-worker: redial sub failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) ss' (:wat::core::foldl (:wat::core::fn [bacc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) j <- :wat::core::i64] -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::conj bacc (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j)))) (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::range 0 nsubs))] (:wat::core::Tuple ss' 0))))))))
+                      ;; ⛔ Seed `ok` with nitems, but 0 when there are NO subscribers:
+                      ;; with nowhere to deliver there is nothing to consume, and the
+                      ;; inbox entry must survive rather than be silently dropped.
+                      (:wat::core::Tuple subs
+                        (:wat::core::if (:wat::core::= nsubs 0) 0 nitems))
                       (:wat::core::range 0 nsubs))
+                  ss' (:wat::core::first fan)
+                  ok  (:wat::core::second fan)
+                  ack-ids (:wat::core::foldl
+                            (:wat::core::fn
+                              [bacc <- (:wat::core::Vector :- [:wat::core::String])
+                               i    <- :wat::core::i64]
+                              -> (:wat::core::Vector :- [:wat::core::String])
+                              (:wat::core::conj bacc
+                                (:wat::core::first (:wat::core::nth items i))))
+                            (:wat::core::Vector :- [:wat::core::String])
+                            (:wat::core::range 0 ok))
+                  ;; ⛔ THE ACK IS LAST, AND THAT ORDERING IS THE SAFETY PROPERTY.
+                  ;; Every subscriber write above has already returned Accepted for
+                  ;; this prefix. A worker that dies between those sends and this ack
+                  ;; leaves the inbox entry to expire and be re-processed — duplicate
+                  ;; deliveries to the subs that already took it, which at-least-once
+                  ;; permits and the consumer's `seen` absorbs. Reverse the order and
+                  ;; a crash mid-expansion loses the message SILENTLY.
+                  inb2 (:wat::core::if (:wat::i64::<= ok 0)
+                         inbox
+                         (:wat::core::match
+                           (:queue::Queue/ack inbox
+                             (:queue::Queue::AckRequest :queue "inbox" :ids ack-ids))
+                           ((:wat::kernel::RecvOutcome::Message _ar) inbox)
+                           ((:wat::kernel::RecvOutcome::Lost _cause)
+                             (:wat::core::match
+                               (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                               ((:wat::kernel::ConnectOutcome::Connected p) p)
+                               (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                           (:wat::kernel::RecvOutcome::Stopped
+                             (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
+                           (:wat::kernel::RecvOutcome::Closed
+                             (:wat::core::match
+                               (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                               ((:wat::kernel::ConnectOutcome::Connected p) p)
+                               (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                           (:wat::kernel::RecvOutcome::TimedOut
+                             (:wat::core::match
+                               (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
+                               ((:wat::kernel::ConnectOutcome::Connected p) p)
+                               (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))))
                   s' (:demo::topic-worker::State
                        :durable rec
-                       :inbox (:wat::core::first peers)
-                       :subs (:wat::core::second peers))]
+                       :inbox inb2
+                       :subs ss')]
                  (:wat::service::SelfOutcome::Continue s'
                    none-sends
                    [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
@@ -1084,8 +1019,11 @@
       :n n
       :d (:wat::core::if (:wat::i64::>= n 1) "yes" "no"))))
 
-;; Row 2: one publish to N=3 writes 3 rows, not 1.
-(:wat::core::defn :user::unit-is-per-sub [] -> :wat::core::String
+;; Row 2, INVERTED by "the inbox holds messages, not pairs": one publish to N=3
+;; writes ONE inbox row, not 3. The (message, subscriber) pair is tier 2's unit —
+;; it appears as a row in each subscriber's own queue once the worker fans out.
+;; This gate is the instrument that the expansion has left `Topic::publish`.
+(:wat::core::defn :user::unit-is-per-msg [] -> :wat::core::String
   (:wat::core::let
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
@@ -1098,7 +1036,7 @@
      n  (:demo::depth-of-topic tc)]
     (:wat::core::format "rows={n};unit={u}"
       :n n
-      :u (:wat::core::if (:wat::core::= n 3) "per-sub" "per-msg"))))
+      :u (:wat::core::if (:wat::core::= n 1) "per-msg" "per-sub"))))
 
 ;; Publish returns after the inbox write, with no workers running — so even a
 ;; subscriber that would take 200ms cannot hold the publisher.

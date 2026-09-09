@@ -58,16 +58,20 @@ fn publish_ok_means_durable() {
     );
 }
 
+/// The inbox holds MESSAGES, not (message, subscriber) pairs. One publish to
+/// N=3 writes ONE inbox row; the pair is tier 2's unit and appears only once the
+/// topic-worker has fanned the message to each subscriber's own queue. This gate
+/// is what detects the expansion creeping back into `Topic::publish`.
 #[test]
-fn unit_is_per_subscription() {
+fn unit_is_per_message() {
     let world = load_topic();
-    let stored = call_string(&world, ":user::unit-is-per-sub");
+    let stored = call_string(&world, ":user::unit-is-per-msg");
     assert_eq!(
         field(&stored, "unit"),
-        "per-sub",
-        "one publish to N=3 must write 3 rows, not 1; got {stored}"
+        "per-msg",
+        "one publish to N=3 must write 1 inbox row, not 3; got {stored}"
     );
-    assert_eq!(field(&stored, "rows"), "3");
+    assert_eq!(field(&stored, "rows"), "1");
 }
 
 #[test]

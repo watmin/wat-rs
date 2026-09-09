@@ -1,6 +1,7 @@
 ;; probe-the-topic-publishes-a-batch.wat — Topic::publish carries a vector, cap 10.
 ;;
-;; Through `:demo::Topic/publish`: 10 messages accepted (inbox depth +10×nsubs),
+;; Through `:demo::Topic/publish`: 10 messages accepted (inbox depth +10 — the inbox
+;; holds MESSAGES, so the depth moves by the message count, not by `10×nsubs`),
 ;; 11 rejected RequestTooManyEntries(11,10) with depth unchanged, and
 ;; `:demo::Topic::PUBLISH-MAX-ENTRIES` readable as 10.
 

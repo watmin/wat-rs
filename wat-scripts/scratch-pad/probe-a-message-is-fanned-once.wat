@@ -1,9 +1,17 @@
 ;; probe-a-message-is-fanned-once.wat
 ;;
-;; nsubs 4, inbox cap 6, publish 2: first send takes 6 pairs (msg-major),
-;; top-up of the 2 missing pairs is refused (cap full). Accepted 1 (floor).
-;; Message 0 is fully fanned: exactly 4 pairs, bodies "{i}|p0".
-;; nsubs 7, publish 10 against cap 64: a count, no assertion.
+;; ⚠ RETARGETED by "the inbox holds messages, not pairs" (excursus 001). The split
+;; this probe was built to catch NO LONGER EXISTS, and its absence is the finding.
+;;
+;; Before: the inbox held (message, subscriber) pairs, so a 2-message publish to
+;; nsubs 4 offered 8 pairs into a cap-6 inbox, took 6 msg-major, and needed a
+;; `rem`/`need` top-up for message 1's missing 2 pairs — Accepted 1 (floor).
+;;
+;; Now: the inbox holds MESSAGES. nsubs 4, inbox cap 6, publish 2 → 2 bodies into
+;; room 6 → Accepted(2), both rows present, bodies "p0|{t0b}" and "p1|{t0b}" with
+;; no subscriber index. A message is one row: it cannot be half-admitted, so there
+;; is no split case and no top-up to repair one.
+;; nsubs 7, publish 10 against cap 64: a count, no assertion (10 rows, not 70).
 
 (:wat::config::set-redef! true)
 (:wat::load-file! "../topic/sns-fanout.wat")

@@ -2,7 +2,8 @@
 ;;
 ;; Queue::send no longer declares :max-entries (admission takes a prefix).
 ;; Topic::publish keeps :max-entries [msgs 10]. 11 msgs → RequestTooManyEntries(11,10)
-;; with depth unchanged; 10 is Accepted(10), depth +10×nsubs. The cap is a
+;; with depth unchanged; 10 is Accepted(10), depth +10 (the inbox holds MESSAGES,
+;; so the depth moves by the message count and not by `10×nsubs`). The cap is a
 ;; readable def: :demo::Topic::PUBLISH-MAX-ENTRIES = 10.
 
 (:wat::config::set-redef! true)
