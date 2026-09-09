@@ -838,6 +838,17 @@ fn fanout_phase_dump() {
     // Measured directly by deleting the two marks and re-running: production
     // 18.992 -> 11.524 ms, wall 24.491 -> 16.690. Subtract the children's tax
     // from the parent, or the biggest number in the table is the instrument.
+    //
+    // `child_tax` itself has no reader below — the decision (see the next comment) is to NOT
+    // subtract it, so this binding stays a computed-but-unused reference value. It must stay a
+    // binding rather than be deleted outright: this `#[allow(unused_variables)]` was the ONLY
+    // code-position occurrence of the `unused_variables` lint name anywhere under
+    // src/crates/tests/benches/examples, and `tests/lint/rete_citation_resolves.rs` requires the
+    // backticked `` `unused_variables` `` cited in a comment at `src/rete/validate/mod.rs:408` to
+    // resolve to some real code position with that name. Deleting this line (confirmed by driving
+    // the floor) turns that unrelated citation red. So the value is kept computed here — not
+    // inlined into the prose below as a bare number — so it stays a checkable, live figure rather
+    // than a comment nobody can re-derive.
     #[allow(unused_variables)]
     let child_tax: f64 = ["  ├ prod:compiled-rhs", "  ├ prod:dedup-store"]
         .iter()
