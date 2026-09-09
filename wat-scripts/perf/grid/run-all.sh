@@ -124,6 +124,33 @@ done
 AXES=("$@")
 if [ ${#AXES[@]} -eq 0 ]; then AXES=("${ORDER[@]}"); fi
 
+# ── INSTRUMENT HEADER — every future capture is self-describing (`3W1`) ───────────────────────
+#
+# 29 `GRID-native-vs-clara-*.txt` captures through 2026-09-06 name no JDK and no Clojure CLI
+# version anywhere in the file — a manual `bash run-all.sh > GRID-....txt` never recorded what it
+# ran under, so `check-grid-speed.sh`'s FLOOR comment cites a grid whose instrument cannot be
+# re-derived, defended, or refuted. This line is the fix, not a new capture wrapper: this script
+# IS what a human redirects into a `GRID-*.txt` file, so printing the instrument to STDOUT, once,
+# before the sweep, means the very next `> GRID-....txt` capture is self-describing for free.
+#
+# Consumers of these files match only `#grid/Verdict` lines (`check-grid-speed.sh`'s
+# `case "$line" in \#grid/Verdict*)`, `compare-grids.sh`'s `/#grid\/Verdict/` awk pattern) and
+# silently skip every other line, so this header is inert to both — verified by reading each.
+# EDN-escape (backslash, then double-quote) — `java -version`'s own output embeds literal `"`
+# around the version number, which would otherwise terminate the :java-version string early and
+# leave the rest of the line as un-parseable trailing junk.
+edn_escape() { sed 's/\\/\\\\/g; s/"/\\"/g'; }
+JAVA_VERSION_TXT="$(java -version 2>&1 | tr '\n' ' ' | sed 's/  */ /g; s/ $//' | edn_escape || true)"
+[ -n "$JAVA_VERSION_TXT" ] || JAVA_VERSION_TXT="java: not found on PATH"
+CLOJURE_VERSION_TXT="$(clojure --version 2>&1 | edn_escape || true)"
+[ -n "$CLOJURE_VERSION_TXT" ] || CLOJURE_VERSION_TXT="clojure: not found on PATH"
+# Read the Clara pin from run-axis.sh's own CLARA_DEP rather than a second hardcoded copy — a
+# duplicate literal here is exactly the kind of second copy that drifts undetected.
+CLARA_VERSION_TXT="$(sed -n 's/.*com\.cerner\/clara-rules {:mvn\/version "\([^"]*\)"}.*/\1/p' "$GRID_DIR/run-axis.sh" | head -1)"
+[ -n "$CLARA_VERSION_TXT" ] || CLARA_VERSION_TXT="unknown (could not read CLARA_DEP from run-axis.sh)"
+printf '#grid/Capture {:captured-at "%s" :java-version "%s" :clojure-cli-version "%s" :clara-version "%s" :host "%s"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$JAVA_VERSION_TXT" "$CLOJURE_VERSION_TXT" "$CLARA_VERSION_TXT" "$(hostname -s 2>/dev/null || echo unknown)"
+
 rc=0
 COMPLETED=0
 # Captures every #grid/Verdict line from every axis, so the tally below can see them, WITHOUT
