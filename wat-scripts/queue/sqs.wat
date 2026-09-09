@@ -157,7 +157,7 @@
               acks           <- :wat::core::i64
               redeliveries   <- :wat::core::i64
               expired-waiters <- :wat::core::i64
-              seen-ids       <- (:wat::core::HashSet :- [:wat::core::String])]
+              seen-ids       <- (:wat::core::PersistentSet :- [:wat::core::String])]
   :peers     [:wat::query::Store]
   :init (:wat::core::fn
           [record     <- :queue::queue::Record]
@@ -395,7 +395,7 @@
               :acks 0
               :redeliveries 0
               :expired-waiters 0
-              :seen-ids (:wat::core::HashSet :- [:wat::core::String]))))
+              :seen-ids (:wat::core::PersistentSet :- [:wat::core::String]))))
   :impls
   [(send [s ctx req]
      (:wat::core::let
@@ -773,16 +773,16 @@
            [rd-pair
               (:wat::core::foldl
                 (:wat::core::fn
-                  [acc <- (:wat::core::Tuple :- [(:wat::core::HashSet :- [:wat::core::String]) :wat::core::i64])
+                  [acc <- (:wat::core::Tuple :- [(:wat::core::PersistentSet :- [:wat::core::String]) :wat::core::i64])
                    e   <- :queue::Envelope]
-                  -> (:wat::core::Tuple :- [(:wat::core::HashSet :- [:wat::core::String]) :wat::core::i64])
+                  -> (:wat::core::Tuple :- [(:wat::core::PersistentSet :- [:wat::core::String]) :wat::core::i64])
                   (:wat::core::let
                     [seen (:wat::core::first acc)
                      rd   (:wat::core::second acc)
                      id   (:queue::Envelope/id e)]
-                    (:wat::core::if (:wat::hashset::contains? seen id)
+                    (:wat::core::if (:wat::set::contains? seen id)
                       (:wat::core::Tuple seen (:wat::i64::+ rd 1))
-                      (:wat::core::Tuple (:wat::hashset::conj seen id) rd))))
+                      (:wat::core::Tuple (:wat::set::conj seen id) rd))))
                 (:wat::core::Tuple (:queue::queue::State/seen-ids s-n) (:queue::queue::State/redeliveries s-n))
                 envs)
             pair (:wat::core::apply (:queue::queue::State/arm-tick s-n)
