@@ -271,3 +271,92 @@ interval.
 ⚠ And the consequence if the poll candidate holds: **this is not a `collect` defect at all.** It is the
 cost of *any* request to a busy self-scheduling service, which would make it a substrate property that
 shows up wherever the harness asks a worker anything — and `collect` merely asks 12 of them twice.
+
+---
+
+# ⭑⭑⭑ MECHANISM ESTABLISHED — a request waits out the target's own blocking receive
+
+Two candidates of mine died first, and the second died on a measurement I ran to confirm it:
+
+⛔ **Candidate 1, "waiting out a long poll" as I first framed it — dead on a read.**
+`:fanout::worker` self-schedules with `Alarm :delay (Milliseconds 1)`. It is *available* every 1 ms.
+
+⛔ **Candidate 2, alarm starvation — dead on measurement.** If a 1 ms self-refilling alarm starved
+incoming requests, lengthening the tick would relieve it. Tick varied **100×**:
+
+```
+tick =   1 ms   collect 3584 / 4315 / 4259
+tick =  10 ms   collect 3788 / 4042
+tick = 100 ms   collect 3451 / 3784        ← flat, all bands overlapping
+```
+
+★ The edit demonstrably took effect — `drain` moved 49 → 163 ms as the tick lengthened — so the answer
+is genuinely "no", not a failed edit.
+
+⛔ **Candidate 3, connect cost — dead on a read.** `wpeers` are already-connected
+`:wat::kernel::Peer`s and `sum-disrupts` is a plain `Worker/disrupts w` round-trip, the identical shape
+to `Queue/stats q`. No `connect` is inside the measurement.
+
+## ⭑ Candidate 4 — the worker's OWN blocking receive. Predicted, then confirmed BOTH ways.
+
+`circuit.wat:471`, inside `:fanout::worker`:
+
+```
+:queue name :now-ns now :visibility-ns vis :limit 10 :wait (Wait::UpTo (Milliseconds 250))
+```
+
+**Prediction written before measuring:** at 50 ms the per-worker cost should fall ~5×, so `collect`
+drops from ~3600 to **under 1000**; at 500 ms it should roughly double.
+
+| worker receive wait | `collect` (3 runs) | mean | per worker (12) | × the wait |
+|---|---|---|---|---|
+| **50 ms** | 952 / 1052 / 881 | **962** | 80 ms | 1.60× |
+| **250 ms** (shipped) | 3584 / 4315 / 4259 | **4053** | 338 ms | 1.35× |
+| **500 ms** | 6147 / 8711 / 8227 | **7695** | 641 ms | 1.28× |
+
+**Linear in the poll wait, both directions:** 50→250 is 5.0× the wait and 4.2× the cost; 250→500 is
+2.0× and 1.9×. `distinct=80 dup=0` in all nine runs.
+
+★ And the ~1.3× rather than 0.5× is explained by the phase itself: `collect` makes **two** requests per
+worker — `sum-disrupts` and `collect-stop` — each waiting out ~half a poll, giving ~1.0×, plus the
+worker immediately re-parking between them.
+
+## What this explains, all of it, with one mechanism
+
+```
+:queue::queue   request-driven, never parked          2.8 ms
+:probe::ctr     idle, no poll at all                    0 ms
+:fanout::worker parked in a 250 ms Queue/receive     ~150 ms   (=338 ms per 2 requests)
+tick rate                                            irrelevant — the tick STARTS a poll; the poll blocks
+payload                                              irrelevant — it is wait time, not data
+```
+
+★★★ **This is the first mechanism of mine to survive today, and it survived because a falsifiable
+number was written down before the run and the opposite direction was tested afterwards.** The seven
+before it were readings.
+
+## ⛔ AND IT IS NOT A `collect` DEFECT — IT IS STRUCTURAL
+
+A service that makes a **blocking client call inside a handler** cannot answer anything else until that
+call returns. `:fanout::worker` calls `Queue/receive` with a 250 ms wait from inside its tick handler,
+so for up to 250 ms it is deaf to `disrupts`, to `stop`, and to any other request.
+
+**So this is the cost of asking anything of a service that is parked in a long poll** — a control-plane
+operation (stats, health, shutdown) against a data-plane worker pays up to a full poll interval. It
+surfaces in `collect` only because `collect` is where the harness asks 12 workers two questions each.
+
+★★ **And this campaign already has a name for the discipline it violates.** The `mora` ward:
+*"every wait must arrive via the wire, not via mechanism… time is I/O; it arrives as an fd-event or it
+doesn't arrive honestly."* The IPC campaign multiplexed every wait in `src/comms` for exactly this
+reason. A `Queue::Wait::UpTo` held inside a handler is the same defect one level up, in wat rather than
+in Rust — **the wait is not multiplexed with the service's own request channel.**
+
+⚠ I am not proposing the fix here. Whether a `defservice` handler should be able to park on a wire
+without going deaf is a substrate design question, and it is the builder's to open.
+
+## One more inconsistency, found while locating the site
+
+`:fanout::worker` waits **250 ms** (`:471`); `:fanout::held-worker` waits **50 ms** (`:943`). Two
+services doing the same job, 5× apart, undocumented — the same shape as the `mk-tw` 5 s-vs-200 ms
+outlier retired at `3135df9b5`. **Third time today that a constant differed from its siblings for no
+recorded reason.**
