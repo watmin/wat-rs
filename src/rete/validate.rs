@@ -1224,7 +1224,7 @@ fn then_operand_declared_type(
             if lookup_fields(types, &type_env_name(head)).is_some() {
                 return Some(format!(":{}", type_env_name(head)));
             }
-            if let Some((enum_path, variant)) = head.rsplit_once("::") {
+            if let Some((enum_path, variant)) = wat_reader::identifier::decompose_variant(head) {
                 let enum_key = if enum_path.starts_with(':') {
                     enum_path.to_string()
                 } else {
@@ -1480,7 +1480,7 @@ fn walk_nested_constructors(
         }
         // Bare enum-variant constructor head (`{EnumPath}::{Variant}`) — mirrors
         // `constructor_meta`'s own resolution (`purity.rs`).
-        if let Some((enum_path, variant)) = head.rsplit_once("::") {
+        if let Some((enum_path, variant)) = wat_reader::identifier::decompose_variant(head) {
             let enum_key = if enum_path.starts_with(':') {
                 enum_path.to_string()
             } else {

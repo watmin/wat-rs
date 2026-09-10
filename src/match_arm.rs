@@ -131,7 +131,7 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
 /// A variant head is namespaced (`:enum::Variant`). Discriminator
 /// between a variant map pattern and a non-variant keyword (refused).
 pub fn is_namespaced_variant(path: &str) -> bool {
-    path.contains("::")
+    wat_reader::identifier::decompose_variant(path).is_some()
 }
 
 /// Literal heads of a 2-element arm. Mirrors `try_match_pattern`'s

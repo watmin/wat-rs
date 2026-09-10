@@ -3193,9 +3193,14 @@ fn dispatch_keyword_head_value(
                                         method_name,
                                         &[],
                                     );
-                                    let op_ctor = format!("{}::Op::{}", protocol_fqdn, variant);
-                                    let reply_ctor =
-                                        format!("{}::Reply::{}", protocol_fqdn, variant);
+                                    let op_ctor = wat_reader::identifier::compose_variant(
+                                        &format!("{protocol_fqdn}::Op"),
+                                        &variant,
+                                    );
+                                    let reply_ctor = wat_reader::identifier::compose_variant(
+                                        &format!("{protocol_fqdn}::Reply"),
+                                        &variant,
+                                    );
                                     // DESIGN-STONE-the-client-validates-locally.md — Path B is a
                                     // SECOND, independently-drifting copy of the send-then-recv
                                     // forwarding `wat/service.wat`'s `op-methods` also builds (this
@@ -8635,7 +8640,10 @@ fn match_variant_map(
                 bind_named_fields(pairs, ev.names.as_slice(), &ev.fields, env, sym, span)
             }
             Value::ForeignVariant(fv) => {
-                let composed = format!(":{}::{}", fv.enum_class, fv.variant);
+                let composed = wat_reader::identifier::compose_variant(
+                    &format!(":{}", fv.enum_class),
+                    &fv.variant,
+                );
                 if composed != path {
                     return Ok(None);
                 }

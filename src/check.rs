@@ -4834,7 +4834,7 @@ fn infer_list(
                         let narrowed = match &args[1] {
                             WatAST::Keyword(vk, _) => {
                                 let variant_leaf = vk.trim_start_matches(':');
-                                Some(format!("{enum_path}::{variant_leaf}"))
+                                Some(wat_reader::identifier::compose_variant(enum_path, variant_leaf))
                             }
                             _ => None,
                         };
@@ -6878,7 +6878,7 @@ fn cover_variant_arm(
         },
         None => match shape {
             MatchShape::Enum(enum_path, enum_shape_args) => {
-                let (prefix, variant_name) = match path.rsplit_once("::") {
+                let (prefix, variant_name) = match wat_reader::identifier::decompose_variant(path) {
                     Some(p) => p,
                     None => {
                         errors.push(CheckError {
@@ -7004,7 +7004,7 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
                             return MatchShape::Result(fresh.fresh(), fresh.fresh());
                         }
                         None => {
-                            if let Some((enum_path, _)) = k.rsplit_once("::") {
+                            if let Some((enum_path, _)) = wat_reader::identifier::decompose_variant(k) {
                                 if matches!(
                                     env.types().get(enum_path),
                                     Some(crate::types::TypeDef::Enum(_))
@@ -7176,7 +7176,7 @@ fn check_nested_variant_map(
                     return None;
                 }
             };
-            let (prefix, variant_name) = match path.rsplit_once("::") {
+            let (prefix, variant_name) = match wat_reader::identifier::decompose_variant(path) {
                 Some(p) => p,
                 None => {
                     errors.push(CheckError {
@@ -7433,7 +7433,7 @@ fn check_subpattern(
         WatAST::Keyword(k, _) => {
             // User-enum unit variant pattern: `:enum::Variant` against
             // the matching enum type at this position.
-            let (prefix, variant_name) = match k.rsplit_once("::") {
+            let (prefix, variant_name) = match wat_reader::identifier::decompose_variant(k) {
                 Some(p) => p,
                 None => {
                     errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -7679,7 +7679,7 @@ fn check_subpattern(
                         return None;
                     }
                 };
-                let (prefix, variant_name) = match variant_path.rsplit_once("::") {
+                let (prefix, variant_name) = match wat_reader::identifier::decompose_variant(variant_path) {
                     Some(p) => p,
                     None => {
                         errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -13686,10 +13686,7 @@ fn canonical_ctor_callee(k: &str, env: &CheckEnv) -> String {
 fn literal_enum_variant_ctor(ast: &WatAST, env: &CheckEnv) -> Option<(String, String, String)> {
     let WatAST::List(items, _) = ast else { return None };
     let WatAST::Keyword(k, _) = items.first()? else { return None };
-    if !k.contains("::") {
-        return None;
-    }
-    let (type_path, variant) = (wat_reader::identifier::path(k), wat_reader::identifier::leaf(k));
+    let (type_path, variant) = wat_reader::identifier::decompose_variant(k)?;
     match env.types().get(type_path) {
         Some(crate::types::TypeDef::Enum(e)) => {
             let is_variant = e.variants.iter().any(|v| match v {
@@ -13893,11 +13890,7 @@ fn infer_enum_map_ctor(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> Option<CheckResult<TypeExpr>> {
-    if !k.contains("::") {
-        return None;
-    }
-    let type_path = wat_reader::identifier::path(k);
-    let variant_name = wat_reader::identifier::leaf(k);
+    let (type_path, variant_name) = wat_reader::identifier::decompose_variant(k)?;
     let enum_def = match env.types().get(type_path) {
         Some(crate::types::TypeDef::Enum(e)) => e,
         _ => return None,

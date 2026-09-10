@@ -601,7 +601,7 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
             }
             // Unit enum variant `:ns::Type::Variant` — `try_match_pattern`
             // composes `type_path::variant_name` against this keyword.
-            if k.starts_with(':') && k.contains("::") {
+            if k.starts_with(':') && wat_reader::identifier::decompose_variant(k).is_some() {
                 return Ok(Pat::Variant {
                     name: k.clone(),
                     payload: None,
@@ -815,7 +815,7 @@ fn lower_construct(
     }
 
     // Enum variant constructor `:ns::Type::Variant` (unit or tagged).
-    if let Some((enum_path, variant)) = head.rsplit_once("::") {
+    if let Some((enum_path, variant)) = wat_reader::identifier::decompose_variant(head) {
         if let Some(TypeDef::Enum(e)) = types.get(enum_path) {
             let found = e.variants.iter().find(|v| match v {
                 EnumVariant::Unit(n) => n == variant,
@@ -1318,7 +1318,9 @@ fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
             },
             Value::Enum(e) => {
                 let composed = wat_reader::identifier::compose_variant(&e.type_path, &e.variant_name);
-                let last = wat_reader::identifier::leaf(name).trim_start_matches(':');
+                let last = wat_reader::identifier::decompose_variant(name)
+                    .map_or(name.as_str(), |(_, v)| v)
+                    .trim_start_matches(':');
                 if composed != *name && e.variant_name != *name && e.variant_name != last {
                     return false;
                 }

@@ -258,11 +258,7 @@ pub(crate) fn try_eval_enum_map_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Option<Result<Value, EvalBreak>> {
-    if !head.contains("::") {
-        return None;
-    }
-    let type_path = wat_reader::identifier::path(head);
-    let variant_name = wat_reader::identifier::leaf(head);
+    let (type_path, variant_name) = wat_reader::identifier::decompose_variant(head)?;
     let types = sym.types()?;
     let enum_def = match types.get(type_path) {
         Some(crate::types::TypeDef::Enum(e)) => e,

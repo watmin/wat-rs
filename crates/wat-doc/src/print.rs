@@ -125,7 +125,7 @@ fn push_edn_string(out: &mut String, s: &str) {
 }
 
 fn axis_edn(wat_type_path: &str, variant: &str) -> String {
-    wat_fqdn_to_edn_keyword(&format!("{wat_type_path}::{variant}"))
+    wat_fqdn_to_edn_keyword(&wat_reader::identifier::compose_variant(wat_type_path, variant))
 }
 
 /// Forward of `edn/render.rs`'s `wat_keyword_to_clojure_symbol`, as an EDN

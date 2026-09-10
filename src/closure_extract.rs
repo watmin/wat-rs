@@ -1586,8 +1586,7 @@ fn record_dep_dependency(
     }
     // Similarly skip enum tagged-variant constructors `:E::Variant`
     // where `:E` is a declared enum.
-    if name.contains("::") {
-        let enum_part = wat_reader::identifier::path(name);
+    if let Some((enum_part, _)) = wat_reader::identifier::decompose_variant(name) {
         if let Some(TypeDef::Enum(_)) = state.parent_types.get(enum_part) {
             record_type_dependency_by_name(state, enum_part);
             return;
