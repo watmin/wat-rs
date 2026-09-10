@@ -137,10 +137,17 @@ pub(crate) fn wat_fqdn_to_edn_keyword(kw: &str) -> String {
         Some(b) => b,
         None => return format!(":{kw}"),
     };
+    // rune:lint(one-variant-separator, edn) — guards the no-op path in this wat-FQDN→EDN-keyword
+    // translator: no "::" at all (or a trailing one) means there is nothing left to translate.
     if !body.contains("::") || body.ends_with("::") {
         return format!(":{body}");
     }
+    // rune:lint(one-variant-separator, namespace) — the GENERAL leaf splitter (not the
+    // enum-variant pair) isolating the terminal segment of an arbitrary wat FQDN.
     let final_seg = wat_reader::identifier::leaf(body);
+    // rune:lint(one-variant-separator, namespace) — generic path/leaf segmentation of an
+    // arbitrary wat FQDN into namespace parts; the "."-join that actually performs the EDN
+    // translation happens a few lines below, on an unflagged line.
     let mut ns_parts: Vec<&str> = wat_reader::identifier::path(body).split("::").collect();
     let name: &str =
         if final_seg.contains('/') && !wat_reader::identifier::receiver(final_seg).is_empty() {

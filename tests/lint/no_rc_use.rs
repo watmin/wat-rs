@@ -46,6 +46,8 @@ use regex::Regex;
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for e in entries.flatten() {
+        // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() in this lint's own
+        // recursive filesystem walk.
         let p = e.path();
         if p.is_dir() {
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -89,6 +91,8 @@ fn shared_ownership_is_atomic() {
     collect_rs(&root.join("src"), &mut files);
     if let Ok(entries) = std::fs::read_dir(root.join("crates")) {
         for e in entries.flatten() {
+            // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() in this lint's own
+            // filesystem walk of `crates/*/src`.
             collect_rs(&e.path().join("src"), &mut files);
         }
     }

@@ -255,14 +255,26 @@ fn synthetic_span() -> Span {
 fn fqdn_of(ns: Option<&str>, name: &str) -> String {
     match ns {
         Some(ns) => {
+            // rune:lint(one-variant-separator, edn) — reverse of vocab.rs's translate: EDN "."
+            // namespace segments back to wat "::" ahead of FQDN reconstruction.
             let wat_ns = ns.replace('.', "::");
+            // rune:lint(one-variant-separator, namespace) — splits the reconstructed wat
+            // namespace into (outer ns, last segment) to test whether the last segment names a
+            // record TYPE (see the function doc above); a namespace-shape check, not an
+            // enum/variant decomposition.
             if let Some((head, type_seg)) = wat_ns.rsplit_once("::") {
                 let type_is_type = type_seg.starts_with(|c: char| c.is_uppercase());
                 let name_is_method = !name.is_empty() && !name.starts_with(|c: char| c.is_uppercase());
                 if type_is_type && name_is_method {
+                    // rune:lint(one-variant-separator, namespace) — recomposes {head}::{type_seg}
+                    // ahead of the "/method" notation; type_seg is a record type here (Hologram,
+                    // Bytes, …, per the function doc), not an enum, and name is a method, not a
+                    // variant.
                     return format!(":{head}::{type_seg}/{name}");
                 }
             }
+            // rune:lint(one-variant-separator, edn) — final reassembly of the translated wat
+            // FQDN for the plain (non-Type/method) case, completing the EDN→wat translation.
             format!(":{wat_ns}::{name}")
         }
         None => format!(":{name}"),

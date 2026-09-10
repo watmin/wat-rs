@@ -169,6 +169,7 @@ fn param_to_tosql(idx: usize, v: &Value) -> Result<Box<dyn ToSql>, RawFault> {
         (variant, payload) => Err((
             0,
             format!("param[{idx}]"),
+            // rune:lint(one-variant-separator, display) — Param enum + its own variant rendered into a human-facing diagnostic message, never parsed back
             format!("malformed Param::{variant} (payload {payload:?})"),
         )),
     }

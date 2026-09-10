@@ -576,6 +576,7 @@ fn source_has_config_setter(src: &str) -> bool {
 fn collect_wat_files_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
+        // rune:lint(one-variant-separator, not-a-name) — std::fs::DirEntry::path(), a filesystem path, not a wat name
         let path = entry.path();
         let file_type = entry.file_type()?;
         if file_type.is_dir() {

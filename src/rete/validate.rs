@@ -971,14 +971,21 @@ fn check_constraint_head(
 
     match spelling {
         ConstraintSpelling::CoreGeneric => {
+            // rune:lint(one-variant-separator, namespace) — reads the comparison-op leaf off a
+            // rete constraint-head op string; a type and an operator, not an enum and its variant.
             let suffix = wat_reader::identifier::leaf(op);
             let twin = match resolved.iter().find_map(|(_, t)| match t {
                 OperandType::Resolved(ty) => Some(*ty),
                 _ => None,
             }) {
+                // rune:lint(one-variant-separator, namespace) — composes the namespaced rete
+                // constraint-head verb name (a type + comparison op) for a diagnostic's suggested
+                // spelling; not an enum and its variant.
                 Some(ty) => format!(":wat::rete::core::{ty}::{suffix}"),
                 // Every operand is an unbound `?var`. Do NOT name a type the operands do not
                 // justify — a wrong suggestion teaches a wrong fix.
+                // rune:lint(one-variant-separator, namespace) — same composition, for the
+                // unbound-operand fallback spelling.
                 None => format!(":wat::rete::core::<type-of-the-operands>::{suffix}"),
             };
             errors.push(ReteCheckError {
@@ -1330,6 +1337,9 @@ fn kwargs_construct_head(head: &str) -> bool {
 /// or the slash-path `wat.grep/Capture`.
 fn type_env_name(kw: &str) -> String {
     let k = kw.trim_start_matches(':');
+    // rune:lint(one-variant-separator, namespace) — checks whether a TypeEnv keyword is already
+    // the colon-FQDN form (vs. the slash-path form) by namespace-separator presence; a type
+    // name's own spelling check, not a variant tag.
     if k.contains("::") {
         k.to_string()
     } else if k.contains('/') {
@@ -1338,6 +1348,9 @@ fn type_env_name(kw: &str) -> String {
         // (STONE-one-name-grammar, arc 109) and the lint says so by name.
         let ns = wat_reader::identifier::receiver(k);
         let name = wat_reader::identifier::method(k);
+        // rune:lint(one-variant-separator, namespace) — composes a colon-FQDN type name from a
+        // slash-path's namespace (dot-joined, converted to `::`) and leaf; a type name, not an
+        // enum variant.
         format!("{}::{name}", ns.replace('.', "::"))
     } else {
         k.to_string()

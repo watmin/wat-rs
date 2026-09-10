@@ -248,6 +248,8 @@ fn walk_rs_files(dir: &std::path::Path, visit: &mut dyn FnMut(&std::path::Path, 
         Err(_) => return,
     };
     for entry in entries.flatten() {
+        // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() in this probe's own
+        // recursive filesystem walk.
         let path = entry.path();
         if path.is_dir() {
             walk_rs_files(&path, visit);

@@ -199,6 +199,7 @@ pub fn parse_key_first_pairs<'a>(
         match k {
             WatAST::Keyword(kw, kspan) => {
                 let name = kw.trim_start_matches(':');
+                // rune:lint(one-variant-separator, namespace) — rejects a namespaced keyword used where a bare map-pattern field name is required; unrelated to enum variants.
                 if name.is_empty() || name.contains("::") {
                     return Err(MatchArmError {
                         span: kspan.clone(),

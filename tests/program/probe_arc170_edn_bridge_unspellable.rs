@@ -156,6 +156,8 @@ fn c03_the_whole_corpus_crosses_the_wire() {
     fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         let Ok(rd) = std::fs::read_dir(dir) else { return };
         for e in rd.flatten() {
+            // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() in this probe's
+            // own recursive filesystem walk.
             let p = e.path();
             if p.is_dir() {
                 if !p.ends_with("target") {

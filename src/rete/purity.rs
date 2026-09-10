@@ -2652,6 +2652,8 @@ mod completeness_gate {
                 return;
             };
             for entry in rd.flatten() {
+                // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() inside this
+                // meter's own recursive filesystem walk of `src/`.
                 let p = entry.path();
                 if p.is_dir() {
                     walk_intrinsic_homes(p, out);
@@ -2744,6 +2746,9 @@ mod completeness_gate {
         // rune:perspicere(read-once) — completeness print grouping; alias would be a mumble.
         let mut by_ns: std::collections::BTreeMap<String, Vec<&String>> = Default::default();
         for v in &unreviewed {
+            // rune:lint(one-variant-separator, namespace) — splits an unreviewed dispatched
+            // verb's own namespaced name into namespace-prefix and leaf, to group the
+            // completeness worklist by namespace; not an enum and its variant.
             let ns = v.rsplit_once("::").map(|(a, _)| a.to_string()).unwrap_or_else(|| v.clone());
             by_ns.entry(ns).or_default().push(v);
         }

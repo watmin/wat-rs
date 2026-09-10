@@ -61,7 +61,12 @@ fn assert_native_eq_oracle(expr_template: &str, type_str: &str) -> i64 {
 // J is skipped; right_idx[J] never populated. Round 2: B arrives but right_idx is empty → C=0.
 
 fn q_call(ty: &str) -> String {
+    // rune:lint(one-variant-separator, namespace) — splits a rete fact-type keyword
+    // (e.g. `:chain::A`) into namespace and leaf to build a query verb; A/B/C are fact types
+    // (records, see the R1/R2 comments above), not enum variants.
     let (ns, name) = ty.rsplit_once("::").expect("namespaced type");
+    // rune:lint(one-variant-separator, namespace) — composes the namespaced query verb from
+    // that same namespace/leaf split.
     format!("(:{ns}::q-{name})")
 }
 

@@ -748,7 +748,14 @@ pub(crate) fn exec_call(
 }
 
 fn option_result_tag(tag: &str) -> Option<String> {
-    let last = wat_reader::identifier::leaf(tag).trim_start_matches(':');
+    // PATTERN M, the sibling of `pat_matches`'s site 570 lines below: the tag arrives
+    // either BARE (`:Some`) or fully qualified (`:wat::core::Option::Some`), so the
+    // variant door is tried first and the whole name is the fallback. Reading this with
+    // the GENERAL accessor was the cluster-8 hazard — after the separator flips,
+    // `leaf(":wat::core::Option.Some")` yields `Option.Some` and this arm stops firing.
+    let last = wat_reader::identifier::decompose_variant(tag)
+        .map_or(tag, |(_, v)| v)
+        .trim_start_matches(':');
     match last {
         "None" | "Some" | "Ok" | "Err" => Some(last.to_string()),
         _ => None,

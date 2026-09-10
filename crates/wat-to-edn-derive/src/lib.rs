@@ -482,6 +482,9 @@ fn parse_enum_attrs(input: &DeriveInput) -> Result<EnumAttr, TokenStream2> {
     let mut namespace: Option<syn::Path> = None;
 
     for attr in &input.attrs {
+        // rune:lint(one-variant-separator, not-a-name) — `attr` is `syn::Attribute`; `.path()`
+        // is `syn::Attribute::path()`, a Rust `syn::Path`, not `wat_reader::identifier::path` —
+        // no wat name is spelled here at all.
         if !attr.path().is_ident("to_edn") {
             continue;
         }
@@ -560,6 +563,9 @@ fn parse_field_attrs(field: &syn::Field) -> Result<FieldAttr, TokenStream2> {
     let mut skip = false;
 
     for attr in &field.attrs {
+        // rune:lint(one-variant-separator, not-a-name) — `attr` is `syn::Attribute`; `.path()`
+        // is `syn::Attribute::path()`, a Rust `syn::Path`, not `wat_reader::identifier::path` —
+        // no wat name is spelled here at all.
         if !attr.path().is_ident("to_edn") {
             continue;
         }
@@ -758,6 +764,9 @@ fn parse_variant_attrs(variant: &syn::Variant) -> Result<VariantAttr, TokenStrea
     let mut key: Option<String> = None;
 
     for attr in &variant.attrs {
+        // rune:lint(one-variant-separator, not-a-name) — `attr` is `syn::Attribute`; `.path()`
+        // is `syn::Attribute::path()`, a Rust `syn::Path`, not `wat_reader::identifier::path` —
+        // no wat name is spelled here at all.
         if !attr.path().is_ident("to_edn") {
             continue;
         }

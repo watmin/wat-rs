@@ -1608,12 +1608,20 @@ pub fn register_type_predicates(
         // prepend "is-", append "?", rejoin namespace prefix with "::".
         // E.g. "my::Shape" → "my::is-Shape?", "ns::sub::Foo" → "ns::sub::is-Foo?".
         let stripped = fqdn.trim_start_matches(':');
+        // rune:lint(one-variant-separator, namespace) — tests whether the type's own FQDN
+        // carries a namespace prefix at all, to pick the predicate-name shape below.
         let predicate_name: String = if !stripped.contains("::") {
             // No namespace prefix — bare name (unusual but handled).
             format!(":is-{}?", stripped)
         } else {
+            // rune:lint(one-variant-separator, namespace) — splits the type's FQDN into its
+            // namespace prefix and leaf name; a namespace/leaf split, not a variant decompose.
             let base = wat_reader::identifier::leaf(stripped);
+            // rune:lint(one-variant-separator, namespace) — companion namespace-prefix half of
+            // the split immediately above.
             let prefix = wat_reader::identifier::path(stripped);
+            // rune:lint(one-variant-separator, namespace) — rejoins namespace prefix + derived
+            // leaf into the `is-<Name>?` predicate's own FQDN; not the type's own name, no variant.
             format!(":{}::is-{}?", prefix, base)
         };
 

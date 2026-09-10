@@ -1038,6 +1038,8 @@ pub(crate) fn is_type_arg_shaped(a: &WatAST) -> bool {
 /// (`:i64`, `:bool`) and every FQDN type (`:wat::core::i64`, `:user::Foo`).
 pub(crate) fn is_type_var_path(p: &str) -> bool {
     let s = p.strip_prefix(':').unwrap_or(p);
+    // rune:lint(one-variant-separator, namespace) — tests whether the stripped path carries a
+    // namespace (FQDN) vs. is a bare lexical type-variable name; no enum or variant involved.
     if s.contains("::") || s.contains('.') {
         return false;
     }

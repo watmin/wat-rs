@@ -151,7 +151,9 @@ fn dump_bytes_to_hex_metadata() {
             Value::i64(n) => n.to_string(),
             Value::bool(b) => b.to_string(),
             Value::String(s) => format!("{:?}", s.as_ref()),
-            Value::Enum(ev) => format!("{}::{}", ev.type_path, ev.variant_name),
+            Value::Enum(ev) => {
+                wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name)
+            }
             other => format!("{:?}", other),
         };
         println!("  {} => {}", k, rendered);

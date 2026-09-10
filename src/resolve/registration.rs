@@ -77,6 +77,8 @@ pub enum Registration {
 /// NOT "starts with ':' and contains '::'": parametric heads drop the leading colon
 /// (`wat::kernel::Peer`), recorded in arc 170's 24t seam. The test is containment.
 pub fn is_namespaced(name: &str) -> bool {
+    // rune:lint(one-variant-separator, namespace) — the containment test IS the definition of
+    // "namespaced" for a top-level declared name; no enum or variant is involved.
     name.contains("::")
 }
 
@@ -88,6 +90,9 @@ pub fn is_namespaced(name: &str) -> bool {
 /// (dots appear later, only in the wire tag built by `tag_from_type_path`), so this is a
 /// pure ban, not a parse of an already-dotted form.
 fn has_dotted_name(name: &str) -> bool {
+    // rune:lint(one-variant-separator, namespace) — isolates the name half (after the last
+    // `::`) of a namespaced declaration to check for an illegal embedded dot; a namespace/leaf
+    // split on the declared name itself, not a decompose of an enum's variant.
     wat_reader::identifier::leaf(name).contains('.')
 }
 

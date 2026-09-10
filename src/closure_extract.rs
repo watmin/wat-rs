@@ -631,6 +631,7 @@ fn synthesize_capture_name(local: &str) -> String {
     // Keyword that resolves to the def-bound value at runtime via
     // `def`'s runtime_def_values pathway.
     format!(
+        // rune:lint(one-variant-separator, namespace) — composes a `:user::closure-capture::` namespaced keyword for the def-bound runtime lookup; no enum involved.
         ":user::closure-capture::{}",
         sanitize_local_for_keyword(local)
     )

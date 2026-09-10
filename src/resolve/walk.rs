@@ -364,6 +364,8 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     //
     // Discriminant: starts with `:` and contains no `::`.
     // Multi-segment user paths like `:my::app::missing` still fail here.
+    // rune:lint(one-variant-separator, namespace) — distinguishes a single-segment
+    // field-accessor keyword from a multi-segment namespaced call head; no enum involved.
     if head.starts_with(':') && !head.contains("::") {
         return true;
     }

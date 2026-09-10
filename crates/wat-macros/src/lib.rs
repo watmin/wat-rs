@@ -898,6 +898,9 @@ pub fn test(input: TokenStream) -> TokenStream {
                 // unwinding (and thereby drops the sender, signalling
                 // Disconnected to recv_timeout below).
                 let __wat_handle = ::std::thread::Builder::new()
+                    // rune:lint(one-variant-separator, display) — names the spawned OS test
+                    // thread for a human debugging a hang/panic (thread listings, panic
+                    // backtraces); the label is read, not parsed as wat, by anything.
                     .name(format!("wat-test::{}", #deftest_name))
                     .spawn(move || {
                     let __wat_loader_root: &'static str = #loader_root_local;

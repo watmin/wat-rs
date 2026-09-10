@@ -696,6 +696,7 @@ pub fn spawn_thread_peer(
         .unwrap_or_else(|| "<anon>".to_string());
 
     let join_handle = std::thread::Builder::new()
+        // rune:lint(one-variant-separator, not-a-name) — std::thread OS thread-name label for debuggers/ps, not a wat identifier
         .name(format!("wat-thread-peer::{}", fn_name))
         .spawn(move || {
             // Arc 259 — install THIS peer's own program-env (the escape hatch for the peer).

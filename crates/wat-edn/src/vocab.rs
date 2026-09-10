@@ -210,6 +210,8 @@ pub fn validate_first_char(s: &str) -> Result<(), &'static str> {
 /// and validate the first-character rule in one step. Returns the
 /// translated namespace on success.
 pub(crate) fn translate_and_validate_ns(ns: &str) -> Result<String, &'static str> {
+    // rune:lint(one-variant-separator, edn) — the wall's own literal example: translates the
+    // wat `::` namespace separator into strict-EDN `.` form.
     let translated = ns.replace("::", ".");
     validate_first_char(&translated)?;
     Ok(translated)

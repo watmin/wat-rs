@@ -1020,14 +1020,17 @@ fn metadata_describe(v: &WatAST) -> String {
 fn enum_symbol_variant<'a>(v: &'a WatAST, wat_type_path: &str) -> Option<&'a str> {
     match v {
         WatAST::Keyword(k, _) => {
-            let prefix_len = wat_type_path.len() + 2; // "::"
-            if k.len() > prefix_len && k.starts_with(wat_type_path) && k.as_bytes()[wat_type_path.len()..].starts_with(b"::") {
-                let rest = &k[prefix_len..];
-                if !rest.is_empty() && !rest.contains("::") {
-                    return Some(rest);
+            // Through the ONE door — `decompose_variant` is the sanctioned reader for
+            // "split an enum from its variant". This was a hand-rolled BYTE-level
+            // decomposition (`as_bytes()[..].starts_with(b"::")` plus prefix arithmetic)
+            // and it is a genuine variant site: the leaf it returns is parsed as the
+            // enum itself (`variant.parse::<$enum_ty>()` in `read_axis!`).
+            match wat_reader::identifier::decompose_variant(k) {
+                Some((parent, variant)) if parent == wat_type_path && !variant.is_empty() => {
+                    Some(variant)
                 }
+                _ => None,
             }
-            None
         }
         _ => None,
     }

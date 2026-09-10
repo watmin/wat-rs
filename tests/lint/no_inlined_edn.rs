@@ -114,6 +114,8 @@ use wat::WatAST;
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for e in entries.flatten() {
+        // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() in this lint's own
+        // recursive filesystem walk.
         let p = e.path();
         if p.is_dir() {
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");

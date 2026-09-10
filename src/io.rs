@@ -1648,6 +1648,7 @@ impl WatTempFile {
 
     pub fn path(&self) -> Result<String, RuntimeError> {
         match &self.inner {
+            // rune:lint(one-variant-separator, not-a-name) — tempfile::NamedTempFile::path(), a filesystem path, not a wat name
             Some(f) => Ok(f.path().display().to_string()),
             // arc 138: no span — runtime invariant; no WatAST at this call depth
             None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
@@ -1679,6 +1680,7 @@ impl WatTempDir {
 
     pub fn path(&self) -> Result<String, RuntimeError> {
         match &self.inner {
+            // rune:lint(one-variant-separator, not-a-name) — tempfile::TempDir::path(), a filesystem path, not a wat name
             Some(d) => Ok(d.path().display().to_string()),
             // arc 138: no span — runtime invariant; no WatAST at this call depth
             None => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::MalformedForm {
@@ -1719,6 +1721,7 @@ pub fn eval_io_temp_file_path(
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempFile", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempFile> =
         crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempFile", op, args[0].span().clone())?;
+    // rune:lint(one-variant-separator, not-a-name) — tempfile::NamedTempFile::path(), a filesystem path, not a wat name
     let s = cell.with_ref(op, |f| f.path())??;
     Ok(Value::String(Arc::new(s)))
 }
@@ -1748,6 +1751,7 @@ pub fn eval_io_temp_dir_path(
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempDir", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempDir> =
         crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempDir", op, args[0].span().clone())?;
+    // rune:lint(one-variant-separator, not-a-name) — tempfile::TempDir::path(), a filesystem path, not a wat name
     let s = cell.with_ref(op, |d| d.path())??;
     Ok(Value::String(Arc::new(s)))
 }
@@ -1821,6 +1825,7 @@ pub fn eval_io_list_dir(
                 reason: format!("read_dir entry error: {e}")
             })
         })?;
+        // rune:lint(one-variant-separator, not-a-name) — std::fs::DirEntry::path(), a filesystem path, not a wat name
         let full_path = entry.path().to_string_lossy().into_owned();
         entries.push(Value::String(Arc::new(full_path)));
     }

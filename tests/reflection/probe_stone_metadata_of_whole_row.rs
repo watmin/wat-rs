@@ -47,7 +47,10 @@ fn value_to_doc_ast(v: &Value) -> WatAST {
         Value::String(s) => WatAST::string(s.as_str()),
         Value::i64(n) => WatAST::int(*n),
         Value::wat__core__keyword(k) => WatAST::keyword(k.as_str()),
-        Value::Enum(ev) => WatAST::keyword(format!("{}::{}", ev.type_path, ev.variant_name)),
+        Value::Enum(ev) => WatAST::keyword(wat_reader::identifier::compose_variant(
+            &ev.type_path,
+            &ev.variant_name,
+        )),
         Value::Vec(items) => WatAST::vector(items.iter().map(value_to_doc_ast).collect()),
         Value::wat__WatAST(a) => (**a).clone(),
         Value::Unit => WatAST::nil(),

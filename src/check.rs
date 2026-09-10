@@ -1475,6 +1475,7 @@ fn walk_for_restricted_call(
 /// with the empty prefix list rendered in the diagnostic.
 fn caller_matches_prefix_list(caller_fqdn: &str, prefixes: &[String]) -> bool {
     prefixes.iter().any(|entry| {
+        // rune:lint(one-variant-separator, namespace) — prefix-list entries are namespace-style FQDN prefixes (e.g. "wat::core::"), not enum/variant paths.
         if entry.ends_with("::") {
             caller_fqdn.starts_with(entry.as_str())
         } else {
@@ -1571,6 +1572,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
             // its first alphabetic character is uppercase (same rule as
             // `collect_free_type_vars::is_type_var` in runtime.rs).
             let s = p.strip_prefix(':').unwrap_or(p.as_str());
+            // rune:lint(one-variant-separator, namespace) — rejects any namespace path segment at all, identifying a bare type-var name; no enum/variant involved.
             !s.contains("::") && !s.contains('.')
                 && s.chars().find(|c| c.is_alphabetic()).is_some_and(|c| c.is_uppercase())
         },
@@ -7526,6 +7528,7 @@ fn check_subpattern(
                     errors.push(CheckError { span: head.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: bare.to_string(),
                         param: "(retired bare-symbol exception)".into(),
+                        // rune:lint(one-variant-separator, namespace) — composes the retired bare symbol's canonical builtin verb name under `:wat::core::`; Some/Ok/Err are top-level verbs here, not enum variants.
                         expected: format!(":wat::core::{}", bare),
                         got: bare.to_string(),
                     } });
@@ -13951,6 +13954,7 @@ fn infer_enum_map_ctor(
                 kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!(
+                        // rune:lint(one-variant-separator, display) — user-facing MalformedForm reason; type_path/variant_name are rendered into prose the reader sees.
                         "map-ctor key `:{key}` is not a field of {type_path}::{variant_name}"
                     ),
                     remedies: vec![],
@@ -13968,6 +13972,7 @@ fn infer_enum_map_ctor(
                     kind: CheckErrorKind::MalformedForm {
                         head: k.to_string(),
                         reason: format!(
+                            // rune:lint(one-variant-separator, display) — user-facing MalformedForm reason; type_path/variant_name are rendered into prose the reader sees.
                             "map ctor is missing declared field `:{decl_name}` of {type_path}::{variant_name}"
                         ),
                         remedies: vec![],
@@ -17088,7 +17093,9 @@ pub(crate) fn assignable(
         if head == "wat::kernel::Peer" && peer_args.len() == 2 {
             if let Some(crate::types::TypeDef::Surface(surf)) = types.get(ep) {
                 if surf.nature == Some(crate::types::Nature::Peer) {
+                    // rune:lint(one-variant-separator, type-path) — composes the Peer surface's own synthesized Op enum path; its variants hang off this, not this call.
                     let want_op    = reduce(&TypeExpr::Path(format!("{}::Op", ep)),    subst, types);
+                    // rune:lint(one-variant-separator, type-path) — composes the Peer surface's own synthesized Reply enum path; its variants hang off this, not this call.
                     let want_reply = reduce(&TypeExpr::Path(format!("{}::Reply", ep)), subst, types);
                     let got_op     = reduce(&peer_args[0], subst, types);
                     let got_reply  = reduce(&peer_args[1], subst, types);
@@ -21460,6 +21467,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // not a decision worth carrying forward under a new address.
     for name in ["ln", "exp", "sin", "cos", "sqrt"] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers a builtin math function under the `:wat::math::` namespace; no enum involved.
             format!(":wat::math::{}", name),
             TypeScheme {
                 type_params: vec![],
@@ -21493,6 +21501,7 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     for name in ["mean", "variance", "stddev"] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers a builtin stat function under the `:wat::stat::` namespace; no enum involved.
             format!(":wat::stat::{}", name),
             TypeScheme {
                 type_params: vec![],
@@ -21525,6 +21534,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     for name in ["at", "at-millis", "at-nanos"] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers an Instant constructor (at/at-millis/at-nanos) under `:wat::time::`; no enum involved.
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
@@ -21554,6 +21564,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     for name in ["epoch-seconds", "epoch-millis", "epoch-nanos"] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers an epoch-readout function under `:wat::time::`; no enum involved.
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
@@ -21578,6 +21589,7 @@ fn register_builtins(env: &mut CheckEnv) {
         "Day",
     ] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers a Duration unit constructor (a builtin function, not an enum variant) under `:wat::time::`.
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
@@ -21600,6 +21612,7 @@ fn register_builtins(env: &mut CheckEnv) {
         "days",
     ] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers a Duration readout function (a builtin function, not an enum variant) under `:wat::time::`.
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
@@ -21614,6 +21627,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Duration and returns Instant (relative to wall-clock now).
     for name in ["ago", "from-now"] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers the `ago`/`from-now` composer functions under `:wat::time::`; no enum involved.
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],
@@ -21644,6 +21658,7 @@ fn register_builtins(env: &mut CheckEnv) {
         "days-from-now",
     ] {
         env.register(
+            // rune:lint(one-variant-separator, namespace) — registers a pre-composed unit-ago/unit-from-now sugar function under `:wat::time::`; no enum involved.
             format!(":wat::time::{}", name),
             TypeScheme {
                 type_params: vec![],

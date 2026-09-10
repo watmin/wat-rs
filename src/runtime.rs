@@ -3194,10 +3194,12 @@ fn dispatch_keyword_head_value(
                                         &[],
                                     );
                                     let op_ctor = wat_reader::identifier::compose_variant(
+                                        // rune:lint(one-variant-separator, type-path) — composes the protocol's own Op enum path; `variant` (below) is the real variant, passed separately into compose_variant
                                         &format!("{protocol_fqdn}::Op"),
                                         &variant,
                                     );
                                     let reply_ctor = wat_reader::identifier::compose_variant(
+                                        // rune:lint(one-variant-separator, type-path) — composes the protocol's own Reply enum path; `variant` (below) is the real variant, passed separately into compose_variant
                                         &format!("{protocol_fqdn}::Reply"),
                                         &variant,
                                     );
@@ -3258,11 +3260,19 @@ fn dispatch_keyword_head_value(
                                     let resp_base =
                                         crate::types::parametric_head_fqdn(resp_base_raw);
                                     let cap_const_kw = format!(
+                                        // rune:lint(one-variant-separator, namespace) — protocol namespace + per-method leaf forming a budget-constant keyword; no enum/variant involved
                                         "{}::{}-MAX-REQUEST-BYTES",
                                         protocol_fqdn,
                                         method_name.to_uppercase()
                                     );
-                                    let rtl_ctor_kw = format!("{resp_base}::RequestTooLarge");
+                                    // `RequestTooLarge` is a MANDATORY variant of every serviceable
+                                    // Response enum — `types.rs`'s RTL_VARIANT shape-lock enforces it —
+                                    // and this keyword heads a real variant constructor below. Through
+                                    // the ONE door, not a second hand-rolled spelling.
+                                    let rtl_ctor_kw = wat_reader::identifier::compose_variant(
+                                        &resp_base,
+                                        "RequestTooLarge",
+                                    );
                                     let span = list_span.clone();
 
                                     // Eval the peer + request ONCE (avoids double-evaluating the
@@ -3851,6 +3861,7 @@ fn keyword_accessor_enum(
             list_span.clone(),
             RuntimeErrorKind::UnknownField {
                 record_class: format!(
+                    // rune:lint(one-variant-separator, display) — enum + variant rendered into the record_class a person reads in an UnknownField error, never parsed back
                     "{}::{}",
                     e.type_path.trim_start_matches(':'),
                     e.variant_name
@@ -11277,6 +11288,7 @@ pub(crate) fn eval_math_unary(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
+                // rune:lint(one-variant-separator, namespace) — :wat::math:: namespace + leaf op name, no enum/variant involved
                 op: format!(":wat::math::{}", op_name),
                 expected: 1,
                 got: args.len(),
@@ -11291,6 +11303,7 @@ pub(crate) fn eval_math_unary(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
+                    // rune:lint(one-variant-separator, namespace) — :wat::math:: namespace + leaf op name, no enum/variant involved
                     op: format!(":wat::math::{}", op_name),
                     expected: "f64",
                     got: Box::new(ValueSnapshot::of(&other)),
@@ -14126,6 +14139,7 @@ pub(crate) fn parse_verify_algo_keyword(
             RuntimeErrorKind::MalformedForm {
                 head: form.into(),
                 reason: format!(
+                    // rune:lint(one-variant-separator, display) — user-facing MalformedForm reason sentence, not an enum/variant composition
                     "this form expects a :wat::verify::{}<algo> keyword; got {}",
                     expected_kind, kw
                 ),

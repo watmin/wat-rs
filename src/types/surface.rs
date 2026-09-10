@@ -705,6 +705,8 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             collect_message_form_type_refs(unwrap_message_decl(m), &mut refs);
             for r in refs {
                 // Only namespaced user types are protocol messages; skip stdlib + type vars.
+                // rune:lint(one-variant-separator, namespace) — a message type reference always
+                // carries a namespace; this excludes bare type vars and the stdlib namespace.
                 if !r.contains("::") || r.starts_with(":wat::") {
                     continue;
                 }
@@ -876,6 +878,8 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 collect_user_type_paths(ret, &mut refs);
                 for r in refs {
                     // Only namespaced user types are protocol messages; skip stdlib + type vars.
+                    // rune:lint(one-variant-separator, namespace) — same namespace check as the
+                    // :messages walk above, applied to a feature method's own req/ret refs.
                     if !r.contains("::") || r.starts_with(":wat::") {
                         continue;
                     }

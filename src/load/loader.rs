@@ -944,6 +944,7 @@ fn parse_verify_algo(ast: &WatAST, expected_prefix: &str, form_span: Span) -> Re
                 form_span.clone(),
                 LoadErrorKind::MalformedLoadForm {
                     reason: format!(
+                        // rune:lint(one-variant-separator, display) — user-facing MalformedLoadForm reason sentence, not an enum/variant composition
                         "this load form expects a :wat::verify::{}<algo> keyword; got {}",
                         expected_prefix, keyword
                     ),
@@ -1802,8 +1803,10 @@ mod tests {
     #[test]
     fn scoped_loader_reads_in_scope_file() {
         let dir = make_scope_dir();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path() (test helper over a temp dir), a filesystem path, not a wat name
         let file_path = dir.path().join("a.wat");
         std::fs::write(&file_path, "hello").unwrap();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let loader = ScopedLoader::new(dir.path()).expect("scope");
         let loaded = loader
             .fetch_source_file(&file_path.to_string_lossy(), None)
@@ -1818,7 +1821,9 @@ mod tests {
     #[test]
     fn scoped_loader_resolves_base_less_relative_path_against_scope_root() {
         let dir = make_scope_dir();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         std::fs::write(dir.path().join("helper.wat"), "hi").unwrap();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let loader = ScopedLoader::new(dir.path()).expect("scope");
         let loaded = loader
             .fetch_source_file("helper.wat", None)
@@ -1829,8 +1834,10 @@ mod tests {
     #[test]
     fn scoped_loader_reads_payload_in_scope() {
         let dir = make_scope_dir();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let file_path = dir.path().join("digest.txt");
         std::fs::write(&file_path, "abc123").unwrap();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let loader = ScopedLoader::new(dir.path()).expect("scope");
         let payload = loader
             .fetch_payload_file(&file_path.to_string_lossy(), None)
@@ -1843,8 +1850,10 @@ mod tests {
         // A second temp dir OUTSIDE the scope.
         let scope = make_scope_dir();
         let outside = make_scope_dir();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let outside_file = outside.path().join("leak.txt");
         std::fs::write(&outside_file, "secrets").unwrap();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let loader = ScopedLoader::new(scope.path()).expect("scope");
         let err = loader
             .fetch_source_file(&outside_file.to_string_lossy(), None)
@@ -1856,6 +1865,7 @@ mod tests {
     fn scoped_loader_rejects_dotdot_escape() {
         // Create scope/subdir/here; ask for `../../etc/passwd` style.
         let scope = make_scope_dir();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let sub = scope.path().join("sub");
         std::fs::create_dir(&sub).unwrap();
         let loader = ScopedLoader::new(&sub).expect("scope");
@@ -1879,10 +1889,13 @@ mod tests {
         // symlink inside scope pointing to a file outside scope.
         let scope = make_scope_dir();
         let outside = make_scope_dir();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let secret = outside.path().join("secret.txt");
         std::fs::write(&secret, "do-not-read").unwrap();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let link = scope.path().join("link");
         std::os::unix::fs::symlink(&secret, &link).unwrap();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let loader = ScopedLoader::new(scope.path()).expect("scope");
         let err = loader
             .fetch_source_file(&link.to_string_lossy(), None)
@@ -1893,7 +1906,9 @@ mod tests {
     #[test]
     fn scoped_loader_returns_not_found_for_missing_file() {
         let scope = make_scope_dir();
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let loader = ScopedLoader::new(scope.path()).expect("scope");
+        // rune:lint(one-variant-separator, not-a-name) — ScopeDir::path(), a filesystem path, not a wat name
         let missing = scope.path().join("missing.wat");
         let err = loader
             .fetch_source_file(&missing.to_string_lossy(), None)

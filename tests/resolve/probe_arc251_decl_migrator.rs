@@ -30,6 +30,8 @@ use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 // itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
 // the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
 fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
+    // rune:lint(one-variant-separator, namespace) — composes a namespaced `:user::<fn>` verb
+    // name to call a fixture function; `user` is a namespace, not an enum.
     let full = format!(":user::{}", fn_name);
     match call_beside_value(file!(), &full)? {
         Value::String(s) => Ok((*s).clone()),

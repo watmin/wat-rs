@@ -188,6 +188,9 @@ fn extract_allow_wrapping_reason(attrs: &[Attribute]) -> Option<String> {
 
 /// Checks whether `attr` is the `#[wat_value(...)]` attribute.
 fn is_wat_value_attr(attr: &Attribute) -> bool {
+    // rune:lint(one-variant-separator, not-a-name) — `attr` is `syn::Attribute`; `.path()` is
+    // `syn::Attribute::path()`, a Rust `syn::Path`, not `wat_reader::identifier::path` — no wat
+    // name is spelled here at all.
     attr.path().is_ident("wat_value")
 }
 

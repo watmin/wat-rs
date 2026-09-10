@@ -763,6 +763,9 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
                     wat_reader::WatAST::Symbol(id, _) if id.as_str() == "~@" => {
                         return Err(syn::Error::new_spanned(
                             &args.type_path,
+                            // rune:lint(one-variant-separator, display) — compile-time syn::Error
+                            // shown to the developer; spells the enum+variant into prose, it does
+                            // not decompose or compare them.
                             format!("`{want}::{vname_bare}` uses a SURFACE SPLICE — splices resolve against a live TypeEnv, which does not exist at compile time"),
                         ));
                     }
@@ -770,6 +773,9 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
                         let (Some(arrow), Some(ty)) = (fs.get(fi + 1), fs.get(fi + 2)) else {
                             return Err(syn::Error::new_spanned(
                                 &args.type_path,
+                                // rune:lint(one-variant-separator, display) — compile-time
+                                // syn::Error shown to the developer; spells the enum+variant into
+                                // prose, it does not decompose or compare them.
                                 format!("`{want}::{vname_bare}`: field `{}` is not a `name <- :Type` triple", name.as_str()),
                             ));
                         };
@@ -779,6 +785,9 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
                             other => {
                                 return Err(syn::Error::new_spanned(
                                     &args.type_path,
+                                    // rune:lint(one-variant-separator, display) — compile-time
+                                    // syn::Error shown to the developer; spells the enum+variant
+                                    // into prose, it does not decompose or compare them.
                                     format!("`{want}::{vname_bare}`: field `{}` arrow slot holds {other:?}", name.as_str()),
                                 ));
                             }
@@ -786,12 +795,18 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
                         if arrow_txt != "<-" && arrow_txt != ":-" {
                             return Err(syn::Error::new_spanned(
                                 &args.type_path,
+                                // rune:lint(one-variant-separator, display) — compile-time
+                                // syn::Error shown to the developer; spells the enum+variant into
+                                // prose, it does not decompose or compare them.
                                 format!("`{want}::{vname_bare}`: field `{}` uses arrow `{arrow_txt}`", name.as_str()),
                             ));
                         }
                         let Some(ty_text) = node_source_text(&src, ty.span()) else {
                             return Err(syn::Error::new_spanned(
                                 &args.type_path,
+                                // rune:lint(one-variant-separator, display) — compile-time
+                                // syn::Error shown to the developer; spells the enum+variant into
+                                // prose, it does not decompose or compare them.
                                 format!("`{want}::{vname_bare}`: field `{}` type node has no source range", name.as_str()),
                             ));
                         };
@@ -801,6 +816,9 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
                     other => {
                         return Err(syn::Error::new_spanned(
                             &args.type_path,
+                            // rune:lint(one-variant-separator, display) — compile-time syn::Error
+                            // shown to the developer; spells the enum+variant into prose, it does
+                            // not decompose or compare them.
                             format!("`{want}::{vname_bare}`: unexpected item in the field vector: {other:?}"),
                         ));
                     }
@@ -1088,6 +1106,8 @@ fn expand_wat_enum_field_names(args: &WatEnumFieldNamesArgs) -> syn::Result<Toke
     Ok(quote! {
         const _: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #rel));
 
+        // rune:lint(one-variant-separator, display) — spells the enum+variant into generated
+        // rustdoc a developer reads (cargo doc / IDE hover); not parsed as wat by anything.
         #[doc = concat!("GENERATED field names for `", #type_path, "::", #variant, "`, read from its wat `defenum` declaration.")]
         #[doc = ""]
         #[doc = "⛔ Do NOT hand-write these. **wat is the source of truth** — the names live in the"]
@@ -1125,6 +1145,9 @@ fn enum_variant_field_names_of(src: &str, file: &str, want_type: &str, want_vari
                 // Unit variant.
                 if vname_bare == want_variant {
                     return Err(format!(
+                        // rune:lint(one-variant-separator, display) — compile-time Err(String)
+                        // surfaced through syn::Error; spells the enum+variant into
+                        // developer-facing prose, it does not decompose or compare them.
                         "`{want_type}::{want_variant}` is a UNIT variant (no fields) — \
                          `wat_enum_field_names_from!` is for TAGGED variants only"
                     ));
@@ -1140,6 +1163,10 @@ fn enum_variant_field_names_of(src: &str, file: &str, want_type: &str, want_vari
                     match &fs[fi] {
                         wat_reader::WatAST::Symbol(id, _) if id.as_str() == "~@" => {
                             return Err(format!(
+                                // rune:lint(one-variant-separator, display) — compile-time
+                                // Err(String) surfaced through syn::Error; spells the
+                                // enum+variant into developer-facing prose, it does not
+                                // decompose or compare them.
                                 "`{want_type}::{want_variant}` uses a SURFACE SPLICE — splices \
                                  resolve against a live TypeEnv, which does not exist at compile time"
                             ));
@@ -1149,6 +1176,9 @@ fn enum_variant_field_names_of(src: &str, file: &str, want_type: &str, want_vari
                             fi += 3;
                         }
                         other => return Err(format!(
+                            // rune:lint(one-variant-separator, display) — compile-time
+                            // Err(String) surfaced through syn::Error; spells the enum+variant
+                            // into developer-facing prose, it does not decompose or compare them.
                             "`{want_type}::{want_variant}`: unexpected item in the field vector: {other:?}"
                         )),
                     }

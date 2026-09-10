@@ -92,6 +92,8 @@ use regex::Regex;
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for e in entries.flatten() {
+        // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() in this lint's own
+        // recursive filesystem walk.
         let p = e.path();
         if p.is_dir() {
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -285,6 +287,9 @@ fn declare_hit(code: &str) -> bool {
         let left_ok = start == 0 || !is_ident_char(bytes[start - 1] as char);
         let right_ok = end == bytes.len() || !is_ident_char(bytes[end] as char);
         if left_ok && right_ok {
+            // rune:lint(one-variant-separator, not-a-name) — byte-literal check for whether a
+            // Rust `HolonAST` mention is followed by `::` (a Rust type-path access); scans Rust
+            // source text, not a wat name.
             let followed_by_path = code.as_bytes().get(end..end + 2) == Some(b"::");
             if !followed_by_path {
                 return true;
@@ -338,6 +343,8 @@ fn holon_ast_confined_to_vsa_homes_and_the_one_carrier() {
     collect_rs(&root.join("src"), &mut files);
     if let Ok(entries) = std::fs::read_dir(root.join("crates")) {
         for e in entries.flatten() {
+            // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() in this lint's own
+            // filesystem walk of `crates/*/src`.
             collect_rs(&e.path().join("src"), &mut files);
         }
     }

@@ -347,6 +347,7 @@ pub(crate) fn project_holon_rete_fallback(
                     RuntimeErrorKind::MalformedForm {
                         head: head.into(),
                         reason: format!(
+                            // rune:lint(one-variant-separator, display) — renders the enum's own name with its actual variant into an error message the reader sees.
                             "rete Fallback arm's holon mode has no route for CosineOutcome::{variant} ({} field(s)) — add one before shipping this shape",
                             fields.len()
                         ),
@@ -364,6 +365,7 @@ pub(crate) fn project_holon_rete_fallback(
                     RuntimeErrorKind::MalformedForm {
                         head: head.into(),
                         reason: format!(
+                            // rune:lint(one-variant-separator, display) — renders the enum's own name with its actual variant into an error message the reader sees.
                             "rete Fallback arm's holon mode has no route for DotOutcome::{variant} ({} field(s)) — add one before shipping this shape",
                             fields.len()
                         ),

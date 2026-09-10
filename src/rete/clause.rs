@@ -169,12 +169,17 @@ pub(crate) fn classify_constraint_head(head: &str) -> Option<(CmpKind, Constrain
     crate::rete::vocabulary::rete_op_for(head)?;
 
     let core_name = head.strip_prefix(":wat::rete::")?;
+    // rune:lint(one-variant-separator, namespace) — splits a rete constraint-head verb name
+    // (:wat::rete::core::<ty>::<op>) into its type segment and comparison-op leaf; a type and an
+    // operator, not an enum and its variant.
     let (ty_path, op) = core_name.rsplit_once("::")?;
     // Through the ONE door — `identifier::leaf` is the sanctioned reader for "the last `::`
     // segment". A hand-rolled `rsplit("::")` here is a SECOND NAME PARSER, and
     // `only_identifier_rs_parses_a_name` caught exactly that when this line was first written
     // (STONE-one-name-grammar, arc 109: a name is an atom, parsed exactly one way, or two
     // parsers WILL disagree — its census found 33 that already had).
+    // rune:lint(one-variant-separator, namespace) — reads the trailing segment of the same
+    // namespaced constraint-head type path split above (ty_path), not a variant name.
     let ty = wat_reader::identifier::leaf(ty_path);
     let kind = match (ty, op) {
         ("i64" | "f64", "<") => Lt,
@@ -222,6 +227,9 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
                 let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
                 if is_arrow {
                     if let Some(kw) = keyword_payload(&items[2]) {
+                        // rune:lint(one-variant-separator, namespace) — detects a fact-bind's
+                        // `:ns::Type` keyword by namespace-separator presence; a type's own
+                        // namespace, not a variant tag.
                         if kw.contains("::") {
                             return ReteClauseShape::FactBind {
                                 var: var_name,
@@ -321,7 +329,12 @@ mod constraint_head_tests {
         for ty in ["i64", "f64", "string", "bool", "keyword", "enum"] {
             for op in ["=", "not=", "<", ">", "<=", ">="] {
                 for head in [
+                    // rune:lint(one-variant-separator, namespace) — composes the namespaced rete
+                    // constraint-head verb name (a type + comparison op) under the still-`core::`
+                    // spelling; not an enum and its variant.
                     format!(":wat::rete::core::{ty}::{op}"),
+                    // rune:lint(one-variant-separator, namespace) — same composition, for a
+                    // type whose comparison ops have moved out of the `core::` segment.
                     format!(":wat::rete::{ty}::{op}"),
                 ] {
                     if classify_constraint_head(&head).is_some() {
@@ -362,6 +375,9 @@ mod constraint_head_tests {
             .iter()
             .map(|op| op.rete_name)
             .filter(|n| {
+                // rune:lint(one-variant-separator, namespace) — splits a RETE_OPS row's own
+                // namespaced verb name into namespace-prefix and comparison-op leaf, for this
+                // anti-drift self-test; not an enum and its variant.
                 n.rsplit_once("::")
                     .is_some_and(|(_, op)| matches!(op, "=" | "not=" | "<" | ">" | "<=" | ">="))
             })

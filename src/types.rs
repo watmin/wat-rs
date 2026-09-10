@@ -630,6 +630,8 @@ impl TypeEnv {
     /// asking about the `wat.type/` spelling can never forget the canonicalization.
     pub(crate) fn is_known_type(&self, kw: &str) -> bool {
         let canonical = match kw.strip_prefix(":wat::type::") {
+            // rune:lint(one-variant-separator, namespace) — rewrites the namespace segment
+            // `wat::type` to its canonical `wat::core` alias; `tail` is the unchanged leaf.
             Some(tail) => std::borrow::Cow::Owned(format!(":wat::core::{tail}")),
             None => std::borrow::Cow::Borrowed(kw),
         };
@@ -2444,7 +2446,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     for schema in inventory::iter::<::wat_edn::EdnSchema>() {
         // Convert "wat.core" + "Pos" → ":wat::core::Pos"
         let name = format!(
+            // rune:lint(one-variant-separator, edn) — builds the wat FQDN from an EdnSchema's
+            // EDN-side tag_ns/tag_name pair; the wat-facing half of the `.` <-> `::` translation.
             ":{}::{}",
+            // rune:lint(one-variant-separator, edn) — translates the EdnSchema's dotted EDN
+            // namespace into wat's `::`-separated form, the inverse of `ns.replace("::", ".")`.
             schema.tag_ns.replace('.', "::"),
             schema.tag_name,
         );
@@ -2704,6 +2710,10 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
         fields.extend(coords);
         env.register_builtin(TypeDef::Aggregate(AggregateDef {
             nature: Nature::Record,
+            // rune:lint(one-variant-separator, namespace) — mints a flat builtin record name
+            // under the wat::runtime namespace; `variant` supplies only the leaf segment
+            // (Rust's RuntimeError variant name), RuntimeError itself is never a wat enum here,
+            // so there is no enum/variant pair on either side of this `::`.
             name: format!(":wat::runtime::{}", variant),
             type_params: vec![],
             fields,
@@ -2946,6 +2956,9 @@ fn synthesize_surface_protocol(
             // stripped (arc 109 "reap the twelve" — measured 41,172 calls, 0 type-heads).
             let surface_base = surface.name.as_str();
             let required = format!(
+                // rune:lint(one-variant-separator, type-path) — composes the op's own Response
+                // outcome-enum's canonical FQDN (surface is that enum's own namespace) to check
+                // the user's declaration against the naming law; the brief's `S::Op` shape.
                 "{surface_base}::{}Response",
                 crate::string::kebab_to_pascal_with_acronyms(name, ns_acronyms),
             );
@@ -3007,6 +3020,8 @@ fn synthesize_surface_protocol(
             // stripped (arc 109 "reap the twelve" — measured 41,859 calls, 0 type-heads).
             let surface_base = surface.name.as_str();
             let required = format!(
+                // rune:lint(one-variant-separator, type-path) — twin of the Response law above:
+                // composes the op's own Request type's canonical FQDN under the surface namespace.
                 "{surface_base}::{}Request",
                 crate::string::kebab_to_pascal_with_acronyms(name, ns_acronyms),
             );
@@ -3198,6 +3213,9 @@ fn synthesize_surface_protocol(
         return Err(TypeError::new(
             decl_span.clone(),
             TypeErrorKind::MalformedVariant {
+                // rune:lint(one-variant-separator, type-path) — names the surface's own
+                // synthesized Reply enum for this diagnostic; the brief's `S::Op` shape, just
+                // `::Reply` instead of `::Op`.
                 enum_name: format!("{}::Reply", surface.name),
                 offending: RESERVED_FAILURE_VARIANT.to_string(),
                 reason: format!(
@@ -3221,7 +3239,10 @@ fn synthesize_surface_protocol(
 
     // Protocol enums live under the surface's own namespace: `:S::Op` / `:S::Reply`
     // (`surface.name` keeps the leading colon, e.g. `:probe::Kv`).
+    // rune:lint(one-variant-separator, type-path) — composes the surface's own protocol Op
+    // enum's FQDN; verbatim the brief's paradigm case (`S::Op`, variant is e.g. `Bump`).
     let op_name = format!("{}::Op", surface.name);
+    // rune:lint(one-variant-separator, type-path) — companion Reply enum's own FQDN.
     let reply_name = format!("{}::Reply", surface.name);
 
     // STOP-COLLISION — never overwrite a user hand-declared protocol enum. If either name is
@@ -3273,6 +3294,8 @@ fn synthesize_surface_protocol(
 /// `defn` macro form would never be expanded and would go unregistered.
 fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: Span) -> WatAST {
     use crate::scope::Identifier;
+    // rune:lint(one-variant-separator, namespace) — names a 0-arg carrier FUNCTION under the
+    // surface's namespace; `surface-forms` is a def symbol, not a type's own path.
     let carrier_name = format!("{}::surface-forms", surface_name);
     let forms_body = WatAST::List(
         vec![
@@ -3330,6 +3353,9 @@ fn build_op_budget_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
                 // `surface.name` already carries the leading `:` sigil (matches every other
                 // `WatAST::Keyword` string in this codebase) — do NOT prepend another.
                 let const_name =
+                    // rune:lint(one-variant-separator, namespace) — names a runtime constant
+                    // (`def` symbol) under the surface's namespace; the composed thing is a
+                    // value binding, not a type's own path.
                     format!("{}::{}-MAX-REQUEST-BYTES", surface.name, name.to_uppercase());
                 Some(WatAST::List(
                     vec![
@@ -3441,11 +3467,16 @@ fn register_types_impl(
                         if let SurfaceMember::Method { name: op_name, args, ret, .. } = member {
                             if let Some((_, request_ty)) = args.fixed_params.get(1) {
                                 d.push(TypeDef::Alias(AliasDef {
+                                    // rune:lint(one-variant-separator, type-path) — sets the
+                                    // minted alias's own FQDN (`<Surface>::<op>/Request`); names
+                                    // that alias type itself, not a variant of anything.
                                     name: format!("{}::{}/Request", surf.name, op_name),
                                     type_params: surf.type_params.clone(),
                                     expr: request_ty.clone(),
                                 }));
                                 d.push(TypeDef::Alias(AliasDef {
+                                    // rune:lint(one-variant-separator, type-path) — companion
+                                    // Response alias's own FQDN.
                                     name: format!("{}::{}/Response", surf.name, op_name),
                                     type_params: surf.type_params.clone(),
                                     expr: ret.clone(),
@@ -4909,6 +4940,8 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     };
     // Arc 251.2 alias: `wat::type::` → `wat::core::` (dual-read, mirrors parse_type_inner ~line 2374).
     let raw_head = match raw_head.strip_prefix("wat::type::") {
+        // rune:lint(one-variant-separator, namespace) — same `wat::type::` -> `wat::core::`
+        // namespace canonicalization as `is_known_type` above, unprefixed spelling here.
         Some(tail) => format!("wat::core::{}", tail),
         None => raw_head,
     };
@@ -5180,6 +5213,8 @@ fn parse_type_inner(
     // walk (`canonicalize=false`) preserves source spelling, and only ATOM paths
     // reach this arm — parametric heads parse via the `<>`/`()` branches above.
     let raw_path = match (canonicalize, raw_path.strip_prefix(":wat::type::")) {
+        // rune:lint(one-variant-separator, namespace) — same canonicalization, colon-prefixed
+        // spelling, for the audit-walk path.
         (true, Some(tail)) => format!(":wat::core::{}", tail),
         _ => raw_path,
     };

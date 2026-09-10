@@ -411,6 +411,7 @@ pub fn eval_edn_read_foreign(
 /// wire via `Keyword::name()`), so strip the `:` and take the last `::`-segment.
 fn foreign_key_name(kw: &str) -> String {
     let body = kw.strip_prefix(':').unwrap_or(kw);
+    // rune:lint(one-variant-separator, namespace) — bare leaf off a foreign-record keyword's namespace path
     match body.rsplit_once("::") {
         Some((_, last)) => last.to_string(),
         None => body.to_string(),
@@ -1607,6 +1608,7 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                 // Case 1: core FQDN -> flat wat.type/ namespace (Clojure) or :wat::core:: keyword (Colon).
                 match mode {
                     TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk),
+                    // rune:lint(one-variant-separator, namespace) — assembles the wat::core namespace prefix onto a core type's tail
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":wat::core::{tail}"), unk),
                 }
             } else if let Some((_bare, fqdn)) = crate::check::BARE_PRIMITIVES.iter().find(|(bare, _)| *bare == format!(":{body}").as_str()) {
@@ -1616,6 +1618,7 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                     TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{body}")), unk),
                     TypeFormHeadMode::Colon => WatAST::Keyword((*fqdn).to_string(), unk),
                 }
+            // rune:lint(one-variant-separator, namespace) — detects a multi-segment user/library type namespace on this type's own path
             } else if body.contains("::") {
                 // Case 3: user/library type -> namespace-preserving Symbol (Clojure) or the FQDN
                 // keyword unchanged (Colon). `wat_keyword_to_clojure_symbol` is also the ONLY
@@ -1641,6 +1644,7 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                 // Case 1: core FQDN -> flat wat.type/ namespace (Clojure) or :wat::core:: keyword (Colon).
                 match mode {
                     TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone()),
+                    // rune:lint(one-variant-separator, namespace) — assembles the wat::core namespace prefix onto a core type's tail
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":wat::core::{tail}"), unk.clone()),
                 }
             } else if let Some((_bare, fqdn)) = crate::check::BARE_CONTAINER_HEADS.iter().find(|(bare, _)| *bare == head.as_str()) {
@@ -1649,11 +1653,13 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                 // `head`); Colon uses the whole FQDN as a keyword.
                 match mode {
                     TypeFormHeadMode::Clojure => {
+                        // rune:lint(one-variant-separator, namespace) — leaf of a container type's own core FQDN, not a variant name
                         let tail = wat_reader::identifier::leaf(fqdn);
                         WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone())
                     }
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":{fqdn}"), unk.clone()),
                 }
+            // rune:lint(one-variant-separator, namespace) — detects a multi-segment user/library type namespace on this head's own path
             } else if head.contains("::") {
                 // Case 3: user/library type -> namespace-preserving Symbol (Clojure) or the FQDN
                 // keyword unchanged (Colon). Validate via wat_keyword_to_clojure_symbol in BOTH
@@ -2277,6 +2283,7 @@ fn edn_to_value_caps(
         Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
         Edn::Keyword(k) => {
             let s = match k.namespace() {
+                // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword from an EDN keyword's dotted namespace
                 Some(ns) => format!(":{}::{}", ns.replace('.', "::"), k.name()),
                 None => format!(":{}", k.name()),
             };
@@ -2524,6 +2531,7 @@ fn edn_to_typed_value_inner(
             ":wat::core::keyword" => match edn {
                 Edn::Keyword(k) => {
                     let s = match k.namespace() {
+                        // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword from an EDN keyword's dotted namespace
                         Some(ns) => format!(":{}::{}", ns.replace('.', "::"), k.name()),
                         None => format!(":{}", k.name()),
                     };
@@ -3057,6 +3065,7 @@ fn coerce_enum_path(
     };
     let expected_ns = enum_variant_ns(type_path);
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    // rune:lint(one-variant-separator, type-path) — leaf of the ENUM's own type_path, compared against the tag's enum name
     let expected_leaf = wat_reader::identifier::leaf(stripped);
     if tag_ns != expected_ns || enum_leaf != expected_leaf {
         return Err(EdnCoerceError {
@@ -3087,6 +3096,7 @@ fn coerce_enum_path(
                     })))
                 }
                 other => Err(EdnCoerceError {
+                    // rune:lint(one-variant-separator, display) — human-facing mismatch message naming the enum/variant
                     expected: format!("{}::{} (unit → `{{}}`)", type_path, variant_name),
                     got: format!("Tagged-body {}", edn_shape_name(other)),
                     path: String::new(),
@@ -3098,6 +3108,7 @@ fn coerce_enum_path(
                 Edn::Map(entries) => entries.as_slice(),
                 other => {
                     return Err(EdnCoerceError {
+                        // rune:lint(one-variant-separator, display) — human-facing mismatch message naming the enum/variant
                         expected: format!("{}::{} (tagged map)", type_path, variant_name),
                         got: format!("Tagged-body {}", edn_shape_name(other)),
                         path: String::new(),
@@ -3107,6 +3118,7 @@ fn coerce_enum_path(
             let mut walked = Vec::with_capacity(fields.len());
             for (fname, fty) in fields {
                 let item = map_keyword_field(entries, fname).ok_or_else(|| EdnCoerceError {
+                    // rune:lint(one-variant-separator, display) — human-facing missing-field message naming the enum/variant
                     expected: format!("{}::{} field :{}", type_path, variant_name, fname),
                     got: "missing map key".into(),
                     path: format!(".{}", fname),
@@ -3118,6 +3130,7 @@ fn coerce_enum_path(
             }
             let names = def.variant_names_arc(&variant_name).unwrap_or_else(|| {
                 panic!(
+                    // rune:lint(one-variant-separator, display) — panic text naming the enum/variant for a developer, not a constructed name
                     "edn_to_enum_value: `{type_path}::{variant_name}` matched Tagged above but \
                      variant_names_arc returned None — def and its own match arm disagree"
                 )
@@ -3143,6 +3156,7 @@ fn coerce_enum_path(
 #[track_caller]
 fn struct_tag_for(type_path: &str) -> (String, String) {
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    // rune:lint(one-variant-separator, namespace) — checks whether a STRUCT's own type_path has any namespace at all
     if !stripped.contains("::") {
         panic!(
             "struct_tag_for: type path {type_path:?} has no `::` namespace separator — no \
@@ -3150,7 +3164,9 @@ fn struct_tag_for(type_path: &str) -> (String, String) {
              identity on the wire)"
         );
     }
+    // rune:lint(one-variant-separator, edn) — translates the struct's namespace path's `::` segments into `.` for its EDN tag
     let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+    // rune:lint(one-variant-separator, namespace) — leaf of the struct's own type_path used as the EDN tag name
     let name = wat_reader::identifier::leaf(stripped).to_string();
     (ns, name)
 }
@@ -3161,6 +3177,7 @@ fn struct_tag_for(type_path: &str) -> (String, String) {
 /// the type's leaf), dotted.
 fn enum_variant_ns(type_path: &str) -> String {
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    // rune:lint(one-variant-separator, edn) — translates the ENUM's own namespace path's `::` into `.` for its EDN tag namespace
     wat_reader::identifier::path(stripped).replace("::", ".")
 }
 
@@ -3173,6 +3190,7 @@ pub(crate) fn tag_is_variant_of(tag: &Tag, type_path: &str) -> bool {
     };
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
     tag.namespace() == enum_variant_ns(type_path)
+        // rune:lint(one-variant-separator, type-path) — leaf of the ENUM's own type_path, compared against the tag's enum_leaf
         && enum_leaf == wat_reader::identifier::leaf(stripped)
 }
 
@@ -3275,6 +3293,7 @@ fn type_path_to_namespace(type_path: &str) -> String {
     type_path
         .strip_prefix(':')
         .unwrap_or(type_path)
+        // rune:lint(one-variant-separator, edn) — converts the whole wat type path's `::` into `.` for EDN's dotted namespace
         .replace("::", ".")
 }
 
@@ -3284,6 +3303,7 @@ fn strip_keyword_colon(k: &str) -> String {
     let stripped = k.strip_prefix(':').unwrap_or(k);
     // Convert `::` separators to `.` so JSON readers see a familiar
     // dotted-namespace form (e.g. `:wat::time::Instant` → `wat.time.Instant`).
+    // rune:lint(one-variant-separator, edn) — translates a general wat keyword's `::` namespace into `.` for natural-JSON rendering
     stripped.replace("::", ".")
 }
 
@@ -3548,6 +3568,7 @@ fn tagged_to_value(
 }
 
 pub(crate) fn ns_to_wat_path(ns: &str, name: &str) -> String {
+    // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword path from an EDN-style dotted namespace; name is a call-head
     format!(":{}::{}", ns.replace('.', "::"), name)
 }
 
@@ -3570,11 +3591,14 @@ pub(crate) fn wat_keyword_to_clojure_symbol(kw: &str) -> Option<String> {
     let body = kw.strip_prefix(':')?;
     // Not a head/reference: a bare data keyword (`:else`) or a namespace-prefix marker
     // (`:counter::`, trailing `::` — the final segment is empty).
+    // rune:lint(one-variant-separator, namespace) — distinguishes a bare data keyword / namespace-prefix marker from a call-head
     if !body.contains("::") || body.ends_with("::") {
         return None;
     }
     // `body` contains "::" and has no trailing "::", so there are ≥2 non-empty segments.
+    // rune:lint(one-variant-separator, namespace) — leaf of the call-head keyword's own path
     let final_seg = wat_reader::identifier::leaf(body);
+    // rune:lint(one-variant-separator, edn) — splits the call-head's `::` segments to rejoin with `.` for the Clojure symbol
     let mut ns_parts: Vec<&str> = wat_reader::identifier::path(body).split("::").collect();
     let name: &str = if final_seg.contains('/') && !wat_reader::identifier::receiver(final_seg).is_empty() {
         // `Type/method` — fold `Type` into the namespace; the method is the name.
@@ -3945,6 +3969,7 @@ fn reconstruct_enum_tagged(
         crate::types::EnumVariant::Tagged { .. } => {
             def.variant_names_arc(variant_name).unwrap_or_else(|| {
                 panic!(
+                    // rune:lint(one-variant-separator, display) — panic text naming the enum/variant for a developer, not a constructed name
                     "reconstruct_enum_tagged: `{path}::{variant_name}` matched Tagged above but \
                      variant_names_arc returned None — def and its own match arm disagree"
                 )
@@ -3957,6 +3982,7 @@ fn reconstruct_enum_tagged(
         let item = map_keyword_field(entries, fname).ok_or_else(|| EdnReadError {
             span: crate::rust_caller_span!(),
             kind: EdnReadErrorKind::Other(format!(
+                // rune:lint(one-variant-separator, display) — human-facing decode error naming the enum/variant
                 "variant `{path}::{variant_name}` missing map key :{fname}"
             )),
         })?;
@@ -4548,8 +4574,11 @@ pub fn value_to_edn_with(
 /// different, readable-looking keyword whose decode would guess.
 pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
     let stripped = k.strip_prefix(':').unwrap_or(k);
+    // rune:lint(one-variant-separator, namespace) — checks whether a general wat keyword path has any namespace segments
     if stripped.contains("::") {
+        // rune:lint(one-variant-separator, edn) — translates the keyword's `::` namespace segments into `.` for the EDN Keyword
         let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+        // rune:lint(one-variant-separator, namespace) — leaf of the general wat keyword path used as the EDN keyword's name
         let name = wat_reader::identifier::leaf(stripped);
         match Keyword::try_ns(&ns, name) {
             Ok(kw) => OwnedValue::Keyword(kw),
@@ -4590,6 +4619,7 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
 #[track_caller]
 pub(crate) fn tag_from_type_path(path: &str) -> Tag {
     let stripped = path.strip_prefix(':').unwrap_or(path);
+    // rune:lint(one-variant-separator, namespace) — checks whether a (record's) own type_path has any namespace at all
     if !stripped.contains("::") {
         panic!(
             "tag_from_type_path: type path {path:?} has no `::` namespace separator — no \
@@ -4597,7 +4627,9 @@ pub(crate) fn tag_from_type_path(path: &str) -> Tag {
              identity on the wire)"
         );
     }
+    // rune:lint(one-variant-separator, edn) — translates the type_path's `::` namespace into `.` for the record's EDN tag
     let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+    // rune:lint(one-variant-separator, namespace) — leaf of the record's own type_path used as the EDN tag name
     let name = wat_reader::identifier::leaf(stripped);
     Tag::try_ns(&ns, name).unwrap_or_else(|e| {
         panic!(
@@ -4616,6 +4648,7 @@ pub(crate) fn tag_from_type_path(path: &str) -> Tag {
 #[track_caller]
 pub(crate) fn variant_tag(type_path: &str, variant_name: &str) -> Tag {
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
+    // rune:lint(one-variant-separator, type-path) — checks whether the ENUM's own type_path has a namespace, before deriving its tag
     if !stripped.contains("::") {
         panic!(
             "variant_tag: type path {type_path:?} has no `::` namespace separator — no \
@@ -4623,7 +4656,9 @@ pub(crate) fn variant_tag(type_path: &str, variant_name: &str) -> Tag {
              identity on the wire)"
         );
     }
+    // rune:lint(one-variant-separator, edn) — translates the enum's own namespace path's `::` into `.` for the variant's EDN tag
     let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+    // rune:lint(one-variant-separator, type-path) — leaf of the ENUM's own type_path, fed to compose_variant_render (the door)
     let enum_leaf = wat_reader::identifier::leaf(stripped);
     let tag_name = wat_reader::identifier::compose_variant_render(enum_leaf, variant_name);
     Tag::try_ns(&ns, &tag_name).unwrap_or_else(|e| {
