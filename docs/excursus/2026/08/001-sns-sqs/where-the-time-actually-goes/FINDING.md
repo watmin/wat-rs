@@ -77,3 +77,73 @@ whether ~450–670 ms per process reproduces. That separates *spawn* from *schem
 *"I twice attributed the remaining ~5 s to a component by READING the code — first to seeding
 (disproved: ~13 ms), then to `vec->pvec` (disproved: … moved the wall clock by a median +0.06 s).
 Both were reasoned, neither measured."* Same trap, same file, one arc earlier.
+
+---
+
+# ⭑⭑ `collect` MEASURED — it is neither cold boot nor record interpretation
+
+Builder's ruling: *"bringing new wat procs online is a slow boot — that's setup — then, nearly all of
+wat is still interpreted. Neither of these two we are going to address here."* Then the question:
+**is `collect` either of those?** Measured, not reasoned.
+
+## ROBUST 1 — payload is not the driver
+
+12 workers fixed (`m=4 j=3`), records varied 100×:
+
+| records | `collect` | `collect-busy-ms` |
+|---|---|---|
+| 8000 | 5210 | 235 |
+| 1600 | 4628 | 222 |
+| 400 | 3744 | 143 |
+| 80 | **3526** | 172 |
+
+**Records fell 100×; `collect` fell 1.48×.** So at 12 workers, **~3500 ms of `collect` is
+payload-independent** and only ~1700 ms of the 5210 at the standard size is record-related.
+
+## ROBUST 2 — at negligible payload it is still expensive, and topology-dependent
+
+At `n=20` (80 records), `collect` still costs **524 ms at 1 worker up to 4315 ms at 12.**
+
+## ROBUST 3 — the sub-queues are barely involved either way
+
+`collect-busy-ms` is **143–235 ms** across every cell above — ~4 % of the phase, whatever the payload
+or topology.
+
+## ⛔ NOT ROBUST — the functional form, and I nearly shipped an over-fit
+
+A `524 + 520·log₂(w)` model fits the **m-sweep** almost exactly (524/1037/1549/2090 measured against
+524/1044/1564/2084) — and **fails the j-sweep by 1.8× at 12 workers** (measured 4315, model 2388).
+
+★ **So worker count alone does not determine `collect`.** Varying `m` adds sub-queues and stores as
+well as workers; varying `j` adds only consumers. A single-variable law is not available from this
+data, and I was one paragraph from asserting a logarithm. **Two sweeps, one beautiful fit, and the
+other sweep is what killed it.**
+
+## So: the answer to the builder's question
+
+| part of `collect` | share at the standard config | class |
+|---|---|---|
+| record-dependent (the interpreted `conj` fold over `Outcome`s, plus serialization) | ~1700 ms, **⅓** | **interpretation — excluded** |
+| payload-independent per-process teardown | ~3500 ms, **⅔** | **neither. Not boot, not record interpretation** |
+
+**`collect` is not a slow boot** — it is teardown, not bringing procs online. **Two thirds of it is
+neither of the excluded classes**, so on the builder's own reasoning that two thirds is in scope.
+
+## ⭑⭑⭑ And the finding inside it: a stop round-trip costs ~100× a stats round-trip
+
+`:fanout::worker/stop` is stdlib-generated. Read at `wat/service.wat:2928-2968`, it is **one
+`send Admin::Stop` plus one `recv`** — **no timeout, no poll, no reap.**
+
+```
+Queue/stats   1 send + 1 recv, process peer   ≈ 2.8 ms   (calibrated via `arm`, 202763705)
+worker/stop   1 send + 1 recv, process peer   ≈ 250–520 ms at negligible payload
+```
+
+**~100× for the same shape of exchange, with no wait in the path** — and it is not payload, because
+ROBUST 1 drove payload down 100× and this cost stayed. That gap is the in-scope item, it lives in
+`wat/service.wat`, and **nothing here explains it yet.**
+
+⚠ What I will not do is name the mechanism. Today's record on that is five for five against me. The
+next step is a probe that times the two halves of the stop exchange separately — the `send` to the
+service's acknowledgement, and the service's own shutdown-to-`Status::Stopped` — because those are
+different systems and only one of them can be at fault.
