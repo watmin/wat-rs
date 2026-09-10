@@ -20,7 +20,28 @@
 set -u
 BIN="${1:-./target/release/wat}"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
-ANCHOR="wat-scripts/fixes/to-faithful-clojure-net.wat"   # known-positive; MUST come back FAIL
+# ⛔ THE ANCHOR IS SYNTHESIZED, NOT FOUND IN THE CORPUS — AND THAT IS THE WHOLE LESSON.
+# This pinned `wat-scripts/fixes/to-faithful-clojure-net.wat` as its known-positive, on the
+# reasoning that an instrument which cannot find a defect you already know about is not an
+# instrument. Correct discipline, pinned to a MUTABLE fact: `strike-no-rule-that-cannot-compile`
+# repaired that file on 2026-09-10 and this script began refusing to run at all, permanently,
+# because its anchor asserted the very defect the strike existed to cure. An anchor must be
+# something you CONSTRUCT, so curing the corpus can never disarm the instrument that measured it.
+anchor_file() {
+  cat > "$WORK/__anchor.wat" <<'ANCHORWAT'
+(:wat::core::defrecord :anchor::N [k <- :wat::core::i64])
+;; `:wat::core::=` is a GENERIC core op, not a `:wat::rete::` primitive, so the four-axis fence
+;; (wat/rete/compile.wat:463) must refuse it on the is-rete axis. Load-time validate does NOT
+;; refuse it — a CoreGeneric head inside a fence is parked expressivity — so this file reaches
+;; compile, which is exactly the property this census exists to measure.
+(:wat::rete::defrule :anchor::must-not-compile
+  :when [(:anchor::N (?k <- :k))
+         (:anchor::N (?j <- :k))
+         (:wat::rete::where (:wat::core::= ?k ?j))]
+  :then [])
+ANCHORWAT
+  echo "$WORK/__anchor.wat"
+}
 
 run_one() {
   local f="$1" base out nss
@@ -44,8 +65,8 @@ run_one() {
 }
 
 # ── anchor: an instrument that cannot find the known defect is not an instrument ──
-if [ "$(run_one "$ANCHOR" | cut -f1)" != "FAIL" ]; then
-  echo "⛔ ANCHOR FAILED: $ANCHOR must not compile (it calls partial string::contains? in a where)." >&2
+if [ "$(run_one "$(anchor_file)" | cut -f1)" != "FAIL" ]; then
+  echo "⛔ ANCHOR FAILED: the synthesized fence (a generic :wat::core::= head) must not compile." >&2
   echo "   The census is not trustworthy; fix the instrument before reading any total." >&2
   exit 2
 fi
