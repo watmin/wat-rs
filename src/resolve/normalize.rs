@@ -479,6 +479,18 @@ fn resolve_namespaced_symbol(
         return Ok(WatAST::Keyword(primary, span.clone()));
     }
 
+    // Arc 255 Stone ⑤-E — `:wat::type::` is a TYPE-ONLY namespace: a name under
+    // it is never a call head, in ANY position, so it is asked the TYPE
+    // question regardless of `also_accept_type`. The namespace IS the
+    // position; `normalize` carries no position context and needs none. Routed
+    // through the same one door (`TypeEnv::is_known_type`) so the
+    // `:wat::type::` → `:wat::core::` canonicalization is never reimplemented.
+    if primary.starts_with(":wat::type::")
+        && sym.types().is_some_and(|types| types.is_known_type(&primary))
+    {
+        return Ok(WatAST::Keyword(primary, span.clone()));
+    }
+
     // NOTE — there is intentionally NO `Type/member` fallback (purgare, 251.1b ward).
     // A `/`-preserving candidate (`:wat::core::HashMap/length`) is structurally
     // unreachable: for any `:wat::`/`:rust::` head the PRIMARY already passes
