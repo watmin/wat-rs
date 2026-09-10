@@ -11,10 +11,14 @@ verbatim source — locate by CONTENT, not by line number, since a `+1`/`-1` dri
 
 `tests/lint/one_variant_separator.rs` is a new wall: the `::` between an enum and its variant is
 spelled in exactly one file, `crates/wat-reader/src/identifier.rs`. It fires on 167 lines that
-spell a separator inside a file that talks about variants. **All 167 are non-variant** — stone
-③a-ii (`f88e7a31c`) routed all twenty-one real variant sites through the door first, precisely so
-that no one here has to decide *route or rune*. Your job is to give each line in your area a
-co-located rune naming **which** non-variant thing its separator is.
+spell a separator inside a file that talks about variants.
+
+⛔ **DO NOT ASSUME THEY ARE ALL NON-VARIANT.** An earlier version of this brief said so, deduced
+from "③a-ii routed all twenty-one." **It was false** — four riders fired STOP-1 and five more
+variant sites were in the list (`wat-doc/src/lib.rs:1024`, two in `tests/reflection/`,
+`rete/expr_ir.rs:751`, `runtime.rs:3265`). **Read each line and decide.** Your job is to give each
+line in your area a co-located rune naming which non-variant thing its separator is — and to fire
+STOP-1 on any line that is not one.
 
 ## The rune
 

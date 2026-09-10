@@ -4,11 +4,40 @@
 clippy 0). Not a grep — `cargo nextest run --release -E 'test(only_identifier_rs_spells_the_variant_separator)'`
 reproduces it exactly. `[[feedback_an_instrument_must_outlive_the_number_it_produced]]`
 
-⛔ **EVERY LINE HERE IS NON-VARIANT BY CONSTRUCTION.** ③a-ii routed all twenty-one variant
-sites through `compose_variant`/`decompose_variant`; what remains spells a `::` that is a
-namespace, a type path, a display string, an EDN translation, or not a wat name at all. A
-line that turns out to BE a variant separator refutes that census — it is a **finding**,
-not a rune.
+> ⛔⛔ **CORRECTED 2026-09-10 — THE SENTENCE BELOW WAS FALSE, AND IT WAS MINE.**
+> I wrote *"every line here is non-variant BY CONSTRUCTION"* — **deduced** from "③a-ii routed all
+> twenty-one", never **read**. That deduction was only ever as sound as the census feeding it, and
+> that census had already been wrong four times (2 → 8 → 19 → 21). I built the brief's load-bearing
+> premise on my single least reliable input, and handed it to six riders as fact.
+>
+> **Four riders fired STOP-1. Five more variant sites were in this list:**
+>
+> ```
+> 22  crates/wat-doc/src/lib.rs:1024   byte-level decomposition -> variant.parse::<Purity>()
+> 23  tests/reflection/probe_arc255_reflection_parity.rs:154   format!("{}::{}", type_path, variant_name)
+> 24  tests/reflection/probe_stone_metadata_of_whole_row.rs:50  the same shape, unmigrated
+> 25  src/rete/expr_ir.rs:751          leaf() on :wat::core::Option::Some — PATTERN M
+> 26  src/runtime.rs:3265              format!("{resp_base}::RequestTooLarge") — a shape-locked variant
+> ```
+>
+> ★ **22 is the sharpest.** It is the exact line I named in my own correction NOTE hours earlier —
+> *"a token-level ban would still miss `wat-doc/src/lib.rs:1024`, which asks the same question at
+> the byte level."* I asked whether my PREDICATE could see it and never asked what the LINE DOES.
+> `[[feedback_i_measured_something_adjacent_and_called_it_the_artifact]]`
+>
+> ★★ **25 sits 570 lines from the row I called "the sharpest illustration"** — same file, same
+> idiom. I read 604, 818, 1320 and 1321 in `expr_ir.rs` and never 751, because the predicate had
+> flagged it and I dismissed it by deduction rather than reading it.
+>
+> ★★★ **23 and 24 have a MECHANISM, and it is worth more than the sites:** the composition-door
+> census was scoped to `src/` and `crates/`, never `tests/`. Two byte-identical copies of the
+> pre-door shape sat outside a blast radius nobody restated.
+> `[[feedback_a_pattern_that_matches_a_subset_is_not_a_census]]`
+
+**What is true instead:** every line here spelled a separator that a HUMAN MUST READ before it is
+runed. ③a-ii routed twenty-one variant sites; the wall's riders found five more among these 167.
+A line that turns out to BE a variant separator is a **finding**, not a rune — and STOP-1 firing
+four times in six areas is this list working exactly as designed, not failing.
 
 ```
 167 screams    Counter({'COMPOSE': 73, 'ACCESSOR': 49, 'DATA': 45})
