@@ -541,7 +541,7 @@ mod tests {
             parse_edn_doc_row(r#"#wat.doc/Row {:purity :wat.runtime.Purity/Pure}"#).expect("parses");
         match ast {
             WatAST::Map(pairs, _) => match &pairs[0].1 {
-                WatAST::Keyword(k, _) => assert_eq!(k, ":wat::runtime::Purity::Pure"),
+                WatAST::Keyword(k, _) => assert_eq!(k, ":wat::runtime::Purity.Pure"),
                 other => panic!("unexpected: {other:?}"),
             },
             other => panic!("expected a Map, got {other:?}"),

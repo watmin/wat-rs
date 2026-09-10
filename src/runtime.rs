@@ -1703,7 +1703,7 @@ pub(crate) fn eval_inner(
             // is additive alongside the two above, and here it is load-bearing rather
             // than cosmetic: `wat::core::Option` is registered as a genuine
             // `TypeDef::Enum` (`types.rs:1239`) so it also has a generic unit-variant
-            // entry (`sym.unit_variant("wat::core::Option::None")`, arm below). Without
+            // entry (`sym.unit_variant("wat::core::Option.None")`, arm below). Without
             // this special-case running FIRST, the qualified spelling falls through to
             // that generic arm and constructs `Value::Enum` instead of `Value::Option`
             // — a real cross-representation split, measured live: matching such a value
@@ -1721,7 +1721,7 @@ pub(crate) fn eval_inner(
                 )
                 .into());
             }
-            if k == ":wat::core::Option::None" {
+            if k == ":wat::core::Option.None" {
                 return Ok(TrackedValue::new(
                     Value::Option(Arc::new(None)),
                     Provenance::Literal { span: span.clone() },
@@ -3325,13 +3325,13 @@ fn dispatch_keyword_head_value(
                                             // ::Message arm — unwrap the reply variant to its
                                             // Response, re-wrap in RecvOutcome::Message.
                                             WatAST::Vector(vec![
-                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome.Message".into(), span.clone()),
                                                 WatAST::Map(vec![(
                                                     WatAST::Keyword(":msg".into(), span.clone()),
                                                     WatAST::Symbol(Identifier::bare("__m"), span.clone()),
                                                 )], span.clone()),
                                                 WatAST::List(vec![
-                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome.Message".into(), span.clone()),
                                                     WatAST::Map(vec![(
                                                         WatAST::Keyword(":msg".into(), span.clone()),
                                                         WatAST::List(vec![
@@ -3358,13 +3358,13 @@ fn dispatch_keyword_head_value(
                                             // Failure/message couldn't read it back); the helper mints the
                                             // canonical Record.
                                             WatAST::Vector(vec![
-                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome.Lost".into(), span.clone()),
                                                 WatAST::Map(vec![(
                                                     WatAST::Keyword(":cause".into(), span.clone()),
                                                     WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
                                                 )], span.clone()),
                                                 WatAST::List(vec![
-                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome.Lost".into(), span.clone()),
                                                     WatAST::Map(vec![(
                                                         WatAST::Keyword(":cause".into(), span.clone()),
                                                     // Arc 170 — SCRUB THE DEATH, PASS THE STOP.
@@ -3389,13 +3389,13 @@ fn dispatch_keyword_head_value(
                                                         WatAST::Keyword(":wat::core::match".into(), span.clone()),
                                                         WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
                                                         WatAST::Vector(vec![
-                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError.Stopped".into(), span.clone()),
                                                             WatAST::Map(vec![], span.clone()),
-                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Stopped".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError.Stopped".into(), span.clone()),
                                                         ], span.clone()),
                                                         WatAST::Vector(vec![
                                                             WatAST::Symbol(Identifier::bare("_"), span.clone()),
-                                                            WatAST::Keyword(":wat::kernel::LociDiedError::Disconnected".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::LociDiedError.Disconnected".into(), span.clone()),
                                                         ], span.clone()),
                                                     ], span.clone()),
                                                 )], span.clone()),
@@ -3415,15 +3415,15 @@ fn dispatch_keyword_head_value(
                                             // follow-up worth its own grounding, not a change to
                                             // make in passing.
                                             WatAST::Vector(vec![
-                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Stopped".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome.Stopped".into(), span.clone()),
                                                 WatAST::Map(vec![], span.clone()),
-                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Stopped".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome.Stopped".into(), span.clone()),
                                             ], span.clone()),
                                             // ::Closed arm — pass the reason-free terminal through.
                                             WatAST::Vector(vec![
-                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome.Closed".into(), span.clone()),
                                                 WatAST::Map(vec![], span.clone()),
-                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome.Closed".into(), span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
                                     ], span.clone());
@@ -3464,7 +3464,7 @@ fn dispatch_keyword_head_value(
                                                 // OVER budget — the SAME RequestTooLarge{bytes,cap} a
                                                 // server would send, with NO send and therefore NO recv.
                                                 WatAST::List(vec![
-                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome.Message".into(), span.clone()),
                                                     WatAST::Map(vec![(
                                                         WatAST::Keyword(":msg".into(), span.clone()),
                                                         WatAST::List(vec![
@@ -8797,7 +8797,7 @@ pub(crate) fn try_match_pattern(
             .into())
         }
         WatAST::Keyword(k, _)
-            if k == ":wat::core::Option::None" =>
+            if k == ":wat::core::Option.None" =>
         {
             match value {
                 Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
@@ -8891,7 +8891,7 @@ pub(crate) fn try_match_pattern(
             // is additive alongside the bare FQDN, same move as the `None` guard above.
             let head_is_some = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Option::Some"
+                WatAST::Keyword(k, _) if k == ":wat::core::Option.Some"
             );
             if head_is_some {
                 if items.len() != 2 {
@@ -8922,7 +8922,7 @@ pub(crate) fn try_match_pattern(
             // is additive alongside the bare FQDN.
             let head_is_ok = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Result::Ok"
+                WatAST::Keyword(k, _) if k == ":wat::core::Result.Ok"
             );
             if head_is_ok {
                 if items.len() != 2 {
@@ -8950,7 +8950,7 @@ pub(crate) fn try_match_pattern(
             // is additive alongside the bare FQDN.
             let head_is_err = matches!(
                 head,
-                WatAST::Keyword(k, _) if k == ":wat::core::Result::Err"
+                WatAST::Keyword(k, _) if k == ":wat::core::Result.Err"
             );
             if head_is_err {
                 if items.len() != 2 {
@@ -13630,9 +13630,9 @@ fn is_match_canonical(form: &WatAST) -> bool {
                 let s = k.as_str();
                 if matches!(
                     s,
-                    ":wat::core::Option::Some"
-                        | ":wat::core::Result::Ok"
-                        | ":wat::core::Result::Err"
+                    ":wat::core::Option.Some"
+                        | ":wat::core::Result.Ok"
+                        | ":wat::core::Result.Err"
                 ) && items.len() >= 2
                 {
                     return items[1..].iter().all(is_match_canonical);

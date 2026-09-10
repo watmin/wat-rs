@@ -305,14 +305,14 @@ mod tests {
     }
 
     fn remedies_for_unknown_setup() -> Vec<Remedy> {
-        // ":my::Status::Oks" is close to ":my::Status::Ok" (distance 1).
-        let candidates = [":my::Status::Ok", ":my::Status::Pending"];
-        remedies_for(":my::Status::Oks", candidates.iter().copied())
+        // ":my::Status.Oks" is close to ":my::Status.Ok" (distance 1).
+        let candidates = [":my::Status.Ok", ":my::Status.Pending"];
+        remedies_for(":my::Status.Oks", candidates.iter().copied())
     }
 
     #[test]
     fn remedies_for_unknown_needle_first_typo_has_correct_form() {
-        assert_eq!(remedies_for_unknown_setup()[0].form, ":my::Status::Ok");
+        assert_eq!(remedies_for_unknown_setup()[0].form, ":my::Status.Ok");
     }
 
     #[test]
@@ -424,28 +424,28 @@ mod tests {
 
     #[test]
     fn render_single_typo_has_did_you_mean_prefix() {
-        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
+        let r = Remedy { form: ":my::Status.Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 1]");
+        assert_eq!(rendered, "  did you mean: :my::Status.Ok [typo, distance 1]");
     }
 
     #[test]
     fn render_single_typo_contains_form() {
-        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
+        let r = Remedy { form: ":my::Status.Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 1]");
+        assert_eq!(rendered, "  did you mean: :my::Status.Ok [typo, distance 1]");
     }
 
     #[test]
     fn render_single_typo_annotation_includes_distance() {
-        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
+        let r = Remedy { form: ":my::Status.Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 1]");
+        assert_eq!(rendered, "  did you mean: :my::Status.Ok [typo, distance 1]");
     }
 
     #[test]
     fn render_single_typo_is_one_line() {
-        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
+        let r = Remedy { form: ":my::Status.Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
         assert_eq!(rendered.lines().count(), 1, "single typo remedy should be one line");
     }
@@ -453,8 +453,8 @@ mod tests {
     #[test]
     fn render_multi_remedy_multi_line() {
         let remedies = vec![
-            Remedy { form: ":my::Status::Ok".into(),  kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None },
-            Remedy { form: ":my::Status::Oke".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(2).unwrap()), note: None },
+            Remedy { form: ":my::Status.Ok".into(),  kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None },
+            Remedy { form: ":my::Status.Oke".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(2).unwrap()), note: None },
         ];
         let rendered = render_remedies(&remedies);
         // Header "  did you mean:" on its own line; candidates on subsequent lines.
@@ -464,9 +464,9 @@ mod tests {
 
     #[test]
     fn render_remedies_typo_annotation_includes_exact_distance() {
-        let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(3).unwrap()), note: None };
+        let r = Remedy { form: ":my::Status.Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(3).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 3]");
+        assert_eq!(rendered, "  did you mean: :my::Status.Ok [typo, distance 3]");
     }
 
     #[test]
@@ -505,13 +505,13 @@ mod tests {
     fn remedy_to_edn_typo_is_wat_kernel_remedy_tagged() {
         use crate::edn::contract::ToEdn;
         let r = Remedy {
-            form: ":my::Status::Ok".into(),
+            form: ":my::Status.Ok".into(),
             kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()),
             note: None,
         };
         let edn = r.to_edn();
         let s = wat_edn::write(&edn);
-        assert_eq!(s, r#"#wat.kernel/Remedy {:form ":my::Status::Ok" :kind :typo :score 1 :note nil}"#);
+        assert_eq!(s, r#"#wat.kernel/Remedy {:form ":my::Status.Ok" :kind :typo :score 1 :note nil}"#);
         // Must be valid EDN.
         wat_edn::parse_owned(&s).expect("must be valid EDN");
     }
@@ -556,19 +556,19 @@ mod tests {
     fn remedies_to_edn_nonempty_produces_tagged_remedy_items() {
         let remedies = vec![
             Remedy {
-                form: ":my::Status::Ok".into(),
+                form: ":my::Status.Ok".into(),
                 kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()),
                 note: None,
             },
             Remedy {
-                form: ":my::Status::Okay".into(),
+                form: ":my::Status.Okay".into(),
                 kind: RemedyKind::Typo(std::num::NonZeroU32::new(2).unwrap()),
                 note: None,
             },
         ];
         let edn = remedies_to_edn(&remedies);
         let s = wat_edn::write(&edn);
-        assert_eq!(s, r#"[#wat.kernel/Remedy {:form ":my::Status::Ok" :kind :typo :score 1 :note nil} #wat.kernel/Remedy {:form ":my::Status::Okay" :kind :typo :score 2 :note nil}]"#);
+        assert_eq!(s, r#"[#wat.kernel/Remedy {:form ":my::Status.Ok" :kind :typo :score 1 :note nil} #wat.kernel/Remedy {:form ":my::Status.Okay" :kind :typo :score 2 :note nil}]"#);
         // Must be a Vector.
         assert!(
             matches!(edn, wat_edn::OwnedValue::Vector(ref v) if v.len() == 2),

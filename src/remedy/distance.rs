@@ -98,6 +98,6 @@ mod tests {
     #[test]
     fn variant_path_typo() {
         // `:my::Status::Ok` vs `:my::Status::Oks` — one insertion
-        assert_eq!(levenshtein(":my::Status::Ok", ":my::Status::Oks"), 1);
+        assert_eq!(levenshtein(":my::Status.Ok", ":my::Status.Oks"), 1);
     }
 }

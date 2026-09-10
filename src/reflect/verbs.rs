@@ -1611,7 +1611,7 @@ pub(crate) fn eval_is_type(
 /// @ret     (:wat::core::Option :- [:wat::core::keyword]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::core::Option::Some) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Option
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::cache::Cache::GetRequest) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
-/// @example (:wat::core::match (:wat::runtime::variant-parent-of (:wat::keyword::from-string "wat::core::Result::Ok")) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Result
+/// @example (:wat::core::match (:wat::runtime::variant-parent-of (:wat::keyword::from-string "wat::core::Result.Ok")) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Result
 /// @see     :wat::runtime::is-type?
 /// @see     :wat::runtime::type-of
 #[wat_intrinsic(":wat::runtime::variant-parent-of")]

@@ -1151,7 +1151,7 @@ pub fn register_aggregate_methods(
                                         WatAST::List(
                                             vec![
                                                 WatAST::Keyword(
-                                                    ":wat::core::Option::Some".into(),
+                                                    ":wat::core::Option.Some".into(),
                                                     crate::rust_caller_span!(),
                                                 ),
                                                 WatAST::Map(
@@ -1174,7 +1174,7 @@ pub fn register_aggregate_methods(
                                         WatAST::List(
                                             vec![
                                                 WatAST::Keyword(
-                                                    ":wat::core::Option::None".into(),
+                                                    ":wat::core::Option.None".into(),
                                                     crate::rust_caller_span!(),
                                                 ),
                                                 WatAST::Map(vec![], crate::rust_caller_span!()),

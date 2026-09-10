@@ -9,4 +9,4 @@
      ~body))
 
 (:my::probe
-  (:wat::core::defn :my::probe::make-created [] -> :my::probe::Event (:my::probe::Event::Created {:id 1})))
+  (:wat::core::defn :my::probe::make-created [] -> :my::probe::Event (:my::probe::Event.Created {:id 1})))

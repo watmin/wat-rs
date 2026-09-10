@@ -515,8 +515,8 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::doall"
         | ":wat::core::dorun"
         | ":wat::core::stream->pvec"
-        | ":wat::core::ReadOutcome::Forms"
-        | ":wat::core::ReadOutcome::Malformed"
+        | ":wat::core::ReadOutcome.Forms"
+        | ":wat::core::ReadOutcome.Malformed"
         | ":wat::core::Error/message"
     )
 }

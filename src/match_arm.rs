@@ -161,10 +161,10 @@ pub enum BuiltinVariant {
 
 pub fn builtin_variant(path: &str) -> Option<BuiltinVariant> {
     match path {
-        ":wat::core::Option::Some" => Some(BuiltinVariant::OptionSome),
-        ":wat::core::Option::None" => Some(BuiltinVariant::OptionNone),
-        ":wat::core::Result::Ok" => Some(BuiltinVariant::ResultOk),
-        ":wat::core::Result::Err" => Some(BuiltinVariant::ResultErr),
+        ":wat::core::Option.Some" => Some(BuiltinVariant::OptionSome),
+        ":wat::core::Option.None" => Some(BuiltinVariant::OptionNone),
+        ":wat::core::Result.Ok" => Some(BuiltinVariant::ResultOk),
+        ":wat::core::Result.Err" => Some(BuiltinVariant::ResultErr),
         _ => None,
     }
 }
@@ -173,10 +173,10 @@ pub fn builtin_variant(path: &str) -> Option<BuiltinVariant> {
 /// qualified Type::Variant replacement the refusal must name (STOP-3).
 pub fn retired_bare_variant(path: &str) -> Option<&'static str> {
     match path {
-        ":wat::core::Some" => Some(":wat::core::Option::Some"),
-        ":None" | ":wat::core::None" => Some(":wat::core::Option::None"),
-        ":wat::core::Ok" => Some(":wat::core::Result::Ok"),
-        ":wat::core::Err" => Some(":wat::core::Result::Err"),
+        ":wat::core::Some" => Some(":wat::core::Option.Some"),
+        ":None" | ":wat::core::None" => Some(":wat::core::Option.None"),
+        ":wat::core::Ok" => Some(":wat::core::Result.Ok"),
+        ":wat::core::Err" => Some(":wat::core::Result.Err"),
         _ => None,
     }
 }

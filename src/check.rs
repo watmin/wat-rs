@@ -1959,7 +1959,7 @@ pub(crate) fn infer(
                 },
             }])
         }
-        WatAST::Keyword(k, _) if k == ":wat::core::Option::None" => {
+        WatAST::Keyword(k, _) if k == ":wat::core::Option.None" => {
             CheckResult::ok(TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![fresh.fresh()],
@@ -6527,13 +6527,13 @@ fn infer_match(
                                         if matches!(
                                             sub_items.first(),
                                             Some(WatAST::Keyword(k, _))
-                                                if k == ":wat::core::Option::Some"
+                                                if k == ":wat::core::Option.Some"
                                         ) =>
                                     {
                                         covers_result_ok_inner_some = true;
                                     }
                                     WatAST::Keyword(k, _)
-                                        if k == ":wat::core::Option::None" =>
+                                        if k == ":wat::core::Option.None" =>
                                     {
                                         covers_result_ok_inner_none = true;
                                     }
@@ -7463,7 +7463,7 @@ fn check_subpattern(
         // a `:None` sub-pattern at that position is refused even though the value
         // genuinely IS an Option (`recursive_patterns::nested_options_three_levels`).
         // A non-variant / already-bare type widens to itself (no-op).
-        WatAST::Keyword(k, _) if k == ":wat::core::Option::None" => match &widen_to_enclosing_enum(expected_ty, env) {
+        WatAST::Keyword(k, _) if k == ":wat::core::Option.None" => match &widen_to_enclosing_enum(expected_ty, env) {
             TypeExpr::Parametric { head, .. } if head == "wat::core::Option" => Some(false),
             _ => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -7601,9 +7601,9 @@ fn check_subpattern(
                 }
             }
             let builtin_ident = match head {
-                WatAST::Keyword(k, _) if k == ":wat::core::Option::Some" => Some("Some"),
-                WatAST::Keyword(k, _) if k == ":wat::core::Result::Ok" => Some("Ok"),
-                WatAST::Keyword(k, _) if k == ":wat::core::Result::Err" => Some("Err"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Option.Some" => Some("Some"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Result.Ok" => Some("Ok"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Result.Err" => Some("Err"),
                 _ => None,
             };
             // Arc 296 A-2 RELAND-4 loose end ② — widen to the enclosing enum for THIS
@@ -7690,9 +7690,9 @@ fn check_subpattern(
             // exactly one field" or similar, not a spurious "user enum"
             // mismatch.
             if let WatAST::Keyword(variant_path, _) = head {
-                let is_builtin_fqdn = variant_path == ":wat::core::Option::Some"
-                    || variant_path == ":wat::core::Result::Ok"
-                    || variant_path == ":wat::core::Result::Err";
+                let is_builtin_fqdn = variant_path == ":wat::core::Option.Some"
+                    || variant_path == ":wat::core::Result.Ok"
+                    || variant_path == ":wat::core::Result.Err";
                 if is_builtin_fqdn {
                     // Built-in already dispatched above; if we reach
                     // here, the `expected_ty` didn't match the

@@ -751,7 +751,7 @@ fn t20_match_user_enum_variant_records_type_dep() {
     let fresh = re_freeze(package.prologue);
     // Build an enum value Rect(3, 4) → 12. Use the parent's accessors
     // to construct via apply_function.
-    let rect_ctor = parent.symbols().get(":my::Shape::Rect").expect("Rect ctor");
+    let rect_ctor = parent.symbols().get(":my::Shape.Rect").expect("Rect ctor");
     let rect = apply_function(
         rect_ctor.clone(),
         vec![Value::i64(3), Value::i64(4)],

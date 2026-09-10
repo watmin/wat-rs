@@ -60,7 +60,7 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     // Fixture: probe_arc241_stone10_remedy_c01.wat.bad
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c01.wat.bad");
     // 296 recapture: staleness — EDN face (Stone B); :remedies is POPULATED with both
-    // typo candidates (":my::Status::Ok" score 1, ":my::Status::Error" score 5), matching
+    // typo candidates (":my::Status.Ok" score 1, ":my::Status.Error" score 5), matching
     // the old prose "did you mean" candidates exactly in form + distance. NOT a collapse
     // to `[]` (this file was flagged as a hazard for exactly that check).
     wat::assert_edn_matches_file!(
@@ -99,7 +99,7 @@ fn contract_03_ranked_multi_candidate_variant_typo() {
     // change beyond a straight assert swap). The EDN face has no "[typo, distance" prose
     // substring to count; :remedies is now a structured Vector. The old loose count-check
     // (`>= 2`) is STRENGTHENED to an exact golden pin — :remedies holds 3 typo candidates
-    // (":my::Status::Ok" score 1, ":my::Status::Oke" score 1, ":my::Status::Err" score 3),
+    // (":my::Status.Ok" score 1, ":my::Status.Oke" score 1, ":my::Status.Err" score 3),
     // which the reviewer can see directly in the captured .edn (satisfies and exceeds the
     // original "≥2 candidates" contract).
     wat::assert_edn_matches_file!(

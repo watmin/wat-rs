@@ -67,5 +67,5 @@ fn wrong_response_type_at_reply_site_is_compile_error() {
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
             if expected == ":wat::telemetry::Journal::WriteMetricsResponse"
-            && got == ":wat::query::Store::PutResponse::Success");
+            && got == ":wat::query::Store::PutResponse.Success");
 }

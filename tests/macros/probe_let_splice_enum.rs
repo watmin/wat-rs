@@ -14,7 +14,7 @@ use wat::freeze::startup_from_file;
 #[test]
 fn probe_let_enum_constructor_visible() {
     let world = startup_from_file("tests/macros/probe_let_splice_enum_constructor.wat").expect("freeze");
-    assert!(world.symbols().get(":my::Request::Push").is_some(), ":my::Request::Push not registered");
+    assert!(world.symbols().get(":my::Request.Push").is_some(), ":my::Request::Push not registered");
     assert!(world.symbols().get(":my::make-push").is_some(), ":my::make-push not registered");
 }
 
@@ -22,7 +22,7 @@ fn probe_let_enum_constructor_visible() {
 #[test]
 fn probe_let_enum_via_macro_emission() {
     let world = startup_from_file("tests/macros/probe_let_splice_enum_via_macro.wat").expect("freeze");
-    assert!(world.symbols().get(":my::probe::Event::Created").is_some(), ":my::probe::Event::Created not registered");
-    assert!(world.symbols().get(":my::probe::Event::Deleted").is_some(), ":my::probe::Event::Deleted not registered");
+    assert!(world.symbols().get(":my::probe::Event.Created").is_some(), ":my::probe::Event::Created not registered");
+    assert!(world.symbols().get(":my::probe::Event.Deleted").is_some(), ":my::probe::Event::Deleted not registered");
     assert!(world.symbols().get(":my::probe::make-created").is_some(), ":my::probe::make-created not registered");
 }

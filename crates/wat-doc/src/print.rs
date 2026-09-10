@@ -437,8 +437,8 @@ mod print_tests {
         );
         assert_eq!(wat_fqdn_to_edn_keyword(":wat::core::foldl"), ":wat.core/foldl");
         assert_eq!(
-            wat_fqdn_to_edn_keyword(":wat::runtime::Purity::Pure"),
-            ":wat.runtime.Purity/Pure"
+            wat_fqdn_to_edn_keyword(":wat::runtime::Purity.Pure"),
+            ":wat.runtime/Purity.Pure"
         );
         assert_eq!(wat_fqdn_to_edn_keyword(":added"), ":added");
     }

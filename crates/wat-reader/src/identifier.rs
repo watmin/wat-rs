@@ -621,21 +621,25 @@ mod tests {
         // twelve of the thirteen `::` call sites.
         assert_eq!(
             compose_variant(":trading::types::PhaseLabel", "Valley"),
-            ":trading::types::PhaseLabel::Valley"
+            ":trading::types::PhaseLabel.Valley"
         );
         // A caller-pre-stripped path (runtime.rs:4108's own trim) — the door
         // does not care; it is colon-agnostic, not colon-normalizing.
         assert_eq!(
             compose_variant("trading::types::PhaseLabel", "Valley"),
-            "trading::types::PhaseLabel::Valley"
+            "trading::types::PhaseLabel.Valley"
         );
     }
 
     #[test]
-    fn compose_variant_is_the_inverse_of_path_and_leaf() {
+    fn compose_variant_is_the_inverse_of_decompose_variant() {
+        // NOT path()/leaf() — those are the GENERAL `::` splitters, and compose_variant's
+        // separator is `.` (the dot flip). decompose_variant is the pair's own dedicated
+        // inverse; see the doc comment on both functions above.
         let composed = compose_variant(":wat::cache::Lru", "Hit");
-        assert_eq!(path(&composed), ":wat::cache::Lru");
-        assert_eq!(leaf(&composed), "Hit");
+        let (path, leaf) = decompose_variant(&composed).expect("a composed variant decomposes");
+        assert_eq!(path, ":wat::cache::Lru");
+        assert_eq!(leaf, "Hit");
     }
 
     #[test]

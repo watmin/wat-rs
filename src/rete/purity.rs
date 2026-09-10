@@ -2539,7 +2539,7 @@ mod completeness_gate {
             ":undefined",
             ":rust::",
             ":wat::core::None",
-            ":wat::core::Option::None",
+            ":wat::core::Option.None",
         ];
 
         // Strip whole-line `//`/`///`/`//!` comments and everything from the top-level test

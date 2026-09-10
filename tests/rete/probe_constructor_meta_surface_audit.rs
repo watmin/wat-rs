@@ -116,7 +116,7 @@ fn nested_surface_enum_variant_wrong_arity_is_now_a_check_time_rejection() {
     // rune:lint(loose-assert) — same span/path reason.
     assert!(msg.contains("cg::gather"), "error does not name the rule, got:\n{msg}");
     // rune:lint(loose-assert) — same span/path reason.
-    assert!(msg.contains("cg::Status::Active"), "error does not name the offending variant, got:\n{msg}");
+    assert!(msg.contains("cg::Status.Active"), "error does not name the offending variant, got:\n{msg}");
     // rune:lint(loose-assert) — same span/path reason.
     assert!(msg.contains("expected 1") && msg.contains("got 3"), "error does not name the actual/expected arity, got:\n{msg}");
 }

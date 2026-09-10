@@ -124,14 +124,14 @@ mod tests {
     }
 
     fn single_typo_results() -> Vec<Remedy> {
-        // ":my::Status::Oks" vs ":my::Status::Ok" = distance 1; threshold = max(1, 16/3) = 5
-        let candidates = [":my::Status::Ok", ":my::Status::Pending", ":my::Status::Error"];
-        nearest_matches(":my::Status::Oks", candidates.iter().copied())
+        // ":my::Status.Oks" vs ":my::Status.Ok" = distance 1; threshold = max(1, 16/3) = 5
+        let candidates = [":my::Status.Ok", ":my::Status.Pending", ":my::Status.Error"];
+        nearest_matches(":my::Status.Oks", candidates.iter().copied())
     }
 
     #[test]
     fn single_typo_first_result_has_correct_form() {
-        assert_eq!(single_typo_results()[0].form, ":my::Status::Ok");
+        assert_eq!(single_typo_results()[0].form, ":my::Status.Ok");
     }
 
     #[test]

@@ -2,4 +2,4 @@
   (:wat::core::defenum :my::Request :wat::enum::Pure
     :Push [value <- :wat::core::i64]
     :NoOp)
-  (:wat::core::defn :my::make-push [] -> :my::Request (:my::Request::Push {:value 99})))
+  (:wat::core::defn :my::make-push [] -> :my::Request (:my::Request.Push {:value 99})))
