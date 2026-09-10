@@ -1206,7 +1206,7 @@
     sweep))
 
 ;; Σ acks over the subscriber queues, folded over a sweep ALREADY TAKEN — the same shape as
-;; :fanout::sum-store-calls but with no `Queue/stats` call of its own. Monotone (see
+;; :fanout::sample-of but with no `Queue/stats` call of its own. Monotone (see
 ;; depth-of), so `now > prev` is "something was delivered and acked since the last poll".
 ;; ⛔ Never an equality/completion test: redelivery lets it exceed n×m.
 (:wat::core::defn :fanout::sweep-acks
@@ -1953,75 +1953,65 @@
   [q <- :queue::Queue  attempts <- :wat::core::i64] -> :wat::core::String
   (:fanout::poll-until-visible-zero* q attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
 
-(:wat::core::defn :fanout::sum-calls
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
+;; ⭑ ONE `Queue/stats` PER QUEUE PER BOUNDARY — one reply, five fields kept.
+;; This replaces FIVE one-field folds (`sum-calls` · `sum-ticks` · `sum-store-calls` ·
+;; `sum-store-ns` · `sum-handler-ns`), each of which made its OWN round-trip per queue to
+;; keep ONE field of a 19-field `:queue::Stats`. They were called at TEN sites, so ten
+;; round-trips per queue per run — 40 at m=4 — to read five numbers. Shape copied from
+;; :fanout::sweep-of / :fanout::depth-of: take the reply, keep every field you will need.
+;;
+;; ⛔ A stats call is NOT free on the server, and this is why the count is load-bearing:
+;; the queue's own `stats` impl performs TWO count-index calls (wat-scripts/queue/sqs.wat:1266
+;; — `store-calls` +2, `count-calls` +2, `store-ns` += depth-ns) and adds its own
+;; `handler-ns`, then reports the POST-increment values. So the number of samples taken is
+;; VISIBLE in every absolute store figure the harness prints. Fewer samples ⇒ smaller
+;; reported totals — the instrument shrinking, not the work.
+;;
+;; ⛔ And it is why the instrument and the fix had to be one change: naively adding four
+;; more `sum-handler-ns` calls to give every phase a busy figure would have added 4m
+;; round-trips and inflated the very phases being measured.
+(:wat::core::defrecord :fanout::Sample
+  [receive-calls <- :wat::core::i64
+   ticks         <- :wat::core::i64
+   store-calls   <- :wat::core::i64
+   store-ns      <- :wat::core::i64
+   handler-ns    <- :wat::core::i64])
+
+(:wat::core::defn :fanout::empty-sample [] -> :fanout::Sample
+  (:fanout::Sample :receive-calls 0 :ticks 0 :store-calls 0 :store-ns 0 :handler-ns 0))
+
+;; Σ over `qclients` of one `Queue/stats` reply each. A lost/not-Ok reply contributes
+;; nothing (the same silent-skip the five folds had), so a sample is never a raise.
+(:wat::core::defn :fanout::sample-of
+  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :fanout::Sample
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  q <- :queue::Queue] -> :wat::core::i64
+    (:wat::core::fn [acc <- :fanout::Sample  q <- :queue::Queue] -> :fanout::Sample
       (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
             ((:queue::Queue::StatsResponse::Ok qst)
-              (:wat::i64::+ acc (:queue::Stats/receive-calls qst)))
+              (:fanout::Sample
+                :receive-calls (:wat::i64::+ (:fanout::Sample/receive-calls acc) (:queue::Stats/receive-calls qst))
+                :ticks         (:wat::i64::+ (:fanout::Sample/ticks acc)         (:queue::Stats/ticks qst))
+                :store-calls   (:wat::i64::+ (:fanout::Sample/store-calls acc)   (:queue::Stats/store-calls qst))
+                :store-ns      (:wat::i64::+ (:fanout::Sample/store-ns acc)      (:queue::Stats/store-ns qst))
+                :handler-ns    (:wat::i64::+ (:fanout::Sample/handler-ns acc)    (:queue::Stats/handler-ns qst))))
             (_ acc)))
         (_ acc)))
-    0
+    (:fanout::empty-sample)
     qclients))
 
-(:wat::core::defn :fanout::sum-ticks
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  q <- :queue::Queue] -> :wat::core::i64
-      (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
-        ((:wat::kernel::RecvOutcome::Message r)
-          (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok qst)
-              (:wat::i64::+ acc (:queue::Stats/ticks qst)))
-            (_ acc)))
-        (_ acc)))
-    0
-    qclients))
-
-(:wat::core::defn :fanout::sum-store-calls
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  q <- :queue::Queue] -> :wat::core::i64
-      (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
-        ((:wat::kernel::RecvOutcome::Message r)
-          (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok qst)
-              (:wat::i64::+ acc (:queue::Stats/store-calls qst)))
-            (_ acc)))
-        (_ acc)))
-    0
-    qclients))
-
-(:wat::core::defn :fanout::sum-store-ns
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  q <- :queue::Queue] -> :wat::core::i64
-      (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
-        ((:wat::kernel::RecvOutcome::Message r)
-          (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok qst)
-              (:wat::i64::+ acc (:queue::Stats/store-ns qst)))
-            (_ acc)))
-        (_ acc)))
-    0
-    qclients))
-
-(:wat::core::defn :fanout::sum-handler-ns
-  [qclients <- (:wat::core::Vector :- [:queue::Queue])] -> :wat::core::i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64  q <- :queue::Queue] -> :wat::core::i64
-      (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
-        ((:wat::kernel::RecvOutcome::Message r)
-          (:wat::core::match r
-            ((:queue::Queue::StatsResponse::Ok qst)
-              (:wat::i64::+ acc (:queue::Stats/handler-ns qst)))
-            (_ acc)))
-        (_ acc)))
-    0
-    qclients))
+;; ⭑ busy-ms for a phase = the queues' own `handler-ns` delta across the phase's two
+;; boundary samples, averaged over the m queues. This IS the arithmetic `drain-busy-ms`
+;; already used inline — (hn-after − hn-before) / (1e6 × m) — lifted so EVERY phase can
+;; have it. The divisor is (1e6 × m): a per-queue mean in milliseconds, NOT a total.
+;; ⚠ SERVER-SIDE HANDLER TIME, not interpreter time. It bounds how much of a phase was
+;; WAITING on the queues; it does NOT prove the remainder is interpretation.
+(:wat::core::defn :fanout::busy-ms
+  [before <- :fanout::Sample  after <- :fanout::Sample  m <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::/
+    (:wat::i64::- (:fanout::Sample/handler-ns after) (:fanout::Sample/handler-ns before))
+    (:wat::i64::* 1000000 m)))
 
 (:wat::core::defn :fanout::seen-stats
   [seenh <- :fanout::seen::Handle]
@@ -2465,6 +2455,11 @@
               (:wat::core::range 0 wcount))
      _go-early (:wat::core::if fill-first? nil (:fanout::arm-workers! wpeers))
      t-pub0 (:wat::time::epoch-nanos (:wat::time::now))
+     ;; ⭑ BOUNDARY SAMPLE 1 of 6. Every sample sits IMMEDIATELY AFTER its boundary
+     ;; timestamp — never mid-phase — so each phase pays for exactly ONE sample (the one
+     ;; opening it) and every consecutive pair brackets exactly one phase. `setup` gets no
+     ;; sample: at t-setup0 the queues do not exist yet, and setup is cold boot, out of scope.
+     s-pub0 (:fanout::sample-of qclients)
      ppeers (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
                                i   <- :wat::core::i64]
@@ -2491,15 +2486,13 @@
      fill-sweep (:fanout::sweep-of qclients)
      fill-depth (:fanout::snapshot-str fill-sweep)
      t-arm0 (:wat::time::epoch-nanos (:wat::time::now))
+     s-arm0 (:fanout::sample-of qclients)               ;; boundary sample 2 of 6
      _go-late (:wat::core::if fill-first? (:fanout::arm-workers! wpeers) nil)
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
-     ;; Drain-store samples sit inside the wall-clock span: before-sample
-     ;; immediately after t-drain0, after-sample immediately before t-collect0.
-     ;; After-sample's 8 stats calls land in the store delta; before-sample's
-     ;; 8 do not (they are in sc-before). Timestamps were not moved.
-     sc-before (:fanout::sum-store-calls qclients)
-     ns-before (:fanout::sum-store-ns qclients)
-     hn-before (:fanout::sum-handler-ns qclients)
+     ;; Boundary sample 3 of 6 — the drain's opening sample. It replaces the three
+     ;; separate `sum-store-calls`/`sum-store-ns`/`sum-handler-ns` round-trips that used to
+     ;; stand here, so `drain` now pays for ONE stats call per queue instead of three.
+     s-drain0 (:fanout::sample-of qclients)
      ;; n×m is the work measure; the poller spends it as a WALL ceiling (30 s + 12 ms/pair)
      ;; and gives up on lack of delivery progress before that. Scales with the work; not a
      ;; raised constant. Three verdicts, not one: see poll-until-drained*.
@@ -2519,14 +2512,19 @@
      ;; The longest no-progress streak the drain saw, in polls. This is the evidence for
      ;; :fanout::drain-stale-polls being the size it is — read it, do not trust the comment.
      drain-stale-max (:wat::core::third drain-pair)
-     sc-after (:fanout::sum-store-calls qclients)
-     ns-after (:fanout::sum-store-ns qclients)
-     hn-after (:fanout::sum-handler-ns qclients)
      t-collect0 (:wat::time::epoch-nanos (:wat::time::now))
-     calls (:fanout::sum-calls qclients)
-     ticks (:fanout::sum-ticks qclients)
-     store-calls (:fanout::sum-store-calls qclients)
-     store-ns (:fanout::sum-store-ns qclients)
+     ;; ⭑ Boundary sample 4 of 6 — the drain's closing sample AND collect's opening one,
+     ;; and the source of the run's reported `store-calls`/`store-ms`/`qticks` and the
+     ;; returned receive-calls. SEVEN round-trips per queue collapse into this one: the
+     ;; three `*-after` reads that used to sit just BEFORE t-collect0 and the four
+     ;; `calls`/`ticks`/`store-calls`/`store-ns` reads that used to sit just after it.
+     ;; ⛔ One reply means these five numbers now describe ONE instant. They used to be
+     ;; read at seven different instants and were therefore mutually inconsistent.
+     s-collect0 (:fanout::sample-of qclients)
+     calls (:fanout::Sample/receive-calls s-collect0)
+     ticks (:fanout::Sample/ticks s-collect0)
+     store-calls (:fanout::Sample/store-calls s-collect0)
+     store-ns (:fanout::Sample/store-ns s-collect0)
      tticks (:fanout::topic-ticks topic)
      ifails (:fanout::topic-inbox-fails topic)
      ilost  (:wat::core::first ifails)
@@ -2563,6 +2561,7 @@
      summary (:wat::core::format "{s};seen-recorded={f};seen-skipped={d};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae}"
                :s summary0 :f sfirsts :d sdups :ce ce :me me :ar ars :ae aes)
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
+     s-stop0 (:fanout::sample-of qclients)              ;; boundary sample 5 of 6
      _stoptw (:wat::core::foldl
                (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
                  (:wat::core::let [_ (:demo::topic-worker/stop (:wat::core::nth twhandles i))]
@@ -2570,10 +2569,13 @@
                nil
                (:wat::core::range 0 j))
      t-end (:wat::time::epoch-nanos (:wat::time::now))
+     ;; Boundary sample 6 of 6 — closes `stop`. It lands AFTER t-end, so it is the one
+     ;; sample inside no phase at all; `total` does not pay for it.
+     s-end (:fanout::sample-of qclients)
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};drain-busy-ms={dbms};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2601,9 +2603,18 @@
               :dsm drain-stale-max
               :sc store-calls
               :sms (:wat::i64::/ store-ns 1000000)
-              :dsc (:wat::i64::/ (:wat::i64::- sc-after sc-before) m)
-              :dsms (:wat::i64::/ (:wat::i64::- ns-after ns-before) (:wat::i64::* 1000000 m))
-              :dbms (:wat::i64::/ (:wat::i64::- hn-after hn-before) (:wat::i64::* 1000000 m))
+              :dsc (:wat::i64::/ (:wat::i64::- (:fanout::Sample/store-calls s-collect0) (:fanout::Sample/store-calls s-drain0)) m)
+              :dsms (:wat::i64::/ (:wat::i64::- (:fanout::Sample/store-ns s-collect0) (:fanout::Sample/store-ns s-drain0)) (:wat::i64::* 1000000 m))
+              ;; ⭑ EVERY PHASE'S BUSY FIGURE, one per consecutive boundary pair, all with
+              ;; the SAME divisor (1e6 × m) that `drain-busy-ms` has always used — a
+              ;; per-queue mean in ms, not a total. `drain-busy-ms` keeps its name and its
+              ;; arithmetic. ⚠ Server-side handler time: the part of the phase that was
+              ;; WAITING on a queue. The remainder is not thereby shown to be interpretation.
+              :fbms (:fanout::busy-ms s-pub0 s-arm0 m)
+              :abms (:fanout::busy-ms s-arm0 s-drain0 m)
+              :dbms (:fanout::busy-ms s-drain0 s-collect0 m)
+              :cbms (:fanout::busy-ms s-collect0 s-stop0 m)
+              :sbms (:fanout::busy-ms s-stop0 s-end m)
               :total (ms t-setup0 t-end))
      traces (:fanout::traces-report (:fanout::traces-of outs))
      inbox-line (:fanout::tier-line "inbox" inbox-q)
