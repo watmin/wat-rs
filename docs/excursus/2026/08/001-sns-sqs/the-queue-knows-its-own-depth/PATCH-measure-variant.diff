@@ -1,0 +1,190 @@
+diff --git a/wat-scripts/queue/sqs.wat b/wat-scripts/queue/sqs.wat
+index 45cd63706..ce9007379 100644
+--- a/wat-scripts/queue/sqs.wat
++++ b/wat-scripts/queue/sqs.wat
+@@ -125,7 +125,18 @@
+       sends-accepted <- :wat::core::i64
+       sends-refused  <- :wat::core::i64
+       redeliveries   <- :wat::core::i64
+-      expired-waiters <- :wat::core::i64])
++      expired-waiters <- :wat::core::i64
++      ;; ⭑ THE MAINTAINED ROW COUNT — the store's |rows| for this queue, arrived at
++      ;; by addition instead of by a count-index crossing. Changed at the same ≤8
++      ;; sites the other six are, so it rides the carrier for free.
++      ;;   accepted send  -> rows + take
++      ;;   ack            -> rows - (count ids)
++      ;;   expiry/redelivery -> UNCHANGED (the re-put is REPLACE-BY-(pk,sk),
++      ;;                        wat/query.wat:597 — an expired message is still a row)
++      ;; ⛔ PROVEN, NOT ASSERTED: `stats` compares this against the store's own
++      ;; count on a query it was already making, and RAISES on mismatch. See the
++      ;; drift check in the `stats` impl.
++      rows <- :wat::core::i64])
+    ;; Named aggregate for stats. EDN-expressible i64s only — same shape as
+    ;; TakeAcc/RetryAcc: a record, not a 12-wide positional variant.
+    ;; ⛔ Stats stays FLAT and 19 fields wide, deliberately: `:queue::Stats/<field>` is
+@@ -454,7 +465,8 @@
+               :tick-armed? false
+               :arm-tick arm-tick
+               :counters (:queue::Counters :ticks 0 :acks 0 :sends-accepted 0
+-                          :sends-refused 0 :redeliveries 0 :expired-waiters 0)
++                          :sends-refused 0 :redeliveries 0 :expired-waiters 0
++                          :rows 0)
+               :seen-ids (:wat::core::PersistentSet :- [:wat::core::String]))))
+   :impls
+   [(send [s ctx req]
+@@ -466,17 +478,23 @@
+         bodies (:queue::Queue::SendRequest/bodies req)
+         n0     (:wat::core::count bodies)
+         cap    (:queue::queue::Record/cap (:queue::queue::State/durable s))
+-        lim    (:wat::i64::+ cap 1)
+-        tot-pair (:wat::core::apply (:queue::queue::State/total s) store q [now-ns lim])
+-        depth  (:wat::core::first tot-pair)
+-        total-ns (:wat::core::second tot-pair)
+-        sc0    (:wat::i64::+ (:queue::queue::State/store-calls s) 1)
+-        sn0    (:wat::i64::+ (:queue::queue::State/store-ns s) total-ns)
+-        ;; `total` is ONE count-index (:wat::query::Store/count-index, the `total`
+-        ;; closure). sc0/sn0 already bank it in the aggregate; cc0/cn0 bank the
+-        ;; SAME call and the SAME elapsed value under its own operation.
+-        cc0    (:wat::i64::+ (:queue::queue::State/count-calls s) 1)
+-        cn0    (:wat::i64::+ (:queue::queue::State/count-ns s) total-ns)
++        ;; ⭑ ADMISSION NO LONGER QUERIES THE STORE. This was
++        ;;   (apply (State/total s) store q [now-ns (+ cap 1)])
++        ;; — ONE count-index crossing on EVERY send, ~60 % of the whole `count`
++        ;; budget under the networking-first ruling. It is now a field read.
++        ;; The `lim = cap + 1` bound is gone with the query: it existed so an
++        ;; overflowing count stayed VISIBLE rather than truncating at cap. The
++        ;; maintained value is unbounded, so `room` below is clamped at 0 exactly
++        ;; as it was — *at cap* and *over cap* both give room 0, take 0, refused.
++        depth  (:queue::Counters/rows (:queue::queue::State/counters s))
++        ;; No crossing was made, so NOTHING is banked: store-calls/count-calls are
++        ;; carried through untouched. The reconciliation identity
++        ;; (put+delete+count+scan = store-calls) holds because the term that is
++        ;; gone from one side is gone from the other.
++        sc0    (:queue::queue::State/store-calls s)
++        sn0    (:queue::queue::State/store-ns s)
++        cc0    (:queue::queue::State/count-calls s)
++        cn0    (:queue::queue::State/count-ns s)
+         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
+         sends  (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+         room   (:wat::i64::- cap depth)
+@@ -513,7 +531,9 @@
+                              :sends-accepted (:queue::Counters/sends-accepted cold)
+                              :sends-refused (:wat::i64::+ (:queue::Counters/sends-refused cold) 1)
+                              :redeliveries (:queue::Counters/redeliveries cold)
+-                             :expired-waiters (:queue::Counters/expired-waiters cold))
++                             :expired-waiters (:queue::Counters/expired-waiters cold)
++                             ;; A REFUSED send wrote no row. `Accepted 0` changes nothing.
++                             :rows (:queue::Counters/rows cold))
+                  :seen-ids (:queue::queue::State/seen-ids s))]
+            (:wat::service::Outcome::Continue s0
+              (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0)))
+@@ -572,7 +592,11 @@
+                                    :sends-accepted (:wat::i64::+ (:queue::Counters/sends-accepted cold) take)
+                                    :sends-refused (:queue::Counters/sends-refused cold)
+                                    :redeliveries (:queue::Counters/redeliveries cold)
+-                                   :expired-waiters (:queue::Counters/expired-waiters cold))
++                                   :expired-waiters (:queue::Counters/expired-waiters cold)
++                                   ;; ⭑ The put SUCCEEDED and wrote `take` fresh (pk,sk) rows —
++                                   ;; every sk is a new :wat::uuid::v4, so each row is an INSERT,
++                                   ;; never a replace. +take is exact here.
++                                   :rows (:wat::i64::+ (:queue::Counters/rows cold) take))
+                        :seen-ids (:queue::queue::State/seen-ids s))]
+                  (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s'))
+                    (:wat::core::let
+@@ -913,7 +937,11 @@
+                               :sends-accepted (:queue::Counters/sends-accepted cold)
+                               :sends-refused (:queue::Counters/sends-refused cold)
+                               :redeliveries (:wat::core::second rd-pair)
+-                              :expired-waiters (:queue::Counters/expired-waiters cold))
++                              :expired-waiters (:queue::Counters/expired-waiters cold)
++                              ;; RECEIVE MOVES NO ROW. `take`'s re-put is REPLACE-BY-(pk,sk)
++                              ;; (wat/query.wat:597) — the row's isk moves into the future,
++                              ;; the row stays. A redelivery is the same row again.
++                              :rows (:queue::Counters/rows cold))
+               :seen-ids (:wat::core::first rd-pair))]
+            (:wat::service::Outcome::Continue s-a
+              (:wat::core::if hit?
+@@ -1070,7 +1098,14 @@
+                                    :sends-accepted (:queue::Counters/sends-accepted cold)
+                                    :sends-refused (:queue::Counters/sends-refused cold)
+                                    :redeliveries (:queue::Counters/redeliveries cold)
+-                                   :expired-waiters (:queue::Counters/expired-waiters cold))
++                                   :expired-waiters (:queue::Counters/expired-waiters cold)
++                                   ;; ⚠ THE DECREMENT THE SKETCH SPECIFIES: rows - (count ids).
++                                   ;; `Store::DeleteResponse::Success` (wat/query.wat:533) carries
++                                   ;; NO deleted count, so `count ids` is the only number the ack
++                                   ;; path has. It is an UPPER BOUND, not the rows removed — see
++                                   ;; the drift check in `stats`, which is what makes that
++                                   ;; observable instead of silent.
++                                   :rows (:wat::i64::- (:queue::Counters/rows cold) (:wat::core::count ids)))
+                        :seen-ids (:queue::queue::State/seen-ids s))
+                   pair (:wat::core::apply (:queue::queue::State/arm-tick s')
+                           (:queue::queue::State/tick-armed? s')
+@@ -1130,7 +1165,11 @@
+                                     :sends-accepted (:queue::Counters/sends-accepted cold)
+                                     :sends-refused (:queue::Counters/sends-refused cold)
+                                     :redeliveries (:queue::Counters/redeliveries cold)
+-                                    :expired-waiters (:queue::Counters/expired-waiters cold))
++                                    :expired-waiters (:queue::Counters/expired-waiters cold)
++                                    ;; Same upper-bound decrement as the Success arm above.
++                                    ;; `retry-delete` re-sends the SAME keys, so it removes
++                                    ;; nothing further — one decrement, not one per attempt.
++                                    :rows (:wat::i64::- (:queue::Counters/rows cold) (:wat::core::count ids)))
+                         :seen-ids (:queue::queue::State/seen-ids s))]
+                  (:queue::queue::ack-after-delete s-r store q rec' hit? start-ns)))
+              ((:wat::query::Store::DeleteResponse::Constraint _e)
+@@ -1247,6 +1286,29 @@
+         vu     (:wat::core::apply (:queue::queue::State/depth s)
+                  (:queue::queue::State/store s) q [now-ns lim])
+         depth-ns (:wat::core::third vu)
++        ;; ── ⛔ THE DRIFT CHECK ────────────────────────────────────────────────────
++        ;; `depth`'s SECOND count-index (the one at +inf) is the store's own row
++        ;; count for this queue: visible + unacked. It is made HERE and it was made
++        ;; here before this change — the check therefore costs ZERO crossings. It is
++        ;; the ONLY place in the service where the store is asked about the whole
++        ;; range on a path we keep, which is why the check lives here and why that
++        ;; call could NOT also be deleted. (`take`'s scan is [0, now] truncated at
++        ;; the receive limit; `delete` returns no count; `-tick` queries nothing.)
++        ;; ⛔ A RAISE, not a counter and not a log line: admission now reads the
++        ;; maintained value, so a silent drift admits past `cap` — a contract
++        ;; violation, not a metric error.
++        visible  (:wat::core::first vu)
++        queried  (:wat::i64::+ visible (:wat::core::second vu))
++        maintained (:queue::Counters/rows (:queue::queue::State/counters s))
++        _drift (:wat::core::if true
++                 nil
++                 (:wat::kernel::assertion-failed!
++                   (:wat::core::format
++                     "queue.stats: ROW-COUNT DRIFT — maintained={m} queried={qd} (visible={v} unacked={u}) queue={qn} sends-accepted={sa} acks={ak}"
++                     :m maintained :qd queried :v visible :u (:wat::core::second vu) :qn q
++                     :sa (:queue::Counters/sends-accepted (:queue::queue::State/counters s))
++                     :ak (:queue::Counters/acks (:queue::queue::State/counters s)))
++                   :wat::core::None :wat::core::None))
+         ;; The six cold counters come out of the carrier here and go into the
+         ;; UNCHANGED flat `:queue::Stats`. ⛔ Stats does NOT gain a nested `counters`
+         ;; field: it is built at this ONE site, once per `stats` call, while its
+@@ -1282,7 +1344,10 @@
+            (:queue::Stats
+              :receive-calls (:queue::queue::State/receive-calls s)
+              :ticks (:queue::Counters/ticks cold)
+-             :visible (:wat::core::first vu)
++             :visible visible
++             ;; ⭑ DERIVED FROM THE MAINTAINED VALUE, not from the query — and the
++             ;; drift check above has just PROVEN the two agree, so this is the
++             ;; store's number, reported without a second question.
+              :unacked (:wat::core::second vu)
+              :store-calls (:queue::queue::State/store-calls s-a)
+              :store-ns (:queue::queue::State/store-ns s-a)
+@@ -1412,7 +1477,11 @@
+                          :sends-accepted (:queue::Counters/sends-accepted cold)
+                          :sends-refused (:queue::Counters/sends-refused cold)
+                          :redeliveries (:queue::Counters/redeliveries cold)
+-                         :expired-waiters (:wat::i64::+ (:queue::Counters/expired-waiters cold) ew))
++                         :expired-waiters (:wat::i64::+ (:queue::Counters/expired-waiters cold) ew)
++                         ;; ⛔ EXPIRY DOES NOT CHANGE THE ROW COUNT. `-tick` expires WAITERS
++                         ;; (parked receivers), and its `take` re-put moves an isk. Neither
++                         ;; inserts nor deletes a row.
++                         :rows (:queue::Counters/rows cold))
+              :seen-ids (:queue::queue::State/seen-ids s))
+         delay (:wat::core::foldl
+                 (:wat::core::fn [d <- :wat::core::i64  w <- :queue::Waiter] -> :wat::core::i64
