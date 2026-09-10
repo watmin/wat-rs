@@ -268,6 +268,27 @@
       queue  <- :wat::core::String
       id     <- :wat::core::String
       body   <- :wat::core::String])
+   ;; ⭑ THE `:stop` PROJECTION'S TYPE — the whole point of this stone. `:stop` used to
+   ;; render the final State to just the outcomes vector, so `collect` had to ask a SECOND
+   ;; question (`disrupts`) for the tallies, and a request to a worker waits out that
+   ;; worker's own 250 ms blocking `Queue/receive` (excursus 001,
+   ;; where-the-time-actually-goes). The tallies ride the reply the harness was already
+   ;; going to receive: ONE question per worker, twelve fewer process-boundary crossings.
+   ;; ⛔ A RECORD, NOT A WIDER TUPLE: nine values out and `Tuple` has no fourth accessor
+   ;; (wat/core.wat:1737) — a trap hit twice in this campaign.
+   ;; It lives in `:messages` because the projection runs in the CHILD (the forked worker)
+   ;; and is deserialised in the parent, so both bakes need the type — same reason
+   ;; `:fanout::Outcome` is here.
+   (:wat::core::defrecord :fanout::WorkerFinal
+     [outcomes          <- (:wat::core::PersistentVector :- [:fanout::Outcome])
+      hits              <- :wat::core::i64
+      draws             <- :wat::core::i64
+      points            <- :wat::core::String
+      check-exhausted   <- :wat::core::i64
+      mark-exhausted    <- :wat::core::i64
+      ack-retries       <- :wat::core::i64
+      ack-exhausted     <- :wat::core::i64
+      ack-calls         <- :wat::core::i64])
    (:wat::core::defrecord :fanout::Worker::StartRequest [])
    (:wat::core::defenum :fanout::Worker::StartResponse :wat::enum::Pure
      :Ok []
@@ -275,13 +296,11 @@
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :fanout::Worker::DisruptsRequest [])
-   ;; ⭑ `ack-calls` is the ROUND-TRIP BUDGET's one worker-side term, and it rides THIS
-   ;; reply. `disrupts` is already the worker's own-tally channel and `collect` already
-   ;; calls it once per worker (circuit.wat, `dpair`), so the count is FREE. The intended
-   ;; channel was the `:stop` projection (wat/service.wat:2928) — equally free, one more
-   ;; round-trip already spent; `disrupts` was chosen because it is ALREADY the tally verb
-   ;; and needs no change to the projection's crossing type. Folding both into `:stop` and
-   ;; deleting `sum-disrupts` remains the follow-on, and this stone does not take it.
+   ;; ⭑ `ack-calls` is the ROUND-TRIP BUDGET's one worker-side term. It rides the `:stop`
+   ;; projection now (`:fanout::WorkerFinal` above), NOT this reply — the follow-on the
+   ;; comment here used to defer is taken. `disrupts` survives as the LIVE read: the only
+   ;; way to see a running worker's tallies, and the drain-stall diagnostic's one caller
+   ;; (`:fanout::sum-disrupts`, a failure-only path that costs the happy path nothing).
    ;; ⛔ Every OTHER worker crossing is counted at the callee, not here: the worker's
    ;; `Queue/receive` calls are the queue's own `receive-calls`, and its `Seen/check` +
    ;; `Seen/mark` calls are the seen service's own `calls`. Only `Queue/ack` is counted by
@@ -356,8 +375,25 @@
                     ((:wat::kernel::ConnectOutcome::Failed c)
                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
             :outcomes (:wat::core::PersistentVector :- [:fanout::Outcome])))
-  :stop (:wat::core::fn [s <- :fanout::worker::State] -> (:wat::core::PersistentVector :- [:fanout::Outcome])
-          (:fanout::worker::State/outcomes s))
+  ;; ⭑ ONE QUESTION PER WORKER. The projection carries the outcomes AND every disrupt
+  ;; tally, so `collect` reads both off the single `stop` round-trip (one `send
+  ;; Admin::Stop` + one `recv`, wat/service.wat:2928) instead of preceding it with a
+  ;; `disrupts` call that waits out the worker's 250 ms `Queue/receive` park all over again.
+  ;; ⛔ Nothing here prints. A `println` in a forked service's handler corrupts the frame
+  ;; stream (seen as `defservice stop: expected Status::Stopped`); a value leaves a worker
+  ;; on a reply or not at all.
+  :stop (:wat::core::fn [s <- :fanout::worker::State] -> :fanout::WorkerFinal
+          (:wat::core::let [rec (:fanout::worker::State/durable s)]
+            (:fanout::WorkerFinal
+              :outcomes (:fanout::worker::State/outcomes s)
+              :hits (:fanout::worker::Record/disrupt-hits rec)
+              :draws (:fanout::worker::Record/disrupt-draws rec)
+              :points (:fanout::worker::Record/disrupt-points rec)
+              :check-exhausted (:fanout::worker::Record/check-exhausted rec)
+              :mark-exhausted (:fanout::worker::Record/mark-exhausted rec)
+              :ack-retries (:fanout::worker::Record/ack-retries rec)
+              :ack-exhausted (:fanout::worker::Record/ack-exhausted rec)
+              :ack-calls (:fanout::worker::Record/ack-calls rec))))
   :impls
   [(start [s ctx req]
      ;; Rate 0 arms nothing. Rate > 0 draws a first delay and arms -disrupt.
@@ -2350,64 +2386,96 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "fanout: seen stats closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
-;; ⭑ EIGHT fields off the ONE reply per worker `collect` already takes — `sample-of`'s
-;; discipline again. The shape widened from (hits, (ce,me), (ar,ae)) to
-;; ((hits, ack-calls), (ce,me), (ar,ae)) because `Tuple` has no fourth accessor; `first`
-;; is now a pair. No extra call: `ack-calls` rides the `disrupts` reply.
+;; ⛔ THE FAILURE PATH'S LIVE READ, AND NOTHING ELSE — read the STOP-2 note below.
 ;;
-;; ⛔ THIS CALL IS STILL THE MISTAKE THE STONE NAMES, and counting it does not fix it: one
-;; round-trip per worker, and it waits out the worker's 250 ms `Queue/receive` park. It is
-;; kept because MOVING it (folding these tallies into the `:stop` projection, which is one
-;; round-trip already spent) would change the phase timings this stone must hold still.
-;; It is now VISIBLE in the budget as `rt-worker` instead of being free-looking.
+;; `collect` no longer calls this. The disrupt tallies ride `:fanout::worker`'s `:stop`
+;; projection (`:fanout::WorkerFinal`), so the happy path asks each worker exactly ONE
+;; question and this fold costs it nothing.
+;;
+;; ⛔ IT IS NOT DELETED, and the reason is a caller the stone's BRIEF did not have:
+;; `run-with`'s `drained-stalled` diagnostic (search `dp` below `drain-pair`) reads these
+;; four exhaustion counters off LIVE workers, to say WHY the system stopped, on a path that
+;; then raises. Routing that through `collect-stop` instead would (a) stop the workers
+;; mid-diagnosis and (b) trade a tolerant fold — every `RecvOutcome` arm here falls back to
+;; `acc` — for `worker/stop`, which RAISES on Lost/Closed/Stopped. On the one path built for
+;; diagnosing a wedged system, that would replace the stall verdict with a stop error.
+;; So the live-read affordance the DESIGN offered to give up is KEPT, at zero happy-path
+;; cost, and this is the only thing that still uses `Worker/disrupts`.
+;;
+;; Narrowed to the four counters that diagnostic prints. `hits` and `ack-calls` were only
+;; ever wanted by `collect`, which now lifts them off `stop`; the pair-of-pairs shape is
+;; what is left of the `Tuple`-has-no-fourth-accessor workaround (wat/core.wat:1737).
 (:wat::core::defn :fanout::sum-disrupts
   [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
-  -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+  -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+    (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
                      w   <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
-      -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+      -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
       (:wat::core::match (:fanout::Worker/disrupts w (:fanout::Worker::DisruptsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points ce me ars ae aks)
+            ((:fanout::Worker::DisruptsResponse::Ok _hits _draws _points ce me ars ae _aks)
               (:wat::core::Tuple (:wat::core::Tuple
-                                   (:wat::i64::+ (:wat::core::first (:wat::core::first acc)) hits)
-                                   (:wat::i64::+ (:wat::core::second (:wat::core::first acc)) aks))
+                                   (:wat::i64::+ (:wat::core::first (:wat::core::first acc)) ce)
+                                   (:wat::i64::+ (:wat::core::second (:wat::core::first acc)) me))
                                  (:wat::core::Tuple
-                                   (:wat::i64::+ (:wat::core::first (:wat::core::second acc)) ce)
-                                   (:wat::i64::+ (:wat::core::second (:wat::core::second acc)) me))
-                                 (:wat::core::Tuple
-                                   (:wat::i64::+ (:wat::core::first (:wat::core::third acc)) ars)
-                                   (:wat::i64::+ (:wat::core::second (:wat::core::third acc)) ae))))
+                                   (:wat::i64::+ (:wat::core::first (:wat::core::second acc)) ars)
+                                   (:wat::i64::+ (:wat::core::second (:wat::core::second acc)) ae))))
             ((:fanout::Worker::DisruptsResponse::RequestTooLarge _b _c) acc)
             ((:fanout::Worker::DisruptsResponse::RequestMalformed _p _e _g) acc)))
         ((:wat::kernel::RecvOutcome::Lost _c) acc)
         (:wat::kernel::RecvOutcome::Stopped acc)
         (:wat::kernel::RecvOutcome::Closed acc) (:wat::kernel::RecvOutcome::TimedOut acc)))
-    (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0))
+    (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0))
     wpeers))
 
-;; ⭑ Returns (outcomes, rts). `:fanout::worker/stop` is one `send Admin::Stop` + one `recv`
-;; per handle (wat/service.wat:2928) — a round-trip per worker, counted by the fold that
-;; makes it. It was previously the only worker crossing with no name in any number.
+;; What ONE fold over the workers now yields. ⛔ A record, not a tuple: eight values out and
+;; `Tuple` has no fourth accessor (wat/core.wat:1737). It never crosses a boundary — it is
+;; the harness's own accumulator — so it is a plain top-level `defrecord`, not a `:messages`
+;; member like `:fanout::WorkerFinal`.
+(:wat::core::defrecord :fanout::Collected
+  [outs              <- (:wat::core::Vector :- [:fanout::Outcome])
+   rts               <- :wat::core::i64
+   hits              <- :wat::core::i64
+   ack-calls         <- :wat::core::i64
+   check-exhausted   <- :wat::core::i64
+   mark-exhausted    <- :wat::core::i64
+   ack-retries       <- :wat::core::i64
+   ack-exhausted     <- :wat::core::i64])
+
+;; ⭑ THE ONE QUESTION. `:fanout::worker/stop` is one `send Admin::Stop` + one `recv` per
+;; handle (wat/service.wat:2928) — a round-trip per worker, counted by the fold that makes
+;; it — and the reply is now a `:fanout::WorkerFinal` carrying the outcomes AND every
+;; disrupt tally. This fold used to be preceded by a whole second fold (`sum-disrupts` over
+;; the same twelve workers) for the tallies alone; that call is gone from this path, and
+;; with it twelve process-boundary crossings, each of which waited out a worker's own
+;; 250 ms `Queue/receive` park.
 (:wat::core::defn :fanout::collect-stop
   [handles <- (:wat::core::Vector :- [:fanout::worker::Handle])]
-  -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:fanout::Outcome]) :wat::core::i64])
+  -> :fanout::Collected
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Vector :- [:fanout::Outcome]) :wat::core::i64])
+    (:wat::core::fn [acc <- :fanout::Collected
                      h   <- :fanout::worker::Handle]
-      -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:fanout::Outcome]) :wat::core::i64])
-      (:wat::core::Tuple
-        (:wat::core::foldl
-          (:wat::core::fn [a <- (:wat::core::Vector :- [:fanout::Outcome])
-                           o <- :fanout::Outcome]
-            -> (:wat::core::Vector :- [:fanout::Outcome])
-            (:wat::core::conj a o))
-          (:wat::core::first acc)
-          (:fanout::worker/stop h))
-        (:wat::i64::+ (:wat::core::second acc) 1)))
-    (:wat::core::Tuple (:wat::core::Vector :- [:fanout::Outcome]) 0)
+      -> :fanout::Collected
+      (:wat::core::let [fin (:fanout::worker/stop h)]
+        (:fanout::Collected
+          :outs (:wat::core::foldl
+                  (:wat::core::fn [a <- (:wat::core::Vector :- [:fanout::Outcome])
+                                   o <- :fanout::Outcome]
+                    -> (:wat::core::Vector :- [:fanout::Outcome])
+                    (:wat::core::conj a o))
+                  (:fanout::Collected/outs acc)
+                  (:fanout::WorkerFinal/outcomes fin))
+          :rts (:wat::i64::+ (:fanout::Collected/rts acc) 1)
+          :hits (:wat::i64::+ (:fanout::Collected/hits acc) (:fanout::WorkerFinal/hits fin))
+          :ack-calls (:wat::i64::+ (:fanout::Collected/ack-calls acc) (:fanout::WorkerFinal/ack-calls fin))
+          :check-exhausted (:wat::i64::+ (:fanout::Collected/check-exhausted acc) (:fanout::WorkerFinal/check-exhausted fin))
+          :mark-exhausted (:wat::i64::+ (:fanout::Collected/mark-exhausted acc) (:fanout::WorkerFinal/mark-exhausted fin))
+          :ack-retries (:wat::i64::+ (:fanout::Collected/ack-retries acc) (:fanout::WorkerFinal/ack-retries fin))
+          :ack-exhausted (:wat::i64::+ (:fanout::Collected/ack-exhausted acc) (:fanout::WorkerFinal/ack-exhausted fin)))))
+    (:fanout::Collected :outs (:wat::core::Vector :- [:fanout::Outcome]) :rts 0
+      :hits 0 :ack-calls 0 :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0)
     handles))
 
 ;; seq is the published identity — first field of the body, placed first so it
@@ -2863,13 +2931,19 @@
      _drain (:fanout::require!
               (:wat::core::if (:wat::core::= drain-err "")
                 ""
+                ;; ⛔ THE ONE SURVIVING `sum-disrupts` CALLER, and it is why that fold was not
+                ;; deleted. A LIVE read: it says WHY the drain stopped, on a path that then
+                ;; raises, so the tallies cannot come off `stop` (nothing is stopped yet) and
+                ;; must not — `worker/stop` raises on Lost/Closed/Stopped where this fold
+                ;; tolerates them, and a wedged worker is exactly what is being diagnosed.
+                ;; It costs the happy path nothing: `drain-err` is "" there.
                 (:wat::core::let [dp (:fanout::sum-disrupts wpeers)]
                   (:wat::core::format "{e};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae}"
                     :e drain-err
-                    :ce (:wat::core::first (:wat::core::second dp))
-                    :me (:wat::core::second (:wat::core::second dp))
-                    :ar (:wat::core::first (:wat::core::third dp))
-                    :ae (:wat::core::second (:wat::core::third dp))))))
+                    :ce (:wat::core::first (:wat::core::first dp))
+                    :me (:wat::core::second (:wat::core::first dp))
+                    :ar (:wat::core::first (:wat::core::second dp))
+                    :ae (:wat::core::second (:wat::core::second dp))))))
      poll-calls (:wat::core::second drain-pair)
      ;; The longest no-progress streak the drain saw, in polls. This is the evidence for
      ;; :fanout::drain-stale-polls being the size it is — read it, do not trust the comment.
@@ -2897,27 +2971,33 @@
      ;; The harness's own `Topic/stats` crossings: two calls, two counts, added by the two
      ;; sites that made them rather than asserted from here.
      topic-h-rts (:wat::i64::+ (:wat::core::second tpair) (:wat::core::second ifpair))
-     dpair (:fanout::sum-disrupts wpeers)
-     dhits (:wat::core::first (:wat::core::first dpair))
-     ;; ⭑ Σ over workers of every `Queue/ack` crossing they made — the one round-trip class
-     ;; that no server counts (`:queue::Stats/acks` counts acked IDS, not calls).
-     wack  (:wat::core::second (:wat::core::first dpair))
-     ce    (:wat::core::first (:wat::core::second dpair))
-     me    (:wat::core::second (:wat::core::second dpair))
-     ars   (:wat::core::first (:wat::core::third dpair))
-     aes   (:wat::core::second (:wat::core::third dpair))
-     ;; ⛔ `disrupts` is one crossing per worker and this fold visits every peer, so the
-     ;; count is the collection it folded — not a literal that can drift from the code.
-     worker-disrupt-rts (:wat::core::count wpeers)
      spair (:fanout::seen-stats seenh)
      sfirsts (:wat::core::first spair)
      sdups (:wat::core::second spair)
      ;; ⭑ rt-seen: the seen service's OWN count of check + mark + stats invocations, riding
      ;; the reply above. Includes this very `stats` read (post-increment, deliberately).
      seen-rts (:wat::core::third spair)
-     stop-pair (:fanout::collect-stop workers)
-     outs (:wat::core::first stop-pair)
-     worker-stop-rts (:wat::core::second stop-pair)
+     ;; ⭑ ONE QUESTION PER WORKER. This fold WAS preceded by `dpair (sum-disrupts wpeers)` —
+     ;; a second round-trip to each of the same twelve workers, for the tallies alone, each
+     ;; one waiting out that worker's 250 ms `Queue/receive` park. The tallies ride the
+     ;; `:stop` projection now (`:fanout::WorkerFinal`), so `collect` asks once. Twelve
+     ;; process-boundary crossings gone, and under the networking-first ruling that — not the
+     ;; milliseconds — is the unit that matters.
+     ;; ⚠ THE TALLIES ARE NOW READ AT STOP, not one round-trip earlier. `dhits`/`ce`/`me`/
+     ;; `ars`/`aes`/`wack` are therefore as of a slightly LATER instant than they used to be;
+     ;; the drain is complete before `collect` opens, so the workers are only polling, but
+     ;; the budget block's "the worker terms are as of …" note is updated to say so.
+     collected (:fanout::collect-stop workers)
+     outs (:fanout::Collected/outs collected)
+     worker-stop-rts (:fanout::Collected/rts collected)
+     dhits (:fanout::Collected/hits collected)
+     ;; ⭑ Σ over workers of every `Queue/ack` crossing they made — the one round-trip class
+     ;; that no server counts (`:queue::Stats/acks` counts acked IDS, not calls).
+     wack  (:fanout::Collected/ack-calls collected)
+     ce    (:fanout::Collected/check-exhausted collected)
+     me    (:fanout::Collected/mark-exhausted collected)
+     ars   (:fanout::Collected/ack-retries collected)
+     aes   (:fanout::Collected/ack-exhausted collected)
      empty-flags (:wat::core::foldl
                    (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
                      (:wat::core::let
@@ -2985,7 +3065,7 @@
      ;; ⛔ THE BUDGET ADDS ZERO ROUND-TRIPS, and that is its one contract. Each term is
      ;; either (a) the caller's own tally, kept while making a call it was making anyway,
      ;; or (b) a field lifted off a reply the harness already receives — the seen service's
-     ;; `calls` on the one `Seen/stats`, the workers' `ack-calls` on the `disrupts` reply
+     ;; `calls` on the one `Seen/stats`, the workers' `ack-calls` on the `stop` reply
      ;; `collect` already takes, the inbox's two figures on the tier line already printed.
      ;; ⛔ A count that could not be had free is reported as UNKNOWN in `rt-unknown` rather
      ;; than bought. An honest gap beats a self-inflating instrument.
@@ -3006,7 +3086,8 @@
      ;;
      ;; ⚠ INSTANTS. `s-end` is taken before the m+1 tier-line reads, so those reads' own
      ;; store traffic (two count-index calls each, sqs.wat:1266) is not inside `rt-store`.
-     ;; The worker terms are as of `disrupts`, one `collect-stop` earlier than `s-end`.
+     ;; The worker terms are as of `collect-stop` — its reply IS the worker's last word, so
+     ;; they are now exact at the moment each worker died rather than one round-trip early.
      ;; The budget is a snapshot of a running system, not a closed ledger.
      ;;
      ;; rt-store — queue → sqlite-store. COMPLETE: stores are granted to queue processes
@@ -3032,9 +3113,10 @@
      rt-queue (:wat::i64::+ rt-q-recv (:wat::i64::+ wack rt-queue-stats))
      ;; rt-seen — everything → the seen service. Counted BY the seen service.
      rt-seen seen-rts
-     ;; rt-worker — harness → fanout workers: `start` (arm) + `disrupts` (collect) + `stop`.
-     rt-worker (:wat::i64::+ (:wat::i64::+ arm-early-rts arm-late-rts)
-                             (:wat::i64::+ worker-disrupt-rts worker-stop-rts))
+     ;; rt-worker — harness → fanout workers: `start` (arm) + `stop` (collect). ⭑ The
+     ;; `disrupts` term is GONE, and that is this stone: it was one crossing per worker for
+     ;; tallies that now ride the `stop` reply. At m=4 j=3 this line fell 36 → 24.
+     rt-worker (:wat::i64::+ (:wat::i64::+ arm-early-rts arm-late-rts) worker-stop-rts)
      ;; rt-topic — → the topic service: the publishers' `Topic/publish` ATTEMPTS (their own
      ;; tally, riding the join reply) plus the harness's two `Topic/stats` reads. The poll
      ;; loops' `Topic/stats` reads are in rt-poll.
@@ -3433,7 +3515,7 @@
      _     (:fanout::start-worker! w)
      _pub  (:fanout::publish-n-until-accepted! topic n)
      _     (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
-     outs  (:fanout::worker/stop wh)
+     outs  (:fanout::WorkerFinal/outcomes (:fanout::worker/stop wh))
      distinct (:wat::core::count
                 (:wat::hashmap::keys
                   (:wat::core::foldl
@@ -3528,8 +3610,8 @@
           ((:wat::kernel::RecvOutcome::Message _r) nil)
           (_ nil))
      _  (:fanout::await-timer-ms 800)
-     o1 (:fanout::worker/stop w1)
-     o2 (:fanout::worker/stop w2)
+     o1 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w1))
+     o2 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w2))
      outs (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:fanout::Outcome])
                              o   <- :fanout::Outcome]
@@ -3585,8 +3667,8 @@
           ((:wat::kernel::RecvOutcome::Message _r) nil)
           (_ nil))
      _  (:fanout::await-timer-ms 800)
-     o1 (:fanout::worker/stop w1)
-     o2 (:fanout::worker/stop w2)
+     o1 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w1))
+     o2 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w2))
      outs (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:fanout::Outcome])
                              o   <- :fanout::Outcome]
