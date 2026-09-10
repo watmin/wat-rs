@@ -13,7 +13,9 @@
 ;; instead of shipping and breaking the corpus.
 ;;
 ;; Four rows, derived from the acc-form vocabulary and the spec, not from usage — `accumulate` has
-;; ZERO uses in the `.wat` corpus (see DESIGN.md), so no corpus-driven method could have built this.
+;; ⛔ CORRECTED 2026-09-10 — "ZERO uses" was false (the grep looked for a keyword the form does not
+;; have; 37 `.wat` files carry a `:from` condition, 19 of them grid cells). The rows below are still
+;; built from the spec, which is what matters here. (see DESIGN.md) — no corpus-driven method could have built this.
 
 (:wat::core::defrecord :tac::Station   [location <- :wat::core::String])
 (:wat::core::defrecord :tac::Reading   [location <- :wat::core::String  value <- :wat::core::i64])

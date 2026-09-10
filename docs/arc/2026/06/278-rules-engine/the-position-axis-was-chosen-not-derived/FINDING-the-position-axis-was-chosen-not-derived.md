@@ -3,6 +3,30 @@
 **Measured 2026-09-10 at `07eba8226`.** Every row below driven against `./target/release/wat`, not
 read.
 
+> # ⛔ CORRECTED 2026-09-10 — "ACCUMULATE HAS ZERO CORPUS USES" IS FALSE. IT WAS MY GREP.
+>
+> I grepped for `rete::accumulate`. **The form has no `accumulate` keyword.** It is spelled
+> `(?result <- (<acc-form>) :from (<inner>))` — and `src/rete/clause.rs:67` states that spelling
+> verbatim, in a line I had already read and quoted. Measured properly: **37 `.wat` files carry a
+> `:from` accumulate condition — 24 under `wat-scripts/`, 9 under `tests/`, 4 under `wat/`, and
+> nineteen of them are GRID CELLS** (`accum.wat`, `accum-lead-derived.wat`, `accum-over-derived.wat`
+> and siblings, each with a `.clj` Clara twin).
+>
+> **⭐ THIS MAKES THE QUESTION BETTER, NOT SMALLER.** The old framing — *"nothing was looking
+> because nothing uses it"* — was a comfortable non-explanation. The truth is harder and more
+> useful: **the grid HAS accumulate cells, compared three ways against Clara, and this defect
+> survived them.** So the live question is not *why was nobody looking* but **what SHAPE does this
+> defect need that no existing cell has** — an inert bind in the `:from` inner. That is `peragrare`
+> exactly: the instrument was never asked this question, and a green from an instrument that was
+> never asked is silence, not proof.
+>
+> ⛔ Fourth instrument error in one day, and the most consequential: this claim was load-bearing in
+> two findings, a DESIGN, a probe header and two commit messages before it was checked. The others
+> cost a re-run; this one shipped. `[[a-throwaway-sweep-is-an-instrument]]` — and the anchor I
+> failed to build was the cheapest possible one: grep the corpus for the form's REAL spelling,
+> which the type's own doc comment had given me.
+
+
 > # ⛔ AMENDED WITHIN THE HOUR — THE TITLE'S CLAIM IS STRUCK. THE COVERAGE TABLE STANDS.
 >
 > **"The position axis was chosen, not derived" is WRONG as a criticism, and I filed it without

@@ -36,7 +36,9 @@
 //!
 //! ## ⛔⛔ WHY THE POSITIVE CORPUS IS THE LOAD-BEARING HALF, NOT THE CHECK
 //!
-//! `:wat::rete::accumulate` has ZERO uses in the entire `.wat` corpus (see DESIGN.md's grep). A
+//! ⛔ CORRECTED 2026-09-10: an earlier draft claimed accumulate has ZERO corpus uses. False — that
+//! grep looked for `rete::accumulate`, a keyword the form does not have. 37 `.wat` files carry a
+//! `:from` condition, 19 of them grid cells. (see DESIGN.md's grep). A
 //! cure that over-rejects legal `accumulate` rules REDS NOTHING on the standing floor, because
 //! nothing else uses the form — the surface would narrow silently. So
 //! [`legal_accumulate_still_compiles`] (the compile-only guard, beside
