@@ -31,11 +31,27 @@
          (:wat::rete::where (:wat::rete::core::string::= ?s ?t))]
   :then [])
 
-;; row 3 — ⭐ NOT KNOWABLE. The right operand is a computed rete form, not a bare bind. A cure
-;; that refuses every operand it cannot type passes rows 1-2 and both `.wat.bad` siblings, and
-;; still stops legal rules from compiling. This row is the only thing that catches it.
+;; row 3 — ⭐ NOT KNOWABLE. The right operand is a `cond` — a `Form`-class rete op whose vocabulary
+;; row states no `ret`, so `resolve_operand_type` returns `OperandType::ComputedNotDerivableHere`
+;; rather than a type. Same construction `probe_arc278_D10_then_field_types_notknowable.wat`'s `nk1`
+;; uses on the `:then` side.
+;;
+;; ⛔ CORRECTED 2026-09-10 — THIS ROW USED `(:wat::rete::core::i64::+ ?v 1 :undefined 0)` AND THE
+;; COMMENT ABOVE IT WAS FALSE. That op's vocabulary row declares `ret: Ret::Is(ParamType::I64)`
+;; (`Fallback`-class, still total), so `resolve_operand_type` returns `Resolved("i64")` — knowable
+;; and RIGHT — and this row never reached the not-knowable arm at all. The guard the header calls
+;; load-bearing was not exercising the case it named. Found by the accumulate-`:from` strike, whose
+;; over-rejection mutation copied this row as precedent and stayed GREEN under an active
+;; over-rejection — the mutation caught the fixture, not the cure. A comment asserting a property
+;; nothing verifies, inside the probe built to close a hole of exactly that shape.
+;;
+;; A cure that refuses every operand it cannot type passes rows 1-2 and both `.wat.bad` siblings,
+;; and still stops legal rules from compiling. This row is the only thing that catches it.
 (:wat::rete::defrule :tgc::computed-operand
   :when [(:tgc::N (?k <- :k))
          (:tgc::N (?j <- :k))
-         (:wat::rete::where (:wat::rete::core::i64::= ?k (:wat::rete::core::i64::+ ?j 1 :undefined 0)))]
+         (:wat::rete::where (:wat::rete::core::i64::= ?k
+                              (:wat::rete::core::cond
+                                ((:wat::rete::core::i64::> ?j 0) 1)
+                                (:else 2))))]
   :then [])
