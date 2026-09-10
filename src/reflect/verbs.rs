@@ -1581,3 +1581,74 @@ pub(crate) fn eval_is_type(
     let known = types.is_known_type(&type_kw);
     Ok(Value::bool(known))
 }
+
+/// `(:wat::runtime::variant-parent-of :Ns::Enum::Variant) -> (:wat::core::Option :- [:wat::core::keyword])`
+///
+/// Arc 255 (`DESIGN-the-substrate-can-be-ASKED-what-a-variant-is`) — step ① of three. The
+/// substrate can be ASKED whether a name is a registered enum variant, and of which enum,
+/// through the ONE predicate that already answers this for `check`'s join:
+/// `TypeEnv::variant_parent_enum` (arc 296 A-2 RELAND-1). `Some` carries the parent enum's
+/// canonical (colon-prefixed) name iff `name` is a registered variant-type; `None` otherwise.
+///
+/// `None` is not "unknown" here — it IS the negative answer to "is this a variant?". A
+/// `defrecord` inside a `:messages` block (e.g. `:wat::cache::Cache::GetRequest`,
+/// `wat/cache.wat:171`) is `Ns::Upper::Upper`, textually indistinguishable from a variant, and
+/// MUST also answer `None`: it is not a registered enum variant, only shaped like one. That
+/// counterexample is the entire reason this verb exists — a text-shaped rewriter cannot tell
+/// the two apart, and the substrate's own declarations can. `is-variant?` is deliberately not
+/// minted alongside this: `None` already answers that question, one door, not two.
+///
+/// The arg is a type-position keyword, taken literally (not evaluated) — same door as
+/// `is-type?`, same Doctrine-1 posture (a primitive keyword as a *value* still refuses).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Partial
+/// @ExpandTime    Legal
+/// @Category      Reflection
+/// @arg     type_kw_ast :wat::core::keyword the candidate variant name to ask about (a literal keyword in type position)
+/// @ret     (:wat::core::Option :- [:wat::core::keyword]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
+/// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::core::Option::Some) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Option
+/// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::cache::Cache::GetRequest) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
+/// @see     :wat::runtime::is-type?
+/// @see     :wat::runtime::type-of
+#[wat_intrinsic(":wat::runtime::variant-parent-of")]
+pub(crate) fn eval_variant_parent_of(
+    type_kw_ast: &WatAST,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::variant-parent-of";
+    let type_kw = match type_kw_ast {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => {
+            return Err(RuntimeError::new(
+                type_kw_ast.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "arg must be a type keyword (e.g. :wat::core::Option::Some)".into(),
+                },
+            )
+            .into());
+        }
+    };
+    let types = sym.types().ok_or_else(|| {
+        RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "variant-parent-of requires the type registry, but the SymbolTable has no TypeEnv attached \
+                         (programmer error: this build path didn't go through startup_from_source / freeze)"
+                    .into(),
+            },
+        )
+    })?;
+    // `TypeEnv::variant_parent_enum` is the ONE thing `check`'s join consults for a
+    // variant's parent (arc 296 A-2 RELAND-1) — never re-walk `subtype_edges` here, and
+    // never reimplement the leaf/parent split it already owns.
+    let parent = types
+        .variant_parent_enum(&type_kw)
+        .map(|p| Value::wat__core__keyword(Arc::new(p.to_string())));
+    Ok(Value::Option(Arc::new(parent)))
+}

@@ -2861,6 +2861,42 @@ fn infer_list(
                     CheckResult::partial_with(bool_result_ty, local_errors)
                 };
             }
+            // Arc 255 (variant-parent-of, step ① of the-substrate-can-be-ASKED) —
+            // `:wat::runtime::variant-parent-of` membership predicate. Mirrors `is-type?`
+            // immediately above: the arg is type-position, NOT a value (inferring it would
+            // fire Doctrine 1 on a primitive keyword and the constructor-as-Fn trap on a
+            // defrecord/variant name), and an unknown or non-variant name is legal here —
+            // it is the `None` row, not an error.
+            ":wat::runtime::variant-parent-of" => {
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::runtime::variant-parent-of".into(),
+                        reason: format!(
+                            "expected (:wat::runtime::variant-parent-of :Ns::Enum::Variant); got {} arg(s)",
+                            args.len()
+                        ),
+                        remedies: vec![],
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                if !matches!(&args[0], WatAST::Keyword(_, _)) {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::runtime::variant-parent-of".into(),
+                        reason: "arg must be a type keyword (e.g. :wat::core::Option::Some)".into(),
+                        remedies: vec![],
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                let opt_kw_ty = TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                };
+                return if local_errors.is_empty() {
+                    CheckResult::ok(opt_kw_ty)
+                } else {
+                    CheckResult::partial_with(opt_kw_ty, local_errors)
+                };
+            }
             // Arc 237 Stone 237.5 — `:wat::core::conforms?` inference.
             //
             // Signature: (value :TypeExpr) -> :wat::core::bool.
@@ -22701,6 +22737,27 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::keyword".into())],
             ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 255 (variant-parent-of, step ① of the-substrate-can-be-ASKED) —
+    // `:wat::runtime::variant-parent-of` membership predicate, the `is-type?` sibling.
+    //
+    // :wat::runtime::variant-parent-of :: :wat::core::keyword -> (:wat::core::Option :- [:wat::core::keyword])
+    //
+    // The infer_list special-case (above, beside is-type?) is load-bearing: it skips
+    // inference so Doctrine 1 does not fire on a variant/defrecord keyword in type
+    // position. The scheme is the reflection fingerprint.
+    env.register(
+        ":wat::runtime::variant-parent-of".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::keyword".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+            },
             rest_param_type: None,
         },
     );
