@@ -2378,7 +2378,12 @@ fn dispatch_keyword_head_value(
         // child-only seam run_forms_as_server_child, before :user::main).
         // Root → clean MalformedForm error (no owner-link). Two checker-only
         // type-keyword args (:S :R) validated but not evaluated.
-        ":wat::program::self-peer" => eval_program_self_peer(args, list_span),
+        // Arc 255 Stone ⑤-A — LITERAL ARM DELETED. `:wat::program::self-peer` is a registered
+        // `Kind::SpecialForm` row carrying a `role = eval` handler, and the registry-first door
+        // (`registry().lookup(head)`, hoisted above this match) answers it by name before this
+        // match is reached — so an arm here could never fire.
+        // `registry_first_door_owns_every_handler_row_no_literal_arm_survives` names exactly
+        // this. The handler fn itself stays; only its unreachable arm goes.
         // Arc 170 slice 1e — `:wat::runtime::argv`/`current-thread` (ambient runtime values
         // per REALIZATIONS pass 7) moved into `#[wat_intrinsic]` handlers (arc 255 Stone
         // P6-c-W3, both above this match, still in this file) with their real (0) arity
@@ -11011,7 +11016,19 @@ pub(crate) fn host_cpu_count() -> i64 {
 /// The two type-keyword args (:S :R) are checker-only; they are validated to
 /// be keywords but not evaluated.  The runtime value is a boxed `Peer` (socket
 /// tier) under `PEER_TYPE_PATH`.
-fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+///
+/// Arc 255 Stone ⑤-A — registered as the `role = eval` special-form impl for
+/// `:wat::program::self-peer` (doc contract: `src/intrinsic/special/program_self_peer.rs`).
+/// `role = eval` emits a dispatch shim calling `(args, list_span, env, sym)` — the canonical
+/// `NativeHandler` shape — so this fn widens from two params to the full four; the body needs
+/// neither `env` nor `sym`, hence `_env`/`_sym`.
+#[wat_special_form_impl(":wat::program::self-peer", role = eval)]
+fn eval_program_self_peer(
+    args: &[WatAST],
+    list_span: &Span,
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::program::self-peer";
     if args.len() != 2 {
         return Err(RuntimeError::new(

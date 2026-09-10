@@ -10114,6 +10114,12 @@ fn parse_peer_pair_type_arg(
 /// The self-peer is a one-sided peer (the child's owner-link); there is no
 /// crossed twin. Runtime type is `PEER_TYPE_PATH`; checker head is
 /// `"wat::kernel::Peer"` (arc 209 C0b.2e-i-b: unified, retiring SocketPeer').
+///
+/// Arc 255 Stone ⑤-A — registered as the `role = check` special-form impl for
+/// `:wat::program::self-peer` (doc contract: `src/intrinsic/special/program_self_peer.rs`).
+/// `role = check` emits source only, no dispatch shim, so this signature is unconstrained and
+/// stays as-is.
+#[wat_special_form_impl(":wat::program::self-peer", role = check)]
 fn infer_program_self_peer(
     args: &[WatAST],
     head_span: &Span,

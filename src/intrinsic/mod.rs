@@ -1444,6 +1444,18 @@ mod tests {
         ":wat::rete::core::filter",
         ":wat::rete::core::foldl",
         ":wat::rete::core::map",
+        // Arc 255 Stone ⑤-A — `:wat::program::self-peer`. Registered as a `Kind::SpecialForm`
+        // row (`src/intrinsic/special/program_self_peer.rs`) with `role = check` / `role = eval`
+        // pointers, so `every_special_form_carries_check_and_eval_impls` is satisfied — but it
+        // has NO `CheckEnv` scheme and DELIBERATELY so: its contract lives in a literal
+        // inference arm, `infer_program_self_peer` (`src/check.rs`), and giving it a scheme
+        // besides would be a SECOND AUTHORITY for one question, which arc 255 exists to end.
+        //
+        // The consequence this ledger exists to name: `doc_arg_ret_types_match_checker_scheme`
+        // has no scheme to compare against, so it verifies NOTHING about this row's `@ret`.
+        // Real debt, recorded rather than hidden. It clears when the checker's special-case
+        // inference arms become declarations the gate can read — not by adding a scheme here.
+        ":wat::program::self-peer",
     ];
 
     #[test]

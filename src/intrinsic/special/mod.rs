@@ -32,6 +32,7 @@ pub(crate) mod macroexpand_1;
 pub(crate) mod match_form;
 pub(crate) mod newtype;
 pub(crate) mod or_form;
+pub(crate) mod program_self_peer;
 pub(crate) mod quasiquote;
 pub(crate) mod quote;
 pub(crate) mod rete_alias;
