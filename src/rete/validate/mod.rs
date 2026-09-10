@@ -277,9 +277,14 @@ fn validate_when_entry(
     errors: &mut Vec<ReteCheckError>,
 ) {
     match classify_rete_clause(cond) {
-        // Design call 3 — a `where` fence's outer shape is already confirmed by the
-        // classifier (2-item, `:wat::rete::where` head); its interior expr is out of scope.
-        ReteClauseShape::Where(_) => {}
+        // Arc 278 strike-fence-interior-types — the outer shape is still confirmed by the
+        // classifier (2-item, `:wat::rete::where` head) before this ever runs; the RETIRED claim
+        // was that the interior expr was out of scope. It is not: `check_fence_interior` walks it
+        // and type-checks every comparator the shared classifier recognizes, exactly as the same
+        // predicate written inline is checked by `check_constraint_head` — see `DESIGN.md`.
+        ReteClauseShape::Where(expr) => {
+            check_fence_interior(expr, rule_name, binds, types, errors);
+        }
         // Design call 3 / brief S2 — `not`/`exists` recurse: their sub-condition gets the
         // SAME full validation (registered type + every clause + every field-ref) as any
         // top-level condition.

@@ -266,6 +266,39 @@ pub enum ReteCheckErrorKind {
         operand: String,
         field_type: String,
     },
+    /// Arc 278 strike-fence-interior-types — a predicate inside a `(:wat::rete::where …)` FENCE,
+    /// at a type mismatch. The fence-scoped twin of [`Self::ConstraintTypeMismatch`], produced by
+    /// the exact same per-type rete rule applied to a fence's interior instead of an inline
+    /// clause (`DESIGN.md`'s "the algorithm").
+    ///
+    /// ⛔ **THE ONE CONTRACT DECISION: no `fact_type`.** Every sibling `Constraint*` kind carries
+    /// one because it names a `:Type`'s field; a `where` fence sits at `:when` TOP LEVEL, after
+    /// every condition, bound to none of them. A `fact_type` here would print a location the
+    /// reader must then discover is not where the mistake is — the rejected alternative
+    /// (`DESIGN.md`) was reusing `ConstraintTypeMismatch` with a sentinel `fact_type` (`""`,
+    /// `"<where>"`) for exactly that reason: it puts a false location in the diagnostic, which is
+    /// the one thing this repo's error doctrine exists to prevent (R29 `RVINA ERVDIT`).
+    FenceConstraintTypeMismatch {
+        rule: String,
+        head: String,
+        /// The offending operand, rendered as wat source (`describe_operand`) — a `?var` bound by
+        /// a condition, a keyword CONSTANT (a fence has no fact in scope, so a keyword operand is
+        /// never a `:field` reference), or a literal.
+        operand: String,
+        /// The rete segment the comparator head is monomorphic at (`i64`, `string`, …).
+        op_type: String,
+        /// The operand's own resolved type segment — disagrees with `op_type`.
+        operand_type: String,
+    },
+    /// A predicate inside a `where` FENCE comparing an operand whose resolved type has NO rete
+    /// comparator at all — the fence-scoped twin of [`Self::ConstraintTypeNotComparable`]. Same
+    /// contract decision as [`Self::FenceConstraintTypeMismatch`]: no `fact_type`.
+    FenceConstraintTypeNotComparable {
+        rule: String,
+        head: String,
+        operand: String,
+        operand_type: String,
+    },
     /// A `(?v <- :field)` bind inside a `:not` whose variable is consumed NOWHERE — not by a
     /// constraint inside the negation, not anywhere else in the rule.
     ///
@@ -404,6 +437,17 @@ impl fmt::Display for ReteCheckErrorKind {
                 f,
                 "defrule `{rule}` (`:{fact_type}`): `{head}` compares at `{op_type}`, but operand \
                  `{field}` has type `{field_type}` — use the rete comparator for `{field_type}`"
+            ),
+            ReteCheckErrorKind::FenceConstraintTypeMismatch { rule, head, operand, op_type, operand_type } => write!(
+                f,
+                "defrule `{rule}` (where fence): `{head}` compares at `{op_type}`, but operand \
+                 `{operand}` has type `{operand_type}` — use the rete comparator for `{operand_type}`"
+            ),
+            ReteCheckErrorKind::FenceConstraintTypeNotComparable { rule, head, operand, operand_type } => write!(
+                f,
+                "defrule `{rule}` (where fence): `{head}` compares operand `{operand}`, resolved \
+                 `{operand_type}`, for which rete has NO comparator — the rete equality surface is \
+                 i64/f64/string/bool/keyword/enum. Compare a scalar value of it instead"
             ),
             ReteCheckErrorKind::UnconsumedWrapperBind { rule, var, fact_type } => write!(
                 f,

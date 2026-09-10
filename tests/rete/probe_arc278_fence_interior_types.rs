@@ -58,12 +58,25 @@
 //!
 //! ⚠ **Expect the cure's first run to be a census.** Nothing has ever looked at the other fence
 //! interiors; `every_wat_scripts_file_loads` will report the population the moment the arm fills.
+//!
+//! ⛔ **THE BOUNDARY THIS FILE DOES NOT CLAIM TO COVER.** "The fence is type-checked" is true of
+//! every comparator `check_fence_interior` actually visits — which is NOT every comparator a
+//! fence can contain. An ill-typed comparator inside a fence-local `(:wat::rete::core::let […] …)`
+//! BODY, or inside a `(:wat::rete::core::match …)` arm's body, is **not checked today**: those two
+//! forms can bind a `?`-prefixed name that SHADOWS a rule-wide bind of the same name at a
+//! different type (driven, not assumed — a fence-local `let` rebinding `?k` from `i64` to
+//! `string` compiles and fires beside a condition binding `?k` to `i64`), and this walk carries no
+//! scope stack, so checking inside either would read a shadowed name through the wrong map and
+//! risk refusing legal, firing code. `check_fence_interior`'s own doc comment
+//! (`src/rete/validate/typing.rs`) has the full argument; this line exists so the boundary sits
+//! beside the claim this file makes, not only inside the checker someone has to already be
+//! editing to find it.
 
 use wat::freeze::{startup_beside, startup_from_file};
 
-/// THE GAP. Red at HEAD: the fence's interior is never inspected, so this file starts up clean.
+/// THE GAP, CLOSED. `check_fence_interior` (mod.rs:282) now walks a fence's interior and refuses
+/// this shape exactly as the inline twin below is refused.
 #[test]
-#[ignore = "RED-at-HEAD: `where` fence interiors are not type-checked (src/rete/validate/mod.rs:282 `ReteClauseShape::Where(_) => {}`); unlock when the arc 278 fence-typing cure lands"]
 fn fence_interior_type_error_is_refused() {
     let result =
         startup_from_file("tests/rete/probe_arc278_fence_interior_types_fence.wat.bad");

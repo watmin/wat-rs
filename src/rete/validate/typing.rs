@@ -492,6 +492,160 @@ pub(crate) fn check_constraint_head(
     }
 }
 
+/// Arc 278 strike-fence-interior-types — walk a `where` FENCE's interior expr, type-checking
+/// every comparator the shared classifier recognizes exactly as the same predicate written
+/// inline gets checked by [`check_constraint_head`]. `mod.rs:282`'s `ReteClauseShape::Where(expr)`
+/// arm calls this; there is no fact in scope, so every operand resolves through the RULE-WIDE
+/// `binds` map (or is a constant) rather than a `:field`.
+///
+/// Shape-agnostic by design (`DESIGN.md`): it visits every list node rather than modelling
+/// `and`/`or`/`not`/`if` — `clause.rs`'s `expr_is_provably_boolean` already enumerates those
+/// shapes, and a second hand-rolled copy here would be a second grammar to drift.
+///
+/// ⛔ **Does NOT descend into a `let`'s BODY or a `match` arm's BODY — confirmed necessary, not
+/// assumed.** Driven at `wat-scripts/scratch-pad/arc278-fence-interior-types/`: a fence-local
+/// `(:wat::rete::core::let [?k "shadow"] (:wat::rete::core::string::= ?k "shadow"))` compiles
+/// AND FIRES beside a condition that binds the SAME name `?k` to `i64` — `lower_let` accepts any
+/// symbol as a binder (`src/rete/expr_ir/mod.rs`), so a fence can shadow a rule-wide `?var` with
+/// a value of a completely different type. `match`'s patterns bind the same way (`lower_pat`'s
+/// bare-`Symbol` arm). This walk carries no scope stack, so resolving a shadowed name through the
+/// rule-wide map would read it at the WRONG type and refuse legal, firing code — exactly the
+/// false positive `legal_fences_still_compile` exists to catch (brief STOP-2, answered here by
+/// narrowing what is walked, not by guessing a shadowing rule). A `let`'s bound VALUES and a
+/// `match`'s SUBJECT are still walked — both evaluate in the OUTER scope, before any binder
+/// fires — only the shadow-risk subtree is skipped.
+pub(crate) fn check_fence_interior(
+    expr: &WatAST,
+    rule_name: &str,
+    binds: &std::collections::HashMap<String, String>,
+    types: &TypeEnv,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let WatAST::List(items, _) = expr else { return };
+    let Some(WatAST::Keyword(head, _)) = items.first() else {
+        for item in items {
+            check_fence_interior(item, rule_name, binds, types, errors);
+        }
+        return;
+    };
+
+    // `(let [name val …] body)` — `val`s are outer-scope; `body` may shadow. Walk the values,
+    // skip the body entirely (see the STOP-2 doc above).
+    if head == ":wat::rete::core::let" {
+        if let Some(WatAST::Vector(pairs, _)) = items.get(1) {
+            for pair in pairs.chunks(2) {
+                if let [_name, val] = pair {
+                    check_fence_interior(val, rule_name, binds, types, errors);
+                }
+            }
+        }
+        return;
+    }
+    // `(match subject (pattern body)…)` — `subject` is outer-scope; each arm's `body` may bind
+    // via its pattern. Walk the subject, skip every arm.
+    if head == ":wat::rete::core::match" {
+        if let Some(subject) = items.get(1) {
+            check_fence_interior(subject, rule_name, binds, types, errors);
+        }
+        return;
+    }
+
+    if let Some((_, ConstraintSpelling::Rete { ty: op_type })) = classify_constraint_head(head) {
+        if let [_, lhs, rhs] = items.as_slice() {
+            check_fence_constraint_types(head, op_type, lhs, rhs, expr, rule_name, binds, types, errors);
+        }
+    }
+    // A `CoreGeneric` head here is LAW A inside a fence — parked expressivity (`DESIGN.md`,
+    // "Out of scope = REJECTED"); this strike types what is written, not what may be written.
+    // Every other shape (and/or/not/if, a nested call, …) just recurses structurally.
+    for item in items {
+        check_fence_interior(item, rule_name, binds, types, errors);
+    }
+}
+
+/// The fence-scoped twin of [`check_constraint_head`]'s per-type branch: same resolution, same
+/// per-type rule, [`ReteCheckErrorKind::FenceConstraintTypeMismatch`] /
+/// `FenceConstraintTypeNotComparable` instead of the inline kinds (DESIGN.md's one contract
+/// decision — no `fact_type`), and NEITHER of `check_constraint_head`'s two traps:
+///
+/// 1. `field_names`/`field_types` are EMPTY — a fence has no fact in scope, so a keyword operand
+///    is never a `:field` reference and `resolve_operand_type`'s source 1 correctly reads it as a
+///    constant.
+/// 2. `is_non_field_keyword`'s suppression is **not reused**. It exists only to avoid double-
+///    reporting a keyword `check_operand_field_ref` already refused BY NAME — and that function
+///    never runs on a fence operand, so nothing has been reported and nothing should be
+///    suppressed. With empty `field_names` it answers `true` for every keyword, which would
+///    silently exempt the whole keyword-constant operand class — the hole this cure exists to
+///    close, reopened one layer down.
+#[allow(clippy::too_many_arguments)]
+fn check_fence_constraint_types(
+    op: &str,
+    op_type: &'static str,
+    lhs: &WatAST,
+    rhs: &WatAST,
+    clause: &WatAST,
+    rule_name: &str,
+    binds: &std::collections::HashMap<String, String>,
+    types: &TypeEnv,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let resolved: Vec<(&WatAST, OperandType)> = [lhs, rhs]
+        .into_iter()
+        .map(|o| (o, resolve_operand_type(o, &[], &[], binds, types)))
+        .collect();
+
+    let mut not_comparable = false;
+    for (operand, ty) in &resolved {
+        if let OperandType::NotComparable(declared) = ty {
+            not_comparable = true;
+            errors.push(ReteCheckError {
+                span: clause.span().clone(),
+                kind: ReteCheckErrorKind::FenceConstraintTypeNotComparable {
+                    rule: rule_name.to_string(),
+                    head: op.to_string(),
+                    operand: describe_operand(operand),
+                    operand_type: declared.clone(),
+                },
+            });
+        }
+    }
+    if not_comparable {
+        return;
+    }
+
+    for (operand, ty) in &resolved {
+        match ty {
+            OperandType::Resolved(actual) if *actual != op_type => {
+                errors.push(ReteCheckError {
+                    span: clause.span().clone(),
+                    kind: ReteCheckErrorKind::FenceConstraintTypeMismatch {
+                        rule: rule_name.to_string(),
+                        head: op.to_string(),
+                        operand: describe_operand(operand),
+                        op_type: op_type.to_string(),
+                        operand_type: (*actual).to_string(),
+                    },
+                });
+            }
+            // Agrees — nothing to report.
+            OperandType::Resolved(_) => {}
+            // Reported above and returned before reaching here.
+            OperandType::NotComparable(_) => {}
+            // Out of scope, same reason as the inline twin: a `?var` this rule's `:when` does
+            // not bind is not a type question.
+            OperandType::UnboundInThisRule => {}
+            // Out of scope, same reason as the inline twin: a computed operand this pass cannot
+            // derive a type for.
+            OperandType::ComputedNotDerivableHere => {}
+            // Not double-reported: unlike the inline path, nothing has reported this by name yet
+            // inside a fence (`check_operand_field_ref` never runs here) — but minting a THIRD
+            // located diagnostic for a fence-local mistyped variant is its own strike, not a
+            // silent extension of this one. Passed, same as the inline twin.
+            OperandType::MistypedEnumVariant => {}
+        }
+    }
+}
+
 /// Collect every `(?v <- :field)` bind in the WHOLE rule, resolved to the field's declared type.
 ///
 /// Rule-wide, not per-pattern, because a join variable is bound in one condition and compared in

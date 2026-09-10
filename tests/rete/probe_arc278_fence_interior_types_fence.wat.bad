@@ -1,9 +1,8 @@
 ;; tests/rete/probe_arc278_fence_interior_types_fence.wat.bad
-;; RED-at-HEAD: a `where` FENCE's interior receives no type checking at all.
-;; rune:lint(bad-is-banked) — the fence interior must be type-checked exactly as an inline clause is banked-by: fence_interior_type_error_is_refused
+;; Arc 278 strike-fence-interior-types — a `where` FENCE's interior is now type-checked.
 ;;   `string::=` over two i64-bound vars. `src/rete/validate/mod.rs:282`'s
-;;   `ReteClauseShape::Where(_) => {}` inspects nothing inside the fence, so this
-;;   starts up CLEAN and `.bad` is an aspiration. The IDENTICAL predicate written
+;;   `ReteClauseShape::Where(expr)` arm now walks the fence's interior via `check_fence_interior`,
+;;   so this is refused with `FenceConstraintTypeMismatch`. The IDENTICAL predicate written
 ;;   inline is `ConstraintTypeMismatch` — see the `_inline.wat.bad` twin.
 ;;
 ;; ⛔ THE PREDICATE READS BOTH CONDITIONS ON PURPOSE. A fence needing only one

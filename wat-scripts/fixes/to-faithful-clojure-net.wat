@@ -66,10 +66,18 @@
   :then [(:fix::Symbol ?off)])
 
 ;; G3 genuine?  — span source-len == name-len (a desugared sigil never passes; THE SKIP)
+;; Arc 278 strike-fence-interior-types — `?slen`/`?len` are both `:wat::core::i64` fields
+;; (`:span-len`/`:len` on `:fix::Node`); this was `string::=` until the fence-interior type
+;; checker caught it. `string::=` and `i64::=` are genuinely different runtime ops (generic
+;; `:wat::core::=` vs the typed `:wat::core::i64::=`), not two spellings of one — confirmed
+;; behaviour-preserving, not merely type-clean, by driving both through the live rete engine
+;; over 14 i64 pairs (incl. 7/7, 7/8, 0/0, -1/-1, -1/1, i64::MAX/MAX, i64::MIN/MIN, MAX/MIN,
+;; 0/-0) before landing this: identical hit sets both ways every time. See
+;; `docs/arc/2026/06/278-rules-engine/strike-fence-interior-types/SCORE.md`.
 (:wat::rete::defrule :fix::g3-genuine
   :when [(:fix::Keyword (?off <- :offset))
          (:fix::Node (?off <- :offset) (?len <- :len) (?slen <- :span-len))
-         (:wat::rete::where (:wat::rete::core::string::= ?slen ?len))]
+         (:wat::rete::where (:wat::rete::core::i64::= ?slen ?len))]
   :then [(:fix::Genuine ?off)])
 
 ;; ══ LAYER 2 · LEXICAL SHAPE (only genuine keywords) ═════════════════════════
@@ -96,11 +104,14 @@
   :then [(:fix::Arrow ?off)])
 
 ;; G7 post-arrow?  — the node one child-index after an arrow, same parent (SELF-JOIN)
+;; Arc 278 strike-fence-interior-types — `?bi` is `:wat::core::i64` (`:child-idx` on
+;; `:fix::Node`), same instrument as G3 above: was `string::=`, caught by the fence-interior
+;; type checker, swapped to `i64::=` — same behaviour-preservation evidence as G3's comment.
 (:wat::rete::defrule :fix::g7-post-arrow
   :when [(:fix::Arrow (?aoff <- :offset))
          (:fix::Node (?aoff <- :offset) (?p <- :parent) (?ai <- :child-idx))
          (:fix::Node (?boff <- :offset) (?p <- :parent) (?bi <- :child-idx))
-         (:wat::rete::where (:wat::rete::core::string::= ?bi (:wat::core::+ ?ai 1)))]
+         (:wat::rete::where (:wat::rete::core::i64::= ?bi (:wat::core::+ ?ai 1)))]
   :then [(:fix::PostArrow ?boff)])
 
 ;; TypeCandidate ← type-shaped OR post-arrow (the ∪, as two trivial gates)
