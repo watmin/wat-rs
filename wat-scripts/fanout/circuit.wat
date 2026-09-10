@@ -64,8 +64,19 @@
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :fanout::Seen::StatsRequest [])
+   ;; ⭑ `calls` is the ROUND-TRIP BUDGET's seen term, and it rides THIS reply — the one
+   ;; `Seen/stats` the harness already makes once per run (circuit.wat, `spair`). It is
+   ;; the seen service's own count of verb invocations (check + mark + stats), so no
+   ;; caller pays anything to learn it and no new round-trip exists to measure it.
+   ;; ⛔ It counts REQUESTS THAT ARRIVED, not requests sent: a `drop-check-bp` run
+   ;; suppresses the REPLY, so the handler ran and is counted, while a request lost
+   ;; before arrival would not be. Identical on the happy path; say which under chaos.
+   ;; ⛔ `stats` counts ITSELF (post-increment, exactly as the queue's `stats` reports
+   ;; its own two store calls), so a run's seen total always includes the read that
+   ;; reported it. One, in the standard run.
    (:wat::core::defenum :fanout::Seen::StatsResponse :wat::enum::Pure
-     :Ok [recorded <- :wat::core::i64  skipped <- :wat::core::i64]
+     :Ok [recorded <- :wat::core::i64  skipped <- :wat::core::i64
+          calls <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
@@ -88,6 +99,10 @@
   ;; survive hibernation (S31). Restart seen and every message looks Absent again.
   :durable   [recorded       <- :wat::core::i64
               skipped        <- :wat::core::i64
+              ;; Verb invocations = process-boundary crossings INTO this peer. Durable
+              ;; for the same reason `recorded` is: a stats read must be a fact about
+              ;; the whole run, not about the current ephemeral generation.
+              calls          <- :wat::core::i64
               drop-check-bp  <- :wat::core::i64
               drop-mark-bp   <- :wat::core::i64
               drop-seed      <- :wat::core::i64
@@ -132,6 +147,7 @@
         rec' (:fanout::seen::Record
                :recorded (:fanout::seen::Record/recorded rec)
                :skipped (:fanout::seen::Record/skipped rec)
+               :calls (:wat::i64::+ (:fanout::seen::Record/calls rec) 1)
                :drop-check-bp rate
                :drop-mark-bp (:fanout::seen::Record/drop-mark-bp rec)
                :drop-seed seed1
@@ -183,6 +199,7 @@
                  seqs)
         rec' (:fanout::seen::Record
                :recorded (:wat::core::second folded) :skipped (:wat::core::third folded)
+               :calls (:wat::i64::+ (:fanout::seen::Record/calls rec0) 1)
                :drop-check-bp (:fanout::seen::Record/drop-check-bp rec0)
                :drop-mark-bp rate :drop-seed seed1
                :drop-after? (:fanout::seen::Record/drop-after? rec0))
@@ -194,13 +211,26 @@
    (stats [s ctx req]
      (:wat::core::let
        [rec (:fanout::seen::State/durable s)
+        ;; POST-INCREMENT, on purpose and for the same reason the queue's `stats` reports
+        ;; the two count-index calls it just made: the number of reads taken is VISIBLE in
+        ;; the figure, so no reader can mistake the instrument's own traffic for the app's.
+        rec' (:fanout::seen::Record
+               :recorded (:fanout::seen::Record/recorded rec)
+               :skipped (:fanout::seen::Record/skipped rec)
+               :calls (:wat::i64::+ (:fanout::seen::Record/calls rec) 1)
+               :drop-check-bp (:fanout::seen::Record/drop-check-bp rec)
+               :drop-mark-bp (:fanout::seen::Record/drop-mark-bp rec)
+               :drop-seed (:fanout::seen::Record/drop-seed rec)
+               :drop-after? (:fanout::seen::Record/drop-after? rec))
+        s' (:fanout::seen::State :durable rec' :claimed (:fanout::seen::State/claimed s))
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Seen::Reply])])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])]
-       (:wat::service::Outcome::Continue s
+       (:wat::service::Outcome::Continue s'
          (:wat::core::Some (:fanout::Seen::Reply::Stats
            (:fanout::Seen::StatsResponse::Ok
-             (:fanout::seen::Record/recorded rec)
-             (:fanout::seen::Record/skipped rec))))
+             (:fanout::seen::Record/recorded rec')
+             (:fanout::seen::Record/skipped rec')
+             (:fanout::seen::Record/calls rec'))))
          sends none-alarms)))])
 
 ;; Silent server for showing timeout → discard → redial → retry on a FRESH peer.
@@ -245,10 +275,23 @@
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :fanout::Worker::DisruptsRequest [])
+   ;; ⭑ `ack-calls` is the ROUND-TRIP BUDGET's one worker-side term, and it rides THIS
+   ;; reply. `disrupts` is already the worker's own-tally channel and `collect` already
+   ;; calls it once per worker (circuit.wat, `dpair`), so the count is FREE. The intended
+   ;; channel was the `:stop` projection (wat/service.wat:2928) — equally free, one more
+   ;; round-trip already spent; `disrupts` was chosen because it is ALREADY the tally verb
+   ;; and needs no change to the projection's crossing type. Folding both into `:stop` and
+   ;; deleting `sum-disrupts` remains the follow-on, and this stone does not take it.
+   ;; ⛔ Every OTHER worker crossing is counted at the callee, not here: the worker's
+   ;; `Queue/receive` calls are the queue's own `receive-calls`, and its `Seen/check` +
+   ;; `Seen/mark` calls are the seen service's own `calls`. Only `Queue/ack` is counted by
+   ;; nobody (`:queue::Stats/acks` counts ACKED IDS, not calls — sqs.wat:1069), so this is
+   ;; the one number a caller has to keep.
    (:wat::core::defenum :fanout::Worker::DisruptsResponse :wat::enum::Pure
      :Ok [hits <- :wat::core::i64  draws <- :wat::core::i64  points <- :wat::core::String
           check-exhausted <- :wat::core::i64  mark-exhausted <- :wat::core::i64
-          ack-retries <- :wat::core::i64  ack-exhausted <- :wat::core::i64]
+          ack-retries <- :wat::core::i64  ack-exhausted <- :wat::core::i64
+          ack-calls <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])
@@ -285,7 +328,9 @@
               check-exhausted   <- :wat::core::i64
               mark-exhausted    <- :wat::core::i64
               ack-retries       <- :wat::core::i64
-              ack-exhausted     <- :wat::core::i64]
+              ack-exhausted     <- :wat::core::i64
+              ;; Every `Queue/ack` this worker sent, first attempt and retries alike.
+              ack-calls         <- :wat::core::i64]
   :ephemeral [q        <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
               seen     <- (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
               outcomes <- (:wat::core::PersistentVector :- [:fanout::Outcome])]
@@ -348,7 +393,8 @@
                     :check-exhausted (:fanout::worker::Record/check-exhausted rec)
                     :mark-exhausted (:fanout::worker::Record/mark-exhausted rec)
                     :ack-retries (:fanout::worker::Record/ack-retries rec)
-                    :ack-exhausted (:fanout::worker::Record/ack-exhausted rec))
+                    :ack-exhausted (:fanout::worker::Record/ack-exhausted rec)
+                    :ack-calls (:fanout::worker::Record/ack-calls rec))
             s' (:fanout::worker::State :durable rec'
                  :q (:fanout::worker::State/q s)
                  :seen (:fanout::worker::State/seen s)
@@ -375,7 +421,8 @@
              (:fanout::worker::Record/check-exhausted rec)
              (:fanout::worker::Record/mark-exhausted rec)
              (:fanout::worker::Record/ack-retries rec)
-             (:fanout::worker::Record/ack-exhausted rec))))
+             (:fanout::worker::Record/ack-exhausted rec)
+             (:fanout::worker::Record/ack-calls rec))))
          none-sends none-arms)))
    (-disrupt [s ctx]
      (:wat::core::let
@@ -441,7 +488,8 @@
                 :check-exhausted (:fanout::worker::Record/check-exhausted rec)
                 :mark-exhausted (:fanout::worker::Record/mark-exhausted rec)
                 :ack-retries (:fanout::worker::Record/ack-retries rec)
-                :ack-exhausted (:fanout::worker::Record/ack-exhausted rec))
+                :ack-exhausted (:fanout::worker::Record/ack-exhausted rec)
+                :ack-calls (:fanout::worker::Record/ack-calls rec))
         s' (:fanout::worker::State :durable rec'
              :q (:fanout::worker::State/q s) :seen seen'
              :outcomes (:fanout::worker::State/outcomes s))
@@ -482,7 +530,10 @@
                   ;; check-all → emit the absent → mark those → ack all. One round
                   ;; trip each. Receipt still written after emit (STOP-2).
                   triple (:wat::core::if (:wat::core::empty? envs)
-                           (:wat::core::Tuple (:wat::core::Tuple q seen outs) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0)))
+                           ;; tick-pair = ((check-exh, mark-exh), (ack-retries, ack-exh), ACK-CALLS).
+                           ;; The third slot is new: `Queue/ack` crossings made THIS tick, first
+                           ;; attempt included. An empty receive makes none.
+                           (:wat::core::Tuple (:wat::core::Tuple q seen outs) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0) 0))
                            (:wat::core::let
                              [addr (:fanout::worker::Record/seen-addr rec)
                               seqs (:wat::core::foldl
@@ -612,7 +663,8 @@
                               sreply (:wat::core::third check-pack)]
                              (:wat::core::match (:wat::core::first check-pack)
                                ((:fanout::SeenRetry::Exhausted _att)
-                                 (:wat::core::Tuple (:wat::core::Tuple q seen1 outs) (:wat::core::Tuple (:wat::core::Tuple 1 0) (:wat::core::Tuple 0 0))))
+                                 ;; check exhausted → no mark, no ack: zero ack crossings.
+                                 (:wat::core::Tuple (:wat::core::Tuple q seen1 outs) (:wat::core::Tuple (:wat::core::Tuple 1 0) (:wat::core::Tuple 0 0) 0)))
                                ((:fanout::SeenRetry::Got)
                                  (:wat::core::match sreply
                                    ((:fanout::Seen::Reply::Check cresp)
@@ -659,7 +711,8 @@
                                             seen2 (:wat::core::second mark-pack)]
                                            (:wat::core::match (:wat::core::first mark-pack)
                                              ((:fanout::SeenRetry::Exhausted _matt)
-                                               (:wat::core::Tuple (:wat::core::Tuple q seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 1) (:wat::core::Tuple 0 0))))
+                                               ;; mark exhausted → the ack below is never reached.
+                                               (:wat::core::Tuple (:wat::core::Tuple q seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 1) (:wat::core::Tuple 0 0) 0)))
                                              ((:fanout::SeenRetry::Got)
                                                (:wat::core::let
                                                  [_nap (:wat::core::if (:wat::i64::> ack-delay 0)
@@ -773,9 +826,16 @@
                                             ar-tick (:wat::core::third ack-pair)]
                                                  (:wat::core::match ack-out
                                                    ((:fanout::QueueRetry::Got)
-                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple ar-tick 0))))
+                                                     ;; ⭑ calls = 1 + retries, at BOTH arms. `ack-first`
+                                                     ;; is always one crossing; the retry fold's
+                                                     ;; `retries` is seeded at 1 before its first call
+                                                     ;; and incremented once per further call, so
+                                                     ;; 1 + retries is the exact number of `Queue/ack`
+                                                     ;; sends. Derived from the loop, not assumed:
+                                                     ;; ar-tick=0 ⇒ one call (the first attempt).
+                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple ar-tick 0) (:wat::i64::+ 1 ar-tick))))
                                                    ((:fanout::QueueRetry::Exhausted att)
-                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple att 1)))))))))))
+                                                     (:wat::core::Tuple (:wat::core::Tuple q-acked seen2 outs1) (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple att 1) (:wat::i64::+ 1 att)))))))))))
                                      (_ (:wat::kernel::assertion-failed! "fanout worker: check not Ok" :wat::core::None :wat::core::None))))
                                    (_ (:wat::kernel::assertion-failed! "fanout worker: check reply misrouted" :wat::core::None :wat::core::None)))))))
                   folded (:wat::core::first triple)
@@ -784,9 +844,15 @@
                   me-tick (:wat::core::second (:wat::core::first tick-pair))
                   ar-tick (:wat::core::first (:wat::core::second tick-pair))
                   ae-tick (:wat::core::second (:wat::core::second tick-pair))
-                  rec' (:wat::core::if (:wat::core::or (:wat::i64::> ce-tick 0)
+                  ;; ⭑ Round-trip term. `ak-tick > 0` on EVERY tick that acked, which is the
+                  ;; common case, so the rebuild guard below now fires on the normal path
+                  ;; instead of only on a fault. That is the intended cost: the guard exists
+                  ;; to skip an allocation, not to skip a fact.
+                  ak-tick (:wat::core::third tick-pair)
+                  rec' (:wat::core::if (:wat::core::or (:wat::i64::> ak-tick 0)
+                                        (:wat::core::or (:wat::i64::> ce-tick 0)
                                         (:wat::core::or (:wat::i64::> me-tick 0)
-                                          (:wat::core::or (:wat::i64::> ar-tick 0) (:wat::i64::> ae-tick 0))))
+                                          (:wat::core::or (:wat::i64::> ar-tick 0) (:wat::i64::> ae-tick 0)))))
                          (:fanout::worker::Record
                            :id (:fanout::worker::Record/id rec)
                            :queue-name (:fanout::worker::Record/queue-name rec)
@@ -806,7 +872,8 @@
                            :check-exhausted (:wat::i64::+ (:fanout::worker::Record/check-exhausted rec) ce-tick)
                            :mark-exhausted (:wat::i64::+ (:fanout::worker::Record/mark-exhausted rec) me-tick)
                            :ack-retries (:wat::i64::+ (:fanout::worker::Record/ack-retries rec) ar-tick)
-                           :ack-exhausted (:wat::i64::+ (:fanout::worker::Record/ack-exhausted rec) ae-tick))
+                           :ack-exhausted (:wat::i64::+ (:fanout::worker::Record/ack-exhausted rec) ae-tick)
+                           :ack-calls (:wat::i64::+ (:fanout::worker::Record/ack-calls rec) ak-tick))
                          rec)
                   s' (:fanout::worker::State :durable rec'
                        :q (:wat::core::first folded)
@@ -877,7 +944,10 @@
    (disrupts [s ctx req]
      (:wat::service::Outcome::Continue s
        (:wat::core::Some (:fanout::Worker::Reply::Disrupts
-         (:fanout::Worker::DisruptsResponse::Ok 0 0 "" 0 0 0 0)))
+         ;; The delayed-ack worker keeps no tallies at all — including `ack-calls`. Its
+         ;; queue traffic is therefore NOT in any round-trip budget; only `:user::
+         ;; pending-only-loses` uses it, and that fixture prints no budget line.
+         (:fanout::Worker::DisruptsResponse::Ok 0 0 "" 0 0 0 0 0)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
        (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::held-worker::Op])])))
    (-tick [s ctx]
@@ -1041,15 +1111,18 @@
       (:wat::kernel::assertion-failed! "fanout: start stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
 
+;; ⭑ Returns the number of `Worker/start` crossings it made — one per peer, counted by the
+;; fold rather than asserted from `(count wpeers)`, so an early return could not lie.
 (:wat::core::defn :fanout::arm-workers!
   [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
-  -> :wat::core::nil
+  -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::nil
+    (:wat::core::fn [acc <- :wat::core::i64
                      w   <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
-      -> :wat::core::nil
-      (:fanout::start-worker! w))
-    nil
+      -> :wat::core::i64
+      (:wat::core::let [_ (:fanout::start-worker! w)]
+        (:wat::i64::+ acc 1)))
+    0
     wpeers))
 
 ;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
@@ -1080,7 +1153,7 @@
     :queue-addr queue-addr :seen-addr seen-addr
     :disrupt-rate-bp rate-bp :disrupt-seed seed
     :disrupt-lo-ms 50 :disrupt-hi-ms 150 :disrupt-max-draws 0
-    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points "" :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0))
+    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points "" :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0 :ack-calls 0))
 
 ;; Sentinel: -1 means unread. Matches ticks-of / q-depth. (1,1) satisfied both waits.
 ;;
@@ -1120,32 +1193,49 @@
 
 ;; TEMPORARY INSTRUMENT — how many -deliver ticks did the topic take for N messages?
 ;; One tick per message means a timer arm + fire + select wake is paid per message.
-(:wat::core::defn :fanout::topic-ticks [t <- :demo::Topic] -> :wat::core::i64
+;;
+;; ⭑ Returns (ticks, rts). One `Topic/stats` crossing, counted where it is made.
+;; ⛔ This and `topic-inbox-fails` below are TWO calls for ONE reply's worth of data — the
+;; exact defect `sample-of` was built to remove. Merging them would REMOVE a round-trip,
+;; and reducing any round-trip is out of scope for this stone (DESIGN, "Out of scope =
+;; rejected"). So the redundancy stays and is now VISIBLE in `rt-topic` instead of free.
+(:wat::core::defn :fanout::topic-ticks
+  [t <- :demo::Topic] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok _n ticks _l _c _t) ticks)
-        (_ -1)))
-    (_ -1)))
+        ((:demo::Topic::StatsResponse::Ok _n ticks _l _c _t) (:wat::core::Tuple ticks 1))
+        (_ (:wat::core::Tuple -1 1))))
+    (_ (:wat::core::Tuple -1 1))))
 
+;; Returns ((lost, closed, timedout), rts) — the second slot is this call's own crossing.
 (:wat::core::defn :fanout::topic-inbox-fails
   [t <- :demo::Topic]
-  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+                           :wat::core::i64])
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:demo::Topic::StatsResponse::Ok _n _ticks lost closed timedout)
-          (:wat::core::Tuple lost closed timedout))
-        (_ (:wat::core::Tuple -1 -1 -1))))
-    (_ (:wat::core::Tuple -1 -1 -1))))
+          (:wat::core::Tuple (:wat::core::Tuple lost closed timedout) 1))
+        (_ (:wat::core::Tuple (:wat::core::Tuple -1 -1 -1) 1))))
+    (_ (:wat::core::Tuple (:wat::core::Tuple -1 -1 -1) 1))))
 
+;; ⭑ Returns (line, store-calls, receive-calls) — one reply, three things kept, `sample-of`'s
+;; discipline. The two numbers exist so the INBOX tier can enter the round-trip budget: the
+;; six boundary samples cover only `qclients` (the m subscriber queues), so before this the
+;; inbox's ~1650 store crossings and all of its `receive` traffic appeared in the tier line a
+;; human reads and in no total. The subscriber tiers ignore the numbers (the samples already
+;; have them) and keep only the line.
 (:wat::core::defn :fanout::tier-line
-  [name <- :wat::core::String  q <- :queue::Queue] -> :wat::core::String
+  [name <- :wat::core::String  q <- :queue::Queue]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
   (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
         ((:queue::Queue::StatsResponse::Ok qst)
-          (:wat::core::format
+          (:wat::core::Tuple
+           (:wat::core::format
             ;; store-calls/store-ns are the AGGREGATE; the four op pairs beside them
             ;; are its split. put+delete+count+scan must equal the aggregate within
             ;; rounding — an unaccounted remainder names an operation nothing tracks.
@@ -1167,9 +1257,13 @@
             :cc (:queue::Stats/count-calls qst)
             :cn (:queue::Stats/count-ns qst)
             :nc (:queue::Stats/scan-calls qst)
-            :nn (:queue::Stats/scan-ns qst)))
-        (_ (:wat::core::format "tier={name};stats=not-ok" :name name))))
-    (_ (:wat::core::format "tier={name};stats=lost" :name name))))
+            :nn (:queue::Stats/scan-ns qst))
+           (:queue::Stats/store-calls qst)
+           (:queue::Stats/receive-calls qst)))
+        ;; ⛔ -1, not 0. An unreadable tier must not contribute a plausible zero to a total
+        ;; the reader will add up; a negative is arithmetic that cannot be mistaken for data.
+        (_ (:wat::core::Tuple (:wat::core::format "tier={name};stats=not-ok" :name name) -1 -1))))
+    (_ (:wat::core::Tuple (:wat::core::format "tier={name};stats=lost" :name name) -1 -1))))
 
 (:wat::core::defn :fanout::require!
   [r <- :wat::core::String] -> :wat::core::nil
@@ -1261,33 +1355,43 @@
 ;; Publishers returning is not the fill: topic-workers may still be
 ;; fanning the last inbox rows. Poll until every subscriber queue holds
 ;; n visible, 0 unacked. Attempts = n×m, same hang bound as drain.
+;;
+;; ⭑ Returns (verdict, rts) — the same `rts` accounting `poll-until-drained*` has always
+;; carried, and for the same reason: m `Queue/stats` plus one `Topic/stats` per iteration.
+;; This loop's crossings were the drain loop's exact twin and were counted NOWHERE, so the
+;; `poll-calls=` figure the harness printed described only half the harness's own polling.
 (:wat::core::defn :fanout::poll-until-filled*
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
    n <- :wat::core::i64  left <- :wat::core::i64
-   start-ns <- :wat::core::i64  total <- :wat::core::i64]
-  -> :wat::core::String
+   start-ns <- :wat::core::i64  total <- :wat::core::i64  rts <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
   (:wat::core::let
     [sweep (:fanout::sweep-of qclients)
-     box   (:fanout::topic-outbox t)]
+     box   (:fanout::topic-outbox t)
+     rts'  (:wat::i64::+ rts (:wat::i64::+ (:wat::core::count qclients) 1))]
     (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::sweep-unread? sweep))
-      (:wat::core::format "filled-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
-        :s (:fanout::snapshot-str sweep) :b box
-        :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
+      (:wat::core::Tuple
+        (:wat::core::format "filled-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
+          :s (:fanout::snapshot-str sweep) :b box
+          :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
+        rts')
       (:wat::core::if (:wat::core::and (:fanout::sweep-filled? sweep n) (:wat::core::= box 0))
-        ""
+        (:wat::core::Tuple "" rts')
         (:wat::core::if (:wat::i64::<= left 1)
-          (:wat::core::format "filled-never: last={s} outbox={b} want={n} attempts={a} elapsed={ms}"
-            :s (:fanout::snapshot-str sweep) :b box :n n
-            :a total :ms (:fanout::elapsed-ms start-ns))
+          (:wat::core::Tuple
+            (:wat::core::format "filled-never: last={s} outbox={b} want={n} attempts={a} elapsed={ms}"
+              :s (:fanout::snapshot-str sweep) :b box :n n
+              :a total :ms (:fanout::elapsed-ms start-ns))
+            rts')
           (:wat::core::let [_ (:fanout::await-timer-ms 5)]
-            (:fanout::poll-until-filled* qclients t n (:wat::i64::- left 1) start-ns total)))))))
+            (:fanout::poll-until-filled* qclients t n (:wat::i64::- left 1) start-ns total rts')))))))
 
 (:wat::core::defn :fanout::poll-until-filled
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
    n <- :wat::core::i64  attempts <- :wat::core::i64]
-  -> :wat::core::String
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
   (:fanout::poll-until-filled* qclients t n attempts
-    (:wat::time::epoch-nanos (:wat::time::now)) attempts))
+    (:wat::time::epoch-nanos (:wat::time::now)) attempts 0))
 
 ;; ── the drain's TWO give-ups, and why each number is what it is ────────────────────
 ;;
@@ -1912,24 +2016,37 @@
     (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0))
     peers))
 
-;; Poll until every publisher reports done. Returns ((calls retries) (asleep attempts)).
+;; Poll until every publisher reports done. Returns ((calls retries) (asleep attempts) rts).
+;;
+;; ⭑ THE THIRD SLOT IS THIS LOOP'S OWN ROUND-TRIP COST, and it is the item the phase line's
+;; `poll-calls=` never included: `publishers-all-done?` makes one `Publisher/stats` crossing
+;; PER PUBLISHER PER ITERATION and the loop iterates on a 1 ms timer for the whole of `fill`.
+;; Both folds are counted by `(count peers)` at the site that performs them, one call each.
 (:wat::core::defn :fanout::join-publishers*
   [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
-   left <- :wat::core::i64]
+   left <- :wat::core::i64  rts <- :wat::core::i64]
   -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
-                           (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+                           (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+                           :wat::core::i64])
   (:wat::core::if (:wat::i64::<= left 0)
     (:wat::kernel::assertion-failed! "fanout: publishers never done" :wat::core::None :wat::core::None)
-    (:wat::core::if (:fanout::publishers-all-done? peers)
-      (:fanout::sum-publisher-stats peers)
-      (:wat::core::let [_ (:fanout::await-timer-ms 1)]
-        (:fanout::join-publishers* peers (:wat::i64::- left 1))))))
+    (:wat::core::let
+      [done? (:fanout::publishers-all-done? peers)
+       rts'  (:wat::i64::+ rts (:wat::core::count peers))]
+      (:wat::core::if done?
+        (:wat::core::let
+          [sums (:fanout::sum-publisher-stats peers)]
+          (:wat::core::Tuple (:wat::core::first sums) (:wat::core::second sums)
+            (:wat::i64::+ rts' (:wat::core::count peers))))
+        (:wat::core::let [_ (:fanout::await-timer-ms 1)]
+          (:fanout::join-publishers* peers (:wat::i64::- left 1) rts'))))))
 
 (:wat::core::defn :fanout::join-publishers
   [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
   -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
-                           (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
-  (:fanout::join-publishers* peers 120000))
+                           (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+                           :wat::core::i64])
+  (:fanout::join-publishers* peers 120000 0))
 
 (:wat::core::defn :fanout::poll-until-visible-zero*
   [q <- :queue::Queue  left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
@@ -1970,15 +2087,32 @@
 ;; ⛔ And it is why the instrument and the fix had to be one change: naively adding four
 ;; more `sum-handler-ns` calls to give every phase a busy figure would have added 4m
 ;; round-trips and inflated the very phases being measured.
+;; ⭑ `calls` is the SAMPLE'S OWN COST — the number of `Queue/stats` round-trips this sample
+;; made, one per queue, counted in EVERY match arm so a lost or not-Ok reply still costs what
+;; it cost. It is the round-trip budget's harness-stats term, and it makes the instrument
+;; account for itself: six boundary samples at m=4 are 24 crossings of the run's own budget.
 (:wat::core::defrecord :fanout::Sample
   [receive-calls <- :wat::core::i64
    ticks         <- :wat::core::i64
    store-calls   <- :wat::core::i64
    store-ns      <- :wat::core::i64
-   handler-ns    <- :wat::core::i64])
+   handler-ns    <- :wat::core::i64
+   calls         <- :wat::core::i64])
 
 (:wat::core::defn :fanout::empty-sample [] -> :fanout::Sample
-  (:fanout::Sample :receive-calls 0 :ticks 0 :store-calls 0 :store-ns 0 :handler-ns 0))
+  (:fanout::Sample :receive-calls 0 :ticks 0 :store-calls 0 :store-ns 0 :handler-ns 0 :calls 0))
+
+;; A crossing that answered nothing. Everything but `calls` passes through unchanged: the
+;; five silent-skip arms below used to return `acc` and therefore lost the fact that a
+;; round-trip had been spent.
+(:wat::core::defn :fanout::sample-bump [acc <- :fanout::Sample] -> :fanout::Sample
+  (:fanout::Sample
+    :receive-calls (:fanout::Sample/receive-calls acc)
+    :ticks         (:fanout::Sample/ticks acc)
+    :store-calls   (:fanout::Sample/store-calls acc)
+    :store-ns      (:fanout::Sample/store-ns acc)
+    :handler-ns    (:fanout::Sample/handler-ns acc)
+    :calls         (:wat::i64::+ (:fanout::Sample/calls acc) 1)))
 
 ;; Σ over `qclients` of one `Queue/stats` reply each. A lost/not-Ok reply contributes
 ;; nothing (the same silent-skip the five folds had), so a sample is never a raise.
@@ -1995,9 +2129,10 @@
                 :ticks         (:wat::i64::+ (:fanout::Sample/ticks acc)         (:queue::Stats/ticks qst))
                 :store-calls   (:wat::i64::+ (:fanout::Sample/store-calls acc)   (:queue::Stats/store-calls qst))
                 :store-ns      (:wat::i64::+ (:fanout::Sample/store-ns acc)      (:queue::Stats/store-ns qst))
-                :handler-ns    (:wat::i64::+ (:fanout::Sample/handler-ns acc)    (:queue::Stats/handler-ns qst))))
-            (_ acc)))
-        (_ acc)))
+                :handler-ns    (:wat::i64::+ (:fanout::Sample/handler-ns acc)    (:queue::Stats/handler-ns qst))
+                :calls         (:wat::i64::+ (:fanout::Sample/calls acc) 1)))
+            (_ (:fanout::sample-bump acc))))
+        (_ (:fanout::sample-bump acc))))
     (:fanout::empty-sample)
     qclients))
 
@@ -2013,15 +2148,18 @@
     (:wat::i64::- (:fanout::Sample/handler-ns after) (:fanout::Sample/handler-ns before))
     (:wat::i64::* 1000000 m)))
 
+;; ⭑ THREE fields off the ONE reply this already made — `sample-of`'s discipline applied to
+;; the seen store. The third is `rt-seen`: the seen service's own crossing count, which the
+;; harness previously could not see at any price it was willing to pay.
 (:wat::core::defn :fanout::seen-stats
   [seenh <- :fanout::seen::Handle]
-  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [p (:fanout::dial-seen (:fanout::seen::Handle/addr seenh))]
     (:wat::core::match (:fanout::Seen/stats p (:fanout::Seen::StatsRequest))
       ((:wat::kernel::RecvOutcome::Message r)
         (:wat::core::match r
-          ((:fanout::Seen::StatsResponse::Ok recorded skipped) (:wat::core::Tuple recorded skipped))
+          ((:fanout::Seen::StatsResponse::Ok recorded skipped calls) (:wat::core::Tuple recorded skipped calls))
           ((:fanout::Seen::StatsResponse::RequestTooLarge _b _c)
             (:wat::kernel::assertion-failed! "fanout: seen stats too large" :wat::core::None :wat::core::None))
           ((:fanout::Seen::StatsResponse::RequestMalformed _p _e _g)
@@ -2033,18 +2171,30 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "fanout: seen stats closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
 
+;; ⭑ EIGHT fields off the ONE reply per worker `collect` already takes — `sample-of`'s
+;; discipline again. The shape widened from (hits, (ce,me), (ar,ae)) to
+;; ((hits, ack-calls), (ce,me), (ar,ae)) because `Tuple` has no fourth accessor; `first`
+;; is now a pair. No extra call: `ack-calls` rides the `disrupts` reply.
+;;
+;; ⛔ THIS CALL IS STILL THE MISTAKE THE STONE NAMES, and counting it does not fix it: one
+;; round-trip per worker, and it waits out the worker's 250 ms `Queue/receive` park. It is
+;; kept because MOVING it (folding these tallies into the `:stop` projection, which is one
+;; round-trip already spent) would change the phase timings this stone must hold still.
+;; It is now VISIBLE in the budget as `rt-worker` instead of being free-looking.
 (:wat::core::defn :fanout::sum-disrupts
   [wpeers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])]
-  -> (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+  -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+    (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
                      w   <- (:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])]
-      -> (:wat::core::Tuple :- [:wat::core::i64 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+      -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
       (:wat::core::match (:fanout::Worker/disrupts w (:fanout::Worker::DisruptsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points ce me ars ae)
-              (:wat::core::Tuple (:wat::i64::+ (:wat::core::first acc) hits)
+            ((:fanout::Worker::DisruptsResponse::Ok hits _draws _points ce me ars ae aks)
+              (:wat::core::Tuple (:wat::core::Tuple
+                                   (:wat::i64::+ (:wat::core::first (:wat::core::first acc)) hits)
+                                   (:wat::i64::+ (:wat::core::second (:wat::core::first acc)) aks))
                                  (:wat::core::Tuple
                                    (:wat::i64::+ (:wat::core::first (:wat::core::second acc)) ce)
                                    (:wat::i64::+ (:wat::core::second (:wat::core::second acc)) me))
@@ -2056,24 +2206,29 @@
         ((:wat::kernel::RecvOutcome::Lost _c) acc)
         (:wat::kernel::RecvOutcome::Stopped acc)
         (:wat::kernel::RecvOutcome::Closed acc) (:wat::kernel::RecvOutcome::TimedOut acc)))
-    (:wat::core::Tuple 0 (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0))
+    (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0))
     wpeers))
 
+;; ⭑ Returns (outcomes, rts). `:fanout::worker/stop` is one `send Admin::Stop` + one `recv`
+;; per handle (wat/service.wat:2928) — a round-trip per worker, counted by the fold that
+;; makes it. It was previously the only worker crossing with no name in any number.
 (:wat::core::defn :fanout::collect-stop
   [handles <- (:wat::core::Vector :- [:fanout::worker::Handle])]
-  -> (:wat::core::Vector :- [:fanout::Outcome])
+  -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:fanout::Outcome]) :wat::core::i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::Outcome])
+    (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Vector :- [:fanout::Outcome]) :wat::core::i64])
                      h   <- :fanout::worker::Handle]
-      -> (:wat::core::Vector :- [:fanout::Outcome])
-      (:wat::core::foldl
-        (:wat::core::fn [a <- (:wat::core::Vector :- [:fanout::Outcome])
-                         o <- :fanout::Outcome]
-          -> (:wat::core::Vector :- [:fanout::Outcome])
-          (:wat::core::conj a o))
-        acc
-        (:fanout::worker/stop h)))
-    (:wat::core::Vector :- [:fanout::Outcome])
+      -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:fanout::Outcome]) :wat::core::i64])
+      (:wat::core::Tuple
+        (:wat::core::foldl
+          (:wat::core::fn [a <- (:wat::core::Vector :- [:fanout::Outcome])
+                           o <- :fanout::Outcome]
+            -> (:wat::core::Vector :- [:fanout::Outcome])
+            (:wat::core::conj a o))
+          (:wat::core::first acc)
+          (:fanout::worker/stop h))
+        (:wat::i64::+ (:wat::core::second acc) 1)))
+    (:wat::core::Tuple (:wat::core::Vector :- [:fanout::Outcome]) 0)
     handles))
 
 ;; seq is the published identity — first field of the body, placed first so it
@@ -2394,15 +2549,17 @@
                                 :done false :calls 0 :retries 0 :asleep 0 :attempt 0 :attempts 0))))
                 (:wat::core::Vector :- [:fanout::publisher::Handle])
                 (:wat::core::range 0 p))
-     _twgo (:wat::core::foldl
-             (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
-               (:demo::start-topic-worker!
-                 (:demo::dial-topic-worker
-                   (:demo::topic-worker::Handle/addr (:wat::core::nth twhandles i)))))
-             nil
+     tw-start-rts (:wat::core::foldl
+             (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+               (:wat::core::let
+                 [_ (:demo::start-topic-worker!
+                      (:demo::dial-topic-worker
+                        (:demo::topic-worker::Handle/addr (:wat::core::nth twhandles i))))]
+                 (:wat::i64::+ acc 1)))
+             0
              (:wat::core::range 0 j))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0
                         :drop-check-bp drop-check-bp :drop-mark-bp drop-mark-bp
                         :drop-seed drop-seed :drop-after? drop-after?))
      workers (:wat::core::foldl
@@ -2453,7 +2610,11 @@
                   (:fanout::dial-worker (:fanout::worker::Handle/addr (:wat::core::nth workers i)))))
               (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Worker::Op :fanout::Worker::Reply])])
               (:wat::core::range 0 wcount))
-     _go-early (:wat::core::if fill-first? nil (:fanout::arm-workers! wpeers))
+     ;; ⭑ ROUND-TRIP BUDGET, TERM 1 OF MANY. Every `rt-*` binding in this let is either a
+     ;; crossing count the CALLER kept while making the call, or a field lifted off a reply
+     ;; the harness was ALREADY going to receive. Nothing below sends anything new — that is
+     ;; the whole contract (see the budget block near `phases`).
+     arm-early-rts (:wat::core::if fill-first? 0 (:fanout::arm-workers! wpeers))
      t-pub0 (:wat::time::epoch-nanos (:wat::time::now))
      ;; ⭑ BOUNDARY SAMPLE 1 of 6. Every sample sits IMMEDIATELY AFTER its boundary
      ;; timestamp — never mid-phase — so each phase pays for exactly ONE sample (the one
@@ -2468,26 +2629,33 @@
                   (:fanout::dial-publisher (:fanout::publisher::Handle/addr (:wat::core::nth phandles i)))))
               (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
               (:wat::core::range 0 p))
-     _pgo (:wat::core::foldl
-            (:wat::core::fn [acc <- :wat::core::nil
+     pub-start-rts (:wat::core::foldl
+            (:wat::core::fn [acc <- :wat::core::i64
                              w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
-              -> :wat::core::nil
-              (:fanout::start-publisher! w))
-            nil
+              -> :wat::core::i64
+              (:wat::core::let [_ (:fanout::start-publisher! w)]
+                (:wat::i64::+ acc 1)))
+            0
             ppeers)
      pub-pair (:fanout::join-publishers ppeers)
      pub-calls (:wat::core::first (:wat::core::first pub-pair))
      pub-retries (:wat::core::second (:wat::core::first pub-pair))
      pub-asleep (:wat::core::first (:wat::core::second pub-pair))
      pub-attempts (:wat::core::second (:wat::core::second pub-pair))
-     _filled (:wat::core::if fill-first?
-               (:fanout::require! (:fanout::poll-until-filled qclients topic n (:wat::i64::* n m)))
-               nil)
+     ;; The join loop's own crossings — one `Publisher/stats` per publisher per iteration, on
+     ;; a 1 ms timer for the whole of `fill`. Never counted before this stone.
+     pub-join-rts (:wat::core::third pub-pair)
+     ;; The fill poller's verdict and its crossings, split so `require!` still sees a String.
+     fill-poll (:wat::core::if fill-first?
+                 (:fanout::poll-until-filled qclients topic n (:wat::i64::* n m))
+                 (:wat::core::Tuple "" 0))
+     _filled (:fanout::require! (:wat::core::first fill-poll))
+     fill-poll-rts (:wat::core::second fill-poll)
      fill-sweep (:fanout::sweep-of qclients)
      fill-depth (:fanout::snapshot-str fill-sweep)
      t-arm0 (:wat::time::epoch-nanos (:wat::time::now))
      s-arm0 (:fanout::sample-of qclients)               ;; boundary sample 2 of 6
-     _go-late (:wat::core::if fill-first? (:fanout::arm-workers! wpeers) nil)
+     arm-late-rts (:wat::core::if fill-first? (:fanout::arm-workers! wpeers) 0)
      t-drain0 (:wat::time::epoch-nanos (:wat::time::now))
      ;; Boundary sample 3 of 6 — the drain's opening sample. It replaces the three
      ;; separate `sum-store-calls`/`sum-store-ns`/`sum-handler-ns` round-trips that used to
@@ -2525,21 +2693,37 @@
      ticks (:fanout::Sample/ticks s-collect0)
      store-calls (:fanout::Sample/store-calls s-collect0)
      store-ns (:fanout::Sample/store-ns s-collect0)
-     tticks (:fanout::topic-ticks topic)
-     ifails (:fanout::topic-inbox-fails topic)
+     tpair (:fanout::topic-ticks topic)
+     tticks (:wat::core::first tpair)
+     ifpair (:fanout::topic-inbox-fails topic)
+     ifails (:wat::core::first ifpair)
      ilost  (:wat::core::first ifails)
      iclosed (:wat::core::second ifails)
      itimed (:wat::core::third ifails)
+     ;; The harness's own `Topic/stats` crossings: two calls, two counts, added by the two
+     ;; sites that made them rather than asserted from here.
+     topic-h-rts (:wat::i64::+ (:wat::core::second tpair) (:wat::core::second ifpair))
      dpair (:fanout::sum-disrupts wpeers)
-     dhits (:wat::core::first dpair)
+     dhits (:wat::core::first (:wat::core::first dpair))
+     ;; ⭑ Σ over workers of every `Queue/ack` crossing they made — the one round-trip class
+     ;; that no server counts (`:queue::Stats/acks` counts acked IDS, not calls).
+     wack  (:wat::core::second (:wat::core::first dpair))
      ce    (:wat::core::first (:wat::core::second dpair))
      me    (:wat::core::second (:wat::core::second dpair))
      ars   (:wat::core::first (:wat::core::third dpair))
      aes   (:wat::core::second (:wat::core::third dpair))
+     ;; ⛔ `disrupts` is one crossing per worker and this fold visits every peer, so the
+     ;; count is the collection it folded — not a literal that can drift from the code.
+     worker-disrupt-rts (:wat::core::count wpeers)
      spair (:fanout::seen-stats seenh)
      sfirsts (:wat::core::first spair)
      sdups (:wat::core::second spair)
-     outs (:fanout::collect-stop workers)
+     ;; ⭑ rt-seen: the seen service's OWN count of check + mark + stats invocations, riding
+     ;; the reply above. Includes this very `stats` read (post-increment, deliberately).
+     seen-rts (:wat::core::third spair)
+     stop-pair (:fanout::collect-stop workers)
+     outs (:wat::core::first stop-pair)
+     worker-stop-rts (:wat::core::second stop-pair)
      empty-flags (:wat::core::foldl
                    (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
                      (:wat::core::let
@@ -2562,11 +2746,11 @@
                :s summary0 :f sfirsts :d sdups :ce ce :me me :ar ars :ae aes)
      t-stop0 (:wat::time::epoch-nanos (:wat::time::now))
      s-stop0 (:fanout::sample-of qclients)              ;; boundary sample 5 of 6
-     _stoptw (:wat::core::foldl
-               (:wat::core::fn [acc <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
+     tw-stop-rts (:wat::core::foldl
+               (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
                  (:wat::core::let [_ (:demo::topic-worker/stop (:wat::core::nth twhandles i))]
-                   nil))
-               nil
+                   (:wat::i64::+ acc 1)))
+               0
                (:wat::core::range 0 j))
      t-end (:wat::time::epoch-nanos (:wat::time::now))
      ;; Boundary sample 6 of 6 — closes `stop`. It lands AFTER t-end, so it is the one
@@ -2574,8 +2758,118 @@
      s-end (:fanout::sample-of qclients)
      ms (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
           (:wat::i64::/ (:wat::i64::- b a) 1000000))
+     ;; ── the tier lines, LIFTED ABOVE `phases` ─────────────────────────────────────────
+     ;; They were the last three bindings in this let. They are here now only because the
+     ;; INBOX tier's numbers are budget terms and `phases` needs them. ⛔ The WIRE ORDER is
+     ;; unchanged: `s-end` above is still the last thing sent before them, and `phases`,
+     ;; `traces` and the budget block below send nothing at all. Nothing moved but pure
+     ;; arithmetic, and before/after comparability rests on that.
+     inbox-triple (:fanout::tier-line "inbox" inbox-q)
+     inbox-line (:wat::core::first inbox-triple)
+     inbox-store-calls (:wat::core::second inbox-triple)
+     inbox-recv-calls (:wat::core::third inbox-triple)
+     sub-lines
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::String
+           (:wat::core::format "{a} ;; {l}"
+             :a acc
+             :l (:wat::core::first
+                  (:fanout::tier-line
+                    (:wat::core::format "sub[{i}]" :i i)
+                    (:wat::core::nth qclients i)))))
+         ""
+         (:wat::core::range 0 m))
+     ;; ══ THE ROUND-TRIP BUDGET ══════════════════════════════════════════════════════════
+     ;;
+     ;; Builder's ruling: this system is NETWORKING-FIRST, and IPC exists only to simulate
+     ;; networked apps on one machine. Under it the number of times a run crosses a process
+     ;; boundary is the dominant cost, and until this block existed the harness printed
+     ;; THREE crossing counters — `store-calls`, `queue-receive-calls`, `poll-calls` — and
+     ;; nothing else. Every seen-store, worker, topic, topic-worker, publisher-join and
+     ;; fill-poll crossing was invisible.
+     ;;
+     ;; ⛔ THE BUDGET ADDS ZERO ROUND-TRIPS, and that is its one contract. Each term is
+     ;; either (a) the caller's own tally, kept while making a call it was making anyway,
+     ;; or (b) a field lifted off a reply the harness already receives — the seen service's
+     ;; `calls` on the one `Seen/stats`, the workers' `ack-calls` on the `disrupts` reply
+     ;; `collect` already takes, the inbox's two figures on the tier line already printed.
+     ;; ⛔ A count that could not be had free is reported as UNKNOWN in `rt-unknown` rather
+     ;; than bought. An honest gap beats a self-inflating instrument.
+     ;;
+     ;; ⚠ A COUNT IS NOT A COST MODEL. Pricing it at an RTT is arithmetic the reader does,
+     ;; and serialised arithmetic OVERSTATES by whatever concurrency the run achieves —
+     ;; measured at ~3× across ~24 processes here. Do not print a cross-region figure
+     ;; without that beside it.
+     ;;
+     ;; THE PARTITION IS BY PEER CLASS, and `rt-poll` is carved out of `queue`/`topic`/
+     ;; publisher on purpose: it is the harness's own polling and it is the largest single
+     ;; item, so folding it into a subtotal would hide it. Every crossing is in exactly one
+     ;; term.
+     ;;
+     ;; ⚠ NOT INCLUDED, and named so the omission is falsifiable: `connect`/redial,
+     ;; `*/grant`, and service spawn. Those are boundary crossings too; the budget counts
+     ;; request/reply calls only.
+     ;;
+     ;; ⚠ INSTANTS. `s-end` is taken before the m+1 tier-line reads, so those reads' own
+     ;; store traffic (two count-index calls each, sqs.wat:1266) is not inside `rt-store`.
+     ;; The worker terms are as of `disrupts`, one `collect-stop` earlier than `s-end`.
+     ;; The budget is a snapshot of a running system, not a closed ledger.
+     ;;
+     ;; rt-store — queue → sqlite-store. COMPLETE: stores are granted to queue processes
+     ;; only, so `store-calls` is every crossing they receive. Derived from the SAME
+     ;; `store-calls` that reconciles to put+delete+count+scan; not a parallel count.
+     rt-store (:wat::i64::+ (:fanout::Sample/store-calls s-end) inbox-store-calls)
+     ;; rt-queue — everything → queue services. `receive-calls` is per-call and server-side,
+     ;; so it covers every caller (workers, topic-workers, the harness's `empty-flags`).
+     ;; `wack` is the workers' ack calls. The stats term is the harness's own non-poll
+     ;; `Queue/stats` reads: the six boundary samples, `fill-sweep`, and the m+1 tier lines.
+     rt-queue-stats (:wat::i64::+
+                      (:wat::i64::+
+                        (:wat::i64::+ (:fanout::Sample/calls s-pub0) (:fanout::Sample/calls s-arm0))
+                        (:wat::i64::+ (:fanout::Sample/calls s-drain0) (:fanout::Sample/calls s-collect0)))
+                      (:wat::i64::+
+                        (:wat::i64::+ (:fanout::Sample/calls s-stop0) (:fanout::Sample/calls s-end))
+                        (:wat::i64::+ (:wat::core::count fill-sweep)
+                                      (:wat::i64::+ (:wat::core::count qclients) 1))))
+     ;; Printed as three parts as well as a total, so the identity
+     ;;   rt-queue = rt-q-recv + rt-q-ack + rt-q-stats
+     ;; is checkable on the line instead of being taken on trust.
+     rt-q-recv (:wat::i64::+ (:fanout::Sample/receive-calls s-end) inbox-recv-calls)
+     rt-queue (:wat::i64::+ rt-q-recv (:wat::i64::+ wack rt-queue-stats))
+     ;; rt-seen — everything → the seen service. Counted BY the seen service.
+     rt-seen seen-rts
+     ;; rt-worker — harness → fanout workers: `start` (arm) + `disrupts` (collect) + `stop`.
+     rt-worker (:wat::i64::+ (:wat::i64::+ arm-early-rts arm-late-rts)
+                             (:wat::i64::+ worker-disrupt-rts worker-stop-rts))
+     ;; rt-topic — → the topic service: the publishers' `Topic/publish` ATTEMPTS (their own
+     ;; tally, riding the join reply) plus the harness's two `Topic/stats` reads. The poll
+     ;; loops' `Topic/stats` reads are in rt-poll.
+     rt-topic (:wat::i64::+ pub-attempts topic-h-rts)
+     ;; rt-tw — harness → topic-workers: `start` + `stop`, one each.
+     rt-tw (:wat::i64::+ tw-start-rts tw-stop-rts)
+     ;; rt-pub — harness → publishers, outside the join loop: `Publisher/start`.
+     rt-pub pub-start-rts
+     ;; rt-poll — THE HARNESS'S OWN POLLING, all three loops. `poll-calls` (the drain) was
+     ;; the only one ever counted; the fill poller and the publisher join were not.
+     rt-poll (:wat::i64::+ poll-calls (:wat::i64::+ fill-poll-rts pub-join-rts))
+     rt-total (:wat::i64::+
+                (:wat::i64::+ (:wat::i64::+ rt-store rt-queue) (:wat::i64::+ rt-seen rt-worker))
+                (:wat::i64::+ (:wat::i64::+ rt-topic rt-tw) (:wat::i64::+ rt-pub rt-poll)))
+     ;; ⛔ THE HONEST GAP. Three crossing classes cannot be counted from inside this file
+     ;; and are NOT in rt-total:
+     ;;   topic → inbox `Queue/send`      (sns-fanout.wat:114)
+     ;;   topic-worker → sub `Queue/send` (sns-fanout.wat:474)
+     ;;   topic-worker → inbox `Queue/ack`
+     ;; The queue's own counters cannot supply them: `sends-accepted` counts BODIES and
+     ;; `acks` counts IDS, and both of those callers batch, so neither converts to a call
+     ;; count. The callers live in `wat-scripts/topic/sns-fanout.wat`; counting them free
+     ;; means a second file (STOP-3), and asking for them means new round-trips (STOP-1).
+     ;; A BOUND is free, though, and it is printed instead of a guess: the topic-workers
+     ;; cannot have sent more than one batch per subscriber per inbox receive, nor acked
+     ;; more than once per inbox receive.
+     rt-unknown-max (:wat::i64::* inbox-recv-calls (:wat::i64::+ m 1))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2615,19 +2909,24 @@
               :dbms (:fanout::busy-ms s-drain0 s-collect0 m)
               :cbms (:fanout::busy-ms s-collect0 s-stop0 m)
               :sbms (:fanout::busy-ms s-stop0 s-end m)
+              ;; ⭑ THE BUDGET, by peer class. Every one of these was zero-cost to obtain.
+              :rtst rt-store
+              :rtq rt-queue
+              :rtqr rt-q-recv
+              :rtqa wack
+              :rtqs rt-queue-stats
+              :rtsn rt-seen
+              :rtw rt-worker
+              :rtt rt-topic
+              :rttw rt-tw
+              :rtp rt-pub
+              :rtpo rt-poll
+              :rtot rt-total
+              ;; ⛔ Named, not omitted, and not folded into a total it is not in.
+              :rtu "topic-inbox-send+tw-sub-send+tw-inbox-ack"
+              :rtum rt-unknown-max
               :total (ms t-setup0 t-end))
-     traces (:fanout::traces-report (:fanout::traces-of outs))
-     inbox-line (:fanout::tier-line "inbox" inbox-q)
-     sub-lines
-       (:wat::core::foldl
-         (:wat::core::fn [acc <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::String
-           (:wat::core::format "{a} ;; {l}"
-             :a acc
-             :l (:fanout::tier-line
-                  (:wat::core::format "sub[{i}]" :i i)
-                  (:wat::core::nth qclients i))))
-         ""
-         (:wat::core::range 0 m))]
+     traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr} ;; {inbox}{subs}"
         :p phases :tr traces :inbox inbox-line :subs sub-lines))))
@@ -2876,7 +3175,7 @@
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -2921,7 +3220,7 @@
                       (:queue::queue/grant iqh (:fanout::pids pl))))
            :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -3013,7 +3312,7 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
           :record (:fanout::mk-worker "a" "q0" 200000000 350 0
                     (:queue::queue::Handle/addr qh)
@@ -3070,7 +3369,7 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
           :record (:fanout::mk-worker "a" "q0" 200000000 0 350
                     (:queue::queue::Handle/addr qh)
