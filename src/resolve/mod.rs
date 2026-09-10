@@ -155,8 +155,8 @@ mod tests {
 
     #[test]
     fn core_arithmetic_resolves() {
-        assert!(resolve(r#"(:wat::core::i64::+ 1 2)"#).is_ok());
-        assert!(resolve(r#"(:wat::core::i64::* (:wat::core::i64::+ 1 2) 3)"#).is_ok());
+        assert!(resolve(r#"(:wat::i64::+ 1 2)"#).is_ok());
+        assert!(resolve(r#"(:wat::i64::* (:wat::i64::+ 1 2) 3)"#).is_ok());
     }
 
     #[test]
@@ -166,7 +166,7 @@ mod tests {
         // form) to directly test the resolver without requiring macro expansion.
         assert!(resolve(
             r#"
-            (:wat::core::def :my::app::inc (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+ x 1)))
+            (:wat::core::def :my::app::inc (:wat::core::fn [x <- :i64] -> :i64 (:wat::i64::+ x 1)))
             (:my::app::inc 41)
             "#,
         )
@@ -193,8 +193,8 @@ mod tests {
         // since the resolve() test helper does not load stdlib macros.
         assert!(resolve(
             r#"
-            (:wat::core::def :my::app::add-one (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+ x 1)))
-            (:wat::core::def :my::app::double (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2)))
+            (:wat::core::def :my::app::add-one (:wat::core::fn [x <- :i64] -> :i64 (:wat::i64::+ x 1)))
+            (:wat::core::def :my::app::double (:wat::core::fn [x <- :i64] -> :i64 (:wat::i64::* x 2)))
             (:my::app::add-one (:my::app::double 10))
             "#,
         )
@@ -220,7 +220,7 @@ mod tests {
             r#"
             (:my::app::missing-a 1)
             (:my::app::missing-b 2)
-            (:wat::core::i64::+ (:my::app::missing-c) (:my::app::missing-d))
+            (:wat::i64::+ (:my::app::missing-c) (:my::app::missing-d))
             "#,
         )
         .unwrap_err();
@@ -317,13 +317,15 @@ mod tests {
 
     #[test]
     fn namespaced_symbol_head_normalizes_to_keyword() {
-        // `wat.core/i64::+` is a reserved prefix → normalize rewrites it to
-        // `:wat::core::i64::+`; resolve then accepts it as a known builtin.
+        // `wat.i64/+` is a namespaced symbol ref → normalize rewrites it to its
+        // keyword FQDN `:wat::i64::+`; resolve then accepts it because
+        // `:wat::i64::+` IS a registered builtin (src/intrinsic/i64.rs), not
+        // because of any ambient prefix acceptance.
         // Uses the normalize_resolve() helper which runs the 251.1b normalize
         // pass before the standard resolve_references check.
         assert!(
-            normalize_resolve(r#"(wat.core/i64::+ 1 2)"#).is_ok(),
-            "namespaced symbol head wat.core/i64::+ should normalize to :wat::core::i64::+"
+            normalize_resolve(r#"(wat.i64/+ 1 2)"#).is_ok(),
+            "namespaced symbol head wat.i64/+ should normalize to :wat::i64::+"
         );
     }
 
@@ -352,7 +354,7 @@ mod tests {
                 r#"
                 (:wat::core::def :my::app::square
                   (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                    (:wat::core::i64::* x x)))
+                    (:wat::i64::* x x)))
                 (:my::app::square 5)
                 "#
             )
@@ -419,13 +421,13 @@ mod tests {
     #[test]
     fn normalize_skips_quoted_form_symbols() {
         // A namespaced symbol inside `quote` is DATA — never rewritten.
-        let ast = normalize_ast(r#"(:wat::core::quote (wat.core/i64::+ 1 2))"#);
+        let ast = normalize_ast(r#"(:wat::core::quote (wat.i64/+ 1 2))"#);
         assert!(
-            contains_symbol(&ast, "wat.core/i64::+"),
+            contains_symbol(&ast, "wat.i64/+"),
             "symbol inside quote must stay a Symbol (data); got {ast:?}"
         );
         assert!(
-            !contains_keyword(&ast, ":wat::core::i64::+"),
+            !contains_keyword(&ast, ":wat::i64::+"),
             "symbol inside quote must NOT be rewritten to a keyword"
         );
     }
@@ -438,18 +440,18 @@ mod tests {
         // an unresolvable `:scrut::ns::Variant` and `normalize_ast` would panic.
         let ast = normalize_ast(
             r#"(:wat::core::match x
-                  [scrut.ns/Variant {:a a} (wat.core/i64::+ a 1)])"#,
+                  [scrut.ns/Variant {:a a} (wat.i64/+ a 1)])"#,
         );
         assert!(
             contains_symbol(&ast, "scrut.ns/Variant"),
             "match-arm PATTERN symbol must stay a Symbol (data)"
         );
         assert!(
-            contains_keyword(&ast, ":wat::core::i64::+"),
+            contains_keyword(&ast, ":wat::i64::+"),
             "match-arm BODY symbol must be rewritten to its keyword FQDN (code)"
         );
         assert!(
-            !contains_symbol(&ast, "wat.core/i64::+"),
+            !contains_symbol(&ast, "wat.i64/+"),
             "match-arm BODY symbol must not remain a Symbol"
         );
     }
@@ -459,14 +461,14 @@ mod tests {
         // Quasiquote template is DATA except inside unquote/unquote-splicing escapes.
         let ast = normalize_ast(
             r#"(:wat::core::quasiquote
-                  (wat.core/+ (:wat::core::unquote (wat.core/i64::* 2 3))))"#,
+                  (wat.core/+ (:wat::core::unquote (wat.i64/* 2 3))))"#,
         );
         assert!(
             contains_symbol(&ast, "wat.core/+"),
             "quasiquote TEMPLATE symbol must stay a Symbol (data)"
         );
         assert!(
-            contains_keyword(&ast, ":wat::core::i64::*"),
+            contains_keyword(&ast, ":wat::i64::*"),
             "symbol inside an UNQUOTE escape must be rewritten (live code)"
         );
     }
@@ -474,9 +476,9 @@ mod tests {
     #[test]
     fn normalize_rewrites_matches_subject_keeps_pattern() {
         // `matches?` — subject (items[1]) is CODE; pattern (items[2..]) is DATA.
-        let ast = normalize_ast(r#"(:wat::form::matches? (wat.core/i64::+ y 1) (pat.ns/Shape a))"#);
+        let ast = normalize_ast(r#"(:wat::form::matches? (wat.i64/+ y 1) (pat.ns/Shape a))"#);
         assert!(
-            contains_keyword(&ast, ":wat::core::i64::+"),
+            contains_keyword(&ast, ":wat::i64::+"),
             "matches? SUBJECT is code → rewritten"
         );
         assert!(
@@ -494,11 +496,11 @@ mod tests {
         // resolve-alone passes silently (it cannot see the symbol head), while the
         // full normalize→resolve pipeline rewrites then validates it.
         assert!(
-            resolve(r#"(wat.core/i64::+ 1 2)"#).is_ok(),
+            resolve(r#"(wat.i64/+ 1 2)"#).is_ok(),
             "resolve alone is blind to a namespaced symbol head (it is not a Keyword)"
         );
         assert!(
-            normalize_resolve(r#"(wat.core/i64::+ 1 2)"#).is_ok(),
+            normalize_resolve(r#"(wat.i64/+ 1 2)"#).is_ok(),
             "normalize→resolve (correct order) rewrites the symbol head, then validates it"
         );
     }
