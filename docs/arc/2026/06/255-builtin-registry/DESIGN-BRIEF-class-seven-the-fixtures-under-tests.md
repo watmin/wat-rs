@@ -40,9 +40,23 @@ you start. You need a good one, then the floor enumerates the remainder, and eve
 its own file.
 
 ⛔ **This licence does NOT extend to guessing.** Every rename must still be a variant by the
-substrate's own answer, never by its shape — `Cache::GetResponse` is an enum path,
-`OwnedValue::Tagged` is a Rust type path, and `Record::def` is a method. A regex that renames one
-does not fail; it means something else.
+substrate's own answer, never by its shape:
+
+```
+wat::cache::Cache::GetRequest      a live defrecord   (wat/cache.wat:171)      NOT a variant
+wat::cache::HolographicLru::put    a live defn        (wat/cache.wat:294)      NOT a variant
+wat_edn::OwnedValue::Tagged        a Rust type path                            NOT a wat name
+wat::program::PeerKind.thread      VARIANT of wat::program::PeerKind
+```
+
+A regex that renames one of the first three does not fail; it means something else.
+
+⛔⛔ **NEVER BRANCH ON CHARACTER CASE.** `(wat.core/defenum user/some-enum … first [] second [])`
+legally produces `user/some-enum.first`. `Enum.Variant` over `enum.variant` is a BIAS, and a bias is
+not a rule — see `docs/arc/2026/04/109-kill-std/NOTE-character-case-carries-no-meaning.md`. Any
+candidate predicate you write must be case-free; over-generate freely and let the ASK decide, which
+is what makes over-generation safe. Two live variants, `PeerKind.thread` and `PeerKind.process`,
+have lowercase leaves, and a capitalised-leaf grep walks straight past them.
 
 ## The three phases
 
