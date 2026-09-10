@@ -1,0 +1,71 @@
+# FINDING — the overshoot is premature inbox redelivery, and my own stone caused it
+
+Builder: *"correctness matters over speed… if we are incorrect we stop and correct ourselves. Being
+faster but broken is worse."* So defect (a) — the `2010`-of-`2000` overshoot — was chased before
+`rt-store`. **It is not a delivery defect. It is waste, and I introduced it.**
+
+## The mechanism, measured — monotone in one knob
+
+`2000 4 3 8192 true 1000`, **4-way concurrent** (the load that reproduces it), `inbox-vis-ms` swept:
+
+| `inbox-vis-ms` | `fill-excess` across 4 runs | `dup` | `distinct` |
+|---|---|---|---|
+| **50** | **200 · 200 · 280 · 280** | 0 | 8000 |
+| **200** ← shipped | **0 · 40 · 0 · 0** | 0 | 8000 |
+| **1000** | **0 · 0 · 0 · 0** | 0 | 8000 |
+| **5000** ← removed | **0 · 0 · 0 · 0** | 0 | 8000 |
+
+★ **Delivery is correct at every value.** `dup = 0` and `distinct = 8000` throughout: at-least-once holds
+and the consumer's `seen` absorbs the duplicates. **Nothing is lost and nothing is double-delivered to a
+consumer.**
+
+**The mechanism is premature inbox redelivery.** The inbox visibility expires while the topic-worker is
+still fanning out and acking, so the entry becomes visible again, another worker takes it, and the batch
+is fanned **twice** into the sub queues. Shorter visibility → more of it. That is the safety property
+working — and paying for a timeout shorter than the work it protects.
+
+## ⛔ AND IT IS A COST MY OWN STONE INTRODUCED
+
+`3135df9b5` took the inbox visibility from **5 s to 200 ms**, for a 13× fault-latency win. The table above
+shows 5 s had **zero** waste and 200 ms does not.
+
+⛔ **I measured that trade and dismissed it.** The DESIGN priced *"latency against duplicate work"*, the
+executor reported duplicate fan-out *"flat across a 50× range of the knob"*, and I accepted it —
+**but that measurement varied `drop-ack-bp`, a SUB-QUEUE ack loss, not the inbox visibility.** Different
+fault, different quantity, same-looking conclusion. **Sixth time today an instrument answered a narrower
+question than the one asked.**
+
+★★ And the instrument that would have caught it **did not exist yet**: `fill-excess` was created by
+`0e309135f`, three stones later. The counter I *did* have — inbox `redeliveries` — is the one the executor
+had already shown counts **one of four delivery paths**. **The constant was chosen before anything could
+see its cost.**
+
+## ⭑⭑ The trade, with both sides measured for the first time
+
+| `inbox-vis-ms` | fault latency (slow-mode drain, `3135df9b5`) | wasted fan-out (`fill-excess`, today) |
+|---|---|---|
+| 5000 | 5165–5316 ms | 0 |
+| **1000** | **1147–1281 ms** | **0** |
+| 500 | 587–739 ms | not measured |
+| **200** ← shipped | **357–405 ms** | **0–40** |
+| 100 | 341–358 ms | not measured |
+| 50 | ~350 ms (saturated) | 200–280 |
+
+★★★ **1000 ms is Pareto-dominant over the 5 s we removed** — the same zero waste with **4.3× better**
+fault latency. So the stone's *direction* was right and its *distance* was not.
+
+★ **200 vs 1000 is a genuine trade**, not a defect: 3× better fault latency for occasional duplicate
+fan-out. That is a ruling, and the numbers for it now exist on both axes.
+
+## What is owed
+
+⚠ **The lower bound is the worker's receive → fan-out → ack cycle**, and it has never been measured as a
+distribution. A visibility shorter than that tail *guarantees* premature redelivery under load. Banked
+histograms put `fanout` at 1–50 ms and the `inbox` handler at max 63 ms **on an idle box**; the 200 ms row
+above proves the tail exceeds 200 ms under 4-way load. **That distribution is the number that should set
+the constant** — which is exactly the networking-first ruling: declare a constant against what it bounds.
+
+★ And the correctness verdict, stated plainly so it is not mistaken later: **there is no incorrectness to
+stop for.** Delivery is exact at every swept value. What there is, is **a self-inflicted inefficiency
+introduced by a stone that measured the wrong quantity** — which is worth correcting, and is not the same
+thing.
