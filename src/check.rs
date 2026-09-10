@@ -22558,6 +22558,25 @@ fn register_builtins(env: &mut CheckEnv) {
     // Polymorphic predicate: accepts any value; returns true iff the value is
     // Value::Aggregate (Record or HolonRecord nature). Mirrors :wat::holon::to-holon's ∀T pattern.
     env.register(
+        // :wat::core::List? :: :T -> :wat::core::bool
+        //
+        // ⛔ ARC 255 — DECLARED HERE BECAUSE THE STDLIB CALLS IT. `wat/core.wat` invokes
+        // `(:wat::core::List? step)` three times, and until the `:wat::*` blanket died this verb
+        // had NO declaration of any kind: no `#[wat_intrinsic]` row, no `TypeScheme`, only a
+        // dispatch arm (`runtime.rs` → `record::access::eval_list_q`, arity 1). The blanket
+        // accepted the name unvalidated, so nothing ever asked. Same shape as `record?`, just
+        // below: one argument of any type, a `bool` answer. Membership in the registry follows
+        // by DERIVATION from this scheme (`intrinsic/mod.rs`'s fold), not by a hand-list.
+        ":wat::core::List?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    env.register(
         ":wat::core::record?".into(),
         TypeScheme {
             type_params: vec!["T".into()],

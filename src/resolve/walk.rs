@@ -11,7 +11,6 @@ use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
 use super::error::{ResolveError, UnresolvedReference};
 use super::boundary::{is_where_form, quote_boundary, Boundary};
-use super::reserved::is_reserved_prefix;
 use super::rust_use::collect_use_declarations;
 use super::quote::check_quasiquote_template;
 
@@ -258,15 +257,43 @@ fn check_make_rule_when(
 /// `pub(super)` — used by [`super::normalize`] to validate candidate FQDN keywords
 /// before rewriting a namespaced symbol ref (arc 251 stone 251.1b).
 pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry) -> bool {
-    // Kernel, algebra, std, config, and core prefixes are reserved for
-    // the language; accept them as-is. A wrong name under those
-    // prefixes (e.g. :wat::holon::Bogus) fails DOWNSTREAM at
-    // runtime or lowering, but the name-resolution pass is scoped
-    // to catch "no such namespace" mistakes, not "wrong name inside
-    // a known namespace" mistakes. The spec's name-resolution layer
-    // wants the path-prefix shape validated; leaf-level validation
-    // is the type checker's concern.
-    if is_reserved_prefix(head) {
+    // ⛔ THE `:wat::*` BLANKET IS GONE — arc 255's founding sentence, shipped.
+    //
+    // This rung used to read `if is_reserved_prefix(head) { return true; }`: any name under a
+    // reserved prefix was accepted UNVALIDATED, on the reasoning that name resolution catches
+    // "no such namespace" and the type checker catches "wrong name inside a known namespace."
+    // The type checker never did. `:wat::kernel::panic!` and `:wat::string::=` — verbs
+    // implemented NOWHERE — type-checked for months, and a deliberate witness
+    // (`:wat::rete::f64::>X`) sat in the corpus proving it.
+    //
+    // The registry answers it now: a reserved-prefix name is a call head iff the registry KNOWS
+    // it. `contains` ORs the full-contract population (`entries`) with the membership-only one
+    // (`membership_names` — the rete vocabulary, and every name carrying a declared
+    // `TypeScheme`), so the question is asked of the union, once.
+    //
+    // ⛔ AND NO PREFIX IS CONSULTED. `is_reserved_prefix` is not asked here at all — measured,
+    // EVERY registry name is reserved-prefixed, so gating on the prefix first would narrow the
+    // blanket rather than delete it, and would leave a second authority (a prefix list) in front
+    // of the first. One question, one answer: is this a name the registry knows?
+    //
+    // ★ This rung no longer RETURNS on a miss — it falls THROUGH to `sym.get`, unit variants,
+    // macros and surface methods below. The early `return` was the defect that made a naive
+    // replacement look catastrophic: swapping `true` for a registry lookup while KEEPING the
+    // return severs the four rungs beneath it, and measured 600 of 845 corpus files refusing
+    // instead of 97.
+    if crate::intrinsic::registry().contains(head) {
+        return true;
+    }
+    // `:rust::*` has its OWN authority, and it is not the registry — a rust path is legal iff a
+    // `(:wat::core::use! :rust::Type)` declaration covers it, and `check_form` (just above, the
+    // `head.starts_with(":rust::")` block) already asks `UseDeclarations::covers` and emits its own
+    // located diagnostic. Answering here would duplicate that question and answer it WORSE: this
+    // predicate has no `use_decls` to consult. So the rung defers — it accepts the shape and lets
+    // the declaration check adjudicate the name, which it does, on the very next lines.
+    //
+    // ⚠ NOT a surviving blanket. The blanket accepted `:wat::*` names NOTHING validated. Every
+    // `:rust::*` name reaching here IS validated, immediately, by the authority that owns it.
+    if head.starts_with(":rust::") {
         return true;
     }
     // Arc 109 STONE reap-the-angle-machinery — this used to strip turbofish `<T,...>`
