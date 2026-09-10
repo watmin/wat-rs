@@ -825,6 +825,57 @@ impl TypeEnv {
         Ok(())
     }
 
+    /// Arc 296 stone ③b-i, room ⑤b — the variant-type registration door. A sibling of
+    /// [`Self::register_validated`] for the ONE type-registration site that composes a
+    /// name rather than typing one: a variant's own singleton `TypeDef::Enum`
+    /// (minted by [`Self::register_variant_types`]).
+    ///
+    /// This is the FOURTH gate-facing composition site — not one of the three the
+    /// DESIGN doc's own census named, and missed by the brief's STOP-3 too: it reads as
+    /// "compose a name, mint a TypeDef, call `register_with_span`" split across ~250
+    /// lines and two wrapper hops (`register_with_span`/`register_stdlib_with_span` →
+    /// `register_validated` → `resolve::register`), so grepping for "compose then
+    /// register" adjacent to each other does not surface it.
+    ///
+    /// `build` receives the COMPOSED name and returns the `TypeDef` — the composition
+    /// happens ONCE, inside this door, so the def's own `name` field and the name the
+    /// gate sees are guaranteed to be the identical string, never two independently
+    /// composed copies that could drift. `parent`/`variant_leaf` are taken separately for
+    /// the same reason `resolve::register_variant` takes them separately: a caller must
+    /// not be able to hand this door a string it built itself.
+    ///
+    /// `privilege` is still `register_variant_types`' call to make (mirrors the
+    /// `register_with_span`/`register_stdlib_with_span` split exactly as before — only
+    /// the GATE call underneath changes shape, not who decides stdlib-vs-user).
+    fn register_variant_type(
+        &mut self,
+        parent: &str,
+        variant_leaf: &str,
+        privilege: crate::resolve::Privilege,
+        span: Span,
+        build: impl FnOnce(String) -> TypeDef,
+    ) -> Result<(), TypeError> {
+        let name = wat_reader::identifier::compose_variant(parent, variant_leaf);
+        let def = build(name.clone());
+        let existing = match self.types.get(&name) {
+            None => crate::resolve::Existing::Absent,
+            Some(e) if e == &def => crate::resolve::Existing::Equivalent,
+            Some(_) => crate::resolve::Existing::Divergent,
+        };
+        crate::resolve::register_variant(
+            parent,
+            variant_leaf,
+            privilege,
+            existing,
+            &span,
+            || -> Result<(), TypeError> {
+                self.types.insert(name.clone(), def);
+                Ok(())
+            },
+        )?;
+        Ok(())
+    }
+
     /// Privileged internal registration — bypasses the reserved-prefix
     /// gate so wat-rs itself can seed `:wat::*` type declarations via
     /// [`Self::with_builtins`]. Not exposed as `pub`: consumer crates
@@ -1060,17 +1111,27 @@ impl TypeEnv {
                     .cloned()
                     .collect();
                 let span = crate::rust_caller_span!();
-                let singleton = TypeDef::Enum(EnumDef {
-                    name: fqdn.clone(),
-                    type_params: variant_type_params,
-                    purity: e.purity,
-                    variants: vec![v.clone()],
-                });
-                if crate::resolve::is_reserved_prefix(&fqdn) {
-                    self.register_stdlib_with_span(singleton, span.clone())?;
+                let variant_purity = e.purity;
+                let variant_clone = v.clone();
+                let privilege = if crate::resolve::is_reserved_prefix(&fqdn) {
+                    crate::resolve::Privilege::Stdlib
                 } else {
-                    self.register_with_span(singleton, span.clone())?;
-                }
+                    crate::resolve::Privilege::User
+                };
+                // Arc 296 stone ③b-i, room ⑤b — routed through the variant door
+                // (`register_variant_type`), not `register_with_span`/
+                // `register_stdlib_with_span` directly: `(&e.name, v.name())` go in
+                // separately and the composed name comes back out of `build`, so the
+                // singleton's own `name` field and what the gate sees are the SAME
+                // string, composed exactly once.
+                self.register_variant_type(&e.name, v.name(), privilege, span.clone(), move |name| {
+                    TypeDef::Enum(EnumDef {
+                        name,
+                        type_params: variant_type_params,
+                        purity: variant_purity,
+                        variants: vec![variant_clone],
+                    })
+                })?;
                 self.register_subtype(&fqdn, &e.name, span)?;
             }
         }

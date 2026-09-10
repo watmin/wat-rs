@@ -317,8 +317,14 @@ fn preregister_enum_constructors_from_form(
         } else {
             crate::resolve::Existing::Absent
         };
-        crate::resolve::register(
-            &constructor_path,
+        // Arc 296 stone ③b-i — this is the composed variant ctor path, so it goes
+        // through the DOOR door (`register_variant`), which composes `(type_name,
+        // variant_name)` itself rather than receiving the already-composed
+        // `constructor_path` string (kept above only for the `has_function` lookup and
+        // the `register_function` call below).
+        crate::resolve::register_variant(
+            type_name,
+            variant_name,
             privilege,
             cons_existing,
             &form.span().clone(),

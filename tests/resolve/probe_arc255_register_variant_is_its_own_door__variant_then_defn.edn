@@ -1,0 +1,1 @@
+#wat.runtime/DuplicateDefine {:message "duplicate define: :my::app::Foo::Bar already registered" :location #wat.core/Span {:file "src/declare/register.rs" :line 1352 :col 29 :end #wat.core/Option.None {}} :causes [] :name ":my::app::Foo::Bar"}

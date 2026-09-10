@@ -30,6 +30,26 @@ pub enum Privilege {
     User,
 }
 
+/// Arc 296 stone ③b-i — HOW the name reaching the gate was made. `Privilege` says WHO
+/// made the name; `NameOrigin` says HOW THE NAME WAS MADE. Two axes, one table, told
+/// apart by an explicit parameter rather than by a call-site bypass.
+///
+/// `DottedName` (H-1) is the one arm this gates: a name a caller TYPED is refused if its
+/// leaf carries a dot; a name the grammar's own `compose_variant` COMPOSED from separate
+/// `(parent, leaf)` halves is exempt — not because the wall weakened, but because the
+/// only entry point that accepts a `ComposedVariant` origin never receives a dotted
+/// string in the first place, it receives the two halves and builds the name itself
+/// (see [`register_variant`]). See
+/// `docs/arc/2026/06/255-builtin-registry/DESIGN-the-variant-name-is-COMPOSED-never-TYPED.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NameOrigin {
+    /// A name a caller TYPED — a def form's own name. A name-half dot is refused.
+    Declared,
+    /// A name the grammar's own `compose_variant` built from (parent, leaf). Its dot,
+    /// when the variant separator becomes one, is the composer's, not a caller's.
+    ComposedVariant,
+}
+
 /// What the caller found in its OWN registry for this name, before registering. The
 /// caller computes this (each registry keys differently, and "equivalent" means
 /// structural-equivalence for macros, `==` for types, etc.); the gate reasons over the
@@ -99,11 +119,11 @@ fn has_dotted_name(name: &str) -> bool {
 /// THE gate. The rule + ordering, once:
 ///
 /// ```text
-///   Existing::Equivalent                        -> NoOp       (benign re-declaration)
-///   Existing::Divergent                         -> Duplicate
-///   Absent + !namespaced                         -> Unnamespaced
-///   Absent + namespaced + dotted name             -> DottedName
-///   Absent + namespaced + undotted + reserved + Privilege::User -> Reserved
+///   Existing::Equivalent                                            -> NoOp       (benign re-declaration)
+///   Existing::Divergent                                             -> Duplicate
+///   Absent + !namespaced                                             -> Unnamespaced
+///   Absent + namespaced + Declared + dotted name                     -> DottedName   (origin-gated)
+///   Absent + namespaced + undotted + reserved + Privilege::User      -> Reserved
 ///   Absent + namespaced + undotted + (Privilege::Stdlib | !reserved) -> Insert
 /// ```
 ///
@@ -122,14 +142,26 @@ fn has_dotted_name(name: &str) -> bool {
 /// `Reserved`, on the same footing as `Unnamespaced`: it is a WALL, not a
 /// privilege-gated permission, so it is held even against `Privilege::Stdlib` — there is
 /// no privilege escape from it, exactly as there is none from the namespacing wall.
-fn gate(name: &str, privilege: Privilege, existing: Existing) -> Registration {
+///
+/// Arc 296 stone ③b-i adds one condition to this arm, and only this arm: the wall fires
+/// only when `origin == NameOrigin::Declared`, i.e. the name is a caller's own typed
+/// name. A `NameOrigin::ComposedVariant` name is exempt — not a weakening of H-1, because
+/// the only way to reach the gate with that origin is through [`register_variant`], which
+/// never receives a dotted string from a caller; it receives `(parent, leaf)` separately
+/// and composes the name itself via `compose_variant`. The EDN wire discriminator stays
+/// sound by construction: a dot in the name half still means "variant", because the only
+/// path that can produce one is the grammar's own composer, never a caller-typed string.
+/// Every other wall — `Duplicate`, `Unnamespaced`, `Reserved` — applies to a composed
+/// variant exactly as it does to a declared name; a user still cannot compose a variant
+/// name under a reserved prefix they don't own.
+fn gate(name: &str, origin: NameOrigin, privilege: Privilege, existing: Existing) -> Registration {
     match existing {
         Existing::Equivalent => Registration::NoOp,
         Existing::Divergent => Registration::Duplicate,
         Existing::Absent => {
             if !is_namespaced(name) {
                 Registration::Unnamespaced
-            } else if has_dotted_name(name) {
+            } else if origin == NameOrigin::Declared && has_dotted_name(name) {
                 Registration::DottedName
             } else if privilege == Privilege::User && is_reserved_prefix(name) {
                 Registration::Reserved
@@ -185,10 +217,63 @@ pub fn register<T, E>(
 where
     E: From<Rejection>,
 {
-    match gate(name, privilege, existing) {
+    match gate(name, NameOrigin::Declared, privilege, existing) {
         Registration::Insert => insert().map(Some),
         Registration::NoOp => Ok(None),
         verdict => Err(E::from(Rejection { verdict, name: name.to_string(), span: span.clone() })),
+    }
+}
+
+/// Arc 296 stone ③b-i — the DOOR door. A sibling of [`register`], same generic shape,
+/// for the one caller that composes a name rather than typing one: an enum's variant
+/// constructor path.
+///
+/// Takes `parent` and `variant_leaf` SEPARATELY — on purpose, and this is the whole
+/// ruling, not an implementation detail. A caller must not be able to hand this door a
+/// string it built itself; if it holds only the already-composed string, the ruling's
+/// premise is wrong (see the brief's STOP-4), not a reason to widen this signature to
+/// accept one. Composing internally via `wat_reader::identifier::compose_variant` is what
+/// lets the gate trust `NameOrigin::ComposedVariant`: the dot (once the variant separator
+/// becomes one) is the composer's, never a caller's.
+///
+/// `register` keeps refusing a dot in a name a caller typed; `register_variant` accepts
+/// the dot because it wrote it. See
+/// `docs/arc/2026/06/255-builtin-registry/DESIGN-the-variant-name-is-COMPOSED-never-TYPED.md`.
+///
+/// ⛔ Precondition on the door's OWN input, not a dot-count on the composed output:
+/// `variant_leaf` itself must carry no `.`. `gate`'s `ComposedVariant` arm is untouched —
+/// still exactly the one origin-gated condition room② describes — because the wall this
+/// door must not let slip is upstream of the gate, in what `variant_leaf` is ALLOWED to
+/// be. Without this, `register_variant(":my::Shape", "Circle.Baz", …)` would compose
+/// `:my::Shape::Circle.Baz`, and — once the variant separator itself becomes `.` — that
+/// string decodes via `edn/render.rs`'s `split_variant_tag_name` (`rfind('.')`) as enum
+/// `Shape.Circle`, variant `Baz`: a silent misdecode, the same shape H-1 exists to
+/// prevent, now reachable through the composer's OWN leaf argument instead of a caller's
+/// typed name. The rejection's `name` is still the composed string, so the error names
+/// what was refused, not merely the raw leaf.
+///
+/// Checked only when `existing != Existing::Equivalent` — same idempotent-before-every-
+/// wall invariant this module documents at the top (`register`'s doc comment): a benign
+/// re-declaration is never blocked by ANY wall, this one included.
+pub fn register_variant<T, E>(
+    parent: &str,
+    variant_leaf: &str,
+    privilege: Privilege,
+    existing: Existing,
+    span: &Span,
+    insert: impl FnOnce() -> Result<T, E>,
+) -> Result<Option<T>, E>
+where
+    E: From<Rejection>,
+{
+    let name = wat_reader::identifier::compose_variant(parent, variant_leaf);
+    if existing != Existing::Equivalent && variant_leaf.contains('.') {
+        return Err(E::from(Rejection { verdict: Registration::DottedName, name, span: span.clone() }));
+    }
+    match gate(&name, NameOrigin::ComposedVariant, privilege, existing) {
+        Registration::Insert => insert().map(Some),
+        Registration::NoOp => Ok(None),
+        verdict => Err(E::from(Rejection { verdict, name, span: span.clone() })),
     }
 }
 
@@ -201,81 +286,81 @@ mod tests {
         // The load-bearing fix: a benign re-declaration is NEVER blocked by the gate,
         // regardless of privilege or reservedness. This is the fork case (the child
         // re-declaring a baked `:wat::` form it already holds).
-        assert_eq!(gate(":wat::query::Store", Privilege::User, Existing::Equivalent), Registration::NoOp);
-        assert_eq!(gate(":wat::query::Store", Privilege::Stdlib, Existing::Equivalent), Registration::NoOp);
-        assert_eq!(gate(":rust::sqlite::Db", Privilege::User, Existing::Equivalent), Registration::NoOp);
-        assert_eq!(gate(":my::Thing", Privilege::User, Existing::Equivalent), Registration::NoOp);
+        assert_eq!(gate(":wat::query::Store", NameOrigin::Declared, Privilege::User, Existing::Equivalent), Registration::NoOp);
+        assert_eq!(gate(":wat::query::Store", NameOrigin::Declared, Privilege::Stdlib, Existing::Equivalent), Registration::NoOp);
+        assert_eq!(gate(":rust::sqlite::Db", NameOrigin::Declared, Privilege::User, Existing::Equivalent), Registration::NoOp);
+        assert_eq!(gate(":my::Thing", NameOrigin::Declared, Privilege::User, Existing::Equivalent), Registration::NoOp);
     }
 
     #[test]
     fn divergent_redeclaration_is_duplicate_regardless_of_privilege() {
-        assert_eq!(gate(":wat::query::Store", Privilege::Stdlib, Existing::Divergent), Registration::Duplicate);
-        assert_eq!(gate(":wat::query::Store", Privilege::User, Existing::Divergent), Registration::Duplicate);
-        assert_eq!(gate(":my::Thing", Privilege::User, Existing::Divergent), Registration::Duplicate);
+        assert_eq!(gate(":wat::query::Store", NameOrigin::Declared, Privilege::Stdlib, Existing::Divergent), Registration::Duplicate);
+        assert_eq!(gate(":wat::query::Store", NameOrigin::Declared, Privilege::User, Existing::Divergent), Registration::Duplicate);
+        assert_eq!(gate(":my::Thing", NameOrigin::Declared, Privilege::User, Existing::Divergent), Registration::Duplicate);
     }
 
     #[test]
     fn new_reserved_name_from_user_is_rejected() {
-        assert_eq!(gate(":wat::query::Store", Privilege::User, Existing::Absent), Registration::Reserved);
-        assert_eq!(gate(":rust::sqlite::Db", Privilege::User, Existing::Absent), Registration::Reserved);
+        assert_eq!(gate(":wat::query::Store", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Reserved);
+        assert_eq!(gate(":rust::sqlite::Db", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Reserved);
     }
 
     #[test]
     fn new_reserved_name_from_stdlib_inserts() {
-        assert_eq!(gate(":wat::query::Store", Privilege::Stdlib, Existing::Absent), Registration::Insert);
-        assert_eq!(gate(":rust::sqlite::Db", Privilege::Stdlib, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":wat::query::Store", NameOrigin::Declared, Privilege::Stdlib, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":rust::sqlite::Db", NameOrigin::Declared, Privilege::Stdlib, Existing::Absent), Registration::Insert);
     }
 
     #[test]
     fn new_user_name_inserts_under_either_privilege() {
-        assert_eq!(gate(":my::Thing", Privilege::User, Existing::Absent), Registration::Insert);
-        assert_eq!(gate(":my::Thing", Privilege::Stdlib, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":my::Thing", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":my::Thing", NameOrigin::Declared, Privilege::Stdlib, Existing::Absent), Registration::Insert);
     }
 
     #[test]
     fn bare_name_from_user_is_unnamespaced() {
-        assert_eq!(gate(":no-ns", Privilege::User, Existing::Absent), Registration::Unnamespaced);
+        assert_eq!(gate(":no-ns", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Unnamespaced);
     }
 
     #[test]
     fn namespaced_user_name_inserts() {
-        assert_eq!(gate(":my::ok", Privilege::User, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":my::ok", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Insert);
     }
 
     #[test]
     fn parametric_head_without_leading_colon_is_namespaced() {
-        assert_eq!(gate("wat::kernel::Peer", Privilege::Stdlib, Existing::Absent), Registration::Insert);
+        assert_eq!(gate("wat::kernel::Peer", NameOrigin::Declared, Privilege::Stdlib, Existing::Absent), Registration::Insert);
     }
 
     #[test]
     fn bare_name_from_stdlib_is_still_unnamespaced() {
         // No privilege escape from the namespacing wall.
-        assert_eq!(gate(":no-ns", Privilege::Stdlib, Existing::Absent), Registration::Unnamespaced);
+        assert_eq!(gate(":no-ns", NameOrigin::Declared, Privilege::Stdlib, Existing::Absent), Registration::Unnamespaced);
     }
 
     #[test]
     fn bare_name_idempotent_replay_still_noops() {
-        assert_eq!(gate(":no-ns", Privilege::User, Existing::Equivalent), Registration::NoOp);
+        assert_eq!(gate(":no-ns", NameOrigin::Declared, Privilege::User, Existing::Equivalent), Registration::NoOp);
     }
 
     // ─── Arc 296 stone H-1 — the dot wall ──────────────────────────────
 
     #[test]
     fn dotted_name_from_user_is_rejected() {
-        assert_eq!(gate(":my::Shape.Circle", Privilege::User, Existing::Absent), Registration::DottedName);
+        assert_eq!(gate(":my::Shape.Circle", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::DottedName);
     }
 
     #[test]
     fn dotted_name_from_stdlib_is_still_rejected() {
         // No privilege escape from the dot wall, same as Unnamespaced.
-        assert_eq!(gate(":wat::telemetry::Numeric.I64", Privilege::Stdlib, Existing::Absent), Registration::DottedName);
+        assert_eq!(gate(":wat::telemetry::Numeric.I64", NameOrigin::Declared, Privilege::Stdlib, Existing::Absent), Registration::DottedName);
     }
 
     #[test]
     fn dot_in_namespace_half_is_untouched() {
         // Only the segment AFTER the last `::` is checked; a dot earlier in the path
         // (however unlikely) does not trip the wall.
-        assert_eq!(gate(":my::v1.2::Thing", Privilege::User, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":my::v1.2::Thing", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Insert);
     }
 
     #[test]
@@ -283,6 +368,86 @@ mod tests {
         // A benign equivalent re-declaration is never blocked, even for a name that
         // would fail the dot wall on first registration — same ordering guarantee as
         // Unnamespaced/Reserved.
-        assert_eq!(gate(":my::Shape.Circle", Privilege::User, Existing::Equivalent), Registration::NoOp);
+        assert_eq!(gate(":my::Shape.Circle", NameOrigin::Declared, Privilege::User, Existing::Equivalent), Registration::NoOp);
+    }
+
+    // ─── Arc 296 stone ③b-i — the composed-variant door ────────────────
+
+    #[test]
+    fn composed_variant_dotted_leaf_inserts() {
+        // The new arm, non-vacuous: a name with the SAME shape that DottedName refuses
+        // under Declared is accepted under ComposedVariant — because the only way to
+        // reach the gate with that origin is through `register_variant`, which composed
+        // the dot itself rather than receiving it from a caller.
+        assert_eq!(
+            gate(":my::Shape.Circle", NameOrigin::ComposedVariant, Privilege::User, Existing::Absent),
+            Registration::Insert
+        );
+    }
+
+    #[test]
+    fn declared_name_with_two_dots_is_still_refused() {
+        // D is not "any dot is fine" the way retracted option C was ("a leaf may carry
+        // AT MOST ONE dot" — a syntactic count threshold, applied regardless of origin).
+        // D's `Declared` arm is a pure presence check, not a count: a leaf with TWO dots
+        // is refused exactly as a leaf with one dot is (see
+        // `dotted_name_from_user_is_rejected`) — there is no threshold to cross.
+        assert_eq!(
+            gate(":my::Shape.Circle.Extra", NameOrigin::Declared, Privilege::User, Existing::Absent),
+            Registration::DottedName
+        );
+    }
+
+    #[test]
+    fn composed_variant_under_reserved_prefix_from_user_is_still_reserved() {
+        // A user still cannot define a variant under `:wat::*` — the composed origin
+        // exempts only the DottedName wall; Reserved fires exactly as it would for a
+        // declared name.
+        assert_eq!(
+            gate(":wat::telemetry::Numeric.I64", NameOrigin::ComposedVariant, Privilege::User, Existing::Absent),
+            Registration::Reserved
+        );
+    }
+
+    // ─── Arc 296 stone ③b-i, room ⑤a — the precondition on the door's own input ────
+
+    #[test]
+    fn register_variant_refuses_a_dotted_variant_leaf() {
+        // `variant_leaf` itself carrying a `.` is refused BEFORE `gate` is ever
+        // consulted — this is not a dot-count on the composed name (`gate`'s
+        // `ComposedVariant` arm is untouched, see `composed_variant_dotted_leaf_inserts`
+        // above), it is a precondition on the one thing `register_variant` receives from
+        // its caller rather than composing itself. Without it, `compose_variant(":my::
+        // Shape", "Circle.Baz")` → `:my::Shape::Circle.Baz` would insert — and once the
+        // variant separator becomes `.`, that string decodes as enum `Shape.Circle`,
+        // variant `Baz`, exactly the misdecode H-1 exists to prevent.
+        let err = register_variant::<(), Rejection>(
+            ":my::Shape",
+            "Circle.Baz",
+            Privilege::User,
+            Existing::Absent,
+            &crate::rust_caller_span!(),
+            || Ok(()),
+        )
+        .unwrap_err();
+        assert_eq!(err.verdict, Registration::DottedName);
+        assert_eq!(err.name, ":my::Shape::Circle.Baz");
+    }
+
+    #[test]
+    fn register_variant_dotted_leaf_precondition_does_not_block_an_equivalent_replay() {
+        // Idempotent-before-every-wall: an equivalent re-declaration is never blocked,
+        // even one shaped so it would fail the new precondition on first registration —
+        // same ordering guarantee `dotted_name_idempotent_replay_still_noops` pins for
+        // the `Declared` door.
+        let result = register_variant::<(), Rejection>(
+            ":my::Shape",
+            "Circle.Baz",
+            Privilege::User,
+            Existing::Equivalent,
+            &crate::rust_caller_span!(),
+            || Ok(()),
+        );
+        assert!(result.is_ok(), "an equivalent replay must NoOp, not refuse: {result:?}");
     }
 }

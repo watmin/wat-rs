@@ -93,7 +93,9 @@ mod walk;
 // macros/registry.rs, closure_extract.rs).
 pub use error::{ResolveError, UnresolvedReference};
 pub use normalize::normalize_symbol_refs;
-pub use registration::{is_namespaced, register, Existing, Privilege, Registration, Rejection};
+pub use registration::{
+    is_namespaced, register, register_variant, Existing, Privilege, Registration, Rejection,
+};
 pub use reserved::{is_reserved_prefix, reserved_prefix_list};
 pub use walk::resolve_references;
 pub(crate) use rust_use::collect_use_declarations;
