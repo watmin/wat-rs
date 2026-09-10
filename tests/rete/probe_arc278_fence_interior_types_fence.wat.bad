@@ -1,0 +1,21 @@
+;; tests/rete/probe_arc278_fence_interior_types_fence.wat.bad
+;; RED-at-HEAD: a `where` FENCE's interior receives no type checking at all.
+;; rune:lint(bad-is-banked) — the fence interior must be type-checked exactly as an inline clause is banked-by: fence_interior_type_error_is_refused
+;;   `string::=` over two i64-bound vars. `src/rete/validate/mod.rs:282`'s
+;;   `ReteClauseShape::Where(_) => {}` inspects nothing inside the fence, so this
+;;   starts up CLEAN and `.bad` is an aspiration. The IDENTICAL predicate written
+;;   inline is `ConstraintTypeMismatch` — see the `_inline.wat.bad` twin.
+;;
+;; ⛔ THE PREDICATE READS BOTH CONDITIONS ON PURPOSE. A fence needing only one
+;; condition's bindings is the hoistable/join-blowup form the corpus was migrated
+;; away from at `feb5fae91`; a fixture in a teaching directory must not re-teach it.
+;; `?k` and `?j` come from different conditions, so this fence is LEGITIMATE in
+;; placement and wrong ONLY in type — which is exactly the hole under test.
+
+(:wat::core::defrecord :tgb::N [k <- :wat::core::i64])
+
+(:wat::rete::defrule :tgb::fence-is-not-typed
+  :when [(:tgb::N (?k <- :k))
+         (:tgb::N (?j <- :k))
+         (:wat::rete::where (:wat::rete::core::string::= ?k ?j))]
+  :then [])

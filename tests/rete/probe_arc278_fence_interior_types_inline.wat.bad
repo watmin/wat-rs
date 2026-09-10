@@ -1,0 +1,18 @@
+;; tests/rete/probe_arc278_fence_interior_types_inline.wat.bad
+;; THE CONTROL — the same predicate, inline, and it FAILS TODAY.
+;;
+;; Not banked, not ignored: this fixture is refused at HEAD and must stay refused.
+;; It is what makes the banked fence twin mean something — without it, an unlocked
+;; `fence_interior_type_error_is_refused` going red would not distinguish "the fence
+;; is unchecked" from "this predicate was fine all along".
+;;
+;; Driven at HEAD (release binary, with a main): `ConstraintTypeMismatch` —
+;;   "`:wat::rete::core::string::=` compares at `string`, but operand `?k` has type
+;;    `i64` — use the rete comparator for `i64`"
+
+(:wat::core::defrecord :tgi::N [k <- :wat::core::i64])
+
+(:wat::rete::defrule :tgi::inline-is-typed
+  :when [(:tgi::N (?k <- :k))
+         (:tgi::N (?j <- :k) (:wat::rete::core::string::= ?k ?j))]
+  :then [])
