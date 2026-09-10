@@ -937,9 +937,11 @@ impl TypeEnv {
     /// stored WITHOUT its leading colon by convention (see that function's doc), while
     /// every `TypeEnv` registry key IS colon-prefixed; without this normalization the
     /// parent lookup below silently misses every parametric variant (`Option::Some`
-    /// included) and the join never fires. The path/leaf split itself goes through
-    /// `wat_reader::identifier`'s accessors — **not** a hand-rolled `rfind`; the
-    /// one-name-grammar lint bans that literal shape outside `identifier.rs`. The
+    /// included) and the join never fires. The split itself goes through
+    /// `wat_reader::identifier::decompose_variant` — the paired inverse of
+    /// `compose_variant`, not a hand-rolled `rfind`; the one-name-grammar lint bans
+    /// that literal shape outside `identifier.rs`. `None` from the split (no `::`
+    /// present) is "not a variant", the same answer `path`'s old `""` guard gave. The
     /// returned string is the enum's OWN stored `.name` (always canonically
     /// colon-prefixed), not a re-assembled guess — so a caller building a `TypeExpr::Path`
     /// from it is correct as-is, and one building a `TypeExpr::Parametric.head` must
@@ -947,11 +949,7 @@ impl TypeEnv {
     /// caller in this file already carries).
     pub(crate) fn variant_parent_enum(&self, name: &str) -> Option<&str> {
         let fq = parametric_head_fqdn(name);
-        let parent = wat_reader::identifier::path(&fq);
-        if parent.is_empty() {
-            return None;
-        }
-        let leaf = wat_reader::identifier::leaf(&fq);
+        let (parent, leaf) = wat_reader::identifier::decompose_variant(&fq)?;
         match self.get(parent) {
             Some(TypeDef::Enum(e)) if e.variants.iter().any(|v| v.name() == leaf) => {
                 Some(e.name.as_str())

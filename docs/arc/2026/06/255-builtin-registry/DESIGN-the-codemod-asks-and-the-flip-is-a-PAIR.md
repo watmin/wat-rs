@@ -28,6 +28,40 @@ The flip therefore needs a variant-specific DECOMPOSER paired with the variant-s
 composer; it now has a composer whose inverse is a general accessor that does not know it is about
 variants. Naming the pair is what makes the separator movable.
 
+## ⛔⛔ CORRECTED — IT IS NOT A PAIR. THE DECOMPOSITION SIDE IS ~45 SITES.
+
+This design said *"the separator is one decision, and it is spelled in exactly these two function
+bodies."* **Measured after ③a landed: FALSE.** `variant_parent_enum` was not the only decomposer.
+
+```
+src/record/construct.rs:261  if !head.contains("::") { return None; }      ← a THIRD spelling
+src/record/construct.rs:264  let type_path    = identifier::path(head);
+src/record/construct.rs:265  let variant_name = identifier::leaf(head);
+                             then `types.get(type_path)` → `TypeDef::Enum`
+```
+
+That is the VARIANT CONSTRUCTOR path, decomposing exactly as `variant_parent_enum` did — and the
+`contains("::")` guard above it spells the separator a third time in three lines.
+
+Wider census, on the tree with ③a landed:
+
+```
+raw separator splits (contains/rfind/rsplit/split on "::") outside identifier.rs ...... 45
+files that do that AND touch `TypeDef::Enum` ........................................... 7
+```
+
+★ **The composition door collapsed 15 sites into 1. The decomposition side has ~45 split sites and
+has not been collapsed at all** — most are NAMESPACE splits, which are correct and must stay
+general; an unknown subset are VARIANT splits, which must move to `decompose_variant`.
+
+⚠ **So the flip is not two lines and it is not two bodies.** Before ③b can land, the ~45 need
+splitting by KIND — variant separator vs namespace separator — and that is a census, not a guess.
+`[[feedback_a_pattern_that_matches_a_subset_is_not_a_census]]`
+
+★★ ③a is still correct and still the right first step: it pairs the composer and routes the
+registry's own lookup through the pair. It is a STEP, not the set — and this correction exists
+because I wrote "exactly these two" without counting.
+
 ## ② THE CODEMOD — it ASKS, it does not match
 
 `wat-scripts/fixes/variant-colons-to-dot.wat`, shaped after

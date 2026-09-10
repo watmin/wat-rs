@@ -363,6 +363,31 @@ pub fn compose_variant(enum_path: &str, variant_name: &str) -> String {
     format!("{enum_path}::{variant_name}")
 }
 
+/// The INVERSE of [`compose_variant`]: split a variant's LOOKUP/keyword spelling
+/// (`enum_path::variant_name`) back into `(enum_path, variant_name)`.
+///
+/// The two must always agree — the separator is one decision, and it is spelled in
+/// exactly these two function bodies. `compose_variant` writes `::`; this reads `::`.
+/// Moving the separator means changing both, together, in this file only.
+///
+/// This exists as its own function, rather than a caller reaching for [`path`]/[`leaf`]
+/// above, because those two are GENERAL splitters used for every namespaced name in the
+/// substrate — they cannot be given a variant-specific separator without breaking every
+/// other namespaced name that also goes through them. The variant pair is deliberately
+/// narrow so the general grammar can stay general.
+///
+/// And it lives here, beside `compose_variant`, rather than as a hand-rolled `rfind` at
+/// its one caller (`TypeEnv::variant_parent_enum`, `src/types.rs`): the one-name-grammar
+/// lint bans a hand-rolled `rfind` outside `identifier.rs`.
+///
+/// `None` when `name` has no `::` — mirroring [`path`]'s `""` return for the same input,
+/// which callers already treat as "not a variant" (e.g. `variant_parent_enum`'s
+/// `parent.is_empty()` guard).
+pub fn decompose_variant(name: &str) -> Option<(&str, &str)> {
+    let idx = name.rfind("::")?;
+    Some((&name[..idx], &name[idx + 2..]))
+}
+
 /// Compose an enum variant's RENDER spelling: `enum_leaf.variant_name`.
 ///
 /// Distinct from [`compose_variant`], not a mode flag on it: the two EDN
