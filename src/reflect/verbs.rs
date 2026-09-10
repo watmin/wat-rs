@@ -1673,3 +1673,90 @@ pub(crate) fn eval_variant_parent_of(
         .map(|p| Value::wat__core__keyword(Arc::new(p.to_string())));
     Ok(Value::Option(Arc::new(parent)))
 }
+
+/// `(:wat::runtime::compose-variant <enum-keyword> <variant-keyword>) -> :wat::core::keyword`
+///
+/// Arc 255 (`DESIGN-the-composition-door-gets-a-wat-surface`) — the composition sibling of
+/// `variant-parent-of`. That verb let wat ASK what a variant's parent enum is; this verb lets
+/// wat BUILD a variant's name, so `wat/service.wat`'s thirteen `string::interpolate` sites (each
+/// hand-spelling the variant separator inside a string literal — `"{b}::Admin::Init"`) no longer
+/// need to know what the separator is. The body is
+/// `wat_reader::identifier::compose_variant(enum_path, variant_leaf)` and nothing else: the
+/// separator lives in ONE file, and this verb is how wat reaches it.
+///
+/// Both args are literal-or-computed — the same door as `variant-parent-of` (arc 166's
+/// `eval_lookup_define`, NOT `is-type?`'s literal-only one). `service.wat` passes a COMPUTED
+/// enum keyword (built via `keyword::from-string` over an interpolated string); a literal-only
+/// door would be unusable by its only caller — the mistake this arc already made once
+/// (`variant-parent-of` shipped literal-only, passed every gate, and was unusable by its only
+/// caller) and is not making twice.
+///
+/// ⚠ It composes; it does not validate. Total, not Partial: unlike `variant-parent-of` there is
+/// no type-env lookup and no `Option` — a name composed for an enum that does not exist is simply
+/// a name that does not resolve, which is the caller's error and surfaces where the name is used.
+/// A validating twin (`compose-variant-checked`) would be a different verb, and no caller has
+/// asked for one.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Total
+/// @ExpandTime    Legal
+/// @Category      Reflection
+/// @arg     enum_kw_ast :wat::core::keyword the enum's namespaced path (a literal keyword, or an expression yielding one)
+/// @arg     variant_kw_ast :wat::core::keyword the bare variant leaf (a literal keyword, or an expression yielding one)
+/// @ret     :wat::core::keyword the composed variant name, `enum_path.variant_leaf` (`wat_reader::identifier::compose_variant`)
+/// @example (:wat::runtime::compose-variant :wat::cache::Lru :Hit) #=> :wat::cache::Lru.Hit
+/// @example (:wat::runtime::compose-variant (:wat::keyword::from-string "wat::cache::Lru") :Hit) #=> wat::cache::Lru.Hit
+/// @see     :wat::runtime::variant-parent-of
+#[wat_intrinsic(":wat::runtime::compose-variant")]
+pub(crate) fn eval_compose_variant(
+    enum_kw_ast: &WatAST,
+    variant_kw_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::compose-variant";
+    // ⛔ LITERAL-OR-COMPUTED, and the fallback is load-bearing — arc 166's door
+    // (`eval_lookup_define`), NOT `is-type?`'s literal-only one. See the doc comment above:
+    // `service.wat` presents a computed enum keyword, so a literal-only door made
+    // `variant-parent-of` unusable by its only consumer once already.
+    fn resolve_kw(
+        ast: &WatAST,
+        env: &Environment,
+        sym: &SymbolTable,
+        op: &str,
+    ) -> Result<String, EvalBreak> {
+        if let WatAST::Keyword(k, _) = ast {
+            Ok(k.clone())
+        } else {
+            let v = crate::runtime::eval_inner(ast, env, sym)?.value_owned();
+            match &v {
+                Value::wat__core__keyword(k) => Ok(k.as_ref().clone()),
+                _ => Err(RuntimeError::new(
+                    ast.span().clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: op.into(),
+                        expected: ":wat::core::keyword (a literal, or an expression yielding one)",
+                        got: Box::new(ValueSnapshot::of(&v)),
+                    },
+                )
+                .into()),
+            }
+        }
+    }
+    let enum_kw = resolve_kw(enum_kw_ast, env, sym, OP)?;
+    let variant_kw = resolve_kw(variant_kw_ast, env, sym, OP)?;
+    // The body: `wat_reader::identifier::compose_variant` and nothing else — the separator
+    // lives in ONE file (`crates/wat-reader/src/identifier.rs`).
+    // The variant LEAF is colon-free: a keyword's stored spelling carries its `:`
+    // (`:PeersDenied`), and composing that verbatim yields `…Status.:PeersDenied` — a name
+    // whose decomposed variant can never match the enum's declared `PeersDenied`. The enum
+    // path KEEPS its colon; it is an FQDN. Same boundary `keyword::from-string` polices on
+    // the way in (it refuses a leading colon) and `keyword::to-string` on the way out.
+    let composed = wat_reader::identifier::compose_variant(
+        &enum_kw,
+        variant_kw.strip_prefix(':').unwrap_or(&variant_kw),
+    );
+    Ok(Value::wat__core__keyword(Arc::new(composed)))
+}

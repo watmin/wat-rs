@@ -958,8 +958,9 @@
      ;; onto every `<S>::Reply` by `synthesize_surface_protocol` (src/types.rs). The serve loop
      ;; replies `(Reply::Failed cause)` to a client whose message could not be decoded, and the
      ;; generated client method surfaces it as an unignorable raise carrying the cause's reason.
-     reply-failed-kw (:wat::keyword::from-string
-                       (:wat::string::interpolate "{proto-base}::Reply::Failed" :proto-base proto-base))
+     reply-failed-kw (:wat::runtime::compose-variant
+                       (:wat::keyword::from-string (:wat::string::interpolate "{proto-base}::Reply" :proto-base proto-base))
+                       :Failed)
      serve-name    (:wat::keyword::from-string
                      (:wat::string::interpolate "{b}::serve" :b fqdn-base))
      ;; Arc 209 host-parity-4a — the serve fqdn as a STRING, spliced into start's
@@ -1115,36 +1116,48 @@
      ;; in `src/resolve/walk.rs` already covers the "signature captured as a first-class value"
      ;; path this comment used to flag as the open question).
      lineage-peer-ty `(:wat::kernel::ThreadSelfPeer :- [~status-ty-ann ~admin-ty-ann])
-     admin-init-kw  (:wat::keyword::from-string
-                      (:wat::string::interpolate "{b}::Admin::Init" :b fqdn-base))
-     admin-stop-kw  (:wat::keyword::from-string
-                      (:wat::string::interpolate "{b}::Admin::Stop" :b fqdn-base))
+     admin-init-kw  (:wat::runtime::compose-variant
+                      (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                      :Init)
+     admin-stop-kw  (:wat::runtime::compose-variant
+                      (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                      :Stop)
      ;; arc 291 4a: Admin::Hibernate (unit, like Stop) + Admin::Resume (carries snapshot).
-     admin-hibernate-kw (:wat::keyword::from-string
-                          (:wat::string::interpolate "{b}::Admin::Hibernate" :b fqdn-base))
-     admin-resume-kw  (:wat::keyword::from-string
-                        (:wat::string::interpolate "{b}::Admin::Resume" :b fqdn-base))
-     status-started-kw (:wat::keyword::from-string
-                          (:wat::string::interpolate "{b}::Status::Started" :b fqdn-base))
+     admin-hibernate-kw (:wat::runtime::compose-variant
+                          (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                          :Hibernate)
+     admin-resume-kw  (:wat::runtime::compose-variant
+                        (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                        :Resume)
+     status-started-kw (:wat::runtime::compose-variant
+                          (:wat::keyword::from-string (:wat::string::interpolate "{b}::Status" :b fqdn-base))
+                          :Started)
      ;; arc 278: the Status::Started ctor as a colon-free STRING (mirror of extract-addr-name-str),
      ;; so start/resume pass it as a runtime `(keyword/from-string …)` — an opaque :keyword the
      ;; launch surface accepts — rather than the resolved literal (which the checker would type as
      ;; the variant ctor Fn). The thread tier resolves it via `apply` at runtime → Status::Started.
-     status-started-str (:wat::string::interpolate "{b}::Status::Started" :b fqdn-base)
+     status-started-str (:wat::keyword::to-string
+                           (:wat::runtime::compose-variant
+                             (:wat::keyword::from-string (:wat::string::interpolate "{b}::Status" :b fqdn-base))
+                             :Started))
      ;; arc 291 3a-ii-β: Status::Stopped — service replies with final state on admin stop.
-     status-stopped-kw  (:wat::keyword::from-string
-                          (:wat::string::interpolate "{b}::Status::Stopped" :b fqdn-base))
+     status-stopped-kw  (:wat::runtime::compose-variant
+                          (:wat::keyword::from-string (:wat::string::interpolate "{b}::Status" :b fqdn-base))
+                          :Stopped)
      ;; arc 291 4a: Status::Hibernated — service replies with full state on hibernate.
-     status-hibernated-kw (:wat::keyword::from-string
-                             (:wat::string::interpolate "{b}::Status::Hibernated" :b fqdn-base))
+     status-hibernated-kw (:wat::runtime::compose-variant
+                             (:wat::keyword::from-string (:wat::string::interpolate "{b}::Status" :b fqdn-base))
+                             :Hibernated)
      ;; arc 278: Admin::AllowPeer[pids] — owner grants a vec of caller pids to the callee's
      ;; process-tier accept-gate (the circuit builder wiring process peers). Status::PeersAllowed
      ;; is the request/reply ack — the owner blocks on it so the grant is applied before the
      ;; caller dials (grant-before-dial ordering). Both cross the owner-only lineage peer.
-     admin-allow-peer-kw (:wat::keyword::from-string
-                           (:wat::string::interpolate "{b}::Admin::AllowPeer" :b fqdn-base))
-     status-peers-allowed-kw (:wat::keyword::from-string
-                               (:wat::string::interpolate "{b}::Status::PeersAllowed" :b fqdn-base))
+     admin-allow-peer-kw (:wat::runtime::compose-variant
+                           (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                           :AllowPeer)
+     status-peers-allowed-kw (:wat::runtime::compose-variant
+                               (:wat::keyword::from-string (:wat::string::interpolate "{b}::Status" :b fqdn-base))
+                               :PeersAllowed)
      ;; arc 278: fold binders for the serve AllowPeer arm's (allow' l pid) sweep — synthetic
      ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
      allow-acc-sym (:wat::core::symbol-node "acc")
@@ -1152,10 +1165,12 @@
      ;; arc 293: Admin::DenyPeer[pids] — mirror of AllowPeer, owner revokes a vec of caller
      ;; pids from the callee's process-tier accept-gate. Status::PeersDenied is the
      ;; request/reply ack — the owner blocks on it so the revoke is applied before it returns.
-     admin-deny-peer-kw (:wat::keyword::from-string
-                          (:wat::string::interpolate "{b}::Admin::DenyPeer" :b fqdn-base))
-     status-peers-denied-kw (:wat::keyword::from-string
-                              (:wat::string::interpolate "{b}::Status::PeersDenied" :b fqdn-base))
+     admin-deny-peer-kw (:wat::runtime::compose-variant
+                          (:wat::keyword::from-string (:wat::string::interpolate "{b}::Admin" :b fqdn-base))
+                          :DenyPeer)
+     status-peers-denied-kw (:wat::runtime::compose-variant
+                              (:wat::keyword::from-string (:wat::string::interpolate "{b}::Status" :b fqdn-base))
+                              :PeersDenied)
      ;; arc 293: fold binders for the serve DenyPeer arm's (deny' l pid) sweep — synthetic
      ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
      deny-acc-sym (:wat::core::symbol-node "acc")
@@ -1514,13 +1529,13 @@
                                            (:wat::string::kebab->pascal-in surface-kw op-str))
                           ;; op-variant-kw: the SERVICE superset variant — the arm PATTERN dispatches
                           ;; over <service>::Op (post-retag), NOT the surface <proto>::Op.
-                          op-variant-kw (:wat::keyword::from-string
-                                          (:wat::string::concat service-op-str
-                                            (:wat::string::interpolate "::{variant-pascal}" :variant-pascal variant-pascal)))
+                          op-variant-kw (:wat::runtime::compose-variant
+                                          (:wat::keyword::from-string service-op-str)
+                                          (:wat::keyword::from-string variant-pascal))
                           ;; reply-variant-kw: the SURFACE reply variant (surface ops only wrap a reply).
-                          reply-variant-kw (:wat::keyword::from-string
-                                             (:wat::string::concat proto-base
-                                               (:wat::string::interpolate "::Reply::{variant-pascal}" :variant-pascal variant-pascal)))
+                          reply-variant-kw (:wat::runtime::compose-variant
+                                             (:wat::keyword::from-string (:wat::string::concat proto-base "::Reply"))
+                                             (:wat::keyword::from-string variant-pascal))
                           state-sym     (:wat::core::symbol-node "state")
                           ;; arc 278 ctx-is-mandatory — the ctx CONSTRUCTOR CALLS, built here at
                           ;; macro-expand time. `~fqdn-kw`/`~op-str` splice as LITERALS;
@@ -2029,12 +2044,12 @@
                           ;; identity 2c: ANNOTATION-only (client method's return type) — mints
                           ;; the reference FORM, structurally off `client-resp-ty` above.
                           recv-ret-ty     `(:wat::kernel::RecvOutcome :- [~client-resp-ty])
-                          op-variant-kw   (:wat::keyword::from-string
-                                            (:wat::string::concat proto-base
-                                              (:wat::string::interpolate "::Op::{op-pascal}" :op-pascal op-pascal)))
-                          reply-variant-kw (:wat::keyword::from-string
-                                             (:wat::string::concat proto-base
-                                               (:wat::string::interpolate "::Reply::{op-pascal}" :op-pascal op-pascal)))
+                          op-variant-kw   (:wat::runtime::compose-variant
+                                            (:wat::keyword::from-string (:wat::string::concat proto-base "::Op"))
+                                            (:wat::keyword::from-string op-pascal))
+                          reply-variant-kw (:wat::runtime::compose-variant
+                                             (:wat::keyword::from-string (:wat::string::concat proto-base "::Reply"))
+                                             (:wat::keyword::from-string op-pascal))
                           method-params   `[c <- ~client-peer-ty req <- ~req-ty]
                           discard-sym     (:wat::core::symbol-node "_")
                           r-sym           (:wat::core::symbol-node "r")

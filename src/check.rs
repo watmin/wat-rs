@@ -2914,6 +2914,51 @@ fn infer_list(
                     CheckResult::partial_with(opt_kw_ty, local_errors)
                 };
             }
+            // Arc 255 (`DESIGN-the-composition-door-gets-a-wat-surface`) —
+            // `:wat::runtime::compose-variant`, the composition sibling of
+            // `variant-parent-of` immediately above. BOTH args are type-position, NOT values
+            // (inferring a literal keyword would fire Doctrine 1 / the constructor-as-Fn trap,
+            // exactly as for `variant-parent-of`), and each is independently literal-or-computed
+            // — `service.wat`'s only caller presents a COMPUTED enum keyword, so a literal-only
+            // door would make this verb unusable by it, as happened once already this arc.
+            ":wat::runtime::compose-variant" => {
+                if args.len() != 2 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::runtime::compose-variant".into(),
+                        reason: format!(
+                            "expected (:wat::runtime::compose-variant <enum-keyword> <variant-keyword>); got {} arg(s)",
+                            args.len()
+                        ),
+                        remedies: vec![],
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                // ⛔ LITERAL OR COMPUTED, on EACH arg independently — deliberately NOT
+                // `is-type?`'s literal-only gate. See `variant-parent-of`'s arm above for the
+                // full rationale; the same door, applied twice.
+                let kw = TypeExpr::Path(":wat::core::keyword".into());
+                for (idx, arg) in args.iter().enumerate() {
+                    if !matches!(arg, WatAST::Keyword(_, _)) {
+                        let (arg_ty_opt, arg_errs) = infer(arg, env, locals, fresh, subst).into_parts();
+                        local_errors.extend(arg_errs);
+                        let arg_ty = arg_ty_opt.unwrap_or_else(|| fresh.fresh());
+                        if !assignable(&arg_ty, &kw, subst, env) {
+                            local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: ":wat::runtime::compose-variant".into(),
+                                param: format!("#{}", idx + 1),
+                                expected: format_type(&kw),
+                                got: format_type(&arg_ty),
+                            } });
+                            return CheckResult::errs(local_errors);
+                        }
+                    }
+                }
+                return if local_errors.is_empty() {
+                    CheckResult::ok(kw)
+                } else {
+                    CheckResult::partial_with(kw, local_errors)
+                };
+            }
             // Arc 237 Stone 237.5 — `:wat::core::conforms?` inference.
             //
             // Signature: (value :TypeExpr) -> :wat::core::bool.
@@ -22781,6 +22826,28 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(":wat::core::keyword".into())],
             },
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 255 (`DESIGN-the-composition-door-gets-a-wat-surface`) —
+    // `:wat::runtime::compose-variant` membership predicate, the composition sibling of
+    // `variant-parent-of` immediately above.
+    //
+    // :wat::runtime::compose-variant :: :wat::core::keyword, :wat::core::keyword -> :wat::core::keyword
+    //
+    // The infer_list special-case (above, beside variant-parent-of) is load-bearing: it skips
+    // inference on both args so Doctrine 1 does not fire on a literal keyword in type position.
+    // The scheme is the reflection fingerprint.
+    env.register(
+        ":wat::runtime::compose-variant".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::core::keyword".into()),
+            ],
+            ret: TypeExpr::Path(":wat::core::keyword".into()),
             rest_param_type: None,
         },
     );
