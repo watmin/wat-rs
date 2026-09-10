@@ -201,3 +201,73 @@ read which one carries the 376 ms. The infrastructure for exactly this landed at
 calibrated 2.8 ms round-trip, so it does not fit; `empty-flags` is per-queue, not per-worker; and
 `summarize` folds records, which ROBUST 1 excluded. Every one of those is a *reading*, and readings are
 0 for 6 today. The instrument decides.
+
+---
+
+# ⭑⭑⭑ INSTRUMENTED — a round-trip to a WORKER costs ~50× a round-trip to a QUEUE
+
+Four temporary timestamps inside `collect` (added, measured, then reverted — `git diff` clean, `grep -c
+tprobe` → 0). At negligible payload (`n=20`, 80 records):
+
+| workers | head | **sum-disrupts** | seen | **collect-stop** | empty+summarize |
+|---|---|---|---|---|---|
+| 4 | 13 | **749** | 0 | **517** | 29 |
+| 8 | 14 | **1040** | 0 | **789** | 30 |
+| 12 | 13 | **1895** | 3 | **1633** | 36 |
+| 12, n=2000 | 17 | **1953** | 3 | **2626** | 112 |
+
+## The two big terms are the two that talk to WORKERS
+
+```
+sample-of qclients      → :queue::queue  peers    13-17 ms  FLAT in workers   (≈2.8 ms each)
+sum-disrupts wpeers     → :fanout::worker peers   130-187 ms PER WORKER
+collect-stop workers    → :fanout::worker handles  99-136 ms PER WORKER
+```
+
+★★★ **It is not the operation, it is the peer.** A round-trip to a `:fanout::worker` costs
+**~135–160 ms**; a round-trip to a `:queue::queue` on the same kind of process peer costs **2.8 ms**.
+**~50×.** `head` proves the contrast inside the same phase, in the same run, at the same instant.
+
+Payload sensitivity separates the two worker terms cleanly:
+- `sum-disrupts` **1895 → 1953 (+3 %)** across a 100× payload change — **payload-independent**
+- `collect-stop` **1633 → 2626 (+61 %)** — a fixed ~136 ms/worker **plus** ~0.13 ms/record
+
+And `empty+summarize` is **36 → 112 ms** — the interpreted record fold I had assumed was a third of the
+phase is **2 % of it.**
+
+## ⛔ TWO OF MY OWN MEASUREMENTS ARE CONTRADICTED, AND ONE IS MINE TWICE OVER
+
+1. **I predicted `sum-disrupts` at ~34 ms for 12 workers** (12 round-trips × the calibrated 2.8 ms) and
+   wrote that it "does not fit" as a candidate. Measured: **1895 ms. Wrong by 55×** — and I used that
+   wrong arithmetic to *exclude* the term that turned out to be the largest.
+2. ⛔ **My own probe measured `<svc>/stop` at 0 ms, five for five, on a thread AND on a process.** Here
+   `collect-stop` costs 136 ms per worker at negligible payload. **Both measurements are real.** So a
+   stop is free for `:probe::ctr` and expensive for `:fanout::worker`, and the probe I built to isolate
+   "the cost of a stop" **isolated the wrong variable** — it controlled the locus and the payload, and
+   left the *service* uncontrolled. The minimal service was the one thing I should have varied.
+
+★ That is the seventh reading of mine to die on measurement today, and the second time a probe of mine
+answered a narrower question than the one I asked it.
+
+## What is now one question instead of a phase
+
+**Why does a round-trip to `:fanout::worker` cost ~150 ms when the identical shape of exchange to
+`:queue::queue` costs 2.8 ms, and to a minimal `defservice` costs ~0?**
+
+Three candidates, and I am naming them **only as candidates** — my record on naming mechanisms is 0/7:
+
+- **The worker is self-scheduling.** It runs `SelfOutcome::Continue` and polls its sub queue; a request
+  arriving mid-poll may wait out the remainder. `:queue::queue` is request-driven, and `:probe::ctr` is
+  idle. **This is the only candidate that explains all three costs.**
+- The worker's state is larger, so every reply serializes more. ⚠ Contradicted for `sum-disrupts`,
+  which is payload-independent.
+- Something specific to `:fanout::worker`'s surface or frame size.
+
+**The measurement that decides it:** time a round-trip to a worker while it is parked in a poll versus
+while it is not — or vary the worker's poll wait and see whether the ~150 ms tracks it. `:probe::ctr`
+gives the idle control already; the missing arm is a *self-scheduling* service with a known poll
+interval.
+
+⚠ And the consequence if the poll candidate holds: **this is not a `collect` defect at all.** It is the
+cost of *any* request to a busy self-scheduling service, which would make it a substrate property that
+shows up wherever the harness asks a worker anything — and `collect` merely asks 12 of them twice.
