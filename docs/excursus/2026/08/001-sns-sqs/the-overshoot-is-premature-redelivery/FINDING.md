@@ -69,3 +69,80 @@ the constant** — which is exactly the networking-first ruling: declare a const
 stop for.** Delivery is exact at every swept value. What there is, is **a self-inflicted inefficiency
 introduced by a stone that measured the wrong quantity** — which is worth correcting, and is not the same
 thing.
+
+---
+
+# ⭑⭑ MEASURED FURTHER — two kinds of redelivery, and only one is waste
+
+Builder asked for the worker's claim→ack cycle distribution. **It did not need a new instrument** — but
+the counter I first reached for was the wrong one, and the next measurement said so.
+
+## ⛔ First claim, made and refuted inside two minutes
+
+From the sweep already on disk:
+
+```
+vis      inbox redeliveries    fill-excess        expired-waiters
+  50ms   50  70  50  60        200 200 280 280    flat
+ 200ms   10   0   0   0          0  40   0   0    flat
+1000ms    0   0   0   0          0   0   0   0    flat
+5000ms    0   0   0   0          0   0   0   0    flat
+```
+
+`50×4=200`, `70×4=280` — so I wrote **`fill-excess = m × inbox-redeliveries`**, and concluded *"a
+redelivery IS the measurement; the cycle tail is between 200 ms and 1000 ms."*
+
+**Bracketing it refuted both:**
+
+```
+300ms   redeliveries 0  0 10  0     fill-excess 0 0 0 0
+500ms   redeliveries 0 20  0  0     fill-excess 0 0 0 0
+700ms   redeliveries 0 10  0  0     fill-excess 0 0 0 0
+```
+
+**20 redeliveries and zero waste at 500 ms.** The law is wrong and the counter is not the instrument.
+
+## ⭑⭑⭑ TWO KINDS OF REDELIVERY, AND THE DIFFERENCE IS THE WHOLE POINT
+
+| kind | what happened | cost |
+|---|---|---|
+| **PREMATURE** | the batch was fully fanned and its ack was in flight; the visibility expired anyway, so the re-fan **duplicates** | **waste** |
+| **REPAIR** | the fan partially failed, `ok = min over subs` fell, the ack was **withheld on purpose**; the redelivery **completes the work** | **none** |
+
+`redeliveries` counts **both**. `fill-excess` counts **only the wasteful kind.** ★ So the field created by
+`0e309135f` is the only instrument that separates *the safety property working* from *the safety property
+paying for a timeout that is too short* — and `expired-waiters` being flat across the whole sweep confirms
+it is message-visibility expiry, not waiter timeout.
+
+★★ **Eighth instance today of reaching for a counter whose name fits and whose semantics do not.** This
+one I refuted myself, two minutes later, because I ran the bracketing sweep instead of stopping at the
+tidy law.
+
+## ⭑ The full trade, and the answer to the cycle question
+
+| `inbox-vis-ms` | fault latency | **waste** | redeliveries (both kinds) |
+|---|---|---|---|
+| 50 | ~350 ms (saturated) | **200–280** | large |
+| **200** ← shipped | 357–405 ms | **0–40** | 10 0 0 0 |
+| **300** | ~450–500 ms (interpolated) | **0 in 4 runs** | 0 0 10 0 |
+| 500 | 587–739 ms | 0 in 4 runs | 0 20 0 0 |
+| 700 | not measured | 0 in 4 runs | 0 10 0 0 |
+| 1000 | 1147–1281 ms | 0 | 0 0 0 0 |
+| 5000 ← removed | 5165–5316 ms | 0 | 0 0 0 0 |
+
+**The claim→ack tail that matters sits between 200 and 300 ms under 4-way load.** That is the answer to
+the cycle question, and `fill-excess` crossing zero is what measures it — no histogram required.
+
+★★★ **300 ms dominates 500, 700, 1000 and 5000** — equal (zero) waste, strictly better fault latency. And
+against the shipped 200 ms it is a *small* trade: ~1.2× the latency for zero measured waste, where the
+alternative on the table this morning (1000 ms) cost 3×.
+
+## ⚠ What is NOT established
+
+⚠ **`0 of 4` is not proof of zero.** The 200 ms cell wasted in **1 of 4** runs, so 300 ms could waste at
+1-in-8 or 1-in-20 and this sample would not see it. **Any ruling on 300 ms should say that out loud**, and
+a stone that lands it should widen the sample rather than inherit my four runs.
+⚠ The 300 ms fault latency is **interpolated**, not measured — the sweep at `3135df9b5` covered
+50/200/500/1000/5000.
+⚠ And **delivery correctness is untouched throughout**: `dup = 0`, `distinct = 8000` at every value in
+every run. There is still nothing here to stop for.
