@@ -1,3 +1,21 @@
+# ⛔ CLOSED — NOTHING HERE WAS A DEFECT. Kept only for the lesson at the bottom.
+
+> **Both claims this file made are struck.** The accumulate behaviour matches Clara exactly (§1).
+> The duplicate-derived-fact divergence (§2) is **already known, already named, and already
+> CLOSED AS JUSTIFIED** — with the record assigning the verdict OPPOSITE to the direction I was
+> heading:
+>
+> - `wat-scripts/perf/grid/retract-multiplicity.wat:8` — *"the **justified** derived-multiplicity
+>   split (Clara bag vs wat set on derived facts) cannot dominate"*. An existing grid cell,
+>   deliberately shaped so this divergence cannot affect its verdict.
+> - `strike-retract-multiplicity-proof/REVIEW.md:18` — *"the derived-multiplicity divergence — **the
+>   one CLOSED AS JUSTIFIED**"*, with the table: zero retracts, wat `[0 1 2]`, Clara `[0 0 1 1 2 2]`.
+> - The same REVIEW, on which engine is right: *"the `1 1`/`2 2` is **Clara over-deriving (wat
+>   right, closed)**."*
+>
+> **I was treating Clara as the referee. The record had already ruled the other way.** There is no
+> grid cell to add — the population is covered, and covered deliberately.
+
 # FINDING — ⛔ ~~`acc::count` returns a WRONG COUNT~~ — STRUCK. Clara agrees. The real divergence is duplicate DERIVED FACTS.
 
 > # ⛔⛔ THE TITLE'S CLAIM IS FALSE AND THE WHOLE ORIGINAL FINDING IS WITHDRAWN.
