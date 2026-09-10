@@ -147,3 +147,57 @@ ROBUST 1 drove payload down 100× and this cost stayed. That gap is the in-scope
 next step is a probe that times the two halves of the stop exchange separately — the `send` to the
 service's acknowledgement, and the service's own shutdown-to-`Status::Stopped` — because those are
 different systems and only one of them can be at fault.
+
+---
+
+# ⛔ PROBE — A STOP IS FREE. MY MECHANISM WAS WRONG.
+
+`wat-scripts/scratch-pad/probe-what-does-a-stop-cost.wat` — a minimal `defservice` whose whole state
+is **one i64**, so payload is provably negligible. Spawned and stopped five times on each locus, with
+the thread/process pair as a free control (identical but for the locus token):
+
+```
+thread   start=0ms  stop=0ms      ×5
+process  start=408  stop=0ms
+process  start=397  stop=0ms
+process  start=406  stop=0ms
+process  start=401  stop=0ms
+process  start=398  stop=0ms
+```
+
+★★★ **`<svc>/stop` costs 0 ms — on a thread and on a process alike. The entire process-lifecycle cost
+is in SPAWN (~400 ms), and none of it is in teardown.**
+
+## ⛔ Which corrects the commit above
+
+`1196720c3` concluded *"`collect` is two-thirds process teardown"* and attributed the payload-independent
+per-worker cost to `:fanout::worker/stop`. **The measurements in that commit stand** — payload-independent
+(records ↓100×, collect ↓1.48×), topology-dependent, sub-queues ~4 % — **but the mechanism does not.**
+Stop is free, so whatever costs ~376 ms per worker inside `collect` **is not the stop.**
+
+★ **I never verified that attribution.** `collect` spans `t-collect0 → t-stop0` and contains
+`sum-*`, `topic-ticks`, `topic-inbox-fails`, `sum-disrupts` (per worker), `seen-stats`, `collect-stop`,
+an `empty-flags` fold doing a `Queue/receive` per queue, and `summarize`. I picked `collect-stop` out of
+that list because it was the one that mentioned workers, and asserted it. **Sixth time today that a
+mechanism I named from reading died on measurement** — and this time the probe I wrote to confirm it is
+what killed it.
+
+★★ The one thing the probe does establish, which is worth as much as the refutation: **teardown is not
+the mirror of boot.** Spawn is ~400 ms and stop is ~0 ms, so the builder's exclusion of `setup` as cold
+boot does **not** carry over to `collect` by symmetry. `collect`'s cost has to be explained on its own
+terms, and it is still unexplained.
+
+## What is now known, and what the next measurement must be
+
+**Known:** at `m=4` fixed (queues fixed), workers 4 → 12 moves `collect` 1308 → 4315 ms at negligible
+payload — **+376 ms per worker.** And a stop is free. So the per-worker cost is one of the other
+per-worker things inside the phase, or an interaction none of the sweeps isolates.
+
+**Next:** ⛔ **instrument `collect`'s own steps** — a timestamp between each of its ~10 bindings — and
+read which one carries the 376 ms. The infrastructure for exactly this landed at `202763705`
+(per-phase boundary samples); this is the same move one level down.
+
+⚠ **No candidate is named here on purpose.** `sum-disrupts` is per-worker and would be ~34 ms at the
+calibrated 2.8 ms round-trip, so it does not fit; `empty-flags` is per-queue, not per-worker; and
+`summarize` folds records, which ROBUST 1 excluded. Every one of those is a *reading*, and readings are
+0 for 6 today. The instrument decides.
