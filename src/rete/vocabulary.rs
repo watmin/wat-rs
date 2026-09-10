@@ -1147,9 +1147,11 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // these two rows) — a rename, not a migration.
     // ── #57 — enum equality. `Form`, NOT `Alias`, and the reason is the whole point of the row.
     //
-    // MEASURED: the where-corpus compares a user enum in 2 places
-    // (`(= (:arena::Route/method ?route) :arena::Method::POST)` — probe_arc278_sift_rules_arena.wat:114,
-    // probe-arena-rich-graph.wat:54). The ten minted equality rows cover bool/f64/i64/keyword/
+    // MEASURED: the where-corpus compared a user enum in 2 places when this row was minted
+    // (`(= (:arena::Route/method ?route) :arena::Method::POST)` — `probe_arc278_sift_rules_arena.wat:114`,
+    // plus a second `scratch-pad` probe deleted 2026-09-10 by
+    // `strike-no-rule-that-cannot-compile` for an unrelated defect — its `where` also fenced a
+    // non-total core op, `:wat::core::>`). The ten minted equality rows cover bool/f64/i64/keyword/
     // string; `:arena::Method` is none of them, and a USER enum can never have a pre-minted row —
     // the row table is closed and user enums are not.
     //

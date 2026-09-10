@@ -82,17 +82,41 @@
 
 ;; ══ LAYER 2 · LEXICAL SHAPE (only genuine keywords) ═════════════════════════
 ;; G4 namespaced?
+;; ⛔ REPAIRED (strike-no-rule-that-cannot-compile) — was `(:wat::rete::where (:fix::has-ns?
+;; ?name))`, a bare user-fn call in a fence position. `expr_is_provably_boolean` refuses that
+;; form inline (the parked expressivity question,
+;; `../the-fence-says-what-the-clause-cannot/DESIGN-widen-the-clause-then-refuse-the-fence.md`);
+;; `:fix::has-ns?`'s body is a single call to the PARTIAL (by type-system policy, not by actual
+;; behaviour) `:wat::core::string::contains?`, so the whole `where` failed the totality axis and
+;; the rule never compiled. `:wat::rete::core::String/contains?` is a rete-registered ALIAS of
+;; the identical Rust fn (`crate::string_ops::eval_string_contains`, verified by reading
+;; `src/runtime.rs`'s `:wat::core::string::contains?` and `:wat::core::String/contains?` arms —
+;; both call it), so inlining is a behaviour-preserving textual substitution, not a rewrite —
+;; driven over 7 inputs (empty, no-colon, namespaced, single-colon, trailing/leading colons,
+;; unicode), all AGREE, see SCORE.md. `:fix::has-ns?` itself is left alone, per DESIGN.
 (:wat::rete::defrule :fix::g4-namespaced
   :when [(:fix::Genuine (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
-         (:wat::rete::where (:fix::has-ns? ?name))]
+         (:wat::rete::where (:wat::rete::core::String/contains? ?name "::"))]
   :then [(:fix::Namespaced ?off)])
 
 ;; G5 type-shaped?
+;; ⛔ REPAIRED (strike-no-rule-that-cannot-compile) — was `(:wat::rete::where (:fix::type-shaped?
+;; ?name))`, same bare-user-fn-call shape as G4 above. `:fix::type-shaped?`'s body is
+;; `(contains?(name,"<") AND contains?(name,">")) OR (contains?(name,"(") AND
+;; contains?(name,")"))`, expressed as nested `if` (`if A B false` ≡ `A AND B`; `if C true D` ≡
+;; `C OR D`). Inlined using the rete Form-class `and`/`or` (`:wat::rete::core::and`/`::or`,
+;; `src/rete/vocabulary.rs` — Form re-dispatches to the identical core `eval_and`/`eval_or`) over
+;; the same `String/contains?` alias G4 uses. Driven over 10 inputs (empty, plain, angle-both,
+;; angle-open-only, angle-close-only, paren-both, paren-open-only, both-angle-paren, neither,
+;; angle-reversed), all AGREE, see SCORE.md. `:fix::type-shaped?` itself is left alone.
 (:wat::rete::defrule :fix::g5-type-shaped
   :when [(:fix::Genuine (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
-         (:wat::rete::where (:fix::type-shaped? ?name))]
+         (:wat::rete::where
+           (:wat::rete::core::or
+             (:wat::rete::core::and (:wat::rete::core::String/contains? ?name "<") (:wat::rete::core::String/contains? ?name ">"))
+             (:wat::rete::core::and (:wat::rete::core::String/contains? ?name "(") (:wat::rete::core::String/contains? ?name ")"))))]
   :then [(:fix::TypeShaped ?off)])
 
 ;; ══ LAYER 3 · POSITION (joins) ══════════════════════════════════════════════
@@ -107,11 +131,27 @@
 ;; Arc 278 strike-fence-interior-types — `?bi` is `:wat::core::i64` (`:child-idx` on
 ;; `:fix::Node`), same instrument as G3 above: was `string::=`, caught by the fence-interior
 ;; type checker, swapped to `i64::=` — same behaviour-preservation evidence as G3's comment.
+;;
+;; ⛔ REPAIRED (strike-no-rule-that-cannot-compile) — a FOURTH compile blocker, not one of the
+;; BRIEF's three named user-fn fences: `(:wat::core::+ ?ai 1)` is the GENERIC (non-rete,
+;; non-total) `+`, used bare inside the `where` — not through a user fn at all. It was invisible
+;; to the one-hand census because `compile-all` raises and aborts on the FIRST failing condition
+;; per file, and this rule sits AFTER G4/G5 in source order — fixing those two surfaced this one.
+;; Same fix shape as the fence-interior `string::=`→`i64::=` swap above: the rete Fallback-class
+;; total variant `:wat::rete::core::i64::+ a b :undefined fallback`
+;; (`src/rete/vocabulary.rs:326-339`) never raises — on overflow it returns `fallback` instead.
+;; `?ai`/`?bi` are `:child-idx` (position within a parsed form: always small, non-negative, never
+;; within reach of `i64::MAX`), so the fallback arm is unreachable in practice; `-1` is chosen
+;; because `?bi` (also a `:child-idx`, always ≥ 0) can never legitimately equal it, so a
+;; hypothetical fallback firing produces a false (never a false positive), not a wrong match.
+;; Driven over 4 inputs (0, 7, 1_000_000, i64::MAX-1) against the OLD `:wat::core::+`, all AGREE;
+;; `:wat::core::+` cannot even be driven AT `i64::MAX` (it raises `IntegerOverflow`, which is
+;; exactly the behaviour a `where` can no longer have) — see SCORE.md.
 (:wat::rete::defrule :fix::g7-post-arrow
   :when [(:fix::Arrow (?aoff <- :offset))
          (:fix::Node (?aoff <- :offset) (?p <- :parent) (?ai <- :child-idx))
          (:fix::Node (?boff <- :offset) (?p <- :parent) (?bi <- :child-idx))
-         (:wat::rete::where (:wat::rete::core::i64::= ?bi (:wat::core::+ ?ai 1)))]
+         (:wat::rete::where (:wat::rete::core::i64::= ?bi (:wat::rete::core::i64::+ ?ai 1 :undefined -1)))]
   :then [(:fix::PostArrow ?boff)])
 
 ;; TypeCandidate ← type-shaped OR post-arrow (the ∪, as two trivial gates)

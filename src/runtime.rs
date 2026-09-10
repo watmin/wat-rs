@@ -5367,10 +5367,44 @@ fn dispatch_keyword_head_value(
     // Arc 278 #55 (S3b+S4) slice one — THE ONE TABLE (`rete::vocabulary::RETE_OPS`), consulted
     // FIRST for rete-namespaced heads. Routes generically by `class` (`dispatch_rete_op`, below)
     // — never a per-op match arm added to the giant match that follows (STOP-2: no rete op named
-    // in more than one file). This is the "a `where` traverses `dispatch_keyword_head_value`"
-    // path proven by `wat-scripts/scratch-pad/probe-stop-a-where-arith-path.wat` — the SAME
-    // function `:wat::core::i64::+`'s arm (below) lives in, so a rete op registered here is
-    // automatically reachable from a `where`, with no `:4829`/`:9753` kernel unification needed.
+    // in more than one file).
+    //
+    // ⛔ RE-GROUNDED 2026-09-10 (strike-no-rule-that-cannot-compile) — THE OLD CLAIM WAS FALSE,
+    // AND THE CITATION THAT MADE IT ALONE WOULD BE ENOUGH TO SAY SO. This comment used to claim
+    // "a `where` traverses `dispatch_keyword_head_value`," citing
+    // `wat-scripts/scratch-pad/probe-stop-a-where-arith-path.wat` (deleted by that strike — its
+    // fence no longer compiles at all: the totality axis it predates now refuses the raw
+    // `:wat::core::i64::+` it fences outright, so it proves nothing on the current runtime). The
+    // citation was TRUE when written (`9b57ded784`, 2026-08-02) — `where` execution was the
+    // plain AST interpreter then, and the deleted probe's own header records a run that raised
+    // through exactly this function's `:wat::core::i64::+` arm. But `30725034f` (2026-08-17,
+    // "compile `where` — one Expr DAG, stash the Program") moved `where`/`:then` execution onto
+    // a COMPILED path (`src/rete/expr_ir`, "the one expression core") that never calls back into
+    // this function. `expr_ir::apply_op`/`apply_core_kind` (`src/rete/expr_ir/eval.rs:890-`) is a
+    // SELF-CONTAINED dispatch table over `RETE_OPS`, built through its own `OpExec` enum — grepped
+    // both `expr_ir/eval.rs` and `expr_ir/mod.rs`: the only `crate::runtime::eval_inner` call
+    // either makes is inside `eval_lower`, the COMPILE-time `:wat::rete::lower` primitive, never
+    // the fire-time op-exec path this comment claimed.
+    //
+    // Driven, not just read:
+    // `wat-scripts/scratch-pad/probe-where-fallback-op-does-not-raise.wat` overflows the TOTAL
+    // fallback variant `:wat::rete::core::i64::+ a b :undefined fallback` inside both a `where`
+    // and a `:then`, and gets the `:undefined` fallback value back CLEANLY — k=2 (n=i64::MAX)
+    // fires with `sum=-999`, no raise, "after-fire" prints. That behavior is only
+    // `expr_ir::Expr::CallFallback`'s `classify_fallback_outcome` (`eval.rs:363-380`); the plain
+    // interpreter arm this comment used to name has no `:undefined` vocabulary at all and would
+    // have unwound the whole `fire-rules` call raising `IntegerOverflow` — exactly what the now-
+    // deleted probe's own 2026-08-02 result showed, back when totality was unarmed and a raw
+    // (non-fallback) `i64::+` could still reach a `where` at all.
+    //
+    // What is STILL true, and is the point this comment always meant to make: `RETE_OPS` remains
+    // the ONE table both paths read from — this function's `dispatch_rete_op` arm (below), for
+    // ordinary INTERPRETED wat (compile.wat's own `pure?`/`total?`/`primitive?`/`lower` logic,
+    // `:user::main`, anything not inside an already-compiled rule); and `expr_ir::apply_op`'s
+    // `KINDS` table (`OpExec::of(row.core_name)` over the same `RETE_OPS` slice) for COMPILED
+    // `where`/`:then`. Registering an op in `RETE_OPS` reaches BOTH — but "reachable from a
+    // `where`" now routes through `expr_ir`, never through this function.
+    //
     // The namespace gate comes FIRST and is the whole cost for non-rete heads: ONE prefix
     // compare, which is false for essentially every form any wat program evaluates. Without it
     // `rete_op_for`'s linear scan over the table runs on EVERY keyword dispatch in the runtime —
