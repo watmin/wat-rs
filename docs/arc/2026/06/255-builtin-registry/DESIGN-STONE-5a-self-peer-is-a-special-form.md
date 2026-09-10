@@ -31,12 +31,46 @@ registered special form to carry `#[wat_special_form_impl]` pointers for `role =
 `role = eval`. There, no such implementations existed. **Here both already exist as functions**,
 at the two lines above. That wall is the reason this stone is small and that one was not.
 
-★★ And the macro is lighter than ③a-i's failure suggested. `crates/wat-macros/src/wat_special_form_impl.rs`'s
-own header: it captures `quote!(#item).to_string()` into a `source` field, **"the fn passed through
-completely unchanged"**, plus an `inventory::submit!` recording the `(fqdn, role)` key. **No dispatch
-shim is generated, for any role**, so neither existing fn's signature has to change and neither has
-to move. `macroexpand.rs`'s note that *"`role = eval` could NOT take the same shortcut"* is about
-STACKING two fqdns on one fn; `self-peer` is one fqdn with one eval fn and needs no stacking.
+## ⛔ CORRECTED — `role = eval` DOES emit a shim, and the eval fn's signature must change
+
+I first wrote here that *"no dispatch shim is generated, for any role,"* reading the macro's header
+paragraph and stopping there. **That is false, and it is the ③a-i failure class caught one step
+earlier this time — before a rider was briefed on it rather than after.**
+
+`crates/wat-macros/src/wat_special_form_impl.rs`, its own comment at the `role = eval` branch:
+
+> *"arc 255 Stone the-eval-door — `role = eval` ALSO emits a callable pointer, so the registry's
+> `handler` slot can dispatch this form directly. `role = check` keeps emitting source only — a
+> check impl runs once, statically, and has no per-invocation call site to dispatch through."*
+
+and the shim it generates calls the annotated fn with **four** arguments:
+
+```rust
+#fn_ident(args, list_span, env, sym)      // the canonical NativeHandler shape
+```
+
+```
+role = check   source only, no shim   → `infer_program_self_peer`'s signature is UNCONSTRAINED ✓
+role = eval    emits a shim           → the annotated fn MUST take (args, list_span, env, sym)
+```
+
+`eval_program_self_peer(args: &[WatAST], list_span: &Span)` takes **two**. Annotating it as-is does
+not compile.
+
+★ **The fix is mechanical and the call site is ready for it.** The macro's own note says an eval
+impl's params are *"ALREADY in this exact order … no context-tail reordering to do"* — that is the
+convention, and this fn predates it because it needs neither `env` nor `sym`. Widen it to the
+canonical four with `_env` / `_sym` unused; its ONE caller, `dispatch_keyword_head_value`
+(`src/runtime.rs:2381`), already holds both in scope — the enclosing fn's own parameters are
+`(head, args, list_span, env, sym)`.
+
+`sniff_return` then classifies its `Result<Value, EvalBreak>` as the bare-Value shape and the shim
+wraps it to `TrackedValue`, the same fold `#[wat_intrinsic]` performs — nothing to invent.
+
+★★ `macroexpand.rs`'s note that *"`role = eval` could NOT take the same shortcut"* is a THIRD
+thing again: it is about STACKING two fqdns on one fn. `self-peer` is one fqdn with one eval fn and
+needs no stacking. Three adjacent statements about `role = eval`, each true about something
+different — which is why the codegen itself had to be read rather than any of them trusted.
 
 ## The axes — four from `:wat::runtime::argv`'s precedent, one MEASURED past it
 
@@ -85,8 +119,9 @@ and is why the reason must name the measurement rather than gesture at difficult
 ## Blast radius
 
 One new `src/intrinsic/special/program_self_peer.rs` (unit struct + doc contract) · one `mod` line ·
-**two attribute lines** on the two existing functions. No signature changes, no moves, no
-`TypeScheme`, no change to either arm's body.
+**two attribute lines** on the two existing functions · **`eval_program_self_peer` widened to the
+canonical `(args, list_span, env, sym)`** with `_env`/`_sym` unused, and its one call site updated.
+No moves, no `TypeScheme`, no change to either arm's BODY.
 
 ## Out of scope = REJECTED
 
