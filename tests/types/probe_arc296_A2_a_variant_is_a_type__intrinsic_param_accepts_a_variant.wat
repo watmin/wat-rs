@@ -2,4 +2,4 @@
 ;; user defn's parameter already does. Today they disagree about the same pair.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::Option/expect (:wat::core::Option::Some {:value 42}) "boom")))
+    (:wat::core::Option/expect (:wat::core::Option.Some {:value 42}) "boom")))

@@ -27,7 +27,7 @@
 
 (:wat::rete::defrule :cg::gather
   :when [(:cg::Anchor (?x <- :x))]
-  :then [(:cg::Wrap :s (:cg::Status::Active 1 2 3))])
+  :then [(:cg::Wrap :s (:cg::Status.Active 1 2 3))])
 
 (:wat::core::defn :user::run [] -> :wat::core::i64
   (:wat::core::let

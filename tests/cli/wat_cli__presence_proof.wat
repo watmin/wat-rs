@@ -50,5 +50,5 @@
     ;; eval-ast! returns (:Result :- [wat::holon::HolonAST EvalError]) per
     ;; the 2026-04-20 INSCRIPTION.
     (:wat::core::match (:wat::eval-ast! program)
-      [:wat::core::Result::Ok {:value _} nil]
-      [:wat::core::Result::Err {:error _} nil])))
+      [:wat::core::Result.Ok {:value _} nil]
+      [:wat::core::Result.Err {:error _} nil])))

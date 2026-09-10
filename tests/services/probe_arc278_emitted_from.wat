@@ -26,7 +26,7 @@
     [tags   (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      log    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
               :time-ns 1000000000 :emitted-from (:wat::kernel::call-site)
-              :level :wat::telemetry::Level::Info
+              :level :wat::telemetry::Level.Info
               :message (:wat::edn::write (:probe::Note :text "emitted-from")))
      frame  (:wat::telemetry::Log/emitted-from log)
      ;; Arc 109 — Frame/file is a concrete (non-Option) String, always present;

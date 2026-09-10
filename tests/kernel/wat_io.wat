@@ -111,11 +111,11 @@
     [r (:wat::io::IOReader/from-string "alpha\nbeta\n")
      w (:wat::io::IOWriter/new)
      _ (:wat::core::match (:wat::io::IOReader/read-line r) 
-         [:wat::core::Option::Some {:value line} (:wat::io::IOWriter/writeln w line)]
-         [:wat::core::Option::None {} -1])
+         [:wat::core::Option.Some {:value line} (:wat::io::IOWriter/writeln w line)]
+         [:wat::core::Option.None {} -1])
      _ (:wat::core::match (:wat::io::IOReader/read-line r) 
-         [:wat::core::Option::Some {:value line} (:wat::io::IOWriter/writeln w line)]
-         [:wat::core::Option::None {} -1])]
+         [:wat::core::Option.Some {:value line} (:wat::io::IOWriter/writeln w line)]
+         [:wat::core::Option.None {} -1])]
     (:wat::io::IOWriter/to-string w)))
 
 ;; ─── Empty cases ─────────────────────────────────────────────────────────────

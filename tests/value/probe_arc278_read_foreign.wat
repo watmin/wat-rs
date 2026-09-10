@@ -22,29 +22,29 @@
 (:wat::core::defn :my::compute [] -> :wat::core::keyword
   (:wat::core::match
     (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
-    [:wat::edn::ReadForeignOutcome::Value {:value fr}
+    [:wat::edn::ReadForeignOutcome.Value {:value fr}
       (:wat::edn::ForeignVariant/variant
         (:wat::core::Option/expect
           (:wat::edn::ForeignRecord/get fr :kind)
           "nested :kind"))]
-    [:wat::edn::ReadForeignOutcome::Malformed {:cause _}
+    [:wat::edn::ReadForeignOutcome.Malformed {:cause _}
       (:wat::kernel::assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))
 
 ;; :my::missing-field-is-none — get of an absent key is None, never a raise.
 (:wat::core::defn :my::missing-field-is-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
-    [:wat::edn::ReadForeignOutcome::Value {:value fr}
+    [:wat::edn::ReadForeignOutcome.Value {:value fr}
       (:wat::core::match (:wat::edn::ForeignRecord/get fr :nope)
-        [:wat::core::Option::None {} true]
-        [:wat::core::Option::Some {:value _} false])]
-    [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false]))
+        [:wat::core::Option.None {} true]
+        [:wat::core::Option.Some {:value _} false])]
+    [:wat::edn::ReadForeignOutcome.Malformed {:cause _} false]))
 
 ;; :my::malformed-is-malformed — junk EDN is :Malformed, never a raise.
 (:wat::core::defn :my::malformed-is-malformed [] -> :wat::core::bool
   (:wat::core::match (:wat::edn::read-foreign "{not edn")
-    [:wat::edn::ReadForeignOutcome::Value {:value _} false]
-    [:wat::edn::ReadForeignOutcome::Malformed {:cause _} true]))
+    [:wat::edn::ReadForeignOutcome.Value {:value _} false]
+    [:wat::edn::ReadForeignOutcome.Malformed {:cause _} true]))
 
 ;; :my::strict-errors — the SAME input through STRICT read STILL raises UnknownTag.
 ;; The no-hidden-failures floor (R41 EGO SVM LEX) is untouched: strict is strict.
@@ -56,10 +56,10 @@
 (:wat::core::defn :my::keys-survive [] -> :wat::core::String
   (:wat::core::match
     (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
-    [:wat::edn::ReadForeignOutcome::Value {:value fr}
+    [:wat::edn::ReadForeignOutcome.Value {:value fr}
       (:wat::edn::write-pretty
         (:wat::core::Option/expect
           (:wat::edn::ForeignRecord/get fr :kind)
           "nested :kind"))]
-    [:wat::edn::ReadForeignOutcome::Malformed {:cause _}
+    [:wat::edn::ReadForeignOutcome.Malformed {:cause _}
       (:wat::kernel::assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))

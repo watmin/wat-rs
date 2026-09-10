@@ -2,4 +2,4 @@
 ;; Zombie A: :wat::core::try — must be HARD-CUT-rejected via Stone 241.15.
 
 (:wat::core::defn :test::do-it [r <- (:wat::core::Result :- [:wat::core::i64 :wat::core::String])] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
-  (:wat::core::Result::Ok {:value (:wat::core::try r)}))
+  (:wat::core::Result.Ok {:value (:wat::core::try r)}))

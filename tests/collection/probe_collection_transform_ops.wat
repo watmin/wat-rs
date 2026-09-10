@@ -92,8 +92,8 @@
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
         (:wat::i64::> x 10)))
     
-    [:wat::core::Option::Some {:value i} i]
-    [:wat::core::Option::None {} -1]))
+    [:wat::core::Option.Some {:value i} i]
+    [:wat::core::Option.None {} -1]))
 
 ;; item4j: find-last-index no match → None (sentinel -1)
 (:wat::core::defn :t::item4j-find-last-idx-none [] -> :wat::core::i64
@@ -103,8 +103,8 @@
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
         (:wat::i64::> x 99)))
     
-    [:wat::core::Option::Some {:value i} i]
-    [:wat::core::Option::None {} -1]))
+    [:wat::core::Option.Some {:value i} i]
+    [:wat::core::Option.None {} -1]))
 
 ;; item5a: conj must not mutate v0 — v0 length stays 2
 (:wat::core::defn :t::item5a-conj-immutable-len [] -> :wat::core::i64
@@ -128,5 +128,5 @@
     (:wat::core::match
       (:wat::vec::get v1 2)
       
-      [:wat::core::Option::Some {:value x} x]
-      [:wat::core::Option::None {} -1])))
+      [:wat::core::Option.Some {:value x} x]
+      [:wat::core::Option.None {} -1])))

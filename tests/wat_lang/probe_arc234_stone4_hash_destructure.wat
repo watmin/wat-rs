@@ -30,8 +30,8 @@
   (:wat::core::let
       [{x :missing} {:host "localhost"}]
       (:wat::core::match x 
-        [:wat::core::Option::Some {:value _} false]
-        [:wat::core::Option::None {}     true])))
+        [:wat::core::Option.Some {:value _} false]
+        [:wat::core::Option.None {}     true])))
 
 ;; Probe 6: multiple destructures in same let → f64(10.5)
 (:wat::core::defn :t::probe6-multiple [] -> :wat::core::f64

@@ -15,19 +15,19 @@
                 (:wat::kernel::send self
                   (:user::MyEnv/port
                     (:wat::program::Env/user-data (:wat::program::env))))
-                [:wat::kernel::SendOutcome::Sent {} nil]
-                [:wat::kernel::SendOutcome::Closed {} nil]
+                [:wat::kernel::SendOutcome.Sent {} nil]
+                [:wat::kernel::SendOutcome.Closed {} nil]
                 ;; arc 278 #73 — this is the worker's final send back to the parent;
                 ;; a stop here is terminal for the worker either way, same as Closed.
-                [:wat::kernel::SendOutcome::Stopped {} nil]
-                [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))
+                [:wat::kernel::SendOutcome.Stopped {} nil]
+                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
      got (:wat::core::match (:wat::kernel::recv peer)
-           [:wat::kernel::RecvOutcome::Message {:msg m} m]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Message {:msg m} m]
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
     got))
 
@@ -43,22 +43,22 @@
                 (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv))))
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send self 7)
-                [:wat::kernel::SendOutcome::Sent {} nil]
-                [:wat::kernel::SendOutcome::Closed {} nil]
+                [:wat::kernel::SendOutcome.Sent {} nil]
+                [:wat::kernel::SendOutcome.Closed {} nil]
                 ;; arc 278 #73 — this is the worker's final send back to the parent;
                 ;; a stop here is terminal for the worker either way, same as Closed.
-                [:wat::kernel::SendOutcome::Stopped {} nil]
-                [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))]
+                [:wat::kernel::SendOutcome.Stopped {} nil]
+                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))]
     ;; The peer must be KILLED before it can send its 7 — recv' must NOT deliver a smuggled ::Message.
     ;; The init-fn crash dies before the post-spawn send: on this tier the peer exits before buffering a
     ;; crash reason, so it surfaces as ::Closed (a clean-EOF kill); a reason-carrying tier would surface
     ;; ::Lost. Both prove the kill — only a ::Message (the smuggled 7) is the failure. ::Stopped is not
     ;; expected here either (nothing in this test requests a stop); named distinctly, not folded in.
     (:wat::core::match (:wat::kernel::recv peer)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} "SMUGGLED-VALUE"]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::LociDiedError/message cause)]
-      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome::Closed {} "PEER-DIED-CLOSED"])))
+      [:wat::kernel::RecvOutcome.Message {:msg _m} "SMUGGLED-VALUE"]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::LociDiedError/message cause)]
+      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome.Closed {} "PEER-DIED-CLOSED"])))
 
 ;; compute-default: spawn a plain (thread) peer — user-data defaults to EmptyEnv;
 ;; peer sends 1 if conforms?, else 0.
@@ -73,19 +73,19 @@
                       (:wat::program::Env/user-data (:wat::program::env))
                       :wat::program::EmptyEnv)
                     1 0))
-                [:wat::kernel::SendOutcome::Sent {} nil]
-                [:wat::kernel::SendOutcome::Closed {} nil]
+                [:wat::kernel::SendOutcome.Sent {} nil]
+                [:wat::kernel::SendOutcome.Closed {} nil]
                 ;; arc 278 #73 — this is the worker's final send back to the parent;
                 ;; a stop here is terminal for the worker either way, same as Closed.
-                [:wat::kernel::SendOutcome::Stopped {} nil]
-                [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))
+                [:wat::kernel::SendOutcome.Stopped {} nil]
+                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
      got (:wat::core::match (:wat::kernel::recv peer)
-           [:wat::kernel::RecvOutcome::Message {:msg m} m]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Message {:msg m} m]
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
     got))
 

@@ -3,4 +3,4 @@
     (:wat::core::match (:wat::core::read-string
       (:wat::core::write-forms
         (:wat::core::match (:wat::core::read-string
-          "(:wat::core::defn :f [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))") [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
+          "(:wat::core::defn :f [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))") [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))

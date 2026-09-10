@@ -22,24 +22,24 @@
   (:wat::core::match
     (:wat::runtime::lookup-define :t::my-add)
     
-    [:wat::core::Option::Some {:value _} true]
-    [:wat::core::Option::None {}    false]))
+    [:wat::core::Option.Some {:value _} true]
+    [:wat::core::Option.None {}    false]))
 
 ;; test2: substrate primitive :wat::core::foldl returns Some
 (:wat::core::defn :t::test2-lookup-foldl [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::lookup-define :wat::core::foldl)
     
-    [:wat::core::Option::Some {:value _} true]
-    [:wat::core::Option::None {}    false]))
+    [:wat::core::Option.Some {:value _} true]
+    [:wat::core::Option.None {}    false]))
 
 ;; test3: unknown name returns None
 (:wat::core::defn :t::test3-lookup-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::lookup-define :user::this-does-not-exist)
     
-    [:wat::core::Option::Some {:value _} false]
-    [:wat::core::Option::None {}    true]))
+    [:wat::core::Option.Some {:value _} false]
+    [:wat::core::Option.None {}    true]))
 
 ;; ─── :wat::runtime::signature-of-defn ──────────────────────────────────────
 
@@ -48,24 +48,24 @@
   (:wat::core::match
     (:wat::runtime::signature-of-defn :t::my-mul)
     
-    [:wat::core::Option::Some {:value _} true]
-    [:wat::core::Option::None {}    false]))
+    [:wat::core::Option.Some {:value _} true]
+    [:wat::core::Option.None {}    false]))
 
 ;; test5: substrate primitive :wat::core::foldl → Some
 (:wat::core::defn :t::test5-sig-foldl [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::foldl)
     
-    [:wat::core::Option::Some {:value _} true]
-    [:wat::core::Option::None {}    false]))
+    [:wat::core::Option.Some {:value _} true]
+    [:wat::core::Option.None {}    false]))
 
 ;; test6: unknown name → None
 (:wat::core::defn :t::test6-sig-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :no::such::function)
     
-    [:wat::core::Option::Some {:value _} false]
-    [:wat::core::Option::None {}    true]))
+    [:wat::core::Option.Some {:value _} false]
+    [:wat::core::Option.None {}    true]))
 
 ;; ─── :wat::runtime::body-of ─────────────────────────────────────────────────
 
@@ -74,24 +74,24 @@
   (:wat::core::match
     (:wat::runtime::body-of :t::my-neg)
     
-    [:wat::core::Option::Some {:value _} true]
-    [:wat::core::Option::None {}    false]))
+    [:wat::core::Option.Some {:value _} true]
+    [:wat::core::Option.None {}    false]))
 
 ;; test8: substrate primitive :wat::core::foldl → None (no wat body)
 (:wat::core::defn :t::test8-body-prim-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :wat::core::foldl)
     
-    [:wat::core::Option::Some {:value _} false]
-    [:wat::core::Option::None {}    true]))
+    [:wat::core::Option.Some {:value _} false]
+    [:wat::core::Option.None {}    true]))
 
 ;; test9: unknown name → None
 (:wat::core::defn :t::test9-body-unknown-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :totally::unknown)
     
-    [:wat::core::Option::Some {:value _} false]
-    [:wat::core::Option::None {}    true]))
+    [:wat::core::Option.Some {:value _} false]
+    [:wat::core::Option.None {}    true]))
 
 ;; ─── Rendered EDN shape verification ────────────────────────────────────────
 

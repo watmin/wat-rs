@@ -28,25 +28,25 @@
           (:wat::core::defn :user::main [] -> :wat::core::nil
             (:wat::test::assert-eq 1 2))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-MESSAGE")]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError::Panic {:message _message :failure failure}
+          [:wat::kernel::LociDiedError.Panic {:message _message :failure failure}
             (:wat::core::match failure
-              [:wat::core::Option::Some {:value f}
+              [:wat::core::Option.Some {:value f}
                (:wat::core::Vector :- [:wat::core::String]
                  (:wat::kernel::Failure/message f)
                  (:wat::core::match (:wat::kernel::Failure/actual f)
-                   [:wat::core::Option::Some {:value a} a]
-                   [:wat::core::Option::None {} ":None"])
+                   [:wat::core::Option.Some {:value a} a]
+                   [:wat::core::Option.None {} ":None"])
                  (:wat::core::match (:wat::kernel::Failure/expected f)
-                   [:wat::core::Option::Some {:value e} e]
-                   [:wat::core::Option::None {} ":None"]))]
-              [:wat::core::Option::None {}
+                   [:wat::core::Option.Some {:value e} e]
+                   [:wat::core::Option.None {} ":None"]))]
+              [:wat::core::Option.None {}
                (:wat::core::Vector :- [:wat::core::String] "NO-FAILURE-PAYLOAD")])]
           [_ (:wat::core::Vector :- [:wat::core::String] "LOST-NON-PANIC")])]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-STOPPED")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::core::Vector :- [:wat::core::String] "UNEXPECTED-CLOSED")])))

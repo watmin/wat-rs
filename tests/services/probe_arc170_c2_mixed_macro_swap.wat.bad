@@ -14,8 +14,8 @@
                                                                                                         :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S1  req <- :probe::S1::OpRequest] -> :probe::S1::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s1 :satisfies :probe::S1 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S1::OpResponse::Ok (:wat::core::string::concat "s1:" (:probe::S1::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome.Reply s
+            (:probe::S1::OpResponse.Ok (:wat::core::string::concat "s1:" (:probe::S1::OpRequest/m req)))))])
 
 (:wat::core::defsurface :probe::S2 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S2::OpRequest [m <- :wat::core::String])
@@ -23,8 +23,8 @@
                                                                                                         :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S2  req <- :probe::S2::OpRequest] -> :probe::S2::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s2 :satisfies :probe::S2 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S2::OpResponse::Ok (:wat::core::string::concat "s2:" (:probe::S2::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome.Reply s
+            (:probe::S2::OpResponse.Ok (:wat::core::string::concat "s2:" (:probe::S2::OpRequest/m req)))))])
 
 (:wat::core::defsurface :probe::S3 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S3::OpRequest [m <- :wat::core::String])
@@ -32,8 +32,8 @@
                                                                                                         :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S3  req <- :probe::S3::OpRequest] -> :probe::S3::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s3 :satisfies :probe::S3 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S3::OpResponse::Ok (:wat::core::string::concat "s3:" (:probe::S3::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome.Reply s
+            (:probe::S3::OpResponse.Ok (:wat::core::string::concat "s3:" (:probe::S3::OpRequest/m req)))))])
 
 (:wat::core::defsurface :probe::S4 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S4::OpRequest [m <- :wat::core::String])
@@ -41,8 +41,8 @@
                                                                                                         :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S4  req <- :probe::S4::OpRequest] -> :probe::S4::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s4 :satisfies :probe::S4 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S4::OpResponse::Ok (:wat::core::string::concat "s4:" (:probe::S4::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome.Reply s
+            (:probe::S4::OpResponse.Ok (:wat::core::string::concat "s4:" (:probe::S4::OpRequest/m req)))))])
 
 (:wat::core::defsurface :probe::S5 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S5::OpRequest [m <- :wat::core::String])
@@ -50,8 +50,8 @@
                                                                                                         :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S5  req <- :probe::S5::OpRequest] -> :probe::S5::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s5 :satisfies :probe::S5 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S5::OpResponse::Ok (:wat::core::string::concat "s5:" (:probe::S5::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome.Reply s
+            (:probe::S5::OpResponse.Ok (:wat::core::string::concat "s5:" (:probe::S5::OpRequest/m req)))))])
 
 (:wat::core::defsurface :probe::S6 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S6::OpRequest [m <- :wat::core::String])
@@ -59,8 +59,8 @@
                                                                                                         :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S6  req <- :probe::S6::OpRequest] -> :probe::S6::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s6 :satisfies :probe::S6 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S6::OpResponse::Ok (:wat::core::string::concat "s6:" (:probe::S6::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome.Reply s
+            (:probe::S6::OpResponse.Ok (:wat::core::string::concat "s6:" (:probe::S6::OpRequest/m req)))))])
 
 (:wat::core::defsurface :probe::S7 :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::S7::OpRequest [m <- :wat::core::String])
@@ -68,8 +68,8 @@
                                                                                                         :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S7  req <- :probe::S7::OpRequest] -> :probe::S7::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s7 :satisfies :probe::S7 :durable [] :ephemeral []
-  :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
-            (:probe::S7::OpResponse::Ok (:wat::core::string::concat "s7:" (:probe::S7::OpRequest/m req)))))])
+  :impls [(op [s ctx req] (:wat::service::Outcome.Reply s
+            (:probe::S7::OpResponse.Ok (:wat::core::string::concat "s7:" (:probe::S7::OpRequest/m req)))))])
 
 ;; ── the work-fn: item POSITIONAL; 7 Peer' service kwargs + 5 String data kwargs ──
 (:wat::core::defn :probe::enrich
@@ -89,46 +89,46 @@
   -> :wat::core::String
   (:wat::core::let
     [r1  (:wat::core::match (:probe::S1/op s1 (:probe::S1::OpRequest :m item)) 
-  [:probe::S1::OpResponse::Ok {:r r} r]
-  [:probe::S1::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
+  [:probe::S1::OpResponse.Ok {:r r} r]
+  [:probe::S1::OpResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::S1::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::S1::OpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])
      r2  (:wat::core::match (:probe::S2/op s2 (:probe::S2::OpRequest :m item)) 
-  [:probe::S2::OpResponse::Ok {:r r} r]
-  [:probe::S2::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
+  [:probe::S2::OpResponse.Ok {:r r} r]
+  [:probe::S2::OpResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::S2::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::S2::OpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])
      r3  (:wat::core::match (:probe::S3/op s3 (:probe::S3::OpRequest :m item)) 
-  [:probe::S3::OpResponse::Ok {:r r} r]
-  [:probe::S3::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
+  [:probe::S3::OpResponse.Ok {:r r} r]
+  [:probe::S3::OpResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::S3::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::S3::OpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])
      r4  (:wat::core::match (:probe::S4/op s4 (:probe::S4::OpRequest :m item)) 
-  [:probe::S4::OpResponse::Ok {:r r} r]
-  [:probe::S4::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
+  [:probe::S4::OpResponse.Ok {:r r} r]
+  [:probe::S4::OpResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::S4::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::S4::OpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])
      r5  (:wat::core::match (:probe::S5/op s5 (:probe::S5::OpRequest :m item)) 
-  [:probe::S5::OpResponse::Ok {:r r} r]
-  [:probe::S5::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
+  [:probe::S5::OpResponse.Ok {:r r} r]
+  [:probe::S5::OpResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::S5::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::S5::OpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])
      r6  (:wat::core::match (:probe::S6/op s6 (:probe::S6::OpRequest :m item)) 
-  [:probe::S6::OpResponse::Ok {:r r} r]
-  [:probe::S6::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
+  [:probe::S6::OpResponse.Ok {:r r} r]
+  [:probe::S6::OpResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::S6::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::S6::OpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])
      r7  (:wat::core::match (:probe::S7/op s7 (:probe::S7::OpRequest :m item)) 
-  [:probe::S7::OpResponse::Ok {:r r} r]
-  [:probe::S7::OpResponse::RequestTooLarge {:bytes bytes :cap cap}
+  [:probe::S7::OpResponse.Ok {:r r} r]
+  [:probe::S7::OpResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::S7::OpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::S7::OpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])
      svc (:wat::core::string::concat r1
            (:wat::core::string::concat r2

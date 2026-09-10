@@ -3,5 +3,5 @@
 ;; SAME name. First-definer-wins never silently applies — the SECOND declaration must
 ;; raise `DuplicateDefine`, symmetrically in either definition order. This order: the
 ;; `defn` registers first, so the enum's variant ctor collides against it.
-(:wat::core::defn :my::app::Foo::Bar [] -> :wat::core::i64 1)
+(:wat::core::defn :my::app::Foo.Bar [] -> :wat::core::i64 1)
 (:wat::core::defenum :my::app::Foo :wat::enum::Pure :Bar)

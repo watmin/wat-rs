@@ -3,4 +3,4 @@
   :Ok
   :Pending
   :Error)
-(:wat::core::defn :test::pick [] -> :app::Status :app::Status::Ok)
+(:wat::core::defn :test::pick [] -> :app::Status :app::Status.Ok)

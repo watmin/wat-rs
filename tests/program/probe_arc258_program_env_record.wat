@@ -11,5 +11,5 @@
       (:wat::program::Env
         :started-at (:wat::time::at-millis 5000)
         :peer-started-at (:wat::time::at-millis 0)
-        :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind::process :cpu-count 1
+        :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind.process :cpu-count 1
         :user-data (:wat::program::EmptyEnv)))))

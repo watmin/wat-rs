@@ -80,7 +80,7 @@
     (:wat::fix::fix-source node)))
 
 (:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST
-  (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
+  (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
 
 (:wat::core::defn :user::c01 [] -> :wat::core::String
   (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :svc::Alias :wat::core::i64)"))))
@@ -94,8 +94,8 @@
 ;; reportable. The source never reaches the tool under test at all.
 (:wat::core::defn :user::c03 [] -> :wat::core::String
   (:wat::core::match (:wat::core::read-string "(:wat::core::typealias :Foo<T> :wat::core::Vector<wat::core::i64>)")
-    [:wat::core::ReadOutcome::Forms {:forms __forms} "READ-OK — the angle form was NOT refused"]
-    [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::core::Error/message __cause)]))
+    [:wat::core::ReadOutcome.Forms {:forms __forms} "READ-OK — the angle form was NOT refused"]
+    [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::core::Error/message __cause)]))
 (:wat::core::defn :user::c04 [] -> :wat::core::String
   (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :demo::edn::Tagged :wat::holon::HolonAST)"))))
 (:wat::core::defn :user::c05 [] -> :wat::core::String

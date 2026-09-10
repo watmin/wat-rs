@@ -7,4 +7,4 @@
 (:wat::core::defn :user::takes-colour [c <- :usr::Colour] -> :wat::core::nil
   (:wat::kernel::println "ok"))
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::takes-colour (:usr::Colour::Red {:shade 7})))
+  (:user::takes-colour (:usr::Colour.Red {:shade 7})))

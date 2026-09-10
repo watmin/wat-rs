@@ -18,20 +18,20 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [n  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
+               [n  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                 _  (:wat::kernel::println n)
                 _  (:wat::kernel::println (:wat::i64::* n 2))
                 _  (:wat::kernel::println (:wat::i64::* n 3))]
                nil))))
      _ (:wat::core::match (:wat::kernel::send p 7)
-         [:wat::kernel::SendOutcome::Sent {} nil]
-         [:wat::kernel::SendOutcome::Closed {} nil]
+         [:wat::kernel::SendOutcome.Sent {} nil]
+         [:wat::kernel::SendOutcome.Closed {} nil]
          ;; arc 278 #73 — uniform, precondition is the recv-all' right below: a stop
          ;; that interrupted this write is still in force when the read parks, so the
          ;; drain returns Err[Stopped] and the caller is told once, by that Result.
-         [:wat::kernel::SendOutcome::Stopped {} nil]
-         [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+         [:wat::kernel::SendOutcome.Stopped {} nil]
+         [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
     (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Result::Ok {:value outputs} outputs]
-      [:wat::core::Result::Err {:error cause}
+      [:wat::core::Result.Ok {:value outputs} outputs]
+      [:wat::core::Result.Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))

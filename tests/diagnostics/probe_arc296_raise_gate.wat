@@ -31,13 +31,13 @@
                 (:wat::kernel::raise! (:wat::core::Fault/of "boom")))))
      ;; raise-msg: the Panic message if caught as Lost[Panic]; a sentinel otherwise.
      raise-msg (:wat::core::match (:wat::kernel::recv p)
-                 [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
-                 [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                 [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
                    (:wat::core::match cause
-                     [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+                     [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
                      [_ "LOST-NON-PANIC"])]
-                 [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
-                 [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])]
+                 [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+                 [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])]
     (:wat::core::do
       ;; Verify the error message round-trips through accept-error.
       (:wat::test::assert-eq msg "boom")

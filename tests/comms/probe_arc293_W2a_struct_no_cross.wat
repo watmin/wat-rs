@@ -33,12 +33,12 @@
              (:wat::kernel::pprintln (:w2a::S :val 99)))))]
     (:w2a::S/val
       (:wat::core::match (:wat::kernel::recv p)
-        [:wat::kernel::RecvOutcome::Message {:msg m} m]
-        [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        [:wat::kernel::RecvOutcome.Message {:msg m} m]
+        [:wat::kernel::RecvOutcome.Lost {:cause cause}
           (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-        [:wat::kernel::RecvOutcome::Stopped {}
+        [:wat::kernel::RecvOutcome.Stopped {}
           (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-        [:wat::kernel::RecvOutcome::Closed {}
+        [:wat::kernel::RecvOutcome.Closed {}
           (:wat::kernel::assertion-failed! :message "recv': p closed unexpectedly")]))))
 
 ;; Record control probe — sends a base record over the wire.
@@ -51,12 +51,12 @@
              (:wat::kernel::pprintln (:w2a::R :val 42)))))]
     (:w2a::R/val
       (:wat::core::match (:wat::kernel::recv p)
-        [:wat::kernel::RecvOutcome::Message {:msg m} m]
-        [:wat::kernel::RecvOutcome::Lost {:cause cause}
+        [:wat::kernel::RecvOutcome.Message {:msg m} m]
+        [:wat::kernel::RecvOutcome.Lost {:cause cause}
           (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-        [:wat::kernel::RecvOutcome::Stopped {}
+        [:wat::kernel::RecvOutcome.Stopped {}
           (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-        [:wat::kernel::RecvOutcome::Closed {}
+        [:wat::kernel::RecvOutcome.Closed {}
           (:wat::kernel::assertion-failed! :message "recv': p closed unexpectedly")]))))
 
 ;; ── OUTBOUND: send' guard ─────────────────────────────────────────
@@ -75,12 +75,12 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::core::let [_ (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])] nil))))
+             (:wat::core::let [_ (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])] nil))))
      _ (:wat::core::match (:wat::kernel::send p (:w2a::R :val 42))
-         [:wat::kernel::SendOutcome::Sent {} nil]
-         [:wat::kernel::SendOutcome::Closed {} nil]
-         [:wat::kernel::SendOutcome::Lost {:cause _c} nil]
-         [:wat::kernel::SendOutcome::Stopped {} nil])] ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
+         [:wat::kernel::SendOutcome.Sent {} nil]
+         [:wat::kernel::SendOutcome.Closed {} nil]
+         [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+         [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
     nil))
 
 ;; Thread control — a struct over a THREAD peer round-trips in-locus (no
@@ -93,28 +93,28 @@
               (:wat::core::match
                 (:wat::kernel::send self
                   (:wat::core::match (:wat::kernel::recv self)
-                    [:wat::kernel::RecvOutcome::Message {:msg m} m]
-                    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                    [:wat::kernel::RecvOutcome.Message {:msg m} m]
+                    [:wat::kernel::RecvOutcome.Lost {:cause cause}
                       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                    [:wat::kernel::RecvOutcome::Stopped {}
+                    [:wat::kernel::RecvOutcome.Stopped {}
                       (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                    [:wat::kernel::RecvOutcome::Closed {}
+                    [:wat::kernel::RecvOutcome.Closed {}
                       (:wat::kernel::assertion-failed! :message "recv': self closed unexpectedly")]))
-                [:wat::kernel::SendOutcome::Sent {} nil]
-                [:wat::kernel::SendOutcome::Closed {} nil]
-                [:wat::kernel::SendOutcome::Lost {:cause _c} nil]
-                [:wat::kernel::SendOutcome::Stopped {} nil])))  ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
+                [:wat::kernel::SendOutcome.Sent {} nil]
+                [:wat::kernel::SendOutcome.Closed {} nil]
+                [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+                [:wat::kernel::SendOutcome.Stopped {} nil])))  ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
      _   (:wat::core::match (:wat::kernel::send peer (:w2a::S :val 99))
-           [:wat::kernel::SendOutcome::Sent {} nil]
-           [:wat::kernel::SendOutcome::Closed {} nil]
-           [:wat::kernel::SendOutcome::Lost {:cause _c} nil]
-           [:wat::kernel::SendOutcome::Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
+           [:wat::kernel::SendOutcome.Sent {} nil]
+           [:wat::kernel::SendOutcome.Closed {} nil]
+           [:wat::kernel::SendOutcome.Lost {:cause _c} nil]
+           [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      got (:wat::core::match (:wat::kernel::recv peer)
-           [:wat::kernel::RecvOutcome::Message {:msg m} m]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Message {:msg m} m]
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': peer closed unexpectedly")])]
     (:w2a::S/val got)))

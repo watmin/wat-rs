@@ -32,7 +32,7 @@
 ;; `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
 (:wat::core::defn :user::main [] -> :wat::core::nil
   ;; the ctor — K resolves, the map is the payload
-  (:wat::kernel::println (:wat::core::Option::Some {:value 7}))
+  (:wat::kernel::println (:wat::core::Option.Some {:value 7}))
   ;; the accessor — K does not resolve, so the map is the RECEIVER and K is the key
   (:wat::kernel::println (:wat::core::Option.Some {:value 7}))
   ;; ... and it finds the key when the key is actually there

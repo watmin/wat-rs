@@ -37,11 +37,11 @@
       (:wat::core::match m 
         [{h :host  mv :missing}
          (:wat::core::match h 
-           [:wat::core::Option::Some {:value _}
+           [:wat::core::Option.Some {:value _}
             (:wat::core::match mv 
-              [:wat::core::Option::Some {:value _} false]
-              [:wat::core::Option::None {}     true])]
-           [:wat::core::Option::None {} false])]
+              [:wat::core::Option.Some {:value _} false]
+              [:wat::core::Option.None {}     true])]
+           [:wat::core::Option.None {} false])]
         [_ false])))
 
 ;; Probe 5: fall-through — i64 scrutinee with hash-destructure first arm falls to wildcard → i64(99)

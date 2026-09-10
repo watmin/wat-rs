@@ -27,8 +27,8 @@
 ;; Row 4 — pulling `rest` from row 1's Item and calling `next` again yields the SECOND element.
 (:wat::core::defn :probe::row4 [] -> (:wat::stream::NextOutcome :- [:wat::core::i64])
   (:wat::core::match (:probe::row1)
-    [:wat::stream::NextOutcome::Item {:value value :rest rest} (:wat::stream::next rest)]
-    [:wat::stream::NextOutcome::Exhausted {}
+    [:wat::stream::NextOutcome.Item {:value value :rest rest} (:wat::stream::next rest)]
+    [:wat::stream::NextOutcome.Exhausted {}
       (:wat::kernel::assertion-failed! :message "row1 must be Item — row4 fixture is broken")]))
 
 ;; Row 3 — with a printing `f`, ONE `next` on `(map f v)` prints EXACTLY ONE LINE.
@@ -48,6 +48,6 @@
      mapped (:wat::core::map f v)
      r (:wat::stream::next mapped)]
     (:wat::core::match r
-      [:wat::stream::NextOutcome::Item {:value value :rest rest} nil]
-      [:wat::stream::NextOutcome::Exhausted {}
+      [:wat::stream::NextOutcome.Item {:value value :rest rest} nil]
+      [:wat::stream::NextOutcome.Exhausted {}
         (:wat::kernel::assertion-failed! :message "row3: next on (map f v) must be Item")])))

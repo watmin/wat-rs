@@ -20,10 +20,10 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome::Lost {:cause _cause} "UNEXPECTED-LOST"]
-      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome::Closed {} "closed"])))
+      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome.Lost {:cause _cause} "UNEXPECTED-LOST"]
+      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome.Closed {} "closed"])))
 
 ;; Probe 2 — child calls assertion-failed! → the peer CRASHES before any send →
 ;; recv' → Lost[cause] (a LociDiedError carrying the diagnostic). Returns the
@@ -36,8 +36,8 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::assertion-failed! :message "intentional panic from probe_run_hermetic_no_deadlock"))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::LociDiedError/message cause)]
-      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))
+      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

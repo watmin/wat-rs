@@ -11,30 +11,30 @@
               (:wat::core::fn [_admin <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
                 (:wat::core::let
                   [conn (:wat::core::match (:wat::kernel::accept l)
-                          [:wat::kernel::AcceptOutcome::Accepted {:peer p} p]
-                          [:wat::kernel::AcceptOutcome::Closed {}
+                          [:wat::kernel::AcceptOutcome.Accepted {:peer p} p]
+                          [:wat::kernel::AcceptOutcome.Closed {}
                             (:wat::kernel::assertion-failed! :message "accept': listener closed before a client connected")]
-                          [:wat::kernel::AcceptOutcome::Failed {:cause cause}
+                          [:wat::kernel::AcceptOutcome.Failed {:cause cause}
                             (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
                    n    (:wat::core::match (:wat::kernel::recv conn)
-                          [:wat::kernel::RecvOutcome::Message {:msg m} m]
-                          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                          [:wat::kernel::RecvOutcome.Message {:msg m} m]
+                          [:wat::kernel::RecvOutcome.Lost {:cause cause}
                             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                          [:wat::kernel::RecvOutcome::Stopped {}
+                          [:wat::kernel::RecvOutcome.Stopped {}
                             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                          [:wat::kernel::RecvOutcome::Closed {}
+                          [:wat::kernel::RecvOutcome.Closed {}
                             (:wat::kernel::assertion-failed! :message "recv': conn closed unexpectedly")])
-                   _    (:wat::core::match (:wat::kernel::send conn (:wat::core::* n 2)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil] [:wat::kernel::SendOutcome::Stopped {} nil])] ;; arc 278 #73 — fire-and-forget reply; outcome ignored uniformly regardless of cause
+                   _    (:wat::core::match (:wat::kernel::send conn (:wat::core::* n 2)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget reply; outcome ignored uniformly regardless of cause
                   nil)))
-     conn  (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _     (:wat::core::match (:wat::kernel::send conn 5) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil] [:wat::kernel::SendOutcome::Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
+     conn  (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     _     (:wat::core::match (:wat::kernel::send conn 5) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      reply (:wat::core::match (:wat::kernel::recv conn)
-             [:wat::kernel::RecvOutcome::Message {:msg m} m]
-             [:wat::kernel::RecvOutcome::Lost {:cause cause}
+             [:wat::kernel::RecvOutcome.Message {:msg m} m]
+             [:wat::kernel::RecvOutcome.Lost {:cause cause}
                (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-             [:wat::kernel::RecvOutcome::Stopped {}
+             [:wat::kernel::RecvOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-             [:wat::kernel::RecvOutcome::Closed {}
+             [:wat::kernel::RecvOutcome.Closed {}
                (:wat::kernel::assertion-failed! :message "recv': conn closed unexpectedly")])]
     reply))
 

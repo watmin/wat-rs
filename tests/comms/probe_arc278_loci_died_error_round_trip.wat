@@ -21,13 +21,13 @@
           (:wat::core::defn :user::main [] -> :wat::core::nil
             (:wat::kernel::raise! (:wat::core::Fault/of "loci-died-panic-data")))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::Option::None]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         ;; THE GATE: `cause` is a loci-agnostic LociDiedError — a matchable death report,
         ;; not a flat Failure. Every peer handles every death regardless of its locus.
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError::Panic {:message message :failure failure}
-           (:wat::core::Option::Some {:value message})]
-          [_ :wat::core::Option::None])]
-      [:wat::kernel::RecvOutcome::Stopped {} :wat::core::Option::None]
-      [:wat::kernel::RecvOutcome::Closed {} :wat::core::Option::None])))
+          [:wat::kernel::LociDiedError.Panic {:message message :failure failure}
+           (:wat::core::Option.Some {:value message})]
+          [_ :wat::core::Option.None])]
+      [:wat::kernel::RecvOutcome.Stopped {} :wat::core::Option.None]
+      [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])))

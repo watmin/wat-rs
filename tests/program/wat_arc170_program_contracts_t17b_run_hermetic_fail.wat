@@ -20,10 +20,10 @@
              ;; assert-eq: 1+0=1 vs expected=2 — this fails, child panics before sending.
              (:wat::test::assert-eq (:wat::i64::+ 1 0) 2))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Lost {:cause cause} cause]
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Lost {:cause cause} cause]
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "one-neq-two: expected the child to die on assert-eq, but it sent a value")]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "one-neq-two: expected the child to die on assert-eq, but a stop was requested instead — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "one-neq-two: expected LociDiedError::Panic, got a clean close")])))

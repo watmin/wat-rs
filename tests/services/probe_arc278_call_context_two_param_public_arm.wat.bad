@@ -23,4 +23,4 @@
   :ephemeral []
   :impls
   [(ping [s req]
-     (:wat::service::Outcome::Reply s (:probe::BadCtxArity::PingResponse::Ok true)))])
+     (:wat::service::Outcome.Reply s (:probe::BadCtxArity::PingResponse.Ok true)))])

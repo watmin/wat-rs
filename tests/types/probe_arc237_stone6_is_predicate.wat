@@ -18,7 +18,7 @@
 
 ;; ─── enum ─────────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::probe03 [] -> :wat::core::bool
-  (:my::is-Color? :my::Color::Red))
+  (:my::is-Color? :my::Color.Red))
 
 (:wat::core::defn :user::probe04 [] -> :wat::core::bool
   (:my::is-Color? 1))

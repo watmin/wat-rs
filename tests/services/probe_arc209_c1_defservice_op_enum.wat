@@ -25,10 +25,10 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply {:state s :reply (:my::Counter::GetResponse::Ok {:value (:my::counter::Record/count (:my::counter::State/durable s))})}))
+     (:wat::service::Outcome.Reply {:state s :reply (:my::Counter::GetResponse.Ok {:value (:my::counter::Record/count (:my::counter::State/durable s))})}))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply {:state (:my::counter::State :durable (:my::counter::Record :count c)) :reply (:my::Counter::IncrementResponse::Ok {:value c})})))])
+       (:wat::service::Outcome.Reply {:state (:my::counter::State :durable (:my::counter::Record :count c)) :reply (:my::Counter::IncrementResponse.Ok {:value c})})))])
 
 ;; Exercise the surface-synthesized op enum (wrapped-record shape):
 ;;   1. Build an IncrementRequest via the user-declared record constructor.
@@ -37,7 +37,7 @@
 ;;      Increment arm extracts n via IncrementRequest/n accessor → 5.
 (:wat::core::defn :user::probe-op [] -> :wat::core::i64
   (:wat::core::let [req (:my::Counter::IncrementRequest :n 5)
-                    op  (:my::Counter::Op::Increment {:req req})]
+                    op  (:my::Counter::Op.Increment {:req req})]
     (:wat::core::match op 
-      [:my::Counter::Op::Get {:req _r} 0]
-      [:my::Counter::Op::Increment {:req req} (:my::Counter::IncrementRequest/n req)])))
+      [:my::Counter::Op.Get {:req _r} 0]
+      [:my::Counter::Op.Increment {:req req} (:my::Counter::IncrementRequest/n req)])))

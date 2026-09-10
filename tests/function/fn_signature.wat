@@ -34,5 +34,5 @@
   (:wat::core::match
               (:wat::runtime::lookup-define :user::add_t2)
               
-              [:wat::core::Option::Some {:value _} 1]
-              [:wat::core::Option::None {}    0]))
+              [:wat::core::Option.Some {:value _} 1]
+              [:wat::core::Option.None {}    0]))

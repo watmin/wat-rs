@@ -19,18 +19,18 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
                [item (:h::make-item)
-                kind :h::LocalKind::A
+                kind :h::LocalKind.A
                 k    (:wat::core::match kind
-                       [:h::LocalKind::A {} 1]
-                       [:h::LocalKind::B {} 2])
+                       [:h::LocalKind.A {} 1]
+                       [:h::LocalKind.B {} 2])
                 n    (:wat::i64::+ (:h::LocalItem/value item) k)
                 _out (:wat::kernel::println n)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m} m]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg m} m]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "launch: child closed before sending its value")])))

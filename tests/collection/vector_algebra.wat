@@ -12,38 +12,38 @@
     [va (:wat::holon::encode (:wat::holon::to-holon "a"))
      vb (:wat::holon::encode (:wat::holon::to-holon "b"))]
     (:wat::core::match (:wat::holon::vector-bind va vb)
-      [:wat::holon::CombineOutcome::Combined {:vector c1}
+      [:wat::holon::CombineOutcome.Combined {:vector c1}
         (:wat::core::match (:wat::holon::vector-bind va vb)
-          [:wat::holon::CombineOutcome::Combined {:vector c2}
+          [:wat::holon::CombineOutcome.Combined {:vector c2}
             (:wat::core::if (:wat::core::= c1 c2)  "yes" "no")]
-          [:wat::holon::CombineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])]
-      [:wat::holon::CombineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
+          [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])]
+      [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :valg::bundle-singleton [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))]
     (:wat::core::match
       (:wat::holon::vector-bundle (:wat::core::Vector :- [:wat::holon::Vector] va))
-      [:wat::holon::CombineOutcome::Combined {:vector bundled}
+      [:wat::holon::CombineOutcome.Combined {:vector bundled}
         (:wat::core::match (:wat::holon::cosine va bundled)
-          [:wat::holon::CosineOutcome::Similarity {:similarity s}
+          [:wat::holon::CosineOutcome.Similarity {:similarity s}
             (:wat::core::if (:wat::core::> s 0.99)  "near-1" "far")]
-          [:wat::holon::CosineOutcome::Degenerate {:side _side} "degenerate"]
-          [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])]
-      [:wat::holon::CombineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
+          [:wat::holon::CosineOutcome.Degenerate {:side _side} "degenerate"]
+          [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])]
+      [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :valg::blend-weighted [] -> :wat::core::String
   (:wat::core::let
     [va (:wat::holon::encode (:wat::holon::to-holon "x"))
      vb (:wat::holon::encode (:wat::holon::to-holon "y"))]
     (:wat::core::match (:wat::holon::vector-blend va vb 1.0 0.0)
-      [:wat::holon::CombineOutcome::Combined {:vector blended}
+      [:wat::holon::CombineOutcome.Combined {:vector blended}
         (:wat::core::match (:wat::holon::cosine va blended)
-          [:wat::holon::CosineOutcome::Similarity {:similarity s}
+          [:wat::holon::CosineOutcome.Similarity {:similarity s}
             (:wat::core::if (:wat::core::> s 0.95)  "near-1" "far")]
-          [:wat::holon::CosineOutcome::Degenerate {:side _side} "degenerate"]
-          [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])]
-      [:wat::holon::CombineOutcome::DimensionMismatch {:expected _e :got _g} "mismatch"])))
+          [:wat::holon::CosineOutcome.Degenerate {:side _side} "degenerate"]
+          [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])]
+      [:wat::holon::CombineOutcome.DimensionMismatch {:expected _e :got _g} "mismatch"])))
 
 (:wat::core::defn :valg::permute-changes [] -> :wat::core::String
   (:wat::core::let

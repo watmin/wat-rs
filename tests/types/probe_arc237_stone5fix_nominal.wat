@@ -11,10 +11,10 @@
 
 ;; ─── enum (the confirmed break) ──────────────────────────────────────────────
 (:wat::core::defn :user::probe01 [] -> :wat::core::bool
-  (:wat::core::conforms? :my::Color::Red :my::Color))
+  (:wat::core::conforms? :my::Color.Red :my::Color))
 
 (:wat::core::defn :user::probe02 [] -> :wat::core::bool
-  (:wat::core::conforms? :my::Color::Red :my::Suit))
+  (:wat::core::conforms? :my::Color.Red :my::Suit))
 
 (:wat::core::defn :user::probe03 [] -> :wat::core::bool
   (:wat::core::conforms? 1 :my::Color))
@@ -42,7 +42,7 @@
 
 ;; ─── the OTHER consumer: :wat::core::type ────────────────────────────────────
 (:wat::core::defn :user::probe10 [] -> :wat::core::String
-  (:wat::core::type :my::Color::Red))
+  (:wat::core::type :my::Color.Red))
 
 (:wat::core::defn :user::probe11 [] -> :wat::core::String
   (:wat::core::type (:my::Price 1.5)))

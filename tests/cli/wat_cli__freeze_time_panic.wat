@@ -5,6 +5,6 @@
 ;; (arc 278 no-hidden-failures, R41 EGO SVM LEX).
 (:wat::core::let
   [pf (:wat::core::Result/expect
-        (:wat::eval-ast! (:wat::core::match (:wat::core::read-string "(:wat::core::this-verb-does-not-exist)") [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
+        (:wat::eval-ast! (:wat::core::match (:wat::core::read-string "(:wat::core::this-verb-does-not-exist)") [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
         "freeze-time boom")]
   pf)

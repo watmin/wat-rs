@@ -29,12 +29,12 @@
 
 (:wat::core::defn :user::print-kind [info <- :wat::runtime::TypeInfo] -> :wat::core::nil
   (:wat::core::match (:wat::runtime::TypeInfo/kind info)
-    [:wat::runtime::TypeKind::Aggregate {} (:wat::kernel::println "Aggregate")]
-    [:wat::runtime::TypeKind::Enum {} (:wat::kernel::println "Enum")]
-    [:wat::runtime::TypeKind::Newtype {} (:wat::kernel::println "Newtype")]
-    [:wat::runtime::TypeKind::Alias {} (:wat::kernel::println "Alias")]
-    [:wat::runtime::TypeKind::Union {} (:wat::kernel::println "Union")]
-    [:wat::runtime::TypeKind::Surface {} (:wat::kernel::println "Surface")]))
+    [:wat::runtime::TypeKind.Aggregate {} (:wat::kernel::println "Aggregate")]
+    [:wat::runtime::TypeKind.Enum {} (:wat::kernel::println "Enum")]
+    [:wat::runtime::TypeKind.Newtype {} (:wat::kernel::println "Newtype")]
+    [:wat::runtime::TypeKind.Alias {} (:wat::kernel::println "Alias")]
+    [:wat::runtime::TypeKind.Union {} (:wat::kernel::println "Union")]
+    [:wat::runtime::TypeKind.Surface {} (:wat::kernel::println "Surface")]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::print-kind (:wat::runtime::type-of :probe::Rec))
@@ -44,7 +44,7 @@
   (:user::print-kind (:wat::runtime::type-of :probe::Num))
   (:user::print-kind (:wat::runtime::type-of :probe::Surf))
   (:wat::core::match (:wat::runtime::TypeInfo/body (:wat::runtime::type-of :probe::Box))
-    [:wat::runtime::TypeBody::Enum {:purity _ :variants vs}
+    [:wat::runtime::TypeBody.Enum {:purity _ :variants vs}
       (:wat::core::let
         [pair (:wat::core::nth vs 1)
          fs   (:wat::runtime::TypeVariant/fields pair)]
@@ -54,12 +54,12 @@
           (:wat::core::str (:wat::runtime::TypeField/name (:wat::core::second fs)))))]
     [_ (:wat::kernel::println "not-enum")])
   (:wat::core::match (:wat::runtime::TypeInfo/body (:wat::runtime::type-of :probe::Rec))
-    [:wat::runtime::TypeBody::Aggregate {:nature n :fields _}
+    [:wat::runtime::TypeBody.Aggregate {:nature n :fields _}
       (:wat::core::match n
-        [:wat::runtime::TypeNature::Struct {} (:wat::kernel::println "Struct")]
-        [:wat::runtime::TypeNature::Record {} (:wat::kernel::println "Record")]
-        [:wat::runtime::TypeNature::HolonRecord {} (:wat::kernel::println "HolonRecord")]
-        [:wat::runtime::TypeNature::Peer {} (:wat::kernel::println "Peer")])]
+        [:wat::runtime::TypeNature.Struct {} (:wat::kernel::println "Struct")]
+        [:wat::runtime::TypeNature.Record {} (:wat::kernel::println "Record")]
+        [:wat::runtime::TypeNature.HolonRecord {} (:wat::kernel::println "HolonRecord")]
+        [:wat::runtime::TypeNature.Peer {} (:wat::kernel::println "Peer")])]
     [_ (:wat::kernel::println "not-aggregate")])
   (:wat::kernel::println
     (:wat::core::str (:wat::core::first (:wat::runtime::field-names-of :probe::Rec))))

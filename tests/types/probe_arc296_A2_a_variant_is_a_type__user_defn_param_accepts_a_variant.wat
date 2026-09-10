@@ -4,4 +4,4 @@
 (:wat::core::defn :user::takes-opt :- [T] [o <- (:wat::core::Option :- [:T])] -> :wat::core::nil
   (:wat::kernel::println "ok"))
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::takes-opt (:wat::core::Option::Some {:value 42})))
+  (:user::takes-opt (:wat::core::Option.Some {:value 42})))

@@ -8,14 +8,14 @@
         (:wat::core::match
           (:wat::kernel::send self
             (:wat::core::match r
-              [:wat::kernel::RecvOutcome::Message {:msg m} m]
-              [:wat::kernel::RecvOutcome::Lost {:cause cause}
+              [:wat::kernel::RecvOutcome.Message {:msg m} m]
+              [:wat::kernel::RecvOutcome.Lost {:cause cause}
                 (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-              [:wat::kernel::RecvOutcome::Stopped {}
+              [:wat::kernel::RecvOutcome.Stopped {}
                 (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; self was ALIVE and the channel open")]
-              [:wat::kernel::RecvOutcome::Closed {}
+              [:wat::kernel::RecvOutcome.Closed {}
                 (:wat::kernel::assertion-failed! :message "recv': self closed before echo")]))
-          [:wat::kernel::SendOutcome::Sent {} nil]
-          [:wat::kernel::SendOutcome::Closed {} nil]
-          [:wat::kernel::SendOutcome::Stopped {} nil]
-          [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))))
+          [:wat::kernel::SendOutcome.Sent {} nil]
+          [:wat::kernel::SendOutcome.Closed {} nil]
+          [:wat::kernel::SendOutcome.Stopped {} nil]
+          [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))))

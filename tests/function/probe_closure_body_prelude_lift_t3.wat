@@ -14,17 +14,17 @@
              :South)
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [d    :h::LocalDir::North
+               [d    :h::LocalDir.North
                 n    (:wat::core::match d
-                       [:h::LocalDir::North {} 1]
-                       [:h::LocalDir::South {} 2])
+                       [:h::LocalDir.North {} 1]
+                       [:h::LocalDir.South {} 2])
                 _out (:wat::kernel::println n)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m} m]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg m} m]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "launch: child closed before sending its value")])))

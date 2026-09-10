@@ -8,24 +8,24 @@
                              (:wat::core::match
                                (:wat::kernel::send self
                                  (:wat::program::Env/os-thread-id (:wat::program::env)))
-                               [:wat::kernel::SendOutcome::Sent {} nil]
-                               [:wat::kernel::SendOutcome::Closed {} nil]
+                               [:wat::kernel::SendOutcome.Sent {} nil]
+                               [:wat::kernel::SendOutcome.Closed {} nil]
                                ;; arc 278 #73 — this is the worker's final send back to
                                ;; the parent; a stop here is terminal for the worker
                                ;; either way, same as Closed.
-                               [:wat::kernel::SendOutcome::Stopped {} nil]
-                               [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))
+                               [:wat::kernel::SendOutcome.Stopped {} nil]
+                               [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
                     ;; arc 278 recv'-outcome wall — recv' returns a matchable (RecvOutcome :- [i64]).
                     ;; OWNER role (the test is the final caller): ::Message m flows out as got;
                     ;; ::Lost/::Closed surface the cause loudly (eprintln, divergent-return).
                     r   (:wat::kernel::recv peer)
                     got (:wat::core::match r
-                          [:wat::kernel::RecvOutcome::Message {:msg m} m]
-                          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                          [:wat::kernel::RecvOutcome.Message {:msg m} m]
+                          [:wat::kernel::RecvOutcome.Lost {:cause cause}
                             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                          [:wat::kernel::RecvOutcome::Stopped {}
+                          [:wat::kernel::RecvOutcome.Stopped {}
                             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                          [:wat::kernel::RecvOutcome::Closed {}
+                          [:wat::kernel::RecvOutcome.Closed {}
                             (:wat::kernel::assertion-failed! :message "recv': peer closed before sending its os-thread-id")])]
     got))
 
@@ -36,24 +36,24 @@
                              (:wat::core::match
                                (:wat::kernel::send self
                                  (:wat::core::if
-                                   (:wat::core::= (:wat::program::Env/peer-kind (:wat::program::env)) :wat::program::PeerKind::thread)
+                                   (:wat::core::= (:wat::program::Env/peer-kind (:wat::program::env)) :wat::program::PeerKind.thread)
                                    111 222))
-                               [:wat::kernel::SendOutcome::Sent {} nil]
-                               [:wat::kernel::SendOutcome::Closed {} nil]
+                               [:wat::kernel::SendOutcome.Sent {} nil]
+                               [:wat::kernel::SendOutcome.Closed {} nil]
                                ;; arc 278 #73 — this is the worker's final send back to
                                ;; the parent; a stop here is terminal for the worker
                                ;; either way, same as Closed.
-                               [:wat::kernel::SendOutcome::Stopped {} nil]
-                               [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))
+                               [:wat::kernel::SendOutcome.Stopped {} nil]
+                               [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))
                     ;; arc 278 recv'-outcome wall — OWNER role (test is the final caller).
                     r   (:wat::kernel::recv peer)
                     got (:wat::core::match r
-                          [:wat::kernel::RecvOutcome::Message {:msg m} m]
-                          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                          [:wat::kernel::RecvOutcome.Message {:msg m} m]
+                          [:wat::kernel::RecvOutcome.Lost {:cause cause}
                             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                          [:wat::kernel::RecvOutcome::Stopped {}
+                          [:wat::kernel::RecvOutcome.Stopped {}
                             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                          [:wat::kernel::RecvOutcome::Closed {}
+                          [:wat::kernel::RecvOutcome.Closed {}
                             (:wat::kernel::assertion-failed! :message "recv': peer closed before sending its peer-kind")])]
     got))
 

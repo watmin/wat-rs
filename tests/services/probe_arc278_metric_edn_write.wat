@@ -19,6 +19,6 @@
             :time-ns       123
             :start-time-ns 100
             :name          :requests
-            :value         (:wat::telemetry::Numeric::I64 {:val 7})
-            :unit          :wat::telemetry::Unit::Count)]
+            :value         (:wat::telemetry::Numeric.I64 {:val 7})
+            :unit          :wat::telemetry::Unit.Count)]
     (:wat::edn::write m)))

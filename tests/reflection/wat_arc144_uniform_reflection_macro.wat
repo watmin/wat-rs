@@ -7,5 +7,5 @@
   (:wat::core::match
               (:wat::runtime::lookup-define :my::id)
               
-              [:wat::core::Option::Some {:value _} true]
-              [:wat::core::Option::None {}    false]))
+              [:wat::core::Option.Some {:value _} true]
+              [:wat::core::Option.None {}    false]))

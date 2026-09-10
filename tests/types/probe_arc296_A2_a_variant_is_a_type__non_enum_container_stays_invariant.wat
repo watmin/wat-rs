@@ -7,4 +7,4 @@
   [h <- (:usr::Holder :- [(:wat::core::Option :- [:wat::core::i64])])] -> :wat::core::nil
   (:wat::kernel::println "ok"))
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::takes-holder (:usr::Holder (:wat::core::Option::Some {:value 1}))))
+  (:user::takes-holder (:usr::Holder (:wat::core::Option.Some {:value 1}))))

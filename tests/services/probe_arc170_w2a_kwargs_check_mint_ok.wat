@@ -20,8 +20,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Echo::EchoResponse::Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
+            (:wat::service::Outcome.Reply {:state s
+              :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages
@@ -35,8 +35,8 @@
 (:wat::service::defservice :probe::kv
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s ctx req]
-            (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Kv::GetResponse::Ok {:v (:probe::Kv::GetRequest/k req)})}))])
+            (:wat::service::Outcome.Reply {:state s
+              :reply (:probe::Kv::GetResponse.Ok {:v (:probe::Kv::GetRequest/k req)})}))])
 
 ;; the kwargs work-fn -> AUTO-mints :probe::enrich::kwargs-check
 (:wat::core::defn :probe::enrich
@@ -44,12 +44,12 @@
    & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])
       kv   <- (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])]]
   -> :wat::core::String
-  (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-    [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
-    [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
+  (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+    [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
+    [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
       (:wat::kernel::assertion-failed! :message "enrich: unexpected RequestTooLarge")]
-    [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-      (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+    [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+      (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; arc 170 C2 D — the checker RETURNS `(::Coords, ::GrantHandles)` (a Tuple: the pure
 ;; field-ordered Address'+data record, and the impure parent-local typed-handle struct);

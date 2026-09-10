@@ -5,7 +5,7 @@
   :Flat [])
 (:wat::core::defn :user::route [s <- :usr::Sig] -> :usr::Sig
   (:wat::core::match s
-    [:usr::Sig::Up   {:n n} (:usr::Sig::Down {:n n})]
-    [:usr::Sig::Down {:n n} (:usr::Sig::Up   {:n n})]
-    [:usr::Sig::Flat {}     (:usr::Sig::Flat {})]))
+    [:usr::Sig.Up   {:n n} (:usr::Sig.Down {:n n})]
+    [:usr::Sig.Down {:n n} (:usr::Sig.Up   {:n n})]
+    [:usr::Sig.Flat {}     (:usr::Sig.Flat {})]))
 (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "ok"))

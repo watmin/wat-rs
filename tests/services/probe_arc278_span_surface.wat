@@ -13,23 +13,23 @@
   :durable   []
   :ephemeral []
   :impls
-  [(incr  [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:wat::telemetry::Span::IncrResponse::Ok {})}))
-   (timed [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:wat::telemetry::Span::TimedResponse::Ok {})}))
-   (log   [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:wat::telemetry::Span::LogResponse::Ok {})}))
-   (close [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:wat::telemetry::Span::CloseResponse::Done {})}))])
+  [(incr  [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:wat::telemetry::Span::IncrResponse.Ok {})}))
+   (timed [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:wat::telemetry::Span::TimedResponse.Ok {})}))
+   (log   [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:wat::telemetry::Span::LogResponse.Ok {})}))
+   (close [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:wat::telemetry::Span::CloseResponse.Done {})}))])
 
 ;; :user::compute — start the toy on a thread, dial it, drive all four ops, return 1 iff close -> Done.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [h    (:probe::toy-span/start :locus (:wat::spawn::thread) :record (:probe::toy-span::Record))
-     span (:wat::core::match (:wat::kernel::connect (:probe::toy-span::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     span (:wat::core::match (:wat::kernel::connect (:probe::toy-span::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _i   (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
      _t   (:wat::telemetry::Span/timed span
             (:wat::telemetry::Span::TimedRequest :name :fetch :nanos 100))
      _l   (:wat::telemetry::Span/log span
-            (:wat::telemetry::Span::LogRequest :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
+            (:wat::telemetry::Span::LogRequest :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
               :message (:wat::edn::write (:probe::Note :text "hello"))))
      c    (:wat::telemetry::Span/close span (:wat::telemetry::Span::CloseRequest))]
-    (:wat::core::match c [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::telemetry::Span::CloseResponse::Done {} 1]
-      [_ 0])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+    (:wat::core::match c [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:wat::telemetry::Span::CloseResponse.Done {} 1]
+      [_ 0])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

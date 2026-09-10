@@ -6,7 +6,7 @@
   (:wat::core::conforms?
     (:wat::program::Env/peer-kind
       (:wat::program::Env :started-at (:wat::time::now) :peer-started-at (:wat::time::now) :process-id 0 :os-thread-id 0
-        :peer-kind :wat::program::PeerKind::thread :cpu-count 1 :user-data (:wat::program::EmptyEnv)))
+        :peer-kind :wat::program::PeerKind.thread :cpu-count 1 :user-data (:wat::program::EmptyEnv)))
     :wat::program::PeerKind))
 
 ;; seam: run by invoke_user_main; asserts the seam stamps :process for the root main.
@@ -14,5 +14,5 @@
   (:wat::core::do
     (:wat::test::assert-eq
       (:wat::program::Env/peer-kind (:wat::program::env))
-      :wat::program::PeerKind::process)
+      :wat::program::PeerKind.process)
     nil))

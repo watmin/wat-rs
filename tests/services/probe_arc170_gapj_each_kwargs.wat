@@ -32,16 +32,16 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::Counter::GetResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::Counter::GetResponse.Ok
          {:value (:probe::counter::Record/count (:probe::counter::State/durable s))})}))
    (increment [s ctx req]
      (:wat::core::let [c (:wat::i64::+
                            (:probe::counter::Record/count (:probe::counter::State/durable s))
                            (:probe::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply
+       (:wat::service::Outcome.Reply
          {:state (:probe::counter::State :durable (:probe::counter::Record :count c))
-         :reply (:probe::Counter::IncrementResponse::Ok {:value c})})))])
+         :reply (:probe::Counter::IncrementResponse.Ok {:value c})})))])
 
 ;; kwargs work-fn: item positional, `counter` a dialed `:key` kwarg (grant+Setup ride `each`'s
 ;; own tail). The side effect is the increment; the return value is discarded by `each`.
@@ -50,13 +50,13 @@
    & [counter <- (:wat::kernel::Peer :- [:probe::Counter::Op :probe::Counter::Reply])]]
   -> :wat::core::i64
   (:wat::core::match
-    (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-    [:probe::Counter::IncrementResponse::Ok {:value value} value]
+    (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+    [:probe::Counter::IncrementResponse.Ok {:value value} value]
     ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-    [:probe::Counter::IncrementResponse::RequestTooLarge {:bytes bytes :cap cap}
+    [:probe::Counter::IncrementResponse.RequestTooLarge {:bytes bytes :cap cap}
       (:wat::kernel::assertion-failed! :message "record-hit: unexpected RequestTooLarge")]
-    [:probe::Counter::IncrementResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-      (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+    [:probe::Counter::IncrementResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+      (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
 ;; Returns (each's own return value, the counter's final durable count) so the Rust driver can
@@ -65,13 +65,13 @@
   (:wat::core::let
     [h        (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      each-out (:wat::bracket::each (:wat::spawn::process) ["a" "b" "c" "d" "e"] :probe::record-hit :counter h)
-     c        (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c        (:wat::core::match (:wat::kernel::connect (:probe::counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r        (:probe::Counter/get c (:probe::Counter::GetRequest))]
     (:wat::core::Tuple each-out
-      (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-        [:probe::Counter::GetResponse::Ok {:value value} value]
+      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+        [:probe::Counter::GetResponse.Ok {:value value} value]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:probe::Counter::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:probe::Counter::GetResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "run: unexpected RequestTooLarge")]
-        [:probe::Counter::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
+        [:probe::Counter::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))

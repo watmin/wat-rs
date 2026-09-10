@@ -18,19 +18,19 @@
   :ephemeral []
   :impls
   [(is-holon-record [s ctx req]
-     (:wat::service::Outcome::Reply {:state s :reply (:my::HCounter::IsHolonRecordResponse::Ok
+     (:wat::service::Outcome.Reply {:state s :reply (:my::HCounter::IsHolonRecordResponse.Ok
                                         {:yes (:wat::core::record? (:my::hcounter::State/durable s))})}))]
   :durable-parent :wat::holon::Record)
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
     [h (:my::hcounter/start :locus (:wat::spawn::thread) :record (:my::hcounter::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect (:my::hcounter::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c (:wat::core::match (:wat::kernel::connect (:my::hcounter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r (:my::hcounter/is-holon-record c (:my::HCounter::IsHolonRecordRequest))]
-    (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:my::HCounter::IsHolonRecordResponse::Ok {:yes yes} yes]
+    (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:my::HCounter::IsHolonRecordResponse.Ok {:yes yes} yes]
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-      [:my::HCounter::IsHolonRecordResponse::RequestTooLarge {:bytes bytes :cap cap}
+      [:my::HCounter::IsHolonRecordResponse.RequestTooLarge {:bytes bytes :cap cap}
         (:wat::kernel::assertion-failed! :message "compute: unexpected RequestTooLarge")]
-      [:my::HCounter::IsHolonRecordResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [:my::HCounter::IsHolonRecordResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

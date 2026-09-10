@@ -41,13 +41,13 @@
   :impls
   [;; client op: arm the FIRST tick (reply Ok + arm) — the tick re-arms itself thereafter.
    (start [s ctx req]
-     (:wat::service::Outcome::ReplyAndArm {:state s :reply (:probe::Ticker::StartResponse::Ok {})
+     (:wat::service::Outcome.ReplyAndArm {:state s :reply (:probe::Ticker::StartResponse.Ok {})
        :arms [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]}))
 
    ;; client op: reply the current count (proves the reactor serves clients between ticks).
    (poll [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::Ticker::PollResponse::Count
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::Ticker::PollResponse.Count
          {:n (:probe::ticker::Record/count (:probe::ticker::State/durable s))})}))
 
    ;; INTERNAL reactor op (leading dash): fire → +1; re-arm until target, else stop ticking.
@@ -58,25 +58,25 @@
         rec' (:probe::ticker::Record :count n :target (:probe::ticker::Record/target rec))
         s'   (:probe::ticker::State :durable rec')]
        (:wat::core::if (:wat::i64::< n (:probe::ticker::Record/target rec))
-         (:wat::service::Outcome::NoReplyAndArm {:state s'
+         (:wat::service::Outcome.NoReplyAndArm {:state s'
            :arms [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]})
-         (:wat::service::Outcome::NoReply {:state s'}))))])
+         (:wat::service::Outcome.NoReply {:state s'}))))])
 
 ;; ── nap — mora-honest wait (select' on a one-shot after; the driver runs on a thread) ─────────────
 (:wat::core::defn :probe::nap [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::select
       (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
-        (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
+        (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond ms) :done)))
     
-    [:wat::spawn::ServiceEvent::Message {:idx _i :msg _m} nil]
-    [:wat::spawn::ServiceEvent::Closed {:idx _i} nil]
-    [:wat::spawn::ServiceEvent::Lost {:idx _i :cause _c} nil]
-    [:wat::spawn::ServiceEvent::Malformed {:idx _i :cause _c} nil]
-    [:wat::spawn::ServiceEvent::Rejected {:idx _i :cause _c} nil]
-    [:wat::spawn::ServiceEvent::Shutdown {} nil]
-    [:wat::spawn::ServiceEvent::Connection {:peer _p} nil]
-    [:wat::spawn::ServiceEvent::Admin {:msg _m} nil]))
+    [:wat::spawn::ServiceEvent.Message {:idx _i :msg _m} nil]
+    [:wat::spawn::ServiceEvent.Closed {:idx _i} nil]
+    [:wat::spawn::ServiceEvent.Lost {:idx _i :cause _c} nil]
+    [:wat::spawn::ServiceEvent.Malformed {:idx _i :cause _c} nil]
+    [:wat::spawn::ServiceEvent.Rejected {:idx _i :cause _c} nil]
+    [:wat::spawn::ServiceEvent.Shutdown {} nil]
+    [:wat::spawn::ServiceEvent.Connection {:peer _p} nil]
+    [:wat::spawn::ServiceEvent.Admin {:msg _m} nil]))
 
 ;; poll-until — a TCO poll-loop that terminates on the OBSERVED count reaching `target`, not on
 ;; elapsed time; polls DURING ticking (exercising "the reactor serves between ticks"), bounded by
@@ -86,19 +86,19 @@
   (:wat::core::if (:wat::i64::<= attempts 0)
     -2                                              ;; bound exhausted without reaching target
     (:wat::core::match (:probe::Ticker/poll c (:probe::Ticker::PollRequest))
-      [:wat::kernel::RecvOutcome::Message {:msg __recv}
+      [:wat::kernel::RecvOutcome.Message {:msg __recv}
         (:wat::core::match __recv
-          [:probe::Ticker::PollResponse::Count {:n n}
+          [:probe::Ticker::PollResponse.Count {:n n}
             (:wat::core::if (:wat::i64::>= n target)
               n                                     ;; observed the target — done, no timing guess
               (:wat::core::let [_ (:probe::nap 5)]  ;; bounded backoff, NOT a correctness-bearing sleep
                 (:probe::poll-until c target (:wat::i64::- attempts 1))))]
-          [:probe::Ticker::PollResponse::RequestTooLarge {:bytes _b :cap _cp} -1]
-          [:probe::Ticker::PollResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+          [:probe::Ticker::PollResponse.RequestTooLarge {:bytes _b :cap _cp} -1]
+          [:probe::Ticker::PollResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-      [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
+      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+      [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
 ;; the shared driver: start a ticker at `target`, kick it, FACE the start outcome (a start-time
 ;; death now speaks), then poll-until the observed count reaches `target` — wire-synced, not a sleep-guess.
@@ -106,18 +106,18 @@
 (:wat::core::defn :probe::drive-ticker
   [h <- :probe::ticker::Handle] -> :wat::core::i64
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect (:probe::ticker::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+    [c  (:wat::core::match (:wat::kernel::connect (:probe::ticker::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))]
     (:wat::core::match _s
-      [:wat::kernel::RecvOutcome::Message {:msg __start}
+      [:wat::kernel::RecvOutcome.Message {:msg __start}
         (:wat::core::match __start
-          [:probe::Ticker::StartResponse::Ok {} (:probe::poll-until c 3 40)]
-          [:probe::Ticker::StartResponse::RequestTooLarge {:bytes _b :cap _cp} -3]
-          [:probe::Ticker::StartResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+          [:probe::Ticker::StartResponse.Ok {} (:probe::poll-until c 3 40)]
+          [:probe::Ticker::StartResponse.RequestTooLarge {:bytes _b :cap _cp} -3]
+          [:probe::Ticker::StartResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
             (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-      [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
+      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+      [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
 ;; entrypoint (thread locus): expect the count == target (3).
 (:wat::core::defn :user::self-tick-rearms-thread [] -> :wat::core::i64

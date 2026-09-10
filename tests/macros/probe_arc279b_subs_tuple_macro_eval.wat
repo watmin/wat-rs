@@ -38,6 +38,6 @@
     (:wat::core::first
       (:wat::core::ast->children
         (:wat::core::match (:wat::core::read-string
-          (:wat::string::concat "\"" (:wat::string::concat out "\""))) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::core::macro-error (:wat::string::concat "expand-time read-string failed: " (:wat::core::Error/message __cause)))])))))
+          (:wat::string::concat "\"" (:wat::string::concat out "\""))) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::core::macro-error (:wat::string::concat "expand-time read-string failed: " (:wat::core::Error/message __cause)))])))))
 
 (:wat::core::defn :user::probe [] -> :wat::core::String (:user::strip-braces "a{b{c"))

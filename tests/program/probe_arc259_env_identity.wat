@@ -5,7 +5,7 @@
 (:wat::core::defn :probe::c01-compute [] -> :wat::core::i64
   (:wat::program::Env/process-id
     (:wat::program::Env :started-at (:wat::time::now) :peer-started-at (:wat::time::now) :process-id 12345 :os-thread-id 67890
-      :peer-kind :wat::program::PeerKind::process :cpu-count 1 :user-data (:wat::program::EmptyEnv))))
+      :peer-kind :wat::program::PeerKind.process :cpu-count 1 :user-data (:wat::program::EmptyEnv))))
 
 ;; seam: run by invoke_user_main; reads both id fields for effect — accessor errors if
 ;; the seam did not stamp them.

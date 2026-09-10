@@ -11,11 +11,11 @@
       (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
         (:wat::core::match
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
-          [:wat::edn::ReadForeignOutcome::Value {:value fr}
+          [:wat::edn::ReadForeignOutcome.Value {:value fr}
             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-              [:wat::core::Option::Some {:value s} (:wat::core::= s "high")]
-              [:wat::core::Option::None {} false])]
-          [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))))
+              [:wat::core::Option.Some {:value s} (:wat::core::= s "high")]
+              [:wat::core::Option.None {} false])]
+          [:wat::edn::ReadForeignOutcome.Malformed {:cause _} false])))))
 
 (:wat::core::defn :user::foreign-pred-is-deterministic [] -> :wat::core::bool
   (:wat::rete::deterministic?
@@ -23,11 +23,11 @@
       (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
         (:wat::core::match
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
-          [:wat::edn::ReadForeignOutcome::Value {:value fr}
+          [:wat::edn::ReadForeignOutcome.Value {:value fr}
             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-              [:wat::core::Option::Some {:value s} (:wat::core::= s "high")]
-              [:wat::core::Option::None {} false])]
-          [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))))
+              [:wat::core::Option.Some {:value s} (:wat::core::= s "high")]
+              [:wat::core::Option.None {} false])]
+          [:wat::edn::ReadForeignOutcome.Malformed {:cause _} false])))))
 
 (:wat::core::defn :user::foreign-pred-is-total [] -> :wat::core::bool
   (:wat::rete::total?
@@ -35,11 +35,11 @@
       (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
         (:wat::core::match
           (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
-          [:wat::edn::ReadForeignOutcome::Value {:value fr}
+          [:wat::edn::ReadForeignOutcome.Value {:value fr}
             (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
-              [:wat::core::Option::Some {:value s} (:wat::core::= s "high")]
-              [:wat::core::Option::None {} false])]
-          [:wat::edn::ReadForeignOutcome::Malformed {:cause _} false])))))
+              [:wat::core::Option.Some {:value s} (:wat::core::= s "high")]
+              [:wat::core::Option.None {} false])]
+          [:wat::edn::ReadForeignOutcome.Malformed {:cause _} false])))))
 
 ;; GUARD: the SAME predicate with an impure op (println) in the body must STILL be rejected — the
 ;; edn namespace fix is not a blanket-allow; the impure op's impurity must still propagate.

@@ -146,7 +146,7 @@
 
 ; option_none_subject_returns_false
 (:wat::core::defn :t::test12-option-none [] -> :wat::core::bool
-  (:wat::core::let [maybe :wat::core::Option::None]
+  (:wat::core::let [maybe :wat::core::Option.None]
     (:wat::form::matches? maybe
       (:test::PaperResolved
         (= ?gr :grace-residue)
@@ -155,7 +155,7 @@
 ; option_some_subject_unwraps_one_level
 (:wat::core::defn :t::test13-option-some [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 7.5)
-                   maybe (:wat::core::Option::Some {:value p})]
+                   maybe (:wat::core::Option.Some {:value p})]
     (:wat::form::matches? maybe
       (:test::PaperResolved
         (= ?gr :grace-residue)

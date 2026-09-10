@@ -26,11 +26,11 @@
              (:wat::core::let
                [ans  :h::def-answer
                 pt   (:h::MixPoint8 :x 1 :y 2)
-                d    :h::MixDir8::Up
+                d    :h::MixDir8.Up
                 a    (:h::MixAmount8 10)
                 dv   (:wat::core::match d
-                       [:h::MixDir8::Up {} 10]
-                       [:h::MixDir8::Down {} 20])
+                       [:h::MixDir8.Up {} 10]
+                       [:h::MixDir8.Down {} 20])
                 n    (:wat::i64::+
                        (:wat::i64::+
                          ans
@@ -41,10 +41,10 @@
                 _out (:wat::kernel::println n)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m} m]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg m} m]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "launch: stop requested before the child sent its value — the child was alive")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "launch: child closed before sending its value")])))

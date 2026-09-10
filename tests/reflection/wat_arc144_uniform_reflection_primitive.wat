@@ -9,9 +9,9 @@
                 (:wat::runtime::signature-of-defn :wat::core::foldl)]
               (:wat::core::match def-opt
                 
-                [:wat::core::Option::Some {:value _}
+                [:wat::core::Option.Some {:value _}
                   (:wat::core::match sig-opt
                     
-                    [:wat::core::Option::Some {:value _} true]
-                    [:wat::core::Option::None {}    false])]
-                [:wat::core::Option::None {} false])))
+                    [:wat::core::Option.Some {:value _} true]
+                    [:wat::core::Option.None {}    false])]
+                [:wat::core::Option.None {} false])))

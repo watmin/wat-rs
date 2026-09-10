@@ -5,4 +5,4 @@
 (:wat::core::defn :user::takes-box [b <- (:usr::Box :- [:wat::core::i64])] -> :wat::core::nil
   (:wat::kernel::println "ok"))
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::takes-box (:usr::Box::Full {:inside 42})))
+  (:user::takes-box (:usr::Box.Full {:inside 42})))

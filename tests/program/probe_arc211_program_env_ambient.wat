@@ -8,7 +8,7 @@
       (:wat::program::Env
         :started-at (:wat::time::at-millis 5000)
         :peer-started-at (:wat::time::at-millis 6000)
-        :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind::process :cpu-count 1
+        :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind.process :cpu-count 1
         :user-data (:wat::program::EmptyEnv)))))
 
 ;; c03: read started-at from the installed ambient env via (:wat::program::env).
@@ -22,7 +22,7 @@
   (:wat::program::Env
     :started-at (:wat::time::at-millis 5000)
     :peer-started-at (:wat::time::at-millis 0)
-    :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind::process :cpu-count 1
+    :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind.process :cpu-count 1
     :user-data (:wat::program::EmptyEnv)))
 
 ;; c04: user::main that reads from the ambient env (proves invoke_user_main installs it).

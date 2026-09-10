@@ -4,5 +4,5 @@
   :Full  [inside <- :T]
   :Empty [])
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [full-box (:usr::Box::Full {:inside 7})]
+  (:wat::core::let [full-box (:usr::Box.Full {:inside 7})]
     (:wat::kernel::println (:inside full-box))))

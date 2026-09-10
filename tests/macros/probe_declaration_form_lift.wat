@@ -23,12 +23,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println (:h::id-macro 5)))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m} m]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg m} m]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "launch-defmacro: stop requested before the child sent its value — the child was alive")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "launch-defmacro: child closed before sending its value")])))
 
 ;; Test 4: newtype in fn body do-prefix lifts to prologue.
@@ -45,12 +45,12 @@
                 _out (:wat::kernel::println (:h::LocalAmount/0 a))]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m} m]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg m} m]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "launch-newtype: stop requested before the child sent its value — the child was alive")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "launch-newtype: child closed before sending its value")])))
 
 ;; Test 5: typealias in fn body do-prefix lifts to prologue.
@@ -68,12 +68,12 @@
                 _out (:wat::kernel::println c)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m} m]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg m} m]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "launch-typealias: stop requested before the child sent its value — the child was alive")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "launch-typealias: child closed before sending its value")])))
 
 ;; Test 6: mixed prelude covering 7 of 8 declaration form kinds.
@@ -98,11 +98,11 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
                [pt   (:h::MixPoint :x 1 :y 2)
-                d    :h::MixDir::Up
+                d    :h::MixDir.Up
                 a    (:h::MixAmount 10)
                 dv   (:wat::core::match d
-                       [:h::MixDir::Up {} 10]
-                       [:h::MixDir::Down {} 20])
+                       [:h::MixDir.Up {} 10]
+                       [:h::MixDir.Down {} 20])
                 n    (:wat::i64::+
                        (:wat::i64::+ (:h::MixPoint/x pt) (:h::MixPoint/y pt))
                        (:wat::i64::+
@@ -111,12 +111,12 @@
                 _out (:wat::kernel::println n)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m} m]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg m} m]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "launch-mixed: stop requested before the child sent its value — the child was alive")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "launch-mixed: child closed before sending its value")])))
 
 ;; ─── The NEGATIVE direction — arc 255 Stone 1a-β-ii ──────────────────────────

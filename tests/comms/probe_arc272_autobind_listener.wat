@@ -8,7 +8,7 @@
     [b (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
      l (:wat::spawn::Bound/listener b)
      a (:wat::spawn::Bound/address b)
-     c (:wat::core::match (:wat::kernel::connect a) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
+     c (:wat::core::match (:wat::kernel::connect a) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
     ;; Reaching here means: the 3-arg autobind form type-checked, minted a real listener +
     ;; address (capability), and connect' dialed the minted address — all with NO fixed name.
     true))

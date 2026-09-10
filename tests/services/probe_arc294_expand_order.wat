@@ -43,35 +43,35 @@
   :impls
   [(ping [s ctx req]
      ;; CONTROL — no minted construction; state returned unchanged.
-     (:wat::service::Outcome::Reply {:state s :reply (:probe::Echo::PingResponse::Ok {:value 1})}))
+     (:wat::service::Outcome.Reply {:state s :reply (:probe::Echo::PingResponse.Ok {:value 1})}))
    (bump [s ctx req]
      ;; THE REGRESSION — constructs this defservice's OWN minted `::State`/`::Record`.
-     (:wat::service::Outcome::Reply
+     (:wat::service::Outcome.Reply
        {:state (:probe::echo::State :durable (:probe::echo::Record :count 7))
-       :reply (:probe::Echo::BumpResponse::Ok {:value 7})}))])
+       :reply (:probe::Echo::BumpResponse.Ok {:value 7})}))])
 
 ;; CONTROL: ping round-trips (and proves the caller-world construction at /start works).
 (:wat::core::defn :user::compute-ping [] -> :wat::core::i64
   (:wat::core::let
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r (:probe::Echo/ping c (:probe::Echo::PingRequest))]
-    (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:probe::Echo::PingResponse::Ok {:value value} value]
-      [:probe::Echo::PingResponse::RequestTooLarge {:bytes bytes :cap cap}
+    (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:probe::Echo::PingResponse.Ok {:value value} value]
+      [:probe::Echo::PingResponse.RequestTooLarge {:bytes bytes :cap cap}
         (:wat::kernel::assertion-failed! :message "compute-ping: unexpected RequestTooLarge")]
-      [:probe::Echo::PingResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [:probe::Echo::PingResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
 ;; THE REGRESSION: bump round-trips — the handler's own minted construction must expand.
 (:wat::core::defn :user::compute-bump [] -> :wat::core::i64
   (:wat::core::let
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r (:probe::Echo/bump c (:probe::Echo::BumpRequest))]
-    (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:probe::Echo::BumpResponse::Ok {:value value} value]
-      [:probe::Echo::BumpResponse::RequestTooLarge {:bytes bytes :cap cap}
+    (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:probe::Echo::BumpResponse.Ok {:value value} value]
+      [:probe::Echo::BumpResponse.RequestTooLarge {:bytes bytes :cap cap}
         (:wat::kernel::assertion-failed! :message "compute-bump: unexpected RequestTooLarge")]
-      [:probe::Echo::BumpResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [:probe::Echo::BumpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

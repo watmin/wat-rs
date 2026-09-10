@@ -5,7 +5,7 @@
   (:wat::core::let
               [empty-res (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST]))
                empty     (:wat::core::match empty-res 
-                           [:wat::core::Result::Ok {:value b}  b]
-                           [:wat::core::Result::Err {:error _} (:wat::kernel::assertion-failed! :message "empty Bundle construction failed")])
+                           [:wat::core::Result.Ok {:value b}  b]
+                           [:wat::core::Result.Err {:error _} (:wat::kernel::assertion-failed! :message "empty Bundle construction failed")])
                _         (:wat::holon::Bundle/first empty)]
               (:wat::kernel::println "unreachable")))

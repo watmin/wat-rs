@@ -22,7 +22,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:probe::Big::PutResponse::Ok {:ok 7})}))])
+  [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Big::PutResponse.Ok {:ok 7})}))])
 
 ;; (b) a SMALL-FOO service: declares FOO = 4096, so a > 4 KiB request is rejected + closed.
 (:wat::service::defservice :probe::smallfoo
@@ -31,7 +31,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:probe::Big::PutResponse::Ok {:ok 7})}))])
+  [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Big::PutResponse.Ok {:ok 7})}))])
 
 ;; Build a String of exactly n*32 bytes.
 (:wat::core::defn :probe::payload-of [n <- :wat::core::i64] -> :wat::core::String
@@ -46,15 +46,15 @@
   (:wat::core::let
     [big  (:probe::payload-of 19200)   ;; 19200*32 = 614400 bytes ≈ 600 KiB (> 512 KiB, < 1 MiB)
      h    (:probe::bigfoo/start :locus (:wat::spawn::process) :record (:probe::bigfoo::Record))
-     c    (:wat::core::match (:wat::kernel::connect (:probe::bigfoo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c    (:wat::core::match (:wat::kernel::connect (:probe::bigfoo::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r    (:probe::Big/put c (:probe::Big::PutRequest :payload big))]
-    (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:probe::Big::PutResponse::Ok {:ok ok} ok]
+    (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:probe::Big::PutResponse.Ok {:ok ok} ok]
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-      [:probe::Big::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+      [:probe::Big::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
         (:wat::kernel::assertion-failed! :message "large-foo-accepts: unexpected RequestTooLarge")]
-      [:probe::Big::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [:probe::Big::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
 ;; ── (b) small FOO REJECTS a > 4 KiB request: the caller's op must FAIL WITH A REASON (not the
 ;; mute "peer closed"). EXACT DATA: :user::small-foo-rejects returns a structured :probe::Outcome —
@@ -77,14 +77,14 @@
   (:wat::core::let
     [big  (:probe::payload-of 400)     ;; 400*32 = 12800 bytes > 4096
      h    (:probe::smallfoo/start :locus (:wat::spawn::process) :record (:probe::smallfoo::Record))
-     c    (:wat::core::match (:wat::kernel::connect (:probe::smallfoo::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c    (:wat::core::match (:wat::kernel::connect (:probe::smallfoo::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      _s   (:wat::kernel::send c (:probe::Big::Op::Put {:req (:probe::Big::PutRequest :payload big)}))]
     (:wat::core::match (:wat::kernel::recv c)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} (:probe::Outcome::Message {})]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:probe::Outcome::Lost {:names-frame-cap? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "max-frame-bytes")})]
-      [:wat::kernel::RecvOutcome::Stopped {} (:probe::Outcome::Stopped {})]
-      [:wat::kernel::RecvOutcome::Closed {} (:probe::Outcome::Closed {})])))
+      [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
+        (:probe::Outcome.Lost {:names-frame-cap? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "max-frame-bytes")})]
+      [:wat::kernel::RecvOutcome.Stopped {} (:probe::Outcome.Stopped {})]
+      [:wat::kernel::RecvOutcome.Closed {} (:probe::Outcome.Closed {})])))
 
 ;; ── (b') SURVIVAL probe: c1 fires an over-FOO frame (send' only, fire-and-forget — no recv, so
 ;; this fn does not raise on c1); then a FRESH connection c2 issues an in-budget request. If the
@@ -95,14 +95,14 @@
     [big  (:probe::payload-of 400)     ;; > 4096 → over-FOO
      h    (:probe::smallfoo/start :locus (:wat::spawn::process) :record (:probe::smallfoo::Record))
      addr (:probe::smallfoo::Handle/addr h)
-     c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     c2   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c1 (:probe::Big::Op::Put {:req (:probe::Big::PutRequest :payload big)})) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+     c1   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c2   (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     _    (:wat::core::match (:wat::kernel::send c1 (:probe::Big::Op::Put {:req (:probe::Big::PutRequest :payload big)})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
      r    (:probe::Big/put c2 (:probe::Big::PutRequest :payload "small"))]
-    (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:probe::Big::PutResponse::Ok {:ok ok} ok]
+    (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:probe::Big::PutResponse.Ok {:ok ok} ok]
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-      [:probe::Big::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+      [:probe::Big::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
         (:wat::kernel::assertion-failed! :message "small-foo-survives: unexpected RequestTooLarge")]
-      [:probe::Big::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [:probe::Big::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

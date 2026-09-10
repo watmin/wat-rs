@@ -18,35 +18,35 @@
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
-           (:wat::kernel::assertion-failed! :message "structured-death-marker" :actual (:wat::core::Option::Some {:value "ACTUAL-42173"}) :expected (:wat::core::Option::Some {:value "EXPECTED-99731"}))))]
+           (:wat::kernel::assertion-failed! :message "structured-death-marker" :actual (:wat::core::Option.Some {:value "ACTUAL-42173"}) :expected (:wat::core::Option.Some {:value "EXPECTED-99731"}))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError::Panic {:message _message :failure failure}
+          [:wat::kernel::LociDiedError.Panic {:message _message :failure failure}
             (:wat::core::match failure
               ;; STRUCTURAL read: the Failure record carries message/actual/expected in its
               ;; own fields — the AssertionPayload rode the crash boundary as DATA.
-              [:wat::core::Option::Some {:value f}
+              [:wat::core::Option.Some {:value f}
                (:wat::core::let
                  [msg (:wat::kernel::Failure/message f)
                   a (:wat::core::match (:wat::kernel::Failure/actual f)
-                      [:wat::core::Option::Some {:value av} av]
-                      [:wat::core::Option::None {} "NO-ACTUAL"])
+                      [:wat::core::Option.Some {:value av} av]
+                      [:wat::core::Option.None {} "NO-ACTUAL"])
                   e (:wat::core::match (:wat::kernel::Failure/expected f)
-                      [:wat::core::Option::Some {:value ev} ev]
-                      [:wat::core::Option::None {} "NO-EXPECTED"])]
+                      [:wat::core::Option.Some {:value ev} ev]
+                      [:wat::core::Option.None {} "NO-EXPECTED"])]
                  (:wat::string::concat msg
                    (:wat::string::concat "|"
                      (:wat::string::concat a
                        (:wat::string::concat "|" e)))))]
-              [:wat::core::Option::None {} "NO-FAILURE"])]
-          [:wat::kernel::LociDiedError::RuntimeError {:message _m} "WRONG:RuntimeError"]
-          [:wat::kernel::LociDiedError::Disconnected {} "WRONG:Disconnected"]
-          [:wat::kernel::LociDiedError::Stopped {} "WRONG:Stopped"]
-          [:wat::kernel::LociDiedError::StartupError {:error _m} "WRONG:StartupError"]
-          [:wat::kernel::LociDiedError::EntryFormFailure {:message _m} "WRONG:EntryFormFailure"]
-          [:wat::kernel::LociDiedError::MainSignature {:message _m} "WRONG:MainSignature"]
-          [:wat::kernel::LociDiedError::BadReturn {:message _m} "WRONG:BadReturn"])]
-      [:wat::kernel::RecvOutcome::Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome::Closed {} "UNEXPECTED-CLOSED"])))
+              [:wat::core::Option.None {} "NO-FAILURE"])]
+          [:wat::kernel::LociDiedError.RuntimeError {:message _m} "WRONG:RuntimeError"]
+          [:wat::kernel::LociDiedError.Disconnected {} "WRONG:Disconnected"]
+          [:wat::kernel::LociDiedError.Stopped {} "WRONG:Stopped"]
+          [:wat::kernel::LociDiedError.StartupError {:error _m} "WRONG:StartupError"]
+          [:wat::kernel::LociDiedError.EntryFormFailure {:message _m} "WRONG:EntryFormFailure"]
+          [:wat::kernel::LociDiedError.MainSignature {:message _m} "WRONG:MainSignature"]
+          [:wat::kernel::LociDiedError.BadReturn {:message _m} "WRONG:BadReturn"])]
+      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

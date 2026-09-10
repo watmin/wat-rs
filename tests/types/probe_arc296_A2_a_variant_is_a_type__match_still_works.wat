@@ -3,7 +3,7 @@
   :Full  [inside <- :T]
   :Empty [])
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [full-box (:usr::Box::Full {:inside 42})]
+  (:wat::core::let [full-box (:usr::Box.Full {:inside 42})]
     (:wat::core::match full-box
-      [:usr::Box::Full  {:inside inside} (:wat::kernel::println inside)]
-      [:usr::Box::Empty {}               (:wat::kernel::println "empty")])))
+      [:usr::Box.Full  {:inside inside} (:wat::kernel::println inside)]
+      [:usr::Box.Empty {}               (:wat::kernel::println "empty")])))

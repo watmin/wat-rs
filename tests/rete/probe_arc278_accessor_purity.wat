@@ -9,13 +9,13 @@
   (:wat::rete::pure?
     (:wat::core::quote
       (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
-        (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))))
+        (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level.Error)))))
 
 (:wat::core::defn :user::log-accessor-is-deterministic [] -> :wat::core::bool
   (:wat::rete::deterministic?
     (:wat::core::quote
       (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
-        (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))))
+        (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level.Error)))))
 
 ;; GUARD: an effectful body (println) must STILL be rejected — the accessor fix must not
 ;; blanket-allow; the impurity of :wat::kernel::println must propagate through the fn-literal.

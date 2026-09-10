@@ -13,7 +13,7 @@
 
 (:wat::rete::defrule :cg::gather
   :when [(:cg::Anchor (?x <- :x))]
-  :then [(:cg::Wrap :s (:cg::Status::Active {:level 7}))])
+  :then [(:cg::Wrap :s (:cg::Status.Active {:level 7}))])
 
 (:wat::rete::defquery :cg::q-Wrap
   :params []
@@ -33,7 +33,7 @@
                (:wat::map::get r "?s")
                "q-Wrap: ?s")]
     (:wat::core::match s
-      [:cg::Status::Active {:level lvl} lvl])))
+      [:cg::Status.Active {:level lvl} lvl])))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
 (:wat::core::defn :user::run-native [] -> :wat::core::i64
@@ -48,4 +48,4 @@
                (:wat::map::get r "?s")
                "q-Wrap: ?s")]
     (:wat::core::match s
-      [:cg::Status::Active {:level lvl} lvl])))
+      [:cg::Status.Active {:level lvl} lvl])))

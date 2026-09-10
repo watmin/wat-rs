@@ -24,8 +24,8 @@
   :ephemeral []
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::Echo::EchoResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::Echo::EchoResponse.Ok
          {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 (:wat::core::defn :probe::work
@@ -33,18 +33,18 @@
    & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
   -> :wat::core::String
   (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item))
-    [:wat::kernel::RecvOutcome::Message {:msg recvd}
+    [:wat::kernel::RecvOutcome.Message {:msg recvd}
       (:wat::core::match recvd
-        [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
-        [:probe::Echo::EchoResponse::RequestTooLarge {:bytes _b :cap _c}
+        [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
+        [:probe::Echo::EchoResponse.RequestTooLarge {:bytes _b :cap _c}
           (:wat::kernel::assertion-failed! :message "too-large")]
-        [:probe::Echo::EchoResponse::RequestMalformed {:path _p :expected _e :got _g}
+        [:probe::Echo::EchoResponse.RequestMalformed {:path _p :expected _e :got _g}
           (:wat::kernel::assertion-failed! :message "malformed")])]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+    [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-    [:wat::kernel::RecvOutcome::Stopped {}
+    [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::kernel::assertion-failed! :message "stopped")]
-    [:wat::kernel::RecvOutcome::Closed {}
+    [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::assertion-failed! :message "closed")]))
 
 (:wat::core::defn :probe::illegal [] -> (:wat::core::Vector :- [:wat::core::String])

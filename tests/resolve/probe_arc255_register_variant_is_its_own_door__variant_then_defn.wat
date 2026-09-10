@@ -4,4 +4,4 @@
 ;; it. Both orders must raise `DuplicateDefine` — the composed door does not get a
 ;; first-mover advantage over a caller-typed name, or vice versa.
 (:wat::core::defenum :my::app::Foo :wat::enum::Pure :Bar)
-(:wat::core::defn :my::app::Foo::Bar [] -> :wat::core::i64 1)
+(:wat::core::defn :my::app::Foo.Bar [] -> :wat::core::i64 1)

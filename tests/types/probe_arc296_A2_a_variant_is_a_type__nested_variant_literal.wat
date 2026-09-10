@@ -5,4 +5,4 @@
   -> :wat::core::nil (:wat::kernel::println "ok"))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::app-describe
-    (:wat::core::Option::Some {:value (:wat::core::Result::Err {:error "inner-boom"})})))
+    (:wat::core::Option.Some {:value (:wat::core::Result.Err {:error "inner-boom"})})))

@@ -38,14 +38,14 @@
 ;; rather than derived, which is precisely the failure these rows exist to catch.
 (:wat::core::defn :t::still-measures [] -> :wat::core::f64
   (:wat::core::match (:wat::holon::cosine (:t::Holo :x 1 :y 2) (:t::Holo :x 1 :y 2))
-    [:wat::holon::CosineOutcome::Similarity {:similarity s} s]
-    [:wat::holon::CosineOutcome::Degenerate {:side _side} -1.0]
-    [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} -2.0]))
+    [:wat::holon::CosineOutcome.Similarity {:similarity s} s]
+    [:wat::holon::CosineOutcome.Degenerate {:side _side} -1.0]
+    [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} -2.0]))
 
 ;; Two DIFFERENT holon records must not be coincident at 1.0 — the index still
 ;; discriminates. Guards the degenerate "cosine answers 1.0 for everything" fix.
 (:wat::core::defn :t::still-discriminates [] -> :wat::core::f64
   (:wat::core::match (:wat::holon::cosine (:t::Holo :x 1 :y 2) (:t::Holo :x 1 :y 3))
-    [:wat::holon::CosineOutcome::Similarity {:similarity s} s]
-    [:wat::holon::CosineOutcome::Degenerate {:side _side} -1.0]
-    [:wat::holon::CosineOutcome::DimensionMismatch {:expected _e :got _g} -2.0]))
+    [:wat::holon::CosineOutcome.Similarity {:similarity s} s]
+    [:wat::holon::CosineOutcome.Degenerate {:side _side} -1.0]
+    [:wat::holon::CosineOutcome.DimensionMismatch {:expected _e :got _g} -2.0]))

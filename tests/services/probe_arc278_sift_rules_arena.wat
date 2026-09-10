@@ -111,7 +111,7 @@
           ;; RULE 4 (Event -> Lemma, a 2nd independent gate — enum equality on route.method).
           (:wat::rete::defrule :arena::flagged-rule
             :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing))
-                   (:wat::rete::where (:wat::rete::core::enum::= (:arena::Route/method ?route) :arena::Method::POST))
+                   (:wat::rete::where (:wat::rete::core::enum::= (:arena::Route/method ?route) :arena::Method.POST))
                    (:wat::rete::where (:wat::rete::i64::< (:arena::Client/reputation ?client) -50))]
             :then [(:arena::Flagged :client ?client :route ?route :timing ?timing)])
           ;; RULE 5 (Lemma -> Deduction, the 2nd cascade's terminal).
@@ -144,31 +144,31 @@
              :timing (:arena::Timing :dns-ns dns-ns :total-ns total-ns)
              :bytes  bytes))]
     (:wat::core::if (:wat::core::= cat 0)
-      (mk "US" 50 :arena::Method::GET 200 100000 10000 1000)
+      (mk "US" 50 :arena::Method.GET 200 100000 10000 1000)
       (:wat::core::if (:wat::core::= cat 1)
-        (mk "US" -10 :arena::Method::GET 200 6000000 10000 1000)
+        (mk "US" -10 :arena::Method.GET 200 6000000 10000 1000)
         (:wat::core::if (:wat::core::= cat 2)
-          (mk "XX" -10 :arena::Method::GET 200 3000000 10000 1000)
+          (mk "XX" -10 :arena::Method.GET 200 3000000 10000 1000)
           (:wat::core::if (:wat::core::= cat 3)
-            (mk "XX" -20 :arena::Method::GET 200 6000000 10000 1000)
+            (mk "XX" -20 :arena::Method.GET 200 6000000 10000 1000)
             (:wat::core::if (:wat::core::= cat 4)
-              (mk "XX" -5 :arena::Method::GET 404 6000000 10000 1000)
+              (mk "XX" -5 :arena::Method.GET 404 6000000 10000 1000)
               (:wat::core::if (:wat::core::= cat 5)
-                (mk "US" 50 :arena::Method::GET 200 100000 10000 15000000)
+                (mk "US" 50 :arena::Method.GET 200 100000 10000 15000000)
                 (:wat::core::if (:wat::core::= cat 6)
-                  (mk "US" -60 :arena::Method::POST 200 100000 500000 1000)
+                  (mk "US" -60 :arena::Method.POST 200 100000 500000 1000)
                   (:wat::core::if (:wat::core::= cat 7)
-                    (mk "US" -60 :arena::Method::POST 200 100000 100000 1000)
+                    (mk "US" -60 :arena::Method.POST 200 100000 100000 1000)
                     (:wat::core::if (:wat::core::= cat 8)
-                      (mk "XX" -60 :arena::Method::POST 200 9000000 900000 20000000)
-                      (mk "CA" 10 :arena::Method::PUT 500 50000 20000 500))))))))))))
+                      (mk "XX" -60 :arena::Method.POST 200 9000000 900000 20000000)
+                      (mk "CA" 10 :arena::Method.PUT 500 50000 20000 500))))))))))))
 
 (:wat::core::defn :arena::log-for-i
   [i <- :wat::core::i64  tags <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])]
   -> :wat::telemetry::Log
   (:wat::telemetry::Log :namespace "arena-rules-ns" :uuid (:wat::uuid::nil) :tags tags
     :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
-    :level :wat::telemetry::Level::Info :message (:wat::edn::write (:arena::event-for-i i))))
+    :level :wat::telemetry::Level.Info :message (:wat::edn::write (:arena::event-for-i i))))
 
 ;; ── THREAD locus — flood 800 rich Events (10-way cycle) in ONE write-logs call (fine on thread —
 ;; in-process channel, no IPC frame limit), page sift-rules at :limit 100, assert exactly 720. ──
@@ -194,7 +194,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      idxs  (:wat::core::range 0 800)
      logs  (:wat::core::into (:wat::core::Vector :- [:wat::telemetry::Log])
@@ -204,9 +204,9 @@
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
      sh    (:arena::my-sift'/start :locus (:wat::spawn::thread)
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      page-idxs (:wat::core::range 0 12)
-     initial (:arena::PageAcc :done false :cur :wat::core::Option::None :acc 0 :clean true)
+     initial (:arena::PageAcc :done false :cur :wat::core::Option.None :acc 0 :clean true)
      final (:wat::core::foldl
              (:wat::core::fn [state <- :arena::PageAcc _i <- :wat::core::i64] -> :arena::PageAcc
                (:wat::core::if (:arena::PageAcc/done state)
@@ -216,8 +216,8 @@
                            (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-ns"
                              :time-lo 0 :time-hi 100000000 :limit 100
                              :cursor (:arena::PageAcc/cur state)))]
-                   (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-                     [:arena::my-sift::SiftRulesResponse::Deductions {:items items :cursor cur}
+                   (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+                     [:arena::my-sift::SiftRulesResponse.Deductions {:items items :cursor cur}
                        (:wat::core::let
                          [page-clean (:wat::core::foldl
                                        (:wat::core::fn [ok <- :wat::core::bool v <- :wat::core::Value] -> :wat::core::bool
@@ -232,14 +232,14 @@
                           new-acc (:wat::core::+ (:arena::PageAcc/acc state) (:wat::core::length items))
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
                          (:wat::core::match cur 
-                           [:wat::core::Option::None {} (:arena::PageAcc :done true :cur :wat::core::Option::None :acc new-acc :clean new-clean)]
-                           [:wat::core::Option::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Option::Some {:value c}) :acc new-acc :clean new-clean)]))]
-                     [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
-                       (:arena::PageAcc :done true :cur :wat::core::Option::None :acc -999999 :clean false)]
-                     [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
+                           [:wat::core::Option.None {} (:arena::PageAcc :done true :cur :wat::core::Option.None :acc new-acc :clean new-clean)]
+                           [:wat::core::Option.Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Option.Some {:value c}) :acc new-acc :clean new-clean)]))]
+                     [:arena::my-sift::SiftRulesResponse.Fatal {:err _err}
+                       (:arena::PageAcc :done true :cur :wat::core::Option.None :acc -999999 :clean false)]
+                     [:arena::my-sift::SiftRulesResponse.RequestTooLarge {:bytes _bytes :cap _cap}
                        (:wat::kernel::assertion-failed! :message "sift-rules-arena: unexpected RequestTooLarge")]
-                     [:arena::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                       (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
+                     [:arena::my-sift::SiftRulesResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                       (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))
@@ -262,7 +262,7 @@
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      idxs1 (:wat::core::range 0 400)
      idxs2 (:wat::core::range 400 800)
@@ -282,9 +282,9 @@
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      page-idxs (:wat::core::range 0 12)
-     initial (:arena::PageAcc :done false :cur :wat::core::Option::None :acc 0 :clean true)
+     initial (:arena::PageAcc :done false :cur :wat::core::Option.None :acc 0 :clean true)
      final (:wat::core::foldl
              (:wat::core::fn [state <- :arena::PageAcc _i <- :wat::core::i64] -> :arena::PageAcc
                (:wat::core::if (:arena::PageAcc/done state)
@@ -294,8 +294,8 @@
                            (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-ns"
                              :time-lo 0 :time-hi 100000000 :limit 100
                              :cursor (:arena::PageAcc/cur state)))]
-                   (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-                     [:arena::my-sift::SiftRulesResponse::Deductions {:items items :cursor cur}
+                   (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+                     [:arena::my-sift::SiftRulesResponse.Deductions {:items items :cursor cur}
                        (:wat::core::let
                          [page-clean (:wat::core::foldl
                                        (:wat::core::fn [ok <- :wat::core::bool v <- :wat::core::Value] -> :wat::core::bool
@@ -310,14 +310,14 @@
                           new-acc (:wat::core::+ (:arena::PageAcc/acc state) (:wat::core::length items))
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
                          (:wat::core::match cur 
-                           [:wat::core::Option::None {} (:arena::PageAcc :done true :cur :wat::core::Option::None :acc new-acc :clean new-clean)]
-                           [:wat::core::Option::Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Option::Some {:value c}) :acc new-acc :clean new-clean)]))]
-                     [:arena::my-sift::SiftRulesResponse::Fatal {:err _err}
-                       (:arena::PageAcc :done true :cur :wat::core::Option::None :acc -999999 :clean false)]
-                     [:arena::my-sift::SiftRulesResponse::RequestTooLarge {:bytes _bytes :cap _cap}
+                           [:wat::core::Option.None {} (:arena::PageAcc :done true :cur :wat::core::Option.None :acc new-acc :clean new-clean)]
+                           [:wat::core::Option.Some {:value c} (:arena::PageAcc :done false :cur (:wat::core::Option.Some {:value c}) :acc new-acc :clean new-clean)]))]
+                     [:arena::my-sift::SiftRulesResponse.Fatal {:err _err}
+                       (:arena::PageAcc :done true :cur :wat::core::Option.None :acc -999999 :clean false)]
+                     [:arena::my-sift::SiftRulesResponse.RequestTooLarge {:bytes _bytes :cap _cap}
                        (:wat::kernel::assertion-failed! :message "sift-rules-arena: unexpected RequestTooLarge")]
-                     [:arena::my-sift::SiftRulesResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                       (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
+                     [:arena::my-sift::SiftRulesResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                       (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))
@@ -332,25 +332,25 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
+             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:arena::event-for-i 2)))
      l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
+             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:arena::Bogus :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2)))
      sh    (:arena::my-sift'/start :locus (:wat::spawn::thread)
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
-               :limit 50 :cursor :wat::core::Option::None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err} true]
-      [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+               :limit 50 :cursor :wat::core::Option.None))]
+    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:arena::my-sift::SiftRulesResponse.Fatal {:err _err} true]
+      [_ false])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
 ;; ── PROCESS locus — same fail-closed guard, across a FORK. ──
 (:wat::core::defn :user::sift-rules-arena-fatal-process [] -> :wat::core::bool
@@ -365,13 +365,13 @@
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
+             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:arena::event-for-i 2)))
      l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
+             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:arena::Bogus :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2)))
@@ -381,10 +381,10 @@
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     svc   (:wat::core::match (:wat::kernel::connect (:arena::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
-               :limit 50 :cursor :wat::core::Option::None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-      [:arena::my-sift::SiftRulesResponse::Fatal {:err _err} true]
-      [_ false])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+               :limit 50 :cursor :wat::core::Option.None))]
+    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+      [:arena::my-sift::SiftRulesResponse.Fatal {:err _err} true]
+      [_ false])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))

@@ -16,7 +16,7 @@
             :time-ns       123                               ;; spliced
             :start-time-ns 100                               ;; own
             :name          :requests                         ;; own
-            :value         (:wat::telemetry::Numeric::I64 {:val 7}) ;; own
-            :unit          :wat::telemetry::Unit::Count)]    ;; own (bare unit variant)
+            :value         (:wat::telemetry::Numeric.I64 {:val 7}) ;; own
+            :unit          :wat::telemetry::Unit.Count)]    ;; own (bare unit variant)
     (:wat::kernel::println (:wat::telemetry::Metric/namespace m))   ;; a SPLICED accessor
     (:wat::kernel::println (:wat::telemetry::Metric/name m))))      ;; an OWN accessor
