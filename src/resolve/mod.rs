@@ -174,17 +174,56 @@ mod tests {
     }
 
     #[test]
-    fn kernel_and_std_prefixes_accepted() {
-        // These aren't implemented yet but shouldn't fail resolution —
-        // they're under reserved prefixes that the spec carves out.
+    fn reserved_prefix_resolves_iff_registry_knows_it() {
+        // Arc 255 — the `:wat::*` BLANKET IS DEAD. This test used to be
+        // `kernel_and_std_prefixes_accepted`, asserting that BOTH of these calls
+        // resolved merely for sitting under a reserved prefix — "these aren't
+        // implemented yet but shouldn't fail resolution." That was the blanket's
+        // own specification, written down as a guarantee; arc 255 exists to end it.
+        //
+        // POSITIVE: `:wat::kernel::send` is a registered intrinsic — the registry
+        // knows it, so it resolves.
         assert!(resolve(r#"(:wat::kernel::send sender value)"#).is_ok());
-        assert!(resolve(r#"(:wat::holon::Subtract a b)"#).is_ok());
+        // NEGATIVE: `:wat::holon::Subtract` is a stdlib MACRO (`wat/holon/Subtract.wat`),
+        // not a registered intrinsic — it resolves at FULL load, via the `macros`
+        // registry populated by loading stdlib. This test's `resolve()` helper builds
+        // a bare `MacroRegistry` and never loads stdlib, so in THIS environment the
+        // registry does not know the name and it is properly refused. (Its corpus file,
+        // `wat-tests/holon/Subtract.wat`, `--check`s clean — the macro is real, this
+        // helper's environment just doesn't load it.)
+        let err = resolve(r#"(:wat::holon::Subtract a b)"#).unwrap_err();
+        match err {
+            ResolveError::UnresolvedReferences(refs) => {
+                assert_eq!(refs.len(), 1);
+                assert_eq!(refs[0].path, ":wat::holon::Subtract");
+            }
+        }
     }
 
     #[test]
-    fn config_accessors_accepted() {
+    fn config_accessor_resolves_iff_registered() {
+        // Arc 255 — was `config_accessors_accepted`, which asserted BOTH calls
+        // resolved under the blanket. Now: a reserved-prefix name resolves iff the
+        // registry knows it.
+        //
+        // POSITIVE: `:wat::config::dim-count` is a registered intrinsic with a
+        // declared TypeScheme — the registry knows it, so it resolves.
         assert!(resolve(r#"(:wat::config::dim-count)"#).is_ok());
-        assert!(resolve(r#"(:wat::config::set-dim-count! 4096)"#).is_ok());
+        // NEGATIVE: `:wat::config::set-dim-count!` is REAL (a live arm at
+        // `src/config.rs:441`) but carries no registry row and no scheme — it is not
+        // declared. In the real pipeline it never reaches this resolver: `freeze.rs`
+        // step 2 (`collect_entry_file`) consumes leading config setters BEFORE
+        // resolve runs at step 7, which is why the corpus census for it is zero. This
+        // test's `resolve()` helper calls `resolve_references` directly, bypassing
+        // that consumption step, so the name reaches the registry check unconsumed
+        // and is properly refused as unregistered.
+        let err = resolve(r#"(:wat::config::set-dim-count! 4096)"#).unwrap_err();
+        match err {
+            ResolveError::UnresolvedReferences(refs) => {
+                assert_eq!(refs.len(), 1);
+                assert_eq!(refs[0].path, ":wat::config::set-dim-count!");
+            }
+        }
     }
 
     #[test]

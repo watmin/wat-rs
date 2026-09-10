@@ -7,6 +7,18 @@
 ;; lets a `:wat::core::` head reach that fall-through; a `:usr::` head is refused
 ;; by resolve first.
 ;;
+;; ⛔ UPDATED 2026-09-09 — THE BLANKET IS DEAD, and the sentence above is now the record of WHY
+;; the ordering mattered rather than a live description. `:wat::core::Option.Some` no longer
+;; reaches the accessor fall-through: it is refused by resolve, exactly as a `:usr::` head always
+;; was. The asymmetry that made the dot spelling silently answer `#wat.core/Option.None {}` is
+;; gone.
+;;
+;; ★ THIS IS WHY THE SEAM ORDERED THE BLANKET'S DEATH BEFORE THE DOT FLIP. Had the notation
+;; flipped first, every partially-migrated head would have become a silent wrong ANSWER instead
+;; of a loud error. Measured on clean main before the deletion:
+;;   (:wat::core::Option.Some {:value 7})   check=0   =>   #wat.core/Option.None {}
+;; and after it: refused at resolve. The ordering argument, discharged.
+;;
 ;; MOVED 2026-09-09 (arc 255 Stone 4) from `wat-scripts/scratch-pad/keyword-accessor-vs-enum-map-
 ;; ctor.wat` to `tests/resolve/`, out from under the loader gate's scan root
 ;; (`tests/lint/wat_scripts_fixes_load.rs`). This file's two `:wat::core::Option.Some` lines

@@ -2,16 +2,24 @@
 ;; docs/arc/2026/06/278-rules-engine/BRIEF-the-f64-surface-is-a-stub.md EXPECTATIONS row 5
 ;; (non-vacuity).
 ;;
-;; Trap door 3: `--check` does NOT validate `:wat::*` heads at all — a bogus rete keyword is
-;; opaque to the checker exactly like any other unregistered `:wat::` symbol, so this file
-;; TYPE-CHECKS (`target/release/wat --check` on it exits 0) despite `:wat::rete::f64::>X` never
-;; having been minted. That is why it is safe to keep as an ORDINARY `.wat` under the loader
-;; gate: `every_wat_scripts_file_loads` only parses + type-checks (`startup_from_source`), it
-;; never runs `main`, so a body that raises at RUNTIME does not rot the gate.
+;; ⛔ HISTORICAL — the paragraph below described the world BEFORE arc 255 killed the `:wat::*`
+;; blanket, and it is kept because it is the defect's own testimony. It read:
 ;;
-;; EXPECTED: running this file (not `--check`ing it) raises a located `UnknownFunction` at the
-;; call site — proving the mint did not accidentally admit a typo'd head as a silent no-op or a
-;; vacuous pass.
+;;   "Trap door 3: `--check` does NOT validate `:wat::*` heads at all — a bogus rete keyword is
+;;    opaque to the checker exactly like any other unregistered `:wat::` symbol, so this file
+;;    TYPE-CHECKS (exits 0) despite `:wat::rete::f64::>X` never having been minted. That is why
+;;    it is safe to keep as an ORDINARY `.wat` under the loader gate."
+;;
+;; ★ EVERY CLAUSE OF THAT IS NOW FALSE, and this file is the proof. `--check` DOES validate
+;; `:wat::*` heads: a reserved-prefix name is a call head iff the registry knows it
+;; (`src/resolve/walk.rs`). `:wat::rete::f64::>X` was never minted, so `--check` on this file now
+;; EXITS 1. And its containment premise — "safe under the loader gate because the gate only
+;; type-checks" — expired with the blanket, which is why arc 255 stone ④ moved it out of
+;; `wat-scripts/` to here BEFORE the deletion landed.
+;;
+;; EXPECTED NOW: `--check` refuses this file, naming `:wat::rete::f64::>X` as an unresolved call
+;; head. The bogus head is caught at the EARLIEST pass rather than at runtime — arc 255's founding
+;; promise, that the undefined-func class dies as a side effect, collecting its last scalp.
 ;;
 ;; MOVED 2026-09-09 (arc 255 Stone 4) from `wat-scripts/scratch-pad/probe-f64-comparator-bogus-
 ;; head.wat` to `tests/resolve/`, out from under the loader gate's scan root

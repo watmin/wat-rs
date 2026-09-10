@@ -115,12 +115,29 @@ fn contract_03_ranked_multi_candidate_variant_typo() {
 fn contract_04_no_remedy_for_distant_unknown() {
     // `:wat::core::xyzzy` is far from any real form. No candidate within threshold.
     // Post-stone: error message renders without "did you mean" section.
-    // Fixture: probe_arc241_stone10_remedy_c04.wat.bad
+    //
+    // Arc 255 recapture: THE `:wat::*` BLANKET IS DEAD. At the time this contract was
+    // written, `:wat::core::xyzzy` type-checked clean — the blanket accepted any name
+    // under a reserved prefix unvalidated, so "no remedy" trivially meant "startup
+    // succeeded" (there was no error to attach a remedy to). Deleting the blanket
+    // means resolve now REFUSES the name outright, one pass earlier than the old
+    // "no remedy" story ever tested. The contract's claim survives unweakened — a
+    // distant unknown still produces NO "did you mean" — it is just now proven
+    // against a real `UnresolvedReferences` error instead of a no-op success.
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04.wat.bad");
-    assert_eq!(
+    // rune:lint(loose-assert) — a TARGETED ABSENCE over a large output, the rubric's own
+    // exemption. The `assert_edn_matches_file!` below pins the whole value exactly, so this is
+    // not the primary comparison; it is the guard that SURVIVES A CARELESS GOLDEN RECAPTURE. If a
+    // remedy ever starts attaching here, re-capturing the golden would silently bless it — this
+    // line is what goes red instead, and "no remedy for a distant unknown" IS this contract.
+    assert!(
+        !msg.contains("did you mean") && !msg.contains(":remedies"),
+        "distant-unknown case should NOT produce 'did you mean' or any :remedies — got: {msg}"
+    );
+    wat::assert_edn_matches_file!(
         msg,
-        "<startup succeeded — no error to display>",
-        "distant-unknown case should NOT produce 'did you mean'"
+        "probe_arc241_stone10_remedy__contract_04_no_remedy_for_distant_unknown.edn",
+        "distant-unknown case: refused by resolve, no remedy attached"
     );
 }
 
@@ -187,11 +204,23 @@ fn contract_07_retirement_kind_annotation_canonical() {
 fn contract_08_threshold_filters_far_typos() {
     // `:wat::core::definitelywrong` is far from any real form (distance >> needle.len()/3).
     // Post-stone: no remedy offered (threshold filter).
-    // Fixture: probe_arc241_stone10_remedy_c08.wat.bad
+    //
+    // Arc 255 recapture: THE `:wat::*` BLANKET IS DEAD, same story as C04 — at
+    // capture time this name type-checked clean under the blanket, so "no remedy"
+    // meant a no-op success. It is now refused by resolve outright, one pass
+    // earlier; the contract's claim (no remedy above threshold) still holds, now
+    // proven against a real `UnresolvedReferences` error.
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08.wat.bad");
-    assert_eq!(
+    // rune:lint(loose-assert) — targeted absence, same ground as c04 above: the golden pins the
+    // value, this line pins the CLAIM, and it is what fails if a recapture ever blesses a remedy
+    // appearing above the threshold.
+    assert!(
+        !msg.contains("did you mean") && !msg.contains(":remedies"),
+        "distant-typo above threshold should not produce remedy — got: {msg}"
+    );
+    wat::assert_edn_matches_file!(
         msg,
-        "<startup succeeded — no error to display>",
-        "distant-typo above threshold should not produce remedy"
+        "probe_arc241_stone10_remedy__contract_08_threshold_filters_far_typos.edn",
+        "distant-typo above threshold: refused by resolve, no remedy attached"
     );
 }

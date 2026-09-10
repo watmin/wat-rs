@@ -67,6 +67,13 @@ fn accessor_typechecks_at_parse_time() {
     // GREEN after 3b-c: the ctor is known, so the checker reaches the hook body and rejects the
     // nonexistent field — the error names `bogus-field`. RED at HEAD: the ctor `process/post-spawn`
     // is unknown, so the error is about the ctor and does NOT mention the field.
+    //
+    // Arc 255 recapture: the error moves UPSTREAM. `:wat::spawn::ProcessLaunch/bogus-field` used
+    // to type-check past name resolution (the `:wat::*` blanket accepted it unvalidated) and get
+    // caught by the CHECKER as an `UnknownCallee`. With the blanket deleted, `resolve` now catches
+    // it FIRST — the registry doesn't know a `bogus-field` accessor on `ProcessLaunch`, so it never
+    // reaches the checker at all. Refused either way, one pass earlier; the fixture's claim (the
+    // hook fn fails to type-check because of the bogus field) is unchanged.
     // Wat source: probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat (NEGATIVE — must fail startup)
     match startup_from_file("tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat") {
         Ok(_) => panic!(
@@ -78,9 +85,10 @@ fn accessor_typechecks_at_parse_time() {
             wat::assert_edn_matches_file!(
                 msg,
                 "probe_arc209_c0b3bc_post_spawn__accessor_typechecks_at_parse_time.edn",
-                "parse-time error: ProcessLaunch has no field `bogus-field` (exactly ONE error — \
-                 the fixture's SendOutcome match was missing its `Stopped` arm until 296 B6, \
-                 which added a second, unrelated MalformedForm to this negative fixture)"
+                "parse-time error: ProcessLaunch has no field `bogus-field`, now caught by resolve \
+                 (`UnresolvedReferences`) one pass before the checker used to see it — exactly ONE \
+                 error, the fixture's SendOutcome match was missing its `Stopped` arm until 296 B6, \
+                 which added a second, unrelated MalformedForm to this negative fixture"
             );
         }
     }

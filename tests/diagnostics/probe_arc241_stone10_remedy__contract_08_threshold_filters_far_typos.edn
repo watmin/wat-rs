@@ -4,16 +4,16 @@
   :causes []
   :unresolved [
     #wat.resolve/UnresolvedReference {
-      :path ":wat::spawn::ProcessLaunch/bogus-field"
+      :path ":wat::core::definitelywrong"
       :context "call head — not a builtin, not a registered function"
       :span #wat.core/Span {
-        :file "tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat"
-        :line 18
-        :col 81
+        :file "tests/diagnostics/probe_arc241_stone10_remedy_c08.wat.bad"
+        :line 1
+        :col 2
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
-            :line 18
-            :col 119
+            :line 1
+            :col 29
           }
         }
       }
