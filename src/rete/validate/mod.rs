@@ -293,10 +293,15 @@ fn validate_when_entry(
             // `[:not [:and [Wind] [Temp]]]`), not only a plain pattern.
             validate_when_entry(inner, rule_name, types, binds, errors);
         }
-        // Design call 3 — accumulate's `:from` inner gets fact-type-HEAD validation only;
-        // its own clauses and the acc-form's reducer body are out of scope.
+        // Arc 278 strike-the-position-axis-was-chosen-not-derived — the RETIRED claim was that
+        // `:from`'s own clauses are out of scope (`Design call 3`, DESIGN-rete-defrule-wall.md's
+        // v1 scope bound, explicitly flagged there as narrowable). They are not: `:from`'s inner
+        // IS a condition, the same shape `Not`/`Exists` wrap one arm above, so it gets the SAME
+        // full recursion — every clause, every field-ref, the same `check_constraint_head` an
+        // identical predicate gets inline. Only the acc-form's REDUCER body stays out of scope
+        // (unmeasured, DESIGN.md) — `from` is the `:from` condition, not the reducer.
         ReteClauseShape::Accumulate { from, .. } => {
-            validate_fact_type_head_only(from, rule_name, types, errors);
+            validate_when_entry(from, rule_name, types, binds, errors);
         }
         ReteClauseShape::FactBind { type_head, clauses, .. } => {
             validate_typed_clauses(cond, type_head, clauses, rule_name, types, binds, errors);

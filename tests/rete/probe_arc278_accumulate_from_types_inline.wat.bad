@@ -1,0 +1,13 @@
+;; tests/rete/probe_arc278_accumulate_from_types_inline.wat.bad
+;; THE CONTROL — the same predicate, inline (no accumulate at all), and it FAILS TODAY.
+;;
+;; Not banked, not ignored: this fixture is refused at HEAD and must stay refused. It is what
+;; makes the `_from.wat.bad` twin mean something — without it, an unlocked
+;; `from_inner_type_error_is_refused` going red would not distinguish "the `:from` inner is
+;; unchecked" from "this predicate was fine all along".
+
+(:wat::core::defrecord :tai::Reading [location <- :wat::core::String  value <- :wat::core::i64])
+
+(:wat::rete::defrule :tai::inline-is-typed
+  :when [(:tai::Reading (?v <- :value) (:wat::rete::core::string::= ?v "nope"))]
+  :then [])

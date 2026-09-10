@@ -1,0 +1,22 @@
+;; tests/rete/probe_arc278_accumulate_from_types_from.wat.bad
+;; THE GAP — an `accumulate` condition's `:from` inner is not type-checked. At all.
+;;
+;; `string::=` over `?v`, bound to `:value` (i64) — ill-typed, the IDENTICAL predicate the
+;; `_inline.wat.bad` twin proves is refused. `src/rete/validate/mod.rs`'s `Accumulate` arm gives
+;; `:from`'s inner fact-type-HEAD validation only (`Design call 3`); its own clauses are out of
+;; scope, so this compiles and fires clean today.
+;;
+;; ⛔ THE PREDICATE READS `?v`, BOUND INSIDE `:from`'s OWN inner condition — this is not a
+;; cross-condition join gone wrong, it is a plain inline constraint on a field bound two clauses
+;; above it, exactly the shape `check_constraint_types` already refuses everywhere else.
+
+(:wat::core::defrecord :taf::Station [location <- :wat::core::String])
+(:wat::core::defrecord :taf::Reading [location <- :wat::core::String  value <- :wat::core::i64])
+(:wat::core::defrecord :taf::Busy    [location <- :wat::core::String  n <- :wat::core::i64])
+
+(:wat::rete::defrule :taf::busy
+  :when [(:taf::Station (?loc <- :location))
+         (?n <- (:wat::rete::acc::count)
+             :from (:taf::Reading (?loc <- :location) (?v <- :value)
+                     (:wat::rete::core::string::= ?v "nope")))]
+  :then [(:taf::Busy :location ?loc :n ?n)])
