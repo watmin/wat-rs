@@ -1665,12 +1665,16 @@
                               ;; below), not runtime String values read off a constant — the
                               ;; `guarded-arm`/`shape-guarded` bodies call them directly, exactly
                               ;; as `reply-variant-kw` is already called elsewhere in this file.
-                              rtl-ctor-kw   (:wat::keyword::from-string
-                                              (:wat::string::concat proto-base
-                                                (:wat::string::interpolate "::{variant-pascal}Response::RequestTooLarge" :variant-pascal variant-pascal)))
-                              rm-ctor-kw    (:wat::keyword::from-string
-                                              (:wat::string::concat proto-base
-                                                (:wat::string::interpolate "::{variant-pascal}Response::RequestMalformed" :variant-pascal variant-pascal)))
+                              rtl-ctor-kw   (:wat::runtime::compose-variant
+                                              (:wat::keyword::from-string
+                                                (:wat::string::concat proto-base
+                                                  (:wat::string::interpolate "::{variant-pascal}Response" :variant-pascal variant-pascal)))
+                                              :RequestTooLarge)
+                              rm-ctor-kw    (:wat::runtime::compose-variant
+                                              (:wat::keyword::from-string
+                                                (:wat::string::concat proto-base
+                                                  (:wat::string::interpolate "::{variant-pascal}Response" :variant-pascal variant-pascal)))
+                                              :RequestMalformed)
                               n-sym         (:wat::core::symbol-node "n")
                               outcome-match `(:wat::core::match
                                                   (:wat::core::let ~arm-let-bindings ~body)
@@ -2071,9 +2075,11 @@
                           cap-const-kw    (:wat::keyword::from-string
                                             (:wat::string::concat proto-base
                                               (:wat::string::interpolate "::{op-upper}-MAX-REQUEST-BYTES" :op-upper op-upper)))
-                          rtl-ctor-kw     (:wat::keyword::from-string
-                                            (:wat::string::concat proto-base
-                                              (:wat::string::interpolate "::{op-pascal}Response::RequestTooLarge" :op-pascal op-pascal)))
+                          rtl-ctor-kw     (:wat::runtime::compose-variant
+                                            (:wat::keyword::from-string
+                                              (:wat::string::concat proto-base
+                                                (:wat::string::interpolate "::{op-pascal}Response" :op-pascal op-pascal)))
+                                            :RequestTooLarge)
                           ;; arc 278 the recv'-outcome wall — recv' returns a matchable
                           ;; (RecvOutcome :- [Reply]), never a raise. This client method RE-WRAPS it into a
                           ;; `(RecvOutcome :- [<Op>Response])` the caller faces as a VALUE (we are ADT; no
