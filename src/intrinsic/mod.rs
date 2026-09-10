@@ -1727,7 +1727,14 @@ mod tests {
         ":wat::rete::vec::get",
         ":wat::rete::vector::get",
         ":wat::stdlib::sources",
-    ];
+            // Arc 255 — NEWLY DECLARED 2026-09-09, not newly gapped. `wat/core.wat` calls
+        // `(:wat::core::List? step)` three times and this verb had NO declaration of ANY kind
+        // until the `:wat::*` blanket died and the resolver finally asked. It now carries a
+        // `TypeScheme` (`check.rs`, beside `record?`, the same one-arg-to-bool shape), which is
+        // what puts it in THIS population: a contract the checker holds and the registry has no
+        // row for. That row is the honest close; the scheme is the honest floor under it.
+        ":wat::core::List?",
+];
 
     /// ⛔ THE FOLD MUST STAY DERIVED. Arc 255 Stone ③ folds `check_env`'s scheme store into
     /// `membership_names` so the registry can answer "does this name exist?" for every name that
