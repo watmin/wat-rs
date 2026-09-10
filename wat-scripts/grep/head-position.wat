@@ -26,10 +26,9 @@
 ;; ...whose name is the partial verb
 (:wat::rete::defrule :hp::calls-first
   :when [(:hp::IsHead (?id <- :id))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+         (:wat::grep::Named (?id <- :id) (?n <- :name) (:wat::rete::core::string::= ?n ":wat::core::first"))
          (:wat::grep::Span  (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::first"))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "calls-a-partial-verb"

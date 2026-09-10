@@ -2,6 +2,14 @@
 ;;
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
+;; ⛔ JOIN-ONLY GATE (stop-teaching-the-join-blowup, 2026-09): a rule whose `:when` carries FEWER
+;; THAN TWO ordinary fact conditions (`collect-hoist-targets` count < 2) is a single-condition
+;; alpha test wearing a trailing fence — there is no join for it to blow up (measured in Clara:
+;; 41.7ms vs 42.3ms, no difference). `rule-form-edits` now returns NO edits at all for such a rule,
+;; even where a `where` there WOULD otherwise satisfy the var-binding hoist criterion below — this
+;; codemod hoists ONLY the join case (>=2 ordinary conditions), never the harmless single-condition
+;; one, so a single run over the whole corpus cannot touch a rule outside that scope.
+;;
 ;; THE TRANSFORM (per DESIGN.md / SCORE-strike-where-fence-hoistable.md): a top-level `:when`-entry
 ;; `(:wat::rete::where <pred>)`, every `?var` of which is bound by EXACTLY ONE ordinary fact
 ;; pattern reachable from the same `:when` vector (transparently through `:wat::rete::and`
@@ -305,8 +313,11 @@
       ((:wat::core::Some wv)
         (:wat::core::let
           [items (:wat::core::into [] (:wat::core::ast->children wv))
-           targets (:user::collect-hoist-targets items)
-           wheres (:user::collect-where-sites items)
+           targets (:user::collect-hoist-targets items)]
+        (:wat::core::if (:wat::core::< (:wat::core::length targets) 2)
+          (:wat::core::Vector :wat::fix::Edit)
+        (:wat::core::let
+          [wheres (:user::collect-where-sites items)
            result (:wat::core::foldl
                     (:wat::core::fn
                       [acc <- (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::fix::Edit]) (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])])])
@@ -346,7 +357,7 @@
                          (:wat::core::conj acc (:wat::core::Tuple (:wat::core::first t) 0 (:wat::core::second t))))
                        (:wat::core::Vector :wat::fix::Edit)
                        inss)]
-          (:wat::core::concat dels ins-edits))))))
+          (:wat::core::concat dels ins-edits))))))))
 
 ;; walk-node — every defrule/defquery form's edits, anywhere in the tree (a rule may sit inside a
 ;; `:rules […]` vector passed to a macro, not only at top level — this is a pure text-span splice,

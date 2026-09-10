@@ -13,10 +13,8 @@
 (:wat::core::defrecord :pg::IsArrow [id <- :wat::core::i64])
 
 (:wat::rete::defrule :pg::arrow
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (:wat::rete::core::string::= ?k "symbol"))
+         (:wat::grep::Named (?id <- :id) (?n <- :name) (:wat::rete::core::string::= ?n "<-"))]
   :then [(:pg::IsArrow :id ?id)])
 
 (:wat::rete::defrule :pg::match-arrow

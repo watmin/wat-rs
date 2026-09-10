@@ -47,15 +47,13 @@
   :then [(:d2p::D ?k)])
 
 (:wat::rete::defrule :d2p::chain
-  :when [(:d2p::A (?k <- :k) (?v <- :v))
-         (:wat::rete::where (:wat::rete::core::i64::> ?v 0))
+  :when [(:d2p::A (?k <- :k) (?v <- :v) (:wat::rete::core::i64::> ?v 0))
          (:d2p::B (?k <- :k))
          (:d2p::C (?k <- :k))]
   :then [(:d2p::Hit ?k)])
 
 (:wat::rete::defrule :d2p::chain2
-  :when [(:d2p::A (?k <- :k) (?v <- :v))
-         (:wat::rete::where (:wat::rete::core::i64::> ?v 0))
+  :when [(:d2p::A (?k <- :k) (?v <- :v) (:wat::rete::core::i64::> ?v 0))
          (:d2p::B (?k <- :k))
          (:d2p::D (?k <- :k))]
   :then [(:d2p::Hit2 ?k)])
@@ -68,8 +66,7 @@
 ;; bucket yields a doubled row count here even though the fact set is unchanged.
 (:wat::rete::defquery :d2p::q-chain
   :params []
-  :when [(:d2p::A (?k <- :k) (?v <- :v))
-         (:wat::rete::where (:wat::rete::core::i64::> ?v 0))
+  :when [(:d2p::A (?k <- :k) (?v <- :v) (:wat::rete::core::i64::> ?v 0))
          (:d2p::B (?k <- :k))
          (:d2p::C (?k <- :k))])
 

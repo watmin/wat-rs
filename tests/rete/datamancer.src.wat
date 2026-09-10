@@ -23,8 +23,7 @@
 ;; A read of the log AFTER the gap is recollection — the first move.
 (:wat::rete::defrule :dm::read-after
   :when [(:dm::Gap (?g <- :t))
-         (:dm::Beat (?t <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "read-log"))
+         (:dm::Beat (?t <- :t) (?k <- :kind) (:wat::rete::core::string::= ?k "read-log"))
          (:wat::rete::where (:wat::rete::core::i64::< ?g ?t))]
   :then [(:dm::ReadAfter :t ?t)])
 
@@ -37,8 +36,7 @@
 ;; Recolligere: recollection, the primer fetched, and a log that exists.
 (:wat::rete::defrule :dm::recolligere
   :when [(:dm::ReadAfter (?t <- :t))
-         (:dm::Beat (?p <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "fetch-primer"))
+         (:dm::Beat (?p <- :t) (?k <- :kind) (:wat::rete::core::string::= ?k "fetch-primer"))
          (:wat::rete::exists
            (:dm::Artifact (?ak <- :kind)
              (:wat::rete::core::string::= ?ak "log")))]
@@ -61,14 +59,10 @@
 
 ;; The four primers by name — each one, not a count of four things.
 (:wat::rete::defrule :dm::four
-  :when [(:dm::Primer (?a <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?a "recolligere"))
-         (:dm::Primer (?b <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?b "curare"))
-         (:dm::Primer (?c <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?c "examinare"))
-         (:dm::Primer (?d <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?d "extirpare"))]
+  :when [(:dm::Primer (?a <- :name) (:wat::rete::core::string::= ?a "recolligere"))
+         (:dm::Primer (?b <- :name) (:wat::rete::core::string::= ?b "curare"))
+         (:dm::Primer (?c <- :name) (:wat::rete::core::string::= ?c "examinare"))
+         (:dm::Primer (?d <- :name) (:wat::rete::core::string::= ?d "extirpare"))]
   :then [(:dm::Four :n 4)])
 
 ;; We are the datamancer iff the practice holds and we are not hollow.

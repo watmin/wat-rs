@@ -34,8 +34,7 @@
 
 ;; THE SUBJECT: guard, then two fact conditions.
 (:wat::rete::defrule :vlx::main-where
-  :when [(:vlx::A (?k <- :k) (?g <- :g))
-         (:wat::rete::where (:wat::rete::core::string::= ?g "yes"))
+  :when [(:vlx::A (?k <- :k) (?g <- :g) (:wat::rete::core::string::= ?g "yes"))
          (:vlx::B (?k <- :k))
          (:vlx::C (?k <- :k) (?v <- :v))]
   :then [(:vlx::OutW :v ?v)])

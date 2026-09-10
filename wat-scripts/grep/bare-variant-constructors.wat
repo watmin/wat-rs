@@ -26,17 +26,14 @@
 (:wat::core::defrecord :bv::Head [id <- :wat::core::i64  name <- :wat::core::String])
 
 (:wat::rete::defrule :bv::head
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::i64::= ?i 0))]
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index) (:wat::rete::core::string::= ?k "keyword") (:wat::rete::core::i64::= ?i 0))
+         (:wat::grep::Named (?id <- :id) (?n <- :name))]
   :then [(:bv::Head :id ?id :name ?n)])
 
 (:wat::rete::defrule :bv::some
-  :when [(:bv::Head (?id <- :id) (?n <- :name))
+  :when [(:bv::Head (?id <- :id) (?n <- :name) (:wat::rete::core::string::= ?n ":wat::core::Some"))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::Some"))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector
@@ -44,10 +41,9 @@
                        (:wat::grep::Capture :name "qualified" :value ":wat::core::Option::Some")))])
 
 (:wat::rete::defrule :bv::ok
-  :when [(:bv::Head (?id <- :id) (?n <- :name))
+  :when [(:bv::Head (?id <- :id) (?n <- :name) (:wat::rete::core::string::= ?n ":wat::core::Ok"))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::Ok"))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector
@@ -55,10 +51,9 @@
                        (:wat::grep::Capture :name "qualified" :value ":wat::core::Result::Ok")))])
 
 (:wat::rete::defrule :bv::err
-  :when [(:bv::Head (?id <- :id) (?n <- :name))
+  :when [(:bv::Head (?id <- :id) (?n <- :name) (:wat::rete::core::string::= ?n ":wat::core::Err"))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::Err"))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector

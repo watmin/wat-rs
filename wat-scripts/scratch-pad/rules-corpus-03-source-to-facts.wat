@@ -19,17 +19,13 @@
 (:wat::core::defrecord :fx::IsTypePos [id <- :wat::core::i64])
 
 (:wat::rete::defrule :fx::arrow
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (:wat::rete::core::string::= ?k "symbol"))
+         (:wat::grep::Named (?id <- :id) (?n <- :name) (:wat::rete::core::string::= ?n "<-"))]
   :then [(:fx::IsArrow :id ?id)])
 
 (:wat::rete::defrule :fx::head-kw
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/contains? ?n "::"))]
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::grep::Named (?id <- :id) (?n <- :name) (:wat::rete::core::String/contains? ?n "::"))]
   :then [(:fx::IsHeadKw :id ?id)])
 
 ;; the prev-sibling JOIN that replaces fix-seq's single carried boolean — over real source now
@@ -47,11 +43,9 @@
 (:wat::core::defrecord :fx::ArrowLine [id <- :wat::core::i64  line <- :wat::core::i64])
 
 (:wat::rete::defrule :fx::arrow-line
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::grep::Span  (?id <- :id) (?l <- :line))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (:wat::rete::core::string::= ?k "symbol"))
+         (:wat::grep::Named (?id <- :id) (?n <- :name) (:wat::rete::core::string::= ?n "<-"))
+         (:wat::grep::Span  (?id <- :id) (?l <- :line))]
   :then [(:fx::ArrowLine :id ?id :line ?l)])
 
 (:wat::rete::defquery :fx::q-ArrowLine

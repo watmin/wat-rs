@@ -17,10 +17,8 @@
 ;; Facts 15/10/80 at MCI → one pair {10 15}.
 (:wat::rete::defrule :wtc::spoken
   :when
-  [(:wtc::Temp (?t1 <- :c) (?loc <- :loc))
-   (:wat::rete::where (:wat::rete::core::i64::< ?t1 20))
-   (:wtc::Temp (?t2 <- :c) (?loc <- :loc))
-   (:wat::rete::where (:wat::rete::core::i64::< ?t2 20))
+  [(:wtc::Temp (?t1 <- :c) (?loc <- :loc) (:wat::rete::core::i64::< ?t1 20))
+   (:wtc::Temp (?t2 <- :c) (?loc <- :loc) (:wat::rete::core::i64::< ?t2 20))
    (:wat::rete::where (:wat::rete::core::i64::< ?t1 ?t2))]
   :then
   [(:wtc::Pair :a ?t1 :b ?t2)])
@@ -28,10 +26,8 @@
 ;; ROW 2 — joins first, then the three filters. Same set as row 1.
 (:wat::rete::defrule :wtc::join-first
   :when
-  [(:wtc::Temp (?t1 <- :c) (?loc <- :loc))
-   (:wtc::Temp (?t2 <- :c) (?loc <- :loc))
-   (:wat::rete::where (:wat::rete::core::i64::< ?t1 20))
-   (:wat::rete::where (:wat::rete::core::i64::< ?t2 20))
+  [(:wtc::Temp (?t1 <- :c) (?loc <- :loc) (:wat::rete::core::i64::< ?t1 20))
+   (:wtc::Temp (?t2 <- :c) (?loc <- :loc) (:wat::rete::core::i64::< ?t2 20))
    (:wat::rete::where (:wat::rete::core::i64::< ?t1 ?t2))]
   :then
   [(:wtc::Pair :a ?t1 :b ?t2)])
