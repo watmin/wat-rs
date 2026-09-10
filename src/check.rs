@@ -2879,13 +2879,28 @@ fn infer_list(
                     } });
                     return CheckResult::errs(local_errors);
                 }
+                // ⛔ LITERAL OR COMPUTED — deliberately NOT `is-type?`'s literal-only gate.
+                // A literal keyword is checked as a NAME (and never inferred, since
+                // `:Ns::Enum::Variant` in value position resolves to the variant CONSTRUCTOR);
+                // anything else is inferred and must be a `:wat::core::keyword`. The computed
+                // path is the reason this verb exists — a corpus codemod walks an AST and holds
+                // each candidate as a runtime value, so it can never present a literal.
+                // Arc 166's door (`eval_lookup_define`) is the precedent, not `is-type?`'s.
                 if !matches!(&args[0], WatAST::Keyword(_, _)) {
-                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                        head: ":wat::runtime::variant-parent-of".into(),
-                        reason: "arg must be a type keyword (e.g. :wat::core::Option::Some)".into(),
-                        remedies: vec![],
-                    } });
-                    return CheckResult::errs(local_errors);
+                    let (arg_ty_opt, arg_errs) =
+                        infer(&args[0], env, locals, fresh, subst).into_parts();
+                    local_errors.extend(arg_errs);
+                    let arg_ty = arg_ty_opt.unwrap_or_else(|| fresh.fresh());
+                    let kw = TypeExpr::Path(":wat::core::keyword".into());
+                    if !assignable(&arg_ty, &kw, subst, env) {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: ":wat::runtime::variant-parent-of".into(),
+                            param: "#1".into(),
+                            expected: format_type(&kw),
+                            got: format_type(&arg_ty),
+                        } });
+                        return CheckResult::errs(local_errors);
+                    }
                 }
                 let opt_kw_ty = TypeExpr::Parametric {
                     head: "wat::core::Option".into(),

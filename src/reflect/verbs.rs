@@ -1611,26 +1611,47 @@ pub(crate) fn eval_is_type(
 /// @ret     (:wat::core::Option :- [:wat::core::keyword]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::core::Option::Some) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Option
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::cache::Cache::GetRequest) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
+/// @example (:wat::core::match (:wat::runtime::variant-parent-of (:wat::keyword::from-string "wat::core::Result::Ok")) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Result
 /// @see     :wat::runtime::is-type?
 /// @see     :wat::runtime::type-of
 #[wat_intrinsic(":wat::runtime::variant-parent-of")]
 pub(crate) fn eval_variant_parent_of(
     type_kw_ast: &WatAST,
+    env: &Environment,
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::variant-parent-of";
-    let type_kw = match type_kw_ast {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => {
-            return Err(RuntimeError::new(
-                type_kw_ast.span().clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: "arg must be a type keyword (e.g. :wat::core::Option::Some)".into(),
-                },
-            )
-            .into());
+    // ⛔ LITERAL-OR-COMPUTED, and the fallback is load-bearing — arc 166's door
+    // (`eval_lookup_define`, `src/reflect/lookup.rs:335`), NOT `is-type?`'s literal-only one.
+    //
+    // `is-type?` may demand a literal because a TYPE keyword cannot be a value at all (its own
+    // doc: "Doctrine 1 stands: a primitive type keyword as a *value* still refuses; here it is a
+    // name"). This verb takes a NAME, and a name can be COMPUTED — which is the entire point of
+    // it: the corpus codemod that motivated this verb walks an AST, holds each candidate as a
+    // runtime string, and can never present a literal. A literal-only door made the verb
+    // unusable by its only consumer.
+    //
+    // The literal branch still comes first, for arc 166's own reason: a literal
+    // `:user::app::Box::Full` EVAL-resolves to the variant CONSTRUCTOR, not to its name, so
+    // reflection on a literal keyword must read the keyword rather than what it evaluates to.
+    let type_kw = if let WatAST::Keyword(k, _) = type_kw_ast {
+        k.clone()
+    } else {
+        let v = crate::runtime::eval_inner(type_kw_ast, env, sym)?.value_owned();
+        match &v {
+            Value::wat__core__keyword(k) => k.as_ref().clone(),
+            _ => {
+                return Err(RuntimeError::new(
+                    type_kw_ast.span().clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: ":wat::core::keyword (a literal, or an expression yielding one)",
+                        got: Box::new(ValueSnapshot::of(&v)),
+                    },
+                )
+                .into());
+            }
         }
     };
     let types = sym.types().ok_or_else(|| {
