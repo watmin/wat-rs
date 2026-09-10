@@ -218,7 +218,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::match (:wat::core::read-string src)
-    [:wat::core::ReadOutcome::Forms {:forms forms}
+    [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::let
         [lines (:wat::string::split src "\n")
          kids  (:wat::core::ast->children forms)
@@ -231,7 +231,7 @@
          eds   (:user::seq-edits kids vars lines)
          rev   (:wat::core::reverse (:wat::core::sort eds))]
         (:wat::fix::fix-text-apply src rev))]
-    [:wat::core::ReadOutcome::Malformed {:cause cause}
+    [:wat::core::ReadOutcome.Malformed {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::core::Error/message cause))]))
 
 (:wat::core::defn :user::apply-each
@@ -258,9 +258,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::apply-each
     (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome::Datum {:v d} d]
-      [:wat::kernel::ReadlnOutcome::Eof {}
+      [:wat::kernel::ReadlnOutcome.Datum {:v d} d]
+      [:wat::kernel::ReadlnOutcome.Eof {}
         (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome::Stopped {}
+      [:wat::kernel::ReadlnOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "readln: stop requested")])
     0))

@@ -3860,11 +3860,9 @@ fn keyword_accessor_enum(
         None => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::UnknownField {
-                record_class: format!(
-                    // rune:lint(one-variant-separator, display) — enum + variant rendered into the record_class a person reads in an UnknownField error, never parsed back
-                    "{}::{}",
+                record_class: wat_reader::identifier::compose_variant(
                     e.type_path.trim_start_matches(':'),
-                    e.variant_name
+                    &e.variant_name,
                 ),
                 field: bare_name.to_string(),
                 available: e.names.as_ref().clone(),

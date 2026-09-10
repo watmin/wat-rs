@@ -11,28 +11,28 @@
 ;; this stone) it is reporting, per the EXPECTATIONS doc's ledger note.
 
 (:wat::core::defn :user::is-special-form? [r <- :wat::intrinsic::Row] -> :wat::core::bool
-  (:wat::core::= (:wat::intrinsic::Row/kind r) :wat::runtime::Kind::SpecialForm))
+  (:wat::core::= (:wat::intrinsic::Row/kind r) :wat::runtime::Kind.SpecialForm))
 
 (:wat::core::defn :user::is-intrinsic? [r <- :wat::intrinsic::Row] -> :wat::core::bool
-  (:wat::core::= (:wat::intrinsic::Row/kind r) :wat::runtime::Kind::Intrinsic))
+  (:wat::core::= (:wat::intrinsic::Row/kind r) :wat::runtime::Kind.Intrinsic))
 
 (:wat::core::defn :user::is-macro? [r <- :wat::intrinsic::Row] -> :wat::core::bool
-  (:wat::core::= (:wat::intrinsic::Row/kind r) :wat::runtime::Kind::Macro))
+  (:wat::core::= (:wat::intrinsic::Row/kind r) :wat::runtime::Kind.Macro))
 
 (:wat::core::defn :user::empty-syntax? [r <- :wat::intrinsic::Row] -> :wat::core::bool
   (:wat::core::= (:wat::intrinsic::Row/syntax r) ""))
 
 (:wat::core::defn :user::totality-total? [r <- :wat::intrinsic::Row] -> :wat::core::bool
-  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality::Total))
+  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality.Total))
 
 (:wat::core::defn :user::totality-partial? [r <- :wat::intrinsic::Row] -> :wat::core::bool
-  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality::Partial))
+  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality.Partial))
 
 (:wat::core::defn :user::totality-preserving? [r <- :wat::intrinsic::Row] -> :wat::core::bool
-  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality::Preserving))
+  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality.Preserving))
 
 (:wat::core::defn :user::totality-unreviewed? [r <- :wat::intrinsic::Row] -> :wat::core::bool
-  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality::Unreviewed))
+  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality.Unreviewed))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [rows (:wat::intrinsic::rows)

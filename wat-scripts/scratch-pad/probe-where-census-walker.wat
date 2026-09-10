@@ -122,9 +122,9 @@
 (:wat::core::defn :user::process-file [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let [src (:wat::io::read-file path)]
     (:wat::core::match (:wat::core::read-string src)
-      [:wat::core::ReadOutcome::Forms {:forms __f}
+      [:wat::core::ReadOutcome.Forms {:forms __f}
         (:wat::core::do (:user::find-wheres-seq (:wat::core::ast->children __f) path 0) nil)]
-      [:wat::core::ReadOutcome::Malformed {:cause __c}
+      [:wat::core::ReadOutcome.Malformed {:cause __c}
         (:wat::core::do
           (:wat::kernel::println (:wat::string::concat "PARSE-FAIL " path))
           nil)])))

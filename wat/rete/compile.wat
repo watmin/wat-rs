@@ -65,9 +65,9 @@
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
-      [:wat::core::Option::Some {:value existing-id}
+      [:wat::core::Option.Some {:value existing-id}
        (:wat::rete::MintResult :id existing-id :state state)]
-      [:wat::core::Option::None {}
+      [:wat::core::Option.None {}
        (:wat::core::let [alpha     (:wat::rete::AlphaNode
                                       :id next-id
                                       :tests (:wat::core::PersistentVector cond)
@@ -157,9 +157,9 @@
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
-      [:wat::core::Option::Some {:value existing-id}
+      [:wat::core::Option.Some {:value existing-id}
        (:wat::rete::MintResult :id existing-id :state state)]
-      [:wat::core::Option::None {}
+      [:wat::core::Option.None {}
        (:wat::core::let [join-node (:wat::rete::RootJoinNode
                                       :id next-id
                                       :children (:wat::core::PersistentVector))
@@ -186,9 +186,9 @@
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::hashmap::get dedup dkey)]
     (:wat::core::match found-opt 
-      [:wat::core::Option::Some {:value existing-id}
+      [:wat::core::Option.Some {:value existing-id}
        (:wat::rete::MintResult :id existing-id :state state)]
-      [:wat::core::Option::None {}
+      [:wat::core::Option.None {}
        (:wat::core::let [join-node (:wat::rete::HashJoinNode
                                       :id next-id
                                       :children (:wat::core::PersistentVector))
@@ -300,10 +300,10 @@
   ;; Fourth argument is Law A: `:else` is RetePrimitive, never Total. A wrap that names
   ;; RetePrimitive outside this fn can drop and a core `i64::>` where is refused as Total.
   (:wat::core::cond
-    ((:wat::core::not is-pure)  :wat::rete::Axis::Pure)
-    ((:wat::core::not is-det)   :wat::rete::Axis::Deterministic)
-    ((:wat::core::not is-total) :wat::rete::Axis::Total)
-    (:else                      :wat::rete::Axis::RetePrimitive)))
+    ((:wat::core::not is-pure)  :wat::rete::Axis.Pure)
+    ((:wat::core::not is-det)   :wat::rete::Axis.Deterministic)
+    ((:wat::core::not is-total) :wat::rete::Axis.Total)
+    (:else                      :wat::rete::Axis.RetePrimitive)))
 
 ;; axis-violation-message — build a human-actionable fence message from an ALREADY-DECIDED
 ;; rejection. `context` names the fenced site ("where" / "accumulator" / "then"); `failing-axis` is the axis
@@ -325,26 +325,26 @@
    failing-axis <- :wat::rete::Axis]
   -> :wat::core::String
   (:wat::core::match failing-axis
-    [:wat::rete::Axis::Pure {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Pure)
-       [:wat::core::Option::Some {:value v}
+    [:wat::rete::Axis.Pure {}
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.Pure)
+       [:wat::core::Option.Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not pure — '"
                                      (:wat::rete::AxisViolation/head v) "' is not pure")]
-       [:wat::core::Option::None {}
+       [:wat::core::Option.None {}
         (:wat::core::format "compile-condition: {context} expr is not pure (offending head could not be attributed)" :context context)])]
-    [:wat::rete::Axis::Deterministic {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Deterministic)
-       [:wat::core::Option::Some {:value v}
+    [:wat::rete::Axis.Deterministic {}
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.Deterministic)
+       [:wat::core::Option.Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not deterministic — '"
                                      (:wat::rete::AxisViolation/head v) "' is not deterministic")]
-       [:wat::core::Option::None {}
+       [:wat::core::Option.None {}
         (:wat::core::format "compile-condition: {context} expr is not deterministic (offending head could not be attributed)" :context context)])]
-    [:wat::rete::Axis::Total {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Total)
-       [:wat::core::Option::Some {:value v}
+    [:wat::rete::Axis.Total {}
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.Total)
+       [:wat::core::Option.Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not total — '"
                                      (:wat::rete::AxisViolation/head v) "' is not total")]
-       [:wat::core::Option::None {}
+       [:wat::core::Option.None {}
         (:wat::core::format "compile-condition: {context} expr is not total (offending head could not be attributed)" :context context)])]
     ;; #57 LAW A — the sentence the name was CHOSEN for. The three arms above read "is not pure" /
     ;; "is not deterministic" / "is not total"; this one reads "is not a rete primitive", which IS
@@ -352,13 +352,13 @@
     ;; tells the author what to do without a lookup. The remedy is named explicitly because a
     ;; refusal that withholds the cure makes the reader hunt (R29 RVINA ERVDIT — the checker
     ;; educates); the rete twin of a core op is its name with `rete::` inserted after `wat::`.
-    [:wat::rete::Axis::RetePrimitive {}
-     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::RetePrimitive)
-       [:wat::core::Option::Some {:value v}
+    [:wat::rete::Axis.RetePrimitive {}
+     (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis.RetePrimitive)
+       [:wat::core::Option.Some {:value v}
         (:wat::string::concat "compile-condition: " context " expr is not a rete primitive — '"
                                      (:wat::rete::AxisViolation/head v)
                                      "' is not a rete primitive; a " context " admits only :wat::rete:: ops")]
-       [:wat::core::Option::None {}
+       [:wat::core::Option.None {}
         (:wat::core::format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context)])]))
 
 (:wat::core::defn :wat::rete::compile-condition
@@ -398,8 +398,8 @@
                                  (:wat::core::range 1 (:wat::core::length or-ch)))
                         _or-n (:wat::core::Option/expect
                                  (:wat::core::if (:wat::i64::> (:wat::core::length arms) 0)
-                                   (:wat::core::Option::Some {:value nil})
-                                   :wat::core::Option::None)
+                                   (:wat::core::Option.Some {:value nil})
+                                   :wat::core::Option.None)
                                  "compile-condition: or of conditions has no arms")
                         incoming parent-ids]
         (:wat::core::foldl
@@ -434,8 +434,8 @@
                                  (:wat::core::range 1 (:wat::core::length and-ch)))
                         _and-n (:wat::core::Option/expect
                                  (:wat::core::if (:wat::i64::> (:wat::core::length kids) 0)
-                                   (:wat::core::Option::Some {:value nil})
-                                   :wat::core::Option::None)
+                                   (:wat::core::Option.Some {:value nil})
+                                   :wat::core::Option.None)
                                  "compile-condition: and of conditions has no children")]
         (:wat::core::foldl :wat::rete::compile-condition acc kids))
     (:wat::core::if is-where
@@ -461,8 +461,8 @@
                         is-rete   (:wat::rete::primitive? expr)
                         _fence    (:wat::core::Option/expect
                                       (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                        (:wat::core::Option::Some {:value nil})
-                                        :wat::core::Option::None)
+                                        (:wat::core::Option.Some {:value nil})
+                                        :wat::core::Option.None)
                                       (:wat::rete::axis-violation-message "where" expr
                                         ;; the axis is EXACT: first-failing-axis walks all four
                                         ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
@@ -607,10 +607,10 @@
                             is-rete      (:wat::rete::primitive? fence-call)
                             _acc-fence   (:wat::core::Option/expect
                                              (:wat::core::if is-builtin
-                                               (:wat::core::Option::Some {:value nil})
+                                               (:wat::core::Option.Some {:value nil})
                                                (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                                 (:wat::core::Option::Some {:value nil})
-                                                 :wat::core::Option::None))
+                                                 (:wat::core::Option.Some {:value nil})
+                                                 :wat::core::Option.None))
                                              (:wat::rete::axis-violation-message "accumulator" fence-call
                                                ;; the axis is EXACT: first-failing-axis walks all four
                                                ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
@@ -621,8 +621,8 @@
                                              "compile-condition: accumulate missing :from")
                             _from-check  (:wat::core::Option/expect  
                                              (:wat::core::if (:wat::core::= (:wat::core::ast-name from-kw) ":from")
-                                               (:wat::core::Option::Some {:value nil})
-                                               :wat::core::Option::None)
+                                               (:wat::core::Option.Some {:value nil})
+                                               :wat::core::Option.None)
                                              "compile-condition: accumulate expected :from at position 3")
                             ;; inner: items[4] — the :from fact-pattern condition
                             inner        (:wat::core::Option/expect  
@@ -795,8 +795,8 @@
                     is-rete   (:wat::rete::primitive? item)
                     _fence    (:wat::core::Option/expect
                                   (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
-                                    (:wat::core::Option::Some {:value nil})
-                                    :wat::core::Option::None)
+                                    (:wat::core::Option.Some {:value nil})
+                                    :wat::core::Option.None)
                                   (:wat::rete::axis-violation-message "then" item
                                     ;; exact: first-failing-axis walks all four conjuncts;
                                     ;; `:else` is Law A (RetePrimitive), never Total.
@@ -807,8 +807,8 @@
                     ;; already guarded at expand.
                     _no-match (:wat::core::Option/expect
                                 (:wat::core::if (:wat::rete::then-item-contains-match? item)
-                                  :wat::core::Option::None
-                                  (:wat::core::Option::Some {:value nil}))
+                                  :wat::core::Option.None
+                                  (:wat::core::Option.Some {:value nil}))
                                 "a :then admits only what the fence can prove TOTAL. `match` is total as a HEAD, but a match's exhaustiveness is a property of ITS ARMS — form-level, which a head-level axis cannot see. Use :wat::rete::core::variant-name for a variant's name, or bind the value in :when.")
                     item-ch   (:wat::core::ast->children item)
                     head      (:wat::core::first item-ch)

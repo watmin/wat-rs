@@ -42,16 +42,16 @@
 (:wat::core::defn :census::types-after-arrows
   [toks <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq toks))
-    [:wat::stream::NextOutcome::Item {:value t :rest rest}
+    [:wat::stream::NextOutcome.Item {:value t :rest rest}
       (:wat::core::if (:wat::core::= t "<-")
         (:wat::core::match (:wat::stream::next rest)
-          [:wat::stream::NextOutcome::Item {:value ty :rest more}
+          [:wat::stream::NextOutcome.Item {:value ty :rest more}
             (:wat::string::concat
               (:wat::string::concat ty " ~ ")
               (:census::types-after-arrows (:wat::core::into [] more)))]
-          [:wat::stream::NextOutcome::Exhausted {} "<MISSING-TYPE>"])
+          [:wat::stream::NextOutcome.Exhausted {} "<MISSING-TYPE>"])
         (:census::types-after-arrows (:wat::core::into [] rest)))]
-    [:wat::stream::NextOutcome::Exhausted {} ""]))
+    [:wat::stream::NextOutcome.Exhausted {} ""]))
 
 ;; Does this arm carry a `:guard`? (top-level tokens of the arm form)
 (:wat::core::defn :census::has-guard? [arm <- :wat::WatAST] -> :wat::core::bool
@@ -119,16 +119,16 @@
     (:wat::core::into []
       (:wat::core::ast->children
         (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
-          [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-          [:wat::core::ReadOutcome::Malformed {:cause __cause}
+          [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+          [:wat::core::ReadOutcome.Malformed {:cause __cause}
             (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::run!
     (:wat::core::fn [p <- :wat::core::String] -> :wat::core::nil (:census::file p))
     (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome::Eof {}
+      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
+      [:wat::kernel::ReadlnOutcome.Eof {}
         (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome::Stopped {}
+      [:wat::kernel::ReadlnOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

@@ -8,19 +8,19 @@
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
-             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::List {})))))
+             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.List {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
-             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector {})))))
+             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Vector {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
-             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Map {})))))
+             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Map {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
-             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Set {})))))
+             (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Set {})))))
          (:wat::rete::not
            (:wat::rete::and
              (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))

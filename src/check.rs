@@ -13955,7 +13955,7 @@ fn infer_enum_map_ctor(
                     head: k.to_string(),
                     reason: format!(
                         // rune:lint(one-variant-separator, display) — user-facing MalformedForm reason; type_path/variant_name are rendered into prose the reader sees.
-                        "map-ctor key `:{key}` is not a field of {type_path}::{variant_name}"
+                        "map-ctor key `:{key}` is not a field of {type_path}.{variant_name}"
                     ),
                     remedies: vec![],
                 },
@@ -13973,7 +13973,7 @@ fn infer_enum_map_ctor(
                         head: k.to_string(),
                         reason: format!(
                             // rune:lint(one-variant-separator, display) — user-facing MalformedForm reason; type_path/variant_name are rendered into prose the reader sees.
-                            "map ctor is missing declared field `:{decl_name}` of {type_path}::{variant_name}"
+                            "map ctor is missing declared field `:{decl_name}` of {type_path}.{variant_name}"
                         ),
                         remedies: vec![],
                     },

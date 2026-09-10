@@ -1322,12 +1322,12 @@
                 read-form  `(~acc-kw ~assemble-deps-sym)
                 form       (:wat::core::if is-peer
                              `(:wat::core::match (:wat::kernel::connect ~read-form)
-                                [:wat::kernel::ConnectOutcome::Connected {:peer ~assemble-p-sym} ~assemble-p-sym]
-                                [:wat::kernel::ConnectOutcome::Refused {:cause ~assemble-c-sym}
+                                [:wat::kernel::ConnectOutcome.Connected {:peer ~assemble-p-sym} ~assemble-p-sym]
+                                [:wat::kernel::ConnectOutcome.Refused {:cause ~assemble-c-sym}
                                   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))]
-                                [:wat::kernel::ConnectOutcome::Rejected {:cause ~assemble-c-sym}
+                                [:wat::kernel::ConnectOutcome.Rejected {:cause ~assemble-c-sym}
                                   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))]
-                                [:wat::kernel::ConnectOutcome::Failed {:cause ~assemble-c-sym}
+                                [:wat::kernel::ConnectOutcome.Failed {:cause ~assemble-c-sym}
                                   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message ~assemble-c-sym))])
                              read-form)]
                (:wat::core::conj acc form)))
@@ -1543,11 +1543,11 @@
   {:doc "Sort a vector: ascending by the default comparator `<` (1-ary), or by a caller-supplied `less?` comparator (2-ary, fn-first, Clojure idiom)."
    :added "1.0.0"
    :ret [:wat::core::Vector "a new vector holding coll's elements in sorted order"]
-   :purity :wat::runtime::Purity::Pure
-   :determinism :wat::runtime::Determinism::Deterministic
-   :totality :wat::runtime::Totality::Unreviewed
-   :expand-time :wat::runtime::ExpandTime::Unreviewed
-   :category :wat::runtime::Category::Transform
+   :purity :wat::runtime::Purity.Pure
+   :determinism :wat::runtime::Determinism.Deterministic
+   :totality :wat::runtime::Totality.Unreviewed
+   :expand-time :wat::runtime::ExpandTime.Unreviewed
+   :category :wat::runtime::Category.Transform
    :examples [["(:wat::core::sort [3 1 2])" "[1 2 3]"]]}
   ;; 1-ary: natural ascending — default comparator is <
   ;; T auto-generalizes (bare uppercase type-var, Arc 256 / Stone 251.7).
@@ -1566,11 +1566,11 @@
   {:doc "Sort a vector by a key function: ascending on the key by the default comparator `<` (2-ary), or by a caller-supplied comparator over the keys (3-ary)."
    :added "1.0.0"
    :ret [:wat::core::Vector "a new vector holding coll's elements ordered by keyfn (and cmp, when supplied)"]
-   :purity :wat::runtime::Purity::Pure
-   :determinism :wat::runtime::Determinism::Deterministic
-   :totality :wat::runtime::Totality::Unreviewed
-   :expand-time :wat::runtime::ExpandTime::Unreviewed
-   :category :wat::runtime::Category::Transform
+   :purity :wat::runtime::Purity.Pure
+   :determinism :wat::runtime::Determinism.Deterministic
+   :totality :wat::runtime::Totality.Unreviewed
+   :expand-time :wat::runtime::ExpandTime.Unreviewed
+   :category :wat::runtime::Category.Transform
    :examples [["(:wat::core::sort-by (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) [3 1 2])" "[1 2 3]"]]}
   ;; 2-ary: key function only — default comparator is < on the keys.
   ;; Keyfn is a bare type-var that unifies with the caller's [T :-> K].
@@ -1938,7 +1938,7 @@
                                     (:wat::string::concat
                                       "\""
                                       (:wat::string::concat pay "\"")))
-                                    [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
+                                    [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
                                     ;; EXPAND-TIME site — hand-written, not the codemod's uniform
                                     ;; arm. `assertion-failed!` is a kernel head that DIVERGES, so
                                     ;; the F5 default-deny gate refuses it inside a program-body
@@ -1946,7 +1946,7 @@
                                     ;; macro-error channel (EvalBreak::Diagnostic), not the panic
                                     ;; one. Blessing assertion-failed! to make a codemod's output
                                     ;; fit would be widening the gate to suit the tool.
-                                    [:wat::core::ReadOutcome::Malformed {:cause __cause}
+                                    [:wat::core::ReadOutcome.Malformed {:cause __cause}
                                       (:wat::core::macro-error
                                         (:wat::string::concat
                                           "string::interpolate: text segment did not parse: "

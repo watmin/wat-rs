@@ -52,7 +52,7 @@
 (:wat::core::defn :usr::mk [ctry <- :wat::core::String rep <- :wat::core::i64 lat <- :wat::core::i64 st <- :wat::core::i64] -> :usr::Event
   (:usr::Event
     :client (:usr::Client :ip "1.2.3.4" :geo (:usr::Geo :country ctry :asn 64500) :reputation rep)
-    :route  (:usr::Route :method :usr::Method::POST :path "/api" :status st)
+    :route  (:usr::Route :method :usr::Method.POST :path "/api" :status st)
     :latency-ns lat))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

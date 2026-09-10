@@ -25,32 +25,32 @@
              [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
              (:wat::core::let
                [item (:wat::kernel::recv self)
-                _    (:wat::core::match (:wat::kernel::send self (:probe::dbl item)) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+                _    (:wat::core::match (:wat::kernel::send self (:probe::dbl item)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
                (:probe::runner self)))
            ;; the child main: bind its own self-peer, run the loop (the communicating pattern)
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64)))))
      ;; arc 278 #73 — a stop here is terminal like Lost/Closed for this discard-only send; the
      ;; recv's below face the stop as its own outcome.
-     _ (:wat::core::match (:wat::kernel::send w 3) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
-     _ (:wat::core::match (:wat::kernel::send w 5) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w 3) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
+     _ (:wat::core::match (:wat::kernel::send w 5) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
      ra (:wat::kernel::recv w)
      a  (:wat::core::match ra
-          [:wat::kernel::RecvOutcome::Message {:msg m} m]
-          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+          [:wat::kernel::RecvOutcome.Message {:msg m} m]
+          [:wat::kernel::RecvOutcome.Lost {:cause cause}
             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-          [:wat::kernel::RecvOutcome::Stopped {}
+          [:wat::kernel::RecvOutcome.Stopped {}
             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-          [:wat::kernel::RecvOutcome::Closed {}
+          [:wat::kernel::RecvOutcome.Closed {}
             (:wat::kernel::assertion-failed! :message "recv': w closed unexpectedly")])
      rb (:wat::kernel::recv w)
      b  (:wat::core::match rb
-          [:wat::kernel::RecvOutcome::Message {:msg m} m]
-          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+          [:wat::kernel::RecvOutcome.Message {:msg m} m]
+          [:wat::kernel::RecvOutcome.Lost {:cause cause}
             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-          [:wat::kernel::RecvOutcome::Stopped {}
+          [:wat::kernel::RecvOutcome.Stopped {}
             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-          [:wat::kernel::RecvOutcome::Closed {}
+          [:wat::kernel::RecvOutcome.Closed {}
             (:wat::kernel::assertion-failed! :message "recv': w closed unexpectedly")])]
     (:wat::kernel::println
       (:wat::string::concat

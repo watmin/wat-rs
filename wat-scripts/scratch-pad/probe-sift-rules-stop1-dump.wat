@@ -45,7 +45,7 @@
        :satisfies :probe::Wrapped
        :durable []
        :impls
-       [(echo [s req] (:wat::service::Outcome::Reply {:state s :reply (:probe::Wrapped::EchoResponse::Ok {:c (:probe::Wrapped::EchoRequest/c req)})}))])))
+       [(echo [s req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Wrapped::EchoResponse::Ok {:c (:probe::Wrapped::EchoRequest/c req)})}))])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

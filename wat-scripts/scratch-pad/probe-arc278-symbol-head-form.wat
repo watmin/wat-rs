@@ -68,8 +68,8 @@
     (:wat::kernel::println "3. edn::validate against :wat::WatAST:")
     (:wat::core::match
       (:wat::edn::validate (:wat::core::quote (wat.core/+ 2 2)) :wat::WatAST)
-      [:wat::edn::Validation::Valid {} (:wat::kernel::println "   VALID")]
-      [:wat::edn::Validation::Invalid {:path path :expected expected :got got}
+      [:wat::edn::Validation.Valid {} (:wat::kernel::println "   VALID")]
+      [:wat::edn::Validation.Invalid {:path path :expected expected :got got}
         (:wat::core::do
           (:wat::kernel::println
             (:wat::string::concat "   INVALID expected=" expected " got=" got))

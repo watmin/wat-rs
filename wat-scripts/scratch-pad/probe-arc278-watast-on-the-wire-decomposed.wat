@@ -120,19 +120,19 @@
           (:probe::wirekindsvc::State :durable record))
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::WireKind::EchoResponse::Ok {:n (:probe::WireKind::EchoRequest/n req)})}))
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::WireKind::EchoResponse.Ok {:n (:probe::WireKind::EchoRequest/n req)})}))
    (count [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::WireKind::CountResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::WireKind::CountResponse.Ok
          {:n (:wat::core::length (:probe::WireKind::CountRequest/defs req))})}))])
 
 (:wat::core::defn :probe::connect! [h <- :probe::wirekindsvc::Handle] -> :probe::WireKind
   (:wat::core::match (:wat::kernel::connect (:probe::wirekindsvc::Handle/addr h))
-    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome::Refused {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome::Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
+    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome.Refused {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
+    [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
 
 ;; three quoted declarations — a payload with a known length of 3
 (:wat::core::defn :probe::three-forms [] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -146,32 +146,32 @@
     [h (:probe::wirekindsvc/start :locus (:wat::spawn::process) :record (:probe::wirekindsvc::Record :calls 0))
      c (:probe::connect! h)]
     (:wat::core::match (:probe::WireKind/echo c (:probe::WireKind::EchoRequest :n 7))
-      [:wat::kernel::RecvOutcome::Message {:msg resp}
+      [:wat::kernel::RecvOutcome.Message {:msg resp}
         (:wat::core::match resp
-          [:probe::WireKind::EchoResponse::Ok {:n n}
+          [:probe::WireKind::EchoResponse.Ok {:n n}
             (:wat::kernel::println (:wat::string::concat "CONTROL echo(i64)        => Ok n=" (:wat::i64::to-string n)))]
-          [:probe::WireKind::EchoResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-TOO-LARGE")]
-          [:probe::WireKind::EchoResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-MALFORMED")])]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+          [:probe::WireKind::EchoResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-TOO-LARGE")]
+          [:probe::WireKind::EchoResponse.RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-MALFORMED")])]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::println (:wat::string::concat "CONTROL echo(i64)        => LOST " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::println "CONTROL echo(i64)        => STOPPED")]
-      [:wat::kernel::RecvOutcome::Closed {}  (:wat::kernel::println "CONTROL echo(i64)        => CLOSED")])))
+      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "CONTROL echo(i64)        => STOPPED")]
+      [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "CONTROL echo(i64)        => CLOSED")])))
 
 (:wat::core::defn :probe::run-count [] -> :wat::core::nil
   (:wat::core::let
     [h (:probe::wirekindsvc/start :locus (:wat::spawn::process) :record (:probe::wirekindsvc::Record :calls 0))
      c (:probe::connect! h)]
     (:wat::core::match (:probe::WireKind/count c (:probe::WireKind::CountRequest :defs (:probe::three-forms)))
-      [:wat::kernel::RecvOutcome::Message {:msg resp}
+      [:wat::kernel::RecvOutcome.Message {:msg resp}
         (:wat::core::match resp
-          [:probe::WireKind::CountResponse::Ok {:n n}
+          [:probe::WireKind::CountResponse.Ok {:n n}
             (:wat::kernel::println (:wat::string::concat "SUBJECT count(Vec<WatAST>) => Ok n=" (:wat::i64::to-string n)))]
-          [:probe::WireKind::CountResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-TOO-LARGE")]
-          [:probe::WireKind::CountResponse::RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-MALFORMED")])]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+          [:probe::WireKind::CountResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-TOO-LARGE")]
+          [:probe::WireKind::CountResponse.RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-MALFORMED")])]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::println (:wat::string::concat "SUBJECT count(Vec<WatAST>) => LOST " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => STOPPED")]
-      [:wat::kernel::RecvOutcome::Closed {}  (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => CLOSED")])))
+      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => STOPPED")]
+      [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => CLOSED")])))
 
 ;; ── THE ENCODE ISOLATOR — same op, same value, THREAD locus ───────────────────────────────
 ;; A thread peer hands values across in-process; a process peer EDN-encodes them through a pipe.
@@ -182,19 +182,19 @@
     [h (:probe::wirekindsvc/start :locus (:wat::spawn::thread) :record (:probe::wirekindsvc::Record :calls 0))
      c (:probe::connect! h)]
     (:wat::core::match (:probe::WireKind/count c (:probe::WireKind::CountRequest :defs (:probe::three-forms)))
-      [:wat::kernel::RecvOutcome::Message {:msg resp}
+      [:wat::kernel::RecvOutcome.Message {:msg resp}
         (:wat::core::match resp
-          [:probe::WireKind::CountResponse::Ok {:n n}
+          [:probe::WireKind::CountResponse.Ok {:n n}
             (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => Ok n=" (:wat::i64::to-string n)))]
-          [:probe::WireKind::CountResponse::RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "ISOLATOR count THREAD      => REQUEST-TOO-LARGE")]
-          [:probe::WireKind::CountResponse::RequestMalformed {:path p :expected expected :got got}
+          [:probe::WireKind::CountResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "ISOLATOR count THREAD      => REQUEST-TOO-LARGE")]
+          [:probe::WireKind::CountResponse.RequestMalformed {:path p :expected expected :got got}
             (:wat::core::do
               (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => REQUEST-MALFORMED expected=" expected " got=" got))
               (:wat::kernel::println p))])]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => LOST " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::println "ISOLATOR count THREAD      => STOPPED")]
-      [:wat::kernel::RecvOutcome::Closed {}  (:wat::kernel::println "ISOLATOR count THREAD      => CLOSED")])))
+      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "ISOLATOR count THREAD      => STOPPED")]
+      [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "ISOLATOR count THREAD      => CLOSED")])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

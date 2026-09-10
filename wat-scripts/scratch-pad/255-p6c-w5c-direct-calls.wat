@@ -20,9 +20,9 @@
     (:wat::kernel::println (:wat::string::concat "collect-rules-len= " (:wat::edn::write (:wat::core::length (:wat::rete::collect-rules :w5cprobe)))))
     (:wat::kernel::println (:wat::string::concat "collect-rules-name= " (:wat::edn::write (:wat::rete::Rule/name (:wat::core::Option/expect (:wat::core::get (:wat::rete::collect-rules :w5cprobe) 0) "r0")))))
     ;; axis-violation — a rete-primitive comparison is pure/det/total: None on :Pure.
-    (:wat::kernel::println (:wat::string::concat "axis-violation-pure= " (:wat::edn::write (:wat::rete::axis-violation (:wat::core::quote (:wat::rete::i64::> ?c 5)) :wat::rete::Axis::Pure))))
+    (:wat::kernel::println (:wat::string::concat "axis-violation-pure= " (:wat::edn::write (:wat::rete::axis-violation (:wat::core::quote (:wat::rete::i64::> ?c 5)) :wat::rete::Axis.Pure))))
     ;; axis-violation — a non-rete-primitive head violates RetePrimitive.
-    (:wat::kernel::println (:wat::string::concat "axis-violation-viol= " (:wat::edn::write (:wat::rete::axis-violation (:wat::core::quote (:wat::core::+ 1 2)) :wat::rete::Axis::RetePrimitive))))
+    (:wat::kernel::println (:wat::string::concat "axis-violation-viol= " (:wat::edn::write (:wat::rete::axis-violation (:wat::core::quote (:wat::core::+ 1 2)) :wat::rete::Axis.RetePrimitive))))
     ;; step-payload via the explain walk (its one real caller, rete.wat's `explain`).
     (:wat::core::let [rules   (:wat::rete::collect-rules :w5cprobe)
                       session (:wat::rete::compile rules)

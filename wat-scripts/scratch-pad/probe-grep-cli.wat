@@ -15,7 +15,7 @@
 (:wat::rete::defrule :pg::arrow
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Symbol {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Symbol {})))
          (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:pg::IsArrow :id ?id)])
 

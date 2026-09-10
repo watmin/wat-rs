@@ -32,8 +32,8 @@
   (:wat::core::let
     [src   (:wat::io::read-file "wat-scripts/perf/grid/where-boolean.wat")
      tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome::Forms {:forms __f} __f]
-             [:wat::core::ReadOutcome::Malformed {:cause __c} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __c))])
+             [:wat::core::ReadOutcome.Forms {:forms __f} __f]
+             [:wat::core::ReadOutcome.Malformed {:cause __c} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __c))])
      forms (:wat::core::ast->children tree)
      rule  (:user::find-named forms ":wsb::rule-and2")
      condsfn (:user::find-named forms ":wsb::conds")

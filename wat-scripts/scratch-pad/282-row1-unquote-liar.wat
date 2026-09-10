@@ -17,8 +17,8 @@
     [src       "(:a ~b)"
      lines     (:wat::string::split src "\n")
      tree      (:wat::core::match (:wat::core::read-string src)
-                 [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-                 [:wat::core::ReadOutcome::Malformed {:cause __cause}
+                 [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+                 [:wat::core::ReadOutcome.Malformed {:cause __cause}
                    (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms     (:wat::core::ast->children tree)
      a-form    (:wat::core::first forms)

@@ -22,7 +22,7 @@
     (:wat::core::do
       (:wat::kernel::println "── round trip ──")
       (:wat::core::match decoded
-        [:wat::holon::VectorDecodeOutcome::Decoded {:vector v2}
+        [:wat::holon::VectorDecodeOutcome.Decoded {:vector v2}
           (:wat::core::let
             [bs2 (:wat::holon::vector-bytes v2)]
             (:wat::core::do
@@ -43,7 +43,7 @@
           (:wat::holon::bytes-vector
             (:wat::core::Vector :- [:wat::core::u8] (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3)))]
         (:wat::core::match outcome1
-          [:wat::holon::VectorDecodeOutcome::TruncatedHeader {:got got}
+          [:wat::holon::VectorDecodeOutcome.TruncatedHeader {:got got}
             (:wat::core::do
               (:wat::kernel::println "TruncatedHeader got:")
               (:wat::kernel::println got))]
@@ -60,7 +60,7 @@
               (:wat::core::u8 8) (:wat::core::u8 0) (:wat::core::u8 0) (:wat::core::u8 0)
               (:wat::core::u8 0)))]
         (:wat::core::match outcome2
-          [:wat::holon::VectorDecodeOutcome::LengthMismatch {:expected expected :got got}
+          [:wat::holon::VectorDecodeOutcome.LengthMismatch {:expected expected :got got}
             (:wat::core::do
               (:wat::kernel::println "LengthMismatch expected:")
               (:wat::kernel::println expected)

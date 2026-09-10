@@ -107,20 +107,20 @@
   -> :wat::core::nil
   (:wat::core::match (:wat::eval-with-defs! (:probe::evaluand) defs)
 
-    [:wat::eval::FormOutcome::Declared {}
+    [:wat::eval::FormOutcome.Declared {}
       (:wat::kernel::println (:wat::string::concat label " => DECLARED (the evaluand is an expression; this arm means the probe is wrong)"))]
 
-    [:wat::eval::FormOutcome::Evaluated {:value v}
+    [:wat::eval::FormOutcome.Evaluated {:value v}
       (:wat::kernel::println
         (:wat::string::concat label " => EVALUATED derived="
           (:wat::i64::to-string v)))]
 
-    [:wat::eval::FormOutcome::CheckFailed {:cause cause}
+    [:wat::eval::FormOutcome.CheckFailed {:cause cause}
       (:wat::core::do
         (:wat::kernel::println (:wat::string::concat label " => CHECK-FAILED (static; nothing ran)"))
         (:wat::kernel::println cause))]
 
-    [:wat::eval::FormOutcome::Raised {:cause cause}
+    [:wat::eval::FormOutcome.Raised {:cause cause}
       (:wat::core::do
         (:wat::kernel::println (:wat::string::concat label " => RAISED (dynamic)"))
         (:wat::kernel::println cause))]))

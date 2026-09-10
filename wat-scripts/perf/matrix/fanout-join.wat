@@ -23,7 +23,7 @@
 (:fan::Pair :key 0 :lid 0 :rid 0)  ;; touch ctor (unused warning guard; harmless)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [params (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
+  (:wat::core::let [params (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     keys   (:wat::core::Option/expect   (:wat::core::get params 0) "[keys fanout]")
                     fanout (:wat::core::Option/expect   (:wat::core::get params 1) "[keys fanout]")
                     c1   (:wat::core::quote (:fan::Left  (?k <- :key) (?l <- :lid)))

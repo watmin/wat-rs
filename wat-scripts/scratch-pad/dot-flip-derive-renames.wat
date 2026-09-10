@@ -20,13 +20,13 @@
 (:wat::core::defn :user::pair-for [bare <- :wat::core::String] -> :wat::core::String
   (:wat::core::match
     (:wat::runtime::variant-parent-of (:wat::keyword::from-string bare))
-    [:wat::core::Option::Some {:value parent}
+    [:wat::core::Option.Some {:value parent}
       (:wat::core::let
         [p (:wat::keyword::to-string parent)
          start (:wat::i64::+ (:wat::string::length p) 2)
          leaf (:wat::string::subs bare start (:wat::string::length bare))]
         (:wat::string::concat ":" bare " :" p "." leaf))]
-    [:wat::core::Option::None {} ""]))
+    [:wat::core::Option.None {} ""]))
 
 (:wat::core::defn :user::emit-each [names <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? names)
@@ -38,6 +38,6 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::readln)
-    [:wat::kernel::ReadlnOutcome::Datum {:v names} (:user::emit-each names)]
-    [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-    [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")]))
+    [:wat::kernel::ReadlnOutcome.Datum {:v names} (:user::emit-each names)]
+    [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
+    [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")]))

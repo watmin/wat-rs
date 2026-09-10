@@ -18,9 +18,9 @@
    s   <- :wat::core::String]
   -> :wat::core::i64
   (:wat::core::match (:wat::core::read-string-with-comments s)
-    [:wat::core::ReadWithCommentsOutcome::Forms {:forms forms :comments comments}
+    [:wat::core::ReadWithCommentsOutcome.Forms {:forms forms :comments comments}
       (:wat::core::length comments)]
-    [:wat::core::ReadWithCommentsOutcome::Malformed {:cause cause}
+    [:wat::core::ReadWithCommentsOutcome.Malformed {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::string::concat tag (:wat::core::Error/message cause)))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

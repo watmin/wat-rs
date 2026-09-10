@@ -12,8 +12,8 @@
 
 (:wat::core::defn :probe::dump-children [kids <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::vec::get kids i)
-    [:wat::core::Option::Some {:value c} (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth))]
-    [:wat::core::Option::None {} nil]))
+    [:wat::core::Option.Some {:value c} (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth))]
+    [:wat::core::Option.None {} nil]))
 
 (:wat::core::defn :probe::dump [node <- :wat::WatAST depth <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::do
@@ -29,8 +29,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [forms (:wat::core::match (:wat::core::read-string "(:my::Token 7)")
-              [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-              [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+              [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+              [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      form (:wat::core::first forms)
      exp  (:wat::core::macroexpand form)]
     (:wat::core::do

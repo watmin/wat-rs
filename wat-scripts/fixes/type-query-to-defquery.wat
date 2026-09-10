@@ -135,7 +135,7 @@
 (:wat::core::defn :user::node-type
   [node <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:user::type-query? node)
-    (:wat::core::Option::Some
+    (:wat::core::Option.Some
       {:value (:user::strip-colon
         (:wat::core::ast-name
           (:wat::core::Option/expect
@@ -151,13 +151,13 @@
                                "node-type: qbts child"))
                            "string")
             false)
-          (:wat::core::Option::Some
+          (:wat::core::Option.Some
             {:value (:wat::core::ast-name
               (:wat::core::Option/expect
                 (:wat::core::get ch 2)
                 "node-type: qbts string"))})
           (:wat::kernel::assertion-failed! :message "type-query-to-defquery: query-by-type-string must be (session \"ns::Type\")")))
-      :wat::core::Option::None)))
+      :wat::core::Option.None)))
 
 (:wat::core::defn :user::collect-types
   [node  <- :wat::WatAST
@@ -166,8 +166,8 @@
   (:wat::core::if (:user::quoted? node)
     acc
     (:wat::core::let [here (:wat::core::match (:user::node-type node)
-                             [:wat::core::Option::Some {:value t} (:user::unique-conj acc t)]
-                             [:wat::core::Option::None {} acc])]
+                             [:wat::core::Option.Some {:value t} (:user::unique-conj acc t)]
+                             [:wat::core::Option.None {} acc])]
       (:wat::core::if (:wat::fix::structural? node)
         (:user::collect-types-seq (:wat::core::ast->children node) here)
         here))))
@@ -404,8 +404,8 @@
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome::Malformed {:cause __cause}
+             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+             [:wat::core::ReadOutcome.Malformed {:cause __cause}
                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms (:wat::core::ast->children tree)
      types (:user::collect-types-seq forms
@@ -454,8 +454,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::rewrite-each
     (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome::Eof {}
+      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
+      [:wat::kernel::ReadlnOutcome.Eof {}
         (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome::Stopped {}
+      [:wat::kernel::ReadlnOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

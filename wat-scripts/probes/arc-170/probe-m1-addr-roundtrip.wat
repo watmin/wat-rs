@@ -19,21 +19,21 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Echo::EchoResponse::Ok {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
+            (:wat::service::Outcome.Reply {:state s
+              :reply (:probe::Echo::EchoResponse.Ok {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
 
 ;; a typed helper: the param pins the reconstructed addr's S,R (unify ? = Echo::Op/Reply).
 (:wat::core::defn :probe::dial-and-echo
   [a <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])] -> :wat::core::String
   (:wat::core::let
-    [c  (:wat::core::match (:wat::kernel::connect a) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+    [c  (:wat::core::match (:wat::kernel::connect a) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "roundtrip"))]
-    (:wat::core::match er [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv
-  [:probe::Echo::EchoResponse::Ok {:reply reply} reply]
-  [:probe::Echo::EchoResponse::RequestTooLarge {:bytes bytes :cap cap}
+    (:wat::core::match er [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv
+  [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
+  [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::Echo::EchoResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+  [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

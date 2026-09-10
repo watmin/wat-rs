@@ -62,7 +62,7 @@
   [form <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let [ch (:wat::core::ast->children form)]
     (:wat::core::if (:wat::core::empty? ch)
-      :wat::core::Option::None
+      :wat::core::Option.None
       (:wat::core::let [raw (:wat::core::ast-name (:wat::core::first ch))
                         n   (:wat::string::length raw)
                         q?  (:wat::core::if (:wat::i64::>= n 1)
@@ -72,8 +72,8 @@
                                 (:wat::core::= (:wat::string::subs raw 0 12) ":wat::rete::")
                                 false)]
         (:wat::core::if (:wat::core::if q? true rete?)
-          :wat::core::Option::None
-          (:wat::core::Option::Some
+          :wat::core::Option.None
+          (:wat::core::Option.Some
             {:value (:wat::core::if (:wat::core::= (:wat::string::subs raw 0 1) ":")
               (:wat::string::subs raw 1 n)
               raw)}))))))
@@ -104,8 +104,8 @@
       (:wat::core::if (:wat::core::= hd ":wat::rete::not")
         (:wat::rete::negated-types-under (:wat::core::second ch))
         (:wat::core::match (:wat::rete::type-name-of form)
-          [:wat::core::Option::Some {:value n} (:wat::core::PersistentVector n)]
-          [:wat::core::Option::None {} (:wat::core::PersistentVector)])))))
+          [:wat::core::Option.Some {:value n} (:wat::core::PersistentVector n)]
+          [:wat::core::Option.None {} (:wat::core::PersistentVector)])))))
 
 ;; rule-negates — :not of a fact AND :not of :and/:or. Leaves, not "wat::rete::and".
 (:wat::core::defn :wat::rete::rule-negates
@@ -165,8 +165,8 @@
                                false)]
           (:wat::core::if (:wat::core::= hd ":wat::rete::exists")
             (:wat::core::match (:wat::rete::type-name-of (:wat::core::second ch))
-              [:wat::core::Option::Some {:value t} (:wat::vector::conj acc t)]
-              [:wat::core::Option::None {} acc])
+              [:wat::core::Option.Some {:value t} (:wat::vector::conj acc t)]
+              [:wat::core::Option.None {} acc])
             (:wat::core::if (:wat::core::if q?
                               (:wat::core::if (:wat::i64::>= (:wat::core::length ch) 5)
                                 (:wat::core::= (:wat::core::ast-name
@@ -180,15 +180,15 @@
                                    (:wat::core::Option/expect
                                      (:wat::core::get ch 4)
                                      "rule-consumes: acc :from inner"))
-                [:wat::core::Option::Some {:value t} (:wat::vector::conj acc t)]
-                [:wat::core::Option::None {} acc])
+                [:wat::core::Option.Some {:value t} (:wat::vector::conj acc t)]
+                [:wat::core::Option.None {} acc])
               (:wat::core::if (:wat::core::if (:wat::i64::>= n 12)
                                 (:wat::core::= (:wat::string::subs hd 0 12) ":wat::rete::")
                                 false)
                 acc
                 (:wat::core::match (:wat::rete::type-name-of form)
-                  [:wat::core::Option::Some {:value t} (:wat::vector::conj acc t)]
-                  [:wat::core::Option::None {} acc]))))))
+                  [:wat::core::Option.Some {:value t} (:wat::vector::conj acc t)]
+                  [:wat::core::Option.None {} acc]))))))
       (:wat::core::PersistentVector)
       lhs)))
 
@@ -213,8 +213,8 @@
                                      (:wat::core::let [ns (:wat::core::match
                                                              (:wat::hashmap::get ts neg)
                                                              
-                                                           [:wat::core::Option::Some {:value v} v]
-                                                           [:wat::core::Option::None {} 0])
+                                                           [:wat::core::Option.Some {:value v} v]
+                                                           [:wat::core::Option.None {} 0])
                                                        v  (:wat::i64::+ ns 1)]
                                        (:wat::core::if (:wat::i64::> v mx) v mx)))
                                    0
@@ -228,8 +228,8 @@
                                      -> :wat::core::i64
                                      (:wat::core::let [cs (:wat::core::match
                                                              (:wat::hashmap::get ts con)
-                                                           [:wat::core::Option::Some {:value v} v]
-                                                           [:wat::core::Option::None {} 0])]
+                                                           [:wat::core::Option.Some {:value v} v]
+                                                           [:wat::core::Option.None {} 0])]
                                        (:wat::core::if (:wat::i64::> cs mx) cs mx)))
                                    0
                                    consumed)
@@ -244,8 +244,8 @@
                                                        cur (:wat::core::match
                                                               (:wat::hashmap::get its p)
                                                               
-                                                            [:wat::core::Option::Some {:value v} v]
-                                                            [:wat::core::Option::None {} 0])]
+                                                            [:wat::core::Option.Some {:value v} v]
+                                                            [:wat::core::Option.None {} 0])]
                                        (:wat::core::if (:wat::i64::> required cur)
                                          (:wat::rete::StratifyAcc
                                            :type-strata (:wat::hashmap::assoc its p required)
@@ -273,8 +273,8 @@
       ;; still changing — check for cycle before recursing
       (:wat::core::let [_cycle (:wat::core::Option/expect
                                   (:wat::core::if (:wat::i64::> remaining 0)
-                                    (:wat::core::Option::Some {:value nil})
-                                    :wat::core::Option::None)
+                                    (:wat::core::Option.Some {:value nil})
+                                    :wat::core::Option.None)
                                   "stratify: negation cycle detected — rule set is not stratifiable")]
         (:wat::rete::stratify-fix rules new-ts (:wat::i64::- remaining 1))))))
 
@@ -293,8 +293,8 @@
                                  (:wat::core::let [ps (:wat::core::match
                                                          (:wat::hashmap::get type-strata p)
                                                          
-                                                       [:wat::core::Option::Some {:value v} v]
-                                                       [:wat::core::Option::None {} 0])]
+                                                       [:wat::core::Option.Some {:value v} v]
+                                                       [:wat::core::Option.None {} 0])]
                                    (:wat::core::if (:wat::i64::> ps mx) ps mx)))
                                0
                                produced)
@@ -305,8 +305,8 @@
                                  (:wat::core::let [ns (:wat::core::match
                                                          (:wat::hashmap::get type-strata n)
                                                          
-                                                       [:wat::core::Option::Some {:value v} v]
-                                                       [:wat::core::Option::None {} 0])
+                                                       [:wat::core::Option.Some {:value v} v]
+                                                       [:wat::core::Option.None {} 0])
                                                    v  (:wat::i64::+ ns 1)]
                                    (:wat::core::if (:wat::i64::> v mx) v mx)))
                                0

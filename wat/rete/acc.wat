@@ -64,10 +64,10 @@
                              (:wat::map::get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc 
-          [:wat::core::Option::Some {:value cur}
-           (:wat::core::Option::Some {:value (:wat::core::if (:wat::core::< v cur) v cur)})]
-          [:wat::core::Option::None {} (:wat::core::Option::Some {:value v})])))
-    :wat::core::Option::None
+          [:wat::core::Option.Some {:value cur}
+           (:wat::core::Option.Some {:value (:wat::core::if (:wat::core::< v cur) v cur)})]
+          [:wat::core::Option.None {} (:wat::core::Option.Some {:value v})])))
+    :wat::core::Option.None
     els))
 
 ;; acc::max — Some(max bindings[var]) via a > fold starting from None. empty → None.
@@ -83,10 +83,10 @@
                              (:wat::map::get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc 
-          [:wat::core::Option::Some {:value cur}
-           (:wat::core::Option::Some {:value (:wat::core::if (:wat::core::> v cur) v cur)})]
-          [:wat::core::Option::None {} (:wat::core::Option::Some {:value v})])))
-    :wat::core::Option::None
+          [:wat::core::Option.Some {:value cur}
+           (:wat::core::Option.Some {:value (:wat::core::if (:wat::core::> v cur) v cur)})]
+          [:wat::core::Option.None {} (:wat::core::Option.Some {:value v})])))
+    :wat::core::Option.None
     els))
 
 ;; acc::mean — COMPOSITION: (/ sum count). empty → None (count = 0 → no token).
@@ -99,8 +99,8 @@
   (:wat::core::let [s (:wat::rete::acc::sum var els)
                     n (:wat::rete::acc::count els)]
     (:wat::core::if (:wat::core::= n 0)
-      :wat::core::Option::None
-      (:wat::core::Option::Some {:value (:wat::core::/ s n)}))))
+      :wat::core::Option.None
+      (:wat::core::Option.Some {:value (:wat::core::/ s n)}))))
 
 ;; acc::distinct — dedup bindings[var] via fold + contains?. empty → [] → bare PV, never Option.
 ;; v1: element type is i64 (the probe stores i64 port/bytes values).
@@ -150,8 +150,8 @@
                         fact (:wat::rete::Element/fact e)
                         pv   (:wat::core::match (:wat::map::get acc k)
                                
-                               [:wat::core::Option::Some {:value existing} existing]
-                               [:wat::core::Option::None {} (:wat::core::PersistentVector)])]
+                               [:wat::core::Option.Some {:value existing} existing]
+                               [:wat::core::Option.None {} (:wat::core::PersistentVector)])]
         (:wat::map::assoc acc k (:wat::vector::conj pv fact))))
     (:wat::core::PersistentMap)
     els))

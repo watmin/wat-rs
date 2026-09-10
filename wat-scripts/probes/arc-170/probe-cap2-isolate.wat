@@ -7,8 +7,8 @@
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
-  :impls [(echo [s ctx req] (:wat::service::Outcome::Reply {:state s
-                          :reply (:probe::Echo::EchoResponse::Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
+  :impls [(echo [s ctx req] (:wat::service::Outcome.Reply {:state s
+                          :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 (:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

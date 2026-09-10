@@ -30,11 +30,11 @@
   (:wat::kernel::println
     (:wat::core::PersistentMap
       ;; ACCEPT — same user enum, both operands. The row's whole job.
-      :same-variant      (:wat::rete::core::enum::= :eq::Method::POST :eq::Method::POST)
+      :same-variant      (:wat::rete::core::enum::= :eq::Method.POST :eq::Method.POST)
       ;; NON-VACUITY: a row hard-wired to `true` passes the line above and fails this one.
-      :different-variant (:wat::rete::core::enum::= :eq::Method::GET  :eq::Method::POST)
+      :different-variant (:wat::rete::core::enum::= :eq::Method.GET  :eq::Method.POST)
       ;; `not=` is a distinct row with its own core_name — exercised, not assumed.
-      :not-eq-differing  (:wat::rete::core::enum::not= :eq::Method::GET :eq::Method::POST)
-      :not-eq-same       (:wat::rete::core::enum::not= :eq::Method::PUT :eq::Method::PUT)
+      :not-eq-differing  (:wat::rete::core::enum::not= :eq::Method.GET :eq::Method.POST)
+      :not-eq-same       (:wat::rete::core::enum::not= :eq::Method.PUT :eq::Method.PUT)
       ;; A SECOND enum proves the gate is about enum-ness, not about one hard-coded type.
-      :second-enum       (:wat::rete::core::enum::= :eq::Status::OPEN :eq::Status::OPEN))))
+      :second-enum       (:wat::rete::core::enum::= :eq::Status.OPEN :eq::Status.OPEN))))

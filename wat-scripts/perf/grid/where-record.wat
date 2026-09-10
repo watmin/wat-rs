@@ -129,17 +129,17 @@
 (:wat::core::defn :wr::status-of [i <- :wat::core::i64] -> :wr::Status
   (:wat::core::let [m (:wat::i64::mod i 3)]
     (:wat::core::cond
-      ((:wat::core::= m 0) (:wr::Status::Active  {:level (:wat::i64::mod i 5)}))
-      ((:wat::core::= m 1) :wr::Status::Inactive)
-      (:else               (:wr::Status::Pending {:reason (:wat::i64::mod i 4)})))))
+      ((:wat::core::= m 0) (:wr::Status.Active  {:level (:wat::i64::mod i 5)}))
+      ((:wat::core::= m 1) :wr::Status.Inactive)
+      (:else               (:wr::Status.Pending {:reason (:wat::i64::mod i 4)})))))
 
 ;; row 11's field-value builder. None is bare (mirrors :wat::core::None used bare elsewhere); Some
 ;; wraps a value positionally.
 (:wat::core::defn :wr::note-of [i <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let [nm (:wat::i64::mod i 4)]
     (:wat::core::if (:wat::core::= nm 0)
-      :wat::core::Option::None
-      (:wat::core::Option::Some {:value (:wat::i64::mod i 6)}))))
+      :wat::core::Option.None
+      (:wat::core::Option.Some {:value (:wat::i64::mod i 6)}))))
 
 ;; row 8's whole-record fn: takes the Client itself and reaches inside it.
 (:wat::rete::core::defn :wr::rep-pos? [c <- :wr::Client] -> :wat::core::bool
@@ -152,15 +152,15 @@
 ;; row 10's predicate over the enum field — `match` over a user-defined enum, called from `where`.
 (:wat::rete::core::defn :wr::is-risky? [st <- :wr::Status] -> :wat::core::bool
   (:wat::rete::core::match st
-    [:wr::Status::Active {:level lvl}    (:wat::rete::i64::> lvl 3)]
-    [:wr::Status::Inactive {}        false]
-    [:wr::Status::Pending {:reason reason} (:wat::rete::i64::> reason 1)]))
+    [:wr::Status.Active {:level lvl}    (:wat::rete::i64::> lvl 3)]
+    [:wr::Status.Inactive {}        false]
+    [:wr::Status.Pending {:reason reason} (:wat::rete::i64::> reason 1)]))
 
 ;; row 11's predicate over the Option field — `match` over Some/None, called from `where`.
 (:wat::rete::core::defn :wr::note-positive? [nt <- (:wat::core::Option :- [:wat::core::i64])] -> :wat::core::bool
   (:wat::rete::core::match nt
-    [:wat::core::Option::Some {:value v} (:wat::rete::i64::> v 2)]
-    [:wat::core::Option::None {}     false]))
+    [:wat::core::Option.Some {:value v} (:wat::rete::i64::> v 2)]
+    [:wat::core::Option.None {}     false]))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wr::conds [] -> :wat::WatAST

@@ -13,9 +13,9 @@
 
 (:wat::core::defn :p::kind [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::match (:wat::core::read-string src)
-    [:wat::core::ReadOutcome::Forms {:forms fs}
+    [:wat::core::ReadOutcome.Forms {:forms fs}
       (:wat::core::ast-kind (:wat::core::first fs))]
-    [:wat::core::ReadOutcome::Malformed {:cause c}
+    [:wat::core::ReadOutcome.Malformed {:cause c}
       (:wat::string::concat "MALFORMED: " (:wat::core::Error/message c))]))
 
 (:wat::core::defn :p::try [label <- :wat::core::String src <- :wat::core::String] -> :wat::core::nil

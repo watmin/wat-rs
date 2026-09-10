@@ -28,7 +28,7 @@
 (:wat::rete::defrule :bv::head
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))]
   :then [(:bv::Head :id ?id :name ?n)])
 

@@ -43,14 +43,14 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "hello"))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m}
+      [:wat::kernel::RecvOutcome.Message {:msg m}
         (:wat::test::assert-eq m "hello")]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "println-string: stop requested before the child sent its value — child was ALIVE")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "println-string: child closed before sending its value")])))
 
 ;; ─── Layer 1 — println an i64 ───────────────────────────────────────────
@@ -66,14 +66,14 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println 42))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg m}
+      [:wat::kernel::RecvOutcome.Message {:msg m}
         (:wat::test::assert-eq m 42)]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
       ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "println-i64: stop requested before the child sent its value — child was ALIVE")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "println-i64: child closed before sending its value")])))
 
 ;; ─── Layer 2 — eprintln a String ────────────────────────────────────────
@@ -96,16 +96,16 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::eprintln "err"))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "eprintln-string: eprintln is terminal — expected the child to crash before any value, but a value arrived")]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::core::if (:wat::regex::matches? "err" (:wat::kernel::LociDiedError/message cause))
           nil
-          (:wat::kernel::assertion-failed! :message "eprintln-string: crash reason did not carry the emitted value" :actual (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/message cause)}) :expected (:wat::core::Option::Some {:value "err"})))]
+          (:wat::kernel::assertion-failed! :message "eprintln-string: crash reason did not carry the emitted value" :actual (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/message cause)}) :expected (:wat::core::Option.Some {:value "err"})))]
       ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "eprintln-string: stop requested before the child sent its value — child was ALIVE")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "eprintln-string: child closed before crashing")])))
 
 ;; ─── Layer 3 — two println calls, order-preserving ──────────────────────
@@ -125,9 +125,9 @@
                (:wat::kernel::println "second")
                nil))))]
     (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Result::Ok {:value outputs}
+      [:wat::core::Result.Ok {:value outputs}
         (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "first" "second"))]
-      [:wat::core::Result::Err {:error cause}
+      [:wat::core::Result.Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))
 
 ;; ─── Layer 4 — readln round trip via the bidirectional peer wire ─────────
@@ -146,15 +146,15 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
-               [echoed (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
+               [echoed (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
                (:wat::kernel::println echoed)))))
      _ (:wat::core::match (:wat::kernel::send p "echo me")
-         [:wat::kernel::SendOutcome::Sent {} nil]
-         [:wat::kernel::SendOutcome::Closed {} nil]
-         [:wat::kernel::SendOutcome::Stopped {} nil]
-         [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+         [:wat::kernel::SendOutcome.Sent {} nil]
+         [:wat::kernel::SendOutcome.Closed {} nil]
+         [:wat::kernel::SendOutcome.Stopped {} nil]
+         [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
     (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Result::Ok {:value outputs}
+      [:wat::core::Result.Ok {:value outputs}
         (:wat::test::assert-eq outputs (:wat::core::Vector :- [:wat::core::String] "echo me"))]
-      [:wat::core::Result::Err {:error cause}
+      [:wat::core::Result.Err {:error cause}
         (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))

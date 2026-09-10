@@ -34,12 +34,12 @@
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      [:wat::stream::NextOutcome::Item {:value value :rest rest}
+      [:wat::stream::NextOutcome.Item {:value value :rest rest}
         (:wat::core::match (f value)
           ;; ★ (3) — `rest` is a (Stream :- [T]), handed to a (Seqable :- [T]) parameter, recursively.
-          [:wat::core::Option::Some {:value v} (:wat::stream::cons v (:probe::keep-one f rest))]
-          [:wat::core::Option::None {} (:probe::keep-one f rest)])]
-      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
+          [:wat::core::Option.Some {:value v} (:wat::stream::cons v (:probe::keep-one f rest))]
+          [:wat::core::Option.None {} (:probe::keep-one f rest)])]
+      [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
 
 ;; A STATE-CARRYING producer — the harder half of the family (`keep-indexed`, `map-indexed`,
 ;; `dedupe`, `distinct` all thread an accumulator across the walk). Same crux, plus a threaded arg.
@@ -48,9 +48,9 @@
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      [:wat::stream::NextOutcome::Item {:value value :rest rest}
+      [:wat::stream::NextOutcome.Item {:value value :rest rest}
         (:wat::stream::cons idx (:probe::index-one (:wat::core::+ idx 1) rest))]
-      [:wat::stream::NextOutcome::Exhausted {} (:wat::stream::empty)])))
+      [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
 
 ;; An unbounded source — proves the migrated shape stays LAZY (termination is the assertion).
 (:wat::core::defn :probe::nat
@@ -62,8 +62,8 @@
   (:wat::core::let
     [keep-even (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
                  (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2))
-                   (:wat::core::Option::Some {:value x})
-                   :wat::core::Option::None))]
+                   (:wat::core::Option.Some {:value x})
+                   :wat::core::Option.None))]
     (:wat::core::do
       ;; ONE definition, FOUR container kinds at the call site — the payoff. Expect 2,4 / 2,4 / 2,4 / 2,4
       (:wat::kernel::println

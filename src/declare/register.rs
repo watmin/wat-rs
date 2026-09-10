@@ -1616,10 +1616,21 @@ pub fn register_type_predicates(
         } else {
             // rune:lint(one-variant-separator, namespace) — splits the type's FQDN into its
             // namespace prefix and leaf name; a namespace/leaf split, not a variant decompose.
-            let base = wat_reader::identifier::leaf(stripped);
-            // rune:lint(one-variant-separator, namespace) — companion namespace-prefix half of
-            // the split immediately above.
-            let prefix = wat_reader::identifier::path(stripped);
+            // A VARIANT singleton is `ns::Enum.Variant` once the separator is a dot, and BOTH
+            // halves of the derived name come from the decomposition: the enum's full path is the
+            // predicate's namespace and the variant leaf is its base. Splitting on `::` instead
+            // would leave the enum inside the leaf and drop it from the prefix — which collapses
+            // every `Store::*Response.Transient` in `wat/query.wat` onto one
+            // `:wat::query::Store::is-Transient?` and raises DuplicateDefine. Pre-flip these were
+            // distinct because `path()` split BEFORE the variant; going through the door keeps
+            // every derived name byte-identical across the flip.
+            let (prefix, base) = match wat_reader::identifier::decompose_variant(stripped) {
+                Some((enum_path, variant)) => (enum_path, variant),
+                None => (
+                    wat_reader::identifier::path(stripped),
+                    wat_reader::identifier::leaf(stripped),
+                ),
+            };
             // rune:lint(one-variant-separator, namespace) — rejoins namespace prefix + derived
             // leaf into the `is-<Name>?` predicate's own FQDN; not the type's own name, no variant.
             format!(":{}::is-{}?", prefix, base)

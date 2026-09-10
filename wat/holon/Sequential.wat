@@ -36,10 +36,10 @@
      ;; use get for the Option-returning safe path; arc-278 flipped first to bare-raising.
      ;; Sequential expects non-empty input by contract; the :None arm is defensive.
      (:wat::core::match (:wat::core::get positioned 0) 
-       [:wat::core::Option::Some {:value head}
+       [:wat::core::Option.Some {:value head}
          (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::holon::HolonAST x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
              (:wat::holon::Bind acc x))
            head
            (:wat::core::rest positioned))]
-       [:wat::core::Option::None {} (:wat::holon::to-holon "Sequential-empty-input")])))
+       [:wat::core::Option.None {} (:wat::holon::to-holon "Sequential-empty-input")])))

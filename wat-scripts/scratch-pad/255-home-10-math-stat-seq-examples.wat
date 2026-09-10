@@ -19,14 +19,14 @@
                                   expected <- :wat::WatAST]
   -> :wat::core::nil
   (:wat::core::match (:wat::eval-ast! expr)
-    [:wat::core::Result::Ok {:value got}
+    [:wat::core::Result.Ok {:value got}
       (:wat::core::match (:wat::eval-ast! expected)
-        [:wat::core::Result::Ok {:value want}
+        [:wat::core::Result.Ok {:value want}
           (:wat::core::if (:wat::core::= got want)
             (:wat::kernel::println (:wat::string::concat "PASS " name))
             (:wat::kernel::println (:wat::string::concat "FAIL(mismatch) " name)))]
-        [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "FAIL(expected-eval) " name " " (:wat::core::EvalError/message e)))])]
-    [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "FAIL(expr-eval) " name " " (:wat::core::EvalError/message e)))]))
+        [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "FAIL(expected-eval) " name " " (:wat::core::EvalError/message e)))])]
+    [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "FAIL(expr-eval) " name " " (:wat::core::EvalError/message e)))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -37,9 +37,9 @@
      _05 (:probe::check "math/cos" (:wat::core::quote (:wat::math::cos 0.0)) (:wat::core::quote 1.0))
      _06 (:probe::check "math/pi" (:wat::core::quote (:wat::math::pi)) (:wat::core::quote 3.141592653589793))
 
-     _07 (:probe::check "stat/mean" (:wat::core::quote (:wat::stat::mean (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Option::Some {:value 3.0})))
-     _08 (:probe::check "stat/variance" (:wat::core::quote (:wat::stat::variance (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Option::Some {:value 1.0})))
-     _09 (:probe::check "stat/stddev" (:wat::core::quote (:wat::stat::stddev (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Option::Some {:value 1.0})))
+     _07 (:probe::check "stat/mean" (:wat::core::quote (:wat::stat::mean (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Option.Some {:value 3.0})))
+     _08 (:probe::check "stat/variance" (:wat::core::quote (:wat::stat::variance (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Option.Some {:value 1.0})))
+     _09 (:probe::check "stat/stddev" (:wat::core::quote (:wat::stat::stddev (:wat::core::Vector :- [:wat::core::f64] 2.0 4.0))) (:wat::core::quote (:wat::core::Option.Some {:value 1.0})))
 
      ;; seq — Vector input (the doc examples)
      _10 (:probe::check "seq/zip vector"

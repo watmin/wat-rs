@@ -39,9 +39,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [params (:wat::core::match (:wat::kernel::readln )
-              [:wat::kernel::ReadlnOutcome::Datum {:v __d} __d]
-              [:wat::kernel::ReadlnOutcome::Eof {}     (:wat::kernel::assertion-failed! :message "readln: eof")]
-              [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop")])
+              [:wat::kernel::ReadlnOutcome.Datum {:v __d} __d]
+              [:wat::kernel::ReadlnOutcome.Eof {}     (:wat::kernel::assertion-failed! :message "readln: eof")]
+              [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop")])
      n    (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
      src  (:iq::src n)
 

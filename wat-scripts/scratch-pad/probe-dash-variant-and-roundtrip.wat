@@ -11,7 +11,7 @@
 (:wat::core::defn :probe-dv::fire [] -> :wat::core::i64
   (:wat::core::match (:probe-dv::Op::-Tick {}) 
     [:probe-dv::Op::-Tick {} 42]
-    [:probe-dv::Op::Ping {:req n} n]))
+    [:probe-dv::Op.Ping {:req n} n]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:probe-dv::fire)))

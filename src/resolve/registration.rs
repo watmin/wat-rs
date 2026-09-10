@@ -45,6 +45,14 @@ pub enum Privilege {
 pub(crate) enum NameOrigin {
     /// A name a caller TYPED — a def form's own name. A name-half dot is refused.
     Declared,
+    /// A name being REPLAYED into a second table, having already passed the gate upstream.
+    /// `CheckEnv::from_symbols` walks an already-FROZEN `SymbolTable`: every name in it was
+    /// gated at define-registration, before the freeze. That call site already passes
+    /// `Privilege::Stdlib` for precisely this reason — re-asserting the reserved-prefix wall
+    /// there would reject the stdlib's own `:wat::` functions — and the dot wall needs the same
+    /// exemption for the same reason. What a replay is for is the `Divergent` arm: a name that
+    /// means two different things in the two tables.
+    Replayed,
     /// A name the grammar's own `compose_variant` built from (parent, leaf). Its dot,
     /// when the variant separator becomes one, is the composer's, not a caller's.
     ComposedVariant,
@@ -255,6 +263,26 @@ where
 /// Checked only when `existing != Existing::Equivalent` — same idempotent-before-every-
 /// wall invariant this module documents at the top (`register`'s doc comment): a benign
 /// re-declaration is never blocked by ANY wall, this one included.
+/// [`register`] for a name being REPLAYED into a second table — see [`NameOrigin::Replayed`].
+/// Same walls as `register` except the dot: the name was gated at its original registration,
+/// upstream of the freeze this replay reads from.
+pub fn register_replayed<T, E>(
+    name: &str,
+    privilege: Privilege,
+    existing: Existing,
+    span: &Span,
+    insert: impl FnOnce() -> Result<T, E>,
+) -> Result<Option<T>, E>
+where
+    E: From<Rejection>,
+{
+    match gate(name, NameOrigin::Replayed, privilege, existing) {
+        Registration::Insert => insert().map(Some),
+        Registration::NoOp => Ok(None),
+        verdict => Err(E::from(Rejection { verdict, name: name.to_string(), span: span.clone() })),
+    }
+}
+
 pub fn register_variant<T, E>(
     parent: &str,
     variant_leaf: &str,

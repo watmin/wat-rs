@@ -52,15 +52,15 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat-tests::BareBox::PutResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat-tests::BareBox::PutResponse.Ok
          {:echo (:wat::i64::+
            (:wat-tests::BareBox::PutRequest/item req)
            ;; read the T-typed durable field generically — `v` is bound at type T
            (:wat::core::match
                (:wat-tests::barebox-svc::Record/held (:wat-tests::barebox-svc::State/durable s))
-             [:wat::core::Option::Some {:value v} 1]
-             [:wat::core::Option::None {} 0]))})}))])
+             [:wat::core::Option.Some {:value v} 1]
+             [:wat::core::Option.None {} 0]))})}))])
 
 ;; ── the gate: stand it up, dial it, round-trip one call ──────────────────────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)`.
@@ -68,30 +68,30 @@
 (:wat::core::defn :wat-tests::barebox/run [locus <- :wat::spawn::Locus] -> :wat::core::i64
   (:wat::core::let
     [h (:wat-tests::barebox-svc/start :locus locus
-         :record (:wat-tests::barebox-svc::Record :held (:wat::core::Option::Some {:value 42})))
+         :record (:wat-tests::barebox-svc::Record :held (:wat::core::Option.Some {:value 42})))
      c (:wat::core::match (:wat::kernel::connect (:wat-tests::barebox-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause cz}
+         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome.Refused {:cause cz}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
+         [:wat::kernel::ConnectOutcome.Rejected {:cause cz}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-         [:wat::kernel::ConnectOutcome::Failed {:cause cz}
+         [:wat::kernel::ConnectOutcome.Failed {:cause cz}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))])
      r (:wat-tests::barebox-svc/put c (:wat-tests::BareBox::PutRequest :item 7))
      out (:wat::core::match r
-           [:wat::kernel::RecvOutcome::Message {:msg __recv}
+           [:wat::kernel::RecvOutcome.Message {:msg __recv}
              (:wat::core::match __recv
-               [:wat-tests::BareBox::PutResponse::Ok {:echo echo} echo]
+               [:wat-tests::BareBox::PutResponse.Ok {:echo echo} echo]
                ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-               [:wat-tests::BareBox::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+               [:wat-tests::BareBox::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
                  (:wat::kernel::assertion-failed! :message "barebox-svc put: unexpected RequestTooLarge")]
-               [:wat-tests::BareBox::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+               [:wat-tests::BareBox::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
                  (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-           [:wat::kernel::RecvOutcome::Lost {:cause __cause}
+           [:wat::kernel::RecvOutcome.Lost {:cause __cause}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "recv': peer closed")])
      _ (:wat-tests::barebox-svc/stop h)]
     out))

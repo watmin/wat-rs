@@ -10,8 +10,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match
     (:wat::runtime::metadata-of :wat::intrinsic::examples)  
-    [:wat::core::Option::None {}
+    [:wat::core::Option.None {}
       (:wat::kernel::eprintln
         "intrinsic-metadata: no metadata for :wat::intrinsic::examples")]
-    [:wat::core::Option::Some {:value meta}
+    [:wat::core::Option.Some {:value meta}
       (:wat::kernel::pprintln meta)]))

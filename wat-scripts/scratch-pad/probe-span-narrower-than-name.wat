@@ -27,7 +27,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          ;; a keyword cannot straddle a line, so a single-line span is the only comparable case
          (:wat::rete::where (:wat::rete::i64::= ?l ?el))
          ;; ★ THE DISAGREEMENT: the span is not as wide as the name it claims to cover.

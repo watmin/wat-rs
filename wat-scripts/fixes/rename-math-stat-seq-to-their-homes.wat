@@ -69,7 +69,7 @@
          ;; ⚠ KEYWORD ONLY. `Named` also fires for a "string" kind — a string literal's span
          ;; covers its surrounding quotes while its `name` does not, so splicing the unquoted
          ;; replacement into that span would corrupt the literal into unquoted keyword syntax.
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::std::math::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "math"
@@ -86,7 +86,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::std::stat::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "stat"
@@ -103,7 +103,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/zip"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "zip"
@@ -116,7 +116,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/window"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "window"
@@ -129,7 +129,7 @@
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/remove-at"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "remove-at"
@@ -219,10 +219,10 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
-             [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
-             [:wat::kernel::ReadlnOutcome::Eof {}
+             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
+             [:wat::kernel::ReadlnOutcome.Eof {}
                (:wat::kernel::assertion-failed! :message "readln: end of input")]
-             [:wat::kernel::ReadlnOutcome::Stopped {}
+             [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:wat::rete::with-overlay (:wat::rete::collect-rules :hms)
       (:wat::core::PersistentVector :- [:wat::rete::Query] (:hms::q-match))

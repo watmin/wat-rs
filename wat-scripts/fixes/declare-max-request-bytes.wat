@@ -85,13 +85,13 @@
     (:wat::core::fn [acc <- (:wat::core::Option :- [:wat::WatAST])  i <- :wat::core::i64]
       -> (:wat::core::Option :- [:wat::WatAST])
       (:wat::core::match acc 
-        [:wat::core::Option::Some {:value v} (:wat::core::Option::Some {:value v})]
-        [:wat::core::Option::None {}
+        [:wat::core::Option.Some {:value v} (:wat::core::Option.Some {:value v})]
+        [:wat::core::Option.None {}
           (:wat::core::if
             (:wat::core::= (:user::kw-name (:wat::core::Option/expect (:wat::core::get ch i) "fkv cur")) kwname)
             (:wat::core::get ch (:wat::core::+ i 1))
-            :wat::core::Option::None)]))
-    :wat::core::Option::None
+            :wat::core::Option.None)]))
+    :wat::core::Option.None
     (:wat::core::range 0 (:wat::core::length ch))))
 
 ;; has-max-bytes? — true iff any element of `ch` at index >= 4 (past name/argvec/arrow/rettype) is
@@ -157,8 +157,8 @@
     [nature-opt (:user::find-kw-value ch ":nature")
      is-peer
        (:wat::core::match nature-opt 
-         [:wat::core::Option::None {} false]
-         [:wat::core::Option::Some {:value nv} (:wat::core::= (:user::kw-name nv) ":wat::kernel::Peer'")])]
+         [:wat::core::Option.None {} false]
+         [:wat::core::Option.Some {:value nv} (:wat::core::= (:user::kw-name nv) ":wat::kernel::Peer'")])]
     (:wat::core::if (:wat::core::not is-peer)
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
@@ -168,8 +168,8 @@
              (:wat::core::ast-name name-node) "")
          features-opt (:user::find-kw-value ch ":features")]
         (:wat::core::match features-opt 
-          [:wat::core::Option::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-          [:wat::core::Option::Some {:value fv}
+          [:wat::core::Option.None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+          [:wat::core::Option.Some {:value fv}
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
               (:user::ops-edits (:wat::core::ast->children fv) surface-name lines)
               (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))])))))
@@ -207,7 +207,7 @@
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
+     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
      eds   (:user::seq-edits forms lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
@@ -223,4 +223,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

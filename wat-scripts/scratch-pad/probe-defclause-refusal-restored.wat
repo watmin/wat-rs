@@ -24,7 +24,7 @@
   (:wat::core::do
     (:wat::kernel::println label)
     (:wat::kernel::println
-      (:wat::eval-ast! (:wat::core::first (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))))
+      (:wat::eval-ast! (:wat::core::first (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

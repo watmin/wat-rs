@@ -94,8 +94,8 @@
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat-tests::PCache::GetResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat-tests::PCache::GetResponse.Ok
          {:echo (:wat-tests::PCache::GetRequest/probes req)
          :results (:wat-tests::pcache-svc::Record/fills (:wat-tests::pcache-svc::State/durable s))
          :limit (:wat-tests::PCache::GetRequest/limit req)})}))])
@@ -116,21 +116,21 @@
   [a <- (:wat::kernel::Address :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])]
   -> (:wat::kernel::Peer :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])
   (:wat::core::match (:wat::kernel::connect a)
-    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome::Refused {:cause cz}
+    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome.Refused {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
+    [:wat::kernel::ConnectOutcome.Rejected {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome::Failed {:cause cz}
+    [:wat::kernel::ConnectOutcome.Failed {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))
 
 (:wat::core::defn :wat-tests::pcache/label
   [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [:wat::core::String :wat::core::i64])])]
   -> :wat::core::String
   (:wat::core::match r
-    [:wat::kernel::RecvOutcome::Message {:msg __recv}
+    [:wat::kernel::RecvOutcome.Message {:msg __recv}
       (:wat::core::match __recv
-        [:wat-tests::PCache::GetResponse::Ok {:echo echo :results results :limit limit}
+        [:wat-tests::PCache::GetResponse.Ok {:echo echo :results results :limit limit}
           ;; READ THE VALUES APART — the K-typed vector rendered VERBATIM (its actual Strings,
           ;; not a length or a tag), the V-typed i64s summed, the concrete i64 field echoed. A
           ;; wire that carried tags but dropped payload, or that shifted K and V, cannot produce
@@ -146,17 +146,17 @@
                 (:wat::string::concat "|"
                   (:wat::i64::to-string limit)))))]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::PCache::GetResponse::RequestTooLarge {:bytes bytes :cap cap} "TooLarge"]
-        [:wat-tests::PCache::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+        [:wat-tests::PCache::GetResponse.RequestTooLarge {:bytes bytes :cap cap} "TooLarge"]
+        [:wat-tests::PCache::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
           (:wat::string::concat "Malformed"
             (:wat::string::concat (:wat::edn::write mpath)
               (:wat::string::concat "/" (:wat::string::concat mexpected
                 (:wat::string::concat "/" mgot)))))])]
-    [:wat::kernel::RecvOutcome::Lost {:cause __cause}
+    [:wat::kernel::RecvOutcome.Lost {:cause __cause}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-    [:wat::kernel::RecvOutcome::Stopped {}
+    [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-    [:wat::kernel::RecvOutcome::Closed {}
+    [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 (:wat::core::defn :wat-tests::pcache/run [locus <- :wat::spawn::Locus] -> :wat::core::String

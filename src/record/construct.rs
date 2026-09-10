@@ -308,7 +308,7 @@ pub(crate) fn try_eval_enum_map_ctor(
                 head: head.into(),
                 reason: format!(
                     // rune:lint(one-variant-separator, display) — user-facing arity-mismatch reason; type_path/variant_name are rendered into prose the reader sees.
-                    "map ctor has {} key(s), variant {type_path}::{variant_name} declares {}",
+                    "map ctor has {} key(s), variant {type_path}.{variant_name} declares {}",
                     parsed.len(),
                     declared.len()
                 ),
@@ -326,7 +326,7 @@ pub(crate) fn try_eval_enum_map_ctor(
                     head: head.into(),
                     reason: format!(
                         // rune:lint(one-variant-separator, display) — user-facing missing-field reason; type_path/variant_name are rendered into prose the reader sees.
-                        "map ctor is missing declared field `:{decl_name}` of {type_path}::{variant_name}"
+                        "map ctor is missing declared field `:{decl_name}` of {type_path}.{variant_name}"
                     ),
                 },
             )
@@ -348,7 +348,7 @@ pub(crate) fn try_eval_enum_map_ctor(
                     head: head.into(),
                     reason: format!(
                         // rune:lint(one-variant-separator, display) — user-facing unknown-field reason; type_path/variant_name are rendered into prose the reader sees.
-                        "map-ctor key `:{key}` is not a field of {type_path}::{variant_name}"
+                        "map-ctor key `:{key}` is not a field of {type_path}.{variant_name}"
                     ),
                 },
             )

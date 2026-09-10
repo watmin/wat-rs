@@ -51,7 +51,7 @@
 
 (:wat::rete::defrule :arena::flagged-rule
   :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing))
-         (:wat::rete::where (:wat::core::= (:arena::Route/method ?route) :arena::Method::POST))
+         (:wat::rete::where (:wat::core::= (:arena::Route/method ?route) :arena::Method.POST))
          (:wat::rete::where (:wat::core::< (:arena::Client/reputation ?client) -50))]
   :then [(:arena::Flagged :client ?client :route ?route :timing ?timing)])
 
@@ -125,13 +125,13 @@
              (:arena::overflow-rule) (:arena::flagged-rule) (:arena::critical-rule))
      template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:arena::q-Suspect) (:arena::q-Flagged) (:arena::q-Anomaly) (:arena::q-Breach) (:arena::q-Overflow) (:arena::q-Critical)))]
     (:wat::core::do
-      (:wat::kernel::println (:wat::string::concat "cat0 clean            (want 0): " (:arena::fire-one template (:arena::mk "US" 50 :arena::Method::GET 200 100000 10000 1000))))
-      (:wat::kernel::println (:wat::string::concat "cat1 hot-wrong-country (want 0): " (:arena::fire-one template (:arena::mk "US" -10 :arena::Method::GET 200 6000000 10000 1000))))
-      (:wat::kernel::println (:wat::string::concat "cat2 suspect+breach    (want 1): " (:arena::fire-one template (:arena::mk "XX" -10 :arena::Method::GET 200 3000000 10000 1000))))
-      (:wat::kernel::println (:wat::string::concat "cat3 susp+anom+breach  (want 2): " (:arena::fire-one template (:arena::mk "XX" -20 :arena::Method::GET 200 6000000 10000 1000))))
-      (:wat::kernel::println (:wat::string::concat "cat4 susp-bad-status   (want 0): " (:arena::fire-one template (:arena::mk "XX" -5  :arena::Method::GET 404 6000000 10000 1000))))
-      (:wat::kernel::println (:wat::string::concat "cat5 overflow          (want 1): " (:arena::fire-one template (:arena::mk "US" 50 :arena::Method::GET 200 100000 10000 15000000))))
-      (:wat::kernel::println (:wat::string::concat "cat6 flagged+critical  (want 1): " (:arena::fire-one template (:arena::mk "US" -60 :arena::Method::POST 200 100000 500000 1000))))
-      (:wat::kernel::println (:wat::string::concat "cat7 flagged-only      (want 0): " (:arena::fire-one template (:arena::mk "US" -60 :arena::Method::POST 200 100000 100000 1000))))
-      (:wat::kernel::println (:wat::string::concat "cat8 everything        (want 4): " (:arena::fire-one template (:arena::mk "XX" -60 :arena::Method::POST 200 9000000 900000 20000000))))
-      (:wat::kernel::println (:wat::string::concat "cat9 clean-variety     (want 0): " (:arena::fire-one template (:arena::mk "CA" 10 :arena::Method::PUT 500 50000 20000 500)))))))
+      (:wat::kernel::println (:wat::string::concat "cat0 clean            (want 0): " (:arena::fire-one template (:arena::mk "US" 50 :arena::Method.GET 200 100000 10000 1000))))
+      (:wat::kernel::println (:wat::string::concat "cat1 hot-wrong-country (want 0): " (:arena::fire-one template (:arena::mk "US" -10 :arena::Method.GET 200 6000000 10000 1000))))
+      (:wat::kernel::println (:wat::string::concat "cat2 suspect+breach    (want 1): " (:arena::fire-one template (:arena::mk "XX" -10 :arena::Method.GET 200 3000000 10000 1000))))
+      (:wat::kernel::println (:wat::string::concat "cat3 susp+anom+breach  (want 2): " (:arena::fire-one template (:arena::mk "XX" -20 :arena::Method.GET 200 6000000 10000 1000))))
+      (:wat::kernel::println (:wat::string::concat "cat4 susp-bad-status   (want 0): " (:arena::fire-one template (:arena::mk "XX" -5  :arena::Method.GET 404 6000000 10000 1000))))
+      (:wat::kernel::println (:wat::string::concat "cat5 overflow          (want 1): " (:arena::fire-one template (:arena::mk "US" 50 :arena::Method.GET 200 100000 10000 15000000))))
+      (:wat::kernel::println (:wat::string::concat "cat6 flagged+critical  (want 1): " (:arena::fire-one template (:arena::mk "US" -60 :arena::Method.POST 200 100000 500000 1000))))
+      (:wat::kernel::println (:wat::string::concat "cat7 flagged-only      (want 0): " (:arena::fire-one template (:arena::mk "US" -60 :arena::Method.POST 200 100000 100000 1000))))
+      (:wat::kernel::println (:wat::string::concat "cat8 everything        (want 4): " (:arena::fire-one template (:arena::mk "XX" -60 :arena::Method.POST 200 9000000 900000 20000000))))
+      (:wat::kernel::println (:wat::string::concat "cat9 clean-variety     (want 0): " (:arena::fire-one template (:arena::mk "CA" 10 :arena::Method.PUT 500 50000 20000 500)))))))

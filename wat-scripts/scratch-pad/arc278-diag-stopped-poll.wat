@@ -14,12 +14,12 @@
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            (:wat::core::match (:wat::kernel::recv self)
-             [:wat::kernel::RecvOutcome::Message {:msg _m} nil]
-             [:wat::kernel::RecvOutcome::Lost {:cause _c} nil]
+             [:wat::kernel::RecvOutcome.Message {:msg _m} nil]
+             [:wat::kernel::RecvOutcome.Lost {:cause _c} nil]
              ;; the substrate stopping while parked on its own recv — same discard as
              ;; its siblings, this child's body never inspects the outcome either way.
-             [:wat::kernel::RecvOutcome::Stopped {} nil]
-             [:wat::kernel::RecvOutcome::Closed {} nil])))]
+             [:wat::kernel::RecvOutcome.Stopped {} nil]
+             [:wat::kernel::RecvOutcome.Closed {} nil])))]
     (:wat::core::do
       (:wat::kernel::println "READY")
       (:diag::poll 0))))

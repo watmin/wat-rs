@@ -43,9 +43,9 @@
                   (:wat::time::Millisecond 50)
                   :tick)))
              
-            [:wat::spawn::ServiceEvent::Message {:idx _idx :msg mm} mm]
+            [:wat::spawn::ServiceEvent.Message {:idx _idx :msg mm} mm]
             [_ :no-tick])]
-       (:wat::service::Outcome::Reply {:state s :reply (:wat-tests::Deadline::WaitTickResponse::Ok {:fired m})})))])
+       (:wat::service::Outcome.Reply {:state s :reply (:wat-tests::Deadline::WaitTickResponse.Ok {:fired m})})))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::timer::env-grab-on-thread
@@ -53,15 +53,15 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::deadline::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::deadline::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::Deadline::WaitTickResponse::Ok {:fired fired} fired]
+      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
+        [:wat-tests::Deadline::WaitTickResponse.Ok {:fired fired} fired]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::Deadline::WaitTickResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat-tests::Deadline::WaitTickResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "deadline-wait-tick: unexpected RequestTooLarge")]
-        [:wat-tests::Deadline::WaitTickResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [:wat-tests::Deadline::WaitTickResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
     :tick))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -70,13 +70,13 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::deadline::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::deadline::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::Deadline::WaitTickResponse::Ok {:fired fired} fired]
+      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
+        [:wat-tests::Deadline::WaitTickResponse.Ok {:fired fired} fired]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::Deadline::WaitTickResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat-tests::Deadline::WaitTickResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "deadline-wait-tick: unexpected RequestTooLarge")]
-        [:wat-tests::Deadline::WaitTickResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [:wat-tests::Deadline::WaitTickResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
     :tick))

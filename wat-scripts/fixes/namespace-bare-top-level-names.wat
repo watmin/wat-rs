@@ -214,12 +214,12 @@
 ;; find-ns — the FIRST already-namespaced collected name donates its leading segment.
 (:wat::core::defn :user::find-ns [names <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::if (:wat::core::empty? names)
-    :wat::core::Option::None
+    :wat::core::Option.None
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
       (:wat::core::if (:user::already-ns? n)
         (:wat::core::let [nm   (:wat::core::ast-name n)
                           seg0 (:wat::core::first (:wat::string::split nm "::"))]
-          (:wat::core::Option::Some {:value (:wat::string::strip-leading-colon seg0)}))
+          (:wat::core::Option.Some {:value (:wat::string::strip-leading-colon seg0)}))
         (:user::find-ns tl)))))
 
 ;; basename — the path's final "/"-segment (the filename with extension).
@@ -243,8 +243,8 @@
 ;; only when the file has none at all.
 (:wat::core::defn :user::resolve-ns [names <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String] -> :wat::core::String
   (:wat::core::match (:user::find-ns names)
-    [:wat::core::Option::Some {:value ns} ns]
-    [:wat::core::Option::None {} (:user::mint-ns path)]))
+    [:wat::core::Option.Some {:value ns} ns]
+    [:wat::core::Option.None {} (:user::mint-ns path)]))
 
 ;; ── computing each rename ────────────────────────────────────────────────────────────────
 
@@ -301,8 +301,8 @@
 ;; through would either crash or, worse, "fix" a file that must stay unparseable.
 (:wat::core::defn :user::migrate [src <- :wat::core::String path <- :wat::core::String] -> :wat::core::String
   (:wat::core::match (:wat::core::read-string src)
-    [:wat::core::ReadOutcome::Malformed {:cause __cause} src]
-    [:wat::core::ReadOutcome::Forms {:forms tree0}
+    [:wat::core::ReadOutcome.Malformed {:cause __cause} src]
+    [:wat::core::ReadOutcome.Forms {:forms tree0}
       (:wat::core::let
         [forms0 (:wat::core::ast->children tree0)
          names0 (:user::collect-def-names forms0)]
@@ -324,5 +324,5 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

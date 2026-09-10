@@ -24,10 +24,10 @@
     (:wat::core::do
       (:wat::kernel::println (:wat::string::concat (:wat::edn::write form) "  show-source= " src))
       (:wat::core::match m
-        [:wat::core::Option::Some {:value hm}
+        [:wat::core::Option.Some {:value hm}
           (:wat::kernel::println
             (:wat::string::concat (:wat::edn::write form) "  :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-        [:wat::core::Option::None {} (:wat::kernel::println (:wat::string::concat (:wat::edn::write form) "  :arity= NONE"))]))))
+        [:wat::core::Option.None {} (:wat::kernel::println (:wat::string::concat (:wat::edn::write form) "  :arity= NONE"))]))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

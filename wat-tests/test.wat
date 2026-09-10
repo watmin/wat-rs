@@ -48,13 +48,13 @@
   ;; to [:wat::spawn:: :wat::test::]; corpus tests reach it THROUGH the harness.
   (:wat::core::let
     [fail (:wat::core::match (:wat::test::run-thread (:wat::test::assert-eq 42 43))
-            [:wat::kernel::RunResult::Passed {} :wat::core::Option::None]
-            [:wat::kernel::RunResult::Failed {:failure f} (:wat::core::Option::Some {:value f})])]
+            [:wat::kernel::RunResult.Passed {} :wat::core::Option.None]
+            [:wat::kernel::RunResult.Failed {:failure f} (:wat::core::Option.Some {:value f})])]
     (:wat::core::match fail
-      [:wat::core::Option::Some {:value f} (:wat::test::assert-eq
+      [:wat::core::Option.Some {:value f} (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
                   "assert-eq failed")]
-      [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
+      [:wat::core::Option.None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-contains — pass + fail ────────────────────────────────────
 
@@ -76,35 +76,35 @@
            (:wat::core::do
              (:wat::test::assert-contains "hello" "xyz")
              (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome::Sent {}   nil]
-               [:wat::kernel::SendOutcome::Closed {} nil]
+               [:wat::kernel::SendOutcome.Sent {}   nil]
+               [:wat::kernel::SendOutcome.Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the failing assertion above already
                ;; panicked before this line could even run.
-               [:wat::kernel::SendOutcome::Stopped {} nil]
-               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))
+               [:wat::kernel::SendOutcome.Stopped {} nil]
+               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
-            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::Option::None]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
+            [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
+            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
             ;; arc 278 #73 — a stop is neither the failure this file exists to verify
             ;; nor a clean pass; assert it distinctly rather than fold it into either
             ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
-            [:wat::kernel::RecvOutcome::Stopped {}
+            [:wat::kernel::RecvOutcome.Stopped {}
               (:wat::kernel::assertion-failed! :message "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} :wat::core::Option::None])]
+            [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])]
     (:wat::core::match fail  
-      [:wat::core::Option::Some {:value f}
+      [:wat::core::Option.Some {:value f}
         (:wat::core::let
           [actual (:wat::kernel::Failure/actual f)
            expected (:wat::kernel::Failure/expected f)
            _
             (:wat::core::match actual  
-              [:wat::core::Option::Some {:value a} (:wat::test::assert-eq a "hello")]
-              [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "actual slot empty")])]
+              [:wat::core::Option.Some {:value a} (:wat::test::assert-eq a "hello")]
+              [:wat::core::Option.None {} (:wat::kernel::assertion-failed! :message "actual slot empty")])]
           (:wat::core::match expected  
-            [:wat::core::Option::Some {:value e} (:wat::test::assert-eq e "xyz")]
-            [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected slot empty")]))]
-      [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
+            [:wat::core::Option.Some {:value e} (:wat::test::assert-eq e "xyz")]
+            [:wat::core::Option.None {} (:wat::kernel::assertion-failed! :message "expected slot empty")]))]
+      [:wat::core::Option.None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-coincident — pass + fail-renders-explanation ─────────────
 
@@ -135,28 +135,28 @@
                (:wat::holon::to-holon "alice")
                (:wat::holon::to-holon "charlie"))
              (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome::Sent {}   nil]
-               [:wat::kernel::SendOutcome::Closed {} nil]
+               [:wat::kernel::SendOutcome.Sent {}   nil]
+               [:wat::kernel::SendOutcome.Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the failing assertion above already
                ;; panicked before this line could even run.
-               [:wat::kernel::SendOutcome::Stopped {} nil]
-               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))
+               [:wat::kernel::SendOutcome.Stopped {} nil]
+               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
-            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::Option::None]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
+            [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
+            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
             ;; arc 278 #73 — a stop is neither the failure this file exists to verify
             ;; nor a clean pass; assert it distinctly rather than fold it into either
             ;; :None (Closed's meaning here) or :Some (Lost's meaning here).
-            [:wat::kernel::RecvOutcome::Stopped {}
+            [:wat::kernel::RecvOutcome.Stopped {}
               (:wat::kernel::assertion-failed! :message "stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} :wat::core::Option::None])]
+            [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])]
     (:wat::core::match fail  
-      [:wat::core::Option::Some {:value f}
+      [:wat::core::Option.Some {:value f}
         (:wat::core::let
           [actual (:wat::kernel::Failure/actual f)]
           (:wat::core::match actual  
-            [:wat::core::Option::Some {:value a}
+            [:wat::core::Option.Some {:value a}
               (:wat::core::do
                 (:wat::test::assert-contains a "cosine")
                 (:wat::test::assert-contains a "floor")
@@ -165,8 +165,8 @@
                 (:wat::test::assert-contains
                             a "min-sigma-to-pass")
                 nil)]
-            [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "actual slot empty — explanation should populate it")]))]
-      [:wat::core::Option::None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
+            [:wat::core::Option.None {} (:wat::kernel::assertion-failed! :message "actual slot empty — explanation should populate it")]))]
+      [:wat::core::Option.None {} (:wat::kernel::assertion-failed! :message "expected Failure, got :None")])))
 
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
@@ -186,20 +186,20 @@
                (:wat::kernel::println "beta")
                nil))))
      m1 (:wat::core::match (:wat::kernel::recv p)
-          [:wat::kernel::RecvOutcome::Message {:msg m} m]
-          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+          [:wat::kernel::RecvOutcome.Message {:msg m} m]
+          [:wat::kernel::RecvOutcome.Lost {:cause cause}
             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-          [:wat::kernel::RecvOutcome::Stopped {}
+          [:wat::kernel::RecvOutcome.Stopped {}
             (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: stopped before first line — the child was ALIVE")]
-          [:wat::kernel::RecvOutcome::Closed {}
+          [:wat::kernel::RecvOutcome.Closed {}
             (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: child closed before first line")])
      m2 (:wat::core::match (:wat::kernel::recv p)
-          [:wat::kernel::RecvOutcome::Message {:msg m} m]
-          [:wat::kernel::RecvOutcome::Lost {:cause cause}
+          [:wat::kernel::RecvOutcome.Message {:msg m} m]
+          [:wat::kernel::RecvOutcome.Lost {:cause cause}
             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-          [:wat::kernel::RecvOutcome::Stopped {}
+          [:wat::kernel::RecvOutcome.Stopped {}
             (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: stopped before second line — the child was ALIVE")]
-          [:wat::kernel::RecvOutcome::Closed {}
+          [:wat::kernel::RecvOutcome.Closed {}
             (:wat::kernel::assertion-failed! :message "assert-stdout-is-matches: child closed before second line")])]
     (:wat::core::do
       (:wat::test::assert-eq m1 "alpha")
@@ -240,15 +240,15 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::eprintln "error: code 42"))))
      msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome::Message {:msg _m}
+           [:wat::kernel::RecvOutcome.Message {:msg _m}
              (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::core::match cause
-               [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
                [_ (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "assert-stderr-matches-pass: expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "code [0-9]+" msg))))
 
@@ -294,12 +294,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "from-string"))))
      msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome::Message {:msg m} m]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Message {:msg m} m]
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "run-string-entry-path: stopped before the child sent its value — the child was ALIVE")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "run-string-entry-path: child closed before sending its value")])]
     (:wat::test::assert-eq msg "from-string")))
 
@@ -321,12 +321,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println "from-ast"))))
      msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome::Message {:msg m} m]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Message {:msg m} m]
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "run-ast-via-program: stopped before the child sent its value — the child was ALIVE")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "run-ast-via-program: child closed before sending its value")])]
     (:wat::test::assert-eq msg "from-ast")))
 
@@ -372,8 +372,8 @@
       (:wat::core::macroexpand-1
         (:wat::core::quote (:wat::i64::+ 2 2))))
      
-    [:wat::core::Result::Ok {:value _} (:wat::test::assert-eq true true)]
-    [:wat::core::Result::Err {:error _} (:wat::test::assert-eq true false)]))
+    [:wat::core::Result.Ok {:value _} (:wat::test::assert-eq true true)]
+    [:wat::core::Result.Err {:error _} (:wat::test::assert-eq true false)]))
 
 (:wat::test::deftest :wat-tests::test::test-macroexpand-fixpoint-evaluates
   
@@ -384,8 +384,8 @@
       (:wat::core::macroexpand
         (:wat::core::quote (:wat::i64::* 3 4))))
      
-    [:wat::core::Result::Ok {:value _} (:wat::test::assert-eq true true)]
-    [:wat::core::Result::Err {:error _} (:wat::test::assert-eq true false)]))
+    [:wat::core::Result.Ok {:value _} (:wat::test::assert-eq true true)]
+    [:wat::core::Result.Err {:error _} (:wat::test::assert-eq true false)]))
 
 ;; ─── Substrate primitives — public sandbox-entry verbs ANNIHILATED ───
 ;;

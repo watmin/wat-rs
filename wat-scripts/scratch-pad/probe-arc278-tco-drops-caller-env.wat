@@ -48,30 +48,30 @@
 (:wat::service::defservice :tco::bag-svc
   :satisfies :tco::Bag  :durable [n <- :wat::core::i64]  :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome::Reply {:state s :reply (:tco::Bag::PutResponse::Ok {:n 1})}))])
+  [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:tco::Bag::PutResponse.Ok {:n 1})}))])
 
 (:wat::core::defn :tco::try [c <- (:wat::kernel::Peer :- [:tco::Bag::Op :tco::Bag::Reply])
                             label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tco::Bag/put c (:tco::Bag::PutRequest :n 1))
-    [:wat::kernel::RecvOutcome::Message {:msg resp}
+    [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::kernel::println (:wat::string::concat label " => Message (served)"))]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+    [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::println (:wat::string::concat label " => LOST"))]
-    [:wat::kernel::RecvOutcome::Stopped {}
+    [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::kernel::println (:wat::string::concat label " => STOPPED"))]
-    [:wat::kernel::RecvOutcome::Closed {}
+    [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::println (:wat::string::concat label " => CLOSED"))]))
 
 (:wat::core::defn :tco::dial [a <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])
                              label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::connect a)
-    [:wat::kernel::ConnectOutcome::Connected {:peer p}
+    [:wat::kernel::ConnectOutcome.Connected {:peer p}
       (:wat::kernel::println (:wat::string::concat label " => CONNECTED"))]
-    [:wat::kernel::ConnectOutcome::Refused {:cause f}
+    [:wat::kernel::ConnectOutcome.Refused {:cause f}
       (:wat::kernel::println (:wat::string::concat label " => REFUSED"))]
-    [:wat::kernel::ConnectOutcome::Rejected {:cause f}
+    [:wat::kernel::ConnectOutcome.Rejected {:cause f}
       (:wat::kernel::println (:wat::string::concat label " => REJECTED"))]
-    [:wat::kernel::ConnectOutcome::Failed {:cause f}
+    [:wat::kernel::ConnectOutcome.Failed {:cause f}
       (:wat::kernel::println (:wat::string::concat label " => FAILED"))]))
 
 ;; ── row 1: the service call is NOT in tail position (a form follows it) ──────────
@@ -79,10 +79,10 @@
   (:wat::core::let
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
+         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome.Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome.Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
     (:wat::core::do (:tco::try c "service : non-tail") nil)))
 
 ;; ── row 2: the SAME call, now the let's tail — TCO drops the frame first ─────────
@@ -90,10 +90,10 @@
   (:wat::core::let
     [h (:tco::bag-svc/start :locus (:wat::spawn::thread) :record (:tco::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:tco::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome::Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
+         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome.Refused {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
+         [:wat::kernel::ConnectOutcome.Rejected {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
+         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
     (:tco::try c "service : let-TAIL")))
 
 ;; ── rows 3+4: a NON-service live resource — a raw kernel Listener' ───────────────

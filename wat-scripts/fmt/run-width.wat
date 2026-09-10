@@ -34,11 +34,11 @@
    written <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::bool])]
   -> :wat::core::bool
   (:wat::core::match (:wat::core::get named id)
-    [:wat::core::Option::None {} false]
-    [:wat::core::Option::Some {:value _}
+    [:wat::core::Option.None {} false]
+    [:wat::core::Option.Some {:value _}
       (:wat::core::match (:wat::core::get written id)
-        [:wat::core::Option::Some {:value _} false]
-        [:wat::core::Option::None {} true])]))
+        [:wat::core::Option.Some {:value _} false]
+        [:wat::core::Option.None {} true])]))
 
 (:wat::core::defn :user::parents-of
   [nodes <- (:wat::core::PersistentVector :- [:wat::grep::Node])]
@@ -59,12 +59,12 @@
   (:wat::core::if (:wat::i64::<= id 0)
     tainted
     (:wat::core::match (:wat::core::get tainted id)
-      [:wat::core::Option::Some {:value _} tainted]
-      [:wat::core::Option::None {}
+      [:wat::core::Option.Some {:value _} tainted]
+      [:wat::core::Option.None {}
         (:wat::core::let [t2 (:wat::hashmap::assoc tainted id true)
                           p  (:wat::core::match (:wat::core::get parents id)
-                                [:wat::core::Option::None {} 0]
-                                [:wat::core::Option::Some {:value x} x])]
+                                [:wat::core::Option.None {} 0]
+                                [:wat::core::Option.Some {:value x} x])]
           (:user::mark-up t2 parents p))])))
 
 (:wat::core::defn :user::taint-from
@@ -93,13 +93,13 @@
   (:wat::core::if (:wat::core::not (:wat::core::= (:wat::grep::Span/line sp) (:wat::grep::Span/end-line sp)))
     acc
     (:wat::core::match (:wat::core::get tainted (:wat::grep::Span/id sp))
-      [:wat::core::Option::Some {:value _} acc]
-      [:wat::core::Option::None {}
+      [:wat::core::Option.Some {:value _} acc]
+      [:wat::core::Option.None {}
       (:wat::core::let
         [id     (:wat::grep::Span/id sp)
          actual (:wat::i64::- (:wat::grep::Span/end-col sp) (:wat::grep::Span/col sp))]
         (:wat::core::match (:wat::core::get widths id)
-          [:wat::core::Option::None {}
+          [:wat::core::Option.None {}
             (:wat::core::do
               (:wat::kernel::println
                 (:wat::string::interpolate
@@ -110,7 +110,7 @@
                   :a (:wat::i64::to-string actual)))
               (:user::WC :checked (:wat::i64::+ (:user::WC/checked acc) 1)
                           :mismatch (:wat::i64::+ (:user::WC/mismatch acc) 1)))]
-          [:wat::core::Option::Some {:value derived}
+          [:wat::core::Option.Some {:value derived}
             (:wat::core::if (:wat::core::= derived actual)
               (:user::WC :checked (:wat::i64::+ (:user::WC/checked acc) 1) :mismatch (:user::WC/mismatch acc))
               (:wat::core::do
@@ -130,7 +130,7 @@
     [src   (:wat::io::read-file path)
      facts (:wat::grep::facts-of path src)]
     (:wat::core::match (:wat::core::read-string src)
-      [:wat::core::ReadOutcome::Forms {:forms forms}
+      [:wat::core::ReadOutcome.Forms {:forms forms}
         (:wat::core::let
           [named   (:user::ids-of (:wat::grep::Facts/named facts))
            written (:user::written-ids (:wat::grep::Facts/written facts))
@@ -147,14 +147,14 @@
               :p path
               :c (:wat::i64::to-string (:user::WC/checked wc))
               :b (:wat::i64::to-string (:user::WC/mismatch wc)))))]
-      [:wat::core::ReadOutcome::Malformed {:cause c}
+      [:wat::core::ReadOutcome.Malformed {:cause c}
         (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [argv (:wat::runtime::argv)]
     (:wat::core::match (:wat::core::get argv 2)
-      [:wat::core::Option::Some {:value path} (:user::report path)]
-      [:wat::core::Option::None {}
+      [:wat::core::Option.Some {:value path} (:user::report path)]
+      [:wat::core::Option.None {}
         (:wat::core::do
           (:user::report "wat/io.wat")
           (:user::report "wat/grep.wat")

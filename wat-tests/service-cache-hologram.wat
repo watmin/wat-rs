@@ -47,12 +47,12 @@
   [a <- (:wat::kernel::Address :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])]
   -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])
   (:wat::core::match (:wat::kernel::connect a)
-    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome::Refused {:cause cz}
+    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome.Refused {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome::Rejected {:cause cz}
+    [:wat::kernel::ConnectOutcome.Rejected {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome::Failed {:cause cz}
+    [:wat::kernel::ConnectOutcome.Failed {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))
 
 ;; ── assertion helpers — unwrap RecvOutcome, then assert the STRUCTURE, dying loud on a breach ──
@@ -63,18 +63,18 @@
   [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [:wat::holon::HolonAST])])]
   -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
   (:wat::core::match r
-    [:wat::kernel::RecvOutcome::Message {:msg resp}
+    [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
-        [:wat::cache::Cache::GetResponse::Ok {:results results} results]
-        [:wat::cache::Cache::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat::cache::Cache::GetResponse.Ok {:results results} results]
+        [:wat::cache::Cache::GetResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "hologram-svc get: unexpected RequestTooLarge")]
-        [:wat::cache::Cache::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+        [:wat::cache::Cache::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
           (:wat::kernel::assertion-failed! :message "hologram-svc get: unexpected RequestMalformed")])]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+    [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-    [:wat::kernel::RecvOutcome::Stopped {}
+    [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-    [:wat::kernel::RecvOutcome::Closed {}
+    [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; `put` answers nothing meaningful (file-header departure note in `wat/cache.wat`) — the only
@@ -83,18 +83,18 @@
   [r <- (:wat::kernel::RecvOutcome :- [:wat::cache::Cache::PutResponse])]
   -> :wat::core::nil
   (:wat::core::match r
-    [:wat::kernel::RecvOutcome::Message {:msg resp}
+    [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
-        [:wat::cache::Cache::PutResponse::Ok {} nil]
-        [:wat::cache::Cache::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat::cache::Cache::PutResponse.Ok {} nil]
+        [:wat::cache::Cache::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "hologram-svc put: unexpected RequestTooLarge")]
-        [:wat::cache::Cache::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+        [:wat::cache::Cache::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
           (:wat::kernel::assertion-failed! :message "hologram-svc put: unexpected RequestMalformed")])]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+    [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-    [:wat::kernel::RecvOutcome::Stopped {}
+    [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-    [:wat::kernel::RecvOutcome::Closed {}
+    [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SEVEN behaviours in one round trip ────────────────
@@ -102,7 +102,7 @@
   (:wat::core::let
     [h (:wat::cache::hologram-svc/start :locus locus
          :record (:wat::cache::hologram-svc::Record :capacity 2
-                   :filter (:wat::cache::HologramFilterKind::Coincident {})))
+                   :filter (:wat::cache::HologramFilterKind.Coincident {})))
      a (:wat-tests::hologram-svc/dial (:wat::cache::hologram-svc::Handle/addr h))
      b (:wat-tests::hologram-svc/dial (:wat::cache::hologram-svc::Handle/addr h))
      ;; k1 — a Thermometer @ 50.0; probe-near-k1 is a DIFFERENT HolonAST, coincident by cosine.
@@ -136,9 +136,9 @@
                   (:wat::cache::Cache::GetRequest
                     :probes (:wat::core::Vector :- [:wat::holon::HolonAST] probe-near-k1 probe-far k2))))
               (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
-                (:wat::cache::Cache::GetResult::Hit {:value v1})
-                (:wat::cache::Cache::GetResult::Miss {})
-                (:wat::cache::Cache::GetResult::Hit {:value v2})))
+                (:wat::cache::Cache::GetResult.Hit {:value v1})
+                (:wat::cache::Cache::GetResult.Miss {})
+                (:wat::cache::Cache::GetResult.Hit {:value v2})))
      ;; BATCH-OF-ONE put — overflow: k3 pushes past capacity 2; k1 is LRU (dual-evicted from the
      ;; Hologram too). `PutResponse` carries nothing back — eviction provable only via a later get.
      _put-k3 (:wat-tests::hologram-svc/assert-put-ok
@@ -152,7 +152,7 @@
                   (:wat::cache::hologram-svc/get b
                     (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::holon::HolonAST] k1))))
                 (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
-                  (:wat::cache::Cache::GetResult::Miss {})))
+                  (:wat::cache::Cache::GetResult.Miss {})))
      ;; EMPTY PROBE VECTOR — `Ok` with an empty results Vector, not an error.
      _empty (:wat::test::assert-eq
               (:wat-tests::hologram-svc/get-results

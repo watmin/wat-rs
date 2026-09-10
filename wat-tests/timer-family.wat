@@ -15,16 +15,16 @@
   (:wat::core::match
     (:wat::kernel::select
       (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])]
-        (:wat::kernel::after :wat::program::PeerKind::thread d nil)))
+        (:wat::kernel::after :wat::program::PeerKind.thread d nil)))
      
-    [:wat::spawn::ServiceEvent::Message {:idx _idx :msg _m} nil]
-    [:wat::spawn::ServiceEvent::Closed {:idx _idx} nil]
-    [:wat::spawn::ServiceEvent::Lost {:idx _idx :cause _cause} nil]
-    [:wat::spawn::ServiceEvent::Malformed {:idx _idx :cause _cause} nil]  ;; arc 278 — unreachable for a timer
-    [:wat::spawn::ServiceEvent::Rejected {:idx _idx :cause _cause} nil]   ;; arc 278 Stone 1a — unreachable for a timer
-    [:wat::spawn::ServiceEvent::Shutdown {} nil]
-    [:wat::spawn::ServiceEvent::Connection {:peer _peer} nil]
-    [:wat::spawn::ServiceEvent::Admin {:msg _msg} nil]))
+    [:wat::spawn::ServiceEvent.Message {:idx _idx :msg _m} nil]
+    [:wat::spawn::ServiceEvent.Closed {:idx _idx} nil]
+    [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} nil]
+    [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} nil]  ;; arc 278 — unreachable for a timer
+    [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} nil]   ;; arc 278 Stone 1a — unreachable for a timer
+    [:wat::spawn::ServiceEvent.Shutdown {} nil]
+    [:wat::spawn::ServiceEvent.Connection {:peer _peer} nil]
+    [:wat::spawn::ServiceEvent.Admin {:msg _msg} nil]))
 
 ;; retry-with-backoff — the dreaded pattern, as a tail-recursive re-arm of `after`.
 ;; Naps a growing delay between attempts; returns the attempt it "succeeded" on.
@@ -57,15 +57,15 @@
     (:wat::core::match
       (:wat::kernel::select
         (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])]
-          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 20) :slow)
-          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 1) :fast)))
+          (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 20) :slow)
+          (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 1) :fast)))
        
-      [:wat::spawn::ServiceEvent::Message {:idx _idx :msg m} m]
-      [:wat::spawn::ServiceEvent::Closed {:idx _idx} :none]
-      [:wat::spawn::ServiceEvent::Lost {:idx _idx :cause _cause} :none]
-      [:wat::spawn::ServiceEvent::Malformed {:idx _idx :cause _cause} :none]  ;; arc 278 — unreachable for a timer
-      [:wat::spawn::ServiceEvent::Rejected {:idx _idx :cause _cause} :none]   ;; arc 278 Stone 1a — unreachable for a timer
-      [:wat::spawn::ServiceEvent::Shutdown {} :none]
-      [:wat::spawn::ServiceEvent::Connection {:peer _peer} :none]
-      [:wat::spawn::ServiceEvent::Admin {:msg _msg} :none])
+      [:wat::spawn::ServiceEvent.Message {:idx _idx :msg m} m]
+      [:wat::spawn::ServiceEvent.Closed {:idx _idx} :none]
+      [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} :none]
+      [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} :none]  ;; arc 278 — unreachable for a timer
+      [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} :none]   ;; arc 278 Stone 1a — unreachable for a timer
+      [:wat::spawn::ServiceEvent.Shutdown {} :none]
+      [:wat::spawn::ServiceEvent.Connection {:peer _peer} :none]
+      [:wat::spawn::ServiceEvent.Admin {:msg _msg} :none])
     :fast))

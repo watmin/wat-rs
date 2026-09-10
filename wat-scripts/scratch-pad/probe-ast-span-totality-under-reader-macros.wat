@@ -41,7 +41,7 @@
 
 (:wat::core::defn :probe::run [label <- :wat::core::String  src <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:wat::core::read-string src)
-    [:wat::core::ReadOutcome::Forms {:forms forms}
+    [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::let
         [acc (:wat::core::foldl
                (:wat::core::fn [a <- :probe::Acc  form <- :wat::WatAST] -> :probe::Acc
@@ -52,7 +52,7 @@
           (:wat::string::concat label
             (:wat::string::concat "  Node=" (:wat::core::str (:probe::Acc/nodes acc))
               (:wat::string::concat "  Span=" (:wat::core::str (:probe::Acc/spans acc)))))))]
-    [:wat::core::ReadOutcome::Malformed {:cause cause}
+    [:wat::core::ReadOutcome.Malformed {:cause cause}
       (:wat::kernel::println (:wat::string::concat label (:wat::string::concat "  MALFORMED " (:wat::core::str cause))))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

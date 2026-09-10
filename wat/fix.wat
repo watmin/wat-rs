@@ -423,7 +423,7 @@
   [src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::fix-text-seq-edits forms false lines)
                     rev-edits (:wat::core::reverse all-edits)]
@@ -507,7 +507,7 @@
    heads <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::strip-arrow-seq forms heads lines)]
     (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
@@ -673,7 +673,7 @@
   [src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::macro-param-edits forms lines)
                     rev-edits (:wat::core::reverse all-edits)]
@@ -831,7 +831,7 @@
    src        <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::rename-prefix-edits-walk forms old-prefix new-prefix lines)
                     rev-edits (:wat::core::reverse all-edits)]
@@ -968,7 +968,7 @@
    src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::rename-exact-edits-walk forms old new lines)
                     rev-edits (:wat::core::reverse all-edits)]
@@ -1024,7 +1024,7 @@
    src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::rename-symbol-exact-edits-walk forms old new lines)
                     rev-edits (:wat::core::reverse all-edits)]
@@ -1177,7 +1177,7 @@
   -> :wat::core::String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
+     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
      eds   (:wat::fix::wrap-seq-edits forms head needle before after lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
@@ -1240,7 +1240,7 @@
    src   <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      eds   (:wat::fix::rehead-rete-defn-walk (:wat::core::ast->children tree) names lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
@@ -1368,7 +1368,7 @@
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+     tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      eds   (:wat::fix::first-of-drop-walk (:wat::core::ast->children tree) src lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))

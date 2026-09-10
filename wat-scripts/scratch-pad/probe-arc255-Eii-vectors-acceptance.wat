@@ -18,11 +18,11 @@
       (:user::check "vector::empty?/f"  (:wat::core::not (:wat::vector::empty? pv0)))
       (:user::check "vector::contains?" (:wat::vector::contains? pv0 2))
       (:user::check "vector::get/some"  (:wat::core::match (:wat::vector::get pv0 0)
-                                           [:wat::core::Option::Some {:value x} (:wat::core::= x 1)]
-                                           [:wat::core::Option::None {} false]))
+                                           [:wat::core::Option.Some {:value x} (:wat::core::= x 1)]
+                                           [:wat::core::Option.None {} false]))
       (:user::check "vector::get/none"  (:wat::core::match (:wat::vector::get pv0 99)
-                                           [:wat::core::Option::Some {:value __x} false]
-                                           [:wat::core::Option::None {} true]))
+                                           [:wat::core::Option.Some {:value __x} false]
+                                           [:wat::core::Option.None {} true]))
       (:user::check "vector::conj"      (:wat::core::= (:wat::vector::length pv1) 4))
       (:user::check "vector::concat"    (:wat::core::= (:wat::vector::length pv2) 5))
 
@@ -39,11 +39,11 @@
           (:user::check "vec::empty?/f"  (:wat::core::not (:wat::vec::empty? v0)))
           (:user::check "vec::contains?" (:wat::vec::contains? v0 2))
           (:user::check "vec::get/some"  (:wat::core::match (:wat::vec::get v0 0)
-                                            [:wat::core::Option::Some {:value x} (:wat::core::= x 1)]
-                                            [:wat::core::Option::None {} false]))
+                                            [:wat::core::Option.Some {:value x} (:wat::core::= x 1)]
+                                            [:wat::core::Option.None {} false]))
           (:user::check "vec::get/none"  (:wat::core::match (:wat::vec::get v0 99)
-                                            [:wat::core::Option::Some {:value __x} false]
-                                            [:wat::core::Option::None {} true]))
+                                            [:wat::core::Option.Some {:value __x} false]
+                                            [:wat::core::Option.None {} true]))
           (:user::check "vec::conj"      (:wat::core::= (:wat::vec::length v1) 4))
           (:user::check "vec::concat"    (:wat::core::= (:wat::vec::length v2) 5))
           (:user::check "vec::extend"    (:wat::core::= (:wat::vec::length v3) 6))

@@ -36,8 +36,8 @@
                     (:wat::core::let [derived (:wat::rete::eval-insert form
                                                  (:wat::rete::Token/bindings tok))]
                       (:wat::core::match (:wat::map::get s2 derived)
-                        [:wat::core::Option::Some {:value _} s2]
-                        [:wat::core::Option::None {}
+                        [:wat::core::Option.Some {:value _} s2]
+                        [:wat::core::Option.None {}
                          (:wat::map::assoc s2 derived
                            (:wat::rete::Support :rule rname :token tok))])))
                   s

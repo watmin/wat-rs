@@ -54,8 +54,8 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe-wire::Bag::PutResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe-wire::Bag::PutResponse.Ok
          {:seen (:wat::edn::write (:probe-wire::Bag::PutRequest/items req))})}))])
 
 ;; ── one round-trip, reporting whatever comes back ────────────────────────────
@@ -65,24 +65,24 @@
    req   <- :probe-wire::Bag::PutRequest]
   -> :wat::core::nil
   (:wat::core::match (:probe-wire::Bag/put c req)
-    [:wat::kernel::RecvOutcome::Message {:msg resp}
+    [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
-        [:probe-wire::Bag::PutResponse::Ok {:seen seen}
+        [:probe-wire::Bag::PutResponse.Ok {:seen seen}
           (:wat::kernel::println
             (:wat::string::concat label " => Ok, server saw items = " seen))]
-        [:probe-wire::Bag::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:probe-wire::Bag::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::println
             (:wat::string::concat label " => RequestTooLarge"))]
-        [:probe-wire::Bag::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+        [:probe-wire::Bag::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
           (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+    [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::println
         (:wat::string::concat label " => RecvOutcome::Lost: "
           (:wat::kernel::LociDiedError/message cause)))]
-    [:wat::kernel::RecvOutcome::Stopped {}
+    [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::kernel::println
         (:wat::string::concat label " => RecvOutcome::Stopped"))]
-    [:wat::kernel::RecvOutcome::Closed {}
+    [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::println
         (:wat::string::concat label " => RecvOutcome::Closed"))]))
 
@@ -95,12 +95,12 @@
     [h (:probe-wire::bag-svc/start :locus locus
          :record (:probe-wire::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:probe-wire::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause f}
+         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome.Refused {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause f}
+         [:wat::kernel::ConnectOutcome.Rejected {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome::Failed {:cause f}
+         [:wat::kernel::ConnectOutcome.Failed {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))])
      ;; CONTROL — a well-typed request, built by the normal ctor.
      good (:probe-wire::Bag::PutRequest

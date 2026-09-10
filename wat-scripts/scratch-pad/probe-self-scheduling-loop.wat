@@ -26,10 +26,10 @@
    armed <- :wat::core::bool]
   -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::match (:wat::kernel::select peers) 
-    [:wat::spawn::ServiceEvent::Message {:idx idx :msg sig}
+    [:wat::spawn::ServiceEvent.Message {:idx idx :msg sig}
       (:wat::core::match sig 
         ;; :Item → buffer it; if no flush armed, ARM one (INSERT a fresh Timer' into the set):
-        [:probe::SinkSig::Item {:v v}
+        [:probe::SinkSig.Item {:v v}
           (:wat::core::let
             [peers0 (:wat::seq::remove-at peers idx)       ;; drop the fired one-shot item-timer
              buf'   (:wat::core::conj buf v)]
@@ -37,26 +37,26 @@
               (:probe::sink-loop peers0 buf' true)
               (:probe::sink-loop
                 (:wat::core::conj peers0                          ;; <-- arm: insert a FlushTick timer
-                  (:wat::kernel::after :wat::program::PeerKind::thread
-                    (:wat::time::Millisecond 50) (:probe::SinkSig::FlushTick {})))
+                  (:wat::kernel::after :wat::program::PeerKind.thread
+                    (:wat::time::Millisecond 50) (:probe::SinkSig.FlushTick {})))
                 buf' true)))]
         ;; :FlushTick → flush: return the buffered batch (survived to the tick):
-        [:probe::SinkSig::FlushTick {} buf])]
+        [:probe::SinkSig.FlushTick {} buf])]
     ;; timers never Close/Lost/etc — but the match is exhaustive (no-hidden-failures):
-    [:wat::spawn::ServiceEvent::Closed {:idx _idx} buf]
-    [:wat::spawn::ServiceEvent::Lost {:idx _idx :cause _c} buf]
-    [:wat::spawn::ServiceEvent::Malformed {:idx _idx :cause _c} buf]
-    [:wat::spawn::ServiceEvent::Rejected {:idx _idx :cause _c} buf]
-    [:wat::spawn::ServiceEvent::Shutdown {} buf]
-    [:wat::spawn::ServiceEvent::Connection {:peer _p} buf]
-    [:wat::spawn::ServiceEvent::Admin {:msg _m} buf]))
+    [:wat::spawn::ServiceEvent.Closed {:idx _idx} buf]
+    [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _c} buf]
+    [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _c} buf]
+    [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _c} buf]
+    [:wat::spawn::ServiceEvent.Shutdown {} buf]
+    [:wat::spawn::ServiceEvent.Connection {:peer _p} buf]
+    [:wat::spawn::ServiceEvent.Admin {:msg _m} buf]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [;; seed 3 staggered item-timers (1/2/3 ms) — simulate 3 client pushes before the flush:
      items (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :probe::SinkSig])]
-             (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 1) (:probe::SinkSig::Item {:v 10}))
-             (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 2) (:probe::SinkSig::Item {:v 20}))
-             (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 3) (:probe::SinkSig::Item {:v 30})))
+             (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 1) (:probe::SinkSig.Item {:v 10}))
+             (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 2) (:probe::SinkSig.Item {:v 20}))
+             (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 3) (:probe::SinkSig.Item {:v 30})))
      flushed (:probe::sink-loop items (:wat::core::Vector :- [:wat::core::i64]) false)]
     (:wat::kernel::println flushed)))     ;; EXPECT: [10 20 30] — all 3 buffered, flushed on the tick

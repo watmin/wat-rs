@@ -12,8 +12,8 @@
   (:wat::core::let
     [src (:wat::io::read-file "wat-scripts/scratch-pad/probe-qq-arm-shape-src.wat")
      tree (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome::Malformed {:cause __cause}
+             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+             [:wat::core::ReadOutcome.Malformed {:cause __cause}
                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms (:wat::core::ast->children tree)
      f0 (:wat::core::Option/expect (:wat::core::get forms 0) "f0")

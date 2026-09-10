@@ -9,17 +9,17 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::runtime::metadata-of :wat::stream::empty)
-      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::empty :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::Option::None {} (:wat::kernel::println "stream::empty :arity= NONE")])
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::empty :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option.None {} (:wat::kernel::println "stream::empty :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::stream::cons)
-      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::cons :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::Option::None {} (:wat::kernel::println "stream::cons :arity= NONE")])
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::cons :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option.None {} (:wat::kernel::println "stream::cons :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::stream::next)
-      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::next :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::Option::None {} (:wat::kernel::println "stream::next :arity= NONE")])
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::next :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option.None {} (:wat::kernel::println "stream::next :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::program::env)
-      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "program::env :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::Option::None {} (:wat::kernel::println "program::env :arity= NONE")])
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "program::env :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option.None {} (:wat::kernel::println "program::env :arity= NONE")])
     (:wat::core::match (:wat::runtime::metadata-of :wat::stdlib::sources)
-      [:wat::core::Option::Some {:value hm} (:wat::kernel::println (:wat::string::concat "stdlib::sources :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
-      [:wat::core::Option::None {} (:wat::kernel::println "stdlib::sources :arity= NONE")])))
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stdlib::sources :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option.None {} (:wat::kernel::println "stdlib::sources :arity= NONE")])))

@@ -110,11 +110,11 @@
                                   acc)
                           fqdn (:wat::intrinsic::Example/fqdn ex)]
           (:wat::core::match (:wat::intrinsic::Example/expected ex)
-            [:wat::core::Option::Some {:value expected-ast}
+            [:wat::core::Option.Some {:value expected-ast}
               (:wat::core::match (:wat::eval-ast! (:wat::intrinsic::Example/expr ex))
-                [:wat::core::Result::Ok {:value got}
+                [:wat::core::Result.Ok {:value got}
                   (:wat::core::match (:wat::eval-ast! expected-ast)
-                    [:wat::core::Result::Ok {:value want}
+                    [:wat::core::Result.Ok {:value want}
                       (:wat::core::if (:wat::core::not (:wat::core::= got want))
                         (:wat::core::concat acc1
                           (:wat::core::Vector :- [:wat::doctest::Failure]
@@ -122,7 +122,7 @@
                               :fqdn fqdn
                               :reason "@example result did not match #=>")))
                         acc1)]
-                    [:wat::core::Result::Err {:error err}
+                    [:wat::core::Result.Err {:error err}
                       (:wat::core::concat acc1
                         (:wat::core::Vector :- [:wat::doctest::Failure]
                           (:wat::doctest::Failure
@@ -130,7 +130,7 @@
                             :reason (:wat::string::concat
                                       "expected eval failed: "
                                       (:wat::core::EvalError/message err)))))])]
-                [:wat::core::Result::Err {:error err}
+                [:wat::core::Result.Err {:error err}
                   (:wat::core::concat acc1
                     (:wat::core::Vector :- [:wat::doctest::Failure]
                       (:wat::doctest::Failure
@@ -138,7 +138,7 @@
                         :reason (:wat::string::concat
                                   "expr eval failed: "
                                   (:wat::core::EvalError/message err)))))])]
-            [:wat::core::Option::None {}
+            [:wat::core::Option.None {}
               (:wat::core::concat acc1
                 (:wat::core::Vector :- [:wat::doctest::Failure]
                   (:wat::doctest::Failure

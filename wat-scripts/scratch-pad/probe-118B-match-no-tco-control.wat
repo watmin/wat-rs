@@ -18,9 +18,9 @@
 (:wat::core::defn :probe::count-deep
   [s <- (:wat::stream::Stream :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::match (:wat::stream::next s)
-    [:wat::stream::NextOutcome::Item {:value value :rest rest}
+    [:wat::stream::NextOutcome.Item {:value value :rest rest}
       (:wat::core::+ 1 (:probe::count-deep rest))]
-    [:wat::stream::NextOutcome::Exhausted {} 0]))
+    [:wat::stream::NextOutcome.Exhausted {} 0]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

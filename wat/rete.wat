@@ -285,7 +285,7 @@
   (:wat::core::let [support (:wat::rete::Explained/support ex)
                     sv-opt  (:wat::map::get support fact)]
     (:wat::core::match sv-opt 
-      [:wat::core::Option::Some {:value sv}
+      [:wat::core::Option.Some {:value sv}
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
        ;; matches is (PersistentVector :- [(wat::core::Tuple :- [wat::core::Record wat::core::i64])]); each tuple is (sfact, alpha-id).
        (:wat::core::let [tok      (:wat::rete::Support/token sv)
@@ -304,10 +304,10 @@
                                           (:wat::rete::step-payload session alpha-id bindings sfact
                                             (:wat::rete::explain ex sfact))))
                                       matches))]
-         (:wat::rete::DerivationNode :fact fact :rule (:wat::core::Option::Some {:value rule}) :via via))]
-      [:wat::core::Option::None {}
+         (:wat::rete::DerivationNode :fact fact :rule (:wat::core::Option.Some {:value rule}) :via via))]
+      [:wat::core::Option.None {}
        ;; base/asserted fact — leaf node, rule=None, via is empty.
-       (:wat::rete::DerivationNode :fact fact :rule :wat::core::Option::None :via (:wat::core::PersistentVector))])))
+       (:wat::rete::DerivationNode :fact fact :rule :wat::core::Option.None :via (:wat::core::PersistentVector))])))
 
 ;; ─── render-dag ─────────────────────────────────────────────────────────────
 

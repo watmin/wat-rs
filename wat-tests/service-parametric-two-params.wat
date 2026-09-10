@@ -58,21 +58,21 @@
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat-tests::Pair::PutResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat-tests::Pair::PutResponse.Ok
          {:echo (:wat::i64::+
            (:wat-tests::Pair::PutRequest/item req)
            (:wat::i64::+
              ;; read the K-typed durable field generically — `kk` is bound at type K
              (:wat::core::match
                  (:wat-tests::pair-svc::Record/k (:wat-tests::pair-svc::State/durable s))
-               [:wat::core::Option::Some {:value kk} 10]
-               [:wat::core::Option::None {} 0])
+               [:wat::core::Option.Some {:value kk} 10]
+               [:wat::core::Option.None {} 0])
              ;; read the V-typed durable field generically — `vv` is bound at type V
              (:wat::core::match
                  (:wat-tests::pair-svc::Record/v (:wat-tests::pair-svc::State/durable s))
-               [:wat::core::Option::Some {:value vv} 100]
-               [:wat::core::Option::None {} 0])))})}))])
+               [:wat::core::Option.Some {:value vv} 100]
+               [:wat::core::Option.None {} 0])))})}))])
 
 ;; ── the gate: stand it up on the thread locus and round-trip one call ───────────────────────
 ;; K is pinned to String and V to i64 BY THE SEED — two DIFFERENT concrete types, so a split
@@ -84,30 +84,30 @@
     (:wat::core::let
       [h (:wat-tests::pair-svc/start :locus (:wat::spawn::thread)
            :record (:wat-tests::pair-svc::Record
-                     :k (:wat::core::Option::Some {:value "hi"})
-                     :v (:wat::core::Option::Some {:value 42})))
+                     :k (:wat::core::Option.Some {:value "hi"})
+                     :v (:wat::core::Option.Some {:value 42})))
        c (:wat::core::match (:wat::kernel::connect (:wat-tests::pair-svc::Handle/addr h))
-           [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-           [:wat::kernel::ConnectOutcome::Refused {:cause c}
+           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+           [:wat::kernel::ConnectOutcome.Refused {:cause c}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-           [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+           [:wat::kernel::ConnectOutcome.Rejected {:cause c}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-           [:wat::kernel::ConnectOutcome::Failed {:cause c}
+           [:wat::kernel::ConnectOutcome.Failed {:cause c}
              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        r (:wat-tests::pair-svc/put c (:wat-tests::Pair::PutRequest :item 7))]
       (:wat::core::match r
-        [:wat::kernel::RecvOutcome::Message {:msg __recv}
+        [:wat::kernel::RecvOutcome.Message {:msg __recv}
           (:wat::core::match __recv
-            [:wat-tests::Pair::PutResponse::Ok {:echo echo} echo]
+            [:wat-tests::Pair::PutResponse.Ok {:echo echo} echo]
             ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-            [:wat-tests::Pair::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+            [:wat-tests::Pair::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
               (:wat::kernel::assertion-failed! :message "pair-svc put: unexpected RequestTooLarge")]
-            [:wat-tests::Pair::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+            [:wat-tests::Pair::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
               (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-        [:wat::kernel::RecvOutcome::Lost {:cause __cause}
+        [:wat::kernel::RecvOutcome.Lost {:cause __cause}
           (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-        [:wat::kernel::RecvOutcome::Stopped {}
+        [:wat::kernel::RecvOutcome.Stopped {}
           (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-        [:wat::kernel::RecvOutcome::Closed {}
+        [:wat::kernel::RecvOutcome.Closed {}
           (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
     117))

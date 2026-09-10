@@ -24,10 +24,10 @@
 (:wat::core::defn :user::fieldvec-at [ch <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64]
   -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::>= i (:wat::core::length ch))
-    (:wat::core::Option::None {})
+    (:wat::core::Option.None {})
     (:wat::core::let [c (:wat::core::Option/expect (:wat::core::get ch i) "fieldvec-at")]
       (:wat::core::if (:wat::core::= (:wat::core::ast-kind c) "vector")
-        (:wat::core::Option::Some {:value c})
+        (:wat::core::Option.Some {:value c})
         (:user::fieldvec-at ch (:wat::core::+ i 1))))))
 
 ;; field names of a field-vec [x <- T y <- U] → ["x" "y"] (names at 0,3,6…); [] if irregular (splice)
@@ -62,8 +62,8 @@
                                        "<"))
                               fvopt  (:user::fieldvec-at ch 2)]
               (:wat::core::match fvopt 
-                [:wat::core::Option::None {} m]
-                [:wat::core::Option::Some {:value fv}
+                [:wat::core::Option.None {} m]
+                [:wat::core::Option.Some {:value fv}
                   (:wat::core::let [names (:user::fieldvec-names fv)]
                     (:wat::core::if (:wat::core::empty? names)
                       m
@@ -111,8 +111,8 @@
                    (:wat::core::ast-name head) "")
            fopt  (:wat::hashmap::get m hname)
            this  (:wat::core::match fopt 
-                   [:wat::core::Option::None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
-                   [:wat::core::Option::Some {:value fields}
+                   [:wat::core::Option.None {} (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+                   [:wat::core::Option.Some {:value fields}
                      (:wat::core::if (:wat::core::= (:wat::core::length args) (:wat::core::length fields))
                        (:user::arg-edits args fields lines)
                        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))])]
@@ -142,7 +142,7 @@
    m   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> :wat::core::String
   (:wat::core::let [lines (:wat::string::split src "\n")
-                    tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms (:wat::core::ast->children tree)
                     eds   (:user::edits-seq forms m lines)
                     ;; edits MUST apply high-offset-first so a low insert never shifts a pending
@@ -152,7 +152,7 @@
 
 ;; ── driver: build the map from ALL files first, then rewrite each ────────────
 (:wat::core::defn :user::read-forms [path <- :wat::core::String] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::ast->children (:wat::core::match (:wat::core::read-string (:wat::io::read-file path)) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
+  (:wat::core::ast->children (:wat::core::match (:wat::core::read-string (:wat::io::read-file path)) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
 
 (:wat::core::defn :user::build-map
   [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
@@ -177,7 +177,7 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)) m)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     m     (:user::build-map
                             (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
                             paths)]

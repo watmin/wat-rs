@@ -8,7 +8,7 @@
          (:wat::grep::Named (?h <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defn"))
          (:wat::grep::Node  (?args <- :id) (?p <- :parent) (?ai <- :index) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Vector {})))
          (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ari <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?ari (:wat::rete::i64::+ ?ai 1 :undefined 0)))
          (:wat::grep::Named (?arrow <- :id) (?an <- :name))
@@ -22,7 +22,7 @@
          (:wat::grep::Named (?h <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/defn"))
          (:wat::grep::Node  (?args <- :id) (?p <- :parent) (?ai <- :index) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Vector {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Vector {})))
          (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ari <- :index))
          (:wat::rete::where (:wat::rete::i64::= ?ari (:wat::rete::i64::+ ?ai 1 :undefined 0)))
          (:wat::grep::Named (?arrow <- :id) (?an <- :name))
@@ -30,4 +30,4 @@
          (:wat::grep::Node  (?ch <- :id) (?args <- :parent) (?ci <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::rem ?ci 3 :undefined 1) 0))]
-  :then [(:wat::fmt::Break :id ?ch :kind (:wat::fmt::BreakKind::Align {}))])
+  :then [(:wat::fmt::Break :id ?ch :kind (:wat::fmt::BreakKind.Align {}))])

@@ -36,9 +36,9 @@
      (:wat::core::let [c (:wat::i64::+
                            (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))
                            (:wat-tests::RespCounter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply
+       (:wat::service::Outcome.Reply
          {:state (:wat-tests::resp-counter::State :durable (:wat-tests::resp-counter::Record :count c))
-         :reply (:wat-tests::RespCounter::IncrementResponse::Ok {:value c})})))  ]
+         :reply (:wat-tests::RespCounter::IncrementResponse.Ok {:value c})})))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
   ;; decoupled from the ::Record. Read count through State/durable.
   :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> :wat::core::i64
@@ -51,12 +51,12 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::resp-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::resp-counter::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::resp-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::resp-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        _ (:wat::core::match (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest :n 7))
-           [:wat::kernel::RecvOutcome::Message {:msg _resp} nil]
-           [:wat::kernel::RecvOutcome::Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-           [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
+           [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
+           [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
+           [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+           [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
        final (:wat-tests::resp-counter/stop h)]
       final)
     7))
@@ -67,12 +67,12 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::resp-counter/start :locus (:wat::spawn::process) :record (:wat-tests::resp-counter::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::resp-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::resp-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        _ (:wat::core::match (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest :n 7))
-           [:wat::kernel::RecvOutcome::Message {:msg _resp} nil]
-           [:wat::kernel::RecvOutcome::Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-           [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
+           [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
+           [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
+           [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+           [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
        final (:wat-tests::resp-counter/stop h)]
       final)
     7))

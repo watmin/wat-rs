@@ -25,10 +25,10 @@
     ;; ASSUMPTION 1: echo the raw text back. If it is the whole JSON line, read-frame frames
     ;; JSON fine. If it is truncated at the first `:` or `"`, the EDN-aware scanner mis-frames
     ;; it and the mcp reader needs a different door.
-    [:wat::kernel::ReadFrameOutcome::Frame {:text text}
+    [:wat::kernel::ReadFrameOutcome.Frame {:text text}
       (:wat::kernel::println text)]
-    [:wat::kernel::ReadFrameOutcome::Eof {} nil]
-    [:wat::kernel::ReadFrameOutcome::Stopped {} nil]))
+    [:wat::kernel::ReadFrameOutcome.Eof {} nil]
+    [:wat::kernel::ReadFrameOutcome.Stopped {} nil]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

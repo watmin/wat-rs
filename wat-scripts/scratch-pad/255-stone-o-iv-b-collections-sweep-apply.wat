@@ -12,8 +12,8 @@
 (:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [:wat::core::Value :wat::core::EvalError])]
   -> :wat::core::String
   (:wat::core::match r
-    [:wat::core::Result::Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
-    [:wat::core::Result::Err {:error e} (:wat::string::concat "err:kind=" (:wat::core::EvalError/kind e) " msg=" (:wat::core::EvalError/message e))]))
+    [:wat::core::Result.Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
+    [:wat::core::Result.Err {:error e} (:wat::string::concat "err:kind=" (:wat::core::EvalError/kind e) " msg=" (:wat::core::EvalError/message e))]))
 
 (:wat::core::defn :probe::row [name <- :wat::core::String thru <- :wat::WatAST] -> :wat::core::nil
   (:wat::kernel::println

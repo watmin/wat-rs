@@ -29,15 +29,15 @@
    peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])])]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::poll self l peers) 
-    [:wat::spawn::ServiceEvent::Shutdown {} nil]
-    [:wat::spawn::ServiceEvent::Connection {:peer peer}
+    [:wat::spawn::ServiceEvent.Shutdown {} nil]
+    [:wat::spawn::ServiceEvent.Connection {:peer peer}
       (:probe::serve-thread self l (:wat::core::conj peers peer))]
     ;; THE PROOF: poll' delivered the timer's msg as a peer Message. Forward it up, then exit.
-    [:wat::spawn::ServiceEvent::Message {:idx _idx :msg msg}
-      (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] nil)]
-    [:wat::spawn::ServiceEvent::Closed {:idx idx}
+    [:wat::spawn::ServiceEvent.Message {:idx _idx :msg msg}
+      (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] nil)]
+    [:wat::spawn::ServiceEvent.Closed {:idx idx}
       (:probe::serve-thread self l (:wat::seq::remove-at peers idx))]
-    [:wat::spawn::ServiceEvent::Lost {:idx idx :cause _cause}
+    [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
       (:probe::serve-thread self l (:wat::seq::remove-at peers idx))]
     [_ nil]))
 
@@ -49,14 +49,14 @@
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::keyword :wat::core::nil])]
               -> :wat::core::nil
               (:wat::core::let
-                [t (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 30) :tick)]
+                [t (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 30) :tick)]
                 (:probe::serve-thread self l
                   (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t)))))
      got  (:wat::core::match (:wat::kernel::recv svc)
-            [:wat::kernel::RecvOutcome::Message {:msg m} m]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])]
+            [:wat::kernel::RecvOutcome.Message {:msg m} m]
+            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+            [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])]
     got))
 
 ;; ── PROCESS tier ──────────────────────────────────────────────────────────────
@@ -71,28 +71,28 @@
                 peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])])]
                -> :wat::core::nil
                (:wat::core::match (:wat::kernel::poll self l peers) 
-                 [:wat::spawn::ServiceEvent::Shutdown {} nil]
-                 [:wat::spawn::ServiceEvent::Connection {:peer peer}
+                 [:wat::spawn::ServiceEvent.Shutdown {} nil]
+                 [:wat::spawn::ServiceEvent.Connection {:peer peer}
                    (:probe::serve-proc self l (:wat::core::conj peers peer))]
-                 [:wat::spawn::ServiceEvent::Message {:idx _idx :msg msg}
-                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome::Sent {} nil] [:wat::kernel::SendOutcome::Closed {} nil] [:wat::kernel::SendOutcome::Stopped {} nil] [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] nil)]
-                 [:wat::spawn::ServiceEvent::Closed {:idx idx}
+                 [:wat::spawn::ServiceEvent.Message {:idx _idx :msg msg}
+                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send self msg) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.Closed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] nil)]
+                 [:wat::spawn::ServiceEvent.Closed {:idx idx}
                    (:probe::serve-proc self l (:wat::seq::remove-at peers idx))]
-                 [:wat::spawn::ServiceEvent::Lost {:idx idx :cause _cause}
+                 [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
                    (:probe::serve-proc self l (:wat::seq::remove-at peers idx))]
                  [_ nil]))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::core::let
                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::keyword :wat::core::nil)
                   self (:wat::program::self-peer :wat::core::keyword :wat::core::nil)
-                  t    (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Millisecond 30) :tick)]
+                  t    (:wat::kernel::after :wat::program::PeerKind.process (:wat::time::Millisecond 30) :tick)]
                  (:probe::serve-proc self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])] t))))))
      got (:wat::core::match (:wat::kernel::recv svc)
-            [:wat::kernel::RecvOutcome::Message {:msg m} m]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])]
+            [:wat::kernel::RecvOutcome.Message {:msg m} m]
+            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+            [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])]
     got))
 
 ;; ── the assertion — both tiers deliver the timer's :tick through poll' ─────────

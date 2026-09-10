@@ -47,7 +47,7 @@
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      journal (:wat::core::match (:wat::kernel::connect jaddr)
-               [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
+               [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
                [_ (:wat::kernel::assertion-failed! :message "connect journal")])
      tags  (:wat::core::HashMap :- [:wat::core::keyword :wat::core::String])
      idxs  (:wat::core::range 0 240)
@@ -60,19 +60,19 @@
                     msg  (:wat::edn::write (:usr::Temp :c c))]
                    (:wat::telemetry::Log :namespace "sift-rules-ns" :uuid (:wat::uuid::nil) :tags tags
                      :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
-                     :level :wat::telemetry::Level::Info :message msg)))
+                     :level :wat::telemetry::Level.Info :message msg)))
                idxs))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest logs))
      qresp (:wat::telemetry::Journal/query-logs journal
              (:wat::telemetry::Journal::QueryLogsRequest
                :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300
-               :cursor :wat::core::Option::None))]
+               :cursor :wat::core::Option.None))]
     (:wat::kernel::println "QUERY-LOGS")
     (:wat::core::match qresp
-      [:wat::kernel::RecvOutcome::Message {:msg sresp}
+      [:wat::kernel::RecvOutcome.Message {:msg sresp}
         (:wat::core::match sresp
-          [:wat::telemetry::Journal::QueryLogsResponse::Success {:logs got :cursor _c}
+          [:wat::telemetry::Journal::QueryLogsResponse.Success {:logs got :cursor _c}
             (:wat::core::do
               (:wat::kernel::println "LOGS")
               (:wat::kernel::pprintln (:wat::core::count got))
@@ -89,7 +89,7 @@
                   (:wat::kernel::println "AFTER-FIRE")
                   (:wat::kernel::pprintln (:wat::core::count items)))))]
           [_ (:wat::kernel::println "QUERY-NOT-SUCCESS")])]
-      [:wat::kernel::RecvOutcome::Lost {:cause c}
+      [:wat::kernel::RecvOutcome.Lost {:cause c}
         (:wat::core::do
           (:wat::kernel::println "QUERY-LOST")
           (:wat::kernel::pprintln (:wat::kernel::LociDiedError/message c)))]

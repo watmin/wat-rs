@@ -129,10 +129,10 @@
    suffix <- :wat::core::String]
   -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? forms)
-    :wat::core::Option::None
+    :wat::core::Option.None
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
       (:wat::core::if (:user::helper-defn? f suffix)
-        (:wat::core::Option::Some {:value f})
+        (:wat::core::Option.Some {:value f})
         (:user::find-helper tl suffix)))))
 
 ;; helper-text-opt — the verbatim FORM text inside a helper's `(quasiquote FORM)` body, if the
@@ -144,11 +144,11 @@
    suffix <- :wat::core::String]
   -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::match (:user::find-helper forms suffix)
-    [:wat::core::Option::Some {:value h}
+    [:wat::core::Option.Some {:value h}
       (:wat::core::let [ch   (:wat::core::ast->children h)
                         body (:wat::core::Option/expect (:wat::core::get ch 5) "helper-text-opt: body")]
-        (:wat::core::Option::Some {:value (:user::quasi-text body lines src)}))]
-    [:wat::core::Option::None {} :wat::core::Option::None]))
+        (:wat::core::Option.Some {:value (:user::quasi-text body lines src)}))]
+    [:wat::core::Option.None {} :wat::core::Option.None]))
 
 ;; build-defrule-text — the replacement source text for one migrated rule.
 (:wat::core::defn :user::build-defrule-text
@@ -280,7 +280,7 @@
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines          (:wat::string::split src "\n")
-     tree           (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+     tree           (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms          (:wat::core::ast->children tree)
      conds-text-opt (:user::helper-text-opt forms lines src "::conds")
      ins-text-opt   (:user::helper-text-opt forms lines src "::ins")
@@ -301,5 +301,5 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

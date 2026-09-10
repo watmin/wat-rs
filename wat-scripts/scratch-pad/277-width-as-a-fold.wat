@@ -56,12 +56,12 @@
 
 (:wat::core::defn :wf::run [path <- :wat::core::String] -> :wat::core::i64
   (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
-    [:wat::core::ReadOutcome::Forms {:forms forms}
+    [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::foldl
         (:wat::core::fn [acc <- :wat::core::i64 f <- :wat::WatAST] -> :wat::core::i64
           (:wat::core::+ acc (:wf::check f path)))
         0 (:wat::core::ast->children forms))]
-    [:wat::core::ReadOutcome::Malformed {:cause c}
+    [:wat::core::ReadOutcome.Malformed {:cause c}
       (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))]))
 
 (:wat::core::defn :wf::report [path <- :wat::core::String] -> :wat::core::nil

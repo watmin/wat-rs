@@ -64,11 +64,11 @@
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: min missing ?var"))]
          (:wat::core::match (:wat::rete::acc::min var gathered) 
-           [:wat::core::Option::Some {:value v}
+           [:wat::core::Option.Some {:value v}
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
                 :bindings (:wat::map::assoc tok-binds result-var v)))]
-           [:wat::core::Option::None {} bm])))
+           [:wat::core::Option.None {} bm])))
       ;; max — (Option :- [i64]); Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::max")
        (:wat::core::let [var (:wat::core::ast-name
@@ -76,11 +76,11 @@
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: max missing ?var"))]
          (:wat::core::match (:wat::rete::acc::max var gathered) 
-           [:wat::core::Option::Some {:value v}
+           [:wat::core::Option.Some {:value v}
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
                 :bindings (:wat::map::assoc tok-binds result-var v)))]
-           [:wat::core::Option::None {} bm])))
+           [:wat::core::Option.None {} bm])))
       ;; mean — (Option :- [i64]); Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::mean")
        (:wat::core::let [var (:wat::core::ast-name
@@ -88,11 +88,11 @@
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: mean missing ?var"))]
          (:wat::core::match (:wat::rete::acc::mean var gathered) 
-           [:wat::core::Option::Some {:value v}
+           [:wat::core::Option.Some {:value v}
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
                 :bindings (:wat::map::assoc tok-binds result-var v)))]
-           [:wat::core::Option::None {} bm])))
+           [:wat::core::Option.None {} bm])))
       ;; distinct — bare PV result (always; empty → []); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::distinct")
        (:wat::core::let [var (:wat::core::ast-name
@@ -189,8 +189,8 @@
                        k   <- :wat::core::String]
         -> :wat::core::PersistentMap
         (:wat::core::match (:wat::map::get eb k)
-          [:wat::core::Option::Some {:value v} (:wat::map::assoc acc k v)]
-          [:wat::core::Option::None {} acc]))
+          [:wat::core::Option.Some {:value v} (:wat::map::assoc acc k v)]
+          [:wat::core::Option.None {} acc]))
       (:wat::core::PersistentMap)
       keys)))
 
@@ -226,8 +226,8 @@
                         from-els      (:wat::core::match
                                          (:wat::map::get alpha-mem from-alpha-id)
                                          
-                                       [:wat::core::Option::Some {:value pv} pv]
-                                       [:wat::core::Option::None {} (:wat::core::PersistentVector)])
+                                       [:wat::core::Option.Some {:value pv} pv]
+                                       [:wat::core::Option.None {} (:wat::core::PersistentVector)])
                         from-alpha    (:wat::core::Option/expect
                                          (:wat::map::get network from-alpha-id)
                                          "accumulate-pass: from alpha missing")
@@ -247,9 +247,9 @@
                                             (:wat::core::match (:wat::rete::alpha-match-under from-cond
                                                                  (:wat::rete::Element/fact el)
                                                                  (:wat::rete::Token/bindings tok))
-                                              [:wat::core::Option::Some {:value _}
+                                              [:wat::core::Option.Some {:value _}
                                                (:wat::vector::conj acc el)]
-                                              [:wat::core::Option::None {} acc]))
+                                              [:wat::core::Option.None {} acc]))
                                           (:wat::core::PersistentVector)
                                           from-els)
                               tok-keys (:wat::core::foldl
@@ -304,9 +304,9 @@
                                                              k  <- :wat::core::String]
                                               -> :wat::core::PersistentMap
                                               (:wat::core::match (:wat::map::get km k)
-                                                [:wat::core::Option::Some {:value v}
+                                                [:wat::core::Option.Some {:value v}
                                                  (:wat::map::assoc nb k v)]
-                                                [:wat::core::Option::None {} nb]))
+                                                [:wat::core::Option.None {} nb]))
                                             (:wat::rete::Token/bindings tok)
                                             km-keys)
                                           ext-tok

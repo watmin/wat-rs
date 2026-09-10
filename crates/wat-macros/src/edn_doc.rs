@@ -272,6 +272,14 @@ fn fqdn_of(ns: Option<&str>, name: &str) -> String {
                     // variant.
                     return format!(":{head}::{type_seg}/{name}");
                 }
+                if type_is_type {
+                    // BOTH halves uppercase — `Purity/Pure` is an ENUM and its VARIANT, not a
+                    // namespace join. Through the ONE door, so the variant separator moves with
+                    // it: this is the site the dot flip's corpus codemod could never reach,
+                    // because it lives in a `.rs` doc block rather than a `.wat` file. It was
+                    // runed `edn` for what the FUNCTION does while the LINE composes a variant.
+                    return wat_reader::identifier::compose_variant(&format!(":{wat_ns}"), name);
+                }
             }
             // rune:lint(one-variant-separator, edn) — final reassembly of the translated wat
             // FQDN for the plain (non-Type/method) case, completing the EDN→wat translation.

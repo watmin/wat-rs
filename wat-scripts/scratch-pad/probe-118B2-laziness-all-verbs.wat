@@ -20,7 +20,7 @@
         (:wat::core::into [] (:wat::core::take
           (:wat::core::keep-indexed
             (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
-              (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Option::Some {:value x}) :wat::core::Option::None))
+              (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Option.Some {:value x}) :wat::core::Option.None))
             (:probe::nat 0))
           3))))
     ;; map-indexed over an infinite source.

@@ -70,8 +70,8 @@
 (:wat::core::defn :user::walk-a
   [s <- (:wat::stream::Stream :- [:wat::core::i64]) acc <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match (:wat::stream::next s)
-    [:wat::stream::NextOutcome::Item {:value value :rest rest} (:user::walk-a rest (:wat::core::+ acc value))]
-    [:wat::stream::NextOutcome::Exhausted {} acc]))
+    [:wat::stream::NextOutcome.Item {:value value :rest rest} (:user::walk-a rest (:wat::core::+ acc value))]
+    [:wat::stream::NextOutcome.Exhausted {} acc]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

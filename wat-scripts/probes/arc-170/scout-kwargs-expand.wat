@@ -10,8 +10,8 @@
         [item <- :wat::core::String
          & [kv <- (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])]]
         -> :wat::core::String
-        (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetRequest item)) [:probe::Kv::GetResponse::Ok {:v v} v]
-  [:probe::Kv::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
+        (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetRequest item)) [:probe::Kv::GetResponse.Ok {:v v} v]
+  [:probe::Kv::GetResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::Kv::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+  [:probe::Kv::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])))))))

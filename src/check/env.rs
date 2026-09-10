@@ -322,7 +322,7 @@ impl<'a> CheckEnv<'a> {
         // already-frozen SymbolTable, not source forms); `rust_caller_span!()` is the
         // honest answer.
         let span = crate::rust_caller_span!();
-        crate::resolve::register(&name, privilege, existing, &span, || -> Result<(), crate::resolve::Rejection> {
+        crate::resolve::register_replayed(&name, privilege, existing, &span, || -> Result<(), crate::resolve::Rejection> {
             self.schemes.insert(name.clone(), scheme);
             Ok(())
         })?;

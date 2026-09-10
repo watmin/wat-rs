@@ -23,12 +23,12 @@
                     (:wat::core::Vector :- [:wat::core::i64] 1))))]
     (:wat::core::do
       (:wat::core::match registered
-        [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "UNEXPECTED ok: " (:wat::edn::write v)))]
-        [:wat::core::Result::Err {:error e}
+        [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "UNEXPECTED ok: " (:wat::edn::write v)))]
+        [:wat::core::Result.Err {:error e}
           (:wat::kernel::println (:wat::string::concat "registered-but-unreachable  kind="
             (:wat::core::EvalError/kind e) "  message=" (:wat::core::EvalError/message e)))])
       (:wat::core::match unknown
-        [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "UNEXPECTED ok: " (:wat::edn::write v)))]
-        [:wat::core::Result::Err {:error e}
+        [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "UNEXPECTED ok: " (:wat::edn::write v)))]
+        [:wat::core::Result.Err {:error e}
           (:wat::kernel::println (:wat::string::concat "genuinely-unknown           kind="
             (:wat::core::EvalError/kind e) "  message=" (:wat::core::EvalError/message e)))]))))

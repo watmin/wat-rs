@@ -231,20 +231,20 @@
            (:wat::core::do
              (:wat::core::do (:wat::core::/ 5 0) nil)
              (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome::Sent {}   nil]
-               [:wat::kernel::SendOutcome::Closed {} nil]
+               [:wat::kernel::SendOutcome.Sent {}   nil]
+               [:wat::kernel::SendOutcome.Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless (never a `_`-swallow); the divide-by-zero
                ;; above already panicked before this line could even run.
-               [:wat::kernel::SendOutcome::Stopped {} nil]
-               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))]
+               [:wat::kernel::SendOutcome.Stopped {} nil]
+               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected RuntimeError for i64 / 0")]
-      [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "expected RuntimeError for i64 / 0")])))
 
 ;; ─── REJECTION: cross-type arithmetic → NoMatchingClause ────────────────
@@ -266,12 +266,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ 1 2.0)] x))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for (+ 1 2.0)")]
-      [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for (+ 1 2.0)")])))
 
 ;; ─── REJECTION: string arithmetic → NoMatchingClause ────────────────────
@@ -288,12 +288,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ "a" "b")] x))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for (+ \"a\" \"b\")")]
-      [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for (+ \"a\" \"b\")")])))
 
 ;; ─── REJECTION: cross-type ordering → TypeMismatch (check-time) ─────────
@@ -313,12 +313,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [b (:wat::core::< 1 2.5)] b))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected TypeMismatch (check-time) for (< 1 2.5)")]
-      [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "expected TypeMismatch (check-time) for (< 1 2.5)")])))
 
 ;; ─── REJECTION: 0-ary - and / → NoMatchingClause ────────────────────────
@@ -335,12 +335,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::-)] x))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for 0-ary (-)")]
-      [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for 0-ary (-)")])))
 
 
@@ -352,12 +352,12 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::/)] x))))]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for 0-ary (/)")]
-      [:wat::kernel::RecvOutcome::Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome::Stopped {}
+      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
+      [:wat::kernel::RecvOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome::Closed {}
+      [:wat::kernel::RecvOutcome.Closed {}
         (:wat::kernel::assertion-failed! :message "expected NoMatchingClause for 0-ary (/)")])))
 
 ;; ─── REJECTION: strict typed helper rejects wrong-type arg ──────────────
@@ -381,6 +381,6 @@
   ;; invisible to that sweep because it sat under an arc-170 `ignore` marker. A suppressed
   ;; test is invisible to the migration that owns it. Flipped now to the shipped contract.
   (:wat::core::match (:wat::test::run-hermetic (:wat::test::assert-true (:wat::core::< 1 2.5)))
-    [:wat::kernel::RunResult::Passed {} nil]
-    [:wat::kernel::RunResult::Failed {:failure _f}
+    [:wat::kernel::RunResult.Passed {} nil]
+    [:wat::kernel::RunResult.Failed {:failure _f}
       (:wat::kernel::assertion-failed! :message "expected mixed-numeric < to check clean and evaluate TRUE (arc 300 C5)")]))

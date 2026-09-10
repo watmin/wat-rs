@@ -61,16 +61,16 @@
     (:wat::core::into []
       (:wat::core::ast->children
         (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
-          [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-          [:wat::core::ReadOutcome::Malformed {:cause __cause}
+          [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+          [:wat::core::ReadOutcome.Malformed {:cause __cause}
             (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::run!
     (:wat::core::fn [p <- :wat::core::String] -> :wat::core::nil (:census::file p))
     (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome::Eof {}
+      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
+      [:wat::kernel::ReadlnOutcome.Eof {}
         (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome::Stopped {}
+      [:wat::kernel::ReadlnOutcome.Stopped {}
         (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

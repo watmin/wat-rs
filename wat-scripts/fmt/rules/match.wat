@@ -31,4 +31,4 @@
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/match"))
          (:wat::grep::Node  (?arm <- :id) (?p <- :parent) (?ai <- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ai 1))]
-  :then [(:wat::fmt::Break :id ?arm :kind (:wat::fmt::BreakKind::Block {}))])
+  :then [(:wat::fmt::Break :id ?arm :kind (:wat::fmt::BreakKind.Block {}))])

@@ -54,8 +54,8 @@
   :ephemeral []
   :impls
   [(eval-src [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::DurableForms::EvalSrcResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::DurableForms::EvalSrcResponse.Ok
          {:out (:probe::DurableForms::EvalSrcRequest/src req)})}))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

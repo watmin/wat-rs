@@ -176,7 +176,7 @@
                                   (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
                                     (:wat::core::ast-name h)
                                     "")))]
-      (:fix::walk-seq ch (:fix::Parent::Enclosed {:id my-id :head my-head}) 0 lines))
+      (:fix::walk-seq ch (:fix::Parent.Enclosed {:id my-id :head my-head}) 0 lines))
     (:wat::core::let [kind (:wat::core::ast-kind node)]
       (:wat::core::if (:wat::core::or (:wat::core::= kind "keyword") (:wat::core::= kind "symbol"))
         (:wat::core::let [name (:wat::core::ast-name node)
@@ -263,10 +263,10 @@
   [src <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [lines   (:wat::string::split src "\n")
-                    tree    (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+                    tree    (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms   (:wat::core::ast->children tree)
                     ;; top-level forms have no enclosing list → :fix::Parent::Root (no sentinel).
-                    nodes   (:fix::walk-seq forms :fix::Parent::Root 0 lines)
+                    nodes   (:fix::walk-seq forms :fix::Parent.Root 0 lines)
                     rules   (:wat::rete::collect-rules :fix)
                     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
                     staged  (:fix::insert-nodes session nodes)
@@ -295,4 +295,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

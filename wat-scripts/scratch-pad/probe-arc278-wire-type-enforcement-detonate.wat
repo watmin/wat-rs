@@ -34,8 +34,8 @@
   :impls
   ;; The handler uses `items[0]` AS A STRING — exactly what the declaration promises.
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe-det::Bag::PutResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe-det::Bag::PutResponse.Ok
          {:len (:wat::string::length
            (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0))})}))])
 
@@ -45,16 +45,16 @@
    req   <- :probe-det::Bag::PutRequest]
   -> :wat::core::nil
   (:wat::core::match (:probe-det::Bag/put c req)
-    [:wat::kernel::RecvOutcome::Message {:msg resp}
+    [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
-        [:probe-det::Bag::PutResponse::Ok {:len len}
+        [:probe-det::Bag::PutResponse.Ok {:len len}
           (:wat::kernel::println
             (:wat::string::concat label " => Ok, string::length = "
               (:wat::i64::to-string len)))]
-        [:probe-det::Bag::PutResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:probe-det::Bag::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::println
             (:wat::string::concat label " => RequestTooLarge"))]
-        [:probe-det::Bag::PutResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
+        [:probe-det::Bag::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
           (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
     ;; NB (measured): on this path the payload that actually arrives in the `Lost`
     ;; arm at runtime is a `:wat::kernel::Failure`, NOT the declared
@@ -63,14 +63,14 @@
     ;; scope; the arm prints a static label so the measurement transcript stays clean.
     ;; The reason text observed in that raise was:
     ;;   "service peer lost (reason on the owner's crash channel)" (wat/spawn.wat:351)
-    [:wat::kernel::RecvOutcome::Lost {:cause cause}
+    [:wat::kernel::RecvOutcome.Lost {:cause cause}
       (:wat::kernel::println
         (:wat::string::concat label
           " => RecvOutcome::Lost — THE SERVICE DIED serving this request"))]
-    [:wat::kernel::RecvOutcome::Stopped {}
+    [:wat::kernel::RecvOutcome.Stopped {}
       (:wat::kernel::println
         (:wat::string::concat label " => RecvOutcome::Stopped"))]
-    [:wat::kernel::RecvOutcome::Closed {}
+    [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::println
         (:wat::string::concat label " => RecvOutcome::Closed"))]))
 
@@ -79,12 +79,12 @@
     [h (:probe-det::bag-svc/start :locus (:wat::spawn::process)
          :record (:probe-det::bag-svc::Record :n 0))
      c (:wat::core::match (:wat::kernel::connect (:probe-det::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome::Refused {:cause f}
+         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+         [:wat::kernel::ConnectOutcome.Refused {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome::Rejected {:cause f}
+         [:wat::kernel::ConnectOutcome.Rejected {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome::Failed {:cause f}
+         [:wat::kernel::ConnectOutcome.Failed {:cause f}
            (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))])
      good (:probe-det::Bag::PutRequest
             :items (:wat::core::Vector :- [:wat::core::String] "abcd"))

@@ -35,26 +35,26 @@
            (:wat::core::do
              (:wat::test::assert-eq 4 (:wat::i64::+ 2 2))
              (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome::Sent {}   nil]
-               [:wat::kernel::SendOutcome::Closed {} nil]
+               [:wat::kernel::SendOutcome.Sent {}   nil]
+               [:wat::kernel::SendOutcome.Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless (never a `_`-swallow).
-               [:wat::kernel::SendOutcome::Stopped {} nil]
-               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))
+               [:wat::kernel::SendOutcome.Stopped {} nil]
+               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
-            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::Option::None]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
+            [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
+            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
             ;; arc 278 #73 — a stop is neither a clean pass nor the assertion failure
             ;; this file exists to distinguish; assert it distinctly rather than fold
             ;; it into either :None (Closed's meaning: thread finished quietly) or
             ;; :Some (Lost's meaning: the thread died).
-            [:wat::kernel::RecvOutcome::Stopped {}
+            [:wat::kernel::RecvOutcome.Stopped {}
               (:wat::kernel::assertion-failed! :message "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} :wat::core::Option::None])]
+            [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])]
     (:wat::core::match fail
 
-      [:wat::core::Option::None {} nil]
-      [:wat::core::Option::Some {:value _f}
+      [:wat::core::Option.None {} nil]
+      [:wat::core::Option.Some {:value _f}
        (:wat::kernel::assertion-failed! :message "Ok-path: expected :None but got :Some — passing assertion was misclassified as failure")])))
 
 ;; ─── Err-path: failing assertion inside run-thread ────────────────────
@@ -72,24 +72,24 @@
            (:wat::core::do
              (:wat::test::assert-eq 99 (:wat::i64::+ 2 2))
              (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome::Sent {}   nil]
-               [:wat::kernel::SendOutcome::Closed {} nil]
+               [:wat::kernel::SendOutcome.Sent {}   nil]
+               [:wat::kernel::SendOutcome.Closed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless (never a `_`-swallow).
-               [:wat::kernel::SendOutcome::Stopped {} nil]
-               [:wat::kernel::SendOutcome::Lost {:cause _c} nil]))))
+               [:wat::kernel::SendOutcome.Stopped {} nil]
+               [:wat::kernel::SendOutcome.Lost {:cause _c} nil]))))
      fail (:wat::core::match (:wat::kernel::recv p)
-            [:wat::kernel::RecvOutcome::Message {:msg _m} :wat::core::Option::None]
-            [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::core::Option::Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
+            [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
+            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/to-failure cause)})]
             ;; arc 278 #73 — a stop is neither a clean pass nor the assertion failure
             ;; this file exists to distinguish; assert it distinctly rather than fold
             ;; it into either :None (Closed's meaning: thread finished quietly) or
             ;; :Some (Lost's meaning: the thread died).
-            [:wat::kernel::RecvOutcome::Stopped {}
+            [:wat::kernel::RecvOutcome.Stopped {}
               (:wat::kernel::assertion-failed! :message "run-thread: stopped — the substrate was asked to stop; the thread was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} :wat::core::Option::None])]
+            [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])]
     (:wat::core::match fail
 
-      [:wat::core::Option::Some {:value _f} nil]
-      [:wat::core::Option::None {}
+      [:wat::core::Option.Some {:value _f} nil]
+      [:wat::core::Option.None {}
        (:wat::kernel::assertion-failed! :message "Err-path: expected :Some failure but got :None — chain handling broken")])))

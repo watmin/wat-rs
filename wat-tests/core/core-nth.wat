@@ -58,15 +58,15 @@
              (:wat::kernel::println
                (:wat::core::nth (:wat::core::Vector :- [:wat::core::i64] 10 20 30) 99)))))
      msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome::Message {:msg _m}
+           [:wat::kernel::RecvOutcome.Message {:msg _m}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::core::match cause
-               [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
                [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
 
@@ -78,15 +78,15 @@
              (:wat::kernel::println
                (:wat::core::nth (:wat::core::PersistentVector 10 20 30) 99)))))
      msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome::Message {:msg _m}
+           [:wat::kernel::RecvOutcome.Message {:msg _m}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::core::match cause
-               [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
                [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
 
@@ -98,15 +98,15 @@
              (:wat::kernel::println
                (:wat::core::nth (:wat::core::List 10 20 30) 99)))))
      msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome::Message {:msg _m}
+           [:wat::kernel::RecvOutcome.Message {:msg _m}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome::Lost {:cause cause}
+           [:wat::kernel::RecvOutcome.Lost {:cause cause}
              (:wat::core::match cause
-               [:wat::kernel::LociDiedError::Panic {:message message :failure _failure} message]
+               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
                [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome::Stopped {}
+           [:wat::kernel::RecvOutcome.Stopped {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome::Closed {}
+           [:wat::kernel::RecvOutcome.Closed {}
              (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
     (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
 

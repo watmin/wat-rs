@@ -91,9 +91,9 @@
       (:wat::core::let [namekw (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "namespaced-defn-name: name")]
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind namekw) "keyword")
           (:wat::core::let [nm (:wat::core::ast-name namekw)]
-            (:wat::core::if (:wat::string::contains? nm "::") (:wat::core::Option::Some {:value nm}) :wat::core::Option::None))
-          :wat::core::Option::None))
-      :wat::core::Option::None)))
+            (:wat::core::if (:wat::string::contains? nm "::") (:wat::core::Option.Some {:value nm}) :wat::core::Option.None))
+          :wat::core::Option.None))
+      :wat::core::Option.None)))
 
 ;; find-ns — walk top-level forms in order; the FIRST namespaced defn/defrecord names this file's
 ;; namespace (e.g. ":wsh::items" -> "wsh"). STOPS if the file has none at all — never a guessed default.
@@ -101,11 +101,11 @@
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::kernel::assertion-failed! :message "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from")
     (:wat::core::match (:user::namespaced-defn-name (:wat::core::first forms))
-      [:wat::core::Option::Some {:value nm}
+      [:wat::core::Option.Some {:value nm}
         (:wat::core::let [seg0 (:wat::core::Option/expect (:wat::core::get (:wat::string::split nm "::") 0)
                                   "find-ns: split always yields >= 1 element")]
           (:wat::string::strip-leading-colon seg0))]
-      [:wat::core::Option::None {} (:user::find-ns (:wat::core::rest forms))])))
+      [:wat::core::Option.None {} (:user::find-ns (:wat::core::rest forms))])))
 
 ;; ── collecting the (old, new) rule-name rename pairs ────────────────────────────────────────────
 
@@ -163,19 +163,19 @@
 ;; find-call — deep search for the (unique, per the survey) node calling exactly `head`.
 (:wat::core::defn :user::find-call [node <- :wat::WatAST  head <- :wat::core::String] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::fix::calls-to? node head)
-    (:wat::core::Option::Some {:value node})
+    (:wat::core::Option.Some {:value node})
     (:wat::core::if (:wat::fix::structural? node)
       (:user::find-call-seq (:wat::core::ast->children node) head)
-      :wat::core::Option::None)))
+      :wat::core::Option.None)))
 
 (:wat::core::defn :user::find-call-seq
   [items <- (:wat::core::Vector :- [:wat::WatAST])  head <- :wat::core::String] -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
-    :wat::core::Option::None
+    :wat::core::Option.None
     (:wat::core::let [h (:wat::core::first items) tl (:wat::core::rest items)]
       (:wat::core::match (:user::find-call h head)
-        [:wat::core::Option::Some {:value found} (:wat::core::Option::Some {:value found})]
-        [:wat::core::Option::None {} (:user::find-call-seq tl head)]))))
+        [:wat::core::Option.Some {:value found} (:wat::core::Option.Some {:value found})]
+        [:wat::core::Option.None {} (:user::find-call-seq tl head)]))))
 
 ;; ── the inserted helper's source text (only the namespace varies) ──────────────────────────────
 
@@ -207,7 +207,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [tree0  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+    [tree0  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      forms0 (:wat::core::ast->children tree0)]
     (:wat::core::if (:wat::core::not (:user::any-bare-defrule? forms0))
       src ;; idempotent no-op — every defrule name is already namespaced
@@ -216,7 +216,7 @@
          renames  (:user::rule-renames forms0 ns)
          text1    (:user::apply-renames src renames)
          lines1   (:wat::string::split text1 "\n")
-         tree1    (:wat::core::match (:wat::core::read-string text1) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+         tree1    (:wat::core::match (:wat::core::read-string text1) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
          forms1   (:wat::core::ast->children tree1)
          run-row  (:user::find-run-row forms1)
          target   (:wat::core::Option/expect (:user::find-call run-row ":wat::rete::Rule/name")
@@ -242,5 +242,5 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
+  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
     (:user::rewrite-each paths)))

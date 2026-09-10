@@ -16,17 +16,17 @@
           (:probe::seedy::State :durable record :seed seed))
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:probe::Seedy::GetResponse::Ok {:v (:probe::seedy::State/seed s)})}))])
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:probe::Seedy::GetResponse.Ok {:v (:probe::seedy::State/seed s)})}))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [h  (:probe::seedy/start :locus (:wat::spawn::process) :record (:probe::seedy::Record) :seed 99)
-     c  (:wat::core::match (:wat::kernel::connect (:probe::seedy::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     c  (:wat::core::match (:wat::kernel::connect (:probe::seedy::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
      r  (:probe::Seedy/get c (:probe::Seedy::GetRequest))]
-    (:wat::kernel::println (:wat::i64::to-string (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv 
-  [:probe::Seedy::GetResponse::Ok {:v v} v]
-  [:probe::Seedy::GetResponse::RequestTooLarge {:bytes bytes :cap cap}
+    (:wat::kernel::println (:wat::i64::to-string (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
+  [:probe::Seedy::GetResponse.Ok {:v v} v]
+  [:probe::Seedy::GetResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::Seedy::GetResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))))
+  [:probe::Seedy::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))))

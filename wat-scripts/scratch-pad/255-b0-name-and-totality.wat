@@ -13,10 +13,10 @@
   (:wat::string::concat
     (:wat::string::concat (:wat::keyword::to-string (:wat::intrinsic::Row/name r)) "|")
     (:wat::core::match (:wat::intrinsic::Row/totality r)
-      [:wat::runtime::Totality::Total {}      "Total"]
-      [:wat::runtime::Totality::Preserving {} "Preserving"]
-      [:wat::runtime::Totality::Partial {}    "Partial"]
-      [:wat::runtime::Totality::Unreviewed {} "Unreviewed"])))
+      [:wat::runtime::Totality.Total {}      "Total"]
+      [:wat::runtime::Totality.Preserving {} "Preserving"]
+      [:wat::runtime::Totality.Partial {}    "Partial"]
+      [:wat::runtime::Totality.Unreviewed {} "Unreviewed"])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [rows (:wat::core::into [] (:wat::intrinsic::rows))]

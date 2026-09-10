@@ -19,12 +19,12 @@
 ;; pattern — that cross-spelling round trip is the point).
 
 (:wat::core::defn :user::give-none [] -> (:wat::core::Option :- [:wat::core::i64])
-  :wat::core::Option::None)
+  :wat::core::Option.None)
 
 (:wat::core::defn :user::check [] -> :wat::core::i64
   (:wat::core::match (:user::give-none)
-    [:wat::core::Option::Some {:value x} x]
-    [:wat::core::Option::None {} -1]))
+    [:wat::core::Option.Some {:value x} x]
+    [:wat::core::Option.None {} -1]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:user::check)))

@@ -61,8 +61,8 @@
   ;; because that is what a service IS. The two deftests below are the proof.
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat-tests::MalBag::PutResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat-tests::MalBag::PutResponse.Ok
          {:n (:wat::string::length
            (:wat::core::nth (:wat-tests::MalBag::PutRequest/items req) 0))})}))])
 
@@ -73,31 +73,31 @@
   [c <- (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
    req <- :wat-tests::MalBag::PutRequest] -> :wat::core::String
   (:wat::core::match (:wat-tests::MalBag/put c req)
-    [:wat::kernel::RecvOutcome::Message {:msg resp}
+    [:wat::kernel::RecvOutcome.Message {:msg resp}
       (:wat::core::match resp
-        [:wat-tests::MalBag::PutResponse::Ok {:n n} "Ok"]
-        [:wat-tests::MalBag::PutResponse::RequestTooLarge {:bytes b :cap cap} "TooLarge"]
-        [:wat-tests::MalBag::PutResponse::RequestMalformed {:path path :expected expected :got got}
+        [:wat-tests::MalBag::PutResponse.Ok {:n n} "Ok"]
+        [:wat-tests::MalBag::PutResponse.RequestTooLarge {:bytes b :cap cap} "TooLarge"]
+        [:wat-tests::MalBag::PutResponse.RequestMalformed {:path path :expected expected :got got}
           (:wat::string::concat "Malformed"
             (:wat::string::concat (:wat::edn::write path)
               (:wat::string::concat "/" (:wat::string::concat expected
                 (:wat::string::concat "/" got)))))])]
-    [:wat::kernel::RecvOutcome::Lost {:cause cause} "LOST"]
+    [:wat::kernel::RecvOutcome.Lost {:cause cause} "LOST"]
     ;; arc 278 #73 — distinct from LOST (the peer died) and Closed (a clean hangup): the
     ;; substrate was asked to stop while this recv was parked; the peer was ALIVE.
-    [:wat::kernel::RecvOutcome::Stopped {} "Stopped"]
-    [:wat::kernel::RecvOutcome::Closed {} "Closed"]))
+    [:wat::kernel::RecvOutcome.Stopped {} "Stopped"]
+    [:wat::kernel::RecvOutcome.Closed {} "Closed"]))
 
 (:wat::core::defn :wat-tests::mal/dial
   [a <- (:wat::kernel::Address :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])]
   -> (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
   (:wat::core::match (:wat::kernel::connect a)
-    [:wat::kernel::ConnectOutcome::Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome::Refused {:cause c}
+    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
+    [:wat::kernel::ConnectOutcome.Refused {:cause c}
       (:wat::kernel::assertion-failed! :message "victim: connect REFUSED — the service is GONE (the DoS is back)")]
-    [:wat::kernel::ConnectOutcome::Rejected {:cause c}
+    [:wat::kernel::ConnectOutcome.Rejected {:cause c}
       (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")]
-    [:wat::kernel::ConnectOutcome::Failed {:cause c}
+    [:wat::kernel::ConnectOutcome.Failed {:cause c}
       (:wat::kernel::assertion-failed! :message "victim: connect FAILED — the service is GONE (the DoS is back)")]))
 
 ;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.

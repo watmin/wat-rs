@@ -10,20 +10,20 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::arm-session 1 2)))
-      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "arm-session UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "arm-session kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "arm-session UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "arm-session kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::release-session)))
-      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "release-session UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "release-session kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "release-session UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "release-session kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::export 1 2)))
-      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "export UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "export kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "export UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "export kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::import)))
-      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "import UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "import kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "import UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "import kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::eval-insert 1)))
-      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "eval-insert UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "eval-insert kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
+      [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "eval-insert UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "eval-insert kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])
     (:wat::core::match (:wat::eval-ast! (:wat::core::quote (:wat::rete::eval-test 1 2 3)))
-      [:wat::core::Result::Ok {:value v} (:wat::kernel::println (:wat::string::concat "eval-test UNEXPECTED ok: " (:wat::edn::write v)))]
-      [:wat::core::Result::Err {:error e} (:wat::kernel::println (:wat::string::concat "eval-test kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])))
+      [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "eval-test UNEXPECTED ok: " (:wat::edn::write v)))]
+      [:wat::core::Result.Err {:error e} (:wat::kernel::println (:wat::string::concat "eval-test kind=" (:wat::core::EvalError/kind e) " message=" (:wat::core::EvalError/message e)))])))

@@ -4,12 +4,12 @@
 
 (:wat::core::defn :rt::show [src <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:wat::core::read-string src)
-    [:wat::core::ReadOutcome::Forms {:forms forms}
+    [:wat::core::ReadOutcome.Forms {:forms forms}
       (:wat::core::let [out (:wat::core::ast->source forms)]
         (:wat::kernel::println (:wat::string::interpolate
           "{v}  in={i}   out={o}"
           :v (:wat::core::if (:wat::core::= src out) "SAME" " ***") :i src :o out)))]
-    [:wat::core::ReadOutcome::Malformed {:cause c}
+    [:wat::core::ReadOutcome.Malformed {:cause c}
       (:wat::kernel::println (:wat::string::concat "UNREADABLE  " src))]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

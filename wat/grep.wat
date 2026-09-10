@@ -204,20 +204,20 @@
   [s <- :wat::core::String]
   -> :wat::grep::NodeKind
   (:wat::core::cond
-    ((:wat::core::= s "int") (:wat::grep::NodeKind::IntLit {}))
-    ((:wat::core::= s "float") (:wat::grep::NodeKind::FloatLit {}))
-    ((:wat::core::= s "rational") (:wat::grep::NodeKind::RationalLit {}))
-    ((:wat::core::= s "bigint") (:wat::grep::NodeKind::BigIntLit {}))
-    ((:wat::core::= s "char") (:wat::grep::NodeKind::CharLit {}))
-    ((:wat::core::= s "bool") (:wat::grep::NodeKind::BoolLit {}))
-    ((:wat::core::= s "string") (:wat::grep::NodeKind::StringLit {}))
-    ((:wat::core::= s "nil") (:wat::grep::NodeKind::NilLit {}))
-    ((:wat::core::= s "keyword") (:wat::grep::NodeKind::Keyword {}))
-    ((:wat::core::= s "symbol") (:wat::grep::NodeKind::Symbol {}))
-    ((:wat::core::= s "list") (:wat::grep::NodeKind::List {}))
-    ((:wat::core::= s "vector") (:wat::grep::NodeKind::Vector {}))
-    ((:wat::core::= s "set") (:wat::grep::NodeKind::Set {}))
-    ((:wat::core::= s "map") (:wat::grep::NodeKind::Map {}))
+    ((:wat::core::= s "int") (:wat::grep::NodeKind.IntLit {}))
+    ((:wat::core::= s "float") (:wat::grep::NodeKind.FloatLit {}))
+    ((:wat::core::= s "rational") (:wat::grep::NodeKind.RationalLit {}))
+    ((:wat::core::= s "bigint") (:wat::grep::NodeKind.BigIntLit {}))
+    ((:wat::core::= s "char") (:wat::grep::NodeKind.CharLit {}))
+    ((:wat::core::= s "bool") (:wat::grep::NodeKind.BoolLit {}))
+    ((:wat::core::= s "string") (:wat::grep::NodeKind.StringLit {}))
+    ((:wat::core::= s "nil") (:wat::grep::NodeKind.NilLit {}))
+    ((:wat::core::= s "keyword") (:wat::grep::NodeKind.Keyword {}))
+    ((:wat::core::= s "symbol") (:wat::grep::NodeKind.Symbol {}))
+    ((:wat::core::= s "list") (:wat::grep::NodeKind.List {}))
+    ((:wat::core::= s "vector") (:wat::grep::NodeKind.Vector {}))
+    ((:wat::core::= s "set") (:wat::grep::NodeKind.Set {}))
+    ((:wat::core::= s "map") (:wat::grep::NodeKind.Map {}))
     (:else (:wat::kernel::assertion-failed! :message (:wat::string::concat "grep: unknown ast-kind " s)))))
 
 ;; walk — assign this node an id, emit its facts, then descend. Pre-order, so `parent` is always
@@ -307,7 +307,7 @@
   -> :wat::grep::Facts
   (:wat::core::let
     [result (:wat::core::match (:wat::core::read-string src)
-              [:wat::core::ReadOutcome::Forms {:forms forms}
+              [:wat::core::ReadOutcome.Forms {:forms forms}
                 (:wat::grep::FactsOfResult
                   :acc (:wat::grep::ChildAcc/acc
                          (:wat::core::foldl
@@ -318,7 +318,7 @@
                            (:wat::grep::ChildAcc :acc (:wat::grep::empty-acc) :idx 0)
                            (:wat::core::ast->children forms)))
                   :unreadable (:wat::core::PersistentVector :- [:wat::grep::Unreadable]))]
-              [:wat::core::ReadOutcome::Malformed {:cause __cause}
+              [:wat::core::ReadOutcome.Malformed {:cause __cause}
                 (:wat::grep::FactsOfResult
                   :acc (:wat::grep::empty-acc)
                   :unreadable
@@ -473,10 +473,10 @@
   -> :wat::core::nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
-             [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum]
-             [:wat::kernel::ReadlnOutcome::Eof {}
+             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
+             [:wat::kernel::ReadlnOutcome.Eof {}
                (:wat::kernel::assertion-failed! :message "wat::grep::run: readln: end of input")]
-             [:wat::kernel::ReadlnOutcome::Stopped {}
+             [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "wat::grep::run: readln: stop requested")])
      bad
        (:wat::rete::with-overlay rules

@@ -680,8 +680,8 @@
      init-arg-map-ast (:wat::core::first
                         (:wat::core::ast->children
                           (:wat::core::match (:wat::core::read-string init-arg-map-src)
-                            [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-                            [:wat::core::ReadOutcome::Malformed {:cause __cause}
+                            [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+                            [:wat::core::ReadOutcome.Malformed {:cause __cause}
                               (:wat::core::macro-error
                                 (:wat::string::concat
                                   "defservice: init-arg-map-ast did not parse: "
@@ -1473,7 +1473,7 @@
                                                       (:wat::string::split src
                                                         (:wat::core::Option/expect (:wat::core::get internal-op-kw-strs i) "internal-op-kw"))))
                                                   (:wat::core::ast->source body0)
-                                                  (:wat::core::range 0 (:wat::core::length internal-op-kw-strs)))) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::core::macro-error (:wat::string::concat "defservice: internal-op body did not re-parse: " (:wat::core::Error/message __cause)))])))
+                                                  (:wat::core::range 0 (:wat::core::length internal-op-kw-strs)))) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::core::macro-error (:wat::string::concat "defservice: internal-op body did not re-parse: " (:wat::core::Error/message __cause)))])))
                                           body0)
                           param-ch      (:wat::core::ast->children param-vec)
                           arity         (:wat::core::length param-ch)
@@ -1602,18 +1602,18 @@
                            (:wat::core::conj acc
                              `[~op-variant-kw {}
                                 (:wat::core::match (:wat::core::let ~let-bindings ~body) 
-                                  [:wat::service::Outcome::NoReply {:state new-state}
+                                  [:wat::service::Outcome.NoReply {:state new-state}
                                     (~serve-name self l (:wat::seq::remove-at selectables idx) next-id new-state)]
-                                  [:wat::service::Outcome::NoReplyAndArm {:state new-state :arms arms}
+                                  [:wat::service::Outcome.NoReplyAndArm {:state new-state :arms arms}
                                     (~serve-name self l
                                       (:wat::core::foldl ~arm-fn (:wat::seq::remove-at selectables idx) arms)
                                       next-id
                                       new-state)]
-                                  [:wat::service::Outcome::Reply {:state new-state :reply resp}
+                                  [:wat::service::Outcome.Reply {:state new-state :reply resp}
                                     (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::Reply, but an internal op has no client to reply to (return NoReply / NoReplyAndArm)")]
-                                  [:wat::service::Outcome::Stop {:state final-state :reply resp}
+                                  [:wat::service::Outcome.Stop {:state final-state :reply resp}
                                     (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::Stop, but an internal op has no client to reply to")]
-                                  [:wat::service::Outcome::ReplyAndArm {:state new-state :reply resp :arms arms}
+                                  [:wat::service::Outcome.ReplyAndArm {:state new-state :reply resp :arms arms}
                                     (:wat::kernel::assertion-failed! :message "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)")])])
                            ;; ── SURFACE op arm (3-param [s ctx req], ctx : Invocation) ─────────────
                            ;; #16.2 budget guard; wraps the op's reply variant; KEEPS its idx (a
@@ -1673,33 +1673,33 @@
                                                 ;; bug, not a tidy uniformity — it is precisely the
                                                 ;; identical-arms discard the stone forbids, at every service
                                                 ;; this macro will ever generate.
-                                                [:wat::service::Outcome::Reply {:state new-state :reply resp}
+                                                [:wat::service::Outcome.Reply {:state new-state :reply resp}
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
-                                                    [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id new-state)]
-                                                    [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id new-state)]   ;; client gone → keep serving
-                                                    [:wat::kernel::SendOutcome::Stopped {} nil]                                          ;; the WORLD is stopping → return, do not recurse
-                                                    [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id new-state)])]
-                                                [:wat::service::Outcome::Stop {:state final-state :reply resp}
+                                                    [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id new-state)]
+                                                    [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id new-state)]   ;; client gone → keep serving
+                                                    [:wat::kernel::SendOutcome.Stopped {} nil]                                          ;; the WORLD is stopping → return, do not recurse
+                                                    [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id new-state)])]
+                                                [:wat::service::Outcome.Stop {:state final-state :reply resp}
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
-                                                    [:wat::kernel::SendOutcome::Sent {}   nil]
-                                                    [:wat::kernel::SendOutcome::Closed {} nil]   ;; client gone → still stopping
+                                                    [:wat::kernel::SendOutcome.Sent {}   nil]
+                                                    [:wat::kernel::SendOutcome.Closed {} nil]   ;; client gone → still stopping
                                                     ;; uniform here and the precondition is the whole reason:
                                                     ;; this handler ALREADY decided to stop, so a stop arriving
                                                     ;; mid-reply changes nothing. Same body, stated cause.
-                                                    [:wat::kernel::SendOutcome::Stopped {} nil]
-                                                    [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
-                                                [:wat::service::Outcome::NoReply {:state new-state}
+                                                    [:wat::kernel::SendOutcome.Stopped {} nil]
+                                                    [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
+                                                [:wat::service::Outcome.NoReply {:state new-state}
                                                   (~serve-name self l selectables next-id new-state)]
-                                                [:wat::service::Outcome::ReplyAndArm {:state new-state :reply resp :arms arms}
+                                                [:wat::service::Outcome.ReplyAndArm {:state new-state :reply resp :arms arms}
                                                   (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-variant-kw {:resp resp}))
-                                                    [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]
-                                                    [:wat::kernel::SendOutcome::Closed {} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]   ;; client gone → keep serving
+                                                    [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]
+                                                    [:wat::kernel::SendOutcome.Closed {} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)]   ;; client gone → keep serving
                                                     ;; the world is stopping → return WITHOUT arming: arming a
                                                     ;; new selectable on the way down would register work the
                                                     ;; loop is about to abandon.
-                                                    [:wat::kernel::SendOutcome::Stopped {} nil]
-                                                    [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)])]
-                                                [:wat::service::Outcome::NoReplyAndArm {:state new-state :arms arms}
+                                                    [:wat::kernel::SendOutcome.Stopped {} nil]
+                                                    [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)])]
+                                                [:wat::service::Outcome.NoReplyAndArm {:state new-state :arms arms}
                                                   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) next-id new-state)])
                               ;; ── arc 278 — the REQUEST-MALFORMED sanitization wall (UNCONDITIONAL) ──
                               ;; The SIZE guard's sibling, in the SAME slot and for the same reason.
@@ -1767,11 +1767,11 @@
                               mexp-sym      (:wat::core::symbol-node "mexpected")
                               mgot-sym      (:wat::core::symbol-node "mgot")
                               shape-guarded `(:wat::core::match (:wat::edn::validate ~req-binder ~req-ty-kw)
-                                               [:wat::edn::Validation::Valid {} ~outcome-match]
+                                               [:wat::edn::Validation.Valid {} ~outcome-match]
                                                ;; arc 278 the send'-outcome wall — refuse, then RECURSE
                                                ;; INTO SERVE with state UNCHANGED (the handler never ran).
                                                ;; A gone client is not fatal either; every arm keeps serving.
-                                               [:wat::edn::Validation::Invalid {:path ~mpath-sym :expected ~mexp-sym :got ~mgot-sym}
+                                               [:wat::edn::Validation.Invalid {:path ~mpath-sym :expected ~mexp-sym :got ~mgot-sym}
                                                  ;; arc 278 #74 — the TWIN of the RTL strike below:
                                                  ;; `RequestMalformed` is the SAME contract
                                                  ;; (`types.rs`, `RTL_VARIANT`/`RM_VARIANT` named
@@ -1779,10 +1779,10 @@
                                                  ;; guaranteed-correct literal ctor.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
                                                      (~reply-variant-kw {:resp (~rm-ctor-kw {:path ~mpath-sym :expected ~mexp-sym :got ~mgot-sym})}))
-                                                   [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
-                                                   [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
-                                                   [:wat::kernel::SendOutcome::Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
-                                                   [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id state)])])
+                                                   [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
+                                                   [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                                                   [:wat::kernel::SendOutcome.Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
+                                                   [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])])
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::string::length (:wat::edn::write ~req-binder))]
                                                (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
@@ -1790,10 +1790,10 @@
                                                  ;; not fatal either; every arm keeps serving the rest.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
                                                      (~reply-variant-kw {:resp (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})}))
-                                                   [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
-                                                   [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
-                                                   [:wat::kernel::SendOutcome::Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
-                                                   [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id state)])
+                                                   [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
+                                                   [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                                                   [:wat::kernel::SendOutcome.Stopped {} nil]                                    ;; arc 278 #73 — the WORLD is stopping → return
+                                                   [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])
                                                  ~shape-guarded))]
                              (:wat::core::conj acc
                                `[~op-variant-kw {:req ~req-binder} ~guarded-arm])))))
@@ -1832,29 +1832,29 @@
      ;; either vector (the projection preserves order 1:1), so every other `idx` use below
      ;; (nth/remove-at against the CANONICAL `selectables`) is unaffected.
      serve-body   `(:wat::core::match (:wat::kernel::poll self l ~peers-only-expr)
-                     [:wat::spawn::ServiceEvent::Shutdown {} nil]
-                     [:wat::spawn::ServiceEvent::Connection {:peer peer}
+                     [:wat::spawn::ServiceEvent.Shutdown {} nil]
+                     [:wat::spawn::ServiceEvent.Connection {:peer peer}
                        ;; mint THIS connection's id = the current next-id (pre-increment);
                        ;; pair it with the peer so it travels together from birth (STOP-2);
                        ;; the recursive call's OWN next-id is next-id+1, for the NEXT connect.
                        (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::i64::+ next-id 1) state)]
-                     [:wat::spawn::ServiceEvent::Admin {:msg admin-msg}
+                     [:wat::spawn::ServiceEvent.Admin {:msg admin-msg}
                        (:wat::core::match admin-msg 
                          ;; arc 278 the send'-outcome wall — the owner's `recv'` (the `/stop`
                          ;; method's own recv') faces a gone-owner outcome on its side; this
                          ;; send' terminates the loop regardless (all arms → nil).
                          [~admin-stop-kw {}
                            (:wat::core::match (:wat::kernel::send self (~status-stopped-kw {:resp (~stop-project-name state)}))
-                             [:wat::kernel::SendOutcome::Sent {}   nil]
-                             [:wat::kernel::SendOutcome::Closed {} nil]   ;; owner's recv' already faces this
-                             [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
-                             [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+                             [:wat::kernel::SendOutcome.Sent {}   nil]
+                             [:wat::kernel::SendOutcome.Closed {} nil]   ;; owner's recv' already faces this
+                             [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
+                             [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
                          [~admin-hibernate-kw {}
                            (:wat::core::match (:wat::kernel::send self (~status-hibernated-kw {:snapshot (~hibernate-project-name state)}))
-                             [:wat::kernel::SendOutcome::Sent {}   nil]
-                             [:wat::kernel::SendOutcome::Closed {} nil]   ;; owner's recv' already faces this
-                             [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
-                             [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+                             [:wat::kernel::SendOutcome.Sent {}   nil]
+                             [:wat::kernel::SendOutcome.Closed {} nil]   ;; owner's recv' already faces this
+                             [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
+                             [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
                          ;; arc 278: AllowPeer[pids] — fold (allow' l pid) over the vec on the
                          ;; serve loop's OWN listener l (process-tier gate), ack PeersAllowed up
                          ;; the lineage peer (request/reply — owner blocks so grant-before-dial
@@ -1871,10 +1871,10 @@
                              ;; faces a gone-owner outcome on its side; the serve loop always
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-allowed-kw)
-                               [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
-                               [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
-                               [:wat::kernel::SendOutcome::Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
-                               [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id state)]))]
+                               [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
+                               [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
+                               [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
+                               [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)]))]
                          ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
                          ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
                          ;; the lineage peer (request/reply — owner blocks so revoke-before-return
@@ -1891,10 +1891,10 @@
                              ;; faces a gone-owner outcome on its side; the serve loop always
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-denied-kw)
-                               [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
-                               [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
-                               [:wat::kernel::SendOutcome::Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
-                               [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id state)]))]
+                               [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
+                               [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; owner's recv' already faces this
+                               [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
+                               [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)]))]
                          [~admin-init-kw ~init-arg-map-ast
                            (:wat::kernel::assertion-failed! :message "defservice serve: Admin::Init after startup (protocol error)")]
                          [~admin-resume-kw ~init-arg-map-ast
@@ -1907,7 +1907,7 @@
                      ;; handler panic it best-effort broadcasts PeerCrashed to `clients`, then
                      ;; resumes the SAME panic unchanged — the service still crashes exactly as
                      ;; before; this arm's own Reply/Stop behavior (the match body) is untouched.
-                     [:wat::spawn::ServiceEvent::Message {:idx idx :msg op}
+                     [:wat::spawn::ServiceEvent.Message {:idx idx :msg op}
                        (:wat::kernel::serve-dispatch-op ~peers-only-expr
                          ;; Arc 278 the parametric protocol — TYPE-position spellings on both
                          ;; sides: `infer_retag_op` reads arg[2] as this form's RESULT TYPE, and
@@ -1916,7 +1916,7 @@
                          ;; erased in a runtime `type_path`). Monomorphic ⇒ unchanged.
                          (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-ann ~service-op-decl-kw-runtime)
                            ~@serve-op-arms))]
-                     [:wat::spawn::ServiceEvent::Closed {:idx idx}
+                     [:wat::spawn::ServiceEvent.Closed {:idx idx}
                        (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state)]
                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
                      ;; evict it. But its `cause` must NOT vanish (the old `_cause` silently
@@ -1926,7 +1926,7 @@
                      ;; the honest loud sink (stderr) BEFORE evicting + continuing to serve. The
                      ;; RICHER client-facing recv'-EOF crash-reason surfacing is a separate
                      ;; follow-on strike; this arm's contract here is simply: do not DROP it.
-                     [:wat::spawn::ServiceEvent::Lost {:idx idx :cause cause}
+                     [:wat::spawn::ServiceEvent.Lost {:idx idx :cause cause}
                        (:wat::core::do
                          (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))
                          (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))]
@@ -1936,14 +1936,14 @@
                      ;; the reason — the caller is never left blind), and KEEP THE CLIENT + keep
                      ;; serving (recur; do NOT remove-at — one client's garbage must never kill a
                      ;; shared service, the DoS this arc pulls out by the root).
-                     [:wat::spawn::ServiceEvent::Malformed {:idx idx :cause cause}
+                     [:wat::spawn::ServiceEvent.Malformed {:idx idx :cause cause}
                        ;; arc 278 the send'-outcome wall — a gone client here is not fatal
                        ;; either (same "reply to a gone client" doctrine); keep serving.
                        (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw {:cause cause}))
-                         [:wat::kernel::SendOutcome::Sent {}   (~serve-name self l selectables next-id state)]
-                         [:wat::kernel::SendOutcome::Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
-                         [:wat::kernel::SendOutcome::Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
-                         [:wat::kernel::SendOutcome::Lost {:cause _c} (~serve-name self l selectables next-id state)])]
+                         [:wat::kernel::SendOutcome.Sent {}   (~serve-name self l selectables next-id state)]
+                         [:wat::kernel::SendOutcome.Closed {} (~serve-name self l selectables next-id state)]   ;; client gone → keep serving
+                         [:wat::kernel::SendOutcome.Stopped {} nil]                                     ;; arc 278 #73 — the WORLD is stopping → return
+                         [:wat::kernel::SendOutcome.Lost {:cause _c} (~serve-name self l selectables next-id state)])]
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
                      ;; client (reply `Reply::Failed[cause]` — its generated method raises with the
@@ -1956,13 +1956,13 @@
                      ;; wedge the serve loop — try-send' skips a non-draining client and we still
                      ;; evict (it learns via EPIPE on its own send). NO eprintln (that is wat's
                      ;; panic — a client-triggerable crash / DoS).
-                     [:wat::spawn::ServiceEvent::Rejected {:idx idx :cause cause}
+                     [:wat::spawn::ServiceEvent.Rejected {:idx idx :cause cause}
                        (:wat::core::do
                          (:wat::core::match (:wat::kernel::try-send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw {:cause cause}))
-                           [:wat::kernel::TrySendOutcome::Sent {}       nil]
-                           [:wat::kernel::TrySendOutcome::WouldBlock {} nil]   ;; client not draining — evict anyway (it learns via EPIPE)
-                           [:wat::kernel::TrySendOutcome::Closed {}     nil]
-                           [:wat::kernel::TrySendOutcome::Lost {:cause _c}  nil])
+                           [:wat::kernel::TrySendOutcome.Sent {}       nil]
+                           [:wat::kernel::TrySendOutcome.WouldBlock {} nil]   ;; client not draining — evict anyway (it learns via EPIPE)
+                           [:wat::kernel::TrySendOutcome.Closed {}     nil]
+                           [:wat::kernel::TrySendOutcome.Lost {:cause _c}  nil])
                          (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))])
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
@@ -2079,20 +2079,20 @@
                           ;; to measure against — STOP-3) reaches this form, and ONLY this form.
                           send-recv-form  `(:wat::core::let
                                              [~discard-sym (:wat::core::match (:wat::kernel::send c (~op-variant-kw {:req req}))
-                                                             [:wat::kernel::SendOutcome::Sent {}   nil]
-                                                             [:wat::kernel::SendOutcome::Closed {} nil]
+                                                             [:wat::kernel::SendOutcome.Sent {}   nil]
+                                                             [:wat::kernel::SendOutcome.Closed {} nil]
                                                              ;; arc 278 #73 — uniform, and the precondition is
                                                              ;; the recv' on the very next line: a stop that
                                                              ;; interrupted this write is still in force when
                                                              ;; the read parks, so the read returns Stopped and
                                                              ;; the caller is told once, by the arm below.
                                                              ;; Deciding here would decide it twice.
-                                                             [:wat::kernel::SendOutcome::Stopped {} nil]
-                                                             [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                                                             [:wat::kernel::SendOutcome.Stopped {} nil]
+                                                             [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
                                               ~r-sym (:wat::kernel::recv c)]
                                              (:wat::core::match ~r-sym
-                                               [:wat::kernel::RecvOutcome::Message {:msg recvd}
-                                                 (:wat::kernel::RecvOutcome::Message
+                                               [:wat::kernel::RecvOutcome.Message {:msg recvd}
+                                                 (:wat::kernel::RecvOutcome.Message
                                                    {:msg (:wat::core::match recvd
                                                      [~reply-variant-kw {:resp resp} resp]
                                                      [_ (:wat::kernel::assertion-failed! :message "defservice method: misrouted reply variant (protocol violation)")])})]
@@ -2101,8 +2101,8 @@
                                                ;; (no-hidden-failures: never mask it with a generic
                                                ;; message-only Failure). RecvOutcome::Lost now carries
                                                ;; a :wat::kernel::LociDiedError, which `cause` already is.
-                                               [:wat::kernel::RecvOutcome::Lost {:cause cause}
-                                                 (:wat::kernel::RecvOutcome::Lost {:cause cause})]
+                                               [:wat::kernel::RecvOutcome.Lost {:cause cause}
+                                                 (:wat::kernel::RecvOutcome.Lost {:cause cause})]
                                                ;; ★ arc 278 #73 — THE CLIENT-FACING PAYOFF. This generated
                                                ;; method is what every caller of every service actually
                                                ;; holds, and until today a stop reached them through the
@@ -2110,10 +2110,10 @@
                                                ;; caller matched "the service died" over a service that was
                                                ;; alive and merely being asked to stop. Forwarded faithfully
                                                ;; now, as itself.
-                                               [:wat::kernel::RecvOutcome::Stopped {}
-                                                 :wat::kernel::RecvOutcome::Stopped]
-                                               [:wat::kernel::RecvOutcome::Closed {}
-                                                 :wat::kernel::RecvOutcome::Closed]))
+                                               [:wat::kernel::RecvOutcome.Stopped {}
+                                                 :wat::kernel::RecvOutcome.Stopped]
+                                               [:wat::kernel::RecvOutcome.Closed {}
+                                                 :wat::kernel::RecvOutcome.Closed]))
                           ;; DESIGN-STONE-the-client-validates-locally.md — THE STRIKE. Validation
                           ;; and dispatch are ONE operation (botocore validates before the HTTP call
                           ;; is ever made): over budget → the SAME RequestTooLarge{bytes,cap} a
@@ -2130,7 +2130,7 @@
                           method-body     `(:wat::core::if (:wat::kernel::peer-wire? c)
                                              (:wat::core::let [~n-sym (:wat::string::length (:wat::edn::write req))]
                                                (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
-                                                 (:wat::kernel::RecvOutcome::Message {:msg (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})})
+                                                 (:wat::kernel::RecvOutcome.Message {:msg (~rtl-ctor-kw {:bytes ~n-sym :cap ~cap-const-kw})})
                                                  ~send-recv-form))
                                              ~send-recv-form)]
                          (:wat::core::if is-internal
@@ -2161,24 +2161,24 @@
                           ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                           ;; below faces Lost/Closed; the send' just proceeds regardless.
                           [~stop-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-stop-kw)
-                                               [:wat::kernel::SendOutcome::Sent {}   nil]
-                                               [:wat::kernel::SendOutcome::Closed {} nil]
-                                               [:wat::kernel::SendOutcome::Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                               [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                                               [:wat::kernel::SendOutcome.Sent {}   nil]
+                                               [:wat::kernel::SendOutcome.Closed {} nil]
+                                               [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
+                                               [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
                            ~stop-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                           (:wat::core::match ~stop-r-sym 
-                            [:wat::kernel::RecvOutcome::Message {:msg recvd}
+                            [:wat::kernel::RecvOutcome.Message {:msg recvd}
                               (:wat::core::match recvd 
                                 [~status-stopped-kw {:resp resp} resp]
                                 [_ (:wat::kernel::assertion-failed! :message "defservice stop: expected Status::Stopped")])]
                             ;; arc 278 the recv'-outcome wall — OWNER role: eprintln the cause
                             ;; (loud, terminal; the owner is the real final caller who does not
                             ;; recover — R51 eprintln IS the dying declaration), then terminate.
-                            [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                            [:wat::kernel::RecvOutcome.Lost {:cause cause}
                               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                            [:wat::kernel::RecvOutcome::Stopped {}
+                            [:wat::kernel::RecvOutcome.Stopped {}
                               (:wat::kernel::assertion-failed! :message "defservice stop: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
-                            [:wat::kernel::RecvOutcome::Closed {}
+                            [:wat::kernel::RecvOutcome.Closed {}
                               (:wat::kernel::assertion-failed! :message "defservice stop: service peer closed during stop")]))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
@@ -2198,21 +2198,21 @@
                                ;; arc 278 the send'-outcome wall — a send-then-recv': the recv'
                                ;; right below faces Lost/Closed; the send' just proceeds regardless.
                                [~hib-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-hibernate-kw)
-                                                   [:wat::kernel::SendOutcome::Sent {}   nil]
-                                                   [:wat::kernel::SendOutcome::Closed {} nil]
-                                                   [:wat::kernel::SendOutcome::Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                                   [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                                                   [:wat::kernel::SendOutcome.Sent {}   nil]
+                                                   [:wat::kernel::SendOutcome.Closed {} nil]
+                                                   [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
+                                                   [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
                                 ~hib-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                                (:wat::core::match ~hib-r-sym 
-                                 [:wat::kernel::RecvOutcome::Message {:msg recvd}
+                                 [:wat::kernel::RecvOutcome.Message {:msg recvd}
                                    (:wat::core::match recvd 
                                      [~status-hibernated-kw {:snapshot snapshot} snapshot]
                                      [_ (:wat::kernel::assertion-failed! :message "defservice hibernate: expected Status::Hibernated")])]
-                                 [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
                                    (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                                 [:wat::kernel::RecvOutcome::Stopped {}
+                                 [:wat::kernel::RecvOutcome.Stopped {}
                                    (:wat::kernel::assertion-failed! :message "defservice hibernate: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
-                                 [:wat::kernel::RecvOutcome::Closed {}
+                                 [:wat::kernel::RecvOutcome.Closed {}
                                    (:wat::kernel::assertion-failed! :message "defservice hibernate: service peer closed during hibernate")]))
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
@@ -2238,28 +2238,28 @@
      ;; `peer-process` on the lineage handle (same un-erase stop/signal use).
      ;; Thread is shared memory: the handle IS the grant — no Admin::AllowPeer.
      grant-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
-                          [:wat::core::Option::Some {:value _}
+                          [:wat::core::Option.Some {:value _}
                             (:wat::core::let
                           ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                           ;; below faces Lost/Closed; the send' just proceeds regardless.
                           [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw {:pids pids}))
-                                                [:wat::kernel::SendOutcome::Sent {}   nil]
-                                                [:wat::kernel::SendOutcome::Closed {} nil]
-                                                [:wat::kernel::SendOutcome::Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                                [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                                                [:wat::kernel::SendOutcome.Sent {}   nil]
+                                                [:wat::kernel::SendOutcome.Closed {} nil]
+                                                [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
+                                                [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
                            ~grant-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                           (:wat::core::match ~grant-r-sym 
-                            [:wat::kernel::RecvOutcome::Message {:msg recvd}
+                            [:wat::kernel::RecvOutcome.Message {:msg recvd}
                               (:wat::core::match recvd 
                                 [~status-peers-allowed-kw {} nil]
                                 [_ (:wat::kernel::assertion-failed! :message "defservice grant: expected Status::PeersAllowed")])]
-                            [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                            [:wat::kernel::RecvOutcome.Lost {:cause cause}
                               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                            [:wat::kernel::RecvOutcome::Stopped {}
+                            [:wat::kernel::RecvOutcome.Stopped {}
                               (:wat::kernel::assertion-failed! :message "defservice grant: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
-                            [:wat::kernel::RecvOutcome::Closed {}
+                            [:wat::kernel::RecvOutcome.Closed {}
                               (:wat::kernel::assertion-failed! :message "defservice grant: service peer closed during grant")]))]
-                          [:wat::core::Option::None {} nil])
+                          [:wat::core::Option.None {} nil])
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
      methods           (:wat::core::conj methods grant-method)
@@ -2281,28 +2281,28 @@
      ;; Twin of grant: process-only via `peer-process`. Shared-memory lineage
      ;; has no pid set to revoke.
      revoke-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
-                           [:wat::core::Option::Some {:value _}
+                           [:wat::core::Option.Some {:value _}
                              (:wat::core::let
                            ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
                            ;; below faces Lost/Closed; the send' just proceeds regardless.
                            [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw {:pids pids}))
-                                                  [:wat::kernel::SendOutcome::Sent {}   nil]
-                                                  [:wat::kernel::SendOutcome::Closed {} nil]
-                                                  [:wat::kernel::SendOutcome::Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
-                                                  [:wat::kernel::SendOutcome::Lost {:cause _c} nil])
+                                                  [:wat::kernel::SendOutcome.Sent {}   nil]
+                                                  [:wat::kernel::SendOutcome.Closed {} nil]
+                                                  [:wat::kernel::SendOutcome.Stopped {} nil]   ;; arc 278 #73 — the recv' below faces it
+                                                  [:wat::kernel::SendOutcome.Lost {:cause _c} nil])
                             ~revoke-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
                            (:wat::core::match ~revoke-r-sym 
-                             [:wat::kernel::RecvOutcome::Message {:msg recvd}
+                             [:wat::kernel::RecvOutcome.Message {:msg recvd}
                                (:wat::core::match recvd 
                                  [~status-peers-denied-kw {} nil]
                                  [_ (:wat::kernel::assertion-failed! :message "defservice revoke: expected Status::PeersDenied")])]
-                             [:wat::kernel::RecvOutcome::Lost {:cause cause}
+                             [:wat::kernel::RecvOutcome.Lost {:cause cause}
                                (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                             [:wat::kernel::RecvOutcome::Stopped {}
+                             [:wat::kernel::RecvOutcome.Stopped {}
                                (:wat::kernel::assertion-failed! :message "defservice revoke: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)")]
-                             [:wat::kernel::RecvOutcome::Closed {}
+                             [:wat::kernel::RecvOutcome.Closed {}
                                (:wat::kernel::assertion-failed! :message "defservice revoke: service peer closed during revoke")]))]
-                           [:wat::core::Option::None {} nil])
+                           [:wat::core::Option.None {} nil])
      revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
      methods           (:wat::core::conj methods revoke-method)
@@ -2408,19 +2408,19 @@
                                             ~proto-op-ty-ann ~proto-reply-ty-ann ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty-runtime ~admin-ty-runtime)
                            ~cm-ship-sym (:wat::core::match (:wat::kernel::recv ~cm-self-sym) 
-                                            [:wat::kernel::RecvOutcome::Message {:msg ~cm-shipmsg-sym} ~cm-shipmsg-sym]
+                                            [:wat::kernel::RecvOutcome.Message {:msg ~cm-shipmsg-sym} ~cm-shipmsg-sym]
                                             ;; arc 278 the recv'-outcome wall — the child lost/closed its
                                             ;; owner link before the startup ship arrived: eprintln is the
                                             ;; terminal dying declaration (loud, exits non-zero).
-                                            [:wat::kernel::RecvOutcome::Lost {:cause ~cm-shipcause-sym}
+                                            [:wat::kernel::RecvOutcome.Lost {:cause ~cm-shipcause-sym}
                                               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message ~cm-shipcause-sym))]
                                             ;; arc 278 #73 — the owner link did not close; a stop
                                             ;; arrived before the startup ship. Distinct fact, so a
                                             ;; distinct line: reporting "closed" here sent every
                                             ;; reader of this log after a link that was fine.
-                                            [:wat::kernel::RecvOutcome::Stopped {}
+                                            [:wat::kernel::RecvOutcome.Stopped {}
                                               (:wat::kernel::eprintln "defservice child-main: stop requested before the startup ship — owner link was ALIVE")]
-                                            [:wat::kernel::RecvOutcome::Closed {}
+                                            [:wat::kernel::RecvOutcome.Closed {}
                                               (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")])
                            ~cm-st-sym   (:wat::core::apply
                                             (:wat::keyword::from-string ~dispatch-admin-name-str)
@@ -2430,14 +2430,14 @@
                            ;; send' proceeds into serve regardless (faced, not `_`-swallowed).
                            ~cm-und-sym  (:wat::core::match (:wat::kernel::send ~cm-self-sym
                                             (~status-started-kw {:addr (:wat::spawn::Bound/address ~cm-b-sym)}))
-                                          [:wat::kernel::SendOutcome::Sent {}   nil]
-                                          [:wat::kernel::SendOutcome::Closed {} nil]
+                                          [:wat::kernel::SendOutcome.Sent {}   nil]
+                                          [:wat::kernel::SendOutcome.Closed {} nil]
                                           ;; arc 278 #73 — a stop arrived as the child announced
                                           ;; readiness. Same body, and the precondition is that the
                                           ;; child proceeds into `serve`, whose poll' faces the stop
                                           ;; as its own event; the owner's recv' faces it too.
-                                          [:wat::kernel::SendOutcome::Stopped {} nil]
-                                          [:wat::kernel::SendOutcome::Lost {:cause _c} nil])]
+                                          [:wat::kernel::SendOutcome.Stopped {} nil]
+                                          [:wat::kernel::SendOutcome.Lost {:cause _c} nil])]
                           ;; arc 278 the call context — the process-tier child's OWN initial
                           ;; `serve` call: the empty selectables vector is now Tuple-entry typed,
                           ;; and next-id starts at 0 (the first connection mints id 0).

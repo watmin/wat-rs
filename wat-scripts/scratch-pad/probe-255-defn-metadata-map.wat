@@ -24,11 +24,11 @@
   {:doc "Upcase the first character of a segment, keeping the rest unchanged."
    :added "1.0.0"
    :ret [:wat::core::String "the segment with its first character upcased"]
-   :purity :wat::runtime::Purity::Pure
-   :determinism :wat::runtime::Determinism::Deterministic
-   :totality :wat::runtime::Totality::Total
-   :expand-time :wat::runtime::ExpandTime::Legal
-   :category :wat::runtime::Category::Transform
+   :purity :wat::runtime::Purity.Pure
+   :determinism :wat::runtime::Determinism.Deterministic
+   :totality :wat::runtime::Totality.Total
+   :expand-time :wat::runtime::ExpandTime.Legal
+   :category :wat::runtime::Category.Transform
    :args [[w :wat::core::String "the segment to capitalize"]]
    :examples [["(:probe::capitalize-like \"object\")" "\"Object\""]]}
   [w <- :wat::core::String]

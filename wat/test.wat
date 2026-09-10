@@ -61,7 +61,7 @@
 (:wat::core::defn :wat::test::assert-eq :- [T] [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Option::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option::Some {:value (:wat::core::show expected)}))))
+      (:wat::kernel::assertion-failed! :message "assert-eq failed" :actual (:wat::core::Option.Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option.Some {:value (:wat::core::show expected)}))))
 
 ;; ─── assert-true / assert-false ───────────────────────────────────────
 ;;
@@ -73,11 +73,11 @@
 (:wat::core::defn :wat::test::assert-true [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Option::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option::Some {:value "true"}))))
+      (:wat::kernel::assertion-failed! :message "assert-true failed" :actual (:wat::core::Option.Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option.Some {:value "true"}))))
 
 (:wat::core::defn :wat::test::assert-false [actual <- :wat::core::bool] -> :wat::core::nil
   (:wat::core::if actual 
-      (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Option::Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option::Some {:value "false"}))
+      (:wat::kernel::assertion-failed! :message "assert-false failed" :actual (:wat::core::Option.Some {:value (:wat::core::show actual)}) :expected (:wat::core::Option.Some {:value "false"}))
       nil))
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
@@ -88,7 +88,7 @@
 (:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::string::contains? haystack needle) 
       nil
-      (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Option::Some {:value haystack}) :expected (:wat::core::Option::Some {:value needle}))))
+      (:wat::kernel::assertion-failed! :message "assert-contains failed" :actual (:wat::core::Option.Some {:value haystack}) :expected (:wat::core::Option.Some {:value needle}))))
 
 ;; ─── assert-coincident ────────────────────────────────────────────────
 ;;
@@ -120,7 +120,7 @@
         (:wat::holon::CoincidentExplanation/coincident expl)]
       (:wat::core::if ok 
         nil
-        (:wat::kernel::assertion-failed! :message "assert-coincident failed — holons not at the same point" :actual (:wat::core::Option::Some {:value (:wat::test::render-coincident-explanation expl)})))))
+        (:wat::kernel::assertion-failed! :message "assert-coincident failed — holons not at the same point" :actual (:wat::core::Option.Some {:value (:wat::test::render-coincident-explanation expl)})))))
 
 ;; Helper — turn a CoincidentExplanation into a multi-line, named-
 ;; field string for assertion failure displays. Each field on its own
@@ -312,19 +312,19 @@
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::thread) prog)]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
-        :wat::kernel::RunResult::Passed]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::RunResult::Failed {:failure (:wat::kernel::LociDiedError/to-failure cause)})]
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
+        :wat::kernel::RunResult.Passed]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
+        (:wat::kernel::RunResult.Failed {:failure (:wat::kernel::LociDiedError/to-failure cause)})]
       ;; arc 278 #73 — a stop reached the harness while it awaited the child's
       ;; completion signal. The test did NOT pass and the child did NOT close: it
       ;; was cut short. Failing with the true reason keeps the harness honest — the
       ;; R55 lesson is that the VERIFIER is the last place a mask may live.
-      [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::RunResult::Failed
+      [:wat::kernel::RecvOutcome.Stopped {}
+        (:wat::kernel::RunResult.Failed
           {:failure (:wat::kernel::message-only-failure "run-thread': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")})]
-      [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::RunResult::Failed
+      [:wat::kernel::RecvOutcome.Closed {}
+        (:wat::kernel::RunResult.Failed
           {:failure (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion")})])))
 
 ;; ── The peer-returning holders ──────────────────────────────────────────────
@@ -379,10 +379,10 @@
        ;; child's completion-signal send' just needs to proceed regardless.
        (:wat::core::do ~body
          (:wat::core::match (:wat::kernel::send self 0)
-           [:wat::kernel::SendOutcome::Sent {}   nil]
-           [:wat::kernel::SendOutcome::Closed {} nil]   ;; parent's recv' already faces a gone self-peer
-           [:wat::kernel::SendOutcome::Stopped {} nil]  ;; arc 278 #73 — same: the holder's recv' faces the stop
-           [:wat::kernel::SendOutcome::Lost {:cause _c} nil])))))
+           [:wat::kernel::SendOutcome.Sent {}   nil]
+           [:wat::kernel::SendOutcome.Closed {} nil]   ;; parent's recv' already faces a gone self-peer
+           [:wat::kernel::SendOutcome.Stopped {} nil]  ;; arc 278 #73 — same: the holder's recv' faces the stop
+           [:wat::kernel::SendOutcome.Lost {:cause _c} nil])))))
 
 (:wat::core::defmacro :wat::test::deftest
   [name <- :wat::WatAST
@@ -421,20 +421,20 @@
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::process) prog)]
     (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome::Message {:msg _m}
-        :wat::kernel::RunResult::Passed]
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
-        (:wat::kernel::RunResult::Failed {:failure (:wat::kernel::LociDiedError/to-failure cause)})]
+      [:wat::kernel::RecvOutcome.Message {:msg _m}
+        :wat::kernel::RunResult.Passed]
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
+        (:wat::kernel::RunResult.Failed {:failure (:wat::kernel::LociDiedError/to-failure cause)})]
       ;; arc 278 #73 — the process-tier twin of the thread harness above. Note this
       ;; arm was UNREACHABLE on this tier until today: `classify_peer_error`'s
       ;; wildcard folded the stop into Closed, so a hermetic test cut short by a
       ;; stop was reported as a child that closed early — blaming the specimen for
       ;; the harness's own interruption.
-      [:wat::kernel::RecvOutcome::Stopped {}
-        (:wat::kernel::RunResult::Failed
+      [:wat::kernel::RecvOutcome.Stopped {}
+        (:wat::kernel::RunResult.Failed
           {:failure (:wat::kernel::message-only-failure "run-hermetic': stop requested before the test child signaled completion — child was ALIVE, the run was cut short")})]
-      [:wat::kernel::RecvOutcome::Closed {}
-        (:wat::kernel::RunResult::Failed
+      [:wat::kernel::RecvOutcome.Closed {}
+        (:wat::kernel::RunResult.Failed
           {:failure (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")})])))
 
 (:wat::core::defmacro :wat::test::run-hermetic

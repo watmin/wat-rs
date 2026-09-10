@@ -51,5 +51,5 @@
 
     (:wat::kernel::println "── metadata-of still decodes (from_metadata parsed the WHOLE map, :examples included) ──")
     (:wat::core::match (:wat::runtime::metadata-of :wat::string::capitalize)
-      [:wat::core::Option::Some {:value hm} (:wat::kernel::pprintln hm)]
-      [:wat::core::Option::None {} (:wat::kernel::println "capitalize metadata-of => NONE (unexpected)")])))
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::pprintln hm)]
+      [:wat::core::Option.None {} (:wat::kernel::println "capitalize metadata-of => NONE (unexpected)")])))

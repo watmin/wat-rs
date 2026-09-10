@@ -43,7 +43,7 @@
 (:wat::rete::defrule :cr::c-partial
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind::Keyword {})))
+         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where
            (:wat::rete::core::or

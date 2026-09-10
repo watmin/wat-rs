@@ -34,8 +34,8 @@
           (:wat-tests::offset-counter::State :durable record :base offset))
   :impls
   [(total [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat-tests::OffsetCounter::TotalResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat-tests::OffsetCounter::TotalResponse.Ok
          {:value (:wat::i64::+
            (:wat-tests::offset-counter::Record/count (:wat-tests::offset-counter::State/durable s))
            (:wat-tests::offset-counter::State/base s))})}))])
@@ -50,15 +50,15 @@
     (:wat::core::let
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::thread)
            :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::offset-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::offset-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::OffsetCounter::TotalResponse::Ok {:value value} value]
+      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
+        [:wat-tests::OffsetCounter::TotalResponse.Ok {:value value} value]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::OffsetCounter::TotalResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat-tests::OffsetCounter::TotalResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "offset-counter-total: unexpected RequestTooLarge")]
-        [:wat-tests::OffsetCounter::TotalResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [:wat-tests::OffsetCounter::TotalResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
     105))
 
 ;; process tier: identical except the locus — the live offset crosses the wire as EDN in Admin::Init.
@@ -68,13 +68,13 @@
     (:wat::core::let
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::process)
            :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::offset-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       c (:wat::core::match (:wat::kernel::connect (:wat-tests::offset-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::OffsetCounter::TotalResponse::Ok {:value value} value]
+      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
+        [:wat-tests::OffsetCounter::TotalResponse.Ok {:value value} value]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::OffsetCounter::TotalResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat-tests::OffsetCounter::TotalResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "offset-counter-total: unexpected RequestTooLarge")]
-        [:wat-tests::OffsetCounter::TotalResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [:wat-tests::OffsetCounter::TotalResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
     105))

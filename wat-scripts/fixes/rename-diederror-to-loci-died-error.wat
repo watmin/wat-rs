@@ -122,7 +122,7 @@
     [src1  (:wat::fix::rename-keyword-prefix ":wat::kernel::ThreadDiedError" ":wat::kernel::LociDiedError" src)
      src2  (:wat::fix::rename-keyword-prefix ":wat::kernel::ProcessDiedError" ":wat::kernel::LociDiedError" src1)
      lines (:wat::string::split src2 "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src2) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
+     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src2) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
      eds   (:user::seq-edits forms "" lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src2 rev)))
@@ -138,4 +138,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome::Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome::Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))

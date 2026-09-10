@@ -3097,7 +3097,7 @@ fn coerce_enum_path(
                 }
                 other => Err(EdnCoerceError {
                     // rune:lint(one-variant-separator, display) — human-facing mismatch message naming the enum/variant
-                    expected: format!("{}::{} (unit → `{{}}`)", type_path, variant_name),
+                    expected: format!("{}.{} (unit → `{{}}`)", type_path, variant_name),
                     got: format!("Tagged-body {}", edn_shape_name(other)),
                     path: String::new(),
                 }),
@@ -3109,7 +3109,7 @@ fn coerce_enum_path(
                 other => {
                     return Err(EdnCoerceError {
                         // rune:lint(one-variant-separator, display) — human-facing mismatch message naming the enum/variant
-                        expected: format!("{}::{} (tagged map)", type_path, variant_name),
+                        expected: format!("{}.{} (tagged map)", type_path, variant_name),
                         got: format!("Tagged-body {}", edn_shape_name(other)),
                         path: String::new(),
                     });
@@ -3119,7 +3119,7 @@ fn coerce_enum_path(
             for (fname, fty) in fields {
                 let item = map_keyword_field(entries, fname).ok_or_else(|| EdnCoerceError {
                     // rune:lint(one-variant-separator, display) — human-facing missing-field message naming the enum/variant
-                    expected: format!("{}::{} field :{}", type_path, variant_name, fname),
+                    expected: format!("{}.{} field :{}", type_path, variant_name, fname),
                     got: "missing map key".into(),
                     path: format!(".{}", fname),
                 })?;
@@ -3131,7 +3131,7 @@ fn coerce_enum_path(
             let names = def.variant_names_arc(&variant_name).unwrap_or_else(|| {
                 panic!(
                     // rune:lint(one-variant-separator, display) — panic text naming the enum/variant for a developer, not a constructed name
-                    "edn_to_enum_value: `{type_path}::{variant_name}` matched Tagged above but \
+                    "edn_to_enum_value: `{type_path}.{variant_name}` matched Tagged above but \
                      variant_names_arc returned None — def and its own match arm disagree"
                 )
             });
@@ -3970,7 +3970,7 @@ fn reconstruct_enum_tagged(
             def.variant_names_arc(variant_name).unwrap_or_else(|| {
                 panic!(
                     // rune:lint(one-variant-separator, display) — panic text naming the enum/variant for a developer, not a constructed name
-                    "reconstruct_enum_tagged: `{path}::{variant_name}` matched Tagged above but \
+                    "reconstruct_enum_tagged: `{path}.{variant_name}` matched Tagged above but \
                      variant_names_arc returned None — def and its own match arm disagree"
                 )
             })
@@ -3983,7 +3983,7 @@ fn reconstruct_enum_tagged(
             span: crate::rust_caller_span!(),
             kind: EdnReadErrorKind::Other(format!(
                 // rune:lint(one-variant-separator, display) — human-facing decode error naming the enum/variant
-                "variant `{path}::{variant_name}` missing map key :{fname}"
+                "variant `{path}.{variant_name}` missing map key :{fname}"
             )),
         })?;
         let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign, ctx)?;

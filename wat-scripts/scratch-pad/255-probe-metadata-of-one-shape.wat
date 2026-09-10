@@ -60,25 +60,25 @@
   [got <- (:wat::core::Option :- [:wat::core::Value]) want <- :wat::core::Value]
   -> :wat::core::bool
   (:wat::core::match got
-    [:wat::core::Option::Some {:value v} (:wat::core::= v want)]
-    [:wat::core::Option::None {} false]))
+    [:wat::core::Option.Some {:value v} (:wat::core::= v want)]
+    [:wat::core::Option.None {} false]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match (:wat::runtime::metadata-of :wat::core::sort$native)
-    [:wat::core::Option::Some {:value intrinsic-hm}
+    [:wat::core::Option.Some {:value intrinsic-hm}
      (:wat::core::match (:wat::runtime::metadata-of :wat::string::capitalize)
-       [:wat::core::Option::Some {:value wat-hm}
+       [:wat::core::Option.Some {:value wat-hm}
         (:wat::core::do
           (:wat::kernel::println "── raw maps, for eyeball comparison ──")
           (:wat::kernel::pprintln intrinsic-hm)
           (:wat::kernel::pprintln wat-hm)
           (:wat::kernel::println "── the five axes, both branches, one literal each ──")
-          (:wat::kernel::println (:wat::string::concat "purity:       intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :purity) :wat::runtime::Purity::Pure)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :purity) :wat::runtime::Purity::Pure))))
-          (:wat::kernel::println (:wat::string::concat "determinism:  intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :determinism) :wat::runtime::Determinism::Deterministic)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :determinism) :wat::runtime::Determinism::Deterministic))))
-          (:wat::kernel::println (:wat::string::concat "totality:     intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :totality) :wat::runtime::Totality::Total)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :totality) :wat::runtime::Totality::Total))))
-          (:wat::kernel::println (:wat::string::concat "expand-time:  intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :expand-time) :wat::runtime::ExpandTime::Legal)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :expand-time) :wat::runtime::ExpandTime::Legal))))
-          (:wat::kernel::println (:wat::string::concat "category:     intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :category) :wat::runtime::Category::Transform)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :category) :wat::runtime::Category::Transform))))
+          (:wat::kernel::println (:wat::string::concat "purity:       intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :purity) :wat::runtime::Purity.Pure)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :purity) :wat::runtime::Purity.Pure))))
+          (:wat::kernel::println (:wat::string::concat "determinism:  intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :determinism) :wat::runtime::Determinism.Deterministic)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :determinism) :wat::runtime::Determinism.Deterministic))))
+          (:wat::kernel::println (:wat::string::concat "totality:     intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :totality) :wat::runtime::Totality.Total)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :totality) :wat::runtime::Totality.Total))))
+          (:wat::kernel::println (:wat::string::concat "expand-time:  intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :expand-time) :wat::runtime::ExpandTime.Legal)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :expand-time) :wat::runtime::ExpandTime.Legal))))
+          (:wat::kernel::println (:wat::string::concat "category:     intrinsic=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :category) :wat::runtime::Category.Transform)) " wat=" (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :category) :wat::runtime::Category.Transform))))
           (:wat::kernel::println "── :defined-in discriminates (STOP-4) ──")
-          (:wat::kernel::println (:wat::string::concat "defined-in:   intrinsic=Rust? " (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :defined-in) :wat::runtime::DefinedIn::Rust)) " wat=Wat? " (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :defined-in) :wat::runtime::DefinedIn::Wat)))))]
-       [:wat::core::Option::None {} (:wat::kernel::println "capitalize metadata-of => NONE (unexpected)")])]
-    [:wat::core::Option::None {} (:wat::kernel::println "sort$native metadata-of => NONE (unexpected)")]))
+          (:wat::kernel::println (:wat::string::concat "defined-in:   intrinsic=Rust? " (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get intrinsic-hm :defined-in) :wat::runtime::DefinedIn.Rust)) " wat=Wat? " (:wat::edn::write (:user::axis-ok? (:wat::hashmap::get wat-hm :defined-in) :wat::runtime::DefinedIn.Wat)))))]
+       [:wat::core::Option.None {} (:wat::kernel::println "capitalize metadata-of => NONE (unexpected)")])]
+    [:wat::core::Option.None {} (:wat::kernel::println "sort$native metadata-of => NONE (unexpected)")]))

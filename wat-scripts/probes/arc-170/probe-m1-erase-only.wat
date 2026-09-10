@@ -12,8 +12,8 @@
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome::Reply {:state s
-              :reply (:probe::Echo::EchoResponse::Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
+            (:wat::service::Outcome.Reply {:state s
+              :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
 
 ;; bare-D PoolMsg (the parent-side shape)
 (:wat::core::defenum :probe::PoolMsg :- [I] :wat::enum::Pure
@@ -26,5 +26,5 @@
      ea  (:probe::echo::Handle/addr eh)                       ;; concrete (Address' :- [Op Reply])
      eab (:wat::core::ann-form ea :wat::kernel::Address)      ;; erase -> bare Address'
      v   (:wat::core::Vector :- [:wat::kernel::Address] eab)       ;; store bare in (Vector :- [Address'])
-     msg (:probe::PoolMsg::Setup {:addr (:wat::core::first v)})]       ;; bare-D Setup constructor
+     msg (:probe::PoolMsg.Setup {:addr (:wat::core::first v)})]       ;; bare-D Setup constructor
     (:wat::kernel::println "erase-ok")))

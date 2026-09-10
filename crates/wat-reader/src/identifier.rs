@@ -360,7 +360,7 @@ pub fn deprimed(name: &str) -> &str {
 /// `Enum::Variant` to `Enum.Variant` (the wat-rs dot-flip) is a one-line
 /// change to this body and nothing else.
 pub fn compose_variant(enum_path: &str, variant_name: &str) -> String {
-    format!("{enum_path}::{variant_name}")
+    format!("{enum_path}.{variant_name}")
 }
 
 /// The INVERSE of [`compose_variant`]: split a variant's LOOKUP/keyword spelling
@@ -384,8 +384,8 @@ pub fn compose_variant(enum_path: &str, variant_name: &str) -> String {
 /// which callers already treat as "not a variant" (e.g. `variant_parent_enum`'s
 /// `parent.is_empty()` guard).
 pub fn decompose_variant(name: &str) -> Option<(&str, &str)> {
-    let idx = name.rfind("::")?;
-    Some((&name[..idx], &name[idx + 2..]))
+    let idx = name.rfind('.')?;
+    Some((&name[..idx], &name[idx + 1..]))
 }
 
 /// Compose an enum variant's RENDER spelling: `enum_leaf.variant_name`.

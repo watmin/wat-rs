@@ -47,16 +47,16 @@
   :ephemeral []
   :impls
   [(record [s ctx req]
-     (:wat::service::Outcome::Reply
+     (:wat::service::Outcome.Reply
        {:state (:wat-tests::recorder::State :durable
          (:wat-tests::recorder::Record :total
            (:wat::i64::+
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
              (:wat-tests::Recorder::RecordRequest/n req))))
-       :reply (:wat-tests::Recorder::RecordResponse::Ok {:ok true})}))
+       :reply (:wat-tests::Recorder::RecordResponse.Ok {:ok true})}))
    (total [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat-tests::Recorder::TotalResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat-tests::Recorder::TotalResponse.Ok
          {:value (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))})}))])
 
 ;; ── the worker service — wears :wat-tests::Worker, dials a :wat-tests::Recorder peer ─────────────
@@ -69,22 +69,22 @@
   :init (:wat::core::fn [record        <- :wat-tests::worker::Record
                          recorder-addr <- (:wat::kernel::Address :- [:wat-tests::Recorder::Op :wat-tests::Recorder::Reply])]
           -> :wat-tests::worker::State
-          (:wat-tests::worker::State :durable record :recorder (:wat::core::match (:wat::kernel::connect recorder-addr) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
+          (:wat-tests::worker::State :durable record :recorder (:wat::core::match (:wat::kernel::connect recorder-addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
   :impls
   [(work [s ctx req]
      (:wat::core::let
        [rresp (:wat-tests::Recorder/record
                 (:wat-tests::worker::State/recorder s)
                 (:wat-tests::Recorder::RecordRequest :n (:wat-tests::Worker::WorkRequest/n req)))
-        wresp (:wat::core::match rresp [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
-                [:wat-tests::Recorder::RecordResponse::Ok {:ok _ok}
-                  (:wat-tests::Worker::WorkResponse::Ok {:done true})]
+        wresp (:wat::core::match rresp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
+                [:wat-tests::Recorder::RecordResponse.Ok {:ok _ok}
+                  (:wat-tests::Worker::WorkResponse.Ok {:done true})]
                 ;; s2s consumer: a downstream wire-breach propagates outward as our own op's breach.
-                [:wat-tests::Recorder::RecordResponse::RequestTooLarge {:bytes bytes :cap cap}
-                  (:wat-tests::Worker::WorkResponse::RequestTooLarge {:bytes bytes :cap cap})]
-                [:wat-tests::Recorder::RecordResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-                  (:wat-tests::Worker::WorkResponse::RequestMalformed {:path mpath :expected mexpected :got mgot})])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the recorder peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
-       (:wat::service::Outcome::Reply {:state s :reply wresp})))])
+                [:wat-tests::Recorder::RecordResponse.RequestTooLarge {:bytes bytes :cap cap}
+                  (:wat-tests::Worker::WorkResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                [:wat-tests::Recorder::RecordResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                  (:wat-tests::Worker::WorkResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the recorder peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
+       (:wat::service::Outcome.Reply {:state s :reply wresp})))])
 
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
 ;; start threads the LIVE recorder address as the worker's 2nd start arg (the :init operating-input).
@@ -96,22 +96,22 @@
        wh (:wat-tests::worker/start :locus (:wat::spawn::thread)
             :record (:wat-tests::worker::Record :job-count 0)
             :recorder-addr (:wat-tests::recorder::Handle/addr rh))
-       wc (:wat::core::match (:wat::kernel::connect (:wat-tests::worker::Handle/addr wh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       wc (:wat::core::match (:wat::kernel::connect (:wat-tests::worker::Handle/addr wh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        _  (:wat::core::match (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
-            [:wat::kernel::RecvOutcome::Message {:msg _resp} nil]
-            [:wat::kernel::RecvOutcome::Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-            [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
+            [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
+            [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
+            [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+            [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
        _2 (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 3))
-       rc (:wat::core::match (:wat::kernel::connect (:wat-tests::recorder::Handle/addr rh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       rc (:wat::core::match (:wat::kernel::connect (:wat-tests::recorder::Handle/addr rh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        r  (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::Recorder::TotalResponse::Ok {:value value} value]
+      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
+        [:wat-tests::Recorder::TotalResponse.Ok {:value value} value]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::Recorder::TotalResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat-tests::Recorder::TotalResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "recorder-total: unexpected RequestTooLarge")]
-        [:wat-tests::Recorder::TotalResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [:wat-tests::Recorder::TotalResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
     8))
 
 ;; hibernate -> resume: worker sheds its client + reconnects on resume. resume takes the saved record AND
@@ -124,24 +124,24 @@
        wh   (:wat-tests::worker/start :locus (:wat::spawn::thread)
               :record (:wat-tests::worker::Record :job-count 0)
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
-       wc   (:wat::core::match (:wat::kernel::connect (:wat-tests::worker::Handle/addr wh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       wc   (:wat::core::match (:wat::kernel::connect (:wat-tests::worker::Handle/addr wh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        _    (:wat::core::match (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
-              [:wat::kernel::RecvOutcome::Message {:msg _resp} nil]
-              [:wat::kernel::RecvOutcome::Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-              [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-              [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
+              [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
+              [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
+              [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+              [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
        snap (:wat-tests::worker/hibernate wh)
        wh2  (:wat-tests::worker/resume :locus (:wat::spawn::thread) :record snap
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
-       wc2  (:wat::core::match (:wat::kernel::connect (:wat-tests::worker::Handle/addr wh2)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       wc2  (:wat::core::match (:wat::kernel::connect (:wat-tests::worker::Handle/addr wh2)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        _2   (:wat-tests::Worker/work wc2 (:wat-tests::Worker::WorkRequest :n 3))
-       rc   (:wat::core::match (:wat::kernel::connect (:wat-tests::recorder::Handle/addr rh)) [:wat::kernel::ConnectOutcome::Connected {:peer p} p] [:wat::kernel::ConnectOutcome::Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome::Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+       rc   (:wat::core::match (:wat::kernel::connect (:wat-tests::recorder::Handle/addr rh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
        r    (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome::Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::Recorder::TotalResponse::Ok {:value value} value]
+      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
+        [:wat-tests::Recorder::TotalResponse.Ok {:value value} value]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::Recorder::TotalResponse::RequestTooLarge {:bytes bytes :cap cap}
+        [:wat-tests::Recorder::TotalResponse.RequestTooLarge {:bytes bytes :cap cap}
           (:wat::kernel::assertion-failed! :message "recorder-total: unexpected RequestTooLarge")]
-        [:wat-tests::Recorder::TotalResponse::RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome::Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [:wat-tests::Recorder::TotalResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
     8))

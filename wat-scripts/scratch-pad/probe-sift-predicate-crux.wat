@@ -11,7 +11,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [pred-src "(:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool (:wat::core::> n 3))"
-     form     (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+     form     (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      pure     (:wat::rete::pure? form)
      det      (:wat::rete::deterministic? form)
      pred-fn  (:wat::core::Result/expect (:wat::eval-ast! form) "eval-ast! failed")

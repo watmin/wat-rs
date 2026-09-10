@@ -5,7 +5,7 @@
                   (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool
                     (:wat::core::> n 3)))
      edn       (:wat::core::write-forms form)
-     back      (:wat::core::match (:wat::core::read-string edn) [:wat::core::ReadOutcome::Forms {:forms __forms} __forms] [:wat::core::ReadOutcome::Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
+     back      (:wat::core::match (:wat::core::read-string edn) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
      kids      (:wat::core::ast->children back)
      inner     (:wat::core::Option/expect (:wat::core::get kids 0) "no child 0")
      edn-inner (:wat::core::write-forms inner)

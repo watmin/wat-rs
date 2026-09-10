@@ -89,10 +89,10 @@
    v     <- :V]
   -> (:wat::core::Option :- [(:wat::cache::Entry :- [K V])])
   (:wat::core::match (:rust::cache::Lru::put cache k v)
-    [:wat::core::Option::Some {:value pair}
-      (:wat::core::Option::Some
+    [:wat::core::Option.Some {:value pair}
+      (:wat::core::Option.Some
         {:value (:wat::cache::Entry :key (:wat::core::first pair) :value (:wat::core::second pair))})]
-    [:wat::core::Option::None {} :wat::core::Option::None]))
+    [:wat::core::Option.None {} :wat::core::Option.None]))
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
 ;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss.
@@ -210,20 +210,20 @@
   ;; `nil` accumulator, mirrors `wat/bracket.wat`'s per-item fan-out folds) — `PutResponse` carries
   ;; nothing back (file-header departure note).
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat::cache::Cache::GetResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat::cache::Cache::GetResponse.Ok
          {:results (:wat::core::foldl
            (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
                             k   <- :K]
              -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s) k)
-                 [:wat::core::Option::Some {:value v} (:wat::cache::Cache::GetResult::Hit {:value v})]
-                 [:wat::core::Option::None {} (:wat::cache::Cache::GetResult::Miss {})])))
+                 [:wat::core::Option.Some {:value v} (:wat::cache::Cache::GetResult.Hit {:value v})]
+                 [:wat::core::Option.None {} (:wat::cache::Cache::GetResult.Miss {})])))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
            (:wat::cache::Cache::GetRequest/probes req))})}))
    (put [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
+     (:wat::service::Outcome.Reply {:state s
        :reply (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
@@ -235,7 +235,7 @@
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse::Ok {}))}))])
+         (:wat::cache::Cache::PutResponse.Ok {}))}))])
 
 ;; ═══ Stone 3 — :wat::cache::HolographicLru, the SIMILARITY-KEYED composite ═══════════════════
 ;;
@@ -302,11 +302,11 @@
      _ (:wat::holon::Hologram/put hologram key val)
      evicted (:wat::cache::Lru::put lru key nil)]
     (:wat::core::match evicted
-      [:wat::core::Option::Some {:value entry}
+      [:wat::core::Option.Some {:value entry}
         (:wat::core::let
           [_ (:wat::holon::Hologram/remove hologram (:wat::cache::Entry/key entry))]
           nil)]
-      [:wat::core::Option::None {} nil])))
+      [:wat::core::Option.None {} nil])))
 
 ;; ─── get — similarity lookup + LRU bump on hit ─────────────────────────────────────────────────
 ;; `Hologram/find`
@@ -323,13 +323,13 @@
     [hologram (:wat::cache::HolographicLru/hologram store)
      lru (:wat::cache::HolographicLru/lru store)]
     (:wat::core::match (:wat::holon::Hologram/find hologram probe)
-      [:wat::core::Option::Some {:value m}
+      [:wat::core::Option.Some {:value m}
         (:wat::core::let
           [matched-key (:wat::holon::Match/key m)
            val (:wat::holon::Match/value m)
            _ (:wat::cache::Lru::put lru matched-key nil)]
-          (:wat::core::Option::Some {:value val}))]
-      [:wat::core::Option::None {} :wat::core::Option::None])))
+          (:wat::core::Option.Some {:value val}))]
+      [:wat::core::Option.None {} :wat::core::Option.None])))
 
 ;; ─── len — total entries, read via the Hologram (the value-holding half) ──────────────────────
 (:wat::core::defn :wat::cache::HolographicLru::len
@@ -391,9 +391,9 @@
             :durable record
             :cache (:wat::cache::HolographicLru::new
                      (:wat::core::match (:wat::cache::hologram-svc::Record/filter record)
-                       [:wat::cache::HologramFilterKind::Coincident {} (:wat::holon::filter-coincident)]
-                       [:wat::cache::HologramFilterKind::Present {}    (:wat::holon::filter-present)]
-                       [:wat::cache::HologramFilterKind::AcceptAny {}  (:wat::holon::filter-accept-any)])
+                       [:wat::cache::HologramFilterKind.Coincident {} (:wat::holon::filter-coincident)]
+                       [:wat::cache::HologramFilterKind.Present {}    (:wat::holon::filter-present)]
+                       [:wat::cache::HologramFilterKind.AcceptAny {}  (:wat::holon::filter-accept-any)])
                      (:wat::cache::hologram-svc::Record/capacity record))))
   :impls
   ;; Batch folds, same discipline as `lru-svc` above. `HolographicLru::put` returns `nil` (Stone 3
@@ -403,20 +403,20 @@
   ;; the whole-batch level instead of a per-entry `Option`. Eviction is still OBSERVABLE through
   ;; the service — just via a later `get` miss, exactly as the gate proves.
   [(get [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
-       :reply (:wat::cache::Cache::GetResponse::Ok
+     (:wat::service::Outcome.Reply {:state s
+       :reply (:wat::cache::Cache::GetResponse.Ok
          {:results (:wat::core::foldl
            (:wat::core::fn [acc   <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
                             probe <- :wat::holon::HolonAST]
              -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s) probe)
-                 [:wat::core::Option::Some {:value v} (:wat::cache::Cache::GetResult::Hit {:value v})]
-                 [:wat::core::Option::None {} (:wat::cache::Cache::GetResult::Miss {})])))
+                 [:wat::core::Option.Some {:value v} (:wat::cache::Cache::GetResult.Hit {:value v})]
+                 [:wat::core::Option.None {} (:wat::cache::Cache::GetResult.Miss {})])))
            (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
            (:wat::cache::Cache::GetRequest/probes req))})}))
    (put [s ctx req]
-     (:wat::service::Outcome::Reply {:state s
+     (:wat::service::Outcome.Reply {:state s
        :reply (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
@@ -428,4 +428,4 @@
                   nil))
               nil
               (:wat::cache::Cache::PutRequest/entries req))]
-         (:wat::cache::Cache::PutResponse::Ok {}))}))])
+         (:wat::cache::Cache::PutResponse.Ok {}))}))])
