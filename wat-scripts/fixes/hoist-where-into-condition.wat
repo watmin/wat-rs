@@ -39,8 +39,18 @@
 ;; TEXT-SPAN SPLICE, not re-serialization: the deleted `where` and the appended predicate are both
 ;; copied/removed as RAW SOURCE SPANS (`node-start-offset`/`node-end-offset`/`string::subs`), so
 ;; the original spelling, comments-adjacency and formatting of everything else survive untouched.
-;; Per `wat/fix.wat`'s own doctrine, a deletion covers exactly the `where` form's own span; the
-;; whitespace/newline it leaves behind survives — that is wat-fmt's job, not this codemod's.
+;;
+;; ⚠ DEPARTURE FROM `wat/fix.wat`'s general "surviving whitespace is wat-fmt's job" doctrine: a
+;; deletion here covers the `where` form's own span PLUS its leading indentation and the newline
+;; before it (`backward-trim`, below) — the coordinator's Phase-1 refinement. Left at the form's
+;; own span alone, 63 sites leave a whitespace-only line where the `where` used to sit (nothing
+;; GATES it — no trailing-whitespace/line-length lint, and the corpus already has an 885-char
+;; line — but this branch is the reference for an imminent merge, and that litter is noise in
+;; exactly the files a merge will be resolving conflicts in). `backward-trim` is asymmetric
+;; (backward only, never forward) SPECIFICALLY so N `where`s hoisting in a row (three, in
+;; `probe_arc278_sift_rules_arena.wat`'s `:arena::suspect-rule`) produce N exactly-abutting,
+;; never-overlapping deletion spans: site K's backward-trim always stops at site (K-1)'s own
+;; closing paren (non-whitespace), never at anything site (K-1) itself deletes.
 ;;
 ;; Idempotent (re-run = 0 changes): once a `where` is hoisted, there is no more
 ;; `(:wat::rete::where …)` node at that site for a second pass to find.
@@ -176,6 +186,30 @@
     true
     small))
 
+;; ws-char? / backward-trim — a deleted `where` must take its own LINE with it, not leave a
+;; whitespace-only line behind (the coordinator's Phase-1 refinement: nothing GATES a dangling
+;; indented `]`, but 63 sites of it is noise in files someone will be resolving merge conflicts
+;; in). `backward-trim` walks backward from a node's own start offset through every contiguous
+;; whitespace character (space/tab/CR/LF — spanning as many blank lines as happen to be there,
+;; though this corpus never has more than one), stopping at the first non-whitespace character
+;; (or offset 0). The deletion then runs from THAT position to the node's own end — folding in
+;; its leading indentation and the newline before it — while never touching anything forward of
+;; the node (no symmetric forward-trim): that asymmetry is what keeps two adjacent hoisted
+;; `where`s' deletion spans exactly abutting, never overlapping — see the file-level comment.
+(:wat::core::defn :user::ws-char? [c <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= c " ") true
+    (:wat::core::if (:wat::core::= c "\t") true
+      (:wat::core::if (:wat::core::= c "\n") true
+        (:wat::core::= c "\r")))))
+
+(:wat::core::defn :user::backward-trim [src <- :wat::core::String pos <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::if (:wat::core::<= pos 0)
+    0
+    (:wat::core::let [c (:wat::core::string::subs src (:wat::core::i64::- pos 1) pos)]
+      (:wat::core::if (:user::ws-char? c)
+        (:user::backward-trim src (:wat::core::i64::- pos 1))
+        pos))))
+
 ;; ── collection, transparent through `:and` only ─────────────────────────────────────────────
 
 ;; collect-hoist-targets — every "plain"/"factbind" condition reachable from `items`, recursing
@@ -291,7 +325,8 @@
                         (:wat::core::if (:wat::core::= (:wat::core::length matches) 1)
                           (:wat::core::let
                             [target (:wat::core::Option/expect (:wat::core::get matches 0) "rule-form-edits target")
-                             w-start (:wat::fix::node-start-offset w lines)
+                             w-start-raw (:wat::fix::node-start-offset w lines)
+                             w-start (:user::backward-trim src w-start-raw)
                              w-end (:wat::fix::node-end-offset w lines)
                              pred-start (:wat::fix::node-start-offset pred lines)
                              pred-end (:wat::fix::node-end-offset pred lines)
