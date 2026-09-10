@@ -1317,7 +1317,7 @@ fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
                 _ => false,
             },
             Value::Enum(e) => {
-                let composed = format!("{}::{}", e.type_path, e.variant_name);
+                let composed = wat_reader::identifier::compose_variant(&e.type_path, &e.variant_name);
                 let last = wat_reader::identifier::leaf(name).trim_start_matches(':');
                 if composed != *name && e.variant_name != *name && e.variant_name != last {
                     return false;

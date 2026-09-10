@@ -360,9 +360,12 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         }
         Value::Enum(ev) => {
             if ev.fields.is_empty() {
-                format!("{}::{}", ev.type_path, ev.variant_name)
+                wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name)
             } else {
-                let mut out = format!("({}::{}", ev.type_path, ev.variant_name);
+                let mut out = format!(
+                    "({}",
+                    wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name)
+                );
                 for fv in ev.fields.iter() {
                     out.push(' ');
                     if out.len() >= SHOW_MAX_LEN {

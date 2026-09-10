@@ -1338,7 +1338,7 @@ pub fn register_enum_methods(
         for variant in &enum_def.variants {
             match variant {
                 EnumVariant::Unit(variant_name) => {
-                    let key = format!("{}::{}", enum_def.name, variant_name);
+                    let key = wat_reader::identifier::compose_variant(&enum_def.name, variant_name);
                     if sym.has_unit_variant(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
                         return Err(RuntimeError::new(
@@ -1367,7 +1367,8 @@ pub fn register_enum_methods(
                     name: variant_name,
                     fields,
                 } => {
-                    let constructor_path = format!("{}::{}", enum_def.name, variant_name);
+                    let constructor_path =
+                        wat_reader::identifier::compose_variant(&enum_def.name, variant_name);
                     let param_names: Vec<crate::scope::Identifier> = fields
                         .iter()
                         .map(|(n, _)| crate::scope::Identifier::bare(n.clone()))

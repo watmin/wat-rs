@@ -706,7 +706,7 @@ impl TypeEnv {
                 for variant in &e.variants {
                     if let EnumVariant::Unit(variant_name) = variant {
                         out.insert(
-                            format!("{}::{}", name, variant_name),
+                            wat_reader::identifier::compose_variant(name, variant_name),
                             TypeExpr::Path(name.clone()),
                         );
                     }
@@ -1025,7 +1025,7 @@ impl TypeEnv {
             .collect();
         for e in parents {
             for v in &e.variants {
-                let fqdn = format!("{}::{}", e.name, v.name());
+                let fqdn = wat_reader::identifier::compose_variant(&e.name, v.name());
                 if self.get(&fqdn).is_some() {
                     continue;
                 }

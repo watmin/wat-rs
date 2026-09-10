@@ -311,7 +311,7 @@ fn preregister_enum_constructors_from_form(
         // Look-ahead: is the next item a Vector (tagged variant)?
         let is_tagged = matches!(variant_items.get(vi + 1), Some(WatAST::Vector(_, _)));
 
-        let constructor_path = format!("{}::{}", type_name, variant_name);
+        let constructor_path = wat_reader::identifier::compose_variant(type_name, variant_name);
         let cons_existing = if sym.has_function(&constructor_path) {
             crate::resolve::Existing::Equivalent
         } else {

@@ -326,6 +326,56 @@ pub fn deprimed(name: &str) -> &str {
     name.strip_suffix('\'').unwrap_or(name)
 }
 
+// ── STONE-variant-composition-door (arc 255) ────────────────────────────
+//
+// The one-name grammar above had ten decomposition accessors and, until this
+// stone, zero composers: a name that needed to be split was split here,
+// once; a name that needed to be BUILT was built by hand at fifteen call
+// sites in two spellings
+// (`docs/arc/2026/06/255-builtin-registry/DESIGN-the-dot-flip-is-a-COMPOSITION-problem.md`).
+// These two functions are the inverse of `path`/`leaf` above, specialized to
+// the one thing all fifteen call sites actually compose: an enum variant's
+// name from its declared enum and its variant.
+
+/// Compose an enum variant's LOOKUP/keyword spelling: `enum_path::variant_name`.
+/// The `::` join is the inverse of [`path`]/[`leaf`] applied to a variant
+/// reference: `compose_variant(path(x), leaf(x)) == x` for any `x` this
+/// function could have produced.
+///
+/// **Precondition — `enum_path` is used exactly as given; this function does
+/// NOT strip or add a leading colon.** Two live storage conventions disagree
+/// on that colon (`EnumValue.type_path` keeps it — "matches the enum's
+/// declared name verbatim" — while `AggregateValue.class` and declaration-
+/// time enum names drop it; see `src/value/value.rs`). Unifying those
+/// storage conventions is a separate, larger stone
+/// (`BRIEF-the-variant-name-gets-ONE-composition-door.md` STOP-2); this door
+/// is colon-agnostic by design, exactly as `leaf`/`path` above are
+/// colon-agnostic on the way in (see the "leading colon is never
+/// special-cased" edge case documented above). The caller presents whatever
+/// shape it already holds — a pre-stripped `enum_path` composes a
+/// colon-free result, an as-stored `enum_path` composes a colon-ful one —
+/// and this function's only business is the `::` in the middle.
+///
+/// The separator is THIS function's decision, made once: flipping
+/// `Enum::Variant` to `Enum.Variant` (the wat-rs dot-flip) is a one-line
+/// change to this body and nothing else.
+pub fn compose_variant(enum_path: &str, variant_name: &str) -> String {
+    format!("{enum_path}::{variant_name}")
+}
+
+/// Compose an enum variant's RENDER spelling: `enum_leaf.variant_name`.
+///
+/// Distinct from [`compose_variant`], not a mode flag on it: the two EDN
+/// render call sites hold only the enum's bare LEAF — never its full path —
+/// and already join with `.` rather than `::` (the wat-rs target notation,
+/// live at these two sites ahead of the rest of the flip). Flattening this
+/// into one signature would hide that the two call sites have different
+/// preconditions (leaf vs. path); see
+/// `BRIEF-the-variant-name-gets-ONE-composition-door.md`.
+pub fn compose_variant_render(enum_leaf: &str, variant_name: &str) -> String {
+    format!("{enum_leaf}.{variant_name}")
+}
+
 /// Split a DOT-separated coercion-error path (`".items.[0]"`, built leaf-upward by
 /// `EdnCoerceError::at`) into its non-empty segments (`["items", "[0]"]`).
 ///
@@ -536,6 +586,36 @@ mod tests {
     fn trailing_double_colon_leaves_an_empty_leaf() {
         assert_eq!(leaf(":a::"), "");
         assert_eq!(path(":a::"), ":a");
+    }
+
+    // ── STONE-variant-composition-door: the two composers ───────────────
+
+    #[test]
+    fn compose_variant_joins_with_double_colon_verbatim() {
+        // As-stored EnumValue.type_path (colon kept) — the dominant shape at
+        // twelve of the thirteen `::` call sites.
+        assert_eq!(
+            compose_variant(":trading::types::PhaseLabel", "Valley"),
+            ":trading::types::PhaseLabel::Valley"
+        );
+        // A caller-pre-stripped path (runtime.rs:4108's own trim) — the door
+        // does not care; it is colon-agnostic, not colon-normalizing.
+        assert_eq!(
+            compose_variant("trading::types::PhaseLabel", "Valley"),
+            "trading::types::PhaseLabel::Valley"
+        );
+    }
+
+    #[test]
+    fn compose_variant_is_the_inverse_of_path_and_leaf() {
+        let composed = compose_variant(":wat::cache::Lru", "Hit");
+        assert_eq!(path(&composed), ":wat::cache::Lru");
+        assert_eq!(leaf(&composed), "Hit");
+    }
+
+    #[test]
+    fn compose_variant_render_joins_with_a_dot_from_a_leaf() {
+        assert_eq!(compose_variant_render("Box", "Full"), "Box.Full");
     }
 
     /// Edge case 4 — a name that is both primed AND slashed. `prime`/

@@ -3915,7 +3915,7 @@ fn reconstruct_enum_tagged(
                 span: crate::rust_caller_span!(),
                 kind: EdnReadErrorKind::UnknownTag {
                     ns: ns.to_string(),
-                    name: format!("{enum_leaf}.{variant_name}"),
+                    name: wat_reader::identifier::compose_variant_render(enum_leaf, variant_name),
                     body_shape: "map",
                 },
             });
@@ -4625,7 +4625,7 @@ pub(crate) fn variant_tag(type_path: &str, variant_name: &str) -> Tag {
     }
     let ns = wat_reader::identifier::path(stripped).replace("::", ".");
     let enum_leaf = wat_reader::identifier::leaf(stripped);
-    let tag_name = format!("{enum_leaf}.{variant_name}");
+    let tag_name = wat_reader::identifier::compose_variant_render(enum_leaf, variant_name);
     Tag::try_ns(&ns, &tag_name).unwrap_or_else(|e| {
         panic!(
             "variant_tag: type path {type_path:?} variant {variant_name:?} has no derivable \

@@ -1867,7 +1867,7 @@ fn variant_typo_remedies(
         let variant_name = match v {
             EnumVariant::Unit(n) | EnumVariant::Tagged { name: n, .. } => n,
         };
-        format!("{}::{}", enum_path, variant_name)
+        wat_reader::identifier::compose_variant(enum_path, variant_name)
     }).collect();
 
     nearest_matches(needle, candidates.iter().map(|s| s.as_str()))

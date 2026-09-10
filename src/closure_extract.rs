@@ -2248,7 +2248,7 @@ fn encode_value_with_path(
             // `:my::E::Variant` (unit) or `(:my::E::Variant a b)` (tagged).
             ensure_type_extracted(state, &ev.type_path);
             let constructor =
-                format!("{}::{}", ev.type_path, ev.variant_name);
+                wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
             if ev.fields.is_empty() {
                 Ok(WatAST::Keyword(constructor, span))
             } else {

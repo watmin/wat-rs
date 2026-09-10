@@ -4105,7 +4105,10 @@ fn bind_let_binding(
                         )
                     }
                     Value::Enum(e) => (
-                        format!("{}::{}", e.type_path.trim_start_matches(':'), e.variant_name),
+                        wat_reader::identifier::compose_variant(
+                            e.type_path.trim_start_matches(':'),
+                            &e.variant_name,
+                        ),
                         e.names.as_ref().clone(),
                         Arc::new(e.fields.clone()),
                     ),
@@ -8625,7 +8628,7 @@ fn match_variant_map(
         },
         None => match value {
             Value::Enum(ev) => {
-                let composed = format!("{}::{}", ev.type_path, ev.variant_name);
+                let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
                 if composed != path {
                     return Ok(None);
                 }
@@ -8825,7 +8828,7 @@ pub(crate) fn try_match_pattern(
         // upstream by the checker; here we just compare paths.
         WatAST::Keyword(k, _) => match value {
             Value::Enum(ev) => {
-                let composed = format!("{}::{}", ev.type_path, ev.variant_name);
+                let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
                 if composed == *k && ev.fields.is_empty() {
                     Ok(Some(outer.clone()))
                 } else {
@@ -8965,7 +8968,7 @@ pub(crate) fn try_match_pattern(
                 // chaining.
                 WatAST::Keyword(variant_path, _) => match value {
                     Value::Enum(ev) => {
-                        let composed = format!("{}::{}", ev.type_path, ev.variant_name);
+                        let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
                         if composed != *variant_path {
                             return Ok(None);
                         }
