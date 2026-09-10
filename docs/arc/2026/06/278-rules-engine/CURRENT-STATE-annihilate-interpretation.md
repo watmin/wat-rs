@@ -4,93 +4,50 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-08 (forty-fifth — ⛔⛔ A FOUR-TARGET VIGILIA IS MID-FLIGHT. THREE TARGETS CLOSED, THE FOURTH 12 OF ~17 WARDS IN).** Supersedes every earlier stamp and every dated block below.
+**CURRENT STAMP 2026-09-09 (forty-sixth — ⛔⛔ THE VIGILIA IS CLOSED AND INSCRIBED. A TYPE-SYSTEM HOLE IS OPEN AND IS THE NEXT WORK).** Supersedes every earlier stamp and every dated block below.
 
 > # ⛔ FIRST ACTION IF YOU ARE READING THIS COLD
 >
-> **Read `vigilia-2026-09-07-rete/README.md` § "HOW TO RESUME THIS CAST" before you touch anything
-> in this arc.** It holds the four-target state table, the wards still to cast, the exact casting
-> procedure, and the THREE builder decisions still owed. **The procedure exists nowhere else on disk.**
+> **THE NEXT WORK IS ONE FINDING, AND IT IS A SOUNDNESS HOLE.** Read
+> `docs/arc/2026/06/278-rules-engine/the-fence-says-what-the-clause-cannot/FINDING-the-fence-is-a-hole-in-the-type-system.md`
+> **before anything else.** One predicate, two positions: `string::=` on an `i64` field is **ACCEPTED
+> SILENTLY** inside a `(:wat::rete::where …)` fence and **REJECTED** when written inline. The fence's
+> interior gets **no type checking at all** — `src/rete/validate/mod.rs:282`'s
+> `ReteClauseShape::Where(_) => {}`. ⛔ **It is already in the corpus**: `wat-scripts/fixes/
+> to-faithful-clojure-net.wat`'s `g3-genuine`, in a RECORDED MIGRATION exemplar, found only because a
+> codemod hoisted it. **Nothing has ever looked at the other fence interiors** — the first run of that
+> check is a census of an uncounted population.
 >
-> **FLOOR 5480/5480, 19 skipped. clippy rc=0.** ⚠ **NO ENGINE CODE HAS CHANGED IN THE ENTIRE
-> VIGILIA** — every cast was READ-ONLY by construction. **Do not count the added files from prose;
-> the ENUMERATED ALLOWLIST below is the authority** (it has four rows, and this sentence has already
-> gone stale once by naming a count). Both lint gates over `wat-scripts/` were run before the
-> scratch-pad probes landed: `2 tests run: 2 passed`, and `tests/lint/peragrare-bad-census.sh` was
-> confirmed inert to every gate before it landed.
+> **FLOOR 5490/5490, 19 skipped. Branch green, 0 unpushed.**
 >
-> **THE SESSION IN ONE SENTENCE:** **targets 1, 2 AND 3 are CLOSED** at 14/14, 15/15 and 15/15 wards.
-> **Target 4 is MEASURED (306 files / 38,058 lines — the tracker said 264/~36k) and 12 of ~17 wards in**,
-> with 18 rows. **126 rows total, 22 L1. Remaining: `struere` · `sequi` · `temperare` · `conformare`,
-> then `circumspicere` LAST.**
+> **THE VIGILIA IS CLOSED** — `vigilia-2026-09-07-rete/INSCRIPTION.md`. 4 targets, 61 ward casts, 138
+> rows, **27 resolved**, nine strikes. ⭐ `circumspicere` cast last returned the sharpest finding of
+> its target **4 of 4 times**.
 >
-> **⭐ THE THREE SHARPEST FINDINGS, ALL VERIFIED BY ME:**
-> · **2W1 (L1)** — `expr_ir/mod.rs` promises *"`lower` IS TOTAL OR IT REFUSES … never on shape"* and
->   has **no depth guard at all**; `LowerCx` carries four fields and none is a depth. The cure exists
->   one file over and is a model one: `MAX_IMPORT_DEPTH`, *"MEASURED, not chosen for roundness,"*
->   with both numbers written down — and it never reached the recursive descent every rete expression
->   compiles through.
-> · **3P1 (5×L1)** — the grid proves every mechanism **alone and no two together**. All three defects
->   that birthed `peragrare` are closed as isolated axes; **no fixture combines any two.**
-> · **3C1** — `CLARA-TRANSLATIONS.md` is the corpus's single translation authority and **the token
->   `:or` does not appear in it at all**, while 16 of 43 twins carry a defensive `(count (set …))`
->   collapse for Clara's duplicate-insert.
+> ⛔⛔ **AND THE VIGILIA DID NOT FIND THE TYPE HOLE.** Twelve rows cite `validate/`; **eight wards read
+> that file**; **zero** mention `Design call 3` or `Where(_)`. `peragrare` — whose subject it is — was
+> **mustered out** (`README.md:46`, *"NO here — fires on target 3"*). The arm is not dead, contradicts
+> no spec, and carries a real justification, so every inward lens slid off it. **No ward is aimed at
+> "this was right when it was written."** That is the gap in the guard itself, and it is worth more
+> than any row the vigilia closed.
 >
-> **⭐⭐ TWO CLASSES WERE PROMOTED FROM SITE TO CLASS**, both spanning two targets: **phantom error
-> heads** (`head: ":wat::rete::<rust_fn_name>"` — 5 sites, 3 names, every one the Rust function's own
-> name in snake_case inside a kebab-case namespace) and **false caller counts in doc comments**
-> (3 claims, all wrong, none gated — while `rete_header_claims_are_asserted.rs` already contains a
-> working caller-count arm).
+> **ALSO OPEN, and deliberately parked until the merge lands:**
+> `the-fence-says-what-the-clause-cannot/DESIGN-widen-the-clause-then-refuse-the-fence.md` — the
+> join blowup (measured in Clara: 1.04x → **2.13x** as the join grows) and the expressivity gap
+> (Clara admits a bare user fn, a nested fn, and a closure **inline**; `expr_is_provably_boolean`
+> refuses all three). ⚠ **Do not start it mid-merge.** Step 3 rewrites ~221 sites, 143 in the perf
+> grid, **invalidating all 29 recorded baselines**.
 >
-> **⛔⛔ EIGHTEEN MEASUREMENTS WERE WRONG OR STALE (was eleven at the last wall). THE TEN I HANDED TO WARDS WERE ALL CAUGHT BY A WARD
-> TOLD TO RE-DERIVE — THE ELEVENTH WAS CAUGHT BY NOTHING, AND SAT IN THE TRACKER FOR A DAY** (the
-> grid's file count, corrected to 148 by a recolligere on 2026-09-08, having sat at 147 *beside* the
-> line count I had already corrected). **A ward re-derives what it is HANDED; nothing re-derives what
-> merely sits in the tracker.** Five distinct shapes, named in the README's resume block: a grep matching *prose
-> about* a thing; a grep matching *data that looks like* the thing; a name-grep that cannot see
-> coverage-by-walk; a name-grep that cannot see consumption-by-argument; and **two numbers I
-> invalidated MYSELF** by committing a file into the directory I had just measured. ⭐ The one
-> measurement that survived re-derivation intact was the one I handed over **with its contamination
-> disclosed**.
->
->
-> **⭐⭐⭐ TARGET 4'S THREE SHARPEST, ALL VERIFIED BY ME:**
-> · **`4D1` (L1)** — `ARM_BUILDS`, a process-global counter, drives exact-equality assertions in six
->   tests. Race-free **only because nextest forks per test**. ⛔ **The builder has already ruled on this
->   exact shape, in this arc**: *"the tests must never have a race, period… **Not 'green under our
->   runner.' Race-free by construction.**"* Unfixed and undeclared.
-> · **`4S2`** — `render_phase_table`'s doc says *"two copies is how one of them silently stops
->   subtracting"* — and the formula it centralises is **hand-rolled at 20 further sites**. The failure
->   the comment names is the present shape.
-> · **`4P1` (6×L1)** — the `.wat.bad` gate's exemption path is a **7-state machine** and **one state has
->   ever been driven**. Its advertised self-clearing branch — *"the day arc 255 lands… this gate goes
->   RED"* — has never fired.
->
-> **⭐⭐ AND THE STRONGEST NEGATIVE OF THE VIGILIA:** `intueri` was asked whether `4L1` (a test whose
-> name promises two things and delivers one) was **isolated or a class**. It read **99 of 99** candidates
-> matching a stated risk-vocabulary plus 40 at random — **128 of 613** — and found **zero** more.
-> Isolated. **A negative earned with a method is a fact; without one it is silence.**
->
-> **⚠ THREE DECISIONS ARE THE BUILDER'S, NOT MINE.** **X3** — three wards, one rune, two verdicts.
-> **2X2** — a rune whose REASON is true and whose CATEGORY is wrong; `purgare` and `excusare` split
-> on which matters. **3X1** — `exigere` and `intueri` both reached `run-all.sh:46`, ran the same
-> cross-check, reached the same fact, and disposed of it oppositely. `vigilia` forbids the
-> aggregator re-classifying a child, so in all three both verdicts stand.
->
-> **⛔ NOTHING IS DRIVEN TO RESOLUTION.** **126 rows open, 22 of them L1** (`3P1` is itself L1×5). ⛔ **The stamp said 83/8 and BOTH were wrong — a recolligere derived them 2026-09-08.** Re-derive, never copy: `grep -c '^| \*\*' FINDINGS.md` and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md`. The prose total sat three lines under a table reading 38+36+10.
-
-> ⛔⛔ **THIS HEADER WAS STALE FOR FOUR COMMITS AND NOBODY NOTICED — INCLUDING ME.** It read
-> *"thirty-fifth — 33 STRIKES"* while the body recorded 38. Three consecutive stamp edits used
-> `str.replace(old, new)` whose `old` no longer matched; **`.replace()` returns the string unchanged
-> on a miss**, so each edit reported success and changed nothing. The block-insertions in the same
-> scripts were `assert`ed and landed; the stamp line was not. **Assert that an edit CHANGED
-> something, not merely that its anchor was found.**
+> ⭐ **THE TEACHING HAZARD IS CURED** (`feb5fae91`): 38 of 42 join-blowup exemplars hoisted, the
+> codemod structurally gated to joins only. **This mattered — another session read our corpus, wrote
+> what it saw, and crashed the builder's SSH daemon.** `wat-scripts/grep` (the user-facing tool's own
+> rules) went from 11 dangerous to 1. Four remain in one file, reported not forced.
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline bb306bd3c..HEAD      # every commit since the last one that touched CODE
-git diff --stat bb306bd3c..HEAD --name-only
+git log --oneline feb5fae91..HEAD      # every commit since the last one that touched CODE
+git diff --stat feb5fae91..HEAD --name-only
 ```
 
 **PASS:** every path is under `docs/`, **or is one of these three known evidence paths** —
