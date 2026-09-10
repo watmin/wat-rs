@@ -1314,6 +1314,69 @@
     0
     sweep))
 
+;; ⭑ THE FILL'S PROGRESS SIGNAL: Σ(visible + unacked + acks) — everything that EVER
+;; arrived at a subscriber queue, whether it is still sitting there, claimed by a worker,
+;; or already consumed. Folded over a sweep ALREADY TAKEN, so it costs nothing, exactly
+;; like :fanout::sweep-acks above.
+;;
+;; ⛔ Σvisible ALONE IS WRONG and was rejected: with fill-first? = false the consumers are
+;; armed BEFORE the fill, so `visible` falls while messages are still arriving.
+;;
+;; MONOTONE, and for a stronger reason than "each term only grows" — two of the three terms
+;; are not monotone on their own. Read `depth` in wat-scripts/queue/sqs.wat:339-381:
+;;   visible  = |by-visible-at index in [0, now]|
+;;   unacked  = |by-visible-at index in [0, +inf)| MINUS visible
+;; so `visible + unacked` is ONE number — the row count for that queue — split at `now`.
+;; A redelivery or a claim only moves a row ACROSS that split; it cannot change the sum,
+;; and it cannot double-count, because the two terms are two halves of a single count.
+;; That is the hazard the design named, and the code rules it out structurally.
+;; Rows enter only via `send`'s put (sqs.wat:541) and leave only via `ack`'s delete
+;; (sqs.wat:1039), and every delete-that-happened arm bumps `acks` by `(count ids)`
+;; (sqs.wat:1069, 1129) — while the three arms that do NOT delete (Lost/Closed/TimedOut,
+;; sqs.wat:1145-1235) leave `acks` alone too. So Δ(rows) >= -(count ids) while
+;; Δ(acks) = +(count ids): the sum is NON-DECREASING. A double ack of a redelivered row
+;; makes it strictly increase, which is the safe direction.
+;; ⚠ TWO PLATEAUS, both of which mean the fill really is not progressing:
+;;   - count-index saturates at `limit` = cap+1 (mem.wat:589-606), so a queue at cap stops
+;;     counting up — but a queue at cap REFUSES sends (sqs.wat:487), which is a real stall.
+;;   - a decrease is only reachable if a queue process restarted and reset its counters;
+;;     that counts as no progress, conservative on purpose, the same choice sweep-acks made.
+;; ⛔ NOT a completion test: with redelivery Σ can exceed n. Completion stays sweep-filled?.
+(:wat::core::defn :fanout::sweep-arrived
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64
+                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
+      -> :wat::core::i64
+      (:wat::i64::+ acc
+        (:wat::i64::+ (:wat::core::first d)
+          (:wat::i64::+ (:wat::core::second d) (:wat::core::third d)))))
+    0
+    sweep))
+
+;; ⚠ THE OVERSHOOT, REPORTED RATHER THAN SWALLOWED. `sweep-filled?` compares `>= n`, so a
+;; queue holding 2010 of a wanted 2000 is a PASS — which is NOT the same as an explanation.
+;; This is Σ max(visible - n, 0): 0 on a clean fill, and the excess otherwise. It rides the
+;; `fill-sweep` the caller already takes, so it adds no round-trip.
+;; ⛔ It is reported at the CALL SITE, not returned by the poller, for one concrete reason:
+;; a Tuple has no fourth accessor (wat/core.wat:1737) and the three slots are already spent
+;; on (verdict, rts, stale-max) — and stale-max is the evidence for K's size, so it stays.
+(:wat::core::defn :fanout::sweep-excess
+  [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])
+   n     <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64
+                     d   <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
+      -> :wat::core::i64
+      (:wat::i64::+ acc
+        (:wat::core::if (:wat::i64::> (:wat::core::first d) n)
+          (:wat::i64::- (:wat::core::first d) n)
+          0)))
+    0
+    sweep))
+
 (:wat::core::defn :fanout::sweep-unread?
   [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])]
   -> :wat::core::bool
@@ -1338,6 +1401,15 @@
     true
     sweep))
 
+;; ⛔ `>=` ON THE VISIBLE TERM, NOT `=`, AND THAT IS A SEMANTIC RULING, NOT A TYPO FIX:
+;; MORE-THAN-WANTED IS NOT A FAILURE OF FILLING. With `=` this test was not merely unmet
+;; when a queue overshot, it was UNSATISFIABLE — measured at 43efddb6a, four queues each
+;; reporting 2010 against want=2000, and the poller then spent its whole 8000-attempt
+;; budget (356 s, 40 000 round-trips) proving something that could never become true.
+;; ⚠ AND `>=` MUST NOT BURY THE OVERSHOOT. It makes 2010 a pass; it does not explain it.
+;; :fanout::sweep-excess above is why the excess still reaches the report line.
+;; `unacked = 0` stays an equality: an in-flight row at fill time is a genuinely
+;; incomplete fill, and nothing can push that count above zero except a claim.
 (:wat::core::defn :fanout::sweep-filled?
   [sweep <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])])
    n     <- :wat::core::i64]
@@ -1347,51 +1419,158 @@
                      d  <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])]
       -> :wat::core::bool
       (:wat::core::and ok
-        (:wat::core::and (:wat::core::= (:wat::core::first d) n)
+        (:wat::core::and (:wat::i64::>= (:wat::core::first d) n)
           (:wat::core::= (:wat::core::second d) 0))))
     true
     sweep))
 
-;; Publishers returning is not the fill: topic-workers may still be
-;; fanning the last inbox rows. Poll until every subscriber queue holds
-;; n visible, 0 unacked. Attempts = n×m, same hang bound as drain.
+;; ── the fill's TWO give-ups, mirrored from the drain's, and why each number is what it is ──
 ;;
-;; ⭑ Returns (verdict, rts) — the same `rts` accounting `poll-until-drained*` has always
-;; carried, and for the same reason: m `Queue/stats` plus one `Topic/stats` per iteration.
-;; This loop's crossings were the drain loop's exact twin and were counted NOWHERE, so the
-;; `poll-calls=` figure the harness printed described only half the harness's own polling.
+;; ⛔ THIS REPLACED AN ATTEMPT BUDGET (`left`, seeded n×m), and the reason is the same one
+;; recorded for the drain below: an ATTEMPT budget expires on a busy box whether or not the
+;; system is healthy, and its one verdict cannot separate "the system stopped filling" from
+;; "the poller ran out of budget while measuring". A PROGRESS bound only expires when
+;; nothing arrives.
+;;
+;; ⛔ AND THE HONEST STATEMENT ABOUT WHERE THIS NUMBER COMES FROM, because the drain's own
+;; note records a first guess of 200 against a measured 197 on a PASSING run — three polls
+;; from a false red — so a guess is not good enough here either.
+;;
+;; MEASURED, on runs that PASS: `fill-stale-max = 0` on every single one. Ten of them —
+;; `2000 4 3 8192 true 1000` ×3 alone and ×4 concurrent, `2000 4 3 8192 true 0`,
+;; `50 2 2 8192 true 0` ×2 — never one poll without an arrival.
+;;
+;; ⚠ AND THAT ZERO IS A WEAK BOUND, NOT A STRONG ONE. It is measured over only ~3–4 polls
+;; per run: `(rt-poll - poll-calls) / (m+1)` is (358-340)/5 ≈ 3.6, because the topic inbox is
+;; capped at 64 (circuit.wat:2603) and that BACKPRESSURE COUPLES PUBLISHING TO FAN-OUT — a
+;; publisher cannot run far ahead of the workers draining the inbox, so by the time
+;; `join-publishers` returns the fan-out is essentially done and the poller finds the queues
+;; already full. The give-up path of this poller is close to unreachable on a healthy run,
+;; which is also why the `=` defect cost 356 s only where the completion test was
+;; UNSATISFIABLE rather than merely slow. `fill-stale-max = 0` therefore says "no silence was
+;; sampled", not "no silence is possible", and K cannot be sized from it.
+;;
+;; SO K IS SIZED AGAINST THE LONGEST *LEGITIMATE* SILENCE THE FILL PATH CAN HAVE, which is a
+;; property of the scenario: a fan-out batch that was refused or lost is re-presented only
+;; after the INBOX VISIBILITY TIMEOUT expires — `:fanout::inbox-vis-default-ns` = 200 ms,
+;; and 1000 ms as the standard CLI run passes it — plus the topic worker's own receive wait.
+;; Call it ~1.25 s at the 1000 ms setting.
+;; MEASURED POLL COST: 27.4 ms/poll (602 polls in 16499 ms, from the witnessed stall below —
+;; 5 ms sleep plus m+1 `stats` crossings). So 600 polls is ~16.5 s of wall silence: ~13× that
+;; 1.25 s legitimate gap and ~82× the 200 ms default. ⚠ A caller who sets `inbox-vis-ms`
+;; anywhere near 16 s must revisit this number; the ceiling arm still bounds that case.
+;; ⭑ And 600 is deliberately the SAME number :fanout::drain-stale-polls uses. Two pollers on
+;; one box with two different K values is precisely the asymmetry this stone exists to
+;; remove. Check it against `fill-stale-max=` on the report line, not against this comment.
+(:wat::core::defn :fanout::fill-stale-polls [] -> :wat::core::i64 600)
+
+;; The wall ceiling — the unconditional backstop for the one world the stall arm cannot
+;; catch: a system that keeps delivering (redelivery churn, or a queue that accepts and a
+;; consumer that keeps draining under fill-first? = false) and never reaches n. Scaled with
+;; the work exactly as the old attempt budget was, one slot per delivered pair, and
+;; deliberately the SAME shape and SAME numbers as :fanout::drain-ceiling-ms. Bounded on
+;; both sides:
+;;   BELOW by the work — measured healthy `fill` phases (publish + fan-out + poll, so an
+;;   OVER-estimate of the poller's own share) are 2586/2601/2636 ms for 8000 pairs and
+;;   5786–5960 ms under 4-way self-contention, i.e. 0.32–0.75 ms/pair, and 81/84 ms for
+;;   100 pairs. 12 ms/pair is 16–37× that. The 30 s floor is ~24× the longest legitimate
+;;   no-arrival silence the fill can have (~1.25 s: the 1000 ms inbox visibility wait plus
+;;   the topic worker's receive wait) and 150× the 200 ms default.
+;;   ABOVE by the runner — a ceiling-hitting fill must still PRINT its verdict inside
+;;   nextest's kill, or the arm is destroyed and we are back to arc 278's empty TIMEOUT.
+;; ⚠ NAMED, NOT ASSUMED: no test in the floor reaches this code at all. Every `:user::*`
+;; fixture passes `fill-first? = false` (circuit.wat:3133-3172), for which the caller
+;; returns `(Tuple "" 0 0)` without polling — so `poll-until-filled*` is reachable ONLY
+;; from the CLI. 8000 pairs → 126 s, which would sit inside the r2_drop_* 90/180 s override
+;; if a fixture ever flipped that flag, and would NOT fit the 15/30 s default. Whoever
+;; flips it owns that check.
+(:wat::core::defn :fanout::fill-ceiling-ms [pairs <- :wat::core::i64] -> :wat::core::i64
+  (:wat::i64::+ 30000 (:wat::i64::* 12 pairs)))
+
+;; Publishers returning is not the fill: topic-workers may still be fanning the last inbox
+;; rows. Poll until every subscriber queue holds AT LEAST n visible and 0 unacked, and the
+;; topic inbox is empty.
+;;
+;; ⛔ IT GIVES UP ON LACK OF PROGRESS, NOT ON AN ATTEMPT BUDGET, and it says WHICH world:
+;;   ""              every sub queue at >= n visible, 0 unacked, AND topic inbox 0
+;;   filled-unread   a stats reply could not be read — a different failure, OUTRANKS both
+;;   filled-stalled  Σ(visible+unacked+acks) did not move for K consecutive polls:
+;;                   THE SYSTEM STOPPED FILLING
+;;   filled-timeout  the wall ceiling was reached and NO K-poll stall was ever seen:
+;;                   slow, not stuck — and it prints stale/stale-max so the reader can
+;;                   check that claim rather than take it on trust
+;;
+;; ⛔ THE CHECK CAN STILL GO RED, and that is the property to preserve above all — copied
+;; verbatim from poll-until-drained* below because it is the same property: the ONLY path
+;; returning "" is the completion test, and every other path is bounded — the stall arm by
+;; K, and the ceiling arm unconditionally by wall clock regardless of progress. A system
+;; that keeps arriving forever without ever reaching n therefore still fails, at the
+;; ceiling. Witnessed, not argued: `circuit.wat 50 2 2 32 true 0` — sub-cap 32 < want 50, so
+;; the queues fill to capacity and refuse, and nothing consumes because fill-first? = true
+;; arms the workers only AFTER the fill — exits 2 with
+;;   filled-stalled: no arrival progress in 600 polls; last=[31/0][31/0] outbox=19
+;;                   want=50 arrived=62 polls=602 elapsed=16499
+;; `arrived=62` (= 31×2, with acks 0) is the whole story in one field, and it is the thing
+;; the old single `filled-never` verdict could never say.
+;;
+;; ⭑ Returns (verdict, rts, stale-max) — the drain's shape. `rts` is unchanged, m
+;; `Queue/stats` plus one `Topic/stats` per iteration; `stale-max` is the longest
+;; no-arrival streak observed, which is the evidence for K's size.
 (:wat::core::defn :fanout::poll-until-filled*
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
-   n <- :wat::core::i64  left <- :wat::core::i64
-   start-ns <- :wat::core::i64  total <- :wat::core::i64  rts <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
+   n <- :wat::core::i64  ceiling-ms <- :wat::core::i64  start-ns <- :wat::core::i64
+   prog-prev <- :wat::core::i64  stale <- :wat::core::i64  stale-max <- :wat::core::i64
+   polls <- :wat::core::i64  rts <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
   (:wat::core::let
-    [sweep (:fanout::sweep-of qclients)
-     box   (:fanout::topic-outbox t)
-     rts'  (:wat::i64::+ rts (:wat::i64::+ (:wat::core::count qclients) 1))]
+    [sweep  (:fanout::sweep-of qclients)
+     box    (:fanout::topic-outbox t)
+     ;; FREE: same replies the sweep just took. No stats call is added per poll.
+     prog   (:fanout::sweep-arrived sweep)
+     rts'   (:wat::i64::+ rts (:wat::i64::+ (:wat::core::count qclients) 1))
+     polls' (:wat::i64::+ polls 1)
+     ;; prog-prev starts at -1, so the first poll can never be counted stale. A DECREASE
+     ;; (only reachable if a queue process restarted and reset its counters) counts as no
+     ;; progress — conservative on purpose: it surfaces as a red, not as silence.
+     stale' (:wat::core::if (:wat::i64::> prog prog-prev) 0 (:wat::i64::+ stale 1))
+     smax'  (:wat::core::if (:wat::i64::> stale' stale-max) stale' stale-max)
+     el     (:fanout::elapsed-ms start-ns)]
     (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::sweep-unread? sweep))
       (:wat::core::Tuple
-        (:wat::core::format "filled-unread: last={s} outbox={b} attempts={a} elapsed={ms}"
-          :s (:fanout::snapshot-str sweep) :b box
-          :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
-        rts')
+        (:wat::core::format "filled-unread: last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms}"
+          :s (:fanout::snapshot-str sweep) :b box :n n :a prog :p polls' :ms el)
+        rts' smax')
       (:wat::core::if (:wat::core::and (:fanout::sweep-filled? sweep n) (:wat::core::= box 0))
-        (:wat::core::Tuple "" rts')
-        (:wat::core::if (:wat::i64::<= left 1)
+        (:wat::core::Tuple "" rts' smax')
+        (:wat::core::if (:wat::i64::>= stale' (:fanout::fill-stale-polls))
           (:wat::core::Tuple
-            (:wat::core::format "filled-never: last={s} outbox={b} want={n} attempts={a} elapsed={ms}"
-              :s (:fanout::snapshot-str sweep) :b box :n n
-              :a total :ms (:fanout::elapsed-ms start-ns))
-            rts')
-          (:wat::core::let [_ (:fanout::await-timer-ms 5)]
-            (:fanout::poll-until-filled* qclients t n (:wat::i64::- left 1) start-ns total rts')))))))
+            (:wat::core::format "filled-stalled: no arrival progress in {k} polls; last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms}"
+              :k (:fanout::fill-stale-polls) :s (:fanout::snapshot-str sweep) :b box
+              :n n :a prog :p polls' :ms el)
+            rts' smax')
+          (:wat::core::if (:wat::i64::>= el ceiling-ms)
+            (:wat::core::Tuple
+              ;; Wording is exactly what the code knows: the ceiling was reached and no
+              ;; K-poll stall was ever seen. `stale`/`stale-max` let the reader judge how
+              ;; close it came, rather than taking "still arriving" on trust.
+              (:wat::core::format "filled-timeout: ceiling {c}ms reached with no {k}-poll stall; last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms} stale={st} stale-max={sm}"
+                :k (:fanout::fill-stale-polls)
+                :s (:fanout::snapshot-str sweep) :b box :n n :a prog :p polls' :ms el
+                :c ceiling-ms :st stale' :sm smax')
+              rts' smax')
+            (:wat::core::let [_ (:fanout::await-timer-ms 5)]
+              (:fanout::poll-until-filled* qclients t n ceiling-ms start-ns
+                prog stale' smax' polls' rts'))))))))
 
+;; `pairs` is n×m — the delivered-pair count, still the work measure, now spent on a wall
+;; ceiling instead of an attempt count. The call site's expression is unchanged; what the
+;; number BUYS changed.
 (:wat::core::defn :fanout::poll-until-filled
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
-   n <- :wat::core::i64  attempts <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64])
-  (:fanout::poll-until-filled* qclients t n attempts
-    (:wat::time::epoch-nanos (:wat::time::now)) attempts 0))
+   n <- :wat::core::i64  pairs <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
+  (:fanout::poll-until-filled* qclients t n (:fanout::fill-ceiling-ms pairs)
+    (:wat::time::epoch-nanos (:wat::time::now)) -1 0 0 0 0))
 
 ;; ── the drain's TWO give-ups, and why each number is what it is ────────────────────
 ;;
@@ -2646,13 +2825,28 @@
      ;; a 1 ms timer for the whole of `fill`. Never counted before this stone.
      pub-join-rts (:wat::core::third pub-pair)
      ;; The fill poller's verdict and its crossings, split so `require!` still sees a String.
+     ;; n×m is the work measure; the poller spends it as a WALL ceiling (30 s + 12 ms/pair)
+     ;; and gives up on lack of ARRIVAL progress before that. The expression is the same one
+     ;; that used to be an attempt budget; what it buys changed. Three verdicts, not one:
+     ;; see poll-until-filled*.
      fill-poll (:wat::core::if fill-first?
                  (:fanout::poll-until-filled qclients topic n (:wat::i64::* n m))
-                 (:wat::core::Tuple "" 0))
+                 (:wat::core::Tuple "" 0 0))
      _filled (:fanout::require! (:wat::core::first fill-poll))
      fill-poll-rts (:wat::core::second fill-poll)
+     ;; The longest no-arrival streak the fill saw, in polls. This is the evidence for
+     ;; :fanout::fill-stale-polls being the size it is — read it, do not trust the comment.
+     ;; 0 when fill-first? is false, where the poller does not run at all.
+     fill-stale-max (:wat::core::third fill-poll)
      fill-sweep (:fanout::sweep-of qclients)
      fill-depth (:fanout::snapshot-str fill-sweep)
+     ;; ⚠ Σ max(visible - n, 0) — THE OVERSHOOT, ON THE LINE INSTEAD OF SWALLOWED. `>=` in
+     ;; sweep-filled? makes a 2010-of-2000 fill a PASS; this is what stops that pass from
+     ;; also being silence. Non-zero is a fact wanting a mechanism, not a failure.
+     ;; ⛔ It is read off `fill-sweep`, one poll after the poller's own completion sweep,
+     ;; and that is exact only where nothing is consuming — i.e. under fill-first? = true,
+     ;; the only mode in which the poller runs at all.
+     fill-excess (:fanout::sweep-excess fill-sweep n)
      t-arm0 (:wat::time::epoch-nanos (:wat::time::now))
      s-arm0 (:fanout::sample-of qclients)               ;; boundary sample 2 of 6
      arm-late-rts (:wat::core::if fill-first? (:fanout::arm-workers! wpeers) 0)
@@ -2869,7 +3063,7 @@
      ;; more than once per inbox receive.
      rt-unknown-max (:wat::i64::* inbox-recv-calls (:wat::i64::+ m 1))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -2877,6 +3071,8 @@
               :collect (ms t-collect0 t-stop0)
               :stop (ms t-stop0 t-end)
               :fd fill-depth
+              :fx fill-excess
+              :fsm fill-stale-max
               :ticks ticks
               :tt tticks
               :dh dhits
