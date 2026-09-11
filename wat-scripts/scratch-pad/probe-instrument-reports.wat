@@ -15,7 +15,7 @@
      q   (:demo::dial-queue (:queue::queue::Handle/addr qh))
      expired (:demo::poll-until-unacked q 3)
      live (:demo::q-depth q)
-     _ (:queue::queue/stop qh)
+     _ (:wat::service::stop-faced (:queue::queue/stop qh))
      dead (:demo::q-depth q)
      unread (:demo::poll-until-unacked q 3)]
     (:wat::core::let

@@ -32,7 +32,7 @@
     [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
      c (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r (:my::svc/get-object c (:my::Svc::GetObjectRequest :n 42))
-     _ (:my::svc/stop h)]
+     _ (:wat::service::stop-faced (:my::svc/stop h))]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:my::Svc::GetObjectResponse::Ok value) value)
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.

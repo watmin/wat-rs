@@ -2960,37 +2960,32 @@
      handle-handle-acc (:wat::keyword::from-string
                          (:wat::string::interpolate "{b}::Handle/handle" :b fqdn-base))
      stop-method-params `[h <- ~handle-bare-name]
+     stop-t0-sym       (:wat::core::symbol-node "t0")
+     ;; Send Admin::Stop ONCE (it terminates the service — service.wat:2287; a re-ask
+     ;; would convert a slow stop into a guaranteed Gone). Then a wall-clock-bounded
+     ;; RE-RECV. TimedOut/Stopped/Malformed are alive-signals: re-recv or GaveUp, never Gone.
+     ;; Message(other) stays a raise: a protocol violation, not a momentary failure.
      stop-method-body  `(:wat::core::let
-                          ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
-                          ;; below faces Lost/Closed; the send' just proceeds regardless.
                           [~stop-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-stop-kw)
                                                (:wat::kernel::SendOutcome::Sent   nil)
                                                (:wat::kernel::SendOutcome::Closed nil)
-                                               (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
+                                               (:wat::kernel::SendOutcome::Stopped nil)
                                                ((:wat::kernel::SendOutcome::Lost _c) nil))
-                           ~stop-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
-                          (:wat::core::match ~stop-r-sym 
-                            ((:wat::kernel::RecvOutcome::Message recvd)
-                              (:wat::core::match recvd 
-                                ((~status-stopped-kw resp) resp)
+                           ~stop-t0-sym (:wat::time::epoch-nanos (:wat::time::now))]
+                          (:wat::core::match
+                            (:wat::service::owner-recv-loop (~handle-handle-acc h) ~stop-t0-sym 10000 "recv")
+                            ((:wat::service::StopOutcome::Stopped recvd)
+                              (:wat::core::match recvd
+                                ((~status-stopped-kw resp) (:wat::service::StopOutcome::Stopped resp))
                                 (_ (:wat::kernel::assertion-failed!
                                      "defservice stop: expected Status::Stopped"
                                      :wat::core::None
                                      :wat::core::None))))
-                            ;; arc 278 the recv'-outcome wall — OWNER role: eprintln the cause
-                            ;; (loud, terminal; the owner is the real final caller who does not
-                            ;; recover — R51 eprintln IS the dying declaration), then terminate.
-                            ((:wat::kernel::RecvOutcome::Lost cause)
-                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Stopped
-                              (:wat::kernel::assertion-failed!
-                                "defservice stop: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Closed
-                              (:wat::kernel::assertion-failed!
-                                "defservice stop: service peer closed during stop"
-                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
-     stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
+                            ((:wat::service::StopOutcome::Gone c)
+                              (:wat::service::StopOutcome::Gone c))
+                            ((:wat::service::StopOutcome::GaveUp w l)
+                              (:wat::service::StopOutcome::GaveUp w l))))
+     stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> (:wat::service::StopOutcome :- [~resp-ty]) ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
      methods           (:wat::core::conj
                           (:wat::core::foldl
@@ -3012,34 +3007,30 @@
      hibernate-method-name (:wat::keyword::from-string
                              (:wat::string::interpolate "{b}/hibernate" :b fqdn-base))
      hibernate-method-params `[h <- ~handle-bare-name]
+     hib-t0-sym        (:wat::core::symbol-node "t0")
+     ;; Same send-once / bounded re-recv as stop. Reuses StopOutcome: :Stopped
+     ;; carries the Hibernated snapshot (the expected payload). SCORE states this.
      hibernate-method-body  `(:wat::core::let
-                               ;; arc 278 the send'-outcome wall — a send-then-recv': the recv'
-                               ;; right below faces Lost/Closed; the send' just proceeds regardless.
                                [~hib-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-hibernate-kw)
                                                    (:wat::kernel::SendOutcome::Sent   nil)
                                                    (:wat::kernel::SendOutcome::Closed nil)
-                                                   (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
+                                                   (:wat::kernel::SendOutcome::Stopped nil)
                                                    ((:wat::kernel::SendOutcome::Lost _c) nil))
-                                ~hib-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
-                               (:wat::core::match ~hib-r-sym 
-                                 ((:wat::kernel::RecvOutcome::Message recvd)
-                                   (:wat::core::match recvd 
-                                     ((~status-hibernated-kw snapshot) snapshot)
+                                ~hib-t0-sym (:wat::time::epoch-nanos (:wat::time::now))]
+                               (:wat::core::match
+                                 (:wat::service::owner-recv-loop (~handle-handle-acc h) ~hib-t0-sym 10000 "recv")
+                                 ((:wat::service::StopOutcome::Stopped recvd)
+                                   (:wat::core::match recvd
+                                     ((~status-hibernated-kw snapshot) (:wat::service::StopOutcome::Stopped snapshot))
                                      (_ (:wat::kernel::assertion-failed!
                                           "defservice hibernate: expected Status::Hibernated"
                                           :wat::core::None
                                           :wat::core::None))))
-                                 ((:wat::kernel::RecvOutcome::Lost cause)
-                                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                                 (:wat::kernel::RecvOutcome::Stopped
-                                   (:wat::kernel::assertion-failed!
-                                     "defservice hibernate: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                     :wat::core::None :wat::core::None))
-                                 (:wat::kernel::RecvOutcome::Closed
-                                   (:wat::kernel::assertion-failed!
-                                     "defservice hibernate: service peer closed during hibernate"
-                                     :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
-     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
+                                 ((:wat::service::StopOutcome::Gone c)
+                                   (:wat::service::StopOutcome::Gone c))
+                                 ((:wat::service::StopOutcome::GaveUp w l)
+                                   (:wat::service::StopOutcome::GaveUp w l))))
+     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> (:wat::service::StopOutcome :- [~record-ty-ann]) ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
 
@@ -3798,6 +3789,74 @@
   ;; that both lied about what happened and threw away the reason the serve loop had gone to
   ;; the trouble of computing.
   :Malformed     [cause <- :wat::kernel::Failure])
+
+;; StopOutcome — the owner faces a value instead of dying. `<S>/stop` and
+;; `<S>/hibernate` return this instead of a bare T. :Stopped is the clean
+;; payload (projected state, or the hibernate snapshot). :Gone is a peer
+;; that is actually gone (Closed/Lost). :GaveUp is alive-and-silent: the
+;; wall-clock budget expired, and `last` names which RecvOutcome ended it.
+;; Hibernate reuses this enum — :Stopped carries the Hibernated snapshot.
+(:wat::core::defenum :wat::service::StopOutcome :- [T] :wat::enum::Pure
+  :Stopped [state     <- :T]
+  :Gone    [cause     <- :wat::kernel::LociDiedError]
+  :GaveUp  [waited-ms <- :wat::core::i64
+            last      <- :wat::core::String])
+
+;; owner-recv-loop — send already happened. Re-RECV until a Message, a gone
+;; peer, or the wall-clock budget. TimedOut/Stopped/Malformed never produce
+;; Gone. GaveUp carries waited-ms AND last (which RecvOutcome ended it).
+;;
+;; ⛔ Not select+timer: the owner lineage handle is Thread or Process, and
+;; `:wat::kernel::after` yields a Peer. `select` refuses mixed tiers
+;; (`peers[1] has wrong tier (expected Process)`). `call-by-deadline` works
+;; because client peers ARE Peer. The bound is wall-clock BETWEEN
+;; instantaneous outcomes (Malformed/Stopped/TimedOut). A blocked recv is
+;; the pre-stone hang — the 15 s crash is Malformed, which is not blocked.
+(:wat::core::defn :wat::service::owner-recv-loop :- [I O]
+  [peer <- (:wat::kernel::Peer :- [:I :O])
+   t0-ns <- :wat::core::i64
+   budget-ms <- :wat::core::i64
+   last <- :wat::core::String]
+  -> (:wat::service::StopOutcome :- [:O])
+  (:wat::core::let
+    [elapsed-ms (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t0-ns) 1000000)
+     remaining (:wat::i64::- budget-ms elapsed-ms)]
+    (:wat::core::if (:wat::i64::<= remaining 0)
+      (:wat::service::StopOutcome::GaveUp elapsed-ms last)
+      (:wat::core::match (:wat::kernel::recv peer)
+        ((:wat::kernel::RecvOutcome::Message m)
+          (:wat::service::StopOutcome::Stopped m))
+        (:wat::kernel::RecvOutcome::Closed
+          (:wat::service::StopOutcome::Gone :wat::kernel::LociDiedError::Disconnected))
+        ((:wat::kernel::RecvOutcome::Lost c)
+          (:wat::service::StopOutcome::Gone c))
+        (:wat::kernel::RecvOutcome::TimedOut
+          (:wat::service::owner-recv-loop peer t0-ns budget-ms "TimedOut"))
+        (:wat::kernel::RecvOutcome::Stopped
+          (:wat::service::owner-recv-loop peer t0-ns budget-ms "Stopped"))
+        ((:wat::kernel::RecvOutcome::Malformed _c)
+          (:wat::service::owner-recv-loop peer t0-ns budget-ms "Malformed"))))))
+
+;; require-stopped — call-site choice: need the payload, a failure is a defect
+;; HERE. The generated method no longer decides that for everyone.
+(:wat::core::defn :wat::service::require-stopped :- [T]
+  [o <- (:wat::service::StopOutcome :- [:T])] -> :T
+  (:wat::core::match o
+    ((:wat::service::StopOutcome::Stopped s) s)
+    ((:wat::service::StopOutcome::Gone c)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message c) :wat::core::None :wat::core::None))
+    ((:wat::service::StopOutcome::GaveUp waited last)
+      (:wat::kernel::assertion-failed!
+        (:wat::string::interpolate "stop GaveUp waited-ms={w} last={l}" :w waited :l last)
+        :wat::core::None :wat::core::None))))
+
+;; stop-faced — teardown: every arm is named, none of them crash the owner.
+(:wat::core::defn :wat::service::stop-faced :- [T]
+  [o <- (:wat::service::StopOutcome :- [:T])] -> :wat::core::nil
+  (:wat::core::match o
+    ((:wat::service::StopOutcome::Stopped _) nil)
+    ((:wat::service::StopOutcome::Gone _) nil)
+    ((:wat::service::StopOutcome::GaveUp _ _) nil)))
 
 ;; ServiceEvent::Lost carries Failure. RecvOutcome::Lost wants LociDiedError.
 ;; The one Failure class string that must survive as a variant is Severed

@@ -32,5 +32,5 @@
              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))
      ;; arc 291 3a-ii-β: stop is owner-only — takes the Handle (h), not the client peer (c).
      ;; arc 291 4b-ii: stop returns ::Record (durable soul); read count via Record/count.
-     final (:my::counter/stop h)]
+     final (:wat::service::require-stopped (:my::counter/stop h))]
     (:my::counter::Record/count final)))

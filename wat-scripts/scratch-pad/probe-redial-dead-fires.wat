@@ -11,7 +11,7 @@
   (:wat::core::let
     [h    (:fc::echo/start :locus (:wat::spawn::process) :record (:fc::echo::Record))
      addr (:fc::echo::Handle/addr h)
-     _    (:fc::echo/stop h)]
+     _    (:wat::service::stop-faced (:fc::echo/stop h))]
     (:wat::core::match (:wat::kernel::connect addr)
       ((:wat::kernel::ConnectOutcome::Connected _p)
         (:wat::kernel::assertion-failed! "row2: dead echo still accepted a connect" :wat::core::None :wat::core::None))

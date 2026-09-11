@@ -115,7 +115,7 @@
      ;; a SECOND, INNOCENT client connects AFTER the malformed frame
      b    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))
      r3   (:wat-tests::mal/try b good)
-     _    (:wat-tests::mal-bag/stop h)]
+     _    (:wat::service::stop-faced (:wat-tests::mal-bag/stop h))]
     (:wat::string::concat r1
       (:wat::string::concat " | " (:wat::string::concat r2
         (:wat::string::concat " | " r3))))))

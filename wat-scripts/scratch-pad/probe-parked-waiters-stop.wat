@@ -124,11 +124,11 @@
      _settle (:vb::await-timer-ms 250)
      _stop (:wat::core::foldl
              (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
-               (:wat::core::let [_o (:vb::parker/stop (:wat::core::nth parkers i))] (:wat::i64::+ acc 1)))
+               (:wat::core::let [_o (:wat::service::stop-faced (:vb::parker/stop (:wat::core::nth parkers i)))] (:wat::i64::+ acc 1)))
              0
              (:wat::core::range 0 j))
-     _qs (:queue::queue/stop qh)
-     _ss (:wat::query::mem-store/stop sh)]
+     _qs (:wat::service::stop-faced (:queue::queue/stop qh))
+     _ss (:wat::service::stop-faced (:wat::query::mem-store/stop sh))]
     j))
 
 (:wat::core::defn :vb::step [j <- :wat::core::i64] -> :wat::core::nil

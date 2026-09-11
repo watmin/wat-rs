@@ -213,7 +213,7 @@
              :sink-addr (:probe::fail-journal::Handle/addr jh))
      span  (:probe::connect-span (:wat::telemetry::span::Handle/addr sph))
      n     (:probe::drive-log span 40 0)
-     rec   (:wat::telemetry::span/stop sph)
+     rec   (:wat::service::require-stopped (:wat::telemetry::span/stop sph))
      got   (:wat::core::count (:wat::telemetry::span::Record/logs rec))]
     (:wat::core::if (:wat::core::and (:wat::i64::>= n 2) (:wat::core::= got n)) 1 got)))
 
@@ -227,7 +227,7 @@
              :sink-addr (:probe::fail-journal::Handle/addr jh))
      span  (:probe::connect-span (:wat::telemetry::span::Handle/addr sph))
      n     (:probe::drive-timed span 40 0)
-     rec   (:wat::telemetry::span/stop sph)
+     rec   (:wat::service::require-stopped (:wat::telemetry::span/stop sph))
      got   (:probe::sample-count rec)]
     (:wat::core::if (:wat::core::and (:wat::i64::>= n 2) (:wat::core::= got n)) 1 got)))
 
@@ -241,7 +241,7 @@
              :sink-addr (:probe::fail-journal::Handle/addr jh))
      span  (:probe::connect-span (:wat::telemetry::span::Handle/addr sph))
      n     (:probe::drive-incr span 40 0)
-     rec   (:wat::telemetry::span/stop sph)
+     rec   (:wat::service::require-stopped (:wat::telemetry::span/stop sph))
      got   (:wat::core::count
              (:wat::hashmap::keys (:wat::telemetry::span::Record/counters rec)))]
     (:wat::core::if (:wat::core::and (:wat::i64::>= n 2) (:wat::core::= got n)) 1 got)))

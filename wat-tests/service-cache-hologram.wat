@@ -159,7 +159,7 @@
                 (:wat::cache::hologram-svc/get b
                   (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::holon::HolonAST]))))
               (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]))
-     _ (:wat::cache::hologram-svc/stop h)]
+     _ (:wat::service::stop-faced (:wat::cache::hologram-svc/stop h))]
     nil))
 
 ;; ── thread tier ────────────────────────────────────────────────────────────────────────────

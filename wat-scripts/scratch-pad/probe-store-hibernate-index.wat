@@ -61,7 +61,7 @@
      c1 (:hi::dial (:wat::query::mem-store::Handle/addr h1))
      _p (:hi::put c1)
      before (:hi::render c1)
-     snap (:wat::query::mem-store/hibernate h1)
+     snap (:wat::service::require-stopped (:wat::query::mem-store/hibernate h1))
      h2 (:wat::query::mem-store/resume :locus (:wat::spawn::thread) :record snap)
      c2 (:hi::dial (:wat::query::mem-store::Handle/addr h2))
      after (:hi::render c2)]

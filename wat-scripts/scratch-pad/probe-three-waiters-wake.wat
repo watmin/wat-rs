@@ -213,11 +213,11 @@
      calls (:vw::calls-of q)
      got (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
-             (:wat::i64::+ acc (:vw::parker/stop (:wat::core::nth parkers i))))
+             (:wat::i64::+ acc (:wat::service::require-stopped (:vw::parker/stop (:wat::core::nth parkers i)))))
            0
            (:wat::core::range 0 j))
-     _qs (:queue::queue/stop qh)
-     _ss (:wat::query::mem-store/stop sh)
+     _qs (:wat::service::stop-faced (:queue::queue/stop qh))
+     _ss (:wat::service::stop-faced (:wat::query::mem-store/stop sh))
      t1 (:wat::time::epoch-nanos (:wat::time::now))]
     (:wat::core::format
       "j={j};n={n};{w};got={got};calls={c};ms={ms}"

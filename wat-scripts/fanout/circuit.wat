@@ -2559,7 +2559,7 @@
     (:wat::core::fn [acc <- :fanout::Collected
                      h   <- :fanout::worker::Handle]
       -> :fanout::Collected
-      (:wat::core::let [fin (:fanout::worker/stop h)]
+      (:wat::core::let [fin (:wat::service::require-stopped (:fanout::worker/stop h))]
         (:fanout::Collected
           :outs (:wat::core::foldl
                   (:wat::core::fn [a <- (:wat::core::Vector :- [:fanout::Outcome])
@@ -3205,7 +3205,7 @@
      s-stop0 (:fanout::sample-of qclients)              ;; boundary sample 5 of 6
      tw-stop-rts (:wat::core::foldl
                (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
-                 (:wat::core::let [_ (:demo::topic-worker/stop (:wat::core::nth twhandles i))]
+                 (:wat::core::let [_ (:wat::service::stop-faced (:demo::topic-worker/stop (:wat::core::nth twhandles i)))]
                    (:wat::i64::+ acc 1)))
                0
                (:wat::core::range 0 j))
@@ -3514,7 +3514,7 @@
                ((:wat::kernel::SendOutcome::Lost _c) "lost")))
            (_ "redial-failed"))
          "skipped")
-     _stop (:fanout::hold/stop h)]
+     _stop (:wat::service::stop-faced (:fanout::hold/stop h))]
     (:wat::core::format
       "timeout={t};discarded=yes;redial=Connected;retry-on={r}"
       :t (:wat::core::if (:wat::core::= first "timeout") "yes" first)
@@ -3647,7 +3647,7 @@
             nil
             (:wat::core::range 0 n))
      _ (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
-     outs (:fanout::held-worker/stop hh)
+     outs (:wat::service::require-stopped (:fanout::held-worker/stop hh))
      distinct (:wat::core::count
                 (:wat::hashmap::keys
                   (:wat::core::foldl
@@ -3688,7 +3688,7 @@
      _   (:fanout::start-worker! w)
      _   (:fanout::await-timer-ms 20)
      t0  (:wat::time::epoch-nanos (:wat::time::now))
-     _   (:fanout::worker/stop wh)
+     _   (:wat::service::stop-faced (:fanout::worker/stop wh))
      t1  (:wat::time::epoch-nanos (:wat::time::now))
      dt  (:wat::i64::/ (:wat::i64::- t1 t0) 1000000)]
     (:wat::core::format "dt-ms={dt}" :dt dt)))
@@ -3735,7 +3735,7 @@
      _     (:fanout::start-worker! w)
      _pub  (:fanout::publish-n-until-accepted! topic n)
      _     (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
-     outs  (:fanout::WorkerFinal/outcomes (:fanout::worker/stop wh))
+     outs  (:fanout::WorkerFinal/outcomes (:wat::service::require-stopped (:fanout::worker/stop wh)))
      distinct (:wat::core::count
                 (:wat::hashmap::keys
                   (:wat::core::foldl
@@ -3830,8 +3830,8 @@
           ((:wat::kernel::RecvOutcome::Message _r) nil)
           (_ nil))
      _  (:fanout::await-timer-ms 800)
-     o1 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w1))
-     o2 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w2))
+     o1 (:fanout::WorkerFinal/outcomes (:wat::service::require-stopped (:fanout::worker/stop w1)))
+     o2 (:fanout::WorkerFinal/outcomes (:wat::service::require-stopped (:fanout::worker/stop w2)))
      outs (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:fanout::Outcome])
                              o   <- :fanout::Outcome]
@@ -3887,8 +3887,8 @@
           ((:wat::kernel::RecvOutcome::Message _r) nil)
           (_ nil))
      _  (:fanout::await-timer-ms 800)
-     o1 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w1))
-     o2 (:fanout::WorkerFinal/outcomes (:fanout::worker/stop w2))
+     o1 (:fanout::WorkerFinal/outcomes (:wat::service::require-stopped (:fanout::worker/stop w1)))
+     o2 (:fanout::WorkerFinal/outcomes (:wat::service::require-stopped (:fanout::worker/stop w2)))
      outs (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:fanout::Outcome])
                              o   <- :fanout::Outcome]

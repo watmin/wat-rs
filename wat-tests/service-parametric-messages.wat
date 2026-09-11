@@ -194,7 +194,7 @@
               (:wat-tests::pcache-svc/get c
                 (:wat::edn::read
                   "#wat-tests.PCache/GetRequest {:probes [1 2] :limit 7}")))
-     _    (:wat-tests::pcache-svc/stop h)]
+     _    (:wat::service::stop-faced (:wat-tests::pcache-svc/stop h))]
     (:wat::string::concat good
       (:wat::string::concat " | " (:wat::string::concat bad
         (:wat::string::concat " | " opaque))))))

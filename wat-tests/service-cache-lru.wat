@@ -159,7 +159,7 @@
      get-empty (:wat-tests::cache-svc/get-label
                  (:wat::cache::lru-svc/get b
                    (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :- [:wat::core::String]))))
-     _ (:wat::cache::lru-svc/stop h)]
+     _ (:wat::service::stop-faced (:wat::cache::lru-svc/stop h))]
     (:wat::string::concat put-batch
       (:wat::string::concat " | " (:wat::string::concat get-jumbled
         (:wat::string::concat " | " (:wat::string::concat put-k3

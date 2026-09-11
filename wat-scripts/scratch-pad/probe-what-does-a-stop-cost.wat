@@ -52,7 +52,7 @@
     [t0 (:wat::time::epoch-nanos (:wat::time::now))
      h  (:probe::ctr/start :locus (:wat::spawn::thread) :record (:probe::ctr::Record :count 0))
      t1 (:wat::time::epoch-nanos (:wat::time::now))
-     _f (:probe::ctr/stop h)
+     _f (:wat::service::stop-faced (:probe::ctr/stop h))
      t2 (:wat::time::epoch-nanos (:wat::time::now))]
     (:wat::core::Tuple (:probe::ms t0 t1) (:probe::ms t1 t2))))
 
@@ -62,7 +62,7 @@
     [t0 (:wat::time::epoch-nanos (:wat::time::now))
      h  (:probe::ctr/start :locus (:wat::spawn::process) :record (:probe::ctr::Record :count 0))
      t1 (:wat::time::epoch-nanos (:wat::time::now))
-     _f (:probe::ctr/stop h)
+     _f (:wat::service::stop-faced (:probe::ctr/stop h))
      t2 (:wat::time::epoch-nanos (:wat::time::now))]
     (:wat::core::Tuple (:probe::ms t0 t1) (:probe::ms t1 t2))))
 
