@@ -1,0 +1,24 @@
+;; tests/rete/probe_arc278_fence_binder_shadow_match.wat.bad
+;; Arc 278 strike a-fence-local-binder-may-not-shadow-a-rete-var — THE `match` HAZARD, REFUSED.
+;;
+;; The BRIEF's open question, driven before this fixture was written (NOT assumed from the doc
+;; comment) with a scratch probe run against the PRE-CURE binary — `?k` bound outer-scope to
+;; `i64`, a fence `(match "shadow" (?k (string::= ?k "shadow")))` — through a real fire-rules
+;; cycle, and it FIRES (`match-arm 1, control 1`), proving the arm pattern's bare `?k` really does
+;; bind (shadow) rather than read the outer value. `lower_pat`'s bare-`Symbol` arm
+;; (`src/rete/expr_ir/mod.rs`) is the mechanism: unconditional, no special case for a `?`-prefixed
+;; name. The probe itself is gone (see `probe_arc278_fence_binder_shadow.rs`'s module doc for why
+;; a file demonstrating this shape cannot live under `wat-scripts/` once the cure below lands) —
+;; THIS file is its permanent, gate-compliant home.
+;;
+;; Before this stone: accepted silently. After: refused at rule-compile time,
+;; `FenceBinderShadowsReteVar`, naming the binder `?k` and the form `match`.
+
+(:wat::core::defrecord :fbsm::N [k <- :wat::core::i64])
+
+(:wat::rete::defrule :fbsm::shadow-in-match
+  :when [(:fbsm::N (?k <- :k))
+         (:wat::rete::where
+           (:wat::rete::core::match "shadow"
+             (?k (:wat::rete::core::string::= ?k "shadow"))))]
+  :then [])

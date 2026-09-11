@@ -1,0 +1,17 @@
+;; tests/rete/probe_arc278_fence_binder_shadow_let.wat.bad
+;; Arc 278 strike a-fence-local-binder-may-not-shadow-a-rete-var — THE `let` HAZARD, REFUSED.
+;;
+;; `?k` is bound outer-scope by the fact pattern to an `i64`. The fence's `let` uses `?k` AGAIN —
+;; as its OWN binder, at `string`. Before this stone: accepted silently, compiled and FIRES
+;; (driven at HEAD `f608c2a5b`'s DESIGN.md — `(let [?k "shadow"] (string::= ?k "shadow"))` runs
+;; beside a condition binding `?k` to `i64`). After this stone: refused at rule-compile time,
+;; `FenceBinderShadowsReteVar`, naming the binder `?k` and the form `let`.
+
+(:wat::core::defrecord :fbsl::N [k <- :wat::core::i64])
+
+(:wat::rete::defrule :fbsl::shadow-in-let
+  :when [(:fbsl::N (?k <- :k))
+         (:wat::rete::where
+           (:wat::rete::core::let [?k "shadow"]
+             (:wat::rete::core::string::= ?k "shadow")))]
+  :then [])

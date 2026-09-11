@@ -299,6 +299,31 @@ pub enum ReteCheckErrorKind {
         operand: String,
         operand_type: String,
     },
+    /// Arc 278 strike-a-fence-local-binder-may-not-shadow-a-rete-var — a `?`-prefixed name used
+    /// as the BINDER in a fence-local `(:wat::rete::core::let […] …)` binding vector or a
+    /// `(:wat::rete::core::match …)` arm pattern.
+    ///
+    /// `?name` MEANS "the rete binding for `name`" everywhere else a rule can be written; a
+    /// fence-local binder silently REDEFINING it has no legitimate reading. Driven, not assumed:
+    /// `(:wat::rete::where (:wat::rete::core::let [?k "shadow"] (:wat::rete::core::string::= ?k
+    /// "shadow")))` compiles and FIRES beside a condition binding `?k` to `i64`, and the
+    /// identical hazard is driven for `match` — a bare `?k` arm pattern binds through
+    /// `lower_pat`'s bare-`Symbol` arm exactly as `let`'s binder does.
+    ///
+    /// This is the constraint rung, not the check rung (`DESIGN.md`'s one contract decision):
+    /// refusing the SHAPE — making a `?`-prefixed binder UNREPRESENTABLE — is what retires the
+    /// scope-stack requirement `check_fence_interior`'s doc used to justify. The walk cannot
+    /// read a shadowed name at the wrong type if no name can ever be shadowed.
+    ///
+    /// ⛔ **NO `fact_type`**, same reason as [`Self::FenceConstraintTypeMismatch`]: a `where`
+    /// fence sits at `:when` TOP LEVEL, bound to no fact.
+    FenceBinderShadowsReteVar {
+        rule: String,
+        /// `"let"` or `"match"` — which fence-local form introduced the binder.
+        form: String,
+        /// The offending name, rendered with its leading `?` (e.g. `?k`).
+        binder: String,
+    },
     /// A `(?v <- :field)` bind inside a `:not` whose variable is consumed NOWHERE — not by a
     /// constraint inside the negation, not anywhere else in the rule.
     ///
@@ -448,6 +473,13 @@ impl fmt::Display for ReteCheckErrorKind {
                 "defrule `{rule}` (where fence): `{head}` compares operand `{operand}`, resolved \
                  `{operand_type}`, for which rete has NO comparator — the rete equality surface is \
                  i64/f64/string/bool/keyword/enum. Compare a scalar value of it instead"
+            ),
+            ReteCheckErrorKind::FenceBinderShadowsReteVar { rule, form, binder } => write!(
+                f,
+                "defrule `{rule}` (where fence): `{form}` binds `{binder}` — a `?`-prefixed name \
+                 is a rete variable, and a fence-local `{form}` may not use one as a BINDER: it \
+                 would silently shadow the rule-wide binding, possibly at a different type. Use a \
+                 plain (non-`?`-prefixed) name instead"
             ),
             ReteCheckErrorKind::UnconsumedWrapperBind { rule, var, fact_type } => write!(
                 f,

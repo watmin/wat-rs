@@ -484,18 +484,21 @@ pub(crate) fn check_constraint_head(
 /// `and`/`or`/`not`/`if` — `clause.rs`'s `expr_is_provably_boolean` already enumerates those
 /// shapes, and a second hand-rolled copy here would be a second grammar to drift.
 ///
-/// ⛔ **Does NOT descend into a `let`'s BODY or a `match` arm's BODY — confirmed necessary, not
-/// assumed.** Driven at `wat-scripts/scratch-pad/arc278-fence-interior-types/`: a fence-local
-/// `(:wat::rete::core::let [?k "shadow"] (:wat::rete::core::string::= ?k "shadow"))` compiles
-/// AND FIRES beside a condition that binds the SAME name `?k` to `i64` — `lower_let` accepts any
-/// symbol as a binder (`src/rete/expr_ir/mod.rs`), so a fence can shadow a rule-wide `?var` with
-/// a value of a completely different type. `match`'s patterns bind the same way (`lower_pat`'s
-/// bare-`Symbol` arm). This walk carries no scope stack, so resolving a shadowed name through the
-/// rule-wide map would read it at the WRONG type and refuse legal, firing code — exactly the
-/// false positive `legal_fences_still_compile` exists to catch (brief STOP-2, answered here by
-/// narrowing what is walked, not by guessing a shadowing rule). A `let`'s bound VALUES and a
-/// `match`'s SUBJECT are still walked — both evaluate in the OUTER scope, before any binder
-/// fires — only the shadow-risk subtree is skipped.
+/// ⛔ **Still does NOT descend into a `let`'s BODY or a `match` arm's BODY — but NOT for the
+/// shadowing reason this comment used to give.** That reason is RETIRED
+/// (`docs/arc/2026/06/278-rules-engine/a-fence-local-binder-may-not-shadow-a-rete-var/DESIGN.md`):
+/// a `?`-prefixed BINDER in a fence-local `let`'s binding vector or a `match` arm's pattern is now
+/// refused outright, below, as [`ReteCheckErrorKind::FenceBinderShadowsReteVar`] — a fence can no
+/// longer shadow a rule-wide `?var`, because no name can be bound there that collides with one.
+///
+/// The walk still skips both bodies, for the reason `DESIGN.md`'s "what this does NOT do" section
+/// states plainly: checking `(:wat::rete::core::i64::> x 100)` needs to know `x`'s type, and `x`
+/// is a fence-local binder — not in the rule-wide `binds` map, not a field, not a literal — so
+/// `resolve_operand_type` answers `ComputedNotDerivableHere` and skips it regardless. Descending
+/// would need a LOCAL type environment threaded through this walk, which this stone does not
+/// build; it is separate, larger work, decidable on its own merits now that shadowing cannot
+/// happen. A `let`'s bound VALUES and a `match`'s SUBJECT are still walked — both evaluate in the
+/// OUTER scope, before any binder fires.
 pub(crate) fn check_fence_interior(
     expr: &WatAST,
     rule_name: &str,
@@ -511,12 +514,28 @@ pub(crate) fn check_fence_interior(
         return;
     };
 
-    // `(let [name val …] body)` — `val`s are outer-scope; `body` may shadow. Walk the values,
-    // skip the body entirely (see the STOP-2 doc above).
+    // `(let [name val …] body)` — `val`s are outer-scope; `body` may shadow, so its own
+    // descent stays out of scope (doc above). What IS in scope: a `?`-prefixed BINDER is refused
+    // outright, by name, before its value is even walked — `?k` means "the rete binding for k",
+    // and a local silently redefining it has no legitimate reading (`DESIGN.md`'s one contract
+    // decision). A plain binder (`where-inline-computed.wat:166`'s `[x ?k]` — `x` holding `?k`'s
+    // VALUE) is untouched; only the NAME position is checked.
     if head == ":wat::rete::core::let" {
         if let Some(WatAST::Vector(pairs, _)) = items.get(1) {
             for pair in pairs.chunks(2) {
-                if let [_name, val] = pair {
+                if let [name, val] = pair {
+                    if let WatAST::Symbol(sym, _) = name {
+                        if sym.as_str().starts_with('?') {
+                            errors.push(ReteCheckError {
+                                span: name.span().clone(),
+                                kind: ReteCheckErrorKind::FenceBinderShadowsReteVar {
+                                    rule: rule_name.to_string(),
+                                    form: "let".to_string(),
+                                    binder: sym.as_str().to_string(),
+                                },
+                            });
+                        }
+                    }
                     check_fence_interior(val, rule_name, binds, types, errors);
                 }
             }
@@ -524,10 +543,21 @@ pub(crate) fn check_fence_interior(
         return;
     }
     // `(match subject (pattern body)…)` — `subject` is outer-scope; each arm's `body` may bind
-    // via its pattern. Walk the subject, skip every arm.
+    // via its pattern, so its own descent stays out of scope (doc above). Each arm's PATTERN is
+    // scanned for a `?`-prefixed binder — `lower_pat` (`src/rete/expr_ir/mod.rs`) mints one for
+    // ANY bare symbol it finds in pattern position, at any nesting depth (a variant payload, a
+    // hash-destructure key), so the scan mirrors that shape rather than checking only the arm's
+    // top-level pattern.
     if head == ":wat::rete::core::match" {
         if let Some(subject) = items.get(1) {
             check_fence_interior(subject, rule_name, binds, types, errors);
+        }
+        for arm in items.iter().skip(2) {
+            if let WatAST::List(parts, _) = arm {
+                if let Some(pattern) = parts.first() {
+                    check_match_pattern_for_shadow(pattern, rule_name, errors);
+                }
+            }
         }
         return;
     }
@@ -542,6 +572,62 @@ pub(crate) fn check_fence_interior(
     // Every other shape (and/or/not/if, a nested call, …) just recurses structurally.
     for item in items {
         check_fence_interior(item, rule_name, binds, types, errors);
+    }
+}
+
+/// Scan a single `match` arm's PATTERN for a `?`-prefixed binder, pushing
+/// [`ReteCheckErrorKind::FenceBinderShadowsReteVar`] for each one found. Mirrors `lower_pat`'s own
+/// shape (`src/rete/expr_ir/mod.rs`) rather than checking only the top-level pattern, because
+/// `lower_pat` mints a binder for a bare symbol at ANY depth it recurses into:
+///
+/// - a literal (`IntLit`/`FloatLit`/`BoolLit`/`StringLit`) — never a binder.
+/// - `_` — the wildcard, never a binder.
+/// - any other bare `Symbol` — a binder (`Pat::Bind`); refused here iff `?`-prefixed.
+/// - a `Keyword` — a literal or a unit variant tag; never itself a binder.
+/// - a non-empty `List` (`(:Type::Variant payload)`) — the head is the variant tag, never a
+///   binder; the SECOND item, if present, is the payload and is itself a pattern (`lower_pat`
+///   recurses into it), so it is scanned the same way.
+/// - a `Map` (`{var :field …}`, the hash-destructure) — each KEY is a binder (`lower_pat`'s
+///   `cx.slot(var.as_str())`); each VALUE is a `:field` keyword, never a binder.
+///
+/// Any other shape (`Vector`/`Set`/`RationalLit`/`BigIntLit`/`NilLit`) is not a pattern `lower_pat`
+/// accepts at all — refused elsewhere, at lower time, by name; not this function's concern.
+fn check_match_pattern_for_shadow(pattern: &WatAST, rule_name: &str, errors: &mut Vec<ReteCheckError>) {
+    match pattern {
+        WatAST::Symbol(sym, _) if sym.as_str() == "_" => {}
+        WatAST::Symbol(sym, _) if sym.as_str().starts_with('?') => {
+            errors.push(ReteCheckError {
+                span: pattern.span().clone(),
+                kind: ReteCheckErrorKind::FenceBinderShadowsReteVar {
+                    rule: rule_name.to_string(),
+                    form: "match".to_string(),
+                    binder: sym.as_str().to_string(),
+                },
+            });
+        }
+        WatAST::Symbol(..) | WatAST::Keyword(..) => {}
+        WatAST::List(items, _) if !items.is_empty() => {
+            if let Some(payload) = items.get(1) {
+                check_match_pattern_for_shadow(payload, rule_name, errors);
+            }
+        }
+        WatAST::Map(pairs, _) => {
+            for (key, _val) in pairs {
+                if let WatAST::Symbol(sym, _) = key {
+                    if sym.as_str().starts_with('?') {
+                        errors.push(ReteCheckError {
+                            span: key.span().clone(),
+                            kind: ReteCheckErrorKind::FenceBinderShadowsReteVar {
+                                rule: rule_name.to_string(),
+                                form: "match".to_string(),
+                                binder: sym.as_str().to_string(),
+                            },
+                        });
+                    }
+                }
+            }
+        }
+        _ => {}
     }
 }
 
