@@ -1,0 +1,26 @@
+[
+  #wat.kernel/LociDiedError.StartupError {
+    :error #wat.resolve/UnresolvedReferences {
+      :message "1 unresolved reference"
+      :location nil
+      :causes []
+      :unresolved [
+        #wat.resolve/UnresolvedReference {
+          :path ":wat::core::Option::Some"
+          :context "call head — not a builtin, not a registered function"
+          :span #wat.core/Span {
+            :file "tests/resolve/probe_arc255_the_blanket_hides_a_phantom_head__colon_spelling_is_refused.wat"
+            :line 10
+            :col 27
+            :end #wat.core/Option.Some {
+              :value #wat.core/Pos {
+                :line 10
+                :col 51
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+]
