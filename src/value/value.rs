@@ -1745,6 +1745,34 @@ impl Value {
     /// - Every primitive/kind-only variant → `self.type_name().to_string()`.
     ///
     /// **TRANSFORMS (clojure-ination):** keyword type-name strings
+    /// The scrutinee description a failed `match` reports: the declared FQDN, plus
+    /// `.Variant` and the field count when the value is an enum (native or wire-decoded).
+    ///
+    /// Added 2026-09-10 by the fault census. `PatternMatchFailed` previously carried
+    /// `type_name()`, which is the generic `"wat::core::Enum"` for every enum — so the
+    /// error naming a non-exhaustive match could not name the enum. A chaos run died on it
+    /// twice, in two services, and nothing in the log distinguished a `ForeignVariant` off
+    /// the wire from a native enum with an unlisted variant. Those two have opposite fixes,
+    /// which is exactly why the value must be named.
+    pub fn match_scrutinee_description(&self) -> String {
+        match self {
+            Value::Enum(ev) => format!(
+                "{}.{} ({} field(s))",
+                ev.type_path.trim_start_matches(':'),
+                ev.variant_name,
+                ev.fields.len()
+            ),
+            // A wire-decoded variant: the class is self-described and there is NO native
+            // type behind it, so a match compiled against a native enum cannot have an arm
+            // for it. Saying `foreign` here is the whole diagnosis when it happens.
+            Value::ForeignVariant(fv) => format!(
+                "{} (foreign/wire-decoded variant)",
+                fv.enum_class
+            ),
+            other => other.declared_type_name(),
+        }
+    }
+
     pub fn declared_type_name(&self) -> String {
         match self {
             // ── Nominal forms: per-instance declared FQDN ────────────────────

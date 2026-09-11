@@ -237,7 +237,7 @@ fn probe_macro_expansion_failed() {
 
 #[test]
 fn probe_pattern_match_failed() {
-    let err = make(RuntimeErrorKind::PatternMatchFailed { value_type: "i64" });
+    let err = make(RuntimeErrorKind::PatternMatchFailed { value_type: "i64".to_string() });
     wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__pattern_match_failed.edn");
 }
 

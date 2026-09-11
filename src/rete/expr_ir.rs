@@ -1030,7 +1030,7 @@ fn exec(
             Err(RuntimeError::new(
                 span.clone(),
                 RuntimeErrorKind::PatternMatchFailed {
-                    value_type: v.type_name(),
+                    value_type: v.match_scrutinee_description(),
                 },
             )
             .into())

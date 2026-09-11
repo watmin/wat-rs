@@ -4968,7 +4968,7 @@ fn eval_match_tail(
     Err(RuntimeError::new(
         args[0].span().clone(),
         RuntimeErrorKind::PatternMatchFailed {
-            value_type: scrutinee.type_name(),
+            value_type: scrutinee.match_scrutinee_description(),
         },
     )
     .into())
@@ -16333,7 +16333,7 @@ fn eval_match(
     Err(RuntimeError::new(
         args[0].span().clone(),
         RuntimeErrorKind::PatternMatchFailed {
-            value_type: scrutinee.type_name(),
+            value_type: scrutinee.match_scrutinee_description(),
         },
     )
     .into())
@@ -24107,7 +24107,7 @@ fn step_match(
     Err(RuntimeError::new(
         scrut.span().clone(),
         RuntimeErrorKind::PatternMatchFailed {
-            value_type: scrut.variant_name(),
+            value_type: scrut.variant_name().to_string(),
         },
     )
     .into())

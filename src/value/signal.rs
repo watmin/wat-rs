@@ -359,7 +359,16 @@ pub enum RuntimeErrorKind {
     /// pattern matches the scrutinee's shape. Exhaustiveness is the
     /// type checker's job; this variant fires only when the check was
     /// bypassed or hasn't caught up with a new pattern form.
-    PatternMatchFailed { value_type: &'static str },
+    /// Arc: the fault census (2026-09-10). `value_type` was `&'static str` and carried
+    /// `Value::type_name()`, which for EVERY enum is the generic `"wat::core::Enum"` — so
+    /// this error could not say WHICH enum or WHICH variant failed to match. That made the
+    /// one failure it exists to report unfalsifiable: a chaos run died here twice, in two
+    /// different services, and the log could not distinguish "the wire handed us a foreign
+    /// variant" from "a native enum grew a variant some match does not list". It is now a
+    /// `String` carrying `declared_type_name()` (the declared FQDN, plus the variant where
+    /// the value is an enum), because a diagnostic that cannot name the value is a
+    /// diagnostic that cannot be acted on.
+    PatternMatchFailed { value_type: String },
     /// Arc 068 — `:wat::eval-step!` saw a form whose head is an
     /// effectful op (kernel sends/recvs, IO writes, channel-construction
     /// primitives, `:wat::eval-ast!` itself, etc.). The stepwise
