@@ -151,10 +151,18 @@
      svc-kw      (:wat::core::keyword-node (:wat::string::interpolate ":{svc-str}" :svc-str svc-str))
      req-kw      (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest")))
      resp-kw     (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse")))
-     resp-ded-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::Deductions")))
-     resp-fat-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::Fatal")))
-     resp-rtl-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::RequestTooLarge")))
-     resp-rm-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::RequestMalformed")))
+     ;; The four response VARIANTS route through the composition door (arc 255,
+     ;; `:wat::runtime::compose-variant`) rather than a hardcoded `::` in the concatenated
+     ;; string — the dot-flip's separator is that door's decision alone, made once.
+     ;; `compose-variant` wants a plain `:wat::core::keyword` VALUE (a runtime value it can
+     ;; splice), not a `keyword-node` WatAST wrapper (`resp-kw` above is a node, kept as-is for
+     ;; its own `~resp-kw` splice sites at the `defenum`/return-type positions below) — so the
+     ;; enum path is built again here as a plain keyword, same string, `keyword::from-string`.
+     resp-plain-kw (:wat::keyword::from-string (:wat::string::concat name-str "::SiftRulesResponse"))
+     resp-ded-kw (:wat::runtime::compose-variant resp-plain-kw :Deductions)
+     resp-fat-kw (:wat::runtime::compose-variant resp-plain-kw :Fatal)
+     resp-rtl-kw (:wat::runtime::compose-variant resp-plain-kw :RequestTooLarge)
+     resp-rm-kw  (:wat::runtime::compose-variant resp-plain-kw :RequestMalformed)
      req-ns-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/namespace")))
      req-lo-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/time-lo")))
      req-hi-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/time-hi")))

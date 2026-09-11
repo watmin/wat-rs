@@ -4,7 +4,7 @@
 ;; `(:wat::holon::leaf 999)` no longer type-checks here; `to-wat` wraps it
 ;; (STOP-3: no new verb minted).
 (:wat::core::defn :my::test::halt [n <- :wat::core::i64] -> (:wat::eval::WalkStep :- [:wat::core::i64])
-  (:wat::eval::WalkStep::Skip
+  (:wat::eval::WalkStep.Skip
     {:terminal (:wat::holon::to-wat (:wat::holon::leaf 999))
     :acc n}))
 (:wat::core::defn :my::compute [] -> :wat::core::i64

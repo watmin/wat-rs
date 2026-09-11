@@ -1411,7 +1411,7 @@
          (:wat::core::conj (:wat::core::Vector :- [:wat::WatAST])
            `(:wat::core::derive ~enum-name ~service-op-kw)))
      ;; keyword-:op resolution data: for each INTERNAL op, the body keyword string (`:-tick`) and
-     ;; the SOURCE TEXT of its <service>::Op variant constructor (`(:<fqdn>::Op::-Tick {})`).
+     ;; the SOURCE TEXT of its <service>::Op variant constructor (`(:<fqdn>::Op.-Tick {})`).
      ;; Unit map ctor — `(Variant)` positional is retired (296 N RELAND 9). A handler body's
      ;; `:op :-tick` is resolved to the variant via an ast->source → split/join → read-string
      ;; round-trip (in serve-op-arms) — <service>::Op never leaks to the author, and the
@@ -1443,7 +1443,9 @@
                  (:wat::core::conj acc
                    (:wat::string::concat "(:"
                      (:wat::string::concat service-op-str
-                       (:wat::string::concat "::"
+                       ;; `.` — the variant separator (the dot-flip), not `::` (a namespace
+                       ;; join): `service-op-str` is already the Op enum's own FQDN.
+                       (:wat::string::concat "."
                          (:wat::string::concat variant-pascal " {})"))))))
                acc)))
          (:wat::core::Vector :- [:wat::core::String])

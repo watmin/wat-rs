@@ -26,7 +26,7 @@
              :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Error
              :message (:wat::edn::write (:probe::Note :text "error-one")))
      l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
+             :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))
@@ -91,7 +91,7 @@
              :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Error
              :message (:wat::edn::write (:probe::Note :text "error-one")))
      l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
+             :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2 l3)))

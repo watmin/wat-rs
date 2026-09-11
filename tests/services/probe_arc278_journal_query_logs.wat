@@ -17,7 +17,7 @@
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
              :message (:wat::edn::write (:probe::Note :text "one")))
      l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
+             :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Warn
              :message (:wat::edn::write (:probe::Note :text "two")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :- [:wat::telemetry::Log] l1 l2)))

@@ -7,7 +7,7 @@
     :end #wat.core/Option.Some {
       :value #wat.core/Pos {
         :line 70
-        :col 67
+        :col 66
       }
     }
   }

@@ -1626,9 +1626,12 @@ pub fn register_type_predicates(
             // every derived name byte-identical across the flip.
             let (prefix, base) = match wat_reader::identifier::decompose_variant(stripped) {
                 Some((enum_path, variant)) => (enum_path, variant),
+                // decompose_variant already returned None above — stripped carries no variant
+                // dot, so this is the general namespace/leaf split for an ordinary namespaced
+                // type name, not a variant decompose.
                 None => (
-                    wat_reader::identifier::path(stripped),
-                    wat_reader::identifier::leaf(stripped),
+                    wat_reader::identifier::path(stripped), // rune:lint(one-variant-separator, namespace) — namespace/leaf split, not a variant.
+                    wat_reader::identifier::leaf(stripped), // rune:lint(one-variant-separator, namespace) — namespace/leaf split, not a variant.
                 ),
             };
             // rune:lint(one-variant-separator, namespace) — rejoins namespace prefix + derived

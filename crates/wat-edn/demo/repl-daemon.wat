@@ -25,21 +25,21 @@
   (:wat::core::match (:wat::kernel::readln )
 
     ;; a datum arrived — evaluate it, print the reply, listen again
-    [:wat::kernel::ReadlnOutcome::Datum {:v src}
+    [:wat::kernel::ReadlnOutcome.Datum {:v src}
       (:wat::core::do
         (:wat::kernel::println
           (:wat::eval-ast!
             (:wat::core::first
               (:wat::core::match (:wat::core::read-string src)
-                [:wat::core::ReadOutcome::Forms {:forms __forms} __forms]
-                [:wat::core::ReadOutcome::Malformed {:cause __cause}
+                [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+                [:wat::core::ReadOutcome.Malformed {:cause __cause}
                   (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
         (:repl::serve))]                                      ; tail-recur → listen again
 
     ;; the client closed stdin — end the session; returning nil ends the process
-    [:wat::kernel::ReadlnOutcome::Eof {}     nil]
+    [:wat::kernel::ReadlnOutcome.Eof {}     nil]
 
     ;; a stop was requested — the same clean end, distinctly named
-    [:wat::kernel::ReadlnOutcome::Stopped {} nil]))
+    [:wat::kernel::ReadlnOutcome.Stopped {} nil]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil (:repl::serve))

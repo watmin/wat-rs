@@ -40,7 +40,7 @@
    (start [s ctx req]
      (:wat::service::Outcome.ReplyAndArm {:state s :reply (:probe::Tick2::StartResponse.Ok {})
        :arms [(:wat::service::Alarm :after (:wat::time::Millisecond 5)
-          :op (:probe::tick2::Op::-Tick {}))]}))
+          :op (:probe::tick2::Op.-Tick {}))]}))
 
    (bump [s ctx req]
      (:wat::service::Outcome.Reply {:state s

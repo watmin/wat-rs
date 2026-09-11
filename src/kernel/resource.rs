@@ -1022,7 +1022,7 @@ pub(crate) fn eval_kernel_after(
     }
 
     // arg 0: peer-kind — evaluate and match the PeerKind enum VALUE.
-    // `:wat::program::PeerKind::thread` / `:process` evaluate to
+    // `:wat::program::PeerKind.thread` / `:process` evaluate to
     // Value::Enum { type_path=":wat::program::PeerKind", variant_name="thread"/"process", fields=[] }.
     let peer_kind_val = eval_inner(&args[0], env, sym)?.value_owned();
     let is_thread_tier = match &peer_kind_val {
@@ -1038,7 +1038,7 @@ pub(crate) fn eval_kernel_after(
                         RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected:
-                                ":wat::program::PeerKind (e.g. :wat::program::PeerKind::process)",
+                                ":wat::program::PeerKind (e.g. :wat::program::PeerKind.process)",
                             got: Box::new(ValueSnapshot::of(&peer_kind_val)),
                         },
                     )
@@ -1051,7 +1051,7 @@ pub(crate) fn eval_kernel_after(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::program::PeerKind (e.g. :wat::program::PeerKind::process)",
+                    expected: ":wat::program::PeerKind (e.g. :wat::program::PeerKind.process)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )

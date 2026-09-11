@@ -53,9 +53,9 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-      [_a (:wat::kernel::println (:demo::Event::Buy {:price 100.5 :qty 7}))
-       _b (:wat::kernel::println (:demo::Event::Sell {:price 102.25 :qty 3 :reason "stop-loss"}))
-       _c (:wat::kernel::println (:demo::Event::Buy {:price 99.0 :qty 12}))
-       _d (:wat::kernel::println (:demo::Event::CircuitBreak {:reason "spike-volume"}))
-       _e (:wat::kernel::println (:demo::Event::CircuitBreak {:reason "exchange-disconnected"}))]
+      [_a (:wat::kernel::println (:demo::Event.Buy {:price 100.5 :qty 7}))
+       _b (:wat::kernel::println (:demo::Event.Sell {:price 102.25 :qty 3 :reason "stop-loss"}))
+       _c (:wat::kernel::println (:demo::Event.Buy {:price 99.0 :qty 12}))
+       _d (:wat::kernel::println (:demo::Event.CircuitBreak {:reason "spike-volume"}))
+       _e (:wat::kernel::println (:demo::Event.CircuitBreak {:reason "exchange-disconnected"}))]
       nil))

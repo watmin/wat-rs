@@ -1358,7 +1358,7 @@ pub(crate) fn eval_vec_last(
 /// @arg     args (:wat::core::Vector :- [T]) `xs` (position 0, the receiver — `Value::Vec` only, no `PersistentVector`/`List`/`Stream`) then `pred` (position 1, `[T :-> :wat::core::bool]`, applied to every element — see `@yields`); the variadic sniff admits one documented `@arg`, pinned here to the checker scheme's first param so the type gate still validates it
 /// @yields  args the element applied to `pred`
 /// @ret     (:wat::core::Option :- [:wat::core::i64]) the rightmost index where `pred` returned true, or `None`
-/// @example (:wat::core::find-last-index (:wat::core::Vector 1 2 3 2) (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::= x 2))) #=> (:wat::core::Option::Some {:value 3})
+/// @example (:wat::core::find-last-index (:wat::core::Vector 1 2 3 2) (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::= x 2))) #=> (:wat::core::Option.Some {:value 3})
 /// @see     :wat::core::foldl
 #[wat_intrinsic(":wat::core::find-last-index")]
 pub(crate) fn eval_vec_find_last_index(
@@ -1750,7 +1750,7 @@ mod seqable_to_stream_tests {
     fn seqable_to_stream_keep_stays_under_wall_at_n4000() {
         const WORLD: &str = "\
 (:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])\n\
-  (:wat::core::Option::Some {:value x}))\n\
+  (:wat::core::Option.Some {:value x}))\n\
 (:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]\n\

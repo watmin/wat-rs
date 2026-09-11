@@ -446,9 +446,9 @@ mod tests {
         // `ComposedVariant` arm is untouched, see `composed_variant_dotted_leaf_inserts`
         // above), it is a precondition on the one thing `register_variant` receives from
         // its caller rather than composing itself. Without it, `compose_variant(":my::
-        // Shape", "Circle.Baz")` → `:my::Shape::Circle.Baz` would insert — and once the
-        // variant separator becomes `.`, that string decodes as enum `Shape.Circle`,
-        // variant `Baz`, exactly the misdecode H-1 exists to prevent.
+        // Shape", "Circle.Baz")` → `:my::Shape.Circle.Baz` would insert — and that
+        // composed string decodes as enum `Shape.Circle`, variant `Baz`, exactly the
+        // misdecode H-1 exists to prevent.
         let err = register_variant::<(), Rejection>(
             ":my::Shape",
             "Circle.Baz",
@@ -459,7 +459,7 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err.verdict, Registration::DottedName);
-        assert_eq!(err.name, ":my::Shape::Circle.Baz");
+        assert_eq!(err.name, ":my::Shape.Circle.Baz");
     }
 
     #[test]

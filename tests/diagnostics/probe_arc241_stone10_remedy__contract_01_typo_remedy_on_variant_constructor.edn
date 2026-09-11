@@ -22,15 +22,9 @@
       :got ":wat::core::keyword"
       :remedies [
         #wat.kernel/Remedy {
-          :form ":my::Status::Ok"
+          :form ":my::Status.Ok"
           :kind :typo
-          :score 1
-          :note nil
-        }
-        #wat.kernel/Remedy {
-          :form ":my::Status::Error"
-          :kind :typo
-          :score 5
+          :score 3
           :note nil
         }
       ]

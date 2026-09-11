@@ -12,7 +12,7 @@
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 5
-            :col 37
+            :col 36
           }
         }
       }
@@ -24,7 +24,7 @@
       :remedies []
     }
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: variant `:my::Color::Red` doesn't belong to scrutinee enum :my::Side"
+      :message "malformed :wat::core::match form: variant `:my::Color.Red` doesn't belong to scrutinee enum :my::Side"
       :location #wat.core/Span {
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 7
@@ -32,17 +32,17 @@
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 7
-            :col 27
+            :col 26
           }
         }
       }
       :causes []
       :head ":wat::core::match"
-      :reason "variant `:my::Color::Red` doesn't belong to scrutinee enum :my::Side"
+      :reason "variant `:my::Color.Red` doesn't belong to scrutinee enum :my::Side"
       :remedies []
     }
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: variant `:my::Color::Green` doesn't belong to scrutinee enum :my::Side"
+      :message "malformed :wat::core::match form: variant `:my::Color.Green` doesn't belong to scrutinee enum :my::Side"
       :location #wat.core/Span {
         :file "tests/types/enums_cross_enum.wat.bad"
         :line 8
@@ -50,13 +50,13 @@
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 8
-            :col 29
+            :col 28
           }
         }
       }
       :causes []
       :head ":wat::core::match"
-      :reason "variant `:my::Color::Green` doesn't belong to scrutinee enum :my::Side"
+      :reason "variant `:my::Color.Green` doesn't belong to scrutinee enum :my::Side"
       :remedies []
     }
     #wat.check/MalformedForm {
@@ -86,7 +86,7 @@
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 8
-            :col 30
+            :col 29
           }
         }
       }

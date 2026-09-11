@@ -5,7 +5,7 @@
 ;; there is no handler to fake this with.
 ;;
 ;; `:user::compute` spawns a :process child blocked in `readln`, sends
-;; `:wat::kernel::Signal::Kill` via the P2 verb, FACES the returned SignalOutcome (both arms —
+;; `:wat::kernel::Signal.Kill` via the P2 verb, FACES the returned SignalOutcome (both arms —
 ;; the must-use gate would refuse anything less), and returns the SAME peer to its caller.
 ;;
 ;; ⚠ WHY THIS DOES NOT ALSO CALL `close'` FROM WAT, AND WHY THAT IS HONEST, NOT AN OVERSIGHT:
@@ -46,7 +46,7 @@
                        [:wat::kernel::ReadlnOutcome.Stopped {} nil])]
                   nil))))]
     (:wat::core::do
-      (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal::Kill)
+      (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal.Kill)
         [:wat::kernel::SignalOutcome.Delivered {} nil]
         [:wat::kernel::SignalOutcome.Failed {:cause _c} nil])
       proc)))

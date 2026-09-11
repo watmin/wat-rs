@@ -62,7 +62,7 @@
 (:wat::core::defn :probe::client-boom-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s (:wat::kernel::send c (:probe::Crash::Op::Boom {:req (:probe::Crash::BoomRequest)}))]
+     _s (:wat::kernel::send c (:probe::Crash::Op.Boom {:req (:probe::Crash::BoomRequest)}))]
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -73,7 +73,7 @@
 (:wat::core::defn :probe::client-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s (:wat::kernel::send c (:probe::Crash::Op::Boomrt {:req (:probe::Crash::BoomrtRequest)}))]
+     _s (:wat::kernel::send c (:probe::Crash::Op.Boomrt {:req (:probe::Crash::BoomrtRequest)}))]
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -87,7 +87,7 @@
 (:wat::core::defn :probe::admin-boom-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s (:wat::kernel::send c (:probe::Crash::Op::Boom {:req (:probe::Crash::BoomRequest)}))]
+     _s (:wat::kernel::send c (:probe::Crash::Op.Boom {:req (:probe::Crash::BoomRequest)}))]
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
       [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}
@@ -98,7 +98,7 @@
 (:wat::core::defn :probe::admin-boomrt-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s (:wat::kernel::send c (:probe::Crash::Op::Boomrt {:req (:probe::Crash::BoomrtRequest)}))]
+     _s (:wat::kernel::send c (:probe::Crash::Op.Boomrt {:req (:probe::Crash::BoomrtRequest)}))]
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
       [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}

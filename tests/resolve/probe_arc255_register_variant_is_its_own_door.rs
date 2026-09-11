@@ -9,12 +9,21 @@
 //! Nothing in the tree pinned the builder's own question before this stone: *"if they
 //! make a defn and an enum with the same name, one loses — this is pathological and we
 //! catch it, right?"* The collision was measured on this tree at `7ccce48ba` (both
-//! orders, `duplicate define` at `--check`, exit 1) but UNPINNED — the loud
-//! `DuplicateDefine` fires from a later `register` pass
-//! (`src/declare/register.rs::register_enum_methods`), a phase entirely separate from
-//! `preregister.rs`'s `Existing::Equivalent` mapping (which the gate turns into a benign
-//! `NoOp` — on its own that reads "already there, fine"). A guard that has never failed
-//! once is not yet a guard.
+//! orders, `duplicate define` at `--check`, exit 1) — BEFORE the dot-flip (arc 255
+//! ③b-ii). At `7ccce48ba` the composed variant name was `Foo::Bar` (`::`), a perfectly
+//! ordinary caller-typeable namespaced name, so a `defn` spelled identically collided
+//! with it and both orders raised `DuplicateDefine` from the later `register` pass
+//! (`src/declare/register.rs::register_enum_methods`) — a guard that had never failed
+//! once and was not yet a guard.
+//!
+//! ⚠ **arc 255 ③b-ii residue (the dot-flip) — NOT A REPAIR.** The composed variant name
+//! is now `Foo.Bar` (`.`), and H-1 makes a dot in ANY caller-typed declared name
+//! unconstructible (`DottedName`, absolute, checked BEFORE a definition ever reaches the
+//! duplicate-define pass). So a `defn` can no longer be spelled `:my::app::Foo.Bar` at
+//! all — the two rows below now assert the STRONGER truth: the collision the builder
+//! asked about is refused as `DottedName` before collision-detection is ever reached, in
+//! EITHER order. This is the rung ABOVE catching a `DuplicateDefine`; restoring the old
+//! expectation would be reverting to a weaker guarantee, not a fix.
 //!
 //! These rows pin it, plus the end-to-end surface check that H-1 stays absolute for a
 //! `defn`'s own (caller-typed) name.
@@ -48,30 +57,35 @@ fn run_check(case: &str) -> (i32, String) {
     )
 }
 
-/// The builder's question, order A: the `defn` (a caller-typed name) registers FIRST;
-/// the enum's variant ctor path (`register_variant`, composed from `(:my::app::Foo,
-/// Bar)`) collides against it SECOND. First-definer-wins never silently applies —
-/// `preregister.rs`'s `Existing::Equivalent`-as-`NoOp` mapping does NOT swallow this: the
-/// later `register_enum_methods` pass raises its own explicit `DuplicateDefine`.
+/// arc 255 ③b-ii (dot-flip) residue — NOT the original collision this fixture was named
+/// for. Order A: a `defn` textually spelled `:my::app::Foo.Bar` — the composed form of
+/// enum `:my::app::Foo`'s `Bar` variant, post-flip — appears FIRST, ahead of the
+/// `defenum`. Pre-flip this was `Foo::Bar`, an ordinary caller-typeable name, and this
+/// row proved `DuplicateDefine` once the enum registered its variant second. Post-flip,
+/// `:my::app::Foo.Bar` is a DOTTED caller-typed name, and H-1 refuses it OUTRIGHT — the
+/// `defn`'s own declaration never survives long enough to collide with anything, so the
+/// enum on the next line is never even reached. The stronger truth: the collision is
+/// structurally unconstructible, not merely caught.
 #[test]
 fn defn_then_variant_ctor_collide_at_check() {
     let (code, out) = run_check("defn_then_variant");
-    assert_eq!(code, 1, "a defn and a same-named variant ctor must collide:\n{out}");
+    assert_eq!(code, 1, "a dotted caller-typed name must be refused before any collision check runs:\n{out}");
     wat::assert_edn_eq!(
         out,
         include_str!("probe_arc255_register_variant_is_its_own_door__defn_then_variant.edn")
     );
 }
 
-/// The other order: the enum's variant ctor path registers FIRST (via
-/// `register_variant`), and the `defn` typed literally under that same name collides
-/// against it SECOND. The composed door gets no first-mover advantage over a
-/// caller-typed name, and vice versa — both orders raise the identical
-/// `DuplicateDefine`, symmetrically.
+/// The other order, same arc 255 ③b-ii finding: the `defenum` (legally spelled, no dot —
+/// `Bar` is a bare variant leaf) registers FIRST; the `defn` typed literally as
+/// `:my::app::Foo.Bar` SECOND is refused as `DottedName`, identically to the other
+/// order — H-1 does not care whether a same-named declaration already exists, only that
+/// the caller typed a dot. Both orders now raise the identical `DottedName`, not
+/// `DuplicateDefine`; asserting the old expectation would revert to a weaker guarantee.
 #[test]
 fn variant_ctor_then_defn_collide_at_check() {
     let (code, out) = run_check("variant_then_defn");
-    assert_eq!(code, 1, "a variant ctor and a same-named defn must collide:\n{out}");
+    assert_eq!(code, 1, "a dotted caller-typed name must be refused before any collision check runs:\n{out}");
     wat::assert_edn_eq!(
         out,
         include_str!("probe_arc255_register_variant_is_its_own_door__variant_then_defn.edn")

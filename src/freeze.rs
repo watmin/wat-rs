@@ -1506,7 +1506,7 @@ fn invoke_user_main_orchestrated(
         .build();
     let env_src = format!(
         // Arc 294 item 9a — direct-eval boot machinery → positional PRIME `:Env'`.
-        "(:wat::program::Env :started-at (:wat::time::at-nanos {boot_nanos}) :peer-started-at (:wat::time::now) :process-id {pid} :os-thread-id {tid} :peer-kind :wat::program::PeerKind::process :cpu-count {cpu_count} :user-data user-program)"
+        "(:wat::program::Env :started-at (:wat::time::at-nanos {boot_nanos}) :peer-started-at (:wat::time::now) :process-id {pid} :os-thread-id {tid} :peer-kind :wat::program::PeerKind.process :cpu-count {cpu_count} :user-data user-program)"
     );
     let env_ast =
         crate::parse_one!(&env_src).expect("arc 259: the program-env constructor form parses");

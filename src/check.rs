@@ -6402,7 +6402,7 @@ fn infer_match(
                                          but `{other}` is a variant of user enum `{enum_path}`. Bare-symbol \
                                          heads are reserved for built-in `Some` / `Ok` / `Err`; \
                                          user-enum variants must use the keyword form: write \
-                                         `[{enum_path}::{other} {{}} ...]` instead."
+                                         `[{enum_path}.{other} {{}} ...]` instead."
                                     );
                                 }
                             }
@@ -23861,8 +23861,8 @@ pub(crate) mod tests {
 
             (:wat::core::defn :my::is-empty :- [T] [b <- (:my::Box :- [T])] -> :wat::core::bool
               (:wat::core::match b
-                              [:my::Box::Empty {} true]
-                              [:my::Box::Filled {:value _v} false]))
+                              [:my::Box.Empty {} true]
+                              [:my::Box.Filled {:value _v} false]))
         "#;
         let result = check(src);
         assert!(
@@ -23886,8 +23886,8 @@ pub(crate) mod tests {
 
             (:wat::core::defn :my::is-left :- [L R] [e <- (:my::Either :- [L R])] -> :wat::core::bool
               (:wat::core::match e
-                              [:my::Either::Left {:value _v} true]
-                              [:my::Either::Right {:value _v} false]))
+                              [:my::Either.Left {:value _v} true]
+                              [:my::Either.Right {:value _v} false]))
         "#;
         let result = check(src);
         assert!(
@@ -23912,8 +23912,8 @@ pub(crate) mod tests {
 
             (:wat::core::defn :my::default-or :- [T] [b <- (:my::Box :- [T]) d <- :T] -> :T
               (:wat::core::match b
-                              [:my::Box::Empty {} d]
-                              [:my::Box::Filled {:value v} v]))
+                              [:my::Box.Empty {} d]
+                              [:my::Box.Filled {:value v} v]))
         "#;
         let result = check(src);
         assert!(

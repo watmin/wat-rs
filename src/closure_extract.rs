@@ -407,6 +407,18 @@ pub fn extract_closure(
         // cannot drift). Fall back to `type_def_to_ast` reconstruction only for
         // synthesized types (records/enums derived by the parent) that have no
         // user source form.
+        // A VARIANT SINGLETON is DERIVED, never declared: `register_variant_types` synthesizes
+        // one per variant from the parent enum, so re-emitting it here is redundant whenever the
+        // parent travels too — and since the dot flip its name carries a dot, which `register`
+        // refuses for a DECLARED name (H-1). Skip it and let the child re-derive from the parent,
+        // exactly as the parent's own runtime did.
+        if state
+            .parent_types
+            .variant_parent_enum(tn)
+            .is_some_and(|parent| type_order.iter().any(|o| o == parent))
+        {
+            continue;
+        }
         if let Some(src) = state.parent_types.source_form(tn) {
             prologue.push(src.clone());
         } else if let Some(def) = state.captured_types.get(tn) {

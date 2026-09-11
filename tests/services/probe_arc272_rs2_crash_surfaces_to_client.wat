@@ -28,7 +28,7 @@
   (:wat::core::let
     [h  (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
      c  (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Refused {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Rejected {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s (:wat::kernel::send c (:my::Svc::Op::Boom {:req (:my::Svc::BoomRequest)}))]
+     _s (:wat::kernel::send c (:my::Svc::Op.Boom {:req (:my::Svc::BoomRequest)}))]
     (:wat::core::match (:wat::kernel::recv c)
       [:wat::kernel::RecvOutcome.Message {:msg _m} "MESSAGE"]
       [:wat::kernel::RecvOutcome.Lost {:cause cause}

@@ -45,7 +45,7 @@ use crate::value::{EvalBreak, RuntimeError, RuntimeErrorKind, Value};
 /// @ExpandTime    Unreviewed
 /// @Category      Ambient
 /// @ret     :wat::program::Env the calling thread's ambient program env
-/// @example (:wat::program::Env/peer-kind (:wat::program::env)) #=> :wat::program::PeerKind::process
+/// @example (:wat::program::Env/peer-kind (:wat::program::env)) #=> :wat::program::PeerKind.process
 #[wat_intrinsic(":wat::program::env")]
 pub(crate) fn eval_program_env_intrinsic(list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::program::env";

@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
-      :message "malformed :my::Event::Pair form: positional variant construction is retired; write `(:my::Event::Pair {:field value …})` or `(:my::Event::Pair {})` for a unit variant"
+      :message "malformed :my::Event.Pair form: positional variant construction is retired; write `(:my::Event.Pair {:field value …})` or `(:my::Event.Pair {})` for a unit variant"
       :location #wat.core/Span {
         :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
         :line 5
@@ -12,17 +12,17 @@
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 5
-            :col 39
+            :col 38
           }
         }
       }
       :causes []
-      :head ":my::Event::Pair"
-      :reason "positional variant construction is retired; write `(:my::Event::Pair {:field value …})` or `(:my::Event::Pair {})` for a unit variant"
+      :head ":my::Event.Pair"
+      :reason "positional variant construction is retired; write `(:my::Event.Pair {:field value …})` or `(:my::Event.Pair {})` for a unit variant"
       :remedies []
     }
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: map pattern has 0 key(s), variant `:my::Event::Pair` declares 2"
+      :message "malformed :wat::core::match form: map pattern has 0 key(s), variant `:my::Event.Pair` declares 2"
       :location #wat.core/Span {
         :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
         :line 6
@@ -30,13 +30,13 @@
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 6
-            :col 28
+            :col 27
           }
         }
       }
       :causes []
       :head ":wat::core::match"
-      :reason "map pattern has 0 key(s), variant `:my::Event::Pair` declares 2"
+      :reason "map pattern has 0 key(s), variant `:my::Event.Pair` declares 2"
       :remedies []
     }
     #wat.check/MalformedForm {

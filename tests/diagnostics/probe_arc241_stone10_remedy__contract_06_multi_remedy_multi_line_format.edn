@@ -22,21 +22,21 @@
       :got ":wat::core::keyword"
       :remedies [
         #wat.kernel/Remedy {
-          :form ":my::Status::Ok"
-          :kind :typo
-          :score 1
-          :note nil
-        }
-        #wat.kernel/Remedy {
-          :form ":my::Status::Oke"
-          :kind :typo
-          :score 1
-          :note nil
-        }
-        #wat.kernel/Remedy {
-          :form ":my::Status::Err"
+          :form ":my::Status.Ok"
           :kind :typo
           :score 3
+          :note nil
+        }
+        #wat.kernel/Remedy {
+          :form ":my::Status.Oke"
+          :kind :typo
+          :score 3
+          :note nil
+        }
+        #wat.kernel/Remedy {
+          :form ":my::Status.Err"
+          :kind :typo
+          :score 5
           :note nil
         }
       ]

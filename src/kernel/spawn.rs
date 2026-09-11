@@ -179,8 +179,8 @@ pub enum PeerRecvError {
     Disconnected,
     /// A stop was requested while this read was parked. The peer is NOT dead and the
     /// channel is NOT closed — the reader was woken so it could reach its own decision
-    /// point (`stopped?`) and choose. Surfaces as `RecvOutcome::Lost` carrying the
-    /// already-existing `:wat::kernel::LociDiedError::Stopped`, which had no reachable
+    /// point (`stopped?`) and choose. Surfaces as `RecvOutcome.Lost` carrying the
+    /// already-existing `:wat::kernel::LociDiedError.Stopped`, which had no reachable
     /// producer before this.
     Shutdown,
     /// The Err channel delivered a crash reason — child wrote the reason via
@@ -736,7 +736,7 @@ pub fn spawn_thread_peer(
                 .build();
             let peer_env_src = format!(
                 // Arc 294 item 9a — direct-eval boot machinery → positional PRIME `:Env'`.
-                "(:wat::program::Env' (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread {cpu_count} user-program)"  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
+                "(:wat::program::Env' (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind.thread {cpu_count} user-program)"  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
             );
             let peer_env_ast = crate::parse_one!(&peer_env_src)
                 .expect("arc 259: peer env constructor form parses");
@@ -1187,15 +1187,15 @@ mod tests {
         let world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::echo [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
                (:wat::core::match (:wat::kernel::recv self) \
-                 [:wat::kernel::RecvOutcome::Message {:msg m} \
+                 [:wat::kernel::RecvOutcome.Message {:msg m} \
                    (:wat::core::match (:wat::kernel::send self m) \
-                     [:wat::kernel::SendOutcome::Sent {} nil] \
-                     [:wat::kernel::SendOutcome::Closed {} nil] \
-                     [:wat::kernel::SendOutcome::Stopped {} nil] \
-                     [:wat::kernel::SendOutcome::Lost {:cause _c} nil])] \
-                 [:wat::kernel::RecvOutcome::Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))] \
-                 [:wat::kernel::RecvOutcome::Stopped {} (:wat::kernel::assertion-failed! :message \"echo: stop requested before message — the peer was ALIVE\")] \
-                 [:wat::kernel::RecvOutcome::Closed {} (:wat::kernel::assertion-failed! :message \"echo: channel closed before message\")]))",
+                     [:wat::kernel::SendOutcome.Sent {} nil] \
+                     [:wat::kernel::SendOutcome.Closed {} nil] \
+                     [:wat::kernel::SendOutcome.Stopped {} nil] \
+                     [:wat::kernel::SendOutcome.Lost {:cause _c} nil])] \
+                 [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))] \
+                 [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message \"echo: stop requested before message — the peer was ALIVE\")] \
+                 [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message \"echo: channel closed before message\")]))",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
@@ -1330,10 +1330,10 @@ mod tests {
             "(:wat::core::defn :my::blocker [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
                (:wat::core::do \
                  (:wat::core::match (:wat::kernel::recv self) \
-                   [:wat::kernel::RecvOutcome::Message {:msg _m} nil] \
-                   [:wat::kernel::RecvOutcome::Closed {} nil] \
-                   [:wat::kernel::RecvOutcome::Stopped {} nil] \
-                   [:wat::kernel::RecvOutcome::Lost {:cause _c} nil]) \
+                   [:wat::kernel::RecvOutcome.Message {:msg _m} nil] \
+                   [:wat::kernel::RecvOutcome.Closed {} nil] \
+                   [:wat::kernel::RecvOutcome.Stopped {} nil] \
+                   [:wat::kernel::RecvOutcome.Lost {:cause _c} nil]) \
                  nil))",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
