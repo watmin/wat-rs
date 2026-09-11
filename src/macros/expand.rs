@@ -654,6 +654,32 @@ pub(super) fn expand_form(
                 .collect();
             Ok(WatAST::Vector(expanded_children?, vec_span))
         }
+        // ⛔ 251/the-expander-does-not-reach-a-variant-ctors-field-values — MAP and SET were
+        // missing from this walk, so a macro call inside either was NEVER expanded. It went
+        // silent rather than loud because the two halves cancelled: the kwargs COMPANION macro
+        // stayed unexpanded, so the bare head carried no scheme (arc 294 item 9a moved the
+        // positional ctor scheme to the PRIME), `infer` handed back a FRESH VAR, and
+        // `assignable(:?N, T)` passed trivially. A variant map-ctor is the form that takes a
+        // map, so `(:E.Variant {:field (:Rec :bogus 1)})` type-checked CLEAN.
+        //
+        // Measured: `alarm_op_internal_check` (PublicOpInAlarm) sits in exactly that position
+        // and had stopped firing entirely.
+        WatAST::Map(pairs, map_span) => {
+            let mut out: Vec<(WatAST, WatAST)> = Vec::with_capacity(pairs.len());
+            for (k, v) in pairs {
+                let ek = expand_form(k, registry, expansion_depth + 1, env, sym, privilege)?;
+                let ev = expand_form(v, registry, expansion_depth + 1, env, sym, privilege)?;
+                out.push((ek, ev));
+            }
+            Ok(WatAST::Map(out, map_span))
+        }
+        WatAST::Set(items, set_span) => {
+            let expanded_children: super::ExpandBatch = items
+                .into_iter()
+                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym, privilege))
+                .collect();
+            Ok(WatAST::Set(expanded_children?, set_span))
+        }
         other => Ok(other),
     }
 }
