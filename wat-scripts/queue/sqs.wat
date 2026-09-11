@@ -119,13 +119,35 @@
    ;; docs/excursus/2026/08/001-sns-sqs/the-cold-counters-ride-one-carrier.
    ;; Declared in :messages for the same reason TakeAcc is: a script-level type is
    ;; unknown in the process child, a surface type is not.
+   ;; ⛔ `recv-drops` / `ack-drops` COUNT THE INJECTOR'S OWN FIRES, and they exist because
+   ;; the builder asked "what is our induced failure rate per component?" and the tree could
+   ;; not answer. The drop DECISION (`hit?`, :833 and :1022) was computed and then discarded,
+   ;; so the only evidence a fault had fired was DOWNSTREAM — `ack-retries`, `redeliveries`,
+   ;; `seen-skipped` — which is inference, not measurement. A rate you set and cannot observe
+   ;; is a rate you are guessing about.
+   ;;
+   ;; ⭑ The denominators are already here: `receive-calls` for recv-drops, and `acks` counts
+   ;; IDS not calls, so ack-drops' denominator is NOT `acks` — see the report line's
+   ;; `ack-calls`. Counting the numerator without its denominator would have reproduced the
+   ;; exact counter-unit error this stone's own measurement was meant to avoid.
    (:wat::core::defrecord :queue::Counters
      [ticks <- :wat::core::i64
       acks  <- :wat::core::i64
       sends-accepted <- :wat::core::i64
       sends-refused  <- :wat::core::i64
       redeliveries   <- :wat::core::i64
-      expired-waiters <- :wat::core::i64])
+      expired-waiters <- :wat::core::i64
+      recv-drops <- :wat::core::i64
+      ack-drops  <- :wat::core::i64
+      ack-calls  <- :wat::core::i64
+      ;; ⛔ THE DENOMINATOR IS NOT `receive-calls`. `receive` has THREE exit paths and only
+      ;; two of them reach a reply the injector can suppress: the take path and the
+      ;; immediate-empty path. The third PARKS a waiter, so a draw taken there is discarded
+      ;; — the RNG advances and no reply exists to drop. Dividing fires by `receive-calls`
+      ;; therefore understates the rate by exactly the park traffic, which for the inbox is
+      ;; most of it: the first version of this counter read 1.87% where 5% was set, and the
+      ;; inbox was the only tier that showed it because it is the one that parks.
+      recv-replies <- :wat::core::i64])
    ;; Named aggregate for stats. EDN-expressible i64s only — same shape as
    ;; TakeAcc/RetryAcc: a record, not a 12-wide positional variant.
    ;; ⛔ Stats stays FLAT and 19 fields wide, deliberately: `:queue::Stats/<field>` is
@@ -143,7 +165,13 @@
       count-calls <- :wat::core::i64   count-ns <- :wat::core::i64
       scan-calls <- :wat::core::i64    scan-ns <- :wat::core::i64
       sends-accepted <- :wat::core::i64  sends-refused <- :wat::core::i64  acks <- :wat::core::i64
-      redeliveries <- :wat::core::i64  expired-waiters <- :wat::core::i64])
+      redeliveries <- :wat::core::i64  expired-waiters <- :wat::core::i64
+      ;; The injector's own fires, with the denominator that belongs to each:
+      ;; recv-drops / receive-calls, and ack-drops / ack-calls. NOT ack-drops/acks —
+      ;; `acks` counts IDS, ack-calls counts CALLS, and the drop is per call.
+      recv-drops <- :wat::core::i64  ack-drops <- :wat::core::i64  ack-calls <- :wat::core::i64
+      ;; NOT `receive-calls` — see the note on :queue::Counters/recv-replies.
+      recv-replies <- :wat::core::i64])
 
    (:wat::core::defrecord :queue::Queue::AckRequest
      [queue <- :wat::core::String
@@ -454,7 +482,8 @@
               :tick-armed? false
               :arm-tick arm-tick
               :counters (:queue::Counters :ticks 0 :acks 0 :sends-accepted 0
-                          :sends-refused 0 :redeliveries 0 :expired-waiters 0)
+                          :sends-refused 0 :redeliveries 0 :expired-waiters 0
+                          :recv-drops 0 :ack-drops 0 :ack-calls 0 :recv-replies 0)
               :seen-ids (:wat::core::PersistentSet :- [:wat::core::String]))))
   :impls
   [(send [s ctx req]
@@ -513,7 +542,10 @@
                              :sends-accepted (:queue::Counters/sends-accepted cold)
                              :sends-refused (:wat::i64::+ (:queue::Counters/sends-refused cold) 1)
                              :redeliveries (:queue::Counters/redeliveries cold)
-                             :expired-waiters (:queue::Counters/expired-waiters cold))
+                             :expired-waiters (:queue::Counters/expired-waiters cold)
+                             :recv-drops (:queue::Counters/recv-drops cold)
+                             :ack-drops (:queue::Counters/ack-drops cold)
+                             :ack-calls (:queue::Counters/ack-calls cold) :recv-replies (:queue::Counters/recv-replies cold))
                  :seen-ids (:queue::queue::State/seen-ids s))]
            (:wat::service::Outcome::Continue s0
              (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0)))
@@ -572,7 +604,10 @@
                                    :sends-accepted (:wat::i64::+ (:queue::Counters/sends-accepted cold) take)
                                    :sends-refused (:queue::Counters/sends-refused cold)
                                    :redeliveries (:queue::Counters/redeliveries cold)
-                                   :expired-waiters (:queue::Counters/expired-waiters cold))
+                                   :expired-waiters (:queue::Counters/expired-waiters cold)
+                                   :recv-drops (:queue::Counters/recv-drops cold)
+                                   :ack-drops (:queue::Counters/ack-drops cold)
+                                   :ack-calls (:queue::Counters/ack-calls cold) :recv-replies (:queue::Counters/recv-replies cold))
                        :seen-ids (:queue::queue::State/seen-ids s))]
                  (:wat::core::if (:wat::core::empty? (:queue::queue::State/waiters s'))
                    (:wat::core::let
@@ -913,7 +948,16 @@
                               :sends-accepted (:queue::Counters/sends-accepted cold)
                               :sends-refused (:queue::Counters/sends-refused cold)
                               :redeliveries (:wat::core::second rd-pair)
-                              :expired-waiters (:queue::Counters/expired-waiters cold))
+                              :expired-waiters (:queue::Counters/expired-waiters cold)
+                              ;; ⭑ THE INJECTOR COUNTS ITS OWN FIRE, here, at the site that
+                              ;; suppresses the reply four lines below — not at the `hit?`
+                              ;; computation, so the counter cannot drift from the behaviour.
+                              :recv-drops (:wat::i64::+ (:queue::Counters/recv-drops cold)
+                                            (:wat::core::if hit? 1 0))
+                              :ack-drops (:queue::Counters/ack-drops cold)
+                              :ack-calls (:queue::Counters/ack-calls cold)
+                              ;; PATH 1 of 2 that reaches a reply: envelopes were taken.
+                              :recv-replies (:wat::i64::+ (:queue::Counters/recv-replies cold) 1))
               :seen-ids (:wat::core::first rd-pair))]
            (:wat::service::Outcome::Continue s-a
              (:wat::core::if hit?
@@ -943,7 +987,26 @@
                     :q-name (:queue::queue::State/q-name s-n)
                     :tick-armed? (:wat::core::first pair)
                     :arm-tick (:queue::queue::State/arm-tick s-n)
-              :counters (:queue::queue::State/counters s-n)
+              ;; ⛔ THIS SITE USED TO PASS THE CARRIER THROUGH UNCHANGED, and it is the
+              ;; immediate-EMPTY reply — which `hit?` suppresses four lines below exactly as
+              ;; the take path does. So a drop fired here and was invisible, and the inbox
+              ;; (the tier that is polled empty most) read 1.87% against a 5% setting while
+              ;; every sub read 5.0%. A counter that covers one of two paths that can do the
+              ;; thing is not a slow counter, it is a wrong one.
+              :counters (:queue::Counters
+                          :ticks (:queue::Counters/ticks (:queue::queue::State/counters s-n))
+                          :acks (:queue::Counters/acks (:queue::queue::State/counters s-n))
+                          :sends-accepted (:queue::Counters/sends-accepted (:queue::queue::State/counters s-n))
+                          :sends-refused (:queue::Counters/sends-refused (:queue::queue::State/counters s-n))
+                          :redeliveries (:queue::Counters/redeliveries (:queue::queue::State/counters s-n))
+                          :expired-waiters (:queue::Counters/expired-waiters (:queue::queue::State/counters s-n))
+                          :recv-drops (:wat::i64::+ (:queue::Counters/recv-drops (:queue::queue::State/counters s-n))
+                                        (:wat::core::if hit? 1 0))
+                          :ack-drops (:queue::Counters/ack-drops (:queue::queue::State/counters s-n))
+                          :ack-calls (:queue::Counters/ack-calls (:queue::queue::State/counters s-n))
+                          ;; PATH 2 of 2 that reaches a reply: nothing was available, and an
+                          ;; empty Ok is still a reply the injector can take away.
+                          :recv-replies (:wat::i64::+ (:queue::Counters/recv-replies (:queue::queue::State/counters s-n)) 1))
               :seen-ids (:queue::queue::State/seen-ids s-n))]
              (:wat::service::Outcome::Continue s-a
                (:wat::core::if hit?
@@ -1070,7 +1133,11 @@
                                    :sends-accepted (:queue::Counters/sends-accepted cold)
                                    :sends-refused (:queue::Counters/sends-refused cold)
                                    :redeliveries (:queue::Counters/redeliveries cold)
-                                   :expired-waiters (:queue::Counters/expired-waiters cold))
+                                   :expired-waiters (:queue::Counters/expired-waiters cold)
+                                   :recv-drops (:queue::Counters/recv-drops cold)
+                                   :ack-drops (:wat::i64::+ (:queue::Counters/ack-drops cold)
+                                                (:wat::core::if hit? 1 0))
+                                   :ack-calls (:wat::i64::+ (:queue::Counters/ack-calls cold) 1) :recv-replies (:queue::Counters/recv-replies cold))
                        :seen-ids (:queue::queue::State/seen-ids s))
                   pair (:wat::core::apply (:queue::queue::State/arm-tick s')
                           (:queue::queue::State/tick-armed? s')
@@ -1130,7 +1197,11 @@
                                     :sends-accepted (:queue::Counters/sends-accepted cold)
                                     :sends-refused (:queue::Counters/sends-refused cold)
                                     :redeliveries (:queue::Counters/redeliveries cold)
-                                    :expired-waiters (:queue::Counters/expired-waiters cold))
+                                    :expired-waiters (:queue::Counters/expired-waiters cold)
+                                    :recv-drops (:queue::Counters/recv-drops cold)
+                                    :ack-drops (:wat::i64::+ (:queue::Counters/ack-drops cold)
+                                                 (:wat::core::if hit? 1 0))
+                                    :ack-calls (:wat::i64::+ (:queue::Counters/ack-calls cold) 1) :recv-replies (:queue::Counters/recv-replies cold))
                         :seen-ids (:queue::queue::State/seen-ids s))]
                  (:queue::queue::ack-after-delete s-r store q rec' hit? start-ns)))
              ((:wat::query::Store::DeleteResponse::Constraint _e)
@@ -1299,7 +1370,10 @@
              :sends-refused (:queue::Counters/sends-refused cold)
              :acks (:queue::Counters/acks cold)
              :redeliveries (:queue::Counters/redeliveries cold)
-             :expired-waiters (:queue::Counters/expired-waiters cold)))))
+             :expired-waiters (:queue::Counters/expired-waiters cold)
+             :recv-drops (:queue::Counters/recv-drops cold)
+             :ack-drops (:queue::Counters/ack-drops cold)
+             :ack-calls (:queue::Counters/ack-calls cold) :recv-replies (:queue::Counters/recv-replies cold)))))
          (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
          (:wat::core::second pair))))
 
@@ -1412,7 +1486,10 @@
                          :sends-accepted (:queue::Counters/sends-accepted cold)
                          :sends-refused (:queue::Counters/sends-refused cold)
                          :redeliveries (:queue::Counters/redeliveries cold)
-                         :expired-waiters (:wat::i64::+ (:queue::Counters/expired-waiters cold) ew))
+                         :expired-waiters (:wat::i64::+ (:queue::Counters/expired-waiters cold) ew)
+                         :recv-drops (:queue::Counters/recv-drops cold)
+                         :ack-drops (:queue::Counters/ack-drops cold)
+                         :ack-calls (:queue::Counters/ack-calls cold) :recv-replies (:queue::Counters/recv-replies cold))
              :seen-ids (:queue::queue::State/seen-ids s))
         delay (:wat::core::foldl
                 (:wat::core::fn [d <- :wat::core::i64  w <- :queue::Waiter] -> :wat::core::i64

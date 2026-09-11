@@ -76,7 +76,13 @@
    ;; reported it. One, in the standard run.
    (:wat::core::defenum :fanout::Seen::StatsResponse :wat::enum::Pure
      :Ok [recorded <- :wat::core::i64  skipped <- :wat::core::i64
-          calls <- :wat::core::i64]
+          calls <- :wat::core::i64
+          ;; The injector's fires and their per-verb denominators, so the harness can
+          ;; report an OBSERVED rate beside the one it SET. Four fields, not two: a
+          ;; numerator whose denominator lives somewhere else is how a counter's name
+          ;; gets read as its unit.
+          check-drops <- :wat::core::i64  mark-drops <- :wat::core::i64
+          check-calls <- :wat::core::i64  mark-calls <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
@@ -106,7 +112,17 @@
               drop-check-bp  <- :wat::core::i64
               drop-mark-bp   <- :wat::core::i64
               drop-seed      <- :wat::core::i64
-              drop-after?    <- :wat::core::bool]
+              drop-after?    <- :wat::core::bool
+              ;; ⭑ THIS INJECTOR COUNTS ITS OWN FIRES. Before 2026-09-10 `hit?` was
+              ;; computed at :132/:176 and thrown away, so a `drop-check-bp` run could
+              ;; only be believed through `seen-skipped` downstream. Durable for the same
+              ;; reason `calls` is: a rate must be a fact about the whole run.
+              ;; Denominators: BOTH verbs share `calls`, so per-verb call counts are
+              ;; needed too — `check-calls` / `mark-calls`.
+              check-drops    <- :wat::core::i64
+              mark-drops     <- :wat::core::i64
+              check-calls    <- :wat::core::i64
+              mark-calls     <- :wat::core::i64]
   :ephemeral [claimed <- (:wat::core::PersistentMap :- [:wat::core::String :wat::core::bool])]
   :init (:wat::core::fn [record <- :fanout::seen::Record] -> :fanout::seen::State
           (:fanout::seen::State :durable record
@@ -151,7 +167,12 @@
                :drop-check-bp rate
                :drop-mark-bp (:fanout::seen::Record/drop-mark-bp rec)
                :drop-seed seed1
-               :drop-after? (:fanout::seen::Record/drop-after? rec))
+               :drop-after? (:fanout::seen::Record/drop-after? rec)
+               :check-drops (:wat::i64::+ (:fanout::seen::Record/check-drops rec)
+                              (:wat::core::if hit? 1 0))
+               :mark-drops (:fanout::seen::Record/mark-drops rec)
+               :check-calls (:wat::i64::+ (:fanout::seen::Record/check-calls rec) 1)
+               :mark-calls (:fanout::seen::Record/mark-calls rec))
         s' (:fanout::seen::State :durable rec' :claimed claimed)
         reply (:wat::core::if hit?
                 :wat::core::None
@@ -202,7 +223,12 @@
                :calls (:wat::i64::+ (:fanout::seen::Record/calls rec0) 1)
                :drop-check-bp (:fanout::seen::Record/drop-check-bp rec0)
                :drop-mark-bp rate :drop-seed seed1
-               :drop-after? (:fanout::seen::Record/drop-after? rec0))
+               :drop-after? (:fanout::seen::Record/drop-after? rec0)
+               :check-drops (:fanout::seen::Record/check-drops rec0)
+               :mark-drops (:wat::i64::+ (:fanout::seen::Record/mark-drops rec0)
+                             (:wat::core::if hit? 1 0))
+               :check-calls (:fanout::seen::Record/check-calls rec0)
+               :mark-calls (:wat::i64::+ (:fanout::seen::Record/mark-calls rec0) 1))
         s' (:fanout::seen::State :durable rec' :claimed (:wat::core::first folded))
         reply (:wat::core::if hit?
                 :wat::core::None
@@ -221,7 +247,15 @@
                :drop-check-bp (:fanout::seen::Record/drop-check-bp rec)
                :drop-mark-bp (:fanout::seen::Record/drop-mark-bp rec)
                :drop-seed (:fanout::seen::Record/drop-seed rec)
-               :drop-after? (:fanout::seen::Record/drop-after? rec))
+               :drop-after? (:fanout::seen::Record/drop-after? rec)
+               ;; `stats` is not a fault-injected verb: it increments neither drop counter
+               ;; nor either per-verb call count. Its own traffic shows up in `calls` only,
+               ;; which is what makes `calls > check-calls + mark-calls` the instrument's
+               ;; own visible overhead rather than a discrepancy.
+               :check-drops (:fanout::seen::Record/check-drops rec)
+               :mark-drops (:fanout::seen::Record/mark-drops rec)
+               :check-calls (:fanout::seen::Record/check-calls rec)
+               :mark-calls (:fanout::seen::Record/mark-calls rec))
         s' (:fanout::seen::State :durable rec' :claimed (:fanout::seen::State/claimed s))
         sends (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Seen::Reply])])
         none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::seen::Op])])]
@@ -230,7 +264,11 @@
            (:fanout::Seen::StatsResponse::Ok
              (:fanout::seen::Record/recorded rec')
              (:fanout::seen::Record/skipped rec')
-             (:fanout::seen::Record/calls rec'))))
+             (:fanout::seen::Record/calls rec')
+             (:fanout::seen::Record/check-drops rec')
+             (:fanout::seen::Record/mark-drops rec')
+             (:fanout::seen::Record/check-calls rec')
+             (:fanout::seen::Record/mark-calls rec'))))
          sends none-alarms)))])
 
 ;; Silent server for showing timeout → discard → redial → retry on a FRESH peer.
@@ -282,6 +320,7 @@
    (:wat::core::defrecord :fanout::WorkerFinal
      [outcomes          <- (:wat::core::PersistentVector :- [:fanout::Outcome])
       hits              <- :wat::core::i64
+      fires             <- :wat::core::i64
       draws             <- :wat::core::i64
       points            <- :wat::core::String
       check-exhausted   <- :wat::core::i64
@@ -307,7 +346,8 @@
    ;; nobody (`:queue::Stats/acks` counts ACKED IDS, not calls — sqs.wat:1069), so this is
    ;; the one number a caller has to keep.
    (:wat::core::defenum :fanout::Worker::DisruptsResponse :wat::enum::Pure
-     :Ok [hits <- :wat::core::i64  draws <- :wat::core::i64  points <- :wat::core::String
+     :Ok [hits <- :wat::core::i64  fires <- :wat::core::i64
+          draws <- :wat::core::i64  points <- :wat::core::String
           check-exhausted <- :wat::core::i64  mark-exhausted <- :wat::core::i64
           ack-retries <- :wat::core::i64  ack-exhausted <- :wat::core::i64
           ack-calls <- :wat::core::i64]
@@ -341,7 +381,16 @@
               disrupt-lo-ms     <- :wat::core::i64
               disrupt-hi-ms     <- :wat::core::i64
               disrupt-max-draws <- :wat::core::i64
+              ;; ⛔ THREE DIFFERENT QUANTITIES, and only two existed before 2026-09-10:
+              ;;   disrupt-draws — the alarm rolled the dice
+              ;;   disrupt-fires — the roll was UNDER the rate, so poison was SENT   ← NEW
+              ;;   disrupt-hits  — the poisoned call came back lost/closed: it TORE
+              ;; `disrupts=` on the report line is `hits`. With no `fires`, a zero there was
+              ;; indistinguishable between "never injected" and "injected and the fault did
+              ;; nothing" — and at the chaos gate's own 200 bp the measured pair is
+              ;; draws=256, hits=0. That question is why this field exists.
               disrupt-hits      <- :wat::core::i64
+              disrupt-fires     <- :wat::core::i64
               disrupt-draws     <- :wat::core::i64
               disrupt-points    <- :wat::core::String
               check-exhausted   <- :wat::core::i64
@@ -387,6 +436,7 @@
             (:fanout::WorkerFinal
               :outcomes (:fanout::worker::State/outcomes s)
               :hits (:fanout::worker::Record/disrupt-hits rec)
+              :fires (:fanout::worker::Record/disrupt-fires rec)
               :draws (:fanout::worker::Record/disrupt-draws rec)
               :points (:fanout::worker::Record/disrupt-points rec)
               :check-exhausted (:fanout::worker::Record/check-exhausted rec)
@@ -424,6 +474,7 @@
                     :disrupt-hi-ms (:fanout::worker::Record/disrupt-hi-ms rec)
                     :disrupt-max-draws (:fanout::worker::Record/disrupt-max-draws rec)
                     :disrupt-hits (:fanout::worker::Record/disrupt-hits rec)
+                    :disrupt-fires (:fanout::worker::Record/disrupt-fires rec)
                     :disrupt-draws (:fanout::worker::Record/disrupt-draws rec)
                     :disrupt-points (:fanout::worker::Record/disrupt-points rec)
                     :check-exhausted (:fanout::worker::Record/check-exhausted rec)
@@ -452,6 +503,7 @@
          (:wat::core::Some (:fanout::Worker::Reply::Disrupts
            (:fanout::Worker::DisruptsResponse::Ok
              (:fanout::worker::Record/disrupt-hits rec)
+             (:fanout::worker::Record/disrupt-fires rec)
              (:fanout::worker::Record/disrupt-draws rec)
              (:fanout::worker::Record/disrupt-points rec)
              (:fanout::worker::Record/check-exhausted rec)
@@ -519,6 +571,10 @@
                 :disrupt-hi-ms hi
                 :disrupt-max-draws maxd
                 :disrupt-hits hits'
+                ;; The fire is counted where the poison is SENT — on `hit?`, before we know
+                ;; whether it tore. That separation is the whole point of the field.
+                :disrupt-fires (:wat::i64::+ (:fanout::worker::Record/disrupt-fires rec)
+                                 (:wat::core::if hit? 1 0))
                 :disrupt-draws draws
                 :disrupt-points points'
                 :check-exhausted (:fanout::worker::Record/check-exhausted rec)
@@ -903,6 +959,7 @@
                            :disrupt-hi-ms (:fanout::worker::Record/disrupt-hi-ms rec)
                            :disrupt-max-draws (:fanout::worker::Record/disrupt-max-draws rec)
                            :disrupt-hits (:fanout::worker::Record/disrupt-hits rec)
+                    :disrupt-fires (:fanout::worker::Record/disrupt-fires rec)
                            :disrupt-draws (:fanout::worker::Record/disrupt-draws rec)
                            :disrupt-points (:fanout::worker::Record/disrupt-points rec)
                            :check-exhausted (:wat::i64::+ (:fanout::worker::Record/check-exhausted rec) ce-tick)
@@ -983,7 +1040,9 @@
          ;; The delayed-ack worker keeps no tallies at all — including `ack-calls`. Its
          ;; queue traffic is therefore NOT in any round-trip budget; only `:user::
          ;; pending-only-loses` uses it, and that fixture prints no budget line.
-         (:fanout::Worker::DisruptsResponse::Ok 0 0 "" 0 0 0 0 0)))
+         ;; held-worker carries no disruptor at all — hits/fires/draws are structurally 0
+         ;; here, not "not measured". The shape must still match the surface.
+         (:fanout::Worker::DisruptsResponse::Ok 0 0 0 "" 0 0 0 0 0)))
        (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])])
        (:wat::core::Vector :- [(:wat::service::Alarm :- [:fanout::held-worker::Op])])))
    (-tick [s ctx]
@@ -1189,7 +1248,7 @@
     :queue-addr queue-addr :seen-addr seen-addr
     :disrupt-rate-bp rate-bp :disrupt-seed seed
     :disrupt-lo-ms 50 :disrupt-hi-ms 150 :disrupt-max-draws 0
-    :disrupt-hits 0 :disrupt-draws 0 :disrupt-points "" :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0 :ack-calls 0))
+    :disrupt-hits 0 :disrupt-fires 0 :disrupt-draws 0 :disrupt-points "" :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0 :ack-calls 0))
 
 ;; Sentinel: -1 means unread. Matches ticks-of / q-depth. (1,1) satisfied both waits.
 ;;
@@ -1275,8 +1334,20 @@
             ;; store-calls/store-ns are the AGGREGATE; the four op pairs beside them
             ;; are its split. put+delete+count+scan must equal the aggregate within
             ;; rounding — an unaccounted remainder names an operation nothing tracks.
-            "tier={name};accepted={a};refused={rf};acks={k};redeliveries={rd};expired-waiters={ew};visible={v};unacked={u};store-calls={sc};store-ns={sn};put-calls={pc};put-ns={pn};delete-calls={dc};delete-ns={dn};count-calls={cc};count-ns={cn};scan-calls={nc};scan-ns={nn}"
+            ;; ⭑ recv-drops / ack-drops are THIS TIER'S OWN INJECTOR FIRES, each printed
+            ;; beside the denominator it divides by: recv-calls and ack-calls. A reader can
+            ;; therefore compute the observed rate per component without trusting the
+            ;; harness's arithmetic, which is the whole point of the census.
+            "tier={name};accepted={a};refused={rf};acks={k};redeliveries={rd};expired-waiters={ew};visible={v};unacked={u};recv-drops={rvd};recv-replies={rvr};recv-calls={rvc};ack-drops={akd};ack-calls={akc};store-calls={sc};store-ns={sn};put-calls={pc};put-ns={pn};delete-calls={dc};delete-ns={dn};count-calls={cc};count-ns={cn};scan-calls={nc};scan-ns={nn}"
             :name name
+            :rvd (:queue::Stats/recv-drops qst)
+            ;; recv-replies is the DENOMINATOR for recv-drops; recv-calls is printed beside
+            ;; it so the park traffic (calls − replies) stays visible rather than silently
+            ;; deflating the rate, which is exactly how this counter read 1.87% at first.
+            :rvr (:queue::Stats/recv-replies qst)
+            :rvc (:queue::Stats/receive-calls qst)
+            :akd (:queue::Stats/ack-drops qst)
+            :akc (:queue::Stats/ack-calls qst)
             :a (:queue::Stats/sends-accepted qst)
             :rf (:queue::Stats/sends-refused qst)
             :k (:queue::Stats/acks qst)
@@ -2366,15 +2437,26 @@
 ;; ⭑ THREE fields off the ONE reply this already made — `sample-of`'s discipline applied to
 ;; the seen store. The third is `rt-seen`: the seen service's own crossing count, which the
 ;; harness previously could not see at any price it was willing to pay.
+;; ⭑ A NAMED CARRIER, not a 7-wide Tuple. The three-wide Tuple this replaced was already at
+;; the limit of what positional reads can carry honestly (`first`/`second`/`third`), and the
+;; fault census needs seven. Same ruling as :queue::Counters, TakeAcc and WorkerFinal: at this
+;; width a record is the only shape where a reader cannot silently take the wrong field.
+(:wat::core::defrecord :fanout::SeenFinal
+  [recorded <- :wat::core::i64  skipped <- :wat::core::i64  calls <- :wat::core::i64
+   check-drops <- :wat::core::i64  mark-drops <- :wat::core::i64
+   check-calls <- :wat::core::i64  mark-calls <- :wat::core::i64])
+
 (:wat::core::defn :fanout::seen-stats
   [seenh <- :fanout::seen::Handle]
-  -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+  -> :fanout::SeenFinal
   (:wat::core::let
     [p (:fanout::dial-seen (:fanout::seen::Handle/addr seenh))]
     (:wat::core::match (:fanout::Seen/stats p (:fanout::Seen::StatsRequest))
       ((:wat::kernel::RecvOutcome::Message r)
         (:wat::core::match r
-          ((:fanout::Seen::StatsResponse::Ok recorded skipped calls) (:wat::core::Tuple recorded skipped calls))
+          ((:fanout::Seen::StatsResponse::Ok recorded skipped calls cd md cc mc)
+            (:fanout::SeenFinal :recorded recorded :skipped skipped :calls calls
+              :check-drops cd :mark-drops md :check-calls cc :mark-calls mc))
           ((:fanout::Seen::StatsResponse::RequestTooLarge _b _c)
             (:wat::kernel::assertion-failed! "fanout: seen stats too large" :wat::core::None :wat::core::None))
           ((:fanout::Seen::StatsResponse::RequestMalformed _p _e _g)
@@ -2415,7 +2497,7 @@
       (:wat::core::match (:fanout::Worker/disrupts w (:fanout::Worker::DisruptsRequest))
         ((:wat::kernel::RecvOutcome::Message r)
           (:wat::core::match r
-            ((:fanout::Worker::DisruptsResponse::Ok _hits _draws _points ce me ars ae _aks)
+            ((:fanout::Worker::DisruptsResponse::Ok _hits _fires _draws _points ce me ars ae _aks)
               (:wat::core::Tuple (:wat::core::Tuple
                                    (:wat::i64::+ (:wat::core::first (:wat::core::first acc)) ce)
                                    (:wat::i64::+ (:wat::core::second (:wat::core::first acc)) me))
@@ -2438,6 +2520,14 @@
   [outs              <- (:wat::core::Vector :- [:fanout::Outcome])
    rts               <- :wat::core::i64
    hits              <- :wat::core::i64
+   ;; ⛔ `hits` COUNTS TEARS, NOT FIRES. The worker's `-disrupt` arm increments
+   ;; `disrupt-hits` only when `tore?` — when the poisoned `Seen/check` came back
+   ;; `lost`/`closed`. `draws` is how many times the alarm rolled the dice at all. The
+   ;; report printed only `hits`, so `disrupts=0` was indistinguishable between "the
+   ;; injector never fired" and "it fired repeatedly and tore nothing" — and the shipped
+   ;; chaos gate runs at 200 bp, where the measured value IS 0. All three are now printed.
+   fires             <- :wat::core::i64
+   draws             <- :wat::core::i64
    ack-calls         <- :wat::core::i64
    check-exhausted   <- :wat::core::i64
    mark-exhausted    <- :wat::core::i64
@@ -2469,13 +2559,15 @@
                   (:fanout::WorkerFinal/outcomes fin))
           :rts (:wat::i64::+ (:fanout::Collected/rts acc) 1)
           :hits (:wat::i64::+ (:fanout::Collected/hits acc) (:fanout::WorkerFinal/hits fin))
+          :fires (:wat::i64::+ (:fanout::Collected/fires acc) (:fanout::WorkerFinal/fires fin))
+          :draws (:wat::i64::+ (:fanout::Collected/draws acc) (:fanout::WorkerFinal/draws fin))
           :ack-calls (:wat::i64::+ (:fanout::Collected/ack-calls acc) (:fanout::WorkerFinal/ack-calls fin))
           :check-exhausted (:wat::i64::+ (:fanout::Collected/check-exhausted acc) (:fanout::WorkerFinal/check-exhausted fin))
           :mark-exhausted (:wat::i64::+ (:fanout::Collected/mark-exhausted acc) (:fanout::WorkerFinal/mark-exhausted fin))
           :ack-retries (:wat::i64::+ (:fanout::Collected/ack-retries acc) (:fanout::WorkerFinal/ack-retries fin))
           :ack-exhausted (:wat::i64::+ (:fanout::Collected/ack-exhausted acc) (:fanout::WorkerFinal/ack-exhausted fin)))))
     (:fanout::Collected :outs (:wat::core::Vector :- [:fanout::Outcome]) :rts 0
-      :hits 0 :ack-calls 0 :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0)
+      :hits 0 :fires 0 :draws 0 :ack-calls 0 :check-exhausted 0 :mark-exhausted 0 :ack-retries 0 :ack-exhausted 0)
     handles))
 
 ;; seq is the published identity — first field of the body, placed first so it
@@ -2681,10 +2773,34 @@
    drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64
    sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool
    vis-ms <- :wat::core::i64  inbox-vis-ms <- :wat::core::i64
-   inbox-cap <- :wat::core::i64]
+   inbox-cap <- :wat::core::i64
+   ;; ⭑ ONE SWITCH THAT ARMS EVERY INJECTOR, added 2026-09-10 because the builder asked
+   ;; "what is our induced failure rate per component?" and the answer was 5% on two reply
+   ;; paths and ZERO everywhere else — two of five injectors reachable, one of five counted.
+   ;; `chaos-bp` is the rate for every injector that has no explicit rate of its own.
+   ;; Precedence is one sentence: an explicit per-component knob wins; `chaos-bp` fills the
+   ;; rest. No reader has to trust that sentence, because the report prints the EFFECTIVE
+   ;; rate beside the OBSERVED one for every component.
+   chaos-bp <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
+     ;; ⭑ THE EFFECTIVE RATE PER COMPONENT, resolved ONCE here and used everywhere below,
+     ;; so the value that reaches a service and the value the report prints cannot diverge.
+     ;; An explicit knob wins; `chaos-bp` fills the rest.
+     e-recv  (:wat::core::if (:wat::i64::> drop-recv-bp 0)  drop-recv-bp  chaos-bp)
+     e-ack   (:wat::core::if (:wat::i64::> drop-ack-bp 0)   drop-ack-bp   chaos-bp)
+     e-check (:wat::core::if (:wat::i64::> drop-check-bp 0) drop-check-bp chaos-bp)
+     e-mark  (:wat::core::if (:wat::i64::> drop-mark-bp 0)  drop-mark-bp  chaos-bp)
+     e-rate  (:wat::core::if (:wat::i64::> rate 0)          rate          chaos-bp)
+     ;; ⛔ A RATE WITH NO SEED IS NOT REPRODUCIBLE. `drop-seed`/`seed` default to 0, and a
+     ;; chaos-bp run that supplied neither would otherwise inject off seed 0 without saying
+     ;; so. When any injector is armed and no seed was given, this one is used AND PRINTED.
+     e-seed  (:wat::core::if (:wat::i64::> drop-seed 0) drop-seed
+               (:wat::core::if (:wat::i64::> seed 0) seed
+                 (:wat::core::if (:wat::i64::> chaos-bp 0) 20260910 0)))
+     e-wseed (:wat::core::if (:wat::i64::> seed 0) seed
+               (:wat::core::if (:wat::i64::> chaos-bp 0) 20260910 0))
      ;; Drop runs: 200 ms vis so an unacked envelope (no claim-reply) becomes
      ;; visible again. T1's 200 ms claim deadline retries the same worker;
      ;; vis expiry is the other worker. Both are retries of a dropped reply.
@@ -2693,8 +2809,8 @@
      vis (:wat::core::if (:wat::i64::> vis-ms 0)
             (:wat::i64::* vis-ms 1000000)
             (:wat::core::if (:wat::core::or
-                               (:wat::core::or (:wat::i64::> drop-check-bp 0) (:wat::i64::> drop-mark-bp 0))
-                               (:wat::core::or (:wat::i64::> drop-recv-bp 0) (:wat::i64::> drop-ack-bp 0)))
+                               (:wat::core::or (:wat::i64::> e-check 0) (:wat::i64::> e-mark 0))
+                               (:wat::core::or (:wat::i64::> e-recv 0) (:wat::i64::> e-ack 0)))
               200000000 1000000000000))
      ;; The INBOX's visibility — symmetric with `vis` above, deliberately NOT merged
      ;; with it (see :fanout::inbox-vis-default-ns). ms → ns; 0 = the default.
@@ -2720,7 +2836,15 @@
                         :locus (:wat::spawn::process/post-spawn
                                  (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                                    (:wat::query::sqlite-store/grant sh (:fanout::pids pl))))
-                        :record (:queue::queue::Record :cap sub-cap :store-addr (:wat::query::sqlite-store::Handle/addr sh) :drop-recv-bp drop-recv-bp :drop-ack-bp drop-ack-bp :drop-seed drop-seed))]
+                        ;; ⛔ PER-TIER SEED, not the shared one. With one seed for every
+                        ;; queue all m tiers draw the SAME sequence and fail on the same
+                        ;; calls — measured: all four subs reported recv-drops=11 and
+                        ;; recv-replies=212, identical to the digit. That is perfectly
+                        ;; CORRELATED failure, which is not what "each component fails at
+                        ;; 5%" means and would hide every bug that needs two tiers to fail
+                        ;; independently. `+ i` keeps the run reproducible from one seed
+                        ;; while decorrelating the tiers.
+                        :record (:queue::queue::Record :cap sub-cap :store-addr (:wat::query::sqlite-store::Handle/addr sh) :drop-recv-bp e-recv :drop-ack-bp e-ack :drop-seed (:wat::i64::+ e-seed i)))]
                   (:wat::core::conj acc h)))
               (:wat::core::Vector :- [:queue::queue::Handle])
               (:wat::core::range 0 m))
@@ -2751,7 +2875,13 @@
                 ;; is "a weak bound, not a strong one" from which K cannot be sized. Raising
                 ;; this decouples them and changes what that poller can see. Read the value
                 ;; off the report line, never off this comment.
-                :record (:queue::queue::Record :cap inbox-cap :store-addr (:wat::query::sqlite-store::Handle/addr inbox-store) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+                ;; ⛔ TIER 1 HAD NO FAULT INJECTION AT ALL until 2026-09-10 — these three
+                ;; were literal zeros while the sub queues one binding above took the
+                ;; parameters, so `ack-after-sends` and `ok = min over subs` (the topic's
+                ;; two partial-failure properties) HAD NEVER BEEN EXECUTED. Same sibling
+                ;; asymmetry as the cap, in the same record, on the same line.
+                ;; `+ m` — past every sub's `e-seed + i`, so tier 1 decorrelates from all of them.
+                :record (:queue::queue::Record :cap inbox-cap :store-addr (:wat::query::sqlite-store::Handle/addr inbox-store) :drop-recv-bp e-recv :drop-ack-bp e-ack :drop-seed (:wat::i64::+ e-seed m)))
      qaddrs (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
                                i   <- :wat::core::i64]
@@ -2766,7 +2896,7 @@
           :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr inbox-qh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      twhandles (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:demo::topic-worker::Handle])
-                                  _wi <- :wat::core::i64]
+                                  twi <- :wat::core::i64]
                    -> (:wat::core::Vector :- [:demo::topic-worker::Handle])
                    (:wat::core::conj acc
                      (:demo::topic-worker/start
@@ -2787,7 +2917,10 @@
                        ;; the worker that claimed it is still fanning out — a second
                        ;; worker re-sends, and only the consumer `seen` dedupe keeps
                        ;; `dup` at 0. That cost is the inbox tier's `redeliveries=`.
-                       :record (:demo::mk-tw inbox-vis (:queue::queue::Handle/addr inbox-qh) qaddrs rate seed))))
+                       ;; Per-topic-worker seed, `+ 9001 + twi` — disjoint from the subscriber
+                       ;; workers' `e-wseed + 97*qi + wi` for every m,j this harness runs.
+                       :record (:demo::mk-tw inbox-vis (:queue::queue::Handle/addr inbox-qh) qaddrs e-rate
+                                 (:wat::i64::+ e-wseed (:wat::i64::+ 9001 twi))))))
                  (:wat::core::Vector :- [:demo::topic-worker::Handle])
                  (:wat::core::range 0 j))
      qclients (:wat::core::foldl
@@ -2829,8 +2962,9 @@
              (:wat::core::range 0 j))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0
-                        :drop-check-bp drop-check-bp :drop-mark-bp drop-mark-bp
-                        :drop-seed drop-seed :drop-after? drop-after?))
+                        :drop-check-bp e-check :drop-mark-bp e-mark
+                        :drop-seed e-seed :drop-after? drop-after?
+                        :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
      workers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:fanout::worker::Handle])
                                 qi  <- :wat::core::i64]
@@ -2863,7 +2997,21 @@
                                                vis 0 0
                                                (:queue::queue::Handle/addr qh)
                                                (:fanout::seen::Handle/addr seenh)
-                                               rate seed))]
+                                               ;; ⛔ PER-WORKER SEED. Every worker used to get
+                                               ;; the SAME `e-wseed`, so all m*j of them
+                                               ;; replayed ONE identical draw sequence — and
+                                               ;; since each only draws ~21 times in a run,
+                                               ;; the whole fleet's effective sample was 21
+                                               ;; draws, not 257. Measured: at the shipped
+                                               ;; gate's 200 bp that 21-draw prefix contains
+                                               ;; ZERO hits (`probe-disrupt-draw-is-uniform`),
+                                               ;; so `disrupt-fires=0` and P(no injection at
+                                               ;; all) ~ 0.98^21 = 0.65 — the gate injected
+                                               ;; nothing in ~2 runs of 3. Same defect as the
+                                               ;; queues' shared seed, same fix, and it was
+                                               ;; left here for an hour after that one.
+                                               e-rate (:wat::i64::+ e-wseed
+                                                        (:wat::i64::+ (:wat::i64::* qi 97) wi))))]
                                 (:wat::core::conj wacc h)))
                             acc
                             (:wat::core::range 0 j))]
@@ -2994,11 +3142,11 @@
      ;; sites that made them rather than asserted from here.
      topic-h-rts (:wat::i64::+ (:wat::core::second tpair) (:wat::core::second ifpair))
      spair (:fanout::seen-stats seenh)
-     sfirsts (:wat::core::first spair)
-     sdups (:wat::core::second spair)
+     sfirsts (:fanout::SeenFinal/recorded spair)
+     sdups (:fanout::SeenFinal/skipped spair)
      ;; ⭑ rt-seen: the seen service's OWN count of check + mark + stats invocations, riding
      ;; the reply above. Includes this very `stats` read (post-increment, deliberately).
-     seen-rts (:wat::core::third spair)
+     seen-rts (:fanout::SeenFinal/calls spair)
      ;; ⭑ ONE QUESTION PER WORKER. This fold WAS preceded by `dpair (sum-disrupts wpeers)` —
      ;; a second round-trip to each of the same twelve workers, for the tallies alone, each
      ;; one waiting out that worker's 250 ms `Queue/receive` park. The tallies ride the
@@ -3013,6 +3161,8 @@
      outs (:fanout::Collected/outs collected)
      worker-stop-rts (:fanout::Collected/rts collected)
      dhits (:fanout::Collected/hits collected)
+     ddraws (:fanout::Collected/draws collected)
+     dfires (:fanout::Collected/fires collected)
      ;; ⭑ Σ over workers of every `Queue/ack` crossing they made — the one round-trip class
      ;; that no server counts (`:queue::Stats/acks` counts acked IDS, not calls).
      wack  (:fanout::Collected/ack-calls collected)
@@ -3167,7 +3317,7 @@
      ;; more than once per inbox receive.
      rt-unknown-max (:wat::i64::* inbox-recv-calls (:wat::i64::+ m 1))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};disrupt-fires={dzf};disrupt-draws={dzw};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total};chaos-seed={cseed};bp-recv={bprv};bp-ack={bpak};bp-check={bpck};bp-mark={bpmk};bp-disrupt={bpdz};seen-check-drops={scd};seen-check-calls={scc};seen-mark-drops={smd};seen-mark-calls={smc}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -3180,6 +3330,8 @@
               :ticks ticks
               :tt tticks
               :dh dhits
+              :dzf dfires
+              :dzw ddraws
               :ce ce
               :me me
               :ar ars
@@ -3225,7 +3377,20 @@
               ;; ⛔ Named, not omitted, and not folded into a total it is not in.
               :rtu "topic-inbox-send+tw-sub-send+tw-inbox-ack"
               :rtum rt-unknown-max
-              :total (ms t-setup0 t-end))
+              :total (ms t-setup0 t-end)
+              ;; ⭑ THE FAULT CENSUS, printed on every run. `bp-*` is the EFFECTIVE rate that
+              ;; actually reached each component — resolved once in the let, so this cannot
+              ;; drift from what was injected — and `chaos-seed` is what makes a run replay.
+              ;; A component whose bp is non-zero and whose observed fires are zero is an
+              ;; INERT INJECTOR, and this line is what makes that visible instead of assumed.
+              ;; The queues' own fires are per-tier (`recv-drops`/`ack-drops` there), because
+              ;; there are m+1 of them and one summed figure would hide an inert tier.
+              :cseed e-seed
+              :bprv e-recv :bpak e-ack :bpck e-check :bpmk e-mark :bpdz e-rate
+              :scd (:fanout::SeenFinal/check-drops spair)
+              :scc (:fanout::SeenFinal/check-calls spair)
+              :smd (:fanout::SeenFinal/mark-drops spair)
+              :smc (:fanout::SeenFinal/mark-calls spair))
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr} ;; {inbox}{subs}"
@@ -3234,25 +3399,25 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0 64))
+  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0 64 0))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0 64))
+  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0 64 0))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0 64))
+  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0 64 0))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0 64))
+  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0 64 0))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -3270,10 +3435,10 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0 64)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0 64 0)))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0 64)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0 64 0)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -3348,7 +3513,7 @@
   (:wat::core::let
     [argv (:wat::runtime::argv)
      proof (:user::deadline-redial-is-fresh)
-     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms [inbox-cap]]]]]"
+     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms [inbox-cap [chaos-bp [drop-check-bp drop-mark-bp disrupt-bp]]]]]]]"
      ;; ⛔ THE CLI HAD NO CHAOS SURFACE. Until 2026-09-09 every one of the six fault
      ;; knobs was pinned to a literal zero here, so no sweep run through `main` could
      ;; ever exercise a drop — the injection existed only inside the `:user::` fixtures
@@ -3375,7 +3540,16 @@
              (:fanout::parse-i64 ns)
              (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 3) usage))
              (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 4) usage))
-             1 0 0 0 0
+             1
+             ;; argv 16 = the worker/topic-worker DISRUPT rate; argv 14/15 = the seen
+             ;; service's check/mark reply-drop rates. All three were literal zeros here
+             ;; until 2026-09-10, so three of the five injectors could not be armed from
+             ;; the CLI AT ALL and every published number from this harness was a
+             ;; happy-path number for them. argv 10 seeds both families.
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 16)])
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 10)])
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 14)])
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 15)])
              (:wat::core::apply opt-i64 [(:wat::core::get argv 10)])
              false
              (:wat::core::apply opt-i64 [(:wat::core::get argv 8)])
@@ -3391,7 +3565,14 @@
              ;; was never swept. See the comment at that site for why the BOUND is
              ;; justified, the NUMBER is not, and what raising it costs the fill poller.
              (:wat::core::let [ic (:wat::core::apply opt-i64 [(:wat::core::get argv 12)])]
-               (:wat::core::if (:wat::i64::> ic 0) ic 64)))))]
+               (:wat::core::if (:wat::i64::> ic 0) ic 64))
+             ;; argv 13 is `chaos-bp`, added 2026-09-10: ONE rate, in basis points, that
+             ;; arms EVERY injector the CLI could not previously reach — the inbox queue's
+             ;; two reply paths (which had no knob at all), the seen service's check and
+             ;; mark, and the worker/topic-worker disruptor. 0 = today's behaviour exactly.
+             ;; `circuit.wat 2000 4 3 8192 true 1000 0 0 0 0 0 500` makes everything fail
+             ;; at 5%, seeded 20260910 and printed.
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 13)]))))]
     (:wat::core::let
       [_ (:wat::kernel::println proof)
        _ (:wat::kernel::println
@@ -3481,7 +3662,7 @@
                       (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -3526,7 +3707,7 @@
                       (:queue::queue/grant iqh (:fanout::pids pl))))
            :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
      wh  (:fanout::worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -3618,7 +3799,7 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
           :record (:fanout::mk-worker "a" "q0" 200000000 350 0
                     (:queue::queue::Handle/addr qh)
@@ -3658,8 +3839,8 @@
                     (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
                     outs)))
      spair (:fanout::seen-stats seenh)
-     sfirsts (:wat::core::first spair)
-     sdups (:wat::core::second spair)]
+     sfirsts (:fanout::SeenFinal/recorded spair)
+     sdups (:fanout::SeenFinal/skipped spair)]
     (:wat::core::format
       "total={t};distinct={d};dup={dup};seen-recorded={f};seen-skipped={sd}"
       :t total :d distinct :dup (:wat::core::- total distinct)
@@ -3675,7 +3856,7 @@
      qh  (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::thread)
-              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false))
+              :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
      w1 (:fanout::worker/start :locus (:wat::spawn::thread)
           :record (:fanout::mk-worker "a" "q0" 200000000 0 350
                     (:queue::queue::Handle/addr qh)
@@ -3715,8 +3896,8 @@
                     (:wat::core::HashMap :- [:wat::core::String :wat::core::bool])
                     outs)))
      spair (:fanout::seen-stats seenh)
-     sfirsts (:wat::core::first spair)
-     sdups (:wat::core::second spair)]
+     sfirsts (:fanout::SeenFinal/recorded spair)
+     sdups (:fanout::SeenFinal/skipped spair)]
     (:wat::core::format
       "total={t};distinct={d};dup={dup};seen-recorded={f};seen-skipped={sd}"
       :t total :d distinct :dup (:wat::core::- total distinct)
