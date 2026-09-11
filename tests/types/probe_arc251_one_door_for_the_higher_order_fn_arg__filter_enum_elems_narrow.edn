@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::filter: parameter #1 expects [:u::Op :-> :wat::core::bool]; got [:u::Op.Mark :-> :wat::core::bool]"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc251_one_door_for_the_higher_order_fn_arg__filter_enum_elems_narrow.wat"
+        :line 8
+        :col 23
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 8
+            :col 34
+          }
+        }
+      }
+      :causes []
+      :callee ":wat::core::filter"
+      :param "#1"
+      :expected "[:u::Op :-> :wat::core::bool]"
+      :got "[:u::Op.Mark :-> :wat::core::bool]"
+      :remedies []
+    }
+  ]
+}

@@ -720,6 +720,34 @@ fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut Infe
     }
 }
 
+/// ONE door for the higher-order function argument of map / mapv / filter / foldl.
+/// The four call sites used to hand-roll this block; a fifth combinator must
+/// come through here so it inherits the lattice instead of re-deriving unify.
+fn check_higher_order_fn_arg(
+    op: &str,
+    fn_ty: Option<&TypeExpr>,
+    expected_fn_ty: &TypeExpr,
+    span: &Span,
+    subst: &mut Subst,
+    env: &CheckEnv,
+    local_errors: &mut Vec<CheckError>,
+) {
+    let Some(f_ty) = fn_ty else {
+        return;
+    };
+    if !assignable(f_ty, expected_fn_ty, subst, env) {
+        local_errors.push(CheckError {
+            span: span.clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: format_type(expected_fn_ty),
+                got: format_type(&apply_subst(f_ty, subst)),
+            },
+        });
+    }
+}
+
 /// Type-check `(:wat::core::map f xs)` — arc 118.2a (was arc 278 stone 0d, eager).
 ///
 /// LAZY now: `Seqable<T> × fn(T)->U → Stream<U>`, where `Seqable ∈ {Vector, List,
@@ -757,16 +785,15 @@ pub(crate) fn infer_map(
                     args: vec![elem_ty],
                     ret: Box::new(u_var.clone()),
                 };
-                if let Some(f_ty) = fn_ty {
-                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#1".into(),
-                            expected: format_type(&expected_fn_ty),
-                            got: format_type(&apply_subst(&f_ty, subst))
-                        }});
-                    }
-                }
+                check_higher_order_fn_arg(
+                    OP,
+                    fn_ty.as_ref(),
+                    &expected_fn_ty,
+                    args[0].span(),
+                    subst,
+                    env,
+                    &mut local_errors,
+                );
                 // Return Stream<U> — ALWAYS a Stream now (the lazy flip); U is the fn's output.
                 let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&u_var, subst)] };
                 return if local_errors.is_empty() {
@@ -822,16 +849,15 @@ pub(crate) fn infer_mapv(
                     args: vec![elem_ty],
                     ret: Box::new(u_var.clone()),
                 };
-                if let Some(f_ty) = fn_ty {
-                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#1".into(),
-                            expected: format_type(&expected_fn_ty),
-                            got: format_type(&apply_subst(&f_ty, subst))
-                        }});
-                    }
-                }
+                check_higher_order_fn_arg(
+                    OP,
+                    fn_ty.as_ref(),
+                    &expected_fn_ty,
+                    args[0].span(),
+                    subst,
+                    env,
+                    &mut local_errors,
+                );
                 let ret_ty = TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![apply_subst(&u_var, subst)] };
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)
@@ -894,16 +920,15 @@ pub(crate) fn infer_filter(
                     args: vec![elem_ty.clone()],
                     ret: Box::new(bool_ty),
                 };
-                if let Some(f_ty) = fn_ty {
-                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#1".into(),
-                            expected: format_type(&expected_fn_ty),
-                            got: format_type(&apply_subst(&f_ty, subst))
-                        }});
-                    }
-                }
+                check_higher_order_fn_arg(
+                    OP,
+                    fn_ty.as_ref(),
+                    &expected_fn_ty,
+                    args[0].span(),
+                    subst,
+                    env,
+                    &mut local_errors,
+                );
                 // Return Stream<T> — T is preserved (filter narrows, never transforms).
                 let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&elem_ty, subst)] };
                 return if local_errors.is_empty() {
@@ -983,21 +1008,15 @@ pub(crate) fn infer_foldl(
                     args: vec![acc_ty.clone(), elem_ty],
                     ret: Box::new(acc_ty.clone()),
                 };
-                if let Some(f_ty) = fn_ty {
-                    // Arc 251 lattice — assignable, not unify. foldl's reducer is a
-                    // function type; unify is invariant on Fn args, so
-                    // `fn(Acc, Alarm<Op>)` never satisfied `fn(Acc, Alarm<Op.-Tick>)`
-                    // even though Variant <: Enum is registered and the SAME-head
-                    // parametric arm of `assignable` already asks `is_subtype`.
-                    if !assignable(&f_ty, &expected_fn_ty, subst, env) {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#1".into(),
-                            expected: format_type(&expected_fn_ty),
-                            got: format_type(&apply_subst(&f_ty, subst))
-                        }});
-                    }
-                }
+                check_higher_order_fn_arg(
+                    OP,
+                    fn_ty.as_ref(),
+                    &expected_fn_ty,
+                    args[0].span(),
+                    subst,
+                    env,
+                    &mut local_errors,
+                );
                 // Return type is the accumulator.
                 let ret_ty = apply_subst(&acc_var, subst);
                 return if local_errors.is_empty() {
