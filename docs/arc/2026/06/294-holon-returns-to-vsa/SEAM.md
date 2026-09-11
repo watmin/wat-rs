@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. 2026-09-10. **GREEN · CLEAN · PUSHED · NO PEER.**
+# SEAM — the ONE live breadcrumb. 2026-09-10. ⛔ **RED · 25 UNPUSHED · PEER STRIKE IN FLIGHT.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -7,120 +7,119 @@
 
 > `251/SEAM.md` · `255/SEAM.md` · `278/SEAM.md` PARKED and point HERE. ⛔ **PARKED IS NOT DEAD.**
 
-## FIRST — RUN THESE. DO NOT READ THE NUMBERS.
+## FIRST — RUN THESE. DO NOT READ THE NUMBERS BELOW.
 
 ```bash
-git status --porcelain          # expect EMPTY
-git log --oneline @{u}..HEAD    # expect EMPTY
-grep -aE "^ +Summary" .floor/latest/raw.log
-cargo clippy --release --all-targets -- -D warnings   # expect EXIT 0
+git status --porcelain          # ⛔ EXPECT DIRTY — read the PEER STRIKE block below FIRST
+git log --oneline @{u}..HEAD    # expect 25 — NOTHING IS PUSHED
+cat /home/john/work/holon/.pulsare/to-claude   # has grok scored?
+./scripts/floor.sh > /dev/null 2>&1; echo $?   # RE-RUN IT. The kept log may be stale or TORN.
+cargo clippy --release --all-targets -- -D warnings
 ```
 
-```
-floor 5318/5318, 22 skipped · clippy 0 · HEAD 1a022a278
-```
+⛔⛔ **THE PEER EDITS THIS SAME WORKING TREE.** A floor run during a grok strike measures a TORN
+tree — I hit exactly that: `.floor/latest` vanished mid-run and clippy reported two phantom compile
+errors that were gone seconds later. **Check `git status` before believing any central
+measurement.**
 
-## ⛔⛔ THE PEER IS GONE. DELEGATE LOCALLY, AND MEASURE YOURSELF.
+**AS OF 22:23 THE TREE IS DIRTY AND THAT IS EXPECTED — IT IS NOT YOURS.** `M src/check.rs`,
+`M tests/types/probe_arc234_stone3c_keyword_accessor.{rs,wat}`, and **13 new**
+`tests/types/probe_arc251_type_the_polymorphic_accessor__*.wat` + its `.rs` are grok's IN-FLIGHT
+strike on the brief below. Last write 22:20:25, no `kind=scored` yet.
+⛔ **DO NOT `git checkout`, `git stash`, `git reset`, or COMMIT THOSE PATHS.** They are a peer's
+unfinished work in a shared tree, and every one of those verbs destroys it silently. Wait for the
+yield, THEN floor + clippy centrally, THEN commit.
 
-`pulsare_yield` is not a channel. Local `Agent` riders only:
+## ⛔ THE PEER IS ALIVE — the old seam said otherwise and was WRONG
 
-```
-model: "sonnet"   EXPLICIT on every call (FM 12 — omit it and you spawn OPUS silently)
-isolation         OMIT. Never "worktree" (FM 7-bis).
-cwd               anchor /home/john/work/holon/wat-rs absolutely in the prompt.
-no tool preamble  FM 16 — mentioning Bash/cargo availability triggers a hallucinated denial.
-the brief MUST say: do NOT background a command and end your turn · do NOT contact any peer
-```
+`pulsare` reconnected, grok's credits reset. It struck TWO stones today, one of which **refuted my
+own brief**. Protocol: **write the files, then `pulsare_yield`** (`kind: briefed` / `scored`), with
+**ABSOLUTE** paths — relative paths are rejected. Local `Agent` riders still work and are right for
+edit-only fan-outs (FM 18: riders edit, the orchestrator measures).
 
-★★★ **A MEASUREMENT IS YOURS. A DIFF IS THEIRS.** A rider's "STOP-5 did not fire" is worth nothing
-if it answered a narrower question than you asked — one did exactly that yesterday, and the census
-it skipped turned "two sites" into eight.
+# ⬜ WHERE THE WORK IS
 
-# ⛔⛔⛔ THE `:wat::*` BLANKET IS DEAD — `c3fefc5ab`
+## ✓ THE DOT FLIP IS LANDED — `Enum.Variant` everywhere
 
-Arc 255's founding sentence, shipped after months.
+Nine classes of variant-name site, found one at a time, each by something failing rather than by a
+census of mine. The corpus is rewritten (382 + 261 confirmed pairs, **asked** via
+`variant-parent-of`, never pattern-matched), both door bodies read/write `.`, and
+`:wat::runtime::compose-variant` is minted so wat can BUILD a variant name instead of concatenating
+one.
 
-```rust
--  if is_reserved_prefix(head) { return true; }
-+  if crate::intrinsic::registry().contains(head) { return true; }
-+  if head.starts_with(":rust::") { return true; }
-```
-
-A reserved-prefix name is a call head **iff the registry knows it**. No prefix is consulted for
-`:wat::*`. The rung **falls through** on a miss — that single property is 97 files refusing instead
-of 600. `:rust::*` defers to `UseDeclarations::covers`, which validates on the very next lines.
-
-★ **THE WALL IS UNTOUCHED AND MUST STAY.** Userland may not *DEFINE* under `:wat::*`/`:rust::*` —
-`resolve/registration.rs:129`, a DIFFERENT consumer of the same predicate. Seven rows in
-`probe_arc255_the_reserved_prefix_wall_is_not_the_blanket` hold it, measured green both with the
-blanket and with it deleted. **Deleting an acceptance is not deleting a refusal.**
-
-## The road there — 8 stones, and what each closed
+## ✓ TWO TYPE-SYSTEM DEFECTS FIXED TODAY (both pre-existing, both invisible to the floor)
 
 ```
-①′ membership facet   ②  normalize learns the type position    census 14 → 10
-③  a declared TypeScheme is membership — 484 names, DERIVED, never a hand-list
-④  the corpus's blanket-dependents → 0        ⑤-i  three phantoms retired
-⑤-A self-peer is a special form (the FOURTH store: a literal inference arm)
-⑤-E :wat::type:: is a TYPE-ONLY namespace     F+G  THE DELETION
+the EXPANDER          expand_form walked List and Vector, NOT Map or Set. A macro call inside a
+                      map literal was NEVER expanded -> bare head -> no scheme -> FRESH VAR ->
+                      assignable passed trivially. `PublicOpInAlarm` had been silently DEAD.
+{:keys} INSTANTIATION check.rs dropped a Parametric's args and used the DECLARED field types raw,
+                      for record, struct AND variant. `(:u::Cell :- [i64])` bound x as `:X`.
+                      Plus `:Enum.Variant/field` accessors, which never existed.
 ```
 
-★ It exposed real phantoms the blanket had hidden for months: `:wat::kernel::panic!`,
-`:wat::string::=`, and `:wat::core::List?` — **called three times by `wat/core.wat` itself** with no
-row, no scheme, no doc. Nothing had ever asked what it was.
+## ⬜ IN FLIGHT — grok is striking
 
-## ⬜ THE LIVE WORK — the dot flip, and it is a PAIR
+`251-types-as-forms/the-bare-keyword-accessor-is-accepted-but-never-typed/BRIEF-…md`
+One block (`check.rs` ~5795–5840), **two bugs pointing opposite ways**: a false ACCEPT (`fresh.fresh()`
+takes any declared type) and a false REFUSE (the `Parametric` arms cover HashMap + singleton Enum
+but NOT a parametric Aggregate). The fix is at the site — the acceptability test already resolves
+the receiver and looks up its `TypeDef`, then throws the answer away.
 
-`:user::app::Box::Full` runs. `#user.app/Box.Full` renders. **The reader will not accept what the
-runtime writes**, and both dot spellings are now cleanly REFUSED (they used to answer a silent
-`None` — the blanket is why the seam ordered its death first).
+## ⬜ THE 8-ish REMAINING FLOOR REDS — two rulings, not defects
+
+⚠ **The last FULL floor read 5345 run / 5336 passed / 9 failed.** One of those 9
+(`no_loose_string_assert`, on a peer probe) was fixed and verified ONLY by a scoped run — **no full
+floor has confirmed 8. Re-measure; do not quote my number.**
 
 ```
-✓ compose_variant / compose_variant_render     15 hand-rolled format!s → 1 door
-✓ :wat::runtime::variant-parent-of             the substrate can be ASKED
-✓ decompose_variant                            pairs the composer · cluster 1 of 8 routed
-⬜ clusters 2–8                                 NOTE-the-variant-separator-census-eight-clusters
-⬜ the flip + the codemod                       ONE landing, via fix.wat's STASH-DANCE
+6  probe_arc278_call_context + arming control   ONE root cause. A variant literal in an
+   unascribed MATCH SCRUTINEE narrows a container's type param (Alarm<Op.-Tick>), and same-head
+   parametric args are INVARIANT (arc 278 Stone 2). ⛔ THIS IS A RULING, NOT A REPAIR.
+1  probe_arc255_the_blanket_hides_a_phantom_head  ruling ①-C given, NOT YET APPLIED: rewrite it to
+   assert the INVERSE (the dot spelling RESOLVES; `::` is now the refused one).
+1  every_wat_scripts_file_loads                 untriaged
 ```
 
-⛔ **THE FLIP IS NOT TWO LINES.** I asserted "exactly these two bodies" without counting. Read
-`NOTE-the-variant-separator-census-eight-clusters-not-two.md`: **55 split lines, 20 flagged by
-heuristic, 8 confirmed by READING.** Cluster 8 (`rete/expr_ir.rs:1321`) already uses the composition
-door and is STILL broken by the flip, because its other half went to the general accessor.
+## ⚠ RULINGS FROM TODAY — do not re-litigate
 
-⚠ **`identifier::path`/`leaf` must stay GENERAL** — they split every namespaced name; ~35 of the 55
-are correct namespace splits.
+- **Character case carries NO meaning.** `user/some-enum.first` is legal; `Enum.Variant` is a BIAS.
+  Never branch on case. Four live violations tracked in
+  `109-kill-std/NOTE-character-case-carries-no-meaning.md` — **not fixed, deliberately.**
+- **A variant IS a tagged record** (arc 296). `Demo.Has -> Demo` accepts; `Demo -> Demo.Has`
+  refuses; a `Demo` receiver must `match`, a `Demo.Has` receiver need not. Verified 3/3.
+- **Ruling ②-A applied**: the arming fixture's positional ctors rewritten to map form.
+- **`git commit <paths>`, NEVER `git add` then commit** · **⛔ NO SIDE BRANCHES** · **PUSH ONLY GREEN.**
+- ⚠ **Backticks inside a double-quoted `git commit -m` are SHELL-EXPANDED.** It ate words from two
+  commit messages today. Use `-F -` with a quoted heredoc.
 
-★ The codemod ASKS (`variant-parent-of`) rather than matching. `:wat::cache::Cache::GetRequest` is a
-`defrecord` of identical shape and answers `None`. **9,946 occurrences, 493 spellings** — a regex
-renames the lookalike and nothing fails; it just means something else.
+## ⛔ THE FAILURE PATTERNS — every one fired TODAY
 
-## ⚠ RULINGS — do not re-litigate
+**① A CONDITIONAL PROBE CANNOT TELL CLEAN FROM NEVER-RAN.** Twice. A mismatch-only print where
+`0 == 0` was silent; a grid that showed error text for its first row only, so I copied a
+neighbouring row's cause onto a different failure and **shipped it into a brief** — and the peer,
+having refuted the fact, still built to my conclusion.
+`[[feedback_a_conditional_probe_cannot_tell_clean_from_never_ran]]`
 
-- **Turbofish has no form.** A comparison against it is not a weaker test; it is not a test.
-- **An enum ctor is a MAP** · **`{:keys}` is one-shape; match is many-shape.**
-- **A variant widens inside an ENUM's arguments** · **the join: same head → pairwise joins.**
-- **`git commit <paths>`, NEVER `git add` then commit** (a new file needs `git add <that path>`).
-- **⛔ NO SIDE BRANCHES** · **COMMIT LOCALLY OFTEN; PUSH ONLY GREEN.**
+**② THE FAILING-TEST LIST IS NOT THE BLAST RADIUS.** `h2__record.wat` was GREEN before a codemod
+broke it — recovered only by sweeping all 1119 fixtures, not the 795 that were red. The same
+literal is a VARIANT in one file and a RECORD NAME in another: **a global token→token map is
+unsound.**
 
-## ⛔ THE FAILURE PATTERNS — every one fired again yesterday
+**③ USAGE COUNT MEASURES AGE, NOT DESIRABILITY.** I nearly reverted a correct change because it had
+one corpus use. It was one hour old.
+`[[feedback_usage_count_measures_age_not_desirability]]`
 
-**① I NAMED A LIMIT THAT WAS A MISSING DOOR.** I wrote a codemod *"cannot"* tell a variant from a
-record and drew a four-questions fork on it. The predicate existed and was load-bearing; it had no
-wat surface. The builder: *"what query can't we make?… it's obvious when you ask."*
-`[[feedback_i_named_a_limit_that_was_a_missing_door]]`
+**④ NARRATION IS NOT A TRIGGER PATH.** *"Now that `:arms` is genuinely inferred…"* was a story. The
+builder asked for the path; the A/B that would have tested it had measured the SAME BINARY TWICE
+(the stash was empty because the file was committed, and the rebuild said `0.19s`).
 
-**② A COUNT IS NOT A ROSTER.** I added one test and silently disarmed a ratchet; the floor read
-5305 → 5305 and only clippy saw it. Confirm gates ran **by name in the log**.
+**⑤ FM 19, fifth occurrence.** A rider backgrounded a sweep and ended its turn. The brief's SECOND
+LINE forbade it. Prose is the convention rung; FM 18's tier rule is the fix.
 
-**③ `| head -3` SHIPPED AS A POPULATION.** Three abort fixtures in two artifacts; there were five.
-
-**④ A VERB CAN PASS EVERY GATE AND BE UNUSABLE.** `variant-parent-of` was green, gated, exampled —
-and refused a computed name, because I said "mirror `is-type?`". Found only by writing the caller.
-
-★ **AND THE GATES THIS ARC BUILT CAUGHT ME REPEATEDLY** — `purity_mandated_examples` refuted three
-axes; `registry_first_door_owns_every_handler_row` refuted a design; the loose-assert and
-inlined-EDN lints caught four probes. **Read a red as a finding, not a chore.**
+★★★ **AND EVERY DEFECT TODAY WAS FOUND BY SOMETHING FAILING, NEVER BY A CENSUS OF MINE.** Nine
+classes, three type-system bugs, two rulings — each surfaced by a rider's STOP, a peer's refutation,
+or an instrument breaking loudly. **Read a red as a finding.**
 
 ---
 
@@ -129,7 +128,7 @@ inlined-EDN lints caught four probes. **Read a red as a finding, not a chore.**
 >
 > ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Re-run the commands. Do not read the numbers.
 >
-> ⛔ **GREEN AND QUIET IS THE MOST DANGEROUS STATE THIS FILE DESCRIBES.** `git status` first.
+> ⛔ **NOTHING IS PUSHED AND THE FLOOR IS RED.** That is the deliberate state, not an accident.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.` ·
 > `HAERESIS EST ITERVM ROGARE.`
