@@ -1,0 +1,25 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/MalformedForm {
+      :message "malformed :wat::core::kwargs-construct form: unknown field :NOPE for aggregate :probe::Box (declared fields: v)"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc251_parametric_vector_field_is_checked.wat"
+        :line 36
+        :col 56
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 36
+            :col 77
+          }
+        }
+      }
+      :causes []
+      :head ":wat::core::kwargs-construct"
+      :reason "unknown field :NOPE for aggregate :probe::Box (declared fields: v)"
+      :remedies []
+    }
+  ]
+}
