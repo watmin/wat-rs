@@ -12524,13 +12524,18 @@ fn process_let_binding(
                         None => return CheckResult::errs(binding_errors),
                     };
                     // The rhs must be an aggregate type — TypeExpr::Path naming a
-                    // registered AggregateDef. Natures differ in purity, not shape;
-                    // {:keys} reads named fields. Peer is TypeDef::Aggregate, so it
-                    // is in (explicit: destructuring reads fields, it does not send).
-                    // HashMap / enum / surface are other TypeDef arms and stay out.
-                    let type_name = match &rhs_ty {
-                        TypeExpr::Path(n) => n.clone(),
-                        TypeExpr::Parametric { head, .. } => crate::types::parametric_head_fqdn(head),
+                    // registered AggregateDef, or a Parametric whose HEAD names one.
+                    // Natures differ in purity, not shape; {:keys} reads named fields.
+                    // Keep the supplied type arguments: looking up the TypeDef by head
+                    // alone and using its declared field types verbatim drops them
+                    // (a `(:u::Cell :- [i64])` rhs then binds `x` as `:X`). Inverse of
+                    // `parametric_decl_type` — substitute the USE-SITE args into the
+                    // declaration's field types via `rename`.
+                    let (type_name, type_args): (String, Vec<TypeExpr>) = match &rhs_ty {
+                        TypeExpr::Path(n) => (n.clone(), Vec::new()),
+                        TypeExpr::Parametric { head, args } => {
+                            (crate::types::parametric_head_fqdn(head), args.clone())
+                        }
                         other => {
                             binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: form.into(),
@@ -12554,7 +12559,14 @@ fn process_let_binding(
                     let (agg_name, agg_fields): (String, Vec<(String, TypeExpr)>) =
                         match env.types().get(&type_name) {
                             // Arc 296 O — {:keys} is an aggregate test, not a nature list.
-                            Some(crate::types::TypeDef::Aggregate(a)) => (a.name.clone(), a.fields.clone()),
+                            Some(crate::types::TypeDef::Aggregate(a)) => (
+                                a.name.clone(),
+                                instantiate_field_types(
+                                    a.fields.clone(),
+                                    &a.type_params,
+                                    &type_args,
+                                ),
+                            ),
                             // Arc 296 A-2 RELAND-1 — a tagged variant carries named fields
                             // too; a unit variant carries none, and reports every requested
                             // key as undeclared via the same loop below (never a distinct
@@ -12564,7 +12576,10 @@ fn process_let_binding(
                                     crate::types::EnumVariant::Tagged { fields, .. } => fields.clone(),
                                     crate::types::EnumVariant::Unit(_) => Vec::new(),
                                 };
-                                (e.name.clone(), fields)
+                                (
+                                    e.name.clone(),
+                                    instantiate_field_types(fields, &e.type_params, &type_args),
+                                )
                             }
                             _ => {
                                 binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -17802,6 +17817,34 @@ fn instantiate_with_args(
         .collect();
     let ret = rename(&scheme.ret, &mapping);
     (params, ret)
+}
+
+/// Substitute a parametric aggregate's supplied type arguments into its
+/// declared field types. Inverse of `parametric_decl_type` (which builds
+/// `(:Foo :- [A B])` FROM params): this takes the USE-SITE args and walks
+/// them into the declaration's field types via [`rename`]. Empty params
+/// or empty args is a no-op (monomorphic decls, or a bare Path rhs).
+fn instantiate_field_types(
+    fields: Vec<(String, TypeExpr)>,
+    type_params: &[String],
+    type_args: &[TypeExpr],
+) -> Vec<(String, TypeExpr)> {
+    if type_params.is_empty() || type_args.is_empty() {
+        return fields;
+    }
+    let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+    for (i, tp) in type_params.iter().enumerate() {
+        if let Some(arg) = type_args.get(i) {
+            mapping.insert(tp.clone(), arg.clone());
+        }
+    }
+    if mapping.is_empty() {
+        return fields;
+    }
+    fields
+        .into_iter()
+        .map(|(n, ty)| (n, rename(&ty, &mapping)))
+        .collect()
 }
 
 /// Replace `Path(":T")` occurrences where T is a key in `mapping`

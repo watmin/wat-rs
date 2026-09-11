@@ -1420,7 +1420,7 @@ pub fn register_enum_methods(
                         params: param_names,
                         type_params: enum_def.type_params.clone(),
                         param_types,
-                        ret_type: variant_type,
+                        ret_type: variant_type.clone(),
                         rest_param: None,
                         rest_param_type: None,
                         body: FunctionBody::Wat(Arc::new(WatAST::List(
@@ -1440,7 +1440,61 @@ pub fn register_enum_methods(
                             RuntimeErrorKind::DuplicateDefine(constructor_path),
                         ));
                     }
-                    sym.register_function(constructor_path, Arc::new(func));
+                    sym.register_function(constructor_path.clone(), Arc::new(func));
+
+                    // Arc 251 — per-field accessors on the variant singleton, the
+                    // enum-path twin of `register_aggregate_methods`. A record's
+                    // `:T/field` scheme carries `type_params` so `instantiate` at
+                    // the call site substitutes the receiver's args into the
+                    // declared field type; the variant ctor used
+                    // `parametric_decl_type` for its RETURN and never minted
+                    // accessors, so `:Enum.Variant/field` was an unresolved
+                    // reference and the keyword-accessor fall-through returned a
+                    // fresh var (or, at a typed defn, the uninstantiated `:T`).
+                    // Same scheme shape as the aggregate accessor: receiver is
+                    // the parametric singleton, ret is the declared field type,
+                    // `type_params` is the parent's list. Body is the keyword
+                    // accessor (`(:field self)`) — `struct-field` is Aggregate-
+                    // only; the runtime's `keyword_accessor_enum` is the Enum
+                    // read path.
+                    for (field_name, field_type) in fields {
+                        let accessor_path = format!("{}/{}", constructor_path, field_name);
+                        let accessor_body = WatAST::List(
+                            vec![
+                                WatAST::Keyword(
+                                    format!(":{}", field_name),
+                                    crate::rust_caller_span!(),
+                                ),
+                                WatAST::Symbol(
+                                    crate::scope::Identifier::bare("self"),
+                                    crate::rust_caller_span!(),
+                                ),
+                            ],
+                            crate::rust_caller_span!(),
+                        );
+                        let accessor_func = Function {
+                            name: Some(accessor_path.clone()),
+                            params: vec![crate::scope::Identifier::bare("self")],
+                            type_params: enum_def.type_params.clone(),
+                            param_types: vec![variant_type.clone()],
+                            ret_type: field_type.clone(),
+                            rest_param: None,
+                            rest_param_type: None,
+                            body: FunctionBody::Wat(Arc::new(accessor_body)),
+                            closed_env: None,
+                            rete: None,
+                            synthesized_for: None,
+                        };
+                        if sym.has_function(&accessor_path)
+                            || sym.has_unit_variant(&accessor_path)
+                        {
+                            return Err(RuntimeError::new(
+                                crate::rust_caller_span!(),
+                                RuntimeErrorKind::DuplicateDefine(accessor_path),
+                            ));
+                        }
+                        sym.register_function(accessor_path, Arc::new(accessor_func));
+                    }
                 }
             }
         }
