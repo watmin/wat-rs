@@ -2,28 +2,14 @@
 //!
 //! Wat source: tests/types/probe_arc234_stone3c_keyword_accessor.wat (loaded via startup_beside).
 //!
-//! Probe 3 is expected to produce an error at eval time (unknown field :nonexistent).
+//! Probe 3's unknown field is refused at CHECK time (arc 251), not eval — so it lives in its
+//! own fixture (`probe_arc251_type_the_polymorphic_accessor__unknown_field.wat`); a check error
+//! in the shared beside file would block probes 1/2/4/5/6 from loading.
 
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use wat::freeze::{call_beside_value, StartupError};
 use wat::runtime::Value;
-
-/// The structured EDN body of a startup/eval failure.
-///
-/// The error IS data — `#wat.runtime/UnknownField {…}` — so it is asserted STRUCTURALLY
-/// against a co-located `.edn` golden, never by `.contains` on a rendered string. These
-/// sites previously carried a loose-assert exemption because the span embedded an
-/// ABSOLUTE machine-specific path and no exact assertion was possible. Spans now carry a
-/// repo-relative path (`load::span_display_path`), so the reason no longer holds and the
-/// runes are retired rather than re-justified — the exemption existed for a constraint
-/// that is gone.
-///
-/// Arc 296 Stone M: `run` used to flatten the error to a `String` prefixed with
-/// `"eval: "`, which this helper stripped. `run` now returns the typed `StartupError`
-/// directly, whose `Display`/`Debug` IS the raw EDN (no prefix to strip) — this is a
-/// straight `to_string()`, kept as a named helper only so the call sites read the same.
-fn edn_body(e: &StartupError) -> String {
-    e.to_string()
-}
 
 
 fn run(fn_name: &str) -> Result<Value, StartupError> {
@@ -68,13 +54,31 @@ fn probe_2_keyword_accessor_on_multi_field_record() {
 // (:nonexistent v) on a record → error.
 #[test]
 fn probe_3_unknown_field_on_record_errors() {
-    match run(":user::probe-3") {
-        Ok(v) => panic!(
-            "Probe 3 FAILED: expected error on unknown field; got Ok({:?})",
-            v
-        ),
-        Err(msg) => wat::assert_edn_matches_file!(edn_body(&msg), "probe_arc234_stone3c_keyword_accessor__probe3_unknown_field.edn"),
-    }
+    // Arc 251 — a missing field on a known receiver is a located CHECK error.
+    // `:user::probe-3` was removed from the beside file so probes 1/2/4/5/6
+    // still load; the same program is `…__unknown_field.wat`.
+    let p: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/types")
+        .join("probe_arc251_type_the_polymorphic_accessor__unknown_field.wat");
+    let out = Command::new(env!("CARGO_BIN_EXE_wat"))
+        .arg("--check")
+        .arg(&p)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("spawn wat --check");
+    let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
+    s.push_str(&String::from_utf8_lossy(&out.stderr));
+    assert_eq!(out.status.code().unwrap_or(-1), 1, "got: {s}");
+    // Arc 251 — the error IS DATA. Asserted STRUCTURALLY against a co-located golden,
+    // never `.contains` on a rendered face: that is the exact pattern
+    // `tests/lint/no_loose_string_assert.rs` bans, and the loose-assert runes on these
+    // sites were RETIRED (spans are repo-relative now), not re-justified.
+    wat::assert_edn_matches_file!(
+        s,
+        "probe_arc234_stone3c_keyword_accessor__probe3_unknown_field.edn"
+    );
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────

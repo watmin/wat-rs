@@ -1,0 +1,26 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/ReturnTypeMismatch {
+      :message ":u::fb: body produces :wat::core::i64; signature declares :wat::core::String"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc251_type_the_polymorphic_accessor__variant_param_lie.wat"
+        :line 5
+        :col 91
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 5
+            :col 99
+          }
+        }
+      }
+      :causes []
+      :function ":u::fb"
+      :expected ":wat::core::String"
+      :got ":wat::core::i64"
+      :remedies []
+    }
+  ]
+}

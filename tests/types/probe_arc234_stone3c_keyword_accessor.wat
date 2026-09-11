@@ -15,9 +15,10 @@
 (:wat::core::defn :user::probe-2 [] -> :wat::core::String
   (:wat::core::let [t (:myapp::Triple :a 7 :b "hello" :c true)] (:b t)))
 
-;; ─── Probe 3: unknown field on record errors ──────────────────────────────────
-(:wat::core::defn :user::probe-3 [] -> :wat::core::f64
-  (:wat::core::let [v (:myapp::Voltage :magnitude 5.0)] (:nonexistent v)))
+;; ─── Probe 3: unknown field on record ─────────────────────────────────────────
+;; Moved to check-time: `probe_arc251_type_the_polymorphic_accessor__unknown_field.wat`.
+;; A missing field on a known receiver is now a located check error, so this
+;; defn cannot live in a file the other probes load.
 
 ;; ─── Probe 4: keyword accessor on hashmap key present ────────────────────────
 (:wat::core::defn :user::probe-4 [] -> :wat::core::i64

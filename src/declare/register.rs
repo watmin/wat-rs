@@ -1452,11 +1452,25 @@ pub fn register_enum_methods(
                     // reference and the keyword-accessor fall-through returned a
                     // fresh var (or, at a typed defn, the uninstantiated `:T`).
                     // Same scheme shape as the aggregate accessor: receiver is
-                    // the parametric singleton, ret is the declared field type,
-                    // `type_params` is the parent's list. Body is the keyword
+                    // the parametric singleton, ret is the declared field type.
+                    // `type_params` is the singleton's consumed list (not the
+                    // parent's full list) so a body `(:field self)` instantiates
+                    // against the TypeDef the keyword-accessor lookup sees —
+                    // Result.Err consumes `E` only; zipping the parent's `[T E]`
+                    // onto that singleton binds `E` to `T`. Body is the keyword
                     // accessor (`(:field self)`) — `struct-field` is Aggregate-
                     // only; the runtime's `keyword_accessor_enum` is the Enum
                     // read path.
+                    let (acc_type_params, acc_recv) = match types.get(&constructor_path) {
+                        Some(TypeDef::Enum(ve)) => (
+                            ve.type_params.clone(),
+                            parametric_decl_type(&constructor_path, &ve.type_params),
+                        ),
+                        _ => (
+                            enum_def.type_params.clone(),
+                            variant_type.clone(),
+                        ),
+                    };
                     for (field_name, field_type) in fields {
                         let accessor_path = format!("{}/{}", constructor_path, field_name);
                         let accessor_body = WatAST::List(
@@ -1475,8 +1489,8 @@ pub fn register_enum_methods(
                         let accessor_func = Function {
                             name: Some(accessor_path.clone()),
                             params: vec![crate::scope::Identifier::bare("self")],
-                            type_params: enum_def.type_params.clone(),
-                            param_types: vec![variant_type.clone()],
+                            type_params: acc_type_params.clone(),
+                            param_types: vec![acc_recv.clone()],
                             ret_type: field_type.clone(),
                             rest_param: None,
                             rest_param_type: None,

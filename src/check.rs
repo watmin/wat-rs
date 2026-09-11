@@ -5781,56 +5781,75 @@ fn infer_list(
                     let resolved = arg_types[0]
                         .as_ref()
                         .map(|t| apply_subst(t, subst));
-                    let acceptable = match &resolved {
-                        None => true,
-                        Some(TypeExpr::Var(_)) => true,
-                        // Arc 258 cascade — accept any subtype of :wat::core::Record (includes
-                        // specifically-typed records like :myapp::Pt in addition to the
-                        // root :wat::core::Record). is_subtype is reflexive so :wat::core::Record itself
-                        // still matches.
-                        Some(TypeExpr::Path(p))
-                            if crate::types::is_subtype(p, ":wat::core::Record", env.types())
-                                || crate::types::is_subtype(
-                                    p,
-                                    ":wat::holon::Record",
-                                    env.types(),
-                                ) =>
-                        {
-                            true
+                    // Arc 251 — the 236.2 placeholder is spent. Records have
+                    // `:T/field`; variants have `:Enum.Variant/field`. When the
+                    // receiver carries named fields, return the field's type
+                    // (instantiating `type_params → args` via the same
+                    // `instantiate_field_types` `{:keys}` uses). A fresh var
+                    // remains only where we still cannot name the fields:
+                    // unresolved, HashMap (STOP-2: value type is not a named
+                    // field), and the zero-field Record umbrellas.
+                    match &resolved {
+                        None | Some(TypeExpr::Var(_)) => {
+                            return unresolved_accessor_placeholder(fresh, local_errors);
                         }
-                        Some(TypeExpr::Path(p)) => match env.types().get(p.as_str()) {
-                            // Arc 293.2b — Struct + Record collapsed into Aggregate.
-                            Some(crate::types::TypeDef::Aggregate(_)) => true,
-                            // Arc 296 A-2 RELAND-5 — a tagged variant carries named
-                            // fields too, exactly like `{:keys}`'s own widened
-                            // predicate in `process_let_binding` (the singleton
-                            // `TypeDef::Enum` `register_variant_types` mints). A Unit
-                            // variant (or any other TypeDef arm) carries none and
-                            // stays refused.
-                            Some(crate::types::TypeDef::Enum(e)) => e.variants.len() == 1,
-                            _ => false,
-                        },
                         Some(TypeExpr::Parametric { head, .. })
                             if head == "wat::core::HashMap" =>
                         {
-                            true
+                            return unresolved_accessor_placeholder(fresh, local_errors);
                         }
-                        // Arc 296 A-2 RELAND-5 — a parametric variant (e.g.
-                        // `:usr::Box::Full :- [i64]`): `register_variant_types` carries
-                        // only the type params the variant's OWN fields consume, so a
-                        // generic variant's resolved type here is `Parametric`, not a
-                        // bare `Path` — the arm above alone missed exactly this shape.
-                        // Same singleton-Enum test, same reason.
-                        Some(TypeExpr::Parametric { head, .. }) => matches!(
-                            env.types().get(crate::types::parametric_head_fqdn(head).as_str()),
-                            Some(crate::types::TypeDef::Enum(e)) if e.variants.len() == 1
-                        ),
-                        Some(_) => false,
-                    };
-                    if acceptable {
-                        // HARVEST (236.2): silent-by-intent — polymorphic accessor placeholder.
-                        let ty = fresh.fresh();
-                        return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+                        Some(recv_ty) => {
+                            if let Some((agg_name, fields)) =
+                                keyword_accessor_fields(recv_ty, env)
+                            {
+                                if is_record_umbrella(&agg_name) {
+                                    return unresolved_accessor_placeholder(fresh, local_errors);
+                                }
+                                let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
+                                match fields.iter().find(|(n, _)| n == field_name) {
+                                    Some((_, fty)) => {
+                                        let ty = apply_subst(fty, subst);
+                                        return if local_errors.is_empty() {
+                                            CheckResult::ok(ty)
+                                        } else {
+                                            CheckResult::partial_with(ty, local_errors)
+                                        };
+                                    }
+                                    None => {
+                                        let declared = fields
+                                            .iter()
+                                            .map(|(n, _)| n.as_str())
+                                            .collect::<Vec<_>>()
+                                            .join(", ");
+                                        local_errors.push(CheckError {
+                                            span: head_span.clone(),
+                                            kind: CheckErrorKind::MalformedForm {
+                                                head: k.clone(),
+                                                reason: format!(
+                                                    "keyword accessor: field {:?} is not declared on {} (declared fields: {})",
+                                                    field_name, agg_name, declared
+                                                ),
+                                                remedies: vec![],
+                                            },
+                                        });
+                                        return CheckResult::errs(local_errors);
+                                    }
+                                }
+                            }
+                            if let TypeExpr::Path(p) = recv_ty {
+                                if crate::types::is_subtype(
+                                    p,
+                                    ":wat::core::Record",
+                                    env.types(),
+                                ) || crate::types::is_subtype(
+                                    p,
+                                    ":wat::holon::Record",
+                                    env.types(),
+                                ) {
+                                    return unresolved_accessor_placeholder(fresh, local_errors);
+                                }
+                            }
+                        }
                     }
                     // Concrete non-accessor receiver: keyword `k` is not a
                     // registered verb AND the receiver type is not a
@@ -17819,6 +17838,58 @@ fn instantiate_with_args(
     (params, ret)
 }
 
+/// The 236.2 placeholder, retained only for receivers whose fields cannot
+/// be named at check time (unresolved, HashMap, Record umbrellas).
+fn unresolved_accessor_placeholder(
+    fresh: &mut InferCtx,
+    local_errors: Vec<CheckError>,
+) -> CheckResult<TypeExpr> {
+    let ty = fresh.fresh();
+    if local_errors.is_empty() {
+        CheckResult::ok(ty)
+    } else {
+        CheckResult::partial_with(ty, local_errors)
+    }
+}
+
+fn is_record_umbrella(name: &str) -> bool {
+    name == ":wat::core::Record" || name == ":wat::holon::Record"
+}
+
+/// Named fields of a keyword-accessor receiver, type args already substituted.
+/// `None` = not a named-field carrier (caller decides HashMap / unresolved /
+/// UnknownCallee).
+fn keyword_accessor_fields(
+    ty: &TypeExpr,
+    env: &CheckEnv,
+) -> Option<(String, Vec<(String, TypeExpr)>)> {
+    let (head, args): (Cow<'_, str>, &[TypeExpr]) = match ty {
+        TypeExpr::Path(p) => (Cow::Borrowed(p.as_str()), &[]),
+        TypeExpr::Parametric { head, args } => (
+            Cow::Owned(crate::types::parametric_head_fqdn(head)),
+            args.as_slice(),
+        ),
+        _ => return None,
+    };
+    match env.types().get(head.as_ref()) {
+        Some(crate::types::TypeDef::Aggregate(a)) => Some((
+            a.name.clone(),
+            instantiate_field_types(a.fields.clone(), &a.type_params, args),
+        )),
+        Some(crate::types::TypeDef::Enum(e)) if e.variants.len() == 1 => {
+            let fields = match &e.variants[0] {
+                crate::types::EnumVariant::Tagged { fields, .. } => fields.clone(),
+                crate::types::EnumVariant::Unit(_) => Vec::new(),
+            };
+            Some((
+                e.name.clone(),
+                instantiate_field_types(fields, &e.type_params, args),
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// Substitute a parametric aggregate's supplied type arguments into its
 /// declared field types. Inverse of `parametric_decl_type` (which builds
 /// `(:Foo :- [A B])` FROM params): this takes the USE-SITE args and walks
@@ -17839,12 +17910,42 @@ fn instantiate_field_types(
         }
     }
     if mapping.is_empty() {
-        return fields;
+        return fields
+            .into_iter()
+            .map(|(n, ty)| (n, colonize_type_var_paths(&ty)))
+            .collect();
     }
     fields
         .into_iter()
-        .map(|(n, ty)| (n, rename(&ty, &mapping)))
+        .map(|(n, ty)| (n, colonize_type_var_paths(&rename(&ty, &mapping))))
         .collect()
+}
+
+/// Type-variable Paths are stored with a leading `:` (`Path(":T")`) in
+/// declared field types and Function `ret_type`. `parametric_decl_type`
+/// emits `Path("T")` (no colon) from `type_params`. After substitution,
+/// normalize so the two spellings unify when a synthesized accessor
+/// body's `(:field self)` is checked against its scheme.
+fn colonize_type_var_paths(ty: &TypeExpr) -> TypeExpr {
+    match ty {
+        TypeExpr::Path(p) => {
+            if crate::declare::parse::is_type_var_path(p) && !p.starts_with(':') {
+                TypeExpr::Path(format!(":{p}"))
+            } else {
+                TypeExpr::Path(p.clone())
+            }
+        }
+        TypeExpr::Parametric { head, args } => TypeExpr::Parametric {
+            head: head.clone(),
+            args: args.iter().map(colonize_type_var_paths).collect(),
+        },
+        TypeExpr::Fn { args, ret } => TypeExpr::Fn {
+            args: args.iter().map(colonize_type_var_paths).collect(),
+            ret: Box::new(colonize_type_var_paths(ret)),
+        },
+        TypeExpr::Tuple(es) => TypeExpr::Tuple(es.iter().map(colonize_type_var_paths).collect()),
+        TypeExpr::Var(_) => ty.clone(),
+    }
 }
 
 /// Replace `Path(":T")` occurrences where T is a key in `mapping`
