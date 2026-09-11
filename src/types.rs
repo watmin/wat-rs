@@ -429,6 +429,25 @@ pub struct UnionDef {
 /// (not a flattened `Vec<TypeExpr>`) so the binder names are preserved and the
 /// structural check can compare per-position with the candidate `defn`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+// ⚠ 289 bytes vs 72 — clippy::large_enum_variant, and this is the ONE finding in the
+// clippy sweep of 2026-09-11 that I did not restructure. The honest fix is extracting
+// `Method`'s six-plus fields into a struct and boxing it, which touches 19 construction
+// sites and 27 references across 6 files, in a core declaration type.
+//
+// What it would buy, measured: 224 wasted bytes per `Field` value. `SurfaceMember` is
+// PARSE-TIME metadata — one value per declared surface member, built once and held in the
+// type registry. Hundreds of them corpus-wide, so tens of KB, held once, on a path no
+// per-call work touches. That is not worth a 27-site refactor of a core type, and saying
+// so with the numbers is the point: this is a judgement, not a reflex.
+//
+// `expect`, not `allow`, so it un-rots itself — if `Method` ever slims down (or `Field`
+// grows), the lint stops firing and this exemption becomes a warning asking to be deleted.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Method is 289B vs Field 72B, but SurfaceMember is parse-time metadata held \
+once per declared surface member -- boxing costs 19 construction sites + 27 refs in 6 files \
+to save tens of KB on a cold path"
+)]
 pub enum SurfaceMember {
     /// A field requirement: type T must have a field `name` with a type assignable to `ty`.
     Field { name: String, ty: TypeExpr },

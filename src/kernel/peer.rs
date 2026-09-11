@@ -279,9 +279,10 @@ pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
 /// [`PEER_CRASHED_SENTINEL`]; see that constant's doc.
 pub(crate) const PEER_SEVERED_SENTINEL: &str = ":wat::kernel::__peer_severed__";
 
-/// (The severed reason text now lives on `RecvError::PeerSevered`'s `Display`
-/// impl in `src/comms/mod.rs`, beside its crash twin's, rather than as a const
-/// here — one variant, one reason, one place.)
+// (The severed reason text now lives on `RecvError::PeerSevered`'s `Display`
+// impl in `src/comms/mod.rs`, beside its crash twin's, rather than as a const
+// here — one variant, one reason, one place.)  `//`, not `///`: it documents a
+// const that MOVED, so it attaches to nothing below it.
 
 /// Outcome of [`Peer::try_send`] / [`Peer::try_send_wire`] — Arc 278 Phase
 /// 3a (`BRIEF-send-wall-3a-try-send-outcome.md`). Distinguishes "the write

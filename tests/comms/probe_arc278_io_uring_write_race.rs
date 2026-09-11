@@ -186,10 +186,10 @@ fn run_probe() -> String {
 
     let mut ring = IoUring::new(8).expect("IoUring::new(8)");
     let payload = vec![0xABu8; PAYLOAD_LEN];
-    assert!(
-        PAYLOAD_LEN > 4096,
-        "payload must exceed PIPE_BUF or this measures an atomic write"
-    );
+    // `const {}` — clippy::assertions_on_constants, and the lint is RIGHT: these are
+    // COMPILE-TIME preconditions of the probe's design, so a const block makes a violation
+    // a build error instead of a runtime panic. One rung up the ladder, for free.
+    const { assert!(PAYLOAD_LEN > 4096, "payload must exceed PIPE_BUF or this measures an atomic write") };
 
     let write_e = opcode::Write::new(types::Fd(data_w_fd), payload.as_ptr(), payload.len() as u32)
         .offset(0)

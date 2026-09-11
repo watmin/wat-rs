@@ -26490,7 +26490,7 @@ pub(crate) fn eval_peer_select_prime(
             Err(_io_err) => {
                 // Ring-level failure: no peer index. Lost requires idx; 0 is the
                 // select itself. Cause is reason-free (arc 294 — do not leak io_err).
-                return Ok(Value::Enum(Arc::new(EnumValue {
+                Ok(Value::Enum(Arc::new(EnumValue {
                     type_path: SELECT_EVENT_TYPE.into(),
                     variant_name: "Lost".into(),
                     names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Lost"),
@@ -26498,7 +26498,7 @@ pub(crate) fn eval_peer_select_prime(
                         Value::i64(0),
                         message_only_failure("select io_uring error".into()),
                     ],
-                })));
+                })))
             }
             Ok(outcome) => match outcome {
             crate::comms::SelectOutcome::Recv { index, result } => {

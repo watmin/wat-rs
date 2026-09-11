@@ -100,7 +100,7 @@ impl TailForm {
 
     /// Children that inherit tail position, matching each `eval_*_tail` sibling:
     /// `if` then/else, `match` arm bodies, `let`/`do`/`and`/`or` last body, `ann-form` expr.
-    pub fn tail_children<'a>(self, args: &'a [WatAST]) -> Vec<&'a WatAST> {
+    pub fn tail_children(self, args: &[WatAST]) -> Vec<&WatAST> {
         match self {
             TailForm::If => {
                 if args.len() == 3 {

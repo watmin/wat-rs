@@ -863,7 +863,7 @@ fn check_impls_completeness(types: &TypeEnv, errors: &mut Vec<CheckError>) {
             .iter()
             .map(enum_variant_name)
             .filter(|n| !parent_names.contains(n))
-            .map(|n| op_variant_to_feature_name(n))
+            .map(op_variant_to_feature_name)
             .collect();
         if missing.is_empty() {
             continue;
@@ -14276,6 +14276,14 @@ fn infer_time_unit_constructor(
 /// zero); NonZeroDuration is the commitment (cannot be). Both are
 /// durations — this is not a coercion, it is the same identity under
 /// two names (the `infer_polymorphic_time_arith` dispatch shape).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the four-value inference context (env/locals/fresh/subst) travels together \
+through every infer_* in this file -- 79 of 179 fns here take >=7 params, and two already \
+carry this exemption (:10099, :10207). Collapsing the bundle into a context struct is a \
+file-wide refactor, not this lint's business; `expect` rather than `allow` so it un-rots \
+itself if the signature ever shrinks."
+)]
 fn infer_duration_like_unary(
     head: &str,
     args: &[WatAST],
