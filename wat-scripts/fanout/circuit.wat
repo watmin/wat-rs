@@ -1380,14 +1380,77 @@
         (_ (:wat::core::Tuple (:wat::core::format "tier={name};stats=not-ok" :name name) -1 -1))))
     (_ (:wat::core::Tuple (:wat::core::format "tier={name};stats=lost" :name name) -1 -1))))
 
+;; Give-up has no form for attempts: no Exhausted variant, and success is not "".
+(:wat::core::defenum :fanout::Verdict :wat::enum::Pure
+  :Done    []
+  :Stalled [no-progress-polls <- :wat::core::i64
+            elapsed-ms        <- :wat::core::i64
+            snapshot          <- :wat::core::String]
+  :Ceiling [elapsed-ms <- :wat::core::i64
+            ceiling-ms <- :wat::core::i64
+            snapshot   <- :wat::core::String])
+
 (:wat::core::defn :fanout::require!
-  [r <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::if (:wat::core::= r "")
-    nil
-    (:wat::kernel::assertion-failed! r :wat::core::None :wat::core::None)))
+  [v <- :fanout::Verdict] -> :wat::core::nil
+  (:wat::core::match v
+    ((:fanout::Verdict::Done) nil)
+    ((:fanout::Verdict::Stalled _k _ms snap)
+      (:wat::kernel::assertion-failed! snap :wat::core::None :wat::core::None))
+    ((:fanout::Verdict::Ceiling _ms _cap snap)
+      (:wat::kernel::assertion-failed! snap :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fanout::elapsed-ms [start-ns <- :wat::core::i64] -> :wat::core::i64
   (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns) 1000000))
+
+;; One combinator whose signature has no attempt parameter. stall-k counts polls
+;; WITHOUT progress; ceiling-ms is the wall backstop. Returns (verdict, last sample, polls)
+;; — polls is the join-publishers round-trip counter, not a give-up bound.
+(:wat::core::defn :fanout::poll-bounded* :- [S]
+  [probe <- [:-> :S]
+   done? <- [:S :-> :wat::core::bool]
+   progressed? <- [:S :S :-> :wat::core::bool]
+   stall-k <- :wat::core::i64
+   ceiling-ms <- :wat::core::i64
+   snapshot <- [:S :-> :wat::core::String]
+   prev <- (:wat::core::Option :- [:S])
+   start-ns <- :wat::core::i64
+   stale <- :wat::core::i64
+   polls <- :wat::core::i64
+   sleep-ms <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:fanout::Verdict :S :wat::core::i64])
+  (:wat::core::let
+    [s      (probe)
+     el     (:fanout::elapsed-ms start-ns)
+     polls' (:wat::i64::+ polls 1)
+     stale' (:wat::core::match prev
+              (:wat::core::None 0)
+              ((:wat::core::Some p)
+                (:wat::core::if (progressed? p s) 0 (:wat::i64::+ stale 1))))]
+    (:wat::core::if (done? s)
+      (:wat::core::Tuple (:fanout::Verdict::Done) s polls')
+      (:wat::core::if (:wat::i64::>= stale' stall-k)
+        (:wat::core::Tuple
+          (:fanout::Verdict::Stalled stall-k el (snapshot s))
+          s polls')
+        (:wat::core::if (:wat::i64::>= el ceiling-ms)
+          (:wat::core::Tuple
+            (:fanout::Verdict::Ceiling el ceiling-ms (snapshot s))
+            s polls')
+          (:wat::core::let [_ (:fanout::await-timer-ms sleep-ms)]
+            (:fanout::poll-bounded* probe done? progressed? stall-k ceiling-ms snapshot
+              (:wat::core::Some s) start-ns stale' polls' sleep-ms)))))))
+
+(:wat::core::defn :fanout::poll-bounded :- [S]
+  [probe <- [:-> :S]
+   done? <- [:S :-> :wat::core::bool]
+   progressed? <- [:S :S :-> :wat::core::bool]
+   stall-k <- :wat::core::i64
+   ceiling-ms <- :wat::core::i64
+   snapshot <- [:S :-> :wat::core::String]
+   sleep-ms <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [:fanout::Verdict :S :wat::core::i64])
+  (:fanout::poll-bounded* probe done? progressed? stall-k ceiling-ms snapshot
+    :wat::core::None (:wat::time::epoch-nanos (:wat::time::now)) 0 0 sleep-ms))
 
 ;; One sweep = one `Queue/stats` per subscriber queue, each row (visible, unacked, acks).
 ;; The third column is carried for `sweep-acks` below; nothing here re-reads the wire.
@@ -1595,7 +1658,7 @@
 ;;   nextest's kill, or the arm is destroyed and we are back to arc 278's empty TIMEOUT.
 ;; ⚠ NAMED, NOT ASSUMED: no test in the floor reaches this code at all. Every `:user::*`
 ;; fixture passes `fill-first? = false` (circuit.wat:3133-3172), for which the caller
-;; returns `(Tuple "" 0 0)` without polling — so `poll-until-filled*` is reachable ONLY
+;; returns `(Tuple Done 0 0)` without polling — so `poll-until-filled*` is reachable ONLY
 ;; from the CLI. 8000 pairs → 126 s, which would sit inside the r2_drop_* 90/180 s override
 ;; if a fixture ever flipped that flag, and would NOT fit the 15/30 s default. Whoever
 ;; flips it owns that check.
@@ -1607,7 +1670,7 @@
 ;; topic inbox is empty.
 ;;
 ;; ⛔ IT GIVES UP ON LACK OF PROGRESS, NOT ON AN ATTEMPT BUDGET, and it says WHICH world:
-;;   ""              every sub queue at >= n visible, 0 unacked, AND topic inbox 0
+;;   Done            every sub queue at >= n visible, 0 unacked, AND topic inbox 0
 ;;   filled-unread   a stats reply could not be read — a different failure, OUTRANKS both
 ;;   filled-stalled  Σ(visible+unacked+acks) did not move for K consecutive polls:
 ;;                   THE SYSTEM STOPPED FILLING
@@ -1617,7 +1680,7 @@
 ;;
 ;; ⛔ THE CHECK CAN STILL GO RED, and that is the property to preserve above all — copied
 ;; verbatim from poll-until-drained* below because it is the same property: the ONLY path
-;; returning "" is the completion test, and every other path is bounded — the stall arm by
+;; returning Done is the completion test, and every other path is bounded — the stall arm by
 ;; K, and the ceiling arm unconditionally by wall clock regardless of progress. A system
 ;; that keeps arriving forever without ever reaching n therefore still fails, at the
 ;; ceiling. Witnessed, not argued: `circuit.wat 50 2 2 32 true 0` — sub-cap 32 < want 50, so
@@ -1636,7 +1699,7 @@
    n <- :wat::core::i64  ceiling-ms <- :wat::core::i64  start-ns <- :wat::core::i64
    prog-prev <- :wat::core::i64  stale <- :wat::core::i64  stale-max <- :wat::core::i64
    polls <- :wat::core::i64  rts <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
+  -> (:wat::core::Tuple :- [:fanout::Verdict :wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [sweep  (:fanout::sweep-of qclients)
      box    (:fanout::topic-outbox t)
@@ -1652,26 +1715,26 @@
      el     (:fanout::elapsed-ms start-ns)]
     (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::sweep-unread? sweep))
       (:wat::core::Tuple
-        (:wat::core::format "filled-unread: last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms}"
-          :s (:fanout::snapshot-str sweep) :b box :n n :a prog :p polls' :ms el)
+        (:fanout::Verdict::Stalled 0 el
+          (:wat::core::format "filled-unread: last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms}"
+            :s (:fanout::snapshot-str sweep) :b box :n n :a prog :p polls' :ms el))
         rts' smax')
       (:wat::core::if (:wat::core::and (:fanout::sweep-filled? sweep n) (:wat::core::= box 0))
-        (:wat::core::Tuple "" rts' smax')
+        (:wat::core::Tuple (:fanout::Verdict::Done) rts' smax')
         (:wat::core::if (:wat::i64::>= stale' (:fanout::fill-stale-polls))
           (:wat::core::Tuple
-            (:wat::core::format "filled-stalled: no arrival progress in {k} polls; last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms}"
-              :k (:fanout::fill-stale-polls) :s (:fanout::snapshot-str sweep) :b box
-              :n n :a prog :p polls' :ms el)
+            (:fanout::Verdict::Stalled (:fanout::fill-stale-polls) el
+              (:wat::core::format "filled-stalled: no arrival progress in {k} polls; last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms}"
+                :k (:fanout::fill-stale-polls) :s (:fanout::snapshot-str sweep) :b box
+                :n n :a prog :p polls' :ms el))
             rts' smax')
           (:wat::core::if (:wat::i64::>= el ceiling-ms)
             (:wat::core::Tuple
-              ;; Wording is exactly what the code knows: the ceiling was reached and no
-              ;; K-poll stall was ever seen. `stale`/`stale-max` let the reader judge how
-              ;; close it came, rather than taking "still arriving" on trust.
-              (:wat::core::format "filled-timeout: ceiling {c}ms reached with no {k}-poll stall; last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms} stale={st} stale-max={sm}"
-                :k (:fanout::fill-stale-polls)
-                :s (:fanout::snapshot-str sweep) :b box :n n :a prog :p polls' :ms el
-                :c ceiling-ms :st stale' :sm smax')
+              (:fanout::Verdict::Ceiling el ceiling-ms
+                (:wat::core::format "filled-timeout: ceiling {c}ms reached with no {k}-poll stall; last={s} outbox={b} want={n} arrived={a} polls={p} elapsed={ms} stale={st} stale-max={sm}"
+                  :k (:fanout::fill-stale-polls)
+                  :s (:fanout::snapshot-str sweep) :b box :n n :a prog :p polls' :ms el
+                  :c ceiling-ms :st stale' :sm smax'))
               rts' smax')
             (:wat::core::let [_ (:fanout::await-timer-ms 5)]
               (:fanout::poll-until-filled* qclients t n ceiling-ms start-ns
@@ -1683,7 +1746,7 @@
 (:wat::core::defn :fanout::poll-until-filled
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic
    n <- :wat::core::i64  pairs <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
+  -> (:wat::core::Tuple :- [:fanout::Verdict :wat::core::i64 :wat::core::i64])
   (:fanout::poll-until-filled* qclients t n (:fanout::fill-ceiling-ms pairs)
     (:wat::time::epoch-nanos (:wat::time::now)) -1 0 0 0 0))
 
@@ -1733,7 +1796,7 @@
 ;; unavailable. One sweep per iteration; every fact below is derived from it.
 ;;
 ;; ⛔ IT GIVES UP ON LACK OF PROGRESS, NOT ON AN ATTEMPT BUDGET, and it says WHICH world:
-;;   ""               every sub queue empty AND topic inbox 0 — UNCHANGED completion test
+;;   Done             every sub queue empty AND topic inbox 0 — UNCHANGED completion test
 ;;   drained-unread   a stats reply could not be read — a different failure, outranks both
 ;;   drained-stalled  Σacks did not move for K consecutive polls: THE SYSTEM STOPPED
 ;;   drained-timeout  the wall ceiling was reached and NO K-poll stall was ever seen:
@@ -1741,7 +1804,7 @@
 ;;                    check that claim rather than take it on trust
 ;;
 ;; ⛔ THE CHECK CAN STILL GO RED, and that is the property to preserve above all: the ONLY
-;; path returning "" is the completion test, and every other path is bounded — the stall arm
+;; path returning Done is the completion test, and every other path is bounded — the stall arm
 ;; by K, and the ceiling arm unconditionally by wall clock regardless of progress. A system
 ;; that keeps acking forever without draining therefore still fails, at the ceiling.
 ;;
@@ -1752,7 +1815,7 @@
    ceiling-ms <- :wat::core::i64  start-ns <- :wat::core::i64
    acks-prev <- :wat::core::i64  stale <- :wat::core::i64  stale-max <- :wat::core::i64
    polls <- :wat::core::i64  rts <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
+  -> (:wat::core::Tuple :- [:fanout::Verdict :wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [sweep  (:fanout::sweep-of qclients)
      box    (:fanout::topic-outbox t)
@@ -1768,26 +1831,26 @@
      el     (:fanout::elapsed-ms start-ns)]
     (:wat::core::if (:wat::core::or (:wat::core::= box -1) (:fanout::sweep-unread? sweep))
       (:wat::core::Tuple
-        (:wat::core::format "drained-unread: last={s} outbox={b} acks={a} polls={p} elapsed={ms}"
-          :s (:fanout::snapshot-str sweep) :b box :a acks :p polls' :ms el)
+        (:fanout::Verdict::Stalled 0 el
+          (:wat::core::format "drained-unread: last={s} outbox={b} acks={a} polls={p} elapsed={ms}"
+            :s (:fanout::snapshot-str sweep) :b box :a acks :p polls' :ms el))
         rts' smax')
       (:wat::core::if (:wat::core::and (:fanout::sweep-drained? sweep) (:wat::core::= box 0))
-        (:wat::core::Tuple "" rts' smax')
+        (:wat::core::Tuple (:fanout::Verdict::Done) rts' smax')
         (:wat::core::if (:wat::i64::>= stale' (:fanout::drain-stale-polls))
           (:wat::core::Tuple
-            (:wat::core::format "drained-stalled: no delivery progress in {k} polls; last={s} outbox={b} acks={a} polls={p} elapsed={ms}"
-              :k (:fanout::drain-stale-polls) :s (:fanout::snapshot-str sweep) :b box
-              :a acks :p polls' :ms el)
+            (:fanout::Verdict::Stalled (:fanout::drain-stale-polls) el
+              (:wat::core::format "drained-stalled: no delivery progress in {k} polls; last={s} outbox={b} acks={a} polls={p} elapsed={ms}"
+                :k (:fanout::drain-stale-polls) :s (:fanout::snapshot-str sweep) :b box
+                :a acks :p polls' :ms el))
             rts' smax')
           (:wat::core::if (:wat::i64::>= el ceiling-ms)
             (:wat::core::Tuple
-              ;; Wording is exactly what the code knows: the ceiling was reached and no
-              ;; K-poll stall was ever seen. `stale`/`stale-max` let the reader judge how
-              ;; close it came, rather than taking "still progressing" on trust.
-              (:wat::core::format "drained-timeout: ceiling {c}ms reached with no {k}-poll stall; last={s} outbox={b} acks={a} polls={p} elapsed={ms} stale={st} stale-max={sm}"
-                :k (:fanout::drain-stale-polls)
-                :s (:fanout::snapshot-str sweep) :b box :a acks :p polls' :ms el
-                :c ceiling-ms :st stale' :sm smax')
+              (:fanout::Verdict::Ceiling el ceiling-ms
+                (:wat::core::format "drained-timeout: ceiling {c}ms reached with no {k}-poll stall; last={s} outbox={b} acks={a} polls={p} elapsed={ms} stale={st} stale-max={sm}"
+                  :k (:fanout::drain-stale-polls)
+                  :s (:fanout::snapshot-str sweep) :b box :a acks :p polls' :ms el
+                  :c ceiling-ms :st stale' :sm smax'))
               rts' smax')
             (:wat::core::let [_ (:fanout::await-timer-ms 5)]
               (:fanout::poll-until-drained* qclients t ceiling-ms start-ns
@@ -1797,7 +1860,7 @@
 ;; ceiling instead of an attempt count.
 (:wat::core::defn :fanout::poll-until-drained
   [qclients <- (:wat::core::Vector :- [:queue::Queue])  t <- :demo::Topic  pairs <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::i64])
+  -> (:wat::core::Tuple :- [:fanout::Verdict :wat::core::i64 :wat::core::i64])
   (:fanout::poll-until-drained* qclients t (:fanout::drain-ceiling-ms pairs)
     (:wat::time::epoch-nanos (:wat::time::now)) -1 0 0 0 0))
 
@@ -2319,53 +2382,84 @@
 ;; `poll-calls=` never included: `publishers-all-done?` makes one `Publisher/stats` crossing
 ;; PER PUBLISHER PER ITERATION and the loop iterates on a 1 ms timer for the whole of `fill`.
 ;; Both folds are counted by `(count peers)` at the site that performs them, one call each.
-(:wat::core::defn :fanout::join-publishers*
-  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])
-   left <- :wat::core::i64  rts <- :wat::core::i64]
-  -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
-                           (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
-                           :wat::core::i64])
-  (:wat::core::if (:wat::i64::<= left 0)
-    (:wat::kernel::assertion-failed! "fanout: publishers never done" :wat::core::None :wat::core::None)
-    (:wat::core::let
-      [done? (:fanout::publishers-all-done? peers)
-       rts'  (:wat::i64::+ rts (:wat::core::count peers))]
-      (:wat::core::if done?
-        (:wat::core::let
-          [sums (:fanout::sum-publisher-stats peers)]
-          (:wat::core::Tuple (:wat::core::first sums) (:wat::core::second sums)
-            (:wat::i64::+ rts' (:wat::core::count peers))))
-        (:wat::core::let [_ (:fanout::await-timer-ms 1)]
-          (:fanout::join-publishers* peers (:wat::i64::- left 1) rts'))))))
+(:wat::core::defn :fanout::n-publishers-done
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [n <- :wat::core::i64
+                     w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+      -> :wat::core::i64
+      (:wat::core::match (:fanout::publisher-stats w)
+        ((:fanout::Publisher::StatsResponse::Ok d _c _r _s _a)
+          (:wat::core::if d (:wat::i64::+ n 1) n))
+        (_ n)))
+    0
+    peers))
 
 (:wat::core::defn :fanout::join-publishers
   [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
   -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
                            (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
                            :wat::core::i64])
-  (:fanout::join-publishers* peers 120000 0))
-
-(:wat::core::defn :fanout::poll-until-visible-zero*
-  [q <- :queue::Queue  left <- :wat::core::i64  start-ns <- :wat::core::i64  total <- :wat::core::i64]
-  -> :wat::core::String
   (:wat::core::let
-    [d (:fanout::depth-of q)
-     v (:wat::core::first d)
-     u (:wat::core::second d)]
-    (:wat::core::if (:wat::core::= v -1)
-      (:wat::core::format "visible-unread: last={v}/{u} attempts={a} elapsed={ms}"
-        :v v :u u :a (:wat::i64::- total left) :ms (:fanout::elapsed-ms start-ns))
-      (:wat::core::if (:wat::core::= v 0)
-        ""
-        (:wat::core::if (:wat::i64::<= left 1)
-          (:wat::core::format "visible-never-zero: last={v}/{u} attempts={a} elapsed={ms}"
-            :v v :u u :a total :ms (:fanout::elapsed-ms start-ns))
-          (:wat::core::let [_ (:fanout::await-timer-ms 5)]
-            (:fanout::poll-until-visible-zero* q (:wat::i64::- left 1) start-ns total)))))))
+    [want (:wat::core::count peers)
+     t0   (:wat::time::epoch-nanos (:wat::time::now))
+     got  (:fanout::poll-bounded
+            (:wat::core::fn [] -> :wat::core::i64 (:fanout::n-publishers-done peers))
+            (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool (:wat::core::= n want))
+            (:wat::core::fn [p <- :wat::core::i64  n <- :wat::core::i64] -> :wat::core::bool
+              (:wat::i64::> n p))
+            (:fanout::drain-stale-polls)
+            120000
+            (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::String
+              (:wat::core::format "publishers-not-done: {n}/{want} done elapsed={ms}"
+                :n n :want want :ms (:fanout::elapsed-ms t0)))
+            1)
+     v    (:wat::core::first got)
+     polls (:wat::core::third got)
+     _    (:fanout::require! v)
+     sums (:fanout::sum-publisher-stats peers)
+     rts  (:wat::i64::+ (:wat::i64::* want polls) want)]
+    (:wat::core::Tuple (:wat::core::first sums) (:wat::core::second sums) rts)))
 
 (:wat::core::defn :fanout::poll-until-visible-zero
-  [q <- :queue::Queue  attempts <- :wat::core::i64] -> :wat::core::String
-  (:fanout::poll-until-visible-zero* q attempts (:wat::time::epoch-nanos (:wat::time::now)) attempts))
+  [q <- :queue::Queue] -> :fanout::Verdict
+  (:wat::core::let
+    [t0 (:wat::time::epoch-nanos (:wat::time::now))
+     d0 (:fanout::depth-of q)
+     v0 (:wat::core::first d0)
+     u0 (:wat::core::second d0)]
+    (:wat::core::if (:wat::core::= v0 -1)
+      (:fanout::Verdict::Stalled 0 (:fanout::elapsed-ms t0)
+        (:wat::core::format "visible-unread: last={v}/{u} elapsed={ms}"
+          :v v0 :u u0 :ms (:fanout::elapsed-ms t0)))
+      (:wat::core::let
+        [got (:fanout::poll-bounded
+               (:wat::core::fn [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+                 (:wat::core::let [d (:fanout::depth-of q)]
+                   (:wat::core::Tuple (:wat::core::first d) (:wat::core::second d))))
+               ;; -1 is the unreadable-tier sentinel (depth-of). It must outrank Done:
+               ;; treating it as "stop, then remap" keeps unread from counting as
+               ;; progress toward zero (`-1 < prev` would otherwise reset the stall).
+               (:wat::core::fn [s <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::bool
+                 (:wat::core::or (:wat::core::= (:wat::core::first s) 0)
+                   (:wat::core::= (:wat::core::first s) -1)))
+               (:wat::core::fn [p <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+                                n <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::bool
+                 (:wat::i64::< (:wat::core::first n) (:wat::core::first p)))
+               (:fanout::drain-stale-polls)
+               20000
+               (:wat::core::fn [s <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::String
+                 (:wat::core::format "visible-stalled: last={v}/{u} elapsed={ms}"
+                   :v (:wat::core::first s) :u (:wat::core::second s) :ms (:fanout::elapsed-ms t0)))
+               5)
+         v (:wat::core::first got)
+         s (:wat::core::second got)]
+        (:wat::core::if (:wat::core::= (:wat::core::first s) -1)
+          (:fanout::Verdict::Stalled 0 (:fanout::elapsed-ms t0)
+            (:wat::core::format "visible-unread: last={v}/{u} elapsed={ms}"
+              :v (:wat::core::first s) :u (:wat::core::second s) :ms (:fanout::elapsed-ms t0)))
+          v)))))
 
 ;; ⭑ ONE `Queue/stats` PER QUEUE PER BOUNDARY — one reply, five fields kept.
 ;; This replaces FIVE one-field folds (`sum-calls` · `sum-ticks` · `sum-store-calls` ·
@@ -3073,14 +3167,14 @@
      ;; The join loop's own crossings — one `Publisher/stats` per publisher per iteration, on
      ;; a 1 ms timer for the whole of `fill`. Never counted before this stone.
      pub-join-rts (:wat::core::third pub-pair)
-     ;; The fill poller's verdict and its crossings, split so `require!` still sees a String.
+     ;; The fill poller's verdict and its crossings, split so `require!` sees a Verdict.
      ;; n×m is the work measure; the poller spends it as a WALL ceiling (30 s + 12 ms/pair)
      ;; and gives up on lack of ARRIVAL progress before that. The expression is the same one
      ;; that used to be an attempt budget; what it buys changed. Three verdicts, not one:
      ;; see poll-until-filled*.
      fill-poll (:wat::core::if fill-first?
                  (:fanout::poll-until-filled qclients topic n (:wat::i64::* n m))
-                 (:wat::core::Tuple "" 0 0))
+                 (:wat::core::Tuple (:fanout::Verdict::Done) 0 0))
      _filled (:fanout::require! (:wat::core::first fill-poll))
      fill-poll-rts (:wat::core::second fill-poll)
      ;; The longest no-arrival streak the fill saw, in polls. This is the evidence for
@@ -3108,23 +3202,34 @@
      ;; and gives up on lack of delivery progress before that. Scales with the work; not a
      ;; raised constant. Three verdicts, not one: see poll-until-drained*.
      drain-pair (:fanout::poll-until-drained qclients topic (:wat::i64::* n m))
-     drain-err (:wat::core::first drain-pair)
+     drain-v (:wat::core::first drain-pair)
      _drain (:fanout::require!
-              (:wat::core::if (:wat::core::= drain-err "")
-                ""
+              (:wat::core::match drain-v
+                ((:fanout::Verdict::Done) (:fanout::Verdict::Done))
                 ;; ⛔ THE ONE SURVIVING `sum-disrupts` CALLER, and it is why that fold was not
                 ;; deleted. A LIVE read: it says WHY the drain stopped, on a path that then
                 ;; raises, so the tallies cannot come off `stop` (nothing is stopped yet) and
                 ;; must not — `worker/stop` raises on Lost/Closed/Stopped where this fold
                 ;; tolerates them, and a wedged worker is exactly what is being diagnosed.
-                ;; It costs the happy path nothing: `drain-err` is "" there.
-                (:wat::core::let [dp (:fanout::sum-disrupts wpeers)]
-                  (:wat::core::format "{e};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae}"
-                    :e drain-err
-                    :ce (:wat::core::first (:wat::core::first dp))
-                    :me (:wat::core::second (:wat::core::first dp))
-                    :ar (:wat::core::first (:wat::core::second dp))
-                    :ae (:wat::core::second (:wat::core::second dp))))))
+                ;; It costs the happy path nothing: drain-v is Done there.
+                ((:fanout::Verdict::Stalled k ms snap)
+                  (:wat::core::let [dp (:fanout::sum-disrupts wpeers)]
+                    (:fanout::Verdict::Stalled k ms
+                      (:wat::core::format "{e};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae}"
+                        :e snap
+                        :ce (:wat::core::first (:wat::core::first dp))
+                        :me (:wat::core::second (:wat::core::first dp))
+                        :ar (:wat::core::first (:wat::core::second dp))
+                        :ae (:wat::core::second (:wat::core::second dp))))))
+                ((:fanout::Verdict::Ceiling ms cap snap)
+                  (:wat::core::let [dp (:fanout::sum-disrupts wpeers)]
+                    (:fanout::Verdict::Ceiling ms cap
+                      (:wat::core::format "{e};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae}"
+                        :e snap
+                        :ce (:wat::core::first (:wat::core::first dp))
+                        :me (:wat::core::second (:wat::core::first dp))
+                        :ar (:wat::core::first (:wat::core::second dp))
+                        :ae (:wat::core::second (:wat::core::second dp))))))))
      poll-calls (:wat::core::second drain-pair)
      ;; The longest no-progress streak the drain saw, in polls. This is the evidence for
      ;; :fanout::drain-stale-polls being the size it is — read it, do not trust the comment.
@@ -3646,7 +3751,7 @@
                   (_ nil))))
             nil
             (:wat::core::range 0 n))
-     _ (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
+     _ (:fanout::require! (:fanout::poll-until-visible-zero q))
      outs (:wat::service::require-stopped (:fanout::held-worker/stop hh))
      distinct (:wat::core::count
                 (:wat::hashmap::keys
@@ -3734,7 +3839,7 @@
      w     (:fanout::dial-worker (:fanout::worker::Handle/addr wh))
      _     (:fanout::start-worker! w)
      _pub  (:fanout::publish-n-until-accepted! topic n)
-     _     (:fanout::require! (:fanout::poll-until-visible-zero q 4000))
+     _     (:fanout::require! (:fanout::poll-until-visible-zero q))
      outs  (:fanout::WorkerFinal/outcomes (:wat::service::require-stopped (:fanout::worker/stop wh)))
      distinct (:wat::core::count
                 (:wat::hashmap::keys
