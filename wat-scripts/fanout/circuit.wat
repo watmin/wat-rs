@@ -2680,7 +2680,8 @@
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool
    drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64
    sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool
-   vis-ms <- :wat::core::i64  inbox-vis-ms <- :wat::core::i64]
+   vis-ms <- :wat::core::i64  inbox-vis-ms <- :wat::core::i64
+   inbox-cap <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -2729,7 +2730,28 @@
                 :locus (:wat::spawn::process/post-spawn
                          (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                            (:wat::query::sqlite-store/grant inbox-store (:fanout::pids pl))))
-                :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr inbox-store) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+                ;; ⛔ THE INBOX CAP WAS A CHOSEN CONSTANT, NOT A SWEPT ONE — the last one in
+                ;; this harness. It sat here as a literal `64` with no comment while its
+                ;; sibling one binding above (`:cap sub-cap`, :2722) has been a CLI parameter
+                ;; since the sweeps began. The standard run passes sub-cap 8192 against
+                ;; n=2000 per subscriber, so the SWEPT queue never fills and the HARDCODED
+                ;; one causes 100% of the refusals — ~191 per run, roughly half of `fill`'s
+                ;; crossings (`fill-is-refusal-bound/FINDING.md`).
+                ;;
+                ;; The BOUND is justified and measured: `the-queue-is-bounded/SCORE.md` has
+                ;; unbounded-batched sqlite at 1568/s with 2.6 s e2e against cap 32 at
+                ;; 1383/s with 148 ms — 18x the latency for 12% of the throughput. The
+                ;; NUMBER never was: the measured value in that SCORE is 32, and it was for
+                ;; sub queues.
+                ;;
+                ;; ⚠ AND IT IS LOAD-BEARING FOR THE INSTRUMENT, not just for throughput.
+                ;; circuit.wat:1481 records that this cap COUPLES PUBLISHING TO FAN-OUT, so a
+                ;; publisher cannot run ahead of the topic workers; that is why the fill
+                ;; poller samples only ~3.6 polls per run and why its `fill-stale-max = 0`
+                ;; is "a weak bound, not a strong one" from which K cannot be sized. Raising
+                ;; this decouples them and changes what that poller can see. Read the value
+                ;; off the report line, never off this comment.
+                :record (:queue::queue::Record :cap inbox-cap :store-addr (:wat::query::sqlite-store::Handle/addr inbox-store) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      qaddrs (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
                                i   <- :wat::core::i64]
@@ -3212,25 +3234,25 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0))
+  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0 64))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0))
+  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0 64))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0))
+  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0 64))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0))
+  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0 64))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -3248,10 +3270,10 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0 64)))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0 64)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -3326,7 +3348,7 @@
   (:wat::core::let
     [argv (:wat::runtime::argv)
      proof (:user::deadline-redial-is-fresh)
-     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms]]]]"
+     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms [inbox-cap]]]]]"
      ;; ⛔ THE CLI HAD NO CHAOS SURFACE. Until 2026-09-09 every one of the six fault
      ;; knobs was pinned to a literal zero here, so no sweep run through `main` could
      ;; ever exercise a drop — the injection existed only inside the `:user::` fixtures
@@ -3363,7 +3385,13 @@
              (:wat::core::match (:wat::core::get argv 7)
                (:wat::core::None 0)
                ((:wat::core::Some vs) (:fanout::parse-i64 vs)))
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 11)]))))]
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 11)])
+             ;; argv 12 is `inbox-cap`, added 2026-09-10. Optional; 0 means 64, which is
+             ;; the literal that sat at the inbox's `:cap` since the bound was added and
+             ;; was never swept. See the comment at that site for why the BOUND is
+             ;; justified, the NUMBER is not, and what raising it costs the fill poller.
+             (:wat::core::let [ic (:wat::core::apply opt-i64 [(:wat::core::get argv 12)])]
+               (:wat::core::if (:wat::i64::> ic 0) ic 64)))))]
     (:wat::core::let
       [_ (:wat::kernel::println proof)
        _ (:wat::kernel::println
