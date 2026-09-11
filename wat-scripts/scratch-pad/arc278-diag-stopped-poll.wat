@@ -19,7 +19,7 @@
              ;; the substrate stopping while parked on its own recv — same discard as
              ;; its siblings, this child's body never inspects the outcome either way.
              (:wat::kernel::RecvOutcome::Stopped nil)
-             (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil))))]
+             (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))]
     (:wat::core::do
       (:wat::kernel::println "READY")
       (:diag::poll 0))))

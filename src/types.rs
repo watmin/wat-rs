@@ -1888,6 +1888,31 @@ fn register_builtin_types(env: &mut TypeEnv) {
                     TypeExpr::Path(":wat::kernel::LociDiedError".into()),
                 )],
             },
+            // excursus 001, a-momentary-failure-is-not-fatal — the peer could not DECODE
+            // our message. It is the transport-tier failure that the serve loop used to
+            // report as `<S>::Reply::Failed`, a variant SYNTHESIZED ONTO THE OP REPLY ENUM
+            // (`RESERVED_FAILURE_VARIANT`, below) — a transport fact wearing an op type.
+            // Because it lived in the reply enum, every client match had to consider it and
+            // could therefore FORGET it, and the macro did: `reply-failed-kw` appears twice
+            // in `wat/service.wat` and both sites CONSTRUCT it. Nothing matched it. A 1 %
+            // transport fault then killed two processes with a bare `PatternMatchFailed`
+            // that could not even name its own scrutinee.
+            //
+            // ⛔ IT IS NOT `Lost`, AND MUST NEVER BE FOLDED INTO IT. `Lost` is death and is
+            // RETRIED by redial; this is DETERMINISTIC — retrying transmits the same bad
+            // bytes and fails identically. Its disposition is REPORT-FINAL. The three
+            // dispositions (retry / report-final / report-gone) are the taxonomy this enum's
+            // other variants have always implied and nothing had written down.
+            //
+            // Carries the same `Failure` the old reply variant did, which is what finally
+            // delivers `wat/service.wat`'s long-standing promise of "the cause's reason".
+            EnumVariant::Tagged {
+                name: "Malformed".into(),
+                fields: vec![(
+                    "cause".into(),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                )],
+            },
         ],
     }));
 

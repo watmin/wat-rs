@@ -187,7 +187,7 @@
       (:wat::core::format "Lost:{m}" :m (:wat::kernel::LociDiedError/message c)))
     (:wat::kernel::RecvOutcome::Closed "Closed")
     (:wat::kernel::RecvOutcome::Stopped "Stopped")
-    (:wat::kernel::RecvOutcome::TimedOut "TimedOut")))
+    (:wat::kernel::RecvOutcome::TimedOut "TimedOut") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :tr::ack-tag
   [q <- :queue::Queue  name <- :wat::core::String  ids <- (:wat::core::Vector :- [:wat::core::String])]
@@ -203,7 +203,7 @@
       (:wat::core::format "Lost:{m}" :m (:wat::kernel::LociDiedError/message c)))
     (:wat::kernel::RecvOutcome::Closed "Closed")
     (:wat::kernel::RecvOutcome::Stopped "Stopped")
-    (:wat::kernel::RecvOutcome::TimedOut "TimedOut")))
+    (:wat::kernel::RecvOutcome::TimedOut "TimedOut") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :tr::recv-ids
   [q <- :queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64]

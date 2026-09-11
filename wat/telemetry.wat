@@ -458,7 +458,7 @@
             (:wat::kernel::RecvOutcome::Stopped
               (:wat::core::Tuple written recv))
             (:wat::kernel::RecvOutcome::Closed
-              (:wat::core::Tuple written recv)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple written recv))))))))
+              (:wat::core::Tuple written recv)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple written recv)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))))))
 
 (:wat::core::defn :wat::telemetry::write-metrics-batched-from
   [sink      <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])
@@ -506,7 +506,7 @@
             (:wat::kernel::RecvOutcome::Stopped
               (:wat::core::Tuple written recv))
             (:wat::kernel::RecvOutcome::Closed
-              (:wat::core::Tuple written recv)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple written recv))))))))
+              (:wat::core::Tuple written recv)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple written recv)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))))))
 
 (:wat::core::defn :wat::telemetry::write-logs-batched
   [sink  <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])

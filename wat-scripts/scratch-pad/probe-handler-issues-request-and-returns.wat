@@ -157,7 +157,7 @@
               ((:wat::kernel::RecvOutcome::Lost _c) -3)
               (:wat::kernel::RecvOutcome::Closed -4)
               (:wat::kernel::RecvOutcome::Stopped -5)
-              (:wat::kernel::RecvOutcome::TimedOut -6))]
+              (:wat::kernel::RecvOutcome::TimedOut -6) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))]
        (:wat::service::SelfOutcome::Continue
          (:probe::asker::State :durable
            (:probe::asker::Record :store-addr (:probe::asker::Record/store-addr rec)
@@ -204,7 +204,7 @@
           ((:wat::kernel::RecvOutcome::Lost _c) -3)
           (:wat::kernel::RecvOutcome::Closed -4)
           (:wat::kernel::RecvOutcome::Stopped -5)
-          (:wat::kernel::RecvOutcome::TimedOut -6))]
+          (:wat::kernel::RecvOutcome::TimedOut -6) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       ;; Observed, stably: code=1107 = SendOutcome::Sent(1)*1000 + selectables-length(1)*100 +
       ;; the reply(7) fetched by a BLOCKING recv in a LATER handler. The 7 never arrived as an

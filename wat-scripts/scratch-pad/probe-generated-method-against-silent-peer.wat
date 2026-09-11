@@ -42,4 +42,4 @@
       ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::println "UNEXPECTED-LOST"))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "UNEXPECTED-STOPPED"))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::println "UNEXPECTED-CLOSED"))
-      (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println "TIMED-OUT")))))
+      (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::println "TIMED-OUT")) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))

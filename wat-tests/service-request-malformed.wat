@@ -86,7 +86,7 @@
     ;; arc 278 #73 — distinct from LOST (the peer died) and Closed (a clean hangup): the
     ;; substrate was asked to stop while this recv was parked; the peer was ALIVE.
     (:wat::kernel::RecvOutcome::Stopped "Stopped")
-    (:wat::kernel::RecvOutcome::Closed "Closed") (:wat::kernel::RecvOutcome::TimedOut "LOST")))
+    (:wat::kernel::RecvOutcome::Closed "Closed") (:wat::kernel::RecvOutcome::TimedOut "LOST") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat-tests::mal/dial
   [a <- (:wat::kernel::Address :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])]

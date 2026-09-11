@@ -56,7 +56,7 @@
     ((:wat::kernel::RecvOutcome::Message __r) 1)
     ((:wat::kernel::RecvOutcome::Lost __c) -1)
     (:wat::kernel::RecvOutcome::Stopped -2)
-    (:wat::kernel::RecvOutcome::Closed -3) (:wat::kernel::RecvOutcome::TimedOut -1)))
+    (:wat::kernel::RecvOutcome::Closed -3) (:wat::kernel::RecvOutcome::TimedOut -1) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 ;; ✅ MUST KEEP COMPILING — handle as a param, drive in a BINDING. This frame outlives the call.
 ;; If the wall names this, condition 2 (the let itself in tail with a user-fn tail expr) was

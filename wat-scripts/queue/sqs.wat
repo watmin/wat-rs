@@ -343,7 +343,7 @@
                                     (:wat::kernel::RecvOutcome::Closed
                                       (:wat::core::Tuple (dial-store) empty-envs both))
                                     (:wat::kernel::RecvOutcome::TimedOut
-                                      (:wat::core::Tuple (dial-store) empty-envs both))))))
+                                      (:wat::core::Tuple (dial-store) empty-envs both)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))))
                             ((:wat::query::Store::ScanIndexResponse::Transient _e)
                               (:wat::kernel::assertion-failed! "queue.take: scan-index Transient" :wat::core::None :wat::core::None))
                             ((:wat::query::Store::ScanIndexResponse::Fatal _e)
@@ -359,7 +359,7 @@
                         (:wat::kernel::RecvOutcome::Closed
                           (:wat::core::Tuple (dial-store) empty-envs scan-only))
                         (:wat::kernel::RecvOutcome::TimedOut
-                          (:wat::core::Tuple (dial-store) empty-envs scan-only)))))
+                          (:wat::core::Tuple (dial-store) empty-envs scan-only)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
              ;; Closed over nothing extra. Process children do not see sibling
              ;; defns, so the body lives here, called via State/depth.
              ;; (visible unacked): |isk in [0, now]| and |isk in [0, +inf)| minus vis.
@@ -401,7 +401,7 @@
                                       (:wat::kernel::RecvOutcome::Stopped
                                         (:wat::kernel::assertion-failed! "queue.depth: stop requested" :wat::core::None :wat::core::None))
                                       (:wat::kernel::RecvOutcome::Closed
-                                        (:wat::kernel::assertion-failed! "queue.depth: store closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
+                                        (:wat::kernel::assertion-failed! "queue.depth: store closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
                        vis-pair (:wat::core::apply count-hi st [now-ns])
                        all-pair (:wat::core::apply count-hi st [inf-ns])]
                       (:wat::core::Tuple
@@ -441,7 +441,7 @@
                          (:wat::kernel::RecvOutcome::Stopped
                            (:wat::kernel::assertion-failed! "queue.total: stop requested" :wat::core::None :wat::core::None))
                          (:wat::kernel::RecvOutcome::Closed
-                           (:wat::kernel::assertion-failed! "queue.total: store closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
+                           (:wat::kernel::assertion-failed! "queue.total: store closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
              ;; Closed over nothing. Process children do not see sibling defns,
              ;; so the body lives here. ONE place decides whether to arm.
              none (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
@@ -849,7 +849,7 @@
                        :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns)) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s)
               :counters (:queue::queue::State/counters s)
-              :seen-ids (:queue::queue::State/seen-ids s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))))))))
+              :seen-ids (:queue::queue::State/seen-ids s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))
 
    (receive [s ctx req]
      (:wat::core::let
@@ -1306,7 +1306,7 @@
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))))))
+               (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
    (stats [s ctx req]
      (:wat::core::let
@@ -1544,7 +1544,7 @@
               ((:wat::kernel::RecvOutcome::Lost _c) nil)
               (:wat::kernel::RecvOutcome::Stopped nil)
               (:wat::kernel::RecvOutcome::Closed nil)
-              (:wat::kernel::RecvOutcome::TimedOut nil)))
+              (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
      once-put (:wat::core::fn
                  [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
                  -> (:wat::core::Tuple :- [:wat::core::bool :wat::core::i64])
@@ -1572,7 +1572,7 @@
                      (:wat::kernel::RecvOutcome::Closed
                        (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None))
                      (:wat::kernel::RecvOutcome::TimedOut
-                       (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None)))))
+                       (:wat::kernel::assertion-failed! "queue.send: store put transient, exhausted after 3" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
      _n1 (nap)
      p1 (once-put store)
      t1 (:wat::core::first p1)
@@ -1600,7 +1600,7 @@
               ((:wat::kernel::RecvOutcome::Lost _c) nil)
               (:wat::kernel::RecvOutcome::Stopped nil)
               (:wat::kernel::RecvOutcome::Closed nil)
-              (:wat::kernel::RecvOutcome::TimedOut nil)))
+              (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
      once-del (:wat::core::fn
                  [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
                  -> (:wat::core::Tuple :- [:wat::core::bool :wat::core::i64])
@@ -1628,7 +1628,7 @@
                      (:wat::kernel::RecvOutcome::Closed
                        (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None))
                      (:wat::kernel::RecvOutcome::TimedOut
-                       (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None)))))
+                       (:wat::kernel::assertion-failed! "queue.ack: store delete transient, exhausted after 3" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
      _n1 (nap)
      p1 (once-del store)
      t1 (:wat::core::first p1)
@@ -2009,7 +2009,7 @@
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 ;; lifecycle against ONE store. Handle lives in this let (same-ns lesson).
 (:wat::core::defn :user::lifecycle

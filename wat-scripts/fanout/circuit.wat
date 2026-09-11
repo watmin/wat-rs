@@ -539,7 +539,7 @@
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
                       (:wat::kernel::RecvOutcome::Stopped
-                        (:wat::kernel::assertion-failed! "fanout worker: disrupt poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost"))
+                        (:wat::kernel::assertion-failed! "fanout worker: disrupt poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))
                     "miss")
         tore? (:wat::core::or (:wat::core::= poisoned "lost") (:wat::core::= poisoned "closed"))
         seen' (:wat::core::if tore?
@@ -659,7 +659,7 @@
                                     ((:wat::kernel::RecvOutcome::Lost _c) nil)
                                     (:wat::kernel::RecvOutcome::Stopped nil)
                                     (:wat::kernel::RecvOutcome::Closed nil)
-                                    (:wat::kernel::RecvOutcome::TimedOut nil)))
+                                    (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
                               ;; limit-ms = vis-ns / 1000000. After vis expiry the
                               ;; message is visible again and retrying is pointless.
                               limit-ms (:wat::i64::/ vis 1000000)
@@ -832,7 +832,7 @@
                                                   ((:wat::kernel::RecvOutcome::Lost _c) nil)
                                                   (:wat::kernel::RecvOutcome::Stopped nil)
                                                   (:wat::kernel::RecvOutcome::Closed nil)
-                                                  (:wat::kernel::RecvOutcome::TimedOut nil)))
+                                                  (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
                                             ;; limit-ms = vis-ns / 1000000. After vis expiry the
                                             ;; message is visible again and retrying is pointless.
                                             ack-limit-ms (:wat::i64::/ vis 1000000)
@@ -1091,7 +1091,7 @@
                                 (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))
                                 ((:wat::kernel::ConnectOutcome::Connected p) p)
                                 (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
-                              outs0)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) outs0)))))
+                              outs0)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) outs0)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
                     (:wat::core::Tuple q outs)
                     held)
             s' (:fanout::held-worker::State :durable rec
@@ -1137,7 +1137,7 @@
                           (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
                   s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)]
                  (:wat::service::SelfOutcome::Continue s'
-                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)] (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))))))])
+                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)] (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))])
 
 ;; ── parent-side helpers (owner thread; Handles stay in :user::run's let) ────────
 (:wat::core::defn :fanout::qname [i <- :wat::core::i64] -> :wat::core::String
@@ -1204,7 +1204,7 @@
     ((:wat::kernel::RecvOutcome::Lost _cause) nil)
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "fanout: start stopped" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 ;; ⭑ Returns the number of `Worker/start` crossings it made — one per peer, counted by the
 ;; fold rather than asserted from `(count wpeers)`, so an early return could not lie.
@@ -1228,7 +1228,7 @@
     ((:wat::kernel::RecvOutcome::Message _m) nil)
     ((:wat::kernel::RecvOutcome::Lost _c) nil)
     (:wat::kernel::RecvOutcome::Stopped nil)
-    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 ;; Parent-side constructor. Chaos fields default off (rate 0 arms nothing).
 (:wat::core::defn :fanout::mk-worker
@@ -1881,7 +1881,7 @@
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "fanout: publish stopped" :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
+      (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fanout::publish-until-accepted-from!
   [t <- :demo::Topic  msgs <- (:wat::core::Vector :- [:wat::core::String])
@@ -2100,7 +2100,7 @@
               ((:wat::kernel::RecvOutcome::Lost _c) nil)
               (:wat::kernel::RecvOutcome::Stopped nil)
               (:wat::kernel::RecvOutcome::Closed nil)
-              (:wat::kernel::RecvOutcome::TimedOut nil)))
+              (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
         n (:wat::core::if (:wat::i64::>= lo hi) 0 (:wat::i64::- hi lo))
         nbatches (:wat::i64::/ (:wat::i64::+ n 9) 10)
         acc0 (:wat::core::Tuple (:wat::core::Tuple 0 0 0) (:wat::core::Tuple 0 seed0))
@@ -2194,7 +2194,7 @@
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None))
                              (:wat::kernel::RecvOutcome::TimedOut
-                               (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))))
+                               (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))))
                      st0
                      (:wat::core::range 0 256))
                  left (:wat::core::first st)
@@ -2243,7 +2243,7 @@
     ((:wat::kernel::RecvOutcome::Lost _cause) nil)
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::assertion-failed! "fanout: publisher start stopped" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil)))
+    (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fanout::publisher-stats
   [w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
@@ -2466,7 +2466,7 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::assertion-failed! "fanout: seen stats stopped" :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::assertion-failed! "fanout: seen stats closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "fanout: seen stats closed" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 ;; ⛔ THE FAILURE PATH'S LIVE READ, AND NOTHING ELSE — read the STOP-2 note below.
 ;;
@@ -2508,7 +2508,7 @@
             ((:fanout::Worker::DisruptsResponse::RequestMalformed _p _e _g) acc)))
         ((:wat::kernel::RecvOutcome::Lost _c) acc)
         (:wat::kernel::RecvOutcome::Stopped acc)
-        (:wat::kernel::RecvOutcome::Closed acc) (:wat::kernel::RecvOutcome::TimedOut acc)))
+        (:wat::kernel::RecvOutcome::Closed acc) (:wat::kernel::RecvOutcome::TimedOut acc) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
     (:wat::core::Tuple (:wat::core::Tuple 0 0) (:wat::core::Tuple 0 0))
     wpeers))
 

@@ -68,7 +68,7 @@
         (_ "other")))
     ((:wat::kernel::RecvOutcome::Lost _c) "lost")
     (:wat::kernel::RecvOutcome::Stopped "stopped")
-    (:wat::kernel::RecvOutcome::Closed "closed") (:wat::kernel::RecvOutcome::TimedOut "lost")))
+    (:wat::kernel::RecvOutcome::Closed "closed") (:wat::kernel::RecvOutcome::TimedOut "lost") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :fc::run [] -> :wat::core::String
   (:wat::core::let

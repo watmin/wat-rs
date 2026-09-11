@@ -100,7 +100,7 @@
         (_ "malformed")))
     ((:wat::kernel::RecvOutcome::Lost _c) "LOST")
     (:wat::kernel::RecvOutcome::Stopped "STOPPED")
-    (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut "LOST")))
+    (:wat::kernel::RecvOutcome::Closed "CLOSED") (:wat::kernel::RecvOutcome::TimedOut "LOST") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 ;; ⚠ The two loci cannot share a code path: a process Handle is (Handle :- [Wire]) and a
 ;; thread Handle is (Handle :- [Shared]). The LOCUS IS IN THE TYPE, so `if` cannot unify them.

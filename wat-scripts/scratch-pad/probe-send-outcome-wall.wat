@@ -43,7 +43,7 @@
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed!
               "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed"
-              :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))
+              :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))
      ;; the worker is now guaranteed dead. Pre-strike this send' RAISED "send failed:
      ;; channel disconnected"; post-strike it returns a matchable SendOutcome value.
      outcome (:wat::kernel::send p 42)]

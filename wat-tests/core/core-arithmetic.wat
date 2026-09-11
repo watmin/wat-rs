@@ -251,7 +251,7 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected RuntimeError for i64 / 0"
-          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 ;; ─── REJECTION: cross-type arithmetic → NoMatchingClause ────────────────
 ;;
@@ -284,7 +284,7 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ 1 2.0)"
-          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 ;; ─── REJECTION: string arithmetic → NoMatchingClause ────────────────────
 ;;
@@ -312,7 +312,7 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ \"a\" \"b\")"
-          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 ;; ─── REJECTION: cross-type ordering → TypeMismatch (check-time) ─────────
 ;;
@@ -343,7 +343,7 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected TypeMismatch (check-time) for (< 1 2.5)"
-          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 ;; ─── REJECTION: 0-ary - and / → NoMatchingClause ────────────────────────
 ;;
@@ -371,7 +371,7 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (-)"
-          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-zero-ary-rejected
@@ -394,7 +394,7 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (/)"
-          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 ;; ─── REJECTION: strict typed helper rejects wrong-type arg ──────────────
 ;;

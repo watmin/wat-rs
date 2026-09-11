@@ -23,4 +23,4 @@
       (:wat::kernel::RecvOutcome::Stopped
         (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Stopped, expected ::Lost"))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))

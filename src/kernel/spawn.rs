@@ -1156,7 +1156,8 @@ mod tests {
                  ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)) \
                  (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! \"echo: stop requested before message — the peer was ALIVE\" :wat::core::None :wat::core::None)) \
                  (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None)) \
-                 (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! \"echo: timed out — the peer is alive and silent\" :wat::core::None :wat::core::None))))",
+                 (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! \"echo: timed out — the peer is alive and silent\" :wat::core::None :wat::core::None)) \
+                 ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! \"echo: malformed frame — the peer could not decode our message\" :wat::core::None :wat::core::None))))",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
@@ -1295,7 +1296,8 @@ mod tests {
                    (:wat::kernel::RecvOutcome::Closed nil) \
                    (:wat::kernel::RecvOutcome::Stopped nil) \
                    ((:wat::kernel::RecvOutcome::Lost _c) nil) \
-                   (:wat::kernel::RecvOutcome::TimedOut nil)) \
+                   (:wat::kernel::RecvOutcome::TimedOut nil) \
+                   ((:wat::kernel::RecvOutcome::Malformed _cause) nil)) \
                  nil))",
             None,
             Arc::new(crate::load::loader::InMemoryLoader::new()),

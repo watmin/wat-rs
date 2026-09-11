@@ -2606,7 +2606,7 @@
                                                ;; outcome the caller faces. Raised inside the macro was
                                                ;; the collapse this stone retracts. Pass it through.
                                                (:wat::kernel::RecvOutcome::TimedOut
-                                                 :wat::kernel::RecvOutcome::TimedOut)))
+                                                 :wat::kernel::RecvOutcome::TimedOut) ((:wat::kernel::RecvOutcome::Malformed cause) (:wat::kernel::RecvOutcome::Malformed cause))))
                           ;; DESIGN-STONE-the-client-validates-locally.md — THE STRIKE. Validation
                           ;; and dispatch are ONE operation (botocore validates before the HTTP call
                           ;; is ever made): over budget → the SAME RequestTooLarge{bytes,cap} a
@@ -2965,7 +2965,7 @@
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice stop: service peer closed during stop"
-                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
+                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
      methods           (:wat::core::conj
@@ -3014,7 +3014,7 @@
                                  (:wat::kernel::RecvOutcome::Closed
                                    (:wat::kernel::assertion-failed!
                                      "defservice hibernate: service peer closed during hibernate"
-                                     :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None))))
+                                     :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
@@ -3066,7 +3066,7 @@
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice grant: service peer closed during grant"
-                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
+                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
                           (:wat::core::None nil))
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
@@ -3116,7 +3116,7 @@
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed!
                                  "defservice revoke: service peer closed during revoke"
-                                 :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))))
+                                 :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
                            (:wat::core::None nil))
      revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
@@ -3236,7 +3236,7 @@
                                             (:wat::kernel::RecvOutcome::Stopped
                                               (:wat::kernel::eprintln "defservice child-main: stop requested before the startup ship — owner link was ALIVE"))
                                             (:wat::kernel::RecvOutcome::Closed
-                                              (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)))
+                                              (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))
                            ~cm-st-sym   (:wat::core::apply
                                             (:wat::keyword::from-string ~dispatch-admin-name-str)
                                             ~cm-ship-sym [])

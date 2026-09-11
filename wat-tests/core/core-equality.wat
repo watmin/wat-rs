@@ -134,4 +134,4 @@
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected check-time type error for (= 1 1.5)"
-          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil))))
+          :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
