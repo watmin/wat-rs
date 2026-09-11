@@ -17165,6 +17165,23 @@ pub(crate) fn assignable(
                 .zip(ee.iter())
                 .all(|(x, y)| assignable(x, y, subst, env));
     }
+    // Arc 251 lattice — a function is assignable when it can stand in for the
+    // expected one: arguments CONTRAVARIANT (it must accept everything the
+    // slot would pass), return COVARIANT. Unify of Fn is invariant on args,
+    // so `foldl`'s reducer — expected `fn(Acc, Alarm<Op.-Mark>)`, got
+    // `fn(Acc, Alarm<Op>)` — never reached the SAME-head parametric arm
+    // that already asks `is_subtype` (Variant <: Enum has been registered
+    // since A-2). Without this arm the lattice edge is a no-op at every
+    // function slot, which is how the 6 arc278 reds survive a true edge.
+    if let (TypeExpr::Fn { args: aa, ret: ar }, TypeExpr::Fn { args: ea, ret: er }) = (&a, &e)
+    {
+        return aa.len() == ea.len()
+            && aa
+                .iter()
+                .zip(ea.iter())
+                .all(|(got_arg, exp_arg)| assignable(exp_arg, got_arg, subst, env))
+            && assignable(ar, er, subst, env);
+    }
     // Arc 293 S3-Nature-4 (Path B) — a dialed peer intrinsically satisfies a `:nature :Peer`
     // surface: no extend-type needed. `(Peer' :- [X Y])` satisfies `:S` iff X/Y equal :S's own
     // S1-synthesized `Op`/`Reply` enums.

@@ -984,7 +984,12 @@ pub(crate) fn infer_foldl(
                     ret: Box::new(acc_ty.clone()),
                 };
                 if let Some(f_ty) = fn_ty {
-                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
+                    // Arc 251 lattice — assignable, not unify. foldl's reducer is a
+                    // function type; unify is invariant on Fn args, so
+                    // `fn(Acc, Alarm<Op>)` never satisfied `fn(Acc, Alarm<Op.-Tick>)`
+                    // even though Variant <: Enum is registered and the SAME-head
+                    // parametric arm of `assignable` already asks `is_subtype`.
+                    if !assignable(&f_ty, &expected_fn_ty, subst, env) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: OP.into(),
                             param: "#1".into(),

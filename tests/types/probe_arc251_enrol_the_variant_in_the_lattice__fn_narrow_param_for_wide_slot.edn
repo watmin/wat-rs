@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":u::apply: parameter #1 expects [(:u::Alarm :- [:u::Op]) :-> :()]; got [(:u::Alarm :- [:u::Op.Mark]) :-> :()]"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc251_enrol_the_variant_in_the_lattice__fn_narrow_param_for_wide_slot.wat"
+        :line 13
+        :col 14
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 13
+            :col 24
+          }
+        }
+      }
+      :causes []
+      :callee ":u::apply"
+      :param "#1"
+      :expected "[(:u::Alarm :- [:u::Op]) :-> :()]"
+      :got "[(:u::Alarm :- [:u::Op.Mark]) :-> :()]"
+      :remedies []
+    }
+  ]
+}

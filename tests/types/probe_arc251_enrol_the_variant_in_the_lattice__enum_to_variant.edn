@@ -1,0 +1,27 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":u::takes-has: parameter #1 expects (:u::Demo.Has :- [:wat::core::i64]); got (:u::Demo :- [:wat::core::i64])"
+      :location #wat.core/Span {
+        :file "tests/types/probe_arc251_enrol_the_variant_in_the_lattice__enum_to_variant.wat"
+        :line 8
+        :col 18
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 8
+            :col 19
+          }
+        }
+      }
+      :causes []
+      :callee ":u::takes-has"
+      :param "#1"
+      :expected "(:u::Demo.Has :- [:wat::core::i64])"
+      :got "(:u::Demo :- [:wat::core::i64])"
+      :remedies []
+    }
+  ]
+}
