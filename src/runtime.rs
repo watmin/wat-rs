@@ -6705,6 +6705,27 @@ fn dispatch_keyword_head_value(
                                                     ], span.clone()),
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
                                                 ], span.clone()),
+                                                // excursus 001, a-momentary-failure-is-not-fatal —
+                                                // ⛔ THIS TEMPLATE IS A SECOND COPY of
+                                                // `wat/service.wat`'s `send-recv-form`, in Rust, for the
+                                                // SURFACE-level client method (`:peers [:S]` splices
+                                                // `(S::surface-forms)` into the child, so this is the
+                                                // expansion a peer call actually runs). Adding the arm to
+                                                // the wat template alone left this one four-armed, and the
+                                                // crash simply moved: the scrutinee went from
+                                                // `Queue::Reply::Failed` to `CallOutcome::Malformed`.
+                                                // Two implementations of one template is the defect; until
+                                                // they are merged, EVERY change to one belongs here too.
+                                                WatAST::List(vec![
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::service::CallOutcome::Malformed".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("cause"), span.clone()),
+                                                    ], span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::kernel::RecvOutcome::Malformed".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("cause"), span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
                                         WatAST::List(vec![
@@ -6837,6 +6858,21 @@ fn dispatch_keyword_head_value(
                                             WatAST::List(vec![
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::TimedOut".into(), span.clone()),
                                                 WatAST::Keyword(":wat::kernel::RecvOutcome::TimedOut".into(), span.clone()),
+                                            ], span.clone()),
+                                            // excursus 001, a-momentary-failure-is-not-fatal — pass
+                                            // through as itself, exactly as TimedOut does. REPORT-FINAL:
+                                            // the peer could not decode what we sent, so re-sending the
+                                            // same bytes fails identically and the caller must be told
+                                            // rather than have it retried or collapsed into Lost.
+                                            WatAST::List(vec![
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Malformed".into(), span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("cause"), span.clone()),
+                                                ], span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Malformed".into(), span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("cause"), span.clone()),
+                                                ], span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
                                     ], span.clone());
@@ -21956,6 +21992,35 @@ fn select_lost_if_death_notice_wire(
     }
 }
 
+/// excursus 001, a-momentary-failure-is-not-fatal — the twin of
+/// [`select_lost_if_death_notice`], for the OTHER transport-tier value that must never
+/// reach the caller as a plain `Message`.
+///
+/// ⛔ THE SIBLING THAT WAS NEVER WRITTEN. `recv` has mapped the reserved protocol-tier
+/// `<S>::Reply::Failed` to an abnormal outcome since arc 278 (`recv_outcome_from_decoded`),
+/// and both `wat/service.wat` and `reply_failed_reason`'s own doc-comment assert that this
+/// covers "the defservice-generated client methods (both round-trip through `recv'`)".
+/// They do NOT: a generated op method goes through `call-by-deadline`, which uses `select`,
+/// and every `ServiceEvent::Message` site here handed the decoded value straight through.
+/// So a client whose request could not be decoded received the raw `Reply::Failed` as a
+/// normal answer and fell off the end of a match — a 1 % transport fault killed two
+/// processes with a `PatternMatchFailed` that could not name its own scrutinee.
+///
+/// Returns `ServiceEvent::Malformed{idx, cause}` — the variant the transport tier ALREADY
+/// had for "this exchange is malformed on peer idx" — or `None` for a genuine reply.
+/// NOT `Lost`: nothing died, and `Lost` is retried by the redial path while a decode
+/// failure is deterministic and re-sending the same bytes fails identically.
+fn select_malformed_if_reply_failed(type_path: &str, peer_idx: i64, msg: &Value) -> Option<Value> {
+    reply_failed_reason(msg).map(|reason| {
+        Value::Enum(Arc::new(EnumValue {
+            type_path: type_path.into(),
+            variant_name: "Malformed".into(),
+            names: builtin_enum_variant_names(type_path, "Malformed"),
+            fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
+        }))
+    })
+}
+
 /// Arc 278 the recv'-outcome wall — the type path of the matchable `recv'` outcome
 /// enum (`(:wat::kernel::RecvOutcome :- [O])`, registered in `types.rs`).
 const RECV_OUTCOME_TYPE: &str = ":wat::kernel::RecvOutcome";
@@ -22103,6 +22168,7 @@ fn recv_outcome_from_decoded(v: Value, types: Option<&crate::types::TypeEnv>) ->
         None => recv_outcome_message(v),
     }
 }
+
 
 /// Arc 278 the send'-outcome wall — the type path of the matchable `send'` outcome
 /// enum (`:wat::kernel::SendOutcome`, registered in `types.rs`). Non-parametric —
@@ -26265,6 +26331,14 @@ pub(crate) fn eval_peer_select_prime(
                         ) {
                             return Ok(lost);
                         }
+                        // excursus 001 — the Reply::Failed pre-check, sibling of the death-notice one above.
+                        if let Some(m) = select_malformed_if_reply_failed(
+                            SELECT_EVENT_TYPE_THREAD,
+                            peer_idx,
+                            &msg,
+                        ) {
+                            return Ok(m);
+                        }
                         Ok(Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE_THREAD.into(),
                             variant_name: "Message".into(),
@@ -26494,12 +26568,16 @@ pub(crate) fn eval_peer_select_prime(
                             sym.types().map(|a| a.as_ref()),
                             sym.encoding_ctx().map(|a| a.as_ref()),
                         ) {
-                            Ok(value) => Ok(Value::Enum(Arc::new(EnumValue {
-                                type_path: SELECT_EVENT_TYPE.into(),
-                                variant_name: "Message".into(),
-                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                                fields: vec![Value::i64(peer_idx), value],
-                            }))),
+                            // excursus 001 — the Reply::Failed pre-check, applied AFTER the
+                            // decode because at this tier the value arrives as a wire string.
+                            Ok(value) => Ok(select_malformed_if_reply_failed(
+                                SELECT_EVENT_TYPE, peer_idx, &value)
+                                .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Message".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
+                                    fields: vec![Value::i64(peer_idx), value],
+                                })))),
                             Err(_e) => Ok(select_event_lost(
                                 SELECT_EVENT_TYPE,
                                 peer_idx,
@@ -26640,6 +26718,14 @@ pub(crate) fn eval_peer_select_prime(
                                 ) {
                                     return Ok(lost);
                                 }
+                                // excursus 001 — the Reply::Failed pre-check, sibling of the death-notice one above.
+                                if let Some(m) = select_malformed_if_reply_failed(
+                                    SELECT_EVENT_TYPE_PEER,
+                                    peer_idx,
+                                    &msg,
+                                ) {
+                                    return Ok(m);
+                                }
                                 Ok(Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE_PEER.into(),
                                     variant_name: "Message".into(),
@@ -26759,7 +26845,9 @@ pub(crate) fn eval_peer_select_prime(
                                     sym.types().map(|a| a.as_ref()),
                                     sym.encoding_ctx().map(|a| a.as_ref()),
                                 ) {
-                                    Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
+                                    Ok(msg) => Ok(select_malformed_if_reply_failed(
+                                        SELECT_EVENT_TYPE_PEER, peer_idx, &msg)
+                                        .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
                                         type_path: SELECT_EVENT_TYPE_PEER.into(),
                                         variant_name: "Message".into(),
                                         names: builtin_enum_variant_names(
@@ -26767,7 +26855,7 @@ pub(crate) fn eval_peer_select_prime(
                                             "Message",
                                         ),
                                         fields: vec![Value::i64(peer_idx), msg],
-                                    }))),
+                                    })))),
                                     Err(_e) => Ok(select_event_lost(
                                         SELECT_EVENT_TYPE_PEER,
                                         peer_idx,
@@ -27400,12 +27488,14 @@ pub(crate) fn eval_poll_prime(
                         match result {
                             Ok(msg) => {
                                 // ServiceEvent::Message [idx <- i64  msg <- O]
+                                if let Some(m) = select_malformed_if_reply_failed(
+                                    SELECT_EVENT_TYPE, peer_idx, &msg) { m } else {
                                 Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Message".into(),
                                     names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
                                     fields: vec![Value::i64(peer_idx), msg],
-                                }))
+                                })) }
                             }
                             Err(_) => {
                                 // Output EOF — bare Peer' has no crash channel, so there
@@ -27601,12 +27691,14 @@ pub(crate) fn eval_poll_prime(
                                     sym.encoding_ctx().map(|a| a.as_ref()),
                                 ) {
                                     // ServiceEvent::Message [idx <- i64  msg <- Value]
-                                    Ok(msg) => Value::Enum(Arc::new(EnumValue {
-                                        type_path: SELECT_EVENT_TYPE.into(),
-                                        variant_name: "Message".into(),
-                                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                                        fields: vec![Value::i64(peer_idx), msg],
-                                    })),
+                                    Ok(msg) => select_malformed_if_reply_failed(
+                                        SELECT_EVENT_TYPE, peer_idx, &msg)
+                                        .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
+                                            type_path: SELECT_EVENT_TYPE.into(),
+                                            variant_name: "Message".into(),
+                                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
+                                            fields: vec![Value::i64(peer_idx), msg],
+                                        }))),
                                     // ServiceEvent::Malformed [idx <- i64  cause <- Failure]
                                     Err(e) => Value::Enum(Arc::new(EnumValue {
                                         type_path: SELECT_EVENT_TYPE.into(),
@@ -27808,7 +27900,9 @@ pub(crate) fn eval_poll_prime(
                                                                 sym.types().map(|a| a.as_ref()),
                                                                 sym.encoding_ctx().map(|a| a.as_ref()),
                                                             ) {
-                                                                Ok(msg2) => Value::Enum(Arc::new(EnumValue {
+                                                                Ok(msg2) => select_malformed_if_reply_failed(
+                                                                    SELECT_EVENT_TYPE, pidx, &msg2)
+                                                                    .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
                                                                     type_path: SELECT_EVENT_TYPE
                                                                         .into(),
                                                                     variant_name: "Message".into(),
@@ -27817,7 +27911,7 @@ pub(crate) fn eval_poll_prime(
                                                                         Value::i64(pidx),
                                                                         msg2,
                                                                     ],
-                                                                })),
+                                                                }))),
                                                                 Err(e) => Value::Enum(Arc::new(EnumValue {
                                                                     type_path: SELECT_EVENT_TYPE
                                                                         .into(),

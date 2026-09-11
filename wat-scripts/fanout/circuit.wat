@@ -1001,7 +1001,15 @@
                       (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
              (:wat::service::SelfOutcome::Continue s'
-               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))))))])
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
+         ;; ⛔ REPORT-FINAL, and deliberately NOT a mirror of the three arms above. Those
+         ;; redial-and-retry, which is right for Lost/Closed/DeadlineFired — the peer is
+         ;; reachable again and the call may succeed. `Malformed` means the QUEUE could not
+         ;; DECODE what this worker sent: deterministic, so a redial re-sends the same bad
+         ;; bytes and fails identically. It is a defect in us, and the honest report is the
+         ;; cause — which is what arc 278 promised for `Reply::Failed` and never delivered.
+         ((:wat::service::CallOutcome::Malformed cause)
+           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))))])
 
 ;; Delayed-ack worker: receive this tick, ack the next. Row 2 removes the in-flight
 ;; term from the drain condition and requires a loss — same-tick ack would hide it.
@@ -2264,7 +2272,10 @@
       ((:wat::service::CallOutcome::Lost _c)
         (:wat::kernel::assertion-failed! "fanout: publisher stats lost" :wat::core::None :wat::core::None))
       ((:wat::service::CallOutcome::Closed)
-        (:wat::kernel::assertion-failed! "fanout: publisher stats closed" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "fanout: publisher stats closed" :wat::core::None :wat::core::None))
+      ;; REPORT-FINAL, carrying the publisher's own decode reason rather than a generic line.
+      ((:wat::service::CallOutcome::Malformed cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :fanout::publishers-all-done?
   [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]

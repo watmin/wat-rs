@@ -2574,16 +2574,40 @@
                                                        ((:wat::service::CallOutcome::Lost cause)
                                                          (:wat::kernel::RecvOutcome::Lost cause))
                                                        ((:wat::service::CallOutcome::Closed)
-                                                         :wat::kernel::RecvOutcome::Closed))]
+                                                         :wat::kernel::RecvOutcome::Closed)
+                                                       ;; REPORT-FINAL reaches the caller as itself,
+                                                       ;; carrying the cause — never as Lost, which the
+                                                       ;; redial path would retry forever on bytes that
+                                                       ;; cannot succeed.
+                                                       ((:wat::service::CallOutcome::Malformed cause)
+                                                         (:wat::kernel::RecvOutcome::Malformed cause)))]
                                              (:wat::core::match ~r-sym
+                                               ;; ⭑ excursus 001, a-momentary-failure-is-not-fatal —
+                                               ;; THE INNER MATCH IS LIFTED OUT OF THE `Message`
+                                               ;; WRAPPER. It used to sit inside it, so every arm had
+                                               ;; to produce the op's Response type and the only exit
+                                               ;; for a non-Response was a raise. The protocol-tier
+                                               ;; `Reply::Failed` (the peer could not decode what we
+                                               ;; sent) therefore had NO honest home: `service.wat`
+                                               ;; claimed above that it "arrives as ::Lost (recv' maps
+                                               ;; it)", which is true of the recv' path and FALSE of
+                                               ;; this `call-by-deadline` one — measured, by a 1 %
+                                               ;; transport fault that killed two processes.
+                                               ;; Lifted, a Failed can leave as a DIFFERENT outcome.
                                                ((:wat::kernel::RecvOutcome::Message recvd)
-                                                 (:wat::kernel::RecvOutcome::Message
-                                                   (:wat::core::match recvd
-                                                     ((~reply-variant-kw resp) resp)
-                                                     (_ (:wat::kernel::assertion-failed!
-                                                          "defservice method: misrouted reply variant (protocol violation)"
-                                                          :wat::core::None
-                                                          :wat::core::None)))))
+                                                 (:wat::core::match recvd
+                                                   ((~reply-variant-kw resp)
+                                                     (:wat::kernel::RecvOutcome::Message resp))
+                                                   ;; REPORT-FINAL, never retried: the bytes we sent
+                                                   ;; are wrong, so re-sending them fails identically.
+                                                   ;; This is why it is NOT mapped to Lost, which the
+                                                   ;; redial path retries.
+                                                   ((~reply-failed-kw cause)
+                                                     (:wat::kernel::RecvOutcome::Malformed cause))
+                                                   (_ (:wat::kernel::assertion-failed!
+                                                        "defservice method: misrouted reply variant (protocol violation)"
+                                                        :wat::core::None
+                                                        :wat::core::None))))
                                                ;; arc 278 the LociDiedError stone — forward the real
                                                ;; loci-agnostic death cause to the client's caller
                                                ;; (no-hidden-failures: never mask it with a generic
@@ -3764,7 +3788,16 @@
   :Answered      [reply <- :O]
   :Lost          [cause <- :wat::kernel::LociDiedError]
   :Closed        []
-  :DeadlineFired [])
+  :DeadlineFired []
+  ;; ⭑ excursus 001, a-momentary-failure-is-not-fatal — the peer could not DECODE what we
+  ;; sent. It is NOT `Lost`: nothing died, and `Lost` is RETRIED by the redial path, while
+  ;; this is DETERMINISTIC and re-sending the same bytes fails identically. REPORT-FINAL.
+  ;;
+  ;; ⛔ Before this variant existed, `call-by-deadline`'s `ServiceEvent::Malformed` arm
+  ;; discarded the cause (`_c`) and returned `Lost LociDiedError::Disconnected` — a collapse
+  ;; that both lied about what happened and threw away the reason the serve loop had gone to
+  ;; the trouble of computing.
+  :Malformed     [cause <- :wat::kernel::Failure])
 
 ;; ServiceEvent::Lost carries Failure. RecvOutcome::Lost wants LociDiedError.
 ;; The one Failure class string that must survive as a variant is Severed
@@ -3827,9 +3860,11 @@
             (:wat::kernel::assertion-failed! "call-by-deadline: select admin" :wat::core::None :wat::core::None))
           ((:wat::spawn::ServiceEvent::Connection _p)
             (:wat::kernel::assertion-failed! "call-by-deadline: select connection" :wat::core::None :wat::core::None))
-          ((:wat::spawn::ServiceEvent::Malformed idx _c)
+          ;; ⭑ The cause is KEPT and the outcome is honest. This arm used to bind `_c` and
+          ;; return `Lost Disconnected` — nothing had died, and the reason was thrown away.
+          ((:wat::spawn::ServiceEvent::Malformed idx c)
             (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected)
+              (:wat::service::CallOutcome::Malformed c)
               (:wat::kernel::assertion-failed! "call-by-deadline: timer malformed" :wat::core::None :wat::core::None)))
           ((:wat::spawn::ServiceEvent::Rejected idx _c)
             (:wat::core::if (:wat::i64::= idx 0)
