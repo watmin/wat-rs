@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. 2026-09-11. ⛔ **RED (7 tracked) · 27 UNPUSHED · TREE CLEAN.**
+# SEAM — the ONE live breadcrumb. 2026-09-11. ⛔ **RED (6, ALL ONE RULING) · 29 UNPUSHED · CLEAN.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -11,7 +11,7 @@
 
 ```bash
 git status --porcelain          # expect EMPTY
-git log --oneline @{u}..HEAD    # expect 27 — NOTHING IS PUSHED
+git log --oneline @{u}..HEAD    # expect 29 — NOTHING IS PUSHED
 cat /home/john/work/holon/.pulsare/to-claude   # has grok scored?
 ./scripts/floor.sh > /dev/null 2>&1
 L=$(ls -td .floor/*/ | head -1); grep -E "Summary|FAIL \[" "$L/raw.log" | sort -u
@@ -50,16 +50,22 @@ THE BARE ACCESSOR     `b743ae310` — `(:field x)` was ACCEPTED AND NEVER TYPED 
 RULING ①-C            `45aabbb93` — the dot spelling RESOLVES; `::` is the refused one.
 ```
 
-## ⬜ THE 7 REMAINING REDS — one RULING, one untriaged
+## ⬜ THE 6 REMAINING REDS — ALL ONE ROOT CAUSE, AND IT IS A RULING YOU OWE
 
 ```
 6  probe_arc278_call_context (5) + probe_arc278_arming_is_internal_only (1)
-   ONE root cause. A variant literal in an unascribed MATCH SCRUTINEE narrows a container's type
-   param (Alarm<Op.Tick>), and same-head parametric args are INVARIANT (arc 278 Stone 2).
-   ⛔ THIS IS A RULING THE BUILDER OWES, NOT A REPAIR. Three options were measured and all three
-   disqualified: ann-form ascription, bind-enclosing-enum, same-head covariance.
-1  every_wat_scripts_file_loads_on_the_current_runtime          untriaged
+   A variant literal in an unascribed MATCH SCRUTINEE narrows a container's type param
+   (Alarm<Op.Tick>), and same-head parametric args are INVARIANT (arc 278 Stone 2).
+   ⛔ NOT A REPAIR. Three options measured, all three DISQUALIFIED: ann-form ascription,
+   bind-enclosing-enum, same-head covariance.
+   ★ THE FLOOR CANNOT GO GREEN — AND NOTHING CAN BE PUSHED — WITHOUT THIS RULING.
 ```
+
+★★ **THREE RATCHETS FIRED TODAY, all the same shape**: `no_loose_string_assert`,
+`probe_arc255_the_blanket_hides_a_phantom_head`, and the parametric-vector probe. **A probe that
+PINS A DEFECT becomes a lie the moment the defect is fixed, and it goes red in a way that reads
+like a regression.** Two of the three also had to MOVE: a fixture whose job is to be REFUSED cannot
+live under a gate requiring it to LOAD (arc 255 Stone 4 is the precedent, and the reason).
 
 ## ⚠ RULINGS — do not re-litigate
 
