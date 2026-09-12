@@ -364,6 +364,42 @@
     (:user::seed-paths)
     (:wat::core::Vector :- [:wat::WatAST])))
 
+;; Not `is_reserved_prefix`. RESERVED_PREFIXES (src/resolve/reserved.rs:14) is
+;; `:wat::`, `:rust::`, AND `:$bound::`. The third is binder unforgeability —
+;; per-scope, not corpus-invariant. Caching `$bound` across files is option-A
+;; dishonesty. `gate` (src/resolve/registration.rs:165) checks
+;; Existing::Equivalent → NoOp BEFORE Reserved (tests at :317-319), so a user
+;; re-declaration of a `:wat::`/`:rust::` name is either the same answer or
+;; refused. That is why these two prefixes, and only these two, are cacheable.
+(:wat::core::defn :user::corpus-invariant-name? [nm <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::or
+    (:wat::string::starts-with? nm ":wat::")
+    (:wat::string::starts-with? nm ":rust::")))
+
+(:wat::core::defn :user::invariant-eps-of
+  [epaths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) ep <- :wat::core::String]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::if (:user::corpus-invariant-name? ep)
+        (:user::conj-unique acc ep)
+        acc))
+    (:wat::core::Vector :- [:wat::core::String])
+    epaths))
+
+(:wat::core::defn :user::local-eps-of
+  [epaths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) ep <- :wat::core::String]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::if (:user::corpus-invariant-name? ep)
+        acc
+        (:user::conj-unique acc ep)))
+    (:wat::core::Vector :- [:wat::core::String])
+    epaths))
+
 (:wat::core::defn :user::fmap-for-src
   [src  <- :wat::core::String
    base <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
@@ -376,7 +412,8 @@
      decls (:user::file-decls tree)
      vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
      epaths (:user::enum-paths-of vpaths)
-     filled (:user::fill-paths base epaths decls)]
+     local  (:user::local-eps-of epaths)
+     filled (:user::fill-paths base local decls)]
     (:user::bind-kw-ctors filled tree)))
 
 ;; Derive unquote-ctor bindings from let-bound `*-kw` names whose value
@@ -783,9 +820,29 @@
             (:wat::core::= (:wat::string::subs path 0 18) "wat-scripts/fixes/")
             false))))))
 
+
+;; A′ — :wat:: / :rust:: resolve ONCE; every other name PER FILE.
+;; Locals colliding across files is legal input (STOP-2): do not halt.
+
+(:wat::core::defn :user::src-tree [src <- :wat::core::String] -> :wat::WatAST
+  (:wat::core::match (:wat::core::read-string src)
+    [:wat::core::ReadOutcome.Forms {:forms f} f]
+    [:wat::core::ReadOutcome.Malformed {:cause c}
+      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))]))
+
+(:wat::core::defn :user::union-eps
+  [eps    <- (:wat::core::Vector :- [:wat::core::String])
+   epaths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::if (:wat::core::empty? epaths)
+    eps
+    (:user::union-eps
+      (:user::conj-unique eps (:wat::core::first epaths))
+      (:wat::core::rest epaths))))
+
 (:wat::core::defn :user::rewrite-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])
-   base  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+  [paths  <- (:wat::core::Vector :- [:wat::core::String])
+   frozen <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
@@ -793,13 +850,49 @@
       (:wat::core::if (:user::skip-path? path)
         (:wat::core::do
           (:wat::kernel::println (:wat::string::concat "[positional-ctor] skip positional-control " path))
-          (:user::rewrite-each (:wat::core::rest paths) base))
+          (:user::rewrite-each (:wat::core::rest paths) frozen))
         (:wat::core::let [src (:wat::io::read-file path)
-                          fmap (:user::fmap-for-src src base)]
+                          fmap (:user::fmap-for-src src frozen)]
           (:wat::core::do
             (:wat::io::write-file path (:user::migrate src fmap path))
             (:wat::kernel::println (:wat::string::concat "[positional-ctor] " path))
-            (:user::rewrite-each (:wat::core::rest paths) base)))))))
+            (:user::rewrite-each (:wat::core::rest paths) frozen)))))))
+
+;; PASS 1: unique corpus-invariant epaths, resolved once against stdlib
+;; (empty decls). PASS 2: locals against THIS file's decls (fmap-for-src).
+(:wat::core::defn :user::collect-pass
+  [scan    <- (:wat::core::Vector :- [:wat::core::String])
+   all     <- (:wat::core::Vector :- [:wat::core::String])
+   inv-eps <- (:wat::core::Vector :- [:wat::core::String])
+   local-n <- :wat::core::i64
+   base    <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+  -> :wat::core::nil
+  (:wat::core::if (:wat::core::empty? scan)
+    (:wat::core::do
+      (:wat::kernel::println
+        (:wat::string::concat
+          "[positional-ctor] resolve corpus-invariant="
+          (:wat::string::concat
+            (:wat::i64::to-string (:wat::core::length inv-eps))
+            (:wat::string::concat " per-file=" (:wat::i64::to-string local-n)))))
+      (:user::rewrite-each all
+        (:user::fill-paths base inv-eps (:wat::core::Vector :- [:wat::WatAST]))))
+    (:wat::core::let [path (:wat::core::first scan)]
+      (:wat::core::if (:user::skip-path? path)
+        (:user::collect-pass (:wat::core::rest scan) all inv-eps local-n base)
+        (:wat::core::let
+          [src    (:wat::io::read-file path)
+           tree   (:user::src-tree src)
+           vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
+           feps   (:user::enum-paths-of vpaths)
+           inv2   (:user::union-eps inv-eps (:user::invariant-eps-of feps))
+           loc-n  (:wat::core::length (:user::local-eps-of feps))]
+          (:user::collect-pass
+            (:wat::core::rest scan)
+            all
+            inv2
+            (:wat::i64::+ local-n loc-n)
+            base))))))
 
 (:wat::core::defn :user::ensure-path
   [paths <- (:wat::core::Vector :- [:wat::core::String])
@@ -819,4 +912,9 @@
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])
      paths2 (:user::ensure-path paths "wat/service.wat")
      base (:user::stdlib-fmap)]
-    (:user::rewrite-each paths2 base)))
+    (:user::collect-pass
+      paths2
+      paths2
+      (:wat::core::Vector :- [:wat::core::String])
+      0
+      base)))
