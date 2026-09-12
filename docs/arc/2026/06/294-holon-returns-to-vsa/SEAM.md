@@ -92,8 +92,10 @@ Timing, same files: n=5 2.5×, n=20 2.1×; at small n the once-per-run invariant
 The first run (`bootstrap/chain-runs/2026-09-12T02-15-59Z/`) changed **0 files** and stopped at
 step 3. Each finding below can be re-derived with the command beside it.
 
-**1. 12 of the 28 codemods are DEAD on main's binary.** These are steps 1, 3–12 and 21, the grep-rules
-ones. Since `0b5742cc7`, main's extractor folds every `Named` name to clojure form
+**1. 11 of the 28 codemods are DEAD on main's binary.** These are steps 1 and 3–12, the grep-rules
+ones: 40 rules, and every one joins `Named` and `Span`. (Step 21, `node-kind-string-to-enum`, is an
+AST walker with 0 rules. My first partition counted it because `grep ':wat::grep::Node'` matched a
+STRING LITERAL inside it; counting `defrule` corrected it.) Since `0b5742cc7`, main's extractor folds every `Named` name to clojure form
 (`git show a3218644d:wat/grep.wat | sed -n 239p`).
 - A `starts-with ":wat::…::"` rule matches nothing and exits rc=0.
 - The five that `0b5742cc7` migrated do match, then splice the canonical `?n` as old-text, and
@@ -168,7 +170,7 @@ The builder:
 
 ## ⬜ NEXT
 
-1. **Step 0: the 12 grep-rules codemods work on today's binary.** Add a replay-fixture gate and a
+1. **Step 0: the 11 grep-rules codemods work on today's binary.** Add a replay-fixture gate and a
    declared SCOPE. The orchestrator's probe comes first: match the canonical name, splice the
    verbatim text via `Written`.
 2. The step script, plus a pilot on the first ~10 code commits: timed, with tricks catalogued.
