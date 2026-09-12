@@ -173,6 +173,30 @@ pub(crate) fn eval_peer_recv_prime(
     crate::runtime::eval_peer_recv_prime(std::slice::from_ref(peer), list_span, env, sym)
 }
 
+/// `(:wat::kernel::recv-by-deadline peer ms)` → `:wat::kernel::RecvOutcome<O>`.
+/// Recv that gives up after `ms` milliseconds. Constructs `TimedOut` when the
+/// peer stays silent — the variant a bare `recv` never mints.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Nondeterministic
+/// @Total         Unreviewed
+/// @Category      Message
+/// @arg     peer (:wat::kernel::Peer :- [I O]) the owner lineage handle
+/// @arg     ms :wat::core::i64 deadline in milliseconds
+/// @ret     (:wat::kernel::RecvOutcome :- [O]) Message(O) / Closed / Lost / Stopped / TimedOut
+/// @example-norun (:wat::kernel::recv-by-deadline lineage 500)
+#[wat_intrinsic(":wat::kernel::recv-by-deadline")]
+pub(crate) fn eval_peer_recv_by_deadline(
+    peer: &WatAST,
+    ms: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_peer_recv_by_deadline(&[peer.clone(), ms.clone()], list_span, env, sym)
+}
+
 /// `(:wat::kernel::select peers)` → `:wat::spawn::ServiceEvent<I,O,A>`.
 /// Blocks until ONE peer in the (non-empty, same-tier) `peers` vector is
 /// ready, and returns its outcome as a matchable `ServiceEvent`. Fan-in

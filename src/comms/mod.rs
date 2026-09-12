@@ -336,6 +336,16 @@ pub enum TrySendError<T> {
     Disconnected(T),
 }
 
+/// Recv-with-deadline: a value, a timeout, or a recv failure.
+/// Distinct from [`RecvError`] so a timeout is not a close, a shutdown, or a
+/// crash — the peer is ALIVE and SILENT.
+#[derive(Debug)]
+pub enum DeadlineRecv<T> {
+    Ready(T),
+    TimedOut,
+    Failed(RecvError),
+}
+
 /// Recv failed — carrying the cause the comms select already computes
 /// (Stone 214 1b-ii-ε). The select fires on a specific arm and *knows* whether
 /// it was a data disconnect or a substrate shutdown. Carrying the distinction

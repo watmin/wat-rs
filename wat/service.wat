@@ -3802,12 +3802,14 @@
 ;; peer, or the wall-clock budget. TimedOut/Stopped/Malformed never produce
 ;; Gone. GaveUp carries waited-ms AND last (which RecvOutcome ended it).
 ;;
-;; ⛔ Not select+timer: the owner lineage handle is Thread or Process, and
-;; `:wat::kernel::after` yields a Peer. `select` refuses mixed tiers
-;; (`peers[1] has wrong tier (expected Process)`). `call-by-deadline` works
-;; because client peers ARE Peer. The bound is wall-clock BETWEEN
-;; instantaneous outcomes (Malformed/Stopped/TimedOut). A blocked recv is
-;; the pre-stone hang — the 15 s crash is Malformed, which is not blocked.
+;; ⛔ STOP-1 of the-owner-wait-has-a-deadline: a coerced `select` of the
+;; lineage handle against `after` TYPE-CHECKS (call-by-deadline's vector
+;; element coercion) and RUNTIME-REFUSES:
+;;   "peers[1] has wrong tier (expected Process): … type_name: :wat::kernel::Peer"
+;; `after` always yields a unified Peer; the owner handle is Process/Thread.
+;; Shape (B): `recv-by-deadline` constructs TimedOut in Rust. `peer-wire?`
+;; also refuses a lineage Process ("expected peer, got Process"); kind is
+;; not needed here — the primitive dispatches on the runtime type_path.
 (:wat::core::defn :wat::service::owner-recv-loop :- [I O]
   [peer <- (:wat::kernel::Peer :- [:I :O])
    t0-ns <- :wat::core::i64
@@ -3819,15 +3821,20 @@
      remaining (:wat::i64::- budget-ms elapsed-ms)]
     (:wat::core::if (:wat::i64::<= remaining 0)
       (:wat::service::StopOutcome::GaveUp elapsed-ms last)
-      (:wat::core::match (:wat::kernel::recv peer)
+      (:wat::core::match (:wat::kernel::recv-by-deadline peer remaining)
         ((:wat::kernel::RecvOutcome::Message m)
           (:wat::service::StopOutcome::Stopped m))
         (:wat::kernel::RecvOutcome::Closed
           (:wat::service::StopOutcome::Gone :wat::kernel::LociDiedError::Disconnected))
         ((:wat::kernel::RecvOutcome::Lost c)
           (:wat::service::StopOutcome::Gone c))
+        ;; Deadline spent by construction (recv-by-deadline used `remaining`).
+        ;; Recurse would also GaveUp via `(<= remaining 0)`; returning here
+        ;; names last="TimedOut" with elapsed measured after the wait.
         (:wat::kernel::RecvOutcome::TimedOut
-          (:wat::service::owner-recv-loop peer t0-ns budget-ms "TimedOut"))
+          (:wat::service::StopOutcome::GaveUp
+            (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t0-ns) 1000000)
+            "TimedOut"))
         (:wat::kernel::RecvOutcome::Stopped
           (:wat::service::owner-recv-loop peer t0-ns budget-ms "Stopped"))
         ((:wat::kernel::RecvOutcome::Malformed _c)

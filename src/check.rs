@@ -4681,6 +4681,14 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            ":wat::kernel::recv-by-deadline" => {
+                let (val, mut errs) = infer_recv_by_deadline(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::close" => {
                 let (val, mut errs) = infer_close_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -11781,6 +11789,80 @@ fn infer_recv_prime(
             let t = fresh.fresh();
             CheckResult::partial_with(t, local_errors)
         }
+    }
+}
+
+/// Type-check `(:wat::kernel::recv-by-deadline peer ms)` — same RecvOutcome as recv,
+/// plus a reachable TimedOut. `ms` is i64 milliseconds.
+fn infer_recv_by_deadline(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::recv-by-deadline";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+    let ret = match project_peer_io(
+        std::slice::from_ref(&args[0]),
+        head_span,
+        OP,
+        env,
+        locals,
+        fresh,
+        subst,
+        &mut local_errors,
+    ) {
+        Ok((_i_ty, o_ty)) => TypeExpr::Parametric {
+            head: "wat::kernel::RecvOutcome".into(),
+            args: vec![apply_subst(&o_ty, subst)],
+        },
+        Err(()) => fresh.fresh(),
+    };
+    let ms_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors)
+    {
+        Some(t) => t,
+        None => return CheckResult::partial_with(ret, local_errors),
+    };
+    let ms_reduced = reduce(&apply_subst(&ms_ty, subst), subst, env.types());
+    if unify(
+        &ms_reduced,
+        &TypeExpr::Path(":wat::core::i64".into()),
+        subst,
+        env.types(),
+    )
+    .is_err()
+    {
+        local_errors.push(CheckError {
+            span: args[1].span().clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "ms".into(),
+                expected: "i64".into(),
+                got: format_type(&ms_reduced),
+            },
+        });
+    }
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
     }
 }
 

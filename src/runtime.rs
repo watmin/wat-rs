@@ -22084,6 +22084,17 @@ fn recv_outcome_shutdown() -> Value {
     }))
 }
 
+/// `RecvOutcome::TimedOut []` — the deadline fired. The peer is ALIVE and SILENT.
+/// Constructed by [`eval_peer_recv_by_deadline`], not by a bare `recv`.
+fn recv_outcome_timedout() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: RECV_OUTCOME_TYPE.into(),
+        variant_name: "TimedOut".into(),
+        names: no_field_names(),
+        fields: vec![],
+    }))
+}
+
 /// `RecvOutcome::Lost[LociDiedError::Severed]` — the service's owner released its
 /// handle, so its serve loop exited.
 ///
@@ -25627,6 +25638,153 @@ pub(crate) fn eval_peer_recv_prime(
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::recv-by-deadline peer ms)` — owner-wait deadline.
+///
+/// Same RecvOutcome as `recv`, plus a reachable `TimedOut` when `ms` elapses
+/// with the peer still silent. A bare `recv` never constructs TimedOut
+/// (NOTE-an-outcome-variant-no-primitive-can-construct). This is the primitive
+/// that does. `select` cannot mix a Process/Thread lineage handle with
+/// `after`'s unified Peer — STOP-1 of the-owner-wait-has-a-deadline.
+pub(crate) fn eval_peer_recv_by_deadline(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::recv-by-deadline";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let ms_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let ms = match ms_val {
+        Value::i64(n) => n,
+        other => {
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::i64",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into())
+        }
+    };
+    if ms <= 0 {
+        return Ok(recv_outcome_timedout());
+    }
+    let dur = std::time::Duration::from_millis(ms as u64);
+    use crate::kernel::spawn::{DeadlineRecv, PeerRecvError};
+    let map_failed = |e: PeerRecvError| -> Value {
+        match e {
+            PeerRecvError::Crashed(crash_reason) => {
+                recv_outcome_lost(crash_reason, sym.types().map(|a| a.as_ref()))
+            }
+            PeerRecvError::Disconnected => recv_outcome_closed(),
+            PeerRecvError::Shutdown => recv_outcome_shutdown(),
+        }
+    };
+    match &peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<
+                crate::rust_deps::custodia::ThreadOwnedCell<
+                    Option<crate::kernel::peer::Thread<Value, Value>>,
+                >,
+            > = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let result = cell
+                .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                    match opt_peer {
+                        None => Ok(recv_outcome_closed()),
+                        Some(peer) => Ok(match peer.recv_deadline(dur) {
+                            DeadlineRecv::Ready(v) => recv_outcome_message(v),
+                            DeadlineRecv::TimedOut => recv_outcome_timedout(),
+                            DeadlineRecv::Failed(e) => map_failed(e),
+                        }),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(result)
+        }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<
+                crate::rust_deps::custodia::ThreadOwnedCell<
+                    Option<crate::kernel::spawn::ProcessSelectable>,
+                >,
+            > = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let result = cell
+                .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
+                    match opt_bundle {
+                        None => Ok(recv_outcome_closed()),
+                        Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
+                            Ok(match bundle.recv_deadline(dur) {
+                                DeadlineRecv::Ready(edn_str) => {
+                                    match crate::edn::render::decode_trusted_wire(
+                                        &edn_str,
+                                        sym.types().map(|a| a.as_ref()),
+                                        sym.encoding_ctx().map(|a| a.as_ref()),
+                                    ) {
+                                        Ok(v) => recv_outcome_message(v),
+                                        Err(e) => recv_outcome_lost(
+                                            format!("recv EDN decode failed: {}", e),
+                                            sym.types().map(|a| a.as_ref()),
+                                        ),
+                                    }
+                                }
+                                DeadlineRecv::TimedOut => recv_outcome_timedout(),
+                                DeadlineRecv::Failed(e) => map_failed(e),
+                            })
+                        }
+                        Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => {
+                            Err(RuntimeError::new(
+                                list_span.clone(),
+                                RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "recv-by-deadline on a timer peer is not supported"
+                                        .into(),
+                                },
+                            )
+                            .into())
+                        }
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(result)
+        }
+        other => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "owner handle ((Thread :- [I O]) | (Process :- [I O]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )

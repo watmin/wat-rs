@@ -184,6 +184,15 @@ pub enum PeerRecvError {
     Crashed(String),
 }
 
+/// Recv-with-deadline for an owner handle. TimedOut is NOT a PeerRecvError:
+/// the peer is ALIVE and SILENT, which is the fact RecvOutcome::TimedOut names.
+#[derive(Debug)]
+pub enum DeadlineRecv<T> {
+    Ready(T),
+    TimedOut,
+    Failed(PeerRecvError),
+}
+
 /// Outcome of reading a crash / err channel after output-EOF on a spawned peer.
 ///
 /// This is the ONE place the Lost-vs-Closed decision lives.  Every consumer
@@ -383,6 +392,43 @@ impl ProcessPeerBundle {
                 // the stop into `Closed` here, so a process peer reported a clean EOF
                 // for a stop while a thread peer reported the truth.
                 PeerDeath::Shutdown => Err(PeerRecvError::Shutdown),
+            },
+        }
+    }
+
+    /// Recv that gives up after `dur`. TimedOut means the child is ALIVE and SILENT.
+    pub fn recv_deadline(&self, dur: std::time::Duration) -> DeadlineRecv<String> {
+        use crate::comms::SelectOutcome;
+        if dur.is_zero() {
+            return DeadlineRecv::TimedOut;
+        }
+        let timer = match crate::comms::process::timer::<String>(dur, b":deadline\n".to_vec()) {
+            Ok(t) => t,
+            Err(e) => {
+                return DeadlineRecv::Failed(PeerRecvError::Crashed(format!(
+                    "recv-by-deadline: timerfd failed: {e}"
+                )))
+            }
+        };
+        let mut sel = crate::comms::process::Select::new();
+        sel.recv(&self.peer.output);
+        sel.recv(&timer);
+        match sel.select() {
+            Err(e) => DeadlineRecv::Failed(PeerRecvError::Crashed(format!(
+                "recv-by-deadline: select failed: {e}"
+            ))),
+            Ok(SelectOutcome::Shutdown) => DeadlineRecv::Failed(PeerRecvError::Shutdown),
+            Ok(SelectOutcome::Listener) => DeadlineRecv::Failed(PeerRecvError::Crashed(
+                "recv-by-deadline: listener arm on a peer select".into(),
+            )),
+            Ok(SelectOutcome::Recv { index, result: _ }) if index.0 == 1 => DeadlineRecv::TimedOut,
+            Ok(SelectOutcome::Recv { result, .. }) => match result {
+                Ok(value) => DeadlineRecv::Ready(value),
+                Err(e) => match classify_peer_error(&e, &self.err) {
+                    PeerDeath::Lost(reason) => DeadlineRecv::Failed(PeerRecvError::Crashed(reason)),
+                    PeerDeath::Closed => DeadlineRecv::Failed(PeerRecvError::Disconnected),
+                    PeerDeath::Shutdown => DeadlineRecv::Failed(PeerRecvError::Shutdown),
+                },
             },
         }
     }

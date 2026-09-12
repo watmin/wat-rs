@@ -151,6 +151,27 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
         }
     }
 
+    /// Recv that gives up after `dur`. TimedOut means the peer is ALIVE and SILENT.
+    pub fn recv_deadline(
+        &self,
+        dur: std::time::Duration,
+    ) -> crate::kernel::spawn::DeadlineRecv<O> {
+        use crate::comms::{DeadlineRecv as CommsDeadline, RecvError};
+        use crate::kernel::spawn::{DeadlineRecv, PeerRecvError};
+        match self.output.recv_deadline(dur) {
+            CommsDeadline::Ready(v) => DeadlineRecv::Ready(v),
+            CommsDeadline::TimedOut => DeadlineRecv::TimedOut,
+            CommsDeadline::Failed(RecvError::Shutdown) => {
+                DeadlineRecv::Failed(PeerRecvError::Shutdown)
+            }
+            CommsDeadline::Failed(_) => match self.crash.recv() {
+                Ok(reason) => DeadlineRecv::Failed(PeerRecvError::Crashed(reason)),
+                Err(RecvError::Shutdown) => DeadlineRecv::Failed(PeerRecvError::Shutdown),
+                Err(_) => DeadlineRecv::Failed(PeerRecvError::Disconnected),
+            },
+        }
+    }
+
     /// Drain THEN join — idempotent. The ONE internal reap.
     ///
     /// Drops the input `Sender` first (the worker's `recv'` raises →

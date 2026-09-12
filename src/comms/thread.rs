@@ -222,6 +222,67 @@ impl<T: Send> Receiver<T> {
         }
     }
 
+    /// Recv that gives up after `dur`. The peer is ALIVE and SILENT on
+    /// [`DeadlineRecv::TimedOut`] — not closed, not crashed.
+    pub fn recv_deadline(&self, dur: std::time::Duration) -> crate::comms::DeadlineRecv<T> {
+        use crate::comms::DeadlineRecv;
+        if dur.is_zero() {
+            return DeadlineRecv::TimedOut;
+        }
+        let timeout = crossbeam_channel::after(dur);
+        match &self.inner {
+            ReceiverKind::Channel(ch) => {
+                let shutdown_rx = crate::runtime::shutdown_rx();
+                match shutdown_rx {
+                    Some(srx) => {
+                        crossbeam_channel::select! {
+                            recv(ch) -> msg => match msg {
+                                Ok(v) => DeadlineRecv::Ready(v),
+                                Err(_) => DeadlineRecv::Failed(RecvError::Disconnected),
+                            },
+                            recv(timeout) -> _ => DeadlineRecv::TimedOut,
+                            recv(srx) -> _ => DeadlineRecv::Failed(RecvError::Shutdown),
+                        }
+                    }
+                    None => {
+                        crossbeam_channel::select! {
+                            recv(ch) -> msg => match msg {
+                                Ok(v) => DeadlineRecv::Ready(v),
+                                Err(_) => DeadlineRecv::Failed(RecvError::Disconnected),
+                            },
+                            recv(timeout) -> _ => DeadlineRecv::TimedOut,
+                        }
+                    }
+                }
+            }
+            ReceiverKind::Timer { instant_rx, msg } => {
+                let shutdown_rx = crate::runtime::shutdown_rx();
+                let fired = match shutdown_rx {
+                    Some(srx) => {
+                        crossbeam_channel::select! {
+                            recv(instant_rx) -> r => r.map(|_| ()).map_err(|_| RecvError::Disconnected),
+                            recv(timeout) -> _ => return DeadlineRecv::TimedOut,
+                            recv(srx) -> _ => Err(RecvError::Shutdown),
+                        }
+                    }
+                    None => {
+                        crossbeam_channel::select! {
+                            recv(instant_rx) -> r => r.map(|_| ()).map_err(|_| RecvError::Disconnected),
+                            recv(timeout) -> _ => return DeadlineRecv::TimedOut,
+                        }
+                    }
+                };
+                match fired {
+                    Ok(()) => match msg.take(":wat::kernel::after", crate::rust_caller_span!()) {
+                        Ok(v) => DeadlineRecv::Ready(v),
+                        Err(_) => DeadlineRecv::Failed(RecvError::Disconnected),
+                    },
+                    Err(e) => DeadlineRecv::Failed(e),
+                }
+            }
+        }
+    }
+
     /// Number of values currently queued in the channel awaiting recv.
     /// Non-blocking; cascade-irrelevant. Trivial passthrough to
     /// `crossbeam::Receiver::len`. Useful for capacity-tracking callers

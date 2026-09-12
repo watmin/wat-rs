@@ -760,6 +760,7 @@ mod tests {
         ":wat::kernel::peer-wire?",
         ":wat::kernel::poll",
         ":wat::kernel::recv",
+        ":wat::kernel::recv-by-deadline",
         ":wat::kernel::require-wire-address",
         ":wat::kernel::retag-op",
         ":wat::kernel::select",
