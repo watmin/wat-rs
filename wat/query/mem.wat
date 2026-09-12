@@ -657,10 +657,12 @@
 
    (delete [s ctx req]
      ;; Missing key is a no-op. Swap-remove: last row fills the hole, drop-last,
-     ;; moved row's position is updated in the index.
+     ;; moved row's position is updated in the index. `deleted` is the length
+     ;; delta — free, no read. Base rows only (mem derives GSI from StoredRow).
      (:wat::core::let
        [keys (:wat::query::Store::DeleteRequest/keys req)
         dur (:wat::query::mem-store::State/durable s)
+        before (:wat::core::count (:wat::query::mem-store::Record/rows dur))
         written (:wat::core::foldl
                   (:wat::core::fn [acc <- :wat::query::MemWrite k <- :wat::query::Key]
                     -> :wat::query::MemWrite
@@ -669,12 +671,13 @@
                   (:wat::query::MemWrite
                     :rows (:wat::query::mem-store::Record/rows dur)
                     :index (:wat::query::mem-store::State/index s))
-                  keys)]
+                  keys)
+        deleted (:wat::i64::- before (:wat::core::count (:wat::query::MemWrite/rows written)))]
        (:wat::service::Outcome::Continue
          (:wat::query::mem-store::State
            :durable (:wat::query::mem-store::Record (:wat::query::MemWrite/rows written))
            :index (:wat::query::MemWrite/index written))
-         (:wat::core::Some (:wat::query::Store::Reply::Delete (:wat::query::Store::DeleteResponse::Success))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))
+         (:wat::core::Some (:wat::query::Store::Reply::Delete (:wat::query::Store::DeleteResponse::Success deleted))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::mem-store::Op])]))))
 
    (scan [s ctx req]
      (:wat::core::let

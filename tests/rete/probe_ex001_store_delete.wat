@@ -68,7 +68,7 @@
         (:wat::core::Vector :- [:wat::query::Key] (:wat::query::Key :pk "q#1" :sk "b"))))
     ((:wat::kernel::RecvOutcome::Message __recv)
       (:wat::core::match __recv
-        ((:wat::query::Store::DeleteResponse::Success) nil)
+        ((:wat::query::Store::DeleteResponse::Success _) nil)
         (_ (:wat::kernel::assertion-failed! "delete did not succeed" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "delete: recv failed" :wat::core::None :wat::core::None))))
 

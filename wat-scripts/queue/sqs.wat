@@ -1107,7 +1107,7 @@
        (:wat::core::match del
          ((:wat::kernel::RecvOutcome::Message sresp)
            (:wat::core::match sresp
-             ((:wat::query::Store::DeleteResponse::Success)
+             ((:wat::query::Store::DeleteResponse::Success _)
                (:wat::core::let
                  [s' (:queue::queue::State
                        :durable rec'
@@ -1611,7 +1611,7 @@
                    (:wat::core::match resp
                      ((:wat::kernel::RecvOutcome::Message r)
                        (:wat::core::match r
-                         ((:wat::query::Store::DeleteResponse::Success) (:wat::core::Tuple false elapsed))
+                         ((:wat::query::Store::DeleteResponse::Success _) (:wat::core::Tuple false elapsed))
                          ((:wat::query::Store::DeleteResponse::Transient _e) (:wat::core::Tuple true elapsed))
                          ((:wat::query::Store::DeleteResponse::Constraint _e)
                            (:wat::kernel::assertion-failed! "queue.ack: store delete Constraint" :wat::core::None :wat::core::None))

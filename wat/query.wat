@@ -531,7 +531,7 @@
      [keys <- (:wat::core::Vector :- [:wat::query::Key])])
 
    (:wat::core::defenum :wat::query::Store::DeleteResponse :wat::enum::Pure
-     :Success        []
+     :Success        [deleted <- :wat::core::i64]
      :Constraint     [err <- :wat::query::Constraint]
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]

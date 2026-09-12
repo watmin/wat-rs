@@ -134,13 +134,13 @@
                    (:wat::core::Vector :- [:wat::query::Key])
                    (:wat::core::range 0 n))
             applied (:wat::core::if (:wat::core::empty? kept)
-                       (:wat::query::Store::DeleteResponse::Success)
+                       (:wat::query::Store::DeleteResponse::Success 0)
                        (:wat::core::match
                          (:wat::query::Store/delete inner (:wat::query::Store::DeleteRequest kept))
                          ((:wat::kernel::RecvOutcome::Message r) r)
                          (_ (:wat::kernel::assertion-failed! "fs: inner partial delete failed" :wat::core::None :wat::core::None))))]
            (:wat::core::match applied
-             ((:wat::query::Store::DeleteResponse::Success)
+             ((:wat::query::Store::DeleteResponse::Success _)
                (:wat::service::Outcome::Continue s'
                  (:wat::core::Some (:wat::query::Store::Reply::Delete
                    (:wat::query::Store::DeleteResponse::Transient
@@ -240,7 +240,7 @@
 (:wat::core::defn :e3::del-tag
   [r <- :wat::query::Store::DeleteResponse] -> :wat::core::String
   (:wat::core::match r
-    ((:wat::query::Store::DeleteResponse::Success) "Success")
+    ((:wat::query::Store::DeleteResponse::Success _) "Success")
     ((:wat::query::Store::DeleteResponse::Transient _e) "Transient")
     ((:wat::query::Store::DeleteResponse::Constraint _e) "Constraint")
     ((:wat::query::Store::DeleteResponse::Fatal _e) "Fatal")

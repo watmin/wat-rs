@@ -70,7 +70,7 @@
         (:wat::core::Vector :- [:wat::query::Key] (:wat::query::Key :pk "q#1" :sk "b"))))
     ((:wat::kernel::RecvOutcome::Message __recv)
       (:wat::core::match __recv
-        ((:wat::query::Store::DeleteResponse::Success) "Success")
+        ((:wat::query::Store::DeleteResponse::Success _) "Success")
         (_ "NotSuccess")))
     (_ "RecvFailed")))
 

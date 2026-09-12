@@ -127,7 +127,7 @@
   (:wat::core::match (:wat::query::Store/delete st (:wat::query::Store::DeleteRequest :keys keys))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:wat::query::Store::DeleteResponse::Success) nil)
+        ((:wat::query::Store::DeleteResponse::Success _) nil)
         (_ (:wat::kernel::assertion-failed! "orph: delete not Success"
              :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "orph: delete recv failed"

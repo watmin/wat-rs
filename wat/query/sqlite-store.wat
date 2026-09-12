@@ -38,9 +38,9 @@
 
 ;; Establish "no transaction is open", then return the ORIGINAL error. An
 ;; already-closed transaction IS the postcondition — not a failure.
-(:wat::core::defn :wat::query::close-then-err
+(:wat::core::defn :wat::query::close-then-err :- [T]
   [conn <- :wat::sqlite::Connection  e <- :wat::sqlite::Error]
-  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  -> (:wat::core::Result :- [:T :wat::sqlite::Error])
   (:wat::core::if (:wat::sqlite::autocommit? conn)
     (:wat::core::Err e)
     (:wat::core::match (:wat::sqlite::rollback conn)
@@ -86,9 +86,9 @@
           (:wat::query::Store::PutResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))))
 
 (:wat::core::defn :wat::query::delete-response
-  [r <- (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])] -> :wat::query::Store::DeleteResponse
+  [r <- (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])] -> :wat::query::Store::DeleteResponse
   (:wat::core::match r
-    ((:wat::core::Ok _) (:wat::query::Store::DeleteResponse::Success))
+    ((:wat::core::Ok n) (:wat::query::Store::DeleteResponse::Success n))
     ((:wat::core::Err e)
       (:wat::core::match e
         ((:wat::sqlite::Error::Transient f)
@@ -336,24 +336,30 @@
 (:wat::core::defn :wat::query::delete-one-key
   [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :- [:wat::core::String])
    key <- :wat::query::Key]
-  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  -> (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])
   (:wat::core::let
     [pk (:wat::query::Key/pk key)
      sk (:wat::query::Key/sk key)
      key-params (:wat::core::Vector :- [:wat::sqlite::Param] (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk))]
     (:wat::core::match (:wat::sqlite::execute conn "DELETE FROM main WHERE pk=? AND sk=?" key-params)
       ((:wat::core::Err e) (:wat::core::Err e))
-      ((:wat::core::Ok _) (:wat::query::clear-index-projections conn index-names pk sk)))))
+      ((:wat::core::Ok n)
+        (:wat::core::match (:wat::query::clear-index-projections conn index-names pk sk)
+          ((:wat::core::Err e) (:wat::core::Err e))
+          ((:wat::core::Ok _) (:wat::core::Ok n)))))))
 
 (:wat::core::defn :wat::query::delete-rows
   [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :- [:wat::core::String])
    keys <- (:wat::core::Vector :- [:wat::query::Key])]
-  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
+  -> (:wat::core::Result :- [:wat::core::i64 :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? keys)
-    (:wat::core::Ok nil)
+    (:wat::core::Ok 0)
     (:wat::core::match (:wat::query::delete-one-key conn index-names (:wat::core::first keys))
       ((:wat::core::Err e) (:wat::core::Err e))
-      ((:wat::core::Ok _) (:wat::query::delete-rows conn index-names (:wat::core::rest keys))))))
+      ((:wat::core::Ok n)
+        (:wat::core::match (:wat::query::delete-rows conn index-names (:wat::core::rest keys))
+          ((:wat::core::Err e) (:wat::core::Err e))
+          ((:wat::core::Ok m) (:wat::core::Ok (:wat::i64::+ n m))))))))
 
 ;; ─── the sqlite-store' SERVICE — an actor owning a thread-local Connection ──────────────────────
 ;; durable = `path` + the declared `index-names` (the clear step needs the full GSI set — see the
@@ -426,9 +432,9 @@
             ((:wat::core::Ok _)
               (:wat::core::match (:wat::query::delete-rows conn names keys)
                 ((:wat::core::Err e) (:wat::query::close-then-err conn e))
-                ((:wat::core::Ok _)
+                ((:wat::core::Ok n)
                   (:wat::core::match (:wat::sqlite::commit conn)
-                    ((:wat::core::Ok _) (:wat::core::Ok nil))
+                    ((:wat::core::Ok _) (:wat::core::Ok n))
                     ((:wat::core::Err e) (:wat::query::close-then-err conn e)))))))]
        (:wat::service::Outcome::Continue s (:wat::core::Some (:wat::query::Store::Reply::Delete (:wat::query::delete-response chained))) (:wat::core::Vector :- [(:wat::service::Directed :- [:wat::query::Store::Reply])]) (:wat::core::Vector :- [(:wat::service::Alarm :- [:wat::query::sqlite-store::Op])]))))
 
