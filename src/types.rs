@@ -2029,6 +2029,39 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::service::GateOutcome — excursus 001 the-gate-outcome-outlives-its-file.
+    // Registered here so wat/capability.wat (stdlib position 20) can name it;
+    // the defenum lived in wat/service.wat (position 35). Name kept. Pure, no
+    // type params, field-for-field with the deleted defenum.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::service::GateOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            // `:Applied []` in the deleted defenum — parse_defenum treats a
+            // following Vector as Tagged, even when empty. Unit would reject
+            // the existing `(GateOutcome::Applied)` ctor/match spelling.
+            EnumVariant::Tagged {
+                name: "Applied".into(),
+                fields: vec![],
+            },
+            EnumVariant::Tagged {
+                name: "Gone".into(),
+                fields: vec![(
+                    "cause".into(),
+                    TypeExpr::Path(":wat::kernel::LociDiedError".into()),
+                )],
+            },
+            EnumVariant::Tagged {
+                name: "GaveUp".into(),
+                fields: vec![
+                    ("waited-ms".into(), TypeExpr::Path(":wat::core::i64".into())),
+                    ("last".into(), TypeExpr::Path(":wat::core::String".into())),
+                ],
+            },
+        ],
+    }));
+
     // :wat::kernel::TrySendOutcome — Arc 278 the send'-outcome wall Phase 3a
     // (BRIEF-send-wall-3a-try-send-outcome.md): `try-send'`'s OWN outcome type,
     // sibling to SendOutcome, NOT a reuse. `try-send'` is NON-BLOCKING, so it has

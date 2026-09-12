@@ -3687,9 +3687,9 @@
                          (:wat::string::interpolate "{b}::Handle/addr" :b fqdn-base))
      grantable-extend `(:wat::core::extend-type ~handle-bare-name :wat::capability::Capability
                          (grant  [~grantable-self-sym ~grantable-pids-sym]
-                           (:wat::service::require-granted (~grant-call-name  ~grantable-self-sym ~grantable-pids-sym)))
+                           (~grant-call-name  ~grantable-self-sym ~grantable-pids-sym))
                          (revoke [~grantable-self-sym ~grantable-pids-sym]
-                           (:wat::service::require-granted (~revoke-call-name ~grantable-self-sym ~grantable-pids-sym)))
+                           (~revoke-call-name ~grantable-self-sym ~grantable-pids-sym))
                          (coordinate [~grantable-self-sym]
                            (:wat::core::ann-form (~handle-addr-name ~grantable-self-sym) :wat::kernel::Address)))
 
@@ -3865,11 +3865,9 @@
 ;; Applied is the gate change (ack received, or the thread-tier handle IS the
 ;; grant). Gone is a peer that is actually gone. GaveUp is alive-and-silent.
 ;; Not StopOutcome :- [nil]: that would name a grant's success Stopped.
-(:wat::core::defenum :wat::service::GateOutcome :wat::enum::Pure
-  :Applied []
-  :Gone    [cause     <- :wat::kernel::LociDiedError]
-  :GaveUp  [waited-ms <- :wat::core::i64
-            last      <- :wat::core::String])
+;; GateOutcome itself is Rust-registered in src/types.rs (capability.wat loads
+;; before this file and must name it). require-granted / gate-faced stay here
+;; as a caller's choice.
 
 ;; require-granted — call-site choice: the gate must have applied; a failure
 ;; is a defect HERE. Shared by grant and revoke (both return GateOutcome).

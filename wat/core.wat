@@ -1260,7 +1260,7 @@
                                          (:wat::string::concat ":"
                                            (:wat::string::concat grant-handles-ty-str
                                              (:wat::string::concat "/" fname-str))))
-                            call-form  `(:wat::capability::TypedCapability/grant (~acc-kw ~gw-handles-sym) (:wat::core::Vector :- [:wat::core::i64] ~gw-pid-sym))]
+                            call-form  `(:wat::core::match (:wat::capability::TypedCapability/grant (~acc-kw ~gw-handles-sym) (:wat::core::Vector :- [:wat::core::i64] ~gw-pid-sym)) ((:wat::service::GateOutcome::Applied) nil) ((:wat::service::GateOutcome::Gone cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)) ((:wat::service::GateOutcome::GaveUp waited last) (:wat::kernel::assertion-failed! last :wat::core::None :wat::core::None)))]
                            (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
                        (:wat::core::Vector :- [:wat::WatAST])
                        (:wat::core::range 0 n-kw-fields))
@@ -1277,7 +1277,7 @@
                                           (:wat::string::concat ":"
                                             (:wat::string::concat grant-handles-ty-str
                                               (:wat::string::concat "/" fname-str))))
-                             call-form  `(:wat::capability::TypedCapability/revoke (~acc-kw ~gw-handles-sym) (:wat::core::Vector :- [:wat::core::i64] ~gw-pid-sym))]
+                             call-form  `(:wat::core::match (:wat::capability::TypedCapability/revoke (~acc-kw ~gw-handles-sym) (:wat::core::Vector :- [:wat::core::i64] ~gw-pid-sym)) ((:wat::service::GateOutcome::Applied) nil) ((:wat::service::GateOutcome::Gone cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)) ((:wat::service::GateOutcome::GaveUp waited last) (:wat::kernel::assertion-failed! last :wat::core::None :wat::core::None)))]
                             (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
                         (:wat::core::Vector :- [:wat::WatAST])
                         (:wat::core::range 0 n-kw-fields))

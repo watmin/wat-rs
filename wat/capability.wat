@@ -12,12 +12,12 @@
 ;; Capability])` of different services' Handles be grant/revoke'd UNIFORMLY, AND dialed
 ;; uniformly — `coordinate` hands back the handle's dial address as a bare
 ;; :wat::kernel::Address', so ONE vector of handles carries both grant and dial. grant/revoke
-;; return nil (the extend-type faces GateOutcome via require-granted; this file loads
-;; before service.wat and cannot name that type). coordinate returns the bare address.
+;; return :wat::service::GateOutcome (Rust-registered so this file can name it despite
+;; loading before service.wat). coordinate returns the bare address.
 (:wat::core::defsurface :wat::capability::Capability :nature :wat::core::Struct
   :features
-  [(grant      [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
-   (revoke     [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
+  [(grant      [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::service::GateOutcome)
+   (revoke     [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::service::GateOutcome)
    (coordinate [self <- :wat::capability::Capability] -> :wat::kernel::Address)])
 
 ;; `as-capability` (arc 170 N-service kwargs stone) — RETIRED. It forced a Handle's
@@ -66,5 +66,5 @@
 (:wat::core::defsurface :wat::capability::TypedCapability :- [S R] :nature :wat::core::Struct
   :features
   [(coord  [self <- (:wat::capability::TypedCapability :- [S R])] -> (:wat::kernel::Address :- [S R]))
-   (grant  [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)
-   (revoke [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)])
+   (grant  [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::service::GateOutcome)
+   (revoke [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::service::GateOutcome)])

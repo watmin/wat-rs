@@ -75,3 +75,36 @@ dropped or loosened, grep the tree for a prior ruling on that field.
 moved is STALENESS. Recapture it and KEEP PINNING IT. What survives from the observation above is only
 this — the recapture is mechanical and must be VERIFIED, not rebaselined blind: confirm the new line is
 the same `rust_caller_span!()` call site in the same file, and that only its position moved.
+
+---
+
+## ⭑ 2026-09-12 — IT IS NOT ONLY RUST. `wat/core.wat` HAS THE SAME PIN, AND IT IS INVISIBLE.
+
+Second occurrence, in `docs/excursus/2026/08/001-sns-sqs/the-gate-outcome-outlives-its-file/`. A stone
+needed **two lines** changed in `wat/core.wat` — the generated `grant-worker`/`revoke-worker` had to face
+a `GateOutcome` instead of `nil`. Adding lines to do it broke **five EDN goldens**:
+
+```
+     Summary [ 516.306s] 5237 tests run: 5232 passed, 5 failed, 22 skipped
+arms: probe_arc249_threading · probe_arc258_stone2b_macro_error · two probe_arc279_format
+      · wat_core_cond::cond_refuses_missing_else
+cause: :file "wat/core.wat" :line 1430 — :wat::core::first: WatAST List has 0 child(ren)
+```
+
+★ **The goldens were NOT patched.** The fix was to restore HEAD's exact line count — **2152 lines, before
+and after** — by putting the new `match` *inline* on the two existing `call-form` lines. Two insertions,
+two deletions, same total. That is the right call and it is also the whole problem:
+
+⛔ **`wat/core.wat` now carries an undocumented constraint: you may not change its line count.** Nothing
+in the file says so. Nothing in the goldens says which file they pin. A future edit that adds a blank
+line — or a reformat, or a comment — reds five tests whose names mention *threading*, *format* and
+*cond*, none of which sound like `core.wat` at all.
+
+★★ And note the asymmetry that makes it worse than the Rust case above: `wat/core.wat` is **stdlib
+manifest position 0**, the first file loaded and the one most likely to need a macro touched. The file
+most exposed to edits is the one most tightly pinned.
+
+**What would fix the class** (unchanged from the Rust half of this note, and now with a second corpus to
+argue it): a golden that needs a location should pin a **symbol or a form**, not a line. Until then, the
+cheap mitigation is a comment at the top of `wat/core.wat` saying its line count is load-bearing and
+which tests enforce it — because the next person to learn this will learn it from five unrelated reds.
