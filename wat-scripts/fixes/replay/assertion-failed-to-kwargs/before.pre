@@ -4,3 +4,12 @@
 (:wat::test::deftest :user::failing 
   (:wat::kernel::assertion-failed! "DEFTEST-FAIL-SENTINEL" :wat::core::None :wat::core::None))
 
+; near-miss: already-kwargs stays (header: first arg already a keyword is left)
+(:wat::core::defn :u::keep [] -> :wat::core::nil
+  (:wat::kernel::assertion-failed! :message "already-kwargs"))
+
+;; history: tests/comms/probe_arc209_structured_peer_death.wat at de2d9092a
+(:wat::core::defn :u::die [] -> :wat::core::nil
+  (:wat::kernel::assertion-failed! "structured-death-marker"
+     (:wat::core::Some "ACTUAL-42173")
+     (:wat::core::Some "EXPECTED-99731")))

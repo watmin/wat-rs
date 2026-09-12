@@ -85,7 +85,6 @@ const FROZEN_LEDGER: &[(&str, &str)] = &[
     ("unignore-arc170-concurrency", "stone 0b: fixture pending"),
     ("unstamp-transport-wire", "stone 0b: fixture pending"),
     ("unwrap-recvoutcome-false-positive", "stone 0b: fixture pending"),
-    ("variant-vector-to-tagged-map", "stone 0b: identity rewrite — header: no wat tagged-literal form; non-vacuous fixture would require STOP-1"),
     ("wrap-client-method-match-in-recvoutcome", "stone 0b: fixture pending"),
     ("wrap-connect-prime-in-connectoutcome", "stone 0b: fixture pending"),
 ];

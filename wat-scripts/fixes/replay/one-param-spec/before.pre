@@ -3,3 +3,19 @@
   (:wat::core::>
     (:wat::core::Vector :wat::core::i64 5)
     (:wat::core::Vector :wat::core::i64 1)))
+
+;; history: tests/collection/probe_arc216_stone3_hashmap_roundtrip.wat at 919a551ce — BARE keyword HashMap
+(:wat::core::defn :t::p3a-empty-rt-forward [] -> :wat::core::i64
+  (:wat::core::let
+    [m  (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+     h  (:wat::holon::to-holon m)
+     rv (:wat::holon::from-holon h)]
+    (:wat::hashmap::length rv)))
+
+;; history: body of wat-scripts/scratch-pad/arc109-tuple-bracket-reader.wat :user::nested at 919a551ce
+;; (return type omitted: today's tool also rewrites unmarked wat.type/Vector brackets, the landing did not)
+; near-miss: already-marked Vector stays
+(:wat::core::defn :user::keep [] -> :wat::core::nil
+  (:wat::core::Vector :- [:wat::core::i64] 0))
+(:wat::core::defn :user::nested [] -> :wat::core::nil
+  (:wat::core::Tuple (:wat::core::Vector [:wat::core::i64] 1 2) "s"))

@@ -2,5 +2,10 @@
   :Circle [r <- :wat::core::i64]
   :Dot [])
 
+; near-miss: already-map ctor stays (header: a single Map argument is already migrated)
+(:wat::core::defn :user::keep [] -> :wat::core::nil
+  (:wat::kernel::println (:usr::Shape::Circle {:r 1})))
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:usr::Shape::Dot)))
+  (:wat::kernel::println (:usr::Shape::Dot))
+  (:wat::kernel::println (:usr::Shape::Circle 2)))

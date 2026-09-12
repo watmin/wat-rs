@@ -25,3 +25,10 @@
     (:wat::core::match (:wat::eval-ast! program)
       ((:wat::core::Ok _) nil)
       ((:wat::core::Err _) nil))))
+
+;; spec (header: Some → :wat::core::Some). Landing e9ff4fee4 rewrote 0 Some sites
+;; (where-control.wat's site is a comment). Near-miss: already-keyword :wat::core::Some stays.
+(:wat::core::defn :u::some [x <- :wat::core::i64] -> :wat::core::nil
+  (:wat::core::match x
+    ((:wat::core::Some _) nil)
+    ((:wat::core::Some _) nil)))

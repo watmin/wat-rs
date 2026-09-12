@@ -8,3 +8,10 @@
 (:wat::core::defn :fix::hb [x <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match x
     [n n] [_ 0]))
+(:wat::core::defenum :usr::E :wat::enum::Pure
+  :Variant [a <- :wat::core::i64 b <- :wat::core::i64]
+  :Unit [])
+(:wat::core::defn :fix::mv [x <- :usr::E] -> :wat::core::i64
+  (:wat::core::match x
+    [:usr::E::Variant {:a a :b b} a]
+    [:usr::E::Unit {} 0]))

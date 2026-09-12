@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/tuple-parens-to-binder.wat — arc 109 "the comma dies in the reader" cascade.
+;; SCOPE: wat-scripts/ wat-tests/ tests/
 ;;
 ;; Rewrites the retired `:(A,B,C)` tuple-literal keyword shape into the `:-` binder / reference
 ;; spelling already live in the stdlib (`wat/bracket.wat`, `wat/spawn.wat` use
@@ -24,7 +25,7 @@
 ;; tuple element's own `<...>`/`(...)` is not mistaken for a top-level separator) — never a call
 ;; through `read-string` or any other walled door.
 ;;
-;; SCOPE: only `:(` keyword bodies (colon DIRECTLY followed by an open paren) with a TOP-LEVEL
+;; Only `:(` keyword bodies (colon DIRECTLY followed by an open paren) with a TOP-LEVEL
 ;; comma inside are rewritten. `:()` (unit/empty tuple) and `:(T)` (single-element, no comma) are
 ;; UNTOUCHED — they never used the retired comma permission, so the wall never touched them
 ;; (additive-refusal only, brief STOP-2). `:fn(...)`/`:wat::core::Fn(...)` function-type keywords

@@ -8,3 +8,19 @@
     (:wat::kernel::println
       (:wat::string::concat (:wat::edn::write pr)
         (:wat::string::concat " " (:wat::edn::write tr))))))
+
+;; history: wat-scripts/scratch-pad/arc109-2iii-fn-bracket-destinations.wat at 74b8d4df8
+(:wat::core::defn :user::rung-tuple
+  [t <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
+  (:wat::core::tuple-get t 0))
+
+; near-miss: tuple-get with a non-zero literal index is left (header: first is only the successor for index 0)
+(:wat::core::defn :user::keep-nonzero
+  [t <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
+  (:wat::core::tuple-get t 1))
+
+;; history: wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat at 74b8d4df8
+(:wat::core::defn :bench::via-walk [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+  (:wat::core::reduce-walk (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
+                             (:wat::i64::+ acc x))
+    0 (:wat::core::Seqable/seq v)))
