@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-call-ctx-to-invocation.wat — arc 278: the call context gets its ratified name.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; Renames the per-dispatch context record from its PLACEHOLDER name to the ratified one:

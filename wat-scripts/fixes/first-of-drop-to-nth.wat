@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/first-of-drop-to-nth.wat — stone 118.B4-ii: the `nth` fold.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat — wat rewrites wat.
 ;;
 ;; B4-i widened `nth` to (Seqable :- [T]) (arc 118) so it now covers every receiver the old

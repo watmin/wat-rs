@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/reclaim-ipc-prime-names.wat — arc 278 "0z": the IPC/kernel primes reclaim
+;; SCOPE: corpus
 ;; their plain names. Every non-prime counterpart is annihilated and PROVEN dead (each exits 1
 ;; with UnknownFunction on a real run; the whole-tree sweep reads zero across src/ and corpus).
 ;;

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/mandate-request-malformed.wat — arc 278 Stone 2 (ANNIHILATE the knob) migration.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;
@@ -132,7 +133,7 @@
             (:wat::core::Tuple (:user::end-off fv lines) ""
               (:wat::string::concat "\n"
                 (:wat::string::concat (:user::spaces (:wat::core::- (:user::col-of kw) 1))
-                  ":RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String]"))))
+                  ":RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String]"))))
           (:user::no-edits)))
       (:user::no-edits))))
 

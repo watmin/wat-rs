@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/kill-make-deftest.wat — arc 278, the make-deftest annihilation (class-1).
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat — wat rewrites wat.
 ;;
 ;; After the prelude slot was annihilated (drop-deftest-prelude.wat), the

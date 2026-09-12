@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/deprime-telemetry-sqlite.wat — Stone C / STRIKE C3 de-prime,
+;; SCOPE: corpus
 ;; run over real wat source files IN WAT, through the wat CLI. The migration tool,
 ;; self-hosted: no Rust harness, no hand-edit of wat source (use-the-tool, not hand-fix).
 ;;

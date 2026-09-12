@@ -1,0 +1,5 @@
+; near-miss: match without ascription stays
+(:wat::core::defn :u::keep [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match x (n n) (_ 0)))
+(:wat::core::defn :u::hit [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match x -> :wat::core::i64 (n n) (_ 0)))

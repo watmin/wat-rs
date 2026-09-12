@@ -1,0 +1,4 @@
+; near-miss: a main with a non-nil body stays
+(:wat::core::defn :user::keep [] -> :wat::core::nil (:wat::kernel::println "x"))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+(:wat::core::defn :t::other [] -> :wat::core::i64 1)

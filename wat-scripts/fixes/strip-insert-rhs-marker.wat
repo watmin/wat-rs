@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/strip-insert-rhs-marker.wat — arc 278 Stone A
+;; SCOPE: corpus
 ;; (DESIGN-STONE-then-is-a-vector-of-singular-facts.md / BRIEF-then-vector-migration.md),
 ;; second pass: the RHS-marker `(:wat::rete::insert <fact>)` (exactly 2 children) also appears
 ;; OUTSIDE `defrule` — hand-built `Rule` literals constructed via `quote`/`quasiquote` (perf-grid

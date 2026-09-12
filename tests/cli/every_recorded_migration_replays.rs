@@ -21,69 +21,24 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const FROZEN_LEDGER: &[(&str, &str)] = &[
-    ("address-transport-arity", "stone 0b: fixture pending"),
-    ("angle-brackets-to-binder", "stone 0b: fixture pending"),
-    ("caller-to-emitted-from", "stone 0b: fixture pending"),
-    ("declare-max-request-bytes", "stone 0b: fixture pending"),
-    ("defrule-then-to-vector", "stone 0b: fixture pending"),
-    ("deprime-telemetry-sqlite", "stone 0b: fixture pending"),
-    ("drop-deftest-prelude", "stone 0b: fixture pending"),
-    ("drop-env-wat-dot-prefix", "stone 0b: fixture pending"),
-    ("eprintln-recv-arm-to-assertion-failed", "stone 0b: fixture pending"),
     ("face-underscore-bound-send-prime", "stone 0b: fixture pending"),
-    ("first-of-drop-to-nth", "stone 0b: fixture pending"),
     ("fix-macro-param-types", "stone 0b: fixture pending"),
-    ("inline-constraint-per-type-spelling", "stone 0b: fixture pending"),
-    ("kill-make-deftest", "stone 0b: fixture pending"),
     ("mandate-invocation-ctx-param", "stone 0b: fixture pending"),
-    ("mandate-request-malformed", "stone 0b: fixture pending"),
-    ("move-deftest-callers-to-prime", "stone 0b: fixture pending"),
-    ("move-deftest-hermetic-callers-to-prime", "stone 0b: fixture pending"),
     ("namespace-bare-top-level-names", "stone 0b: fixture pending"),
     ("namespace-defrule-names", "stone 0b: fixture pending"),
-    ("parametrics-take-a-type-vector", "stone 0b: fixture pending"),
-    ("positional-to-kwargs", "stone 0b: fixture pending"),
     ("query-answers-are-maps", "stone 0b: fixture pending"),
-    ("read-string-to-outcome", "stone 0b: fixture pending"),
-    ("readln-to-outcome", "stone 0b: fixture pending"),
-    ("reclaim-deftest-names", "stone 0b: fixture pending"),
-    ("reclaim-hologram-find-name", "stone 0b: fixture pending"),
-    ("reclaim-ipc-prime-names", "stone 0b: fixture pending"),
-    ("reclaim-service-fixture-names", "stone 0b: fixture pending"),
-    ("reclaim-stdio-prime-names", "stone 0b: fixture pending"),
-    ("rehead-rete-callees", "stone 0b: fixture pending"),
-    ("rename-call-ctx-to-invocation", "stone 0b: fixture pending"),
-    ("rename-diederror-to-loci-died-error", "stone 0b: fixture pending"),
-    ("rename-kernel-to-spawn", "stone 0b: fixture pending"),
-    ("rename-list-to-seq", "stone 0b: fixture pending"),
-    ("rename-locidiederror-shutdown-to-stopped", "stone 0b: fixture pending"),
-    ("rename-record-def-to-defrecord", "stone 0b: fixture pending"),
-    ("rename-seq-fold-aliases-to-core-reduce", "stone 0b: fixture pending"),
-    ("rename-sourcefile-to-source-file", "stone 0b: fixture pending"),
     ("rename-wat-record-to-core-record", "stone 0b: fixture pending"),
-    ("rename-wat-tests-std-to-wat-tests", "stone 0b: fixture pending"),
-    ("response-record-to-enum", "stone 0b: fixture pending"),
     ("retarget-peer-purity-probes", "stone 0b: fixture pending"),
     ("rete-oracle-sigil", "stone 0b: fixture pending"),
-    ("rete-where-per-type-spelling", "stone 0b: fixture pending"),
     ("rule-record-to-defrule", "stone 0b: fixture pending"),
     ("service-locus-to-user-rendezvous", "stone 0b: fixture pending"),
-    ("spawn-program-to-test-spawn-peer", "stone 0b: fixture pending"),
     ("stdin-frame-vocabulary", "stone 0b: fixture pending"),
-    ("strip-expect-ascription", "stone 0b: fixture pending"),
-    ("strip-insert-rhs-marker", "stone 0b: fixture pending"),
-    ("strip-match-ascription", "stone 0b: fixture pending"),
-    ("strip-useless-mains", "stone 0b: fixture pending"),
     ("struct-new-failure-to-message-only-failure", "stone 0b: fixture pending"),
     ("sweep-lint-fixes", "stone 0b: fixture pending"),
-    ("timer-prime-to-peer-prime", "stone 0b: fixture pending"),
     ("to-faithful-clojure", "stone 0b: fixture pending"),
-    ("to-faithful-clojure-net", "stone 0b: ROTTED — rete where-fence refuses a user fn (:fix::has-ns? / :fix::head-keyword-str?), rc=2"),
-    ("to-faithful-clojure-rete", "stone 0b: ROTTED — rete where-fence refuses a user fn (:fix::has-ns? / :fix::head-keyword-str?), rc=2"),
-    ("tuple-parens-to-binder", "stone 0b: fixture pending"),
+    ("to-faithful-clojure-net", "stone 0b: ROTTED — rete where-fence refuses a user fn (:fix::has-ns? / :fix::type-shaped?), rc=2"),
+    ("to-faithful-clojure-rete", "stone 0b: ROTTED — rete where-fence refuses a user fn (:fix::head-keyword-str?), rc=2"),
     ("type-query-to-defquery", "stone 0b: fixture pending"),
-    ("unignore-arc170-concurrency", "stone 0b: fixture pending"),
-    ("unstamp-transport-wire", "stone 0b: fixture pending"),
     ("unwrap-recvoutcome-false-positive", "stone 0b: fixture pending"),
     ("wrap-client-method-match-in-recvoutcome", "stone 0b: fixture pending"),
     ("wrap-connect-prime-in-connectoutcome", "stone 0b: fixture pending"),
@@ -328,10 +283,13 @@ fn replay_one(stem: &str) -> Option<String> {
 }
 
 fn replay_fixtures_shard(shard: usize) {
-    let stems = fixture_stems();
+    let stems: Vec<String> = fixture_stems()
+        .into_iter()
+        .filter(|s| s != "positional-ctor-to-map")
+        .collect();
     let mut failures = Vec::new();
     for (i, stem) in stems.iter().enumerate() {
-        if i % 8 != shard {
+        if i % 16 != shard {
             continue;
         }
         if let Some(e) = replay_one(stem) {
@@ -362,6 +320,21 @@ replay_shard!(every_recorded_migration_replays_shard_4, 4);
 replay_shard!(every_recorded_migration_replays_shard_5, 5);
 replay_shard!(every_recorded_migration_replays_shard_6, 6);
 replay_shard!(every_recorded_migration_replays_shard_7, 7);
+replay_shard!(every_recorded_migration_replays_shard_8, 8);
+replay_shard!(every_recorded_migration_replays_shard_9, 9);
+replay_shard!(every_recorded_migration_replays_shard_10, 10);
+replay_shard!(every_recorded_migration_replays_shard_11, 11);
+replay_shard!(every_recorded_migration_replays_shard_12, 12);
+replay_shard!(every_recorded_migration_replays_shard_13, 13);
+replay_shard!(every_recorded_migration_replays_shard_14, 14);
+replay_shard!(every_recorded_migration_replays_shard_15, 15);
+
+#[test]
+fn every_recorded_migration_replays_positional_ctor() {
+    if let Some(e) = replay_one("positional-ctor-to-map") {
+        panic!("{e}");
+    }
+}
 
 #[test]
 fn every_recorded_migration_is_fixtured_ledgered_or_runed() {

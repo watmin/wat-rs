@@ -1,0 +1,4 @@
+; near-miss: Record type / of / field-at stay (header: only ::def moves)
+(:wat::core::defn :u::t [] -> :wat::core::Record nil)
+(:wat::core::Record::def :u::R :x :wat::core::i64)
+(:wat::holon::Record::def :u::H :x :wat::core::i64)

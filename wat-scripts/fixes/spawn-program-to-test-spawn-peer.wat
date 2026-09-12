@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/spawn-program-to-test-spawn-peer.wat — the arc-170 #13 IPC wall
+;; SCOPE: corpus
 ;; migration, run over real wat source files IN WAT, through the wat CLI. The migration
 ;; tool, self-hosted: no Rust harness, no hand-edit of wat source (use-the-tool, not
 ;; hand-fix).

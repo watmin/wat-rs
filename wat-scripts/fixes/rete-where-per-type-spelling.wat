@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rete-where-per-type-spelling.wat — arc 278 #57 S6, the law-A migration.
+;; SCOPE: corpus
 ;;
 ;; "The entire rete query language may only be composed from rete primitives." — the builder
 ;;

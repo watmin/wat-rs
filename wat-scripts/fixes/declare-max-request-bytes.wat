@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/declare-max-request-bytes.wat — arc 278 #16 Stone 16.3 migration codemod.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

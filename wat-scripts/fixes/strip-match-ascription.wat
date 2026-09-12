@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/strip-match-ascription.wat — the `-> :T` annihilation codemod for
+;; SCOPE: corpus
 ;; `match`, run over real wat source IN WAT, through the CLI. Self-hosted migration tool;
 ;; kept for future readers.
 ;;

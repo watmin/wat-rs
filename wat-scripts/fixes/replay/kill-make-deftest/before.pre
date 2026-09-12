@@ -1,0 +1,3 @@
+; near-miss: already deftest' stays
+(:wat::test::deftest' :u::keep nil)
+(:deftest :u::hit nil)

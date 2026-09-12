@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-diederror-to-loci-died-error.wat — arc 278 the LociDiedError stone.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

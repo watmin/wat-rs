@@ -1,0 +1,5 @@
+; near-miss: unrelated ignore reason stays
+(:wat::test::ignore "296-recapture-pending: lint-stdlib times out (>5s) after stone B")
+(:wat::test::deftest' :u::keep nil)
+
+(:wat::test::deftest' :u::hit nil)

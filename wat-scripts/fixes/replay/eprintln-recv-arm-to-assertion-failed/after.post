@@ -1,0 +1,7 @@
+; near-miss: eprintln with a non-wall arg stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil
+  (:wat::kernel::eprintln "dying…"))
+(:wat::core::defn :u::lost [] -> :wat::core::nil
+  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+(:wat::core::defn :u::closed [] -> :wat::core::nil
+  (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))

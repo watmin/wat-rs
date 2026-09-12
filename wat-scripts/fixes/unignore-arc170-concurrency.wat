@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/unignore-arc170-concurrency.wat — lift the arc-170 concurrency
+;; SCOPE: corpus
 ;; suppression. Self-hosted fix-wat codemod: no hand-editing of .wat — wat rewrites wat.
 ;;
 ;; Deletes, span-faithfully, every top-level

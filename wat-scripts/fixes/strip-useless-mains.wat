@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/strip-useless-mains.wat — codemod: find + remove useless placeholder
+;; SCOPE: corpus
 ;; :main defns from co-located .wat test fixtures. Driven by an EDN vector of .wat paths
 ;; on stdin (the established codemod shape — see sweep-lint-fixes.wat).
 ;;

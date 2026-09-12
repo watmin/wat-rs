@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-locidiederror-shutdown-to-stopped.wat — arc 170 closure item #3.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

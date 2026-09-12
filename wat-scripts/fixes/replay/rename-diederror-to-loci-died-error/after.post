@@ -1,0 +1,4 @@
+; near-miss: already-LociDiedError stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::kernel::LociDiedError)
+(:wat::core::defn :u::a [] -> :wat::core::nil :wat::kernel::LociDiedError)
+(:wat::core::defn :u::b [] -> :wat::core::nil :wat::kernel::LociDiedError)

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/readln-to-outcome.wat — arc 170 closure #24, the readln totality flip.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

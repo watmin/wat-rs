@@ -1,0 +1,3 @@
+; near-miss: other LociDiedError variants stay
+(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::kernel::LociDiedError::Panic)
+(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::kernel::LociDiedError::Stopped)

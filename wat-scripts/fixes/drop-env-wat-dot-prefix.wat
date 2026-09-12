@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/drop-env-wat-dot-prefix.wat — arc 296 stone H-1b, run over real wat source
+;; SCOPE: corpus
 ;; files IN WAT, through the wat CLI. The migration tool, self-hosted: no Rust harness, no
 ;; hand-edit of wat source (use-the-tool, not hand-fix).
 ;;

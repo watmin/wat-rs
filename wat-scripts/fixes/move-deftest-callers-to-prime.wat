@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/move-deftest-callers-to-prime.wat — IPC de-prime batch (core substrate tooling).
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; The harness's "move callers to the prime" step: rewrite the deftest MACRO CALL head to its

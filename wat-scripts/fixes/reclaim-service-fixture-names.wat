@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/reclaim-service-fixture-names.wat — arc 170 SIGNVM TRANSITVS, NON NOMEN:
+;; SCOPE: corpus
 ;; the LEAK swept. 24 test-local service names + 2 test-harness internals wear a `'` with NO
 ;; non-prime anywhere to distinguish from — the mark was COPIED from watching the substrate,
 ;; never decided. A scaffold left standing becomes architecture; this takes it down.

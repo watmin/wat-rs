@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-seq-fold-aliases-to-core-reduce.wat — arc 118.2a.
+;; SCOPE: corpus
 ;;
 ;; The 118.2a NOMINA NOTA, MACHINA TACITA decisions retire the `:wat::seq::` namespace:
 ;; its two aliases (`:wat::seq::reduce` / `:wat::seq::fold`, both -> `:wat::core::foldl`)

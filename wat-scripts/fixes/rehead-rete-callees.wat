@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rehead-rete-callees.wat — arc 278 #88, THE RETE-DEFN MIGRATION.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; Re-heads a NAMED SET of declarations:

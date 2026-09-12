@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/move-deftest-hermetic-callers-to-prime.wat — IPC de-prime batch.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; The hermetic sibling of move-deftest-callers-to-prime.wat: rewrite the

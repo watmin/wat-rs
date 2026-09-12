@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-kernel-to-spawn.wat — the arc-269 spawn-coherence move,
+;; SCOPE: corpus
 ;; run over real wat source files IN WAT, through the wat CLI. The migration tool,
 ;; self-hosted: no Rust harness, no hand-edit of wat source (use-the-tool, not hand-fix).
 ;;

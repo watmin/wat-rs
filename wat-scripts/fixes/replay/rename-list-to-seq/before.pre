@@ -1,0 +1,3 @@
+; near-miss: :wat::seq already-home stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil (:wat::seq::first [1]))
+(:wat::core::defn :u::hit [] -> :wat::core::nil (:wat::list::first [1]))

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/caller-to-emitted-from.wat — arc 278 caller.2 migration codemod.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

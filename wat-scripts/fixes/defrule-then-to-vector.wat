@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/defrule-then-to-vector.wat — arc 278 Stone A
+;; SCOPE: corpus
 ;; (DESIGN-STONE-then-is-a-vector-of-singular-facts.md / BRIEF-then-vector-migration.md).
 ;;
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — wat rewrites wat.

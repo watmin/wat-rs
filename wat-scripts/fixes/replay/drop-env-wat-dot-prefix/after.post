@@ -1,0 +1,3 @@
+; near-miss: user-data already-new stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil :user-data)
+(:wat::core::defn :u::hit [] -> :wat::core::nil :started-at)

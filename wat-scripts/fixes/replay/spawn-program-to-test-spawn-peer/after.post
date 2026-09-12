@@ -1,0 +1,3 @@
+; near-miss: spawn-peer already-home stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::test::spawn-peer)
+(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::test::spawn-peer)

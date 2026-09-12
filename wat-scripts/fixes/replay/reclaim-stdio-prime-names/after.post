@@ -1,0 +1,5 @@
+; near-miss: already-deprimed stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::kernel::StdOut)
+(:wat::core::defn :u::a [] -> :wat::core::nil :wat::kernel::StdOut)
+(:wat::core::defn :u::b [] -> :wat::core::nil :wat::kernel::StdErr)
+(:wat::core::defn :u::c [] -> :wat::core::nil :wat::kernel::StdIn)

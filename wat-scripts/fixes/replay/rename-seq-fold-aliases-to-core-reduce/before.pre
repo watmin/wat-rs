@@ -1,0 +1,7 @@
+; near-miss: already-core reduce stays
+(:wat::core::defn :u::keep [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+  (:wat::core::reduce (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ a b)) 0 xs))
+(:wat::core::defn :u::a [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+  (:wat::seq::reduce (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ a b)) 0 xs))
+(:wat::core::defn :u::b [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
+  (:wat::seq::fold (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ a b)) 0 xs))

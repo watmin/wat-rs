@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-record-def-to-defrecord.wat — arc 293.2-rename: Record::def reaches final names.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; Renames the aggregate-trio record macro heads to their final canonical forms:

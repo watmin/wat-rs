@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/eprintln-recv-arm-to-assertion-failed.wat — arc 278 the eprintln annihilation.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

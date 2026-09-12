@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/reclaim-hologram-find-name.wat — arc 278, the `Hologram/find'` name reclamation,
+;; SCOPE: corpus
 ;; run over real wat source files IN WAT, through the wat CLI. Self-hosted: no Rust harness, no
 ;; hand-edit of wat source (use-the-tool, not hand-fix).
 ;;

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/strip-expect-ascription.wat — the `-> :T` annihilation codemod
+;; SCOPE: corpus
 ;; for Option/expect + Result/expect, run over real wat source IN WAT, through the CLI.
 ;; The migration tool, self-hosted (use-the-tool, not hand-fix); kept for future readers.
 ;;

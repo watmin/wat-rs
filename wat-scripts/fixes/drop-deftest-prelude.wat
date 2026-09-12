@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/drop-deftest-prelude.wat — arc 278, the prelude annihilation (class-1).
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat — wat rewrites wat.
 ;;
 ;; Drops the now-EMPTY `()` prelude slot from every deftest-family call, span-faithfully:

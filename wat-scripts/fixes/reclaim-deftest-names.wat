@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/reclaim-deftest-names.wat — IPC de-prime 0z (name reclaim).
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; The 0z reclaim for the deftest family: after the non-prime deftest /

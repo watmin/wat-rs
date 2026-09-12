@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-list-to-seq.wat — arc 118, the eager-world rename.
+;; SCOPE: corpus
 ;; The eager materialized namespace :wat::list::* graduates to :wat::seq::* (the
 ;; two-world split: :wat::seq::* = EAGER, :wat::stream::* = LAZY single-pass).
 ;; :wat::list::* today is 2 defaliases (reduce/fold -> :wat::core::foldl); they

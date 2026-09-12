@@ -1,4 +1,6 @@
 ;; wat-scripts/fixes/address-transport-arity.wat — 293.W.2f
+;; SCOPE: corpus
+;; rune:replay(unreadable-preimage) — lex error: lex error at byte 51: angle-bracket type parameters are illegal in a name (arc 109, "annihilate the angle bracket"): `<` may not open a type head. `:-` is the ONE parameterization operator — write `(Head :- [A B])` for a type REFERENCE (in parens), `Head :- [A B]` for a BINDER (siblings, no parens), and `(Head :- [A B] v1 v2)` for a constructor. So `(:wat::core::Vector :- [:wat::core::i64])` not `:wat::core::Vector<wat::core::i64>`, and `(mk :- [S R] [args] -> ret)` not `(mk<S,R> [args] -> ret)`. Operator names are unaffected: `:wat::core::<`, `:wat::core::>=`, `<-`, `->` still lex.
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files.
 ;;
 ;; Walks keyword leaves. A `:wat::kernel::Address<…>` / `:wat::spawn::Bound<…>`

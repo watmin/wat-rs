@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/read-string-to-outcome.wat — arc 170, the read-string totality flip.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

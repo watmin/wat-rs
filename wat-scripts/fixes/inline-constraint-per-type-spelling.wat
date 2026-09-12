@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/inline-constraint-per-type-spelling.wat — arc 278 #84, the law-A migration
+;; SCOPE: corpus
 ;; for the INLINE ALPHA CONSTRAINT.
 ;;
 ;; ":wat::core::{=,<,>,...} are illegal — zero questions — enforce it." — the builder

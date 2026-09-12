@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/positional-to-kwargs.wat — arc 294 item 9a migration codemod.
+;; SCOPE: corpus
 ;;
 ;; Migrates positional aggregate construction  (:ns::T a b)  →  kwargs  (:ns::T :f1 a :f2 b)
 ;; across a corpus. Self-hosted, comment-faithful (span inserts via fix-text-apply), reflection-
