@@ -180,7 +180,11 @@ The builder:
      drove the gate red four ways on a different codemod than grok's. The orchestrator also fixed
      two things: the gate's count pins are gone (it freezes names), and the keyword fixture gained
      near-misses.
-   - **0b:** the other 83, the 2 rotted `to-faithful-clojure`, and SCOPE on all.
+   - **0b BRIEFED** (`BRIEF-0b-every-recorded-migration-replays.md`, `EXPECTATIONS-0b.md`):
+     - **batch 1** is the 17 chain codemods plus SCOPE, then grok yields and the orchestrator
+       verifies;
+     - **batch 2** is the other 66, the 2 rotted `to-faithful-clojure` repaired, the
+       unreadable-preimage runes (reproduced, not assumed), SCOPE on all 96, and the ledger deleted.
    - The probes are done: the tracked one in `scratch-pad/`, and end-to-end in `bootstrap/step0-probes/`.
 2. The step script, plus a pilot on the first ~10 code commits: timed, with tricks catalogued.
 3. Stone-sized batches with floor checkpoints. Grok executes; the orchestrator verifies.
