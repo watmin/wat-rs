@@ -79,7 +79,7 @@ codemod. Every acceptance row re-verified by the orchestrator: gate A == B 20/20
 the collision pair no-halt and OLD-identical, ReservedPrefix refused on `:wat::` AND accepted on
 `:u::`. 3.1× on the same 20 files. Option B's halting version is gone.
 
-## ⬜ NEXT — phase 1's SCOPE is a ruling, pending
+## ⬜ NEXT — phase-1 scope RULED (c): resolve a local path only if this file declares it. Briefed, not yet struck.
 
 ```
 A′ on representative phase-1 files (a spread sample of bootstrap/phase1-grok.txt):
