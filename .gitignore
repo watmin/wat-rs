@@ -24,5 +24,22 @@ wat-scripts/hunt/out/
 /.floor/
 
 # arc 278 — preserved pre-change wat binaries for the STASH-DANCE bootstrap
-# (wat/fix.wat:23-53). A 16MB artifact; kept on disk, never committed.
+# (wat/fix.wat:23-53). ~22MB each; kept on disk, never committed.
+#
+# ⛔ THIS ESCAPE HATCH HAS BEEN LOST BEFORE, TWICE. `wat-prekeyword-b472fe3e` (arc 278) was
+#    gone by 2026-09-11; that same day a /tmp copy of main's binary died in a WSL crash.
+#    An ignored directory is not a record. THIS COMMENT is the record — keep it current.
+#
+# CURRENT (2026-09-11): bootstrap/wat-main-a3218644d   (+ .PROVENANCE: commit, sha256)
+#    main a3218644d: floor 5373/5373 green, clippy 0, PUSHED. PROVEN: converts a pre-flip
+#    file where the merge-branch binary dies at startup (merged stdlib fails its purity gate).
+#    Its stdlib is frozen in at build time, so it runs codemods against ANY working tree.
+#
+# REBUILD: git checkout <green-pushed-commit> && cargo build --release && confirm the
+#    binary's mtime MOVED (a failed build leaves the previous binary in place — copying it
+#    preserves the WRONG one) && cp target/release/wat bootstrap/wat-main-<commit>.
+#    Never overwrite. Add new versions alongside.
+#
+# bootstrap/pctm-gate/{orig,A,B} — 20-file regression set for positional-ctor-to-map
+#    (A == B byte-identical; costs ~19 min of the old codemod to regenerate).
 bootstrap/
