@@ -74,8 +74,8 @@ estimate that number with grep.
 ## ⬜ IN FLIGHT — A′: `positional-ctor-to-map` resolves reserved names ONCE
 
 Per file, it `eval-with-defs!`s every candidate enum path against that file's decls — and
-discards the memo. **Ruled A′ (builder, 2026-09-11):** reserved names (`RESERVED_PREFIXES`,
-`src/resolve/reserved.rs:14`) resolve ONCE and are cached across files — honest BY CONSTRUCTION,
+discards the memo. **Ruled A′ (builder, 2026-09-11):** names under `:wat::` / `:rust::` (`RESERVED_PREFIXES`,
+`src/resolve/reserved.rs:14`, MINUS `:$bound::`, which is per-scope) resolve ONCE and are cached across files — honest BY CONSTRUCTION,
 because the registration gate (`src/resolve/registration.rs:165`) makes a user re-declaration of a
 reserved name either equivalent (NoOp) or refused (`ReservedPrefix`). Everything else resolves PER
 FILE — the correct model for independent programs.
