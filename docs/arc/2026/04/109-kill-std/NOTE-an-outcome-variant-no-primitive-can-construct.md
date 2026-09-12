@@ -93,6 +93,44 @@ constructor, or does only wat code mint it? Any variant with no Rust constructor
 this stone and may find siblings — this campaign found five sibling-pairs in a single day, and never
 once found the first instance to be the only one.
 
+## ⭑ CLOSED 2026-09-12 — and the sweep found NOTHING ELSE
+
+**`RecvOutcome::TimedOut` is now primitive-reachable.** `docs/excursus/2026/08/001-sns-sqs/the-owner-wait-has-a-deadline/`
+added `:wat::kernel::recv-by-deadline`, which constructs it (`recv_outcome_timedout()`, called at three
+sites: the thread path and two process paths). A bare `recv` still never mints one — and that is now
+correct rather than broken, because the variant has a primitive that returns it. **The doctrine
+refinement proposed above is satisfied**, not deferred.
+
+⚠ The fix arrived by the route this note guessed WRONG. The note reads "(1) is the smaller surface";
+STOP-1 of that stone proved the wat-level route (racing the owner handle against `after` in `select`)
+**runtime-refuses** — `peers[1] has wrong tier (expected Process)` — confirming the original report the
+note had flagged as unverified. So the Rust primitive was not the fallback; it was the only route.
+
+### The sweep this note asked for: RUN, and it is empty
+
+Every variant of every registered `*Outcome` / `*Event` enum in `src/types.rs` — **59 variants across 18
+enums** — checked for a Rust construction. **Result: zero unconstructable variants.** `TimedOut` was the
+only painted brick in the corpus, and it is closed.
+
+⛔ **But record HOW the sweep behaved, because the instrument needed four corrections and each one
+changed the answer:**
+
+| # | defect in my sweep | what it did to the answer |
+|---|---|---|
+| 1 | a fixed 4000-char body window | **missed `RecvOutcome` entirely** — the enum that motivated the sweep |
+| 2 | sliced between *Outcome-named* enums only | absorbed `Signal`, so `Kill`/`Terminate`/`User1` were attributed to `CloseOutcome` |
+| 3 | (after fixing 1+2) reported **4** findings, all `FormOutcome` | correct attribution, wrong conclusion |
+| 4 | matched the TOKEN `variant_name: "Literal"` | those 4 are **false positives**: `form_outcome(variant, fields)` takes the name as a **parameter**, so no literal exists |
+
+★★ **The rule for anyone re-running it:** the form is *"any construction of an `EnumValue` with this
+`type_path`"*, not *"a literal `variant_name:` string"*. Three other parameterized constructors exist and
+would hide variants the same way — `src/host/test_runner.rs:1088`, `src/edn/render.rs:2905`, `:2962`. A
+sweep that misses them reports painted bricks that are not there.
+
+★ And the controls that made the final answer trustworthy, which the first three attempts lacked:
+`RecvOutcome` must appear in the match set; `Kill` must attribute to `Signal`; `TimedOut` must attribute
+to `RecvOutcome`. All three pass on the final run.
+
 ## Provenance
 
 - Found: `docs/excursus/2026/08/001-sns-sqs/the-owner-faces-an-outcome/SCORE.md`
