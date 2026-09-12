@@ -3,7 +3,8 @@
 ;; DESIGN: docs/arc/2026/06/278-rules-engine/DESIGN-STONE-wat-grep-is-a-feature.md — the contract,
 ;; the file's shape, and why each name is what it is. THE CONTRACT, verbatim:
 ;;
-;;   wat-grep DECLARES   Node · Named · Span      the fact base it inserts, per file
+;;   wat-grep DECLARES   Node · Named · Span · Written
+;;                                                the fact base it inserts, per file
 ;;                       Match · Capture          what a rule asserts
 ;;                       q-match                  the one query — never written by a user
 ;;   the USER DECLARES   rules over those, asserting Match
@@ -77,15 +78,17 @@
    end-col  <- :wat::core::i64])
 
 ;; ONLY when the span holds exactly this node's own name — the fact a REWRITING rule joins.
-;; `Named` says WHAT a node is called; `Written` says AND IT IS SPELLED HERE. A reader-
-;; synthesized node (`~` -> unquote, `` ` `` -> quasiquote, `\c` -> char/of, …) gets a `Named`
-;; fact (its name is real) but NOT a `Written` fact (the span it carries is the literal token's,
-;; not its own name's) — `ast-name` returns verbatim token TEXT, so for a single-line named node
-;; `end-col - col == length(name)` iff the name is actually spelled at that span; not a heuristic.
-;; It carries coordinates, not just `{id}`: a rewriting rule joins ONE fact and never touches
-;; `Span` at all. See DESIGN-STONE-wat-grep-never-lies.md F2.
+;; `Named` says WHAT a node is called; `Written` says AND IT IS SPELLED HERE (`:text` is the
+;; verbatim `ast-name`, before the fold). A reader-synthesized node (`~` -> unquote, `` ` `` ->
+;; quasiquote, `\c` -> char/of, …) gets a `Named` fact (its name is real) but NOT a `Written`
+;; fact (the span it carries is the literal token's, not its own name's) — `ast-name` returns
+;; verbatim token TEXT, so for a single-line named node `end-col - col == length(name)` iff the
+;; name is actually spelled at that span; not a heuristic. It carries coordinates AND the
+;; spelling: a rewriting rule joins ONE fact, reads `:text`, and never touches `Span` at all.
+;; See DESIGN-STONE-wat-grep-never-lies.md F2.
 (:wat::core::defrecord :wat::grep::Written
   [id       <- :wat::core::i64
+   text <- :wat::core::String
    line     <- :wat::core::i64
    col      <- :wat::core::i64
    end-line <- :wat::core::i64
@@ -259,6 +262,7 @@
      written (:wat::core::if written?
                (:wat::vector::conj (:wat::grep::Acc/written acc)
                  (:wat::grep::Written :id id
+                            :text (:wat::core::ast-name node)
                             :line     (:wat::grep::Extent/line ex)
                             :col      (:wat::grep::Extent/col ex)
                             :end-line (:wat::grep::Extent/end-line ex)

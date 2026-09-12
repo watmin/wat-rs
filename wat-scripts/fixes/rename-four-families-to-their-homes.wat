@@ -21,7 +21,7 @@
 ;; `wat/grep.wat`'s stdlib fact base instead of two, one entry point pair, one applier.
 ;;
 ;; ★ THIS IS A RULES CODEMOD, NOT A CHAR-WALK. The reader already tokenized every file;
-;; `wat/grep.wat`'s `Named` fact hands back a keyword leaf as ONE WHOLE TOKEN, so there is no
+;; `wat/grep.wat`'s `Written` fact hands back a keyword leaf as ONE WHOLE TOKEN, so there is no
 ;; boundary question left to ask — a rule that matches nothing produces no Match facts,
 ;; countable before anything is written (`--grep` mode below).
 ;;
@@ -52,16 +52,15 @@
 
 (:wat::rete::defrule :fhc::uuid
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         ;; ⚠ KEYWORD ONLY, per stone E's rider-found defect: `Named` fires for STRING
-         ;; LITERALS too, and a literal's span covers its quotes while its `name` does not.
+         ;; ⚠ KEYWORD ONLY, per stone E's rider-found defect: `Written` already excludes string literals (`Named` still fires for STRING
+         ;; LITERALS too), and a literal's span covers its quotes while its `name` does not.
          ;; Measured for these ten names: zero genuine string-literal occurrences in the .wat
          ;; corpus, so the guard changes no outcome here — kept anyway, it is what makes the
          ;; count honest as well as the rewrite safe.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.Uuid/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::Uuid/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "uuid"
            :captures (:wat::rete::core::PersistentVector
@@ -74,8 +73,7 @@
 
 (:wat::rete::defrule :fhc::regex
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::regex::"))]
@@ -91,29 +89,27 @@
 
 (:wat::rete::defrule :fhc::list-of
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core.List/of"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::List/of"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "list-of"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value "wat.core/List")))])
+                       (:wat::grep::Capture :name "new" :value ":wat::core::List")))])
 
 (:wat::rete::defrule :fhc::char-of
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core.char/of"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::char/of"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "char-of"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value "wat.core/char")))])
+                       (:wat::grep::Capture :name "new" :value ":wat::core::char")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :fhc))

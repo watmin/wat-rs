@@ -1,0 +1,15 @@
+;; rewriting-rules-join-written — spec fixture (stone 0a).
+;; near-miss comment must stay: (:wat::grep::Named (?id <- :id) (?n <- :name))
+(:wat::rete::defrule :u::hit
+  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Source (?f <- :file))]
+  :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
+           :rule "hit" :captures (:wat::rete::core::PersistentVector))])
+
+(:wat::rete::defrule :u::near-named-only
+  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
+         (:wat::grep::Named  (?id <- :id) (?n <- :name))
+         (:wat::grep::Source (?f <- :file))]
+  :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
+           :rule "near" :captures (:wat::rete::core::PersistentVector))])

@@ -19,7 +19,7 @@
 ;; ★ THIS IS A RULES CODEMOD, NOT A CHAR-WALK. `wat/fix.wat`'s `rename-keyword-prefix` is a
 ;; silent no-op for an open (`::`-terminated) namespace prefix — parked at
 ;; wat-scripts/scratch-pad/BLOCKED-rename-core-string-to-string.wat, and superseded by this
-;; file. The reader already tokenized every file; `wat/grep.wat`'s `Named` fact hands back
+;; file. The reader already tokenized every file; `wat/grep.wat`'s `Written` fact hands back
 ;; ":wat::core::string::length" as ONE WHOLE TOKEN, so there is no boundary question left to
 ;; ask — a rule that matches nothing produces no Match facts, countable before anything is
 ;; written (`--grep` mode below).
@@ -47,17 +47,16 @@
 
 (:wat::rete::defrule :rn::core-string
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         ;; ⚠ KEYWORD ONLY. `Named` also fires for a "string" kind (wat/grep.wat's `nameable?`)
+         ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's `nameable?`)
          ;; — the corpus carries real string-literal occurrences of this exact prefix
          ;; (e.g. wat-scripts/fixes/rete-where-per-type-spelling.wat:108's Tuple of two
          ;; verb-name STRINGS). A string literal's span covers its surrounding quotes while
          ;; its `name` does not, so splicing the unquoted replacement into that span would
          ;; corrupt the literal into unquoted keyword syntax. The char-walk this replaces
          ;; guaranteed the same exclusion structurally ("rewrites for every keyword LEAF");
-         ;; a fact-based finder must say so explicitly, because `Named` alone does not.
+         ;; a fact-based finder must say so explicitly, because `Written` already excludes them; the Keyword kind guard names it.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::string::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -72,8 +71,7 @@
 
 (:wat::rete::defrule :rn::rete-core-string
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-string's comment; the same corpus file's Tuple
          ;; carries a rete-prefixed string literal too (`rete-where-per-type-spelling.wat:108`).

@@ -1,0 +1,31 @@
+;; tests/collection/probe_collection_transform_ops.wat — co-located fixture.
+
+(:wat::core::defn :t::item4d-window-n-gt-len [] -> :wat::core::i64
+  (:wat::vec::length
+    (:wat::std::list::window
+       (:wat::core::Vector :wat::core::i64 1 2)
+       5)))
+
+(:wat::core::defn :t::item4f-remove-at-oob-len [] -> :wat::core::i64
+  (:wat::vec::length
+    (:wat::std::list::remove-at
+       (:wat::core::Vector :wat::core::i64 10 20 30)
+       99)))
+
+(:wat::core::defn :t::item4b-zip-empty-len [] -> :wat::core::i64
+  (:wat::core::let
+    [zipped (:wat::std::list::zip
+               (:wat::core::Vector :wat::core::i64)
+               (:wat::core::Vector :wat::core::i64 1 2 3))]
+    (:wat::vec::length zipped)))
+
+(:wat::core::defn :my::compute-sqrt-zero [] -> :wat::core::String
+  (:wat::f64::to-string (:wat::std::math::sqrt 0.0)))
+
+(:wat::core::defn :my::compute-mean-empty [] -> :wat::core::String
+  (:wat::core::let
+    [xs    (:wat::core::Vector :wat::core::f64)
+     m     (:wat::std::stat::mean xs)
+     label (:wat::core::match m 
+              ((:wat::core::Some _) "some") (:wat::core::None "none"))]
+    label))

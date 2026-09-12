@@ -44,7 +44,7 @@
 ;;
 ;; ★ THIS IS A RULES CODEMOD, NOT A CHAR-WALK — see rename-core-vectors-to-their-homes.wat's
 ;; header for the fuller argument (`rename-keyword-prefix` is a silent no-op for an open,
-;; `/`-terminated prefix; `wat/grep.wat`'s `Named` fact hands back the whole token).
+;; `/`-terminated prefix; `wat/grep.wat`'s `Written` fact hands back the whole token).
 ;;
 ;; TWO ENTRY POINTS, one rule set:
 ;;   `wat --grep` <this file>     -> :user::grep  (the finder: prints every Match, unapplied)
@@ -74,10 +74,9 @@
 
 (:wat::rete::defrule :rn::core-keyword-slash
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         ;; ⚠ KEYWORD ONLY. `Named` also fires for a "string" kind (wat/grep.wat's
+         ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's
          ;; `nameable?`) — a string literal's span covers its surrounding quotes while its
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
          ;; the literal into unquoted keyword syntax.

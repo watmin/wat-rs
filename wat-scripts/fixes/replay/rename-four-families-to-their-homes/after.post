@@ -1,0 +1,38 @@
+;; wat-tests/core/core-nth.wat — stone 118.B4-i runtime coverage for widened `:wat::core::nth`.
+
+(:wat::test::deftest :wat-tests::core::core-nth::nth-list-positions
+  (:wat::core::let [v (:wat::core::List 10 20 30)]
+    (:wat::core::do
+      (:wat::test::assert-eq (:wat::core::nth v 0) 10)
+      (:wat::test::assert-eq (:wat::core::nth v 1) 20)
+      (:wat::test::assert-eq (:wat::core::nth v 2) 30))))
+
+(:wat::test::deftest-hermetic :wat-tests::core::core-nth::nth-past-end-list-raises
+  (:wat::core::let
+    [p (:wat::test::spawn-peer (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println
+               (:wat::core::nth (:wat::core::List 10 20 30) 99)))))
+     msg (:wat::core::match (:wat::kernel::recv p)
+           ((:wat::kernel::RecvOutcome::Message _m)
+             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Message" :wat::core::None :wat::core::None))
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::core::match cause
+               ((:wat::kernel::LociDiedError::Panic message _failure) message)
+               (_ (:wat::kernel::assertion-failed! "expected Lost[Panic], got other Lost" :wat::core::None :wat::core::None))))
+           (:wat::kernel::RecvOutcome::Stopped
+             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
+    (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println (:wat::uuid::v4)))
+
+(:wat::test::deftest :wat-tests::holon::char-round-trip::char-literal
+  
+  (:wat::core::let
+    [lit \a
+     con (:wat::core::char "a")]
+    (:wat::test::assert-eq lit con)))

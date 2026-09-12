@@ -174,8 +174,12 @@ The builder:
    against a fixture (2026-09-12).
    - The package is `the-grok-rete-replay/`: DESIGN, `BRIEF-0a-rewriters-read-what-is-written.md`,
      `EXPECTATIONS-0a.md`.
-   - **0a:** `Written :text`, then the 11 codemods on `Written`, the 45 literals restored, and the
-     replay gate with 13 fixtures + 83 ledgered.
+   - **0a ✓ LANDED:** `Written :text`, then the 11 codemods on `Written`, the 45 literals restored,
+     and the replay gate `tests/cli/every_recorded_migration_replays.rs` with 13 fixtures + 83
+     ledgered. It was grok's strike; the orchestrator re-ran every EXPECTATIONS row itself, and
+     drove the gate red four ways on a different codemod than grok's. The orchestrator also fixed
+     two things: the gate's count pins are gone (it freezes names), and the keyword fixture gained
+     near-misses.
    - **0b:** the other 83, the 2 rotted `to-faithful-clojure`, and SCOPE on all.
    - The probes are done: the tracked one in `scratch-pad/`, and end-to-end in `bootstrap/step0-probes/`.
 2. The step script, plus a pilot on the first ~10 code commits: timed, with tricks catalogued.

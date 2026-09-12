@@ -1,0 +1,42 @@
+;; `:wat::rete::core::string::subs`. `:wat::core::string::subs` is PARTIAL (raises
+
+(:wat::core::defn :probe::run [] -> :wat::core::nil
+  (:wat::core::let
+    [h     (:wat::holon::to-holon "some-atom")
+     other (:wat::holon::to-holon "an-entirely-different-atom")
+     zero  (:wat::holon::Blend h h 1.0 -1.0)
+
+     ;; ROW 2 — happy path, fallback not taken.
+     row2-happy (:wat::rete::string::subs "hello" 1 3 :undefined "?")
+
+     ;; ROW 3 — out-of-range, fallback fires.
+     row3-out-of-range (:wat::rete::string::subs "hello" 2 99 :undefined "?")
+
+     ;; ROW 4 — same out-of-range call, two different fallback values.
+     row4-run-a (:wat::rete::string::subs "hello" 2 99 :undefined "?")
+     row4-run-b (:wat::rete::string::subs "hello" 2 99 :undefined "gone")
+
+     ;; ROW 6 — every other Fallback family, unregressed.
+     row6-i64-div    (:wat::rete::core::i64::/ 1 0 :undefined -1)
+     row6-f64-div    (:wat::rete::core::f64::/ 0.0 0.0 :undefined -1.0)
+     row6-pv-get     (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector 7 8 9) 99 :undefined -1)
+     row6-pv-first   (:wat::rete::core::PersistentVector/first (:wat::core::PersistentVector) :undefined -1)
+     row6-cosine     (:wat::rete::holon::cosine zero other :undefined -1.0)]
+
+    (:wat::core::do
+      (:wat::kernel::println (:wat::core::PersistentMap :row2-happy row2-happy))
+      (:wat::kernel::println (:wat::core::PersistentMap :row3-out-of-range row3-out-of-range))
+      (:wat::kernel::println (:wat::core::PersistentMap :row4-run-a row4-run-a))
+      (:wat::kernel::println (:wat::core::PersistentMap :row4-run-b row4-run-b))
+      (:wat::kernel::println (:wat::core::PersistentMap :row6-i64-div row6-i64-div))
+      (:wat::kernel::println (:wat::core::PersistentMap :row6-f64-div row6-f64-div))
+      (:wat::kernel::println (:wat::core::PersistentMap :row6-pv-get row6-pv-get))
+      (:wat::kernel::println (:wat::core::PersistentMap :row6-pv-first row6-pv-first))
+      (:wat::kernel::println (:wat::core::PersistentMap :row6-cosine row6-cosine)))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::io::write-file
+    "tests/rete/datamancer.rete.edn"
+    (:wat::string::concat
+      ";; The compiled program. Native fire only.\n;; Beats in, Datamancer or Hollow out.\n"
+      (:user::export-edn))))

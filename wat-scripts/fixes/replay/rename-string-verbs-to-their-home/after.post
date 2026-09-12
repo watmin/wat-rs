@@ -1,0 +1,74 @@
+(:wat::rete::core::defn :wst::feline? [s <- :wat::core::String] -> :wat::core::bool
+  (:wat::rete::core::and
+    (:wat::rete::string::contains? s "cat")
+    (:wat::rete::i64::> (:wat::rete::string::length s) 3)))
+
+(:wat::rete::defrule :wst::empty
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::empty? ?n))]
+  :then
+  [(:wst::Hit ?k)])
+
+(:wat::rete::defrule :wst::ends-with
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::ends-with? ?n "cat"))]
+  :then
+  [(:wst::Hit ?k)])
+
+(:wat::rete::defrule :wst::starts-with
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::starts-with? ?n "cat"))]
+  :then
+  [(:wst::Hit ?k)])
+
+(:wat::rete::defrule :wst::dynamic-arg
+  :when
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+                                 (:wat::rete::string::contains? ?n (:wat::rete::string::concat ?tag "t")))]
+  :then
+  [(:wst::Hit ?k)])
+
+(:wat::core::defn :wst::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
+    ""
+    v))
+
+(:wat::core::defclause :p14::process
+  ([x <- :wat::core::i64 y <- :wat::core::i64]
+    :guard (:wat::i64::> x y)
+    -> :wat::core::String
+    (:wat::string::concat "x>y:" (:wat::core::i64/to-string x)))
+  ([x <- :wat::core::i64 y <- :wat::core::i64]
+    :guard (:wat::i64::< x y)
+    -> :wat::core::String
+    (:wat::string::concat "x<y:" (:wat::core::i64/to-string y)))
+  ([x <- :wat::core::i64 y <- :wat::core::i64 z <- :wat::core::i64]
+    :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
+              (:wat::string::starts-with? result "result:"))
+    -> :wat::core::String
+    (:wat::string::concat "result: sum="
+      (:wat::core::i64/to-string
+        (:wat::i64::+ (:wat::i64::+ x y) z)))))
+
+(:wat::core::defn :census::is-lazy-body?
+  [form <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::let
+    [s (:census::src form)]
+    (:wat::core::or
+      (:wat::string::contains? s ":wat::stream::lazy")
+      (:wat::string::contains? s ":wat::stream::cons"))))
+
+(:wat::string::empty? fin-buf)
+
+(:wat::core::defrecord :wst::Req
+  [k      <- :wat::core::i64
+   n      <- :wat::core::String
+   tag    <- :wat::core::String
+   minlen <- :wat::core::i64
+   padded <- :wat::core::String])
+
+(:wat::core::defn :u::ends [s <- :wat::core::String] -> :wat::core::bool
+  (:wat::string::ends-with? s "z"))

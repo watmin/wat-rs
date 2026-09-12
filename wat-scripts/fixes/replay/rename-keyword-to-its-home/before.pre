@@ -1,0 +1,4 @@
+;; near-miss comment must stay: :wat::core::keyword/from-string (a comment is not a node)
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply  (:wat::core::keyword/from-string "wat::core::i64::+") 42))
+(:wat::core::defn :user::kw [k <- :wat::core::keyword] -> :wat::core::keyword k)
+(:wat::core::defn :user::ks [] -> :wat::core::String ":wat::core::keyword/from-string")

@@ -1,0 +1,31 @@
+;; wat-scripts/scratch-pad/255-stone-a-i-both-i64-spellings.wat — arc 255 Stone A-i / Stone C
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::test::assert-eq (:wat::i64::+ 1 2) 3)
+    (:wat::test::assert-eq (:wat::i64::- 5 3) 2)
+    (:wat::test::assert-eq (:wat::i64::* 3 4) 12)
+    (:wat::test::assert-eq (:wat::i64::/ 6 2) 3)
+    ;; mod (floored, sign of divisor)
+    (:wat::test::assert-eq (:wat::i64::mod -7 3) 2)
+    ;; quot (truncate toward zero)
+    (:wat::test::assert-eq (:wat::i64::quot -7 3) -2)
+    ;; rem (sign of dividend)
+    (:wat::test::assert-eq (:wat::i64::rem -7 3) -1)
+
+    (:wat::test::assert-eq (:wat::i64::< 1 2) true)
+    (:wat::test::assert-eq (:wat::i64::<= 2 2) true)
+    (:wat::test::assert-eq (:wat::i64::> 3 2) true)
+    (:wat::test::assert-eq (:wat::i64::>= 2 2) true)
+    (:wat::test::assert-eq (:wat::i64::= 2 2) true)
+    (:wat::test::assert-eq (:wat::i64::not= 2 3) true)
+
+    ;; to-bigint (no simpler bigint literal — round-trip to f64 instead)
+    (:wat::test::assert-eq (:wat::core::bigint::to-f64 (:wat::i64::to-bigint 5)) 5.0)
+    (:wat::test::assert-eq (:wat::i64::to-f64 5) 5.0)
+    ;; to-rational (no simpler rational literal — round-trip to f64 instead)
+    (:wat::test::assert-eq (:wat::core::rational::to-f64 (:wat::i64::to-rational 5)) 5.0)
+    (:wat::test::assert-eq (:wat::i64::to-string 42) "42")))
+
+(:wat::core::defn :u::rational-slash [x <- :wat::core::rational] -> :wat::core::i64
+  (:wat::core::rational/numerator x))

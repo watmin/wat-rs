@@ -35,7 +35,7 @@
 ;; `rename-four-families-to-their-homes.wat`'s `list-of`/`char-of` exact-match shape.
 ;;
 ;; ★ THIS IS A RULES CODEMOD, NOT A CHAR-WALK. The reader already tokenized every file;
-;; `wat/grep.wat`'s `Named` fact hands back a keyword leaf as ONE WHOLE TOKEN, so there is no
+;; `wat/grep.wat`'s `Written` fact hands back a keyword leaf as ONE WHOLE TOKEN, so there is no
 ;; boundary question left to ask.
 ;;
 ;; TWO ENTRY POINTS, one rule set:
@@ -63,10 +63,9 @@
 
 (:wat::rete::defrule :hms::math
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         ;; ⚠ KEYWORD ONLY. `Named` also fires for a "string" kind — a string literal's span
+         ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind — a string literal's span
          ;; covers its surrounding quotes while its `name` does not, so splicing the unquoted
          ;; replacement into that span would corrupt the literal into unquoted keyword syntax.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
@@ -83,8 +82,7 @@
 
 (:wat::rete::defrule :hms::stat
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::std::stat::"))]
@@ -100,42 +98,39 @@
 
 (:wat::rete::defrule :hms::zip
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/zip"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::zip"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "zip"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value "wat.seq/zip")))])
+                       (:wat::grep::Capture :name "new" :value ":wat::seq::zip")))])
 
 (:wat::rete::defrule :hms::window
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/window"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::window"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "window"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value "wat.seq/window")))])
+                       (:wat::grep::Capture :name "new" :value ":wat::seq::window")))])
 
 (:wat::rete::defrule :hms::remove-at
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.std.list/remove-at"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::remove-at"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "remove-at"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value "wat.seq/remove-at")))])
+                       (:wat::grep::Capture :name "new" :value ":wat::seq::remove-at")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :hms))

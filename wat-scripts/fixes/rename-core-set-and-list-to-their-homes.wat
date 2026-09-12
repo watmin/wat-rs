@@ -52,7 +52,7 @@
 ;;
 ;; ★ THIS IS A RULES CODEMOD, NOT A CHAR-WALK — see rename-core-vectors-to-their-homes.wat's
 ;; header for the fuller argument (`rename-keyword-prefix` is a silent no-op for an open,
-;; `/`-terminated prefix; `wat/grep.wat`'s `Named` fact hands back the whole token).
+;; `/`-terminated prefix; `wat/grep.wat`'s `Written` fact hands back the whole token).
 ;;
 ;; TWO ENTRY POINTS, one rule set:
 ;;   `wat --grep` <this file>     -> :user::grep  (the finder: prints every Match, unapplied)
@@ -66,7 +66,7 @@
 ;; subject matter (`rename-four-families-to-their-homes.wat`,
 ;; `wat-scripts/scratch-pad/probe-four-homes-census.wat` — both about `List/of`, a DIFFERENT,
 ;; already-finished migration — and `wat-scripts/scratch-pad/census-growing-collection-in-a-lazy-walk.wat`,
-;; whose growth-verb strings are DATA, never a keyword leaf a `Named` fact can see):
+;; whose growth-verb strings are DATA, never a keyword leaf a `Written` fact can see):
 ;;   git grep -lE ':wat::core::(HashSet|List)[:/]' -- ':!docs' ':!*.rs' \
 ;;     | sed 's/.*/"&"/' | tr '\n' ' ' | sed 's/^/[/;s/ $/]/' \
 ;;     | ./target/release/wat --grep ./wat-scripts/fixes/rename-core-set-and-list-to-their-homes.wat | wc -l
@@ -88,15 +88,14 @@
 
 (:wat::rete::defrule :rn::core-hashset-slash
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         ;; ⚠ KEYWORD ONLY. `Named` also fires for a "string" kind (wat/grep.wat's
+         ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's
          ;; `nameable?`) — a string literal's span covers its surrounding quotes while its
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
          ;; the literal into unquoted keyword syntax.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.HashSet/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::HashSet/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-hashset-slash-to-hashset-colon"
            :captures (:wat::rete::core::PersistentVector
@@ -109,12 +108,11 @@
 
 (:wat::rete::defrule :rn::core-list-slash
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-hashset-slash's comment.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.List/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::List/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-list-slash-to-linkedlist-colon"
            :captures (:wat::rete::core::PersistentVector
@@ -129,16 +127,15 @@
 
 (:wat::rete::defrule :rn::rete-list-get
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.rete.core.List/get"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::rete::core::List/get"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-list-get-to-rete-linkedlist-get"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
-                       (:wat::grep::Capture :name "new" :value "wat.rete.linkedlist/get")))])
+                       (:wat::grep::Capture :name "new" :value ":wat::rete::linkedlist::get")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :rn))

@@ -23,7 +23,7 @@
 ;;
 ;; ★ THIS IS A RULES CODEMOD, NOT A CHAR-WALK. `wat/fix.wat`'s `rename-keyword-prefix` is a
 ;; silent no-op for an open (`::`-terminated, or here `/`-terminated) namespace prefix.
-;; `wat/grep.wat`'s `Named` fact hands back ":wat::core::HashMap/get" as ONE WHOLE TOKEN, so
+;; `wat/grep.wat`'s `Written` fact hands back ":wat::core::HashMap/get" as ONE WHOLE TOKEN, so
 ;; there is no boundary question left to ask — a rule that matches nothing produces no Match
 ;; facts, countable before anything is written (`--grep` mode below).
 ;;
@@ -55,10 +55,9 @@
 
 (:wat::rete::defrule :rn::core-persistentmap-slash
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         ;; ⚠ KEYWORD ONLY. `Named` also fires for a "string" kind (wat/grep.wat's
+         ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's
          ;; `nameable?`) — a string literal's span covers its surrounding quotes while its
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
          ;; the literal into unquoted keyword syntax. See rename-core-string-to-string.wat's
@@ -77,8 +76,7 @@
 
 (:wat::rete::defrule :rn::core-hashmap-slash
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-persistentmap-slash's comment.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
