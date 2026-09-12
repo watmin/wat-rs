@@ -35,6 +35,12 @@ wat-scripts/hunt/out/
 #    file where the merge-branch binary dies at startup (merged stdlib fails its purity gate).
 #    Its stdlib is frozen in at build time, so it runs codemods against ANY working tree.
 #
+# DIAGNOSTIC (2026-09-11): bootstrap/wat-pre-named-0e3a351f3   (+ .PROVENANCE)
+#    Built at the parent of 0b5742cc7, the commit that folded :wat::grep::Named to clojure form.
+#    It is the CONTROL for "12 grep-rules codemods are dead on main's binary": the era codemod
+#    (`git show 0e3a351f3:<codemod>`) renames on this binary, and today's renames nothing on main's.
+#    It is NOT an escape hatch: it cannot load a dot-flipped codemod.
+#
 # REBUILD: git checkout <green-pushed-commit> && cargo build --release && confirm the
 #    binary's mtime MOVED (a failed build leaves the previous binary in place — copying it
 #    preserves the WRONG one) && cp target/release/wat bootstrap/wat-main-<commit>.

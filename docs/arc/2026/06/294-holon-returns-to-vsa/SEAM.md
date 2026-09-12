@@ -87,16 +87,62 @@ samples 77; the audit dies on the first Some, so rc=0 is the signal). One predic
 ⚠ Grok's `/tmp/pctm-c` kept only INPUT path vectors — no output from its audit survived.
 Timing, same files: n=5 2.5×, n=20 2.1×; at small n the once-per-run invariant pass is the floor.
 
-## ⬜ NEXT — PHASE 1: the chain over the 338 files grok-rete touched
+## ⛔ PHASE 1 IS BLOCKED — do NOT run the chain. Three premises under it measured FALSE.
 
-```bash
-bootstrap/run-chain.sh bootstrap/wat-main-a3218644d bootstrap/phase1-grok.txt
-```
+The first run (`bootstrap/chain-runs/2026-09-12T02-15-59Z/`) changed **0 files** and stopped at
+step 3. Each finding below can be re-derived with the command beside it.
 
-**338, not 2,072.** Files grok-rete never touched are main's, already migrated; running the chain
-over them would sweep main's own stragglers (e.g. 37 `:wat::core::i64::`) into the merge commit.
-Runner guards, on real triggers: live codemod refused ✓ · `fixes/` path refused ✓ · non-booting
-binary refused ✓ · valid run passes ✓. Phase 1's `UNRESOLVED` lines are phase 2's worklist.
+**1. 12 of the 28 codemods are DEAD on main's binary.** These are steps 1, 3–12 and 21, the grep-rules
+ones. Since `0b5742cc7`, main's extractor folds every `Named` name to clojure form
+(`git show a3218644d:wat/grep.wat | sed -n 239p`).
+- A `starts-with ":wat::…::"` rule matches nothing and exits rc=0.
+- The five that `0b5742cc7` migrated do match, then splice the canonical `?n` as old-text, and
+  `fix-text-apply` refuses (step 3's log).
+
+The control pair, on a 2-line probe:
+- `bootstrap/wat-pre-named-0e3a351f3` running `git show 0e3a351f3:wat-scripts/fixes/rename-core-string-to-string.wat`
+  **renames** it.
+- Main's binary running today's copy of that file renames **nothing**.
+
+No gate replays a recorded migration. `grep_programs_still_match.rs` covers `wat-scripts/grep/` only.
+`[[feedback_a_recorded_migration_is_pinned_to_its_fact_model]]`
+
+**2. Landing order is not scope.** Steps 2, 20, 21 and 22 migrate TOOLING (codemods, fmt rules,
+grep programs), not the corpus. Read each header. `fmt-head-fqdn-to-clojure` rewrites ANY
+`":wat::…"` string, so over grok's stdlib it would rewrite data strings.
+
+**3. My merge brief's `.wat` rule was false.** `the-grok-rete-merge/BRIEF-merge-grok-rete.md` says:
+*"take grok-rete's CONTENT; main's side is almost entirely codemod output."*
+- **34** conflicted files are byte-identical to grok's blob at `4366f4fbd`, and main's HAND content
+  in them is gone. `wat/grep.wat` lost `NodeKind`, `Written` and the canonical fold.
+- **16** resolved to main's blob. Grok's side was dropped; the SCORE says why for each `.rs`.
+- **10** modify/delete conflicts went to deletion.
+
+Recompute: `git merge-tree --write-tree --name-only 1f39db790 37528f6e0` gives the 99. Then compare
+each file's blob at `4366f4fbd` with both parents. `[[feedback_a_landing_commit_is_not_codemod_output]]`
+
+**4. The `.rs` side is RED on main's own walls, whatever happens to the corpus.**
+`cargo nextest run --release --test lint` gives 312/350 (log: `bootstrap/lint-merge-973a391e9.log`).
+- **Corpus not migrated (27; these clear only after a WORKING chain).** Every one dies at startup on
+  `:wat::core::string::interpolate` in the merged stdlib:
+  - `wat_scripts_fixes_load` 761/761
+  - `rete_compile_gate` ×16 (338/338 reasons are startup)
+  - `every_rete_name…resolves` (98, all pre-rename `:wat::rete::core::*`)
+  - `every_ungated_wat_checks` · `docs_wat_loads…` · `probe_arc277_*` ×6 · `diagnostic_output…nested…`
+- **The merge broke source (11):**
+  - `one_variant_separator`: 21 sites. Grok's `expr_ir/` split resurrected the `format!("{}::{}")`
+    that main's door `9ee28f3b4` had removed.
+  - `ast_kind_nodekind_sync`: *"defenum :wat::grep::NodeKind not found"*.
+  - `no_bare_is_err` 6 · `no_error_flattening_helper` 3 · `no_stale_path_in_doc` 4
+  - `rete_citation_resolves` ×2 · `rete_header_claims…enum_variant_ctor` (3 callers ≠ 4 documented)
+  - `prose_in_rust_does_not_attest_a_name` · `no_new_broken_doc_link` 9 · `every_walking_gate…non_vacuity`
+
+## ⬜ NEXT — the builder's ruling on HOW the corpus crosses. Then the briefs.
+
+Nothing runs until that ruling lands; the strategy is argued in the main chat against the four
+questions. When a chain does run, it runs over **338 files, not 2,072**. Files grok-rete never touched
+are main's and already migrated, and sweeping them would pull main's own stragglers (e.g. 37
+`:wat::core::i64::`) into the merge. The runner guards are proven on real triggers.
 
 ## ⚠ RULINGS — do not re-litigate
 
