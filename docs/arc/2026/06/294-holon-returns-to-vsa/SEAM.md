@@ -79,21 +79,24 @@ codemod. Every acceptance row re-verified by the orchestrator: gate A == B 20/20
 the collision pair no-halt and OLD-identical, ReservedPrefix refused on `:wat::` AND accepted on
 `:u::`. 3.1× on the same 20 files. Option B's halting version is gone.
 
-## ⬜ NEXT — phase-1 scope RULED (c): resolve a local path only if this file declares it. Briefed, not yet struck.
+## ✓ LANDED — (c) (`4abd3d19e`): a local path is resolved only if THIS file could declare it
 
+Exact, not heuristic — **audited independently: 342/342 skipped paths resolve to None** (gate 265,
+samples 77; the audit dies on the first Some, so rc=0 is the signal). One predicate
+(`keep-local-ep?`, `:481`) drives both skip and audit. Log: `bootstrap/audit-c-gate-20260912T020655Z.log`.
+⚠ Grok's `/tmp/pctm-c` kept only INPUT path vectors — no output from its audit survived.
+Timing, same files: n=5 2.5×, n=20 2.1×; at small n the once-per-run invariant pass is the floor.
+
+## ⬜ NEXT — PHASE 1: the chain over the 338 files grok-rete touched
+
+```bash
+bootstrap/run-chain.sh bootstrap/wat-main-a3218644d bootstrap/phase1-grok.txt
 ```
-A′ on representative phase-1 files (a spread sample of bootstrap/phase1-grok.txt):
-  n=1    24.96s   24.62–24.96 s/file   files changed=0   corpus-invariant=29 per-file=6
-  n=5   123.12s                        files changed=0   corpus-invariant=93 per-file=92
-```
 
-**~25 s/file FLAT, and 5/5 sampled files change NOTHING** — resolution runs whether or not an edit
-results. 338 × ~25s ≈ 2.3h is a projection from two points, not a measurement. Grok's option-B SCORE
-calls the 20 gate files "essentially every remaining positional site" — hedged, unverified.
-
-The runner is `bootstrap/run-chain.sh <binary> <paths.txt> [order.txt]`. Its guards are today's
-lessons as checks: refuses a live codemod · refuses `wat-scripts/fixes/` · refuses a binary that
-cannot boot · stops at the first nonzero rc · logs to `bootstrap/chain-runs/` before reading.
+**338, not 2,072.** Files grok-rete never touched are main's, already migrated; running the chain
+over them would sweep main's own stragglers (e.g. 37 `:wat::core::i64::`) into the merge commit.
+Runner guards, on real triggers: live codemod refused ✓ · `fixes/` path refused ✓ · non-booting
+binary refused ✓ · valid run passes ✓. Phase 1's `UNRESOLVED` lines are phase 2's worklist.
 
 ## ⚠ RULINGS — do not re-litigate
 
