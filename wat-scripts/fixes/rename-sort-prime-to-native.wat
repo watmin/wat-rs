@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-sort-prime-to-native.wat — arc 255 STONE: the last verb wearing `'`
+;; SCOPE: wat/core.wat wat-scripts/scratch-pad/255-probe-can-a-user-make-sort-effectful.wat wat-scripts/scratch-pad/255-probe-the-classifier-cannot-see-through-a-closure.wat
 ;; as a native-impl marker adopts the `$native` convention already applied to the five
 ;; `:wat::rete::` firing verbs (DESIGN-STONE-sort-prime-becomes-sort-native.md).
 ;;

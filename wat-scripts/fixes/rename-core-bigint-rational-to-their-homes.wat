@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-core-bigint-rational-to-their-homes.wat — arc 255 Stone D.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-the-numerics-get-their-homes.md

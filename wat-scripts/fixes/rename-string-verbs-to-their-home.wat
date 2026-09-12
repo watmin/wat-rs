@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-string-verbs-to-their-home.wat — arc 255 Stone F.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-F-the-String-verbs-leave-the-instance-method-namespace.md

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-keyword-to-its-home.wat — arc 255 Stone E-iv.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-E-iv-keyword-gets-its-home.md

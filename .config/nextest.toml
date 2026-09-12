@@ -119,6 +119,22 @@ filter = 'test(retirement_table_is_fully_reachable)'
 slow-timeout = { period = "120s", terminate-after = 2 }
 priority = 97                                             # startup-heavy: start it early
 
+# ⏱ every_recorded_migration_replays — each shard forks `wat` twice per fixture.
+#
+# MEASURED 2026-09-12 on stone 0b batch 1: shard_3 TIMED OUT at 30.004s against the
+# default 15s/30s kill. That shard holds `positional-ctor-to-map` (BRIEF 0b trap:
+# ~10 s per run, gate runs it twice) plus three other fixtures
+# (`bare-variant-to-qualified`, `rename-keyword-to-its-home`,
+# `rewriting-rules-join-written`). Isolated, 2 × ~10 s already eats the 30s kill
+# with no margin for the other three or for floor contention.
+#
+# Same shape as `retirement_table_is_fully_reachable` above: a TIMEOUT, not a hang.
+# Raising a number is not the durable fix (split the positional-ctor walk, or give
+# it its own test). Warn 60s / kill 120s is the same envelope as that neighbour.
+[[profile.default.overrides]]
+filter = 'test(every_recorded_migration_replays)'
+slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
+
 
 # The REST of the lint binary, immediately behind the scripts gate.
 #
@@ -217,6 +233,10 @@ slow-timeout = { period = "120s", terminate-after = 2 }
 filter = 'test(retirement_table_is_fully_reachable)'
 slow-timeout = { period = "180s", terminate-after = 2 }
 priority = 97
+
+[[profile.ci.overrides]]
+filter = 'test(every_recorded_migration_replays)'
+slow-timeout = { period = "60s", terminate-after = 2 }
 
 [[profile.ci.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'

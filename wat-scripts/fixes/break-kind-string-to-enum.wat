@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/break-kind-string-to-enum.wat — arc 277: Break.kind becomes an enum.
+;; SCOPE: wat-scripts/fmt/rules/*.wat
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of rule files.
 ;;

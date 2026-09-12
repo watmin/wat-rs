@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/repoint-retired-heads-to-live-spellings.wat — arc 255 Stone 1c-0a-ii.
+;; SCOPE: wat-scripts/probes/arc-170/probe-cap2-process-grantpath.wat wat-scripts/scratch-pad/arc109-2iii-fn-bracket-destinations.wat wat-scripts/scratch-pad/bench-reduce-foldl-vs-seqable-walk.wat
 ;;
 ;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-1c-0a-ii-the-capability-outlived-the-name.md
 ;; BRIEF:  docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-1c-0a-ii-three-repoints.md

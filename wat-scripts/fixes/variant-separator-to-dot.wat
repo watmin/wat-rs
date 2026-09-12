@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/variant-separator-to-dot.wat — arc 255 ③b-ii phase ②a
+;; SCOPE: corpus
 ;; (DESIGN-the-flip-asks-843-times.md).
 ;;
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.

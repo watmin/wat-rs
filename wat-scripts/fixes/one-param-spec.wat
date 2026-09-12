@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/one-param-spec.wat — arc 109 Stone 1 (of 3): ONE PARAM-SPEC.
+;; SCOPE: corpus
 ;;
 ;; Builder's ruling, 2026-08-29: "there is exactly one way to confer a parametric type. it is
 ;; `:- [...]`. all others must die." This codemod rewrites the other two spellings, in the

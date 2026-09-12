@@ -1,0 +1,5 @@
+; near-miss: PersistentVector is NOT a mandatory-typed ctor
+(:wat::core::defmacro :u::pv [ty <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::core::PersistentVector ~ty))
+(:wat::core::defmacro :u::m [ty <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::core::Vector ~ty))

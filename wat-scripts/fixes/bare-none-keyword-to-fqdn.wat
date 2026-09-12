@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/bare-none-keyword-to-fqdn.wat — arc 255: the bare `:None` KEYWORD dies.
+;; SCOPE: corpus
 ;;
 ;; ⛔ THE HERESY. `wat is fqdn, always — anything that is not a binder is illegal.` The bare
 ;; `:None` keyword violates that and is LEGAL TODAY: measured 2026-09-04, a match arm spelled

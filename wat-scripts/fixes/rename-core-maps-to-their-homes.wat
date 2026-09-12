@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-core-maps-to-their-homes.wat — arc 255 Stone E-i.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-E-i-the-maps-get-their-homes.md

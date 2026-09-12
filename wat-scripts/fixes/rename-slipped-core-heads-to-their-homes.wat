@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-slipped-core-heads-to-their-homes.wat — arc 255 Stone 1c-0a.
+;; SCOPE: wat-scripts/scratch-pad/probe-stone-2a-bracket-mechanics.wat wat-scripts/scratch-pad/t-bare.wat wat-scripts/probes/arc-170/probe-process-only.wat wat-scripts/probes/arc-170/probe-edn.wat
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-1c-0a-five-call-sites-name-nothing.md

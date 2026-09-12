@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/positional-ctor-to-map.wat — arc 296 M2.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful. Rewrites every positional VARIANT CONSTRUCTION:
 ;;

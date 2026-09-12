@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/bare-variant-to-qualified.wat — arc 296 N.
+;; SCOPE: corpus
 ;;
 ;; Exact-token rename of the five illegal bare spellings to their qualified
 ;; Type::Variant FQDNs. Span-faithful (rename-keyword-exact). Idempotent:

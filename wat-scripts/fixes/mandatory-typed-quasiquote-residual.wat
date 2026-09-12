@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/mandatory-typed-quasiquote-residual.wat — arc 109 Stone 3 (THE WALL) finding.
+;; SCOPE: corpus
 ;;
 ;; `wat-scripts/fixes/one-param-spec.wat` (Stone 1) required every would-be type-arg slot to be
 ;; TYPE-SHAPED (`:user::type-shaped-elem?`: a literal keyword, or a compound list whose OWN head

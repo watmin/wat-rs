@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-math-stat-seq-to-their-homes.wat — arc 255 Stone HOME-9,
+;; SCOPE: corpus
 ;; ":wat::std::" finally dies.
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;

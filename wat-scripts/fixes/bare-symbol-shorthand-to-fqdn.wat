@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/bare-symbol-shorthand-to-fqdn.wat — arc 255 STONE: the bare-symbol
+;; SCOPE: wat-scripts/perf/grid/where-control.wat tests/cli/wat_cli__programs_are_atoms.wat tests/cli/wat_cli__presence_proof.wat
 ;; shorthand dies (DESIGN-STONE-the-bare-symbol-shorthand-dies.md).
 ;;
 ;; Arc 109 slice 1h/1i retired bare `Some`/`Ok`/`Err` at CONSTRUCTOR sites only

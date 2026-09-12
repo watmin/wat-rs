@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/edits-carry-the-old-text.wat — arc 282, STONE: an edit carries what it
+;; SCOPE: wat-scripts/fixes/*.wat wat/fix.wat wat/lint.wat wat-scripts/lib/*.wat
 ;; CLAIMS to replace.
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.

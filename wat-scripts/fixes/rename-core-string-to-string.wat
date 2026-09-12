@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-core-string-to-string.wat — arc 255 Stone E, AS RULES.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-E-AS-RULES.md

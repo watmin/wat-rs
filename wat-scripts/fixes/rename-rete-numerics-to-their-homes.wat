@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-rete-numerics-to-their-homes.wat — arc 255 Stone B-ii.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-the-numerics-get-their-homes.md

@@ -1,0 +1,35 @@
+(:wat::core::defn :fix::pairtbl [] -> (:wat::core::Vector :- [:wat::grep::Node])
+  (:wat::core::Vector :- [:wat::grep::Node]
+    (:wat::grep::Node :id 1 :parent 0 :index 0 :kind "symbol")
+    (:wat::grep::Node :id 2 :parent 0 :index 1 :kind "keyword")))
+
+;; Pair form whose every child is an atom. AlignPairs marks the
+;; map literal or trailing pair-run. Table rows stay tables.
+;; The emitter inlines when indent + Width fits; this file names no budget.
+
+(:wat::rete::defrule :fmt::all-atoms
+  :when [(:wat::fmt::AlignPairs (?p <- :form))
+         (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::rete::where (:wat::rete::string::= ?k "list"))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::rete::where (:wat::rete::string::= ?k "vector"))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::rete::where (:wat::rete::string::= ?k "map"))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::rete::where (:wat::rete::string::= ?k "set"))))
+         (:wat::rete::not
+           (:wat::rete::and
+             (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
+             (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+             (:wat::grep::Named (?h <- :id) (?hn <- :name))
+             (:wat::rete::where (:wat::rete::string::= ?hn ":wat::core::defenum"))))]
+  :then [(:wat::fmt::AllAtoms :form ?p)])

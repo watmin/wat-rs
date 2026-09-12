@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/fmt-head-fqdn-to-clojure.wat — arc 277: three spellings, one seam.
+;; SCOPE: wat-scripts/fmt/rules/*.wat wat-scripts/grep/*.wat
 ;;
 ;; Retarget fmt-rule string comparisons from the FQDN head spelling to the
 ;; clojure-target spelling that `:wat::grep::canonical-name` produces.

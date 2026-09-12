@@ -23,37 +23,25 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const FROZEN_LEDGER: &[(&str, &str)] = &[
     ("address-transport-arity", "stone 0b: fixture pending"),
     ("angle-brackets-to-binder", "stone 0b: fixture pending"),
-    ("assertion-failed-to-kwargs", "stone 0b: fixture pending"),
-    ("bare-none-keyword-to-fqdn", "stone 0b: fixture pending"),
-    ("bare-symbol-shorthand-to-fqdn", "stone 0b: fixture pending"),
-    ("bare-variant-to-qualified", "stone 0b: fixture pending"),
-    ("break-kind-string-to-enum", "stone 0b: fixture pending"),
     ("caller-to-emitted-from", "stone 0b: fixture pending"),
     ("declare-max-request-bytes", "stone 0b: fixture pending"),
     ("defrule-then-to-vector", "stone 0b: fixture pending"),
     ("deprime-telemetry-sqlite", "stone 0b: fixture pending"),
     ("drop-deftest-prelude", "stone 0b: fixture pending"),
     ("drop-env-wat-dot-prefix", "stone 0b: fixture pending"),
-    ("edits-carry-the-old-text", "stone 0b: fixture pending"),
     ("eprintln-recv-arm-to-assertion-failed", "stone 0b: fixture pending"),
     ("face-underscore-bound-send-prime", "stone 0b: fixture pending"),
     ("first-of-drop-to-nth", "stone 0b: fixture pending"),
     ("fix-macro-param-types", "stone 0b: fixture pending"),
-    ("fmt-head-fqdn-to-clojure", "stone 0b: fixture pending"),
     ("inline-constraint-per-type-spelling", "stone 0b: fixture pending"),
     ("kill-make-deftest", "stone 0b: fixture pending"),
     ("mandate-invocation-ctx-param", "stone 0b: fixture pending"),
     ("mandate-request-malformed", "stone 0b: fixture pending"),
-    ("mandatory-typed-quasiquote-residual", "stone 0b: fixture pending"),
-    ("match-arm-to-bracket-map-pattern", "stone 0b: fixture pending"),
     ("move-deftest-callers-to-prime", "stone 0b: fixture pending"),
     ("move-deftest-hermetic-callers-to-prime", "stone 0b: fixture pending"),
     ("namespace-bare-top-level-names", "stone 0b: fixture pending"),
     ("namespace-defrule-names", "stone 0b: fixture pending"),
-    ("node-kind-string-to-enum", "stone 0b: fixture pending"),
-    ("one-param-spec", "stone 0b: fixture pending"),
     ("parametrics-take-a-type-vector", "stone 0b: fixture pending"),
-    ("positional-ctor-to-map", "stone 0b: fixture pending"),
     ("positional-to-kwargs", "stone 0b: fixture pending"),
     ("query-answers-are-maps", "stone 0b: fixture pending"),
     ("read-string-to-outcome", "stone 0b: fixture pending"),
@@ -71,12 +59,9 @@ const FROZEN_LEDGER: &[(&str, &str)] = &[
     ("rename-locidiederror-shutdown-to-stopped", "stone 0b: fixture pending"),
     ("rename-record-def-to-defrecord", "stone 0b: fixture pending"),
     ("rename-seq-fold-aliases-to-core-reduce", "stone 0b: fixture pending"),
-    ("rename-slipped-core-heads-to-their-homes", "stone 0b: fixture pending"),
-    ("rename-sort-prime-to-native", "stone 0b: fixture pending"),
     ("rename-sourcefile-to-source-file", "stone 0b: fixture pending"),
     ("rename-wat-record-to-core-record", "stone 0b: fixture pending"),
     ("rename-wat-tests-std-to-wat-tests", "stone 0b: fixture pending"),
-    ("repoint-retired-heads-to-live-spellings", "stone 0b: fixture pending"),
     ("response-record-to-enum", "stone 0b: fixture pending"),
     ("retarget-peer-purity-probes", "stone 0b: fixture pending"),
     ("rete-oracle-sigil", "stone 0b: fixture pending"),
@@ -100,8 +85,7 @@ const FROZEN_LEDGER: &[(&str, &str)] = &[
     ("unignore-arc170-concurrency", "stone 0b: fixture pending"),
     ("unstamp-transport-wire", "stone 0b: fixture pending"),
     ("unwrap-recvoutcome-false-positive", "stone 0b: fixture pending"),
-    ("variant-separator-to-dot", "stone 0b: fixture pending"),
-    ("variant-vector-to-tagged-map", "stone 0b: fixture pending"),
+    ("variant-vector-to-tagged-map", "stone 0b: identity rewrite — header: no wat tagged-literal form; non-vacuous fixture would require STOP-1"),
     ("wrap-client-method-match-in-recvoutcome", "stone 0b: fixture pending"),
     ("wrap-connect-prime-in-connectoutcome", "stone 0b: fixture pending"),
 ];
@@ -165,6 +149,59 @@ fn rune_reason(stem: &str) -> Option<String> {
 
 fn ledger_map() -> std::collections::BTreeMap<&'static str, &'static str> {
     FROZEN_LEDGER.iter().copied().collect()
+}
+
+/// Header `;; SCOPE: <entry> …` lines. Exactly one, non-empty, is required of every
+/// fixtured or runed stem. `corpus` means tracked `*.wat` outside `wat-scripts/fixes/`.
+fn scope_lines(stem: &str) -> Vec<String> {
+    let path = fixes_dir().join(format!("{stem}.wat"));
+    let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{stem}: read: {e}"));
+    let mut found = Vec::new();
+    for line in src.lines() {
+        let t = line.trim();
+        let Some(rest) = t.strip_prefix(";;") else {
+            continue;
+        };
+        let rest = rest.trim();
+        let Some(rest) = rest.strip_prefix("SCOPE:") else {
+            continue;
+        };
+        found.push(rest.trim().to_string());
+    }
+    found
+}
+
+fn git_ls_files(globs: &[&str]) -> Vec<String> {
+    let out = Command::new("git")
+        .args(["-C", manifest().to_str().unwrap(), "ls-files", "--"])
+        .args(globs)
+        .output()
+        .expect("git ls-files");
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
+fn scope_globs_hit_a_tracked_file(stem: &str, entries: &[String]) -> Result<(), String> {
+    for ent in entries {
+        if ent == "corpus" {
+            let all = git_ls_files(&["*.wat"]);
+            let n = all
+                .iter()
+                .filter(|p| !p.starts_with("wat-scripts/fixes/"))
+                .count();
+            if n == 0 {
+                return Err(format!("{stem}: SCOPE corpus matches no tracked *.wat outside wat-scripts/fixes/"));
+            }
+            continue;
+        }
+        let hits = git_ls_files(&[ent.as_str()]);
+        if hits.is_empty() {
+            return Err(format!("{stem}: SCOPE glob `{ent}` matches no tracked file"));
+        }
+    }
+    Ok(())
 }
 
 fn fixture_stems() -> Vec<String> {
@@ -361,6 +398,22 @@ fn every_recorded_migration_is_fixtured_ledgered_or_runed() {
                 led.is_some(),
                 rune.is_some()
             ));
+        }
+        if fx || rune.is_some() {
+            let lines = scope_lines(stem);
+            if lines.len() != 1 {
+                violations.push(format!(
+                    "{stem}: expected exactly one `;; SCOPE:` line, found {}",
+                    lines.len()
+                ));
+            } else if lines[0].is_empty() {
+                violations.push(format!("{stem}: SCOPE line is empty"));
+            } else {
+                let entries: Vec<String> = lines[0].split_whitespace().map(str::to_string).collect();
+                if let Err(e) = scope_globs_hit_a_tracked_file(stem, &entries) {
+                    violations.push(e);
+                }
+            }
         }
     }
 

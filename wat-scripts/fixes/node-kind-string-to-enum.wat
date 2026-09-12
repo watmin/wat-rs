@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/node-kind-string-to-enum.wat — arc 277: Node.kind becomes an enum.
+;; SCOPE: wat-scripts/fmt/rules/*.wat wat-scripts/fmt/fixtures/*.wat wat-scripts/grep/*.wat tests/cli/wat_grep*.wat
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of consumers.
 ;;

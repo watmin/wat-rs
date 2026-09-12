@@ -1,0 +1,13 @@
+; near-miss: :wat::core::Option::Some already qualified stays
+(:wat::core::defn :u::a [] -> :wat::core::nil
+  (:wat::core::Some 1))
+(:wat::core::defn :u::b [] -> :wat::core::nil
+  (:wat::core::None))
+(:wat::core::defn :u::c [] -> :wat::core::nil
+  (:wat::core::Ok 1))
+(:wat::core::defn :u::d [] -> :wat::core::nil
+  (:wat::core::Err 1))
+(:wat::core::defn :u::e [] -> :wat::core::nil
+  (:None))
+(:wat::core::defn :u::keep [] -> :wat::core::nil
+  (:wat::core::Option::Some 1))

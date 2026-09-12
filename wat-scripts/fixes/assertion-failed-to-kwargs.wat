@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/assertion-failed-to-kwargs.wat — arc 109.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful. Rewrites every `:wat::kernel::assertion-failed!`
 ;; (and `wat.kernel/assertion-failed!`) 3-arg POSITIONAL call:

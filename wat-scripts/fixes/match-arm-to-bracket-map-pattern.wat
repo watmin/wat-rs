@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat — arc 109 / 296.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful. Rewrites every `:wat::core::match` ARM:
 ;;

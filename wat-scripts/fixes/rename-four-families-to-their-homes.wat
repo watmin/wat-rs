@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-four-families-to-their-homes.wat — arc 255, "the four that got homes".
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-the-four-that-got-homes-they-had-not-earned.md

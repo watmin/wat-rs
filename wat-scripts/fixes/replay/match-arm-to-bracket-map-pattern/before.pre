@@ -1,0 +1,10 @@
+; near-miss: cond is not match — header: cond is not touched
+(:wat::core::defn :fix::c [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::cond (x x) (_ 0)))
+; near-miss: a Vector arm is already migrated
+(:wat::core::defn :fix::keep [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match x
+    [already already]))
+(:wat::core::defn :fix::hb [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match x
+    (n n) (_ 0)))

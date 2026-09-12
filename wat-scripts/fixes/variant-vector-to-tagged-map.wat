@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/variant-vector-to-tagged-map.wat — arc 296 H-2.
+;; SCOPE: tests/value/probe_arc278_read_foreign.wat wat-tests/edn/roundtrip.wat
 ;; Self-hosted codemod: rewrite wat SOURCE that embeds the retired variant
 ;; wire `#ns.Enum/Variant […]` as a tagged literal form.
 ;;

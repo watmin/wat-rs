@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rename-core-vectors-to-their-homes.wat — arc 255 Stone E-ii.
+;; SCOPE: corpus
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
 ;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-E-ii-the-vectors-get-their-homes.md

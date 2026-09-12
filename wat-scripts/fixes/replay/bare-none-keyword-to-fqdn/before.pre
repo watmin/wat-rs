@@ -1,0 +1,6 @@
+; near-miss comment :None stays (comments are not nodes)
+(:wat::core::defn :u::m [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match x
+    (:None 0)
+    (:wat::core::None 1)
+    (_ 2)))
