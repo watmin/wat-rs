@@ -137,12 +137,47 @@ each file's blob at `4366f4fbd` with both parents. `[[feedback_a_landing_commit_
   - `rete_citation_resolves` ×2 · `rete_header_claims…enum_variant_ctor` (3 callers ≠ 4 documented)
   - `prose_in_rust_does_not_attest_a_name` · `no_new_broken_doc_link` 9 · `every_walking_gate…non_vacuity`
 
-## ⬜ NEXT — the builder's ruling on HOW the corpus crosses. Then the briefs.
+## ✓ RULED 2026-09-12 — replay grok-rete ONE COMMIT AT A TIME onto a branch off main
 
-Nothing runs until that ruling lands; the strategy is argued in the main chat against the four
-questions. When a chain does run, it runs over **338 files, not 2,072**. Files grok-rete never touched
-are main's and already migrated, and sweeping them would pull main's own stragglers (e.g. 37
-`:wat::core::i64::`) into the merge. The runner guards are proven on real triggers.
+The builder:
+- *"main is upgrading syntax, the others are upgrading subsystems"*
+- *"we step forward one commit at a time"*
+- *"correct but slow is better than fast and wrong… willing to accept the wall clock and token cost
+  if it means we don't lose any of our hard work."*
+
+`[[project_merge_doctrine_syntax_vs_subsystems]]`
+
+- **Ownership:** main owns ALL syntax, plus all behaviour outside the branch's subsystem. The branch
+  owns its subsystem's behaviour. A shared component takes main's version, with grok's change
+  re-expressed on top of it.
+- **Done = two gates:**
+  1. Every grok-rete test exists in main's syntax and passes at the commit that introduces it, or
+     carries grok's written reason.
+  2. Main's walls are green: lint, then floor, then clippy.
+- **The shape, measured:** 651 commits, linear, 0 merges. 376 are docs-only and 275 touch code. 113
+  touch a file main changed (91 of those `.rs`). Commit #1 already touches `.wat`.
+- **One step:**
+  - docs: cherry-pick
+  - `.wat`: migrate the before and after versions with main's codemods, then `git merge-file`
+  - `.rs`: cherry-pick, then re-express on main's shared components (rerere; the merge SCORE is a crib)
+  - wat embedded in `.rs`: by hand, per step
+  - gate: a build plus the commit's own tests; the floor at stone checkpoints
+- **`merge/grok-rete` is now the REFERENCE, not the destination.** Its resolutions are a crib, and
+  its final tree is the end cross-check. Its 8 tree-wide-missing grok tests
+  (`bootstrap/merge-audit/`) are the first loss signal the replay must NOT reproduce.
+
+## ⬜ NEXT
+
+1. **Step 0: the 12 grep-rules codemods work on today's binary.** Add a replay-fixture gate and a
+   declared SCOPE. The orchestrator's probe comes first: match the canonical name, splice the
+   verbatim text via `Written`.
+2. The step script, plus a pilot on the first ~10 code commits: timed, with tricks catalogued.
+3. Stone-sized batches with floor checkpoints. Grok executes; the orchestrator verifies.
+4. Cross-check against `merge/grok-rete`, then floor and clippy, then main.
+
+⚠ The post-merge TOOLING commits on this branch (A′ and (c) for `positional-ctor-to-map`, the
+bootstrap record, these docs) are main-side work, not grok's. They must be carried onto the replay
+branch. The chain runs over files grok touched, not all 2,072; runner guards are proven on real triggers.
 
 ## ⚠ RULINGS — do not re-litigate
 
