@@ -170,9 +170,14 @@ The builder:
 
 ## ⬜ NEXT
 
-1. **Step 0: the 11 grep-rules codemods work on today's binary.** Add a replay-fixture gate and a
-   declared SCOPE. The orchestrator's probe comes first: match the canonical name, splice the
-   verbatim text via `Written`.
+1. **Step 0: every recorded migration works on today's binary.** The builder ruled **all 94** replay
+   against a fixture (2026-09-12).
+   - The package is `the-grok-rete-replay/`: DESIGN, `BRIEF-0a-rewriters-read-what-is-written.md`,
+     `EXPECTATIONS-0a.md`.
+   - **0a:** `Written :text`, then the 11 codemods on `Written`, the 45 literals restored, and the
+     replay gate with 13 fixtures + 83 ledgered.
+   - **0b:** the other 83, the 2 rotted `to-faithful-clojure`, and SCOPE on all.
+   - The probes are done: the tracked one in `scratch-pad/`, and end-to-end in `bootstrap/step0-probes/`.
 2. The step script, plus a pilot on the first ~10 code commits: timed, with tricks catalogued.
 3. Stone-sized batches with floor checkpoints. Grok executes; the orchestrator verifies.
 4. Cross-check against `merge/grok-rete`, then floor and clippy, then main.
