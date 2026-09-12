@@ -169,7 +169,7 @@
      qh (:queue::queue/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                     (:wat::query::mem-store/grant sh (:vw::pids pl))))
+                     (:wat::service::require-granted (:wat::query::mem-store/grant sh (:vw::pids pl)))))
           :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      parkers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:vw::parker::Handle])
@@ -179,7 +179,7 @@
                    (:vw::parker/start
                      :locus (:wat::spawn::process/post-spawn
                               (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                                (:queue::queue/grant qh (:vw::pids pl))))
+                                (:wat::service::require-granted (:queue::queue/grant qh (:vw::pids pl)))))
                      :record (:vw::parker::Record :queue-name "q0")
                      :queue-addr (:queue::queue::Handle/addr qh))))
                (:wat::core::Vector :- [:vw::parker::Handle])

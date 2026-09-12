@@ -12,7 +12,8 @@
 ;; Capability])` of different services' Handles be grant/revoke'd UNIFORMLY, AND dialed
 ;; uniformly — `coordinate` hands back the handle's dial address as a bare
 ;; :wat::kernel::Address', so ONE vector of handles carries both grant and dial. grant/revoke
-;; return nil; coordinate returns the bare address.
+;; return nil (the extend-type faces GateOutcome via require-granted; this file loads
+;; before service.wat and cannot name that type). coordinate returns the bare address.
 (:wat::core::defsurface :wat::capability::Capability :nature :wat::core::Struct
   :features
   [(grant      [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::nil)

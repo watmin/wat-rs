@@ -113,7 +113,7 @@
      wh (:pw::w/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                     (:pw::s/grant sh (:pw::pids pl))))
+                     (:wat::service::require-granted (:pw::s/grant sh (:pw::pids pl)))))
           :record (:pw::w::Record :s-addr (:pw::s::Handle/addr sh)))
      w (:wat::core::match (:wat::kernel::connect (:pw::w::Handle/addr wh))
          ((:wat::kernel::ConnectOutcome::Connected c) c)

@@ -86,7 +86,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo/grant eh [p])
+                [_  (:wat::service::require-granted (:probe::echo/grant eh [p]))
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup ea)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))  ;; arc 278 #73 — the recv' below already faces the stop
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "a")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))  ;; arc 278 #73 — the recv' below already faces the stop
                  r1 (:wat::core::match (:wat::kernel::recv worker)

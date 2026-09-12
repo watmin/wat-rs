@@ -179,21 +179,21 @@
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::service::require-granted (:wat::query::mem-store/grant msh
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      ph    (:prod::producer/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::service::require-granted (:wat::telemetry::journal/grant jh
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))))))
              :record (:prod::producer::Record) :journal-addr jaddr)
      ch    (:cons::consumer/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::service::require-granted (:wat::telemetry::journal/grant jh
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))))))
              :record (:cons::consumer::Record) :journal-addr jaddr)
      producer (:wat::core::match (:wat::kernel::connect (:prod::producer::Handle/addr ph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      consumer (:wat::core::match (:wat::kernel::connect (:cons::consumer::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

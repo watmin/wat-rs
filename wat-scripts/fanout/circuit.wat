@@ -2940,7 +2940,7 @@
                    h  (:queue::queue/start
                         :locus (:wat::spawn::process/post-spawn
                                  (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                                   (:wat::query::sqlite-store/grant sh (:fanout::pids pl))))
+                                   (:wat::service::require-granted (:wat::query::sqlite-store/grant sh (:fanout::pids pl)))))
                         ;; ⛔ PER-TIER SEED, not the shared one. With one seed for every
                         ;; queue all m tiers draw the SAME sequence and fail on the same
                         ;; calls — measured: all four subs reported recv-drops=11 and
@@ -2958,7 +2958,7 @@
      inbox-qh (:queue::queue/start
                 :locus (:wat::spawn::process/post-spawn
                          (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                           (:wat::query::sqlite-store/grant inbox-store (:fanout::pids pl))))
+                           (:wat::service::require-granted (:wat::query::sqlite-store/grant inbox-store (:fanout::pids pl)))))
                 ;; ⛔ THE INBOX CAP WAS A CHOSEN CONSTANT, NOT A SWEPT ONE — the last one in
                 ;; this harness. It sat here as a literal `64` with no comment while its
                 ;; sibling one binding above (`:cap sub-cap`, :2722) has been a CLI parameter
@@ -2997,7 +2997,7 @@
      th (:demo::topic/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                     (:queue::queue/grant inbox-qh (:fanout::pids pl))))
+                     (:wat::service::require-granted (:queue::queue/grant inbox-qh (:fanout::pids pl)))))
           :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr inbox-qh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      twhandles (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:demo::topic-worker::Handle])
@@ -3009,10 +3009,10 @@
                                 (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                                   (:wat::core::let
                                     [pids (:fanout::pids pl)
-                                     _ (:queue::queue/grant inbox-qh pids)]
+                                     _ (:wat::service::require-granted (:queue::queue/grant inbox-qh pids))]
                                     (:wat::core::foldl
                                       (:wat::core::fn [a <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
-                                        (:queue::queue/grant (:wat::core::nth queues i) pids))
+                                        (:wat::service::require-granted (:queue::queue/grant (:wat::core::nth queues i) pids)))
                                       nil
                                       (:wat::core::range 0 m)))))
                        ;; NOT the row-3 sub-queue `vis` — this is the inbox's own
@@ -3046,7 +3046,7 @@
                     (:fanout::publisher/start
                       :locus (:wat::spawn::process/post-spawn
                                (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                                 (:demo::topic/grant th (:fanout::pids pl))))
+                                 (:wat::service::require-granted (:demo::topic/grant th (:fanout::pids pl)))))
                       :record (:fanout::publisher::Record
                                 :id (:wat::core::str i)
                                 :topic-addr (:demo::topic::Handle/addr th)
@@ -3087,8 +3087,8 @@
                                                 (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                                                   (:wat::core::let
                                                     [pids (:fanout::pids pl)
-                                                     _ (:queue::queue/grant qh pids)]
-                                                    (:fanout::seen/grant seenh pids)))
+                                                     _ (:wat::service::require-granted (:queue::queue/grant qh pids))]
+                                                    (:wat::service::require-granted (:fanout::seen/grant seenh pids))))
                                               :env-fn "(:wat::program::EmptyEnv)"
                                               ;; Stop returns every first-seen Outcome. A bursty
                                               ;; queue can land all 2000 on one worker; 512 KiB
@@ -3729,12 +3729,12 @@
      qh  (:queue::queue/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                      (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
+                      (:wat::service::require-granted (:wat::query::sqlite-store/grant msh (:fanout::pids pl)))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      hh  (:fanout::held-worker/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                      (:queue::queue/grant qh (:fanout::pids pl))))
+                      (:wat::service::require-granted (:queue::queue/grant qh (:fanout::pids pl)))))
            :record (:fanout::held-worker::Record :id "held-0" :queue-name "q0"
                      :queue-addr (:queue::queue::Handle/addr qh)))
      q   (:fanout::dial-queue (:queue::queue::Handle/addr qh))
@@ -3775,7 +3775,7 @@
      qh  (:queue::queue/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                      (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
+                      (:wat::service::require-granted (:wat::query::sqlite-store/grant msh (:fanout::pids pl)))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
@@ -3784,8 +3784,8 @@
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::core::let
                         [pids (:fanout::pids pl)
-                         _ (:queue::queue/grant qh pids)]
-                        (:fanout::seen/grant seenh pids))))
+                         _ (:wat::service::require-granted (:queue::queue/grant qh pids))]
+                        (:wat::service::require-granted (:fanout::seen/grant seenh pids)))))
            :record (:fanout::mk-worker "idle-0" "q0" 1000000000000 0 0
                      (:queue::queue::Handle/addr qh)
                      (:fanout::seen::Handle/addr seenh) 0 0))
@@ -3808,19 +3808,19 @@
      qh  (:queue::queue/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                      (:wat::query::sqlite-store/grant msh (:fanout::pids pl))))
+                      (:wat::service::require-granted (:wat::query::sqlite-store/grant msh (:fanout::pids pl)))))
            :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::sqlite-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      ish (:wat::query::sqlite-store/start :locus (:wat::spawn::process)
            :record (:wat::query::sqlite-store::Record :path ":memory:" :index-names (:wat::core::Vector :- [:wat::core::String] "by-visible-at")))
      iqh (:queue::queue/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                      (:wat::query::sqlite-store/grant ish (:fanout::pids pl))))
+                      (:wat::service::require-granted (:wat::query::sqlite-store/grant ish (:fanout::pids pl)))))
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::sqlite-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th  (:demo::topic/start
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                      (:queue::queue/grant iqh (:fanout::pids pl))))
+                      (:wat::service::require-granted (:queue::queue/grant iqh (:fanout::pids pl)))))
            :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
@@ -3829,8 +3829,8 @@
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::core::let
                         [pids (:fanout::pids pl)
-                         _ (:queue::queue/grant qh pids)]
-                        (:fanout::seen/grant seenh pids))))
+                         _ (:wat::service::require-granted (:queue::queue/grant qh pids))]
+                        (:wat::service::require-granted (:fanout::seen/grant seenh pids)))))
            :record (:fanout::mk-worker "ob-0" "q0" 1000000000000 0 0
                      (:queue::queue::Handle/addr qh)
                      (:fanout::seen::Handle/addr seenh) 0 0))

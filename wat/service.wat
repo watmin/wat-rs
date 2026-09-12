@@ -3035,14 +3035,14 @@
      methods           (:wat::core::conj methods hibernate-method)
 
      ;; ── arc 278: owner-only grant method (mirror of stop) ────────────────────────
-     ;; Method: (defn <fqdn>/grant [h <- Handle  pids <- (Vector i64)] -> nil ...)
+     ;; Method: (defn <fqdn>/grant [h <- Handle  pids <- (Vector i64)] -> GateOutcome ...)
      ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
      ;; Peer, so a client has NO grant path). Sends Admin::AllowPeer[pids] down the lineage
      ;; peer; recv's Status::PeersAllowed → the grant is applied before this returns (so the
      ;; circuit builder's post-spawn grant lands before the caller dials). Callable any time,
      ;; repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote at def time).
      grant-discard-sym (:wat::core::symbol-node "_")
-     grant-r-sym       (:wat::core::symbol-node "r")
+     grant-t0-sym      (:wat::core::symbol-node "t0")
      grant-method-name (:wat::keyword::from-string
                          (:wat::string::interpolate "{b}/grant" :b fqdn-base))
      ;; the BASE call name — the Capability/Dialable extend-type bodies invoke grant/revoke
@@ -3052,88 +3052,82 @@
      grant-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :- [:wat::core::i64])]
      ;; Grant is the process-tier accept-gate. Hinge is the existing
      ;; `peer-process` on the lineage handle (same un-erase stop/signal use).
-     ;; Thread is shared memory: the handle IS the grant — no Admin::AllowPeer.
+     ;; Thread is shared memory: the handle IS the grant — no Admin::AllowPeer,
+     ;; no wait, Applied immediately (STOP-4).
+     ;;
+     ;; Send AllowPeer ONCE (four-arm SendOutcome kept verbatim). Then the SAME
+     ;; bounded re-recv stop/hibernate use — owner-recv-loop. Do NOT re-send:
+     ;; a surplus PeersAllowed ack left on the lineage peer is read by a later
+     ;; stop as Message(other) → "expected Status::Stopped". Map
+     ;; StopOutcome::Stopped(PeersAllowed) → GateOutcome::Applied.
      grant-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
                           ((:wat::core::Some _)
                             (:wat::core::let
-                          ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
-                          ;; below faces Lost/Closed; the send' just proceeds regardless.
-                          [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw pids))
-                                                (:wat::kernel::SendOutcome::Sent   nil)
-                                                (:wat::kernel::SendOutcome::Closed nil)
-                                                (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
-                                                ((:wat::kernel::SendOutcome::Lost _c) nil))
-                           ~grant-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
-                          (:wat::core::match ~grant-r-sym 
-                            ((:wat::kernel::RecvOutcome::Message recvd)
-                              (:wat::core::match recvd 
-                                (~status-peers-allowed-kw nil)
-                                (_ (:wat::kernel::assertion-failed!
-                                     "defservice grant: expected Status::PeersAllowed"
-                                     :wat::core::None
-                                     :wat::core::None))))
-                            ((:wat::kernel::RecvOutcome::Lost cause)
-                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Stopped
-                              (:wat::kernel::assertion-failed!
-                                "defservice grant: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                :wat::core::None :wat::core::None))
-                            (:wat::kernel::RecvOutcome::Closed
-                              (:wat::kernel::assertion-failed!
-                                "defservice grant: service peer closed during grant"
-                                :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
-                          (:wat::core::None nil))
-     grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
+                              [~grant-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-allow-peer-kw pids))
+                                                    (:wat::kernel::SendOutcome::Sent   nil)
+                                                    (:wat::kernel::SendOutcome::Closed nil)
+                                                    (:wat::kernel::SendOutcome::Stopped nil)
+                                                    ((:wat::kernel::SendOutcome::Lost _c) nil))
+                               ~grant-t0-sym (:wat::time::epoch-nanos (:wat::time::now))]
+                              (:wat::core::match
+                                (:wat::service::owner-recv-loop (~handle-handle-acc h) ~grant-t0-sym 10000 "recv")
+                                ((:wat::service::StopOutcome::Stopped recvd)
+                                  (:wat::core::match recvd
+                                    (~status-peers-allowed-kw (:wat::service::GateOutcome::Applied))
+                                    (_ (:wat::kernel::assertion-failed!
+                                         "defservice grant: expected Status::PeersAllowed"
+                                         :wat::core::None
+                                         :wat::core::None))))
+                                ((:wat::service::StopOutcome::Gone c)
+                                  (:wat::service::GateOutcome::Gone c))
+                                ((:wat::service::StopOutcome::GaveUp w l)
+                                  (:wat::service::GateOutcome::GaveUp w l)))))
+                          (:wat::core::None (:wat::service::GateOutcome::Applied)))
+     grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::service::GateOutcome ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
      methods           (:wat::core::conj methods grant-method)
 
      ;; ── arc 293: owner-only revoke method (mirror of grant) ──────────────────────
-     ;; Method: (defn <fqdn>/revoke [h <- Handle  pids <- (Vector i64)] -> nil ...)
+     ;; Method: (defn <fqdn>/revoke [h <- Handle  pids <- (Vector i64)] -> GateOutcome ...)
      ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
      ;; Peer, so a client has NO revoke path). Sends Admin::DenyPeer[pids] down the lineage
      ;; peer; recv's Status::PeersDenied → the revoke is applied before this returns. Callable
      ;; any time, repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote
      ;; at def time).
      revoke-discard-sym (:wat::core::symbol-node "_")
-     revoke-r-sym       (:wat::core::symbol-node "r")
+     revoke-t0-sym      (:wat::core::symbol-node "t0")
      revoke-method-name (:wat::keyword::from-string
                           (:wat::string::interpolate "{b}/revoke" :b fqdn-base))
      revoke-call-name   (:wat::keyword::from-string
                           (:wat::string::interpolate "{b}/revoke" :b fqdn-base))
      revoke-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :- [:wat::core::i64])]
      ;; Twin of grant: process-only via `peer-process`. Shared-memory lineage
-     ;; has no pid set to revoke.
+     ;; has no pid set to revoke — thread arm is Applied, no wait.
+     ;; Send DenyPeer ONCE, then owner-recv-loop. Same surplus-ack argument as grant.
      revoke-method-body `(:wat::core::match (:wat::kernel::peer-process (~handle-handle-acc h))
                            ((:wat::core::Some _)
                              (:wat::core::let
-                           ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
-                           ;; below faces Lost/Closed; the send' just proceeds regardless.
-                           [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw pids))
-                                                  (:wat::kernel::SendOutcome::Sent   nil)
-                                                  (:wat::kernel::SendOutcome::Closed nil)
-                                                  (:wat::kernel::SendOutcome::Stopped nil)   ;; arc 278 #73 — the recv' below faces it
-                                                  ((:wat::kernel::SendOutcome::Lost _c) nil))
-                            ~revoke-r-sym       (:wat::kernel::recv (~handle-handle-acc h))]
-                           (:wat::core::match ~revoke-r-sym 
-                             ((:wat::kernel::RecvOutcome::Message recvd)
-                               (:wat::core::match recvd 
-                                 (~status-peers-denied-kw nil)
-                                 (_ (:wat::kernel::assertion-failed!
-                                      "defservice revoke: expected Status::PeersDenied"
-                                      :wat::core::None
-                                      :wat::core::None))))
-                             ((:wat::kernel::RecvOutcome::Lost cause)
-                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-                             (:wat::kernel::RecvOutcome::Stopped
-                               (:wat::kernel::assertion-failed!
-                                 "defservice revoke: stop requested while awaiting the reply — the service was ALIVE (arc 278 #73; this was reported as a peer close before the variant existed)"
-                                 :wat::core::None :wat::core::None))
-                             (:wat::kernel::RecvOutcome::Closed
-                               (:wat::kernel::assertion-failed!
-                                 "defservice revoke: service peer closed during revoke"
-                                 :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
-                           (:wat::core::None nil))
-     revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
+                               [~revoke-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) (~admin-deny-peer-kw pids))
+                                                      (:wat::kernel::SendOutcome::Sent   nil)
+                                                      (:wat::kernel::SendOutcome::Closed nil)
+                                                      (:wat::kernel::SendOutcome::Stopped nil)
+                                                      ((:wat::kernel::SendOutcome::Lost _c) nil))
+                                ~revoke-t0-sym (:wat::time::epoch-nanos (:wat::time::now))]
+                               (:wat::core::match
+                                 (:wat::service::owner-recv-loop (~handle-handle-acc h) ~revoke-t0-sym 10000 "recv")
+                                 ((:wat::service::StopOutcome::Stopped recvd)
+                                   (:wat::core::match recvd
+                                     (~status-peers-denied-kw (:wat::service::GateOutcome::Applied))
+                                     (_ (:wat::kernel::assertion-failed!
+                                          "defservice revoke: expected Status::PeersDenied"
+                                          :wat::core::None
+                                          :wat::core::None))))
+                                 ((:wat::service::StopOutcome::Gone c)
+                                   (:wat::service::GateOutcome::Gone c))
+                                 ((:wat::service::StopOutcome::GaveUp w l)
+                                   (:wat::service::GateOutcome::GaveUp w l)))))
+                           (:wat::core::None (:wat::service::GateOutcome::Applied)))
+     revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::service::GateOutcome ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
      methods           (:wat::core::conj methods revoke-method)
 
@@ -3692,8 +3686,10 @@
      handle-addr-name (:wat::keyword::from-string
                          (:wat::string::interpolate "{b}::Handle/addr" :b fqdn-base))
      grantable-extend `(:wat::core::extend-type ~handle-bare-name :wat::capability::Capability
-                         (grant  [~grantable-self-sym ~grantable-pids-sym] (~grant-call-name  ~grantable-self-sym ~grantable-pids-sym))
-                         (revoke [~grantable-self-sym ~grantable-pids-sym] (~revoke-call-name ~grantable-self-sym ~grantable-pids-sym))
+                         (grant  [~grantable-self-sym ~grantable-pids-sym]
+                           (:wat::service::require-granted (~grant-call-name  ~grantable-self-sym ~grantable-pids-sym)))
+                         (revoke [~grantable-self-sym ~grantable-pids-sym]
+                           (:wat::service::require-granted (~revoke-call-name ~grantable-self-sym ~grantable-pids-sym)))
                          (coordinate [~grantable-self-sym]
                            (:wat::core::ann-form (~handle-addr-name ~grantable-self-sym) :wat::kernel::Address)))
 
@@ -3857,6 +3853,37 @@
     ((:wat::service::StopOutcome::Stopped _) nil)
     ((:wat::service::StopOutcome::Gone _) nil)
     ((:wat::service::StopOutcome::GaveUp _ _) nil)))
+
+;; GateOutcome — grant and revoke face a value instead of dying. Payload-free:
+;; Applied is the gate change (ack received, or the thread-tier handle IS the
+;; grant). Gone is a peer that is actually gone. GaveUp is alive-and-silent.
+;; Not StopOutcome :- [nil]: that would name a grant's success Stopped.
+(:wat::core::defenum :wat::service::GateOutcome :wat::enum::Pure
+  :Applied []
+  :Gone    [cause     <- :wat::kernel::LociDiedError]
+  :GaveUp  [waited-ms <- :wat::core::i64
+            last      <- :wat::core::String])
+
+;; require-granted — call-site choice: the gate must have applied; a failure
+;; is a defect HERE. Shared by grant and revoke (both return GateOutcome).
+(:wat::core::defn :wat::service::require-granted
+  [o <- :wat::service::GateOutcome] -> :wat::core::nil
+  (:wat::core::match o
+    ((:wat::service::GateOutcome::Applied) nil)
+    ((:wat::service::GateOutcome::Gone c)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message c) :wat::core::None :wat::core::None))
+    ((:wat::service::GateOutcome::GaveUp waited last)
+      (:wat::kernel::assertion-failed!
+        (:wat::string::interpolate "gate GaveUp waited-ms={w} last={l}" :w waited :l last)
+        :wat::core::None :wat::core::None))))
+
+;; gate-faced — teardown: every arm is named, none of them crash the owner.
+(:wat::core::defn :wat::service::gate-faced
+  [o <- :wat::service::GateOutcome] -> :wat::core::nil
+  (:wat::core::match o
+    ((:wat::service::GateOutcome::Applied) nil)
+    ((:wat::service::GateOutcome::Gone _) nil)
+    ((:wat::service::GateOutcome::GaveUp _ _) nil)))
 
 ;; ServiceEvent::Lost carries Failure. RecvOutcome::Lost wants LociDiedError.
 ;; The one Failure class string that must survive as a variant is Severed

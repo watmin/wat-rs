@@ -83,8 +83,8 @@
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::service::require-granted (:wat::query::mem-store/grant msh
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      journal (:wat::core::match (:wat::kernel::connect jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -105,8 +105,8 @@
      sh    (:usr::my-sift'/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::service::require-granted (:wat::telemetry::journal/grant jh
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))))))
              :record (:usr::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::core::match (:wat::kernel::connect (:usr::my-sift'::Handle/addr sh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      resp  (:usr::my-sift/sift-rules svc
@@ -157,8 +157,8 @@
      jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::query::mem-store/grant msh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::service::require-granted (:wat::query::mem-store/grant msh
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      journal (:wat::core::match (:wat::kernel::connect jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
@@ -174,8 +174,8 @@
      sh    (:usr::my-sift'/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::telemetry::journal/grant jh
-                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl)))))
+                        (:wat::service::require-granted (:wat::telemetry::journal/grant jh
+                          (:wat::core::Vector :- [:wat::core::i64] (:wat::spawn::ProcessLaunch/pid pl))))))
              :record (:usr::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::core::match (:wat::kernel::connect (:usr::my-sift'::Handle/addr sh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      resp  (:usr::my-sift/sift-rules svc

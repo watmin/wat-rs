@@ -66,7 +66,7 @@
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
-                [_  (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p)) ;; grant BEFORE the setup dial
+                [_  (:wat::service::require-granted (:probe::echo/grant eh (:wat::core::Vector :- [:wat::core::i64] p))) ;; grant BEFORE the setup dial
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Setup ea)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))            ;; worker dials-and-holds (admitted)
                  _  (:wat::core::match (:wat::kernel::send worker (:probe::Msg::Work "a")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  rr1 (:wat::kernel::recv worker)

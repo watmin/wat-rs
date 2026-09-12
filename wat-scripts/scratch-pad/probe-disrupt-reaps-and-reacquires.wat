@@ -156,7 +156,7 @@
      fh (:dz::front/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                     (:dz::sink/grant sh (:dz::pids pl))))
+                     (:wat::service::require-granted (:dz::sink/grant sh (:dz::pids pl)))))
           :record (:dz::front::Record :sink-addr (:dz::sink::Handle/addr sh) :disrupts 0))
      f (:wat::core::match (:wat::kernel::connect (:dz::front::Handle/addr fh))
          ((:wat::kernel::ConnectOutcome::Connected c) c)

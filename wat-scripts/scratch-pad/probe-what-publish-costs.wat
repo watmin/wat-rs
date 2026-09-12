@@ -174,7 +174,7 @@
      qh (:queue::queue/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                     (:wat::query::sqlite-store/grant sh (:pp::pids pl))))
+                     (:wat::service::require-granted (:wat::query::sqlite-store/grant sh (:pp::pids pl)))))
           :record (:queue::queue::Record :cap 64
                     :store-addr (:wat::query::sqlite-store::Handle/addr sh)
                     :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))

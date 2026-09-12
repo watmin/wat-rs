@@ -214,7 +214,7 @@
      fh (:cr::front/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                     (:cr::sink/grant sh (:cr::pids pl))))
+                     (:wat::service::require-granted (:cr::sink/grant sh (:cr::pids pl)))))
           :record (:cr::front::Record
                     :sink-addr (:cr::sink::Handle/addr sh)
                     :disrupt-rate-bp rate

@@ -63,7 +63,7 @@
      uh (:p::use/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                     (:p::src/grant sh (:wat::core::Vector :- [:wat::core::i64]
-                                         (:wat::spawn::ProcessLaunch/pid pl)))))
+                     (:wat::service::require-granted (:p::src/grant sh (:wat::core::Vector :- [:wat::core::i64]
+                                         (:wat::spawn::ProcessLaunch/pid pl))))))
           :record (:p::use::Record) :src-addr sa)]
     (:wat::kernel::println (:wat::core::str (:p::use::Handle/addr uh)))))
