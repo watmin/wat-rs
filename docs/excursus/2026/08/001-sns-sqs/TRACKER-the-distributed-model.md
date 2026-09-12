@@ -17,7 +17,12 @@ Same fixture this morning: **109 deliveries/s, e2e ~12 s, non-deterministic.**
 
 ---
 
-## ⛔ WHERE WE ARE NOW — 2026-09-08
+## ⛔ WHERE WE WERE — 2026-09-08 (HISTORICAL; superseded 2026-09-12 — see below)
+
+> ⭔ **Superseded 2026-09-12.** Every number in this section is four days and ~35 commits old:
+> HEAD is `fb31d3323` not `9f84eefe6`, and the floor is **5237/5237** not 5221. The live current-state
+> note is `~/work/BREADCRUMB.md`; the raise→value track that closed since is its ✅ block. Marked rather
+> than rewritten, using this file's own convention at §WHERE CHAOS ACTUALLY STANDS.
 
 **Floor green 5221/5221, 0 FAIL, 0 TIMEOUT, quiet box.** HEAD `9f84eefe6`, 0 dirty, 0 unpushed.
 31 commits this session.
@@ -75,7 +80,16 @@ drain +55%   store +40%   NOT-in-queue +72%   ρ FALLING
 (`:594` — *"Trie shares"*). **n=500 unchanged, n=1000 −18 %** — the exact signature of a quadratic
 term leaving.
 
-### ⛔ THE BLOCKER — n=2000 will not complete
+### ✅ RESOLVED — n=2000 completes (was: ⛔ THE BLOCKER)
+
+> **Re-derived 2026-09-12 on my own run**, the breadcrumb's freshness probe:
+> `wat-scripts/fanout/circuit.wat 2000 4 3 8192 true 1000` → exit **0**, **24.9 s** wall,
+> `n=2000;m=4;j=3;total=8000;distinct=8000;dup=0`, `visible=0 unacked=0` on all five tiers.
+> `vis` did become a swept parameter, and the drain was since rebuilt **twice** (progress-bounded,
+> then onto `:fanout::Verdict`). The original text is kept below as the measurement it was.
+> ⚠ A finding can be correct and stop being true — this one did.
+
+#### The original entry — 2026-09-08
 
 ```
 [0/0][0/20][0/20][0/10]   50 unacked   check/mark-exhausted=0  ack-retries=0  ack-exhausted=0
