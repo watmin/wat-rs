@@ -2963,8 +2963,14 @@
      stop-t0-sym       (:wat::core::symbol-node "t0")
      ;; Send Admin::Stop ONCE (it terminates the service — service.wat:2287; a re-ask
      ;; would convert a slow stop into a guaranteed Gone). Then a wall-clock-bounded
-     ;; RE-RECV. TimedOut/Stopped/Malformed are alive-signals: re-recv or GaveUp, never Gone.
-     ;; Message(other) stays a raise: a protocol violation, not a momentary failure.
+     ;; RE-RECV for the ack. TimedOut/Stopped/Malformed are alive-signals: re-recv or
+     ;; GaveUp, never Gone. Message(other) stays a raise: a protocol violation.
+     ;;
+     ;; ⭑ stop-means-gone: Status::Stopped is an ACK, not a reap. The serve loop
+     ;; sends it THEN returns nil — the process is still winding down. A second
+     ;; owner-recv-loop on the SAME t0 waits for the lineage socket close (Closed
+     ;; or Lost, both mean gone; thread vs process). TimedOut stays GaveUp — never
+     ;; folded into Stopped. Budget is shared: 10000 ms covers ack + close.
      stop-method-body  `(:wat::core::let
                           [~stop-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-stop-kw)
                                                (:wat::kernel::SendOutcome::Sent   nil)
@@ -2976,7 +2982,18 @@
                             (:wat::service::owner-recv-loop (~handle-handle-acc h) ~stop-t0-sym 10000 "recv")
                             ((:wat::service::StopOutcome::Stopped recvd)
                               (:wat::core::match recvd
-                                ((~status-stopped-kw resp) (:wat::service::StopOutcome::Stopped resp))
+                                ((~status-stopped-kw resp)
+                                  (:wat::core::match
+                                    (:wat::service::owner-wait-gone (~handle-handle-acc h) ~stop-t0-sym 10000 "close")
+                                    ((:wat::service::StopOutcome::Gone _c)
+                                      (:wat::service::StopOutcome::Stopped resp))
+                                    ((:wat::service::StopOutcome::GaveUp w l)
+                                      (:wat::service::StopOutcome::GaveUp w l))
+                                    ((:wat::service::StopOutcome::Stopped _)
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice stop: owner-wait-gone returned Stopped"
+                                        :wat::core::None
+                                        :wat::core::None))))
                                 (_ (:wat::kernel::assertion-failed!
                                      "defservice stop: expected Status::Stopped"
                                      :wat::core::None
@@ -3010,6 +3027,11 @@
      hib-t0-sym        (:wat::core::symbol-node "t0")
      ;; Same send-once / bounded re-recv as stop. Reuses StopOutcome: :Stopped
      ;; carries the Hibernated snapshot (the expected payload). SCORE states this.
+     ;;
+     ;; ⭑ stop-means-gone: hibernate SHARES the shape — Admin::Hibernate acks
+     ;; Status::Hibernated then returns nil (no recur), same as Stop. Measured
+     ;; at the serve-loop arms, not assumed. The close-wait is the same second
+     ;; owner-wait-gone on the same t0 / 10000 ms budget.
      hibernate-method-body  `(:wat::core::let
                                [~hib-discard-sym (:wat::core::match (:wat::kernel::send (~handle-handle-acc h) ~admin-hibernate-kw)
                                                    (:wat::kernel::SendOutcome::Sent   nil)
@@ -3021,7 +3043,18 @@
                                  (:wat::service::owner-recv-loop (~handle-handle-acc h) ~hib-t0-sym 10000 "recv")
                                  ((:wat::service::StopOutcome::Stopped recvd)
                                    (:wat::core::match recvd
-                                     ((~status-hibernated-kw snapshot) (:wat::service::StopOutcome::Stopped snapshot))
+                                     ((~status-hibernated-kw snapshot)
+                                       (:wat::core::match
+                                         (:wat::service::owner-wait-gone (~handle-handle-acc h) ~hib-t0-sym 10000 "close")
+                                         ((:wat::service::StopOutcome::Gone _c)
+                                           (:wat::service::StopOutcome::Stopped snapshot))
+                                         ((:wat::service::StopOutcome::GaveUp w l)
+                                           (:wat::service::StopOutcome::GaveUp w l))
+                                         ((:wat::service::StopOutcome::Stopped _)
+                                           (:wat::kernel::assertion-failed!
+                                             "defservice hibernate: owner-wait-gone returned Stopped"
+                                             :wat::core::None
+                                             :wat::core::None))))
                                      (_ (:wat::kernel::assertion-failed!
                                           "defservice hibernate: expected Status::Hibernated"
                                           :wat::core::None
@@ -3839,6 +3872,24 @@
           (:wat::service::owner-recv-loop peer t0-ns budget-ms "Stopped"))
         ((:wat::kernel::RecvOutcome::Malformed _c)
           (:wat::service::owner-recv-loop peer t0-ns budget-ms "Malformed"))))))
+
+;; owner-wait-gone — after the ack, wait for the lineage socket to close.
+;; Closed and Lost both mean gone (thread vs process). A Message means the
+;; lineage is still emitting: re-recv on the SAME t0 / budget, never a sleep
+;; and never an attempt counter. TimedOut stays GaveUp — not folded into gone.
+(:wat::core::defn :wat::service::owner-wait-gone :- [I O]
+  [peer <- (:wat::kernel::Peer :- [:I :O])
+   t0-ns <- :wat::core::i64
+   budget-ms <- :wat::core::i64
+   last <- :wat::core::String]
+  -> (:wat::service::StopOutcome :- [:O])
+  (:wat::core::match (:wat::service::owner-recv-loop peer t0-ns budget-ms last)
+    ((:wat::service::StopOutcome::Gone c)
+      (:wat::service::StopOutcome::Gone c))
+    ((:wat::service::StopOutcome::GaveUp w l)
+      (:wat::service::StopOutcome::GaveUp w l))
+    ((:wat::service::StopOutcome::Stopped _)
+      (:wat::service::owner-wait-gone peer t0-ns budget-ms "still-emitting"))))
 
 ;; require-stopped — call-site choice: need the payload, a failure is a defect
 ;; HERE. The generated method no longer decides that for everyone.
