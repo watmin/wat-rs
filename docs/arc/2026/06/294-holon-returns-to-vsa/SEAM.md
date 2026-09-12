@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. 2026-09-11. ⛔ **RED (6, ALL ONE RULING) · 29 UNPUSHED · CLEAN.**
+# SEAM — the ONE live breadcrumb. 2026-09-11. ⛔ **YOU ARE ON A MERGE BRANCH, NOT MAIN.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -10,117 +10,112 @@
 ## FIRST — RUN THESE. DO NOT READ THE NUMBERS BELOW.
 
 ```bash
-git status --porcelain          # expect EMPTY
-git log --oneline @{u}..HEAD    # expect 29 — NOTHING IS PUSHED
-cat /home/john/work/holon/.pulsare/to-claude   # has grok scored?
-./scripts/floor.sh > /dev/null 2>&1
-L=$(ls -td .floor/*/ | head -1); grep -E "Summary|FAIL \[" "$L/raw.log" | sort -u
-cargo clippy --release --all-targets -- -D warnings
+git rev-parse --abbrev-ref HEAD      # expect merge/grok-rete   — NOT main
+git status --porcelain               # grok's A′ WIP may be in flight — see PEER below
+ps -eo pid,etime,cmd | grep wat | grep -v grep     # ⛔ a codemod still running? NEVER start a 2nd
+ls -la bootstrap/ && cat bootstrap/wat-main-*.PROVENANCE     # the escape hatch — must exist
+cat /home/john/work/holon/.pulsare/to-claude       # has grok scored?
 ```
 
-⛔⛔ **THE PEER EDITS THIS SAME WORKING TREE.** A floor run during a grok strike measures a TORN
-tree — `.floor/latest` vanished mid-run and clippy reported two phantom compile errors that were
-gone seconds later. **Check `git status` before believing any central measurement.** While a peer
-is striking: do NOT `checkout`/`stash`/`reset`/commit its paths, and do NOT build or floor. Wait
-for `kind=scored`, THEN measure centrally, THEN commit.
+## ⛔⛔ THREE FACTS THAT WILL BITE A FRESH SELF WITHIN MINUTES
 
-## ⛔ THE PEER IS ALIVE
+**1. `./target/release/wat` on this branch CANNOT BOOT.** The merged stdlib (grok-rete's
+`wat/gen.wat`, `bracket.wat`, `query.wat`, …) carries pre-rename spellings that the merged
+runtime's purity gate refuses at startup. **Every codemod dies instantly.** Use the escape hatch:
+`bootstrap/wat-main-a3218644d` — main's binary, stdlib frozen in at build time, PROVEN to convert
+a pre-flip file. The tracked record of it lives in `.gitignore` (the `bootstrap/` comment), because
+the ignored dir already lost one binary and a `/tmp` copy died in a WSL crash.
 
-`pulsare` reconnected, grok's credits reset. Protocol: **write the files, then `pulsare_yield`**
-(`kind: briefed` / `scored`), **ABSOLUTE** paths — relative ones are rejected. Its tier is
-edit-and-report: **it does not floor, does not clippy, does not commit.** That is yours, centrally,
-once, on a quiescent tree. Local `Agent` riders are still right for edit-only fan-outs.
+**2. THE CODEMODS ARE NEVER THEIR OWN INPUT.** Running the chain over `wat-scripts/fixes/` let
+`fmt-head-fqdn-to-clojure` rewrite a string literal INSIDE `positional-ctor-to-map`
+(`":wat::core::unquote"` → `"wat.core/unquote"`), disarming its predicate; four steps later it
+emitted `{:pred ~}src` and corrupted `wat/query.wat`. Exclude `wat-scripts/fixes/` from every path list.
+`[[feedback_a_tool_is_never_its_own_input]]`
 
-# ⬜ WHERE THE WORK IS
+**3. TIME A TOOL ON ONE FILE BEFORE RUNNING IT ON THOUSANDS.** `positional-ctor-to-map` costs
+**~15 s/file** (56 s/file on dense files) — a ~9-hour run, killed at 4h08m. Then I launched a SECOND
+run without checking the first had exited: two processes doing read-modify-write on one corpus.
+`[[feedback_time_a_tool_on_one_item_first]]`
 
-## ✓ LANDED — the dot flip, and the type system that flip exposed
-
-```
-THE DOT FLIP          `Enum.Variant` is canonical; `Enum::Variant` is dead. Nine classes of
-                      variant-name site, each found by something FAILING. Corpus migrated by the
-                      self-hosted codemod, ASKING `variant-parent-of` rather than pattern-matching.
-the EXPANDER          expand_form walked List and Vector, NOT Map or Set — a macro call inside a
-                      map literal was NEVER expanded -> no scheme -> FRESH VAR -> assignable
-                      passed trivially. `PublicOpInAlarm` had been silently DEAD.
-{:keys} INSTANTIATION dropped a Parametric's args, used DECLARED field types raw, for record,
-                      struct AND variant. Plus `:Enum.Variant/field` accessors, which never existed.
-THE BARE ACCESSOR     `b743ae310` — `(:field x)` was ACCEPTED AND NEVER TYPED (fresh var unifies
-                      with anything), and a parametric Aggregate was absent from the arms, so the
-                      TRUTH was refused as UnknownCallee. Both closed at the site.
-RULING ①-C            `45aabbb93` — the dot spelling RESOLVES; `::` is the refused one.
-```
-
-## ⬜ THE 6 REMAINING REDS — ALL ONE ROOT CAUSE, AND IT IS A RULING YOU OWE
+## WHERE THE WORK IS
 
 ```
-6  probe_arc278_call_context (5) + probe_arc278_arming_is_internal_only (1)
-   A variant literal in an unascribed MATCH SCRUTINEE narrows a container's type param
-   (Alarm<Op.Tick>), and same-head parametric args are INVARIANT (arc 278 Stone 2).
-   ⛔ NOT A REPAIR. Three options measured, all three DISQUALIFIED: ann-form ascription,
-   bind-enclosing-enum, same-head covariance.
-   ★ THE FLOOR CANNOT GO GREEN — AND NOTHING CAN BE PUSHED — WITHOUT THIS RULING.
+main              a3218644d   FROZEN · PUSHED · floor 5373/5373 GREEN · clippy 0     do not touch
+origin/grok-rete  37528f6e0   FROZEN
+merge/grok-rete   (this)      merge committed, ALL TARGETS COMPILE, corpus NOT migrated
 ```
 
-★★ **THREE RATCHETS FIRED TODAY, all the same shape**: `no_loose_string_assert`,
-`probe_arc255_the_blanket_hides_a_phantom_head`, and the parametric-vector probe. **A probe that
-PINS A DEFECT becomes a lie the moment the defect is fixed, and it goes red in a way that reads
-like a regression.** Two of the three also had to MOVE: a fixture whose job is to be REFUSED cannot
-live under a gate requiring it to LOAD (arc 255 Stone 4 is the precedent, and the reason).
+- `4366f4fbd` — grok's merge: 99 conflicts (35 .rs · 39 .wat · 23 .edn · 1 toml · 1 .bad).
+  merge-base `de827fb4c` (2026-08-24); main +911, grok-rete +651.
+- `db60b092a` — five home-retargets (`load::loader::`, `normalize_rust_source_span_lines`,
+  `value_to_edn_with`); `cargo build --release` passed the merge but NOT `--all-targets`.
+- ⛔ **Three warnings deliberately UNSILENCED** (`eval_lower`, `field_types`, one test import) —
+  refactor residue from main moving rete dispatch to `#[wat_intrinsic]`, but whether those paths
+  FULLY supersede grok-rete's is a rete judgment. Prefixing an unused var whose doc calls it
+  load-bearing would hide a dropped check. **They go back to grok.** Clippy is red until then.
+
+## ⬜ THE MIGRATION — TWO PHASES, AND WHY
+
+28 recorded codemods landed on main after the split; grok-rete's corpus saw none of them. Replay
+in **landing order** (= dependency order). Regenerate the order — the `/tmp` copy is gone:
+
+```bash
+for f in $(git diff --name-status de827fb4c main -- wat-scripts/fixes/ | grep '^A' | awk '{print $2}'); do
+  echo "$(git log --format=%ci --diff-filter=A -1 de827fb4c..main -- $f) $f"; done | sort | awk '{print $4}'
+```
+
+**PHASE 1** — `bootstrap/wat-main-a3218644d` over the corpus INCLUDING merged `wat/`, EXCLUDING
+`wat-scripts/fixes/`. That should make the merged stdlib bootable → rebuild.
+**PHASE 2** — the rebuilt merged binary, over the same list. Main's binary does NOT know
+grok-rete-only reserved types (`:wat::rete::FireOutcome` / `CompileOutcome` / `InsertOutcome` …) —
+they print `UNRESOLVED` in phase 1. **Phase 1's UNRESOLVED lines are phase 2's worklist.** Do not
+estimate that number with grep.
+
+## ⬜ IN FLIGHT — A′: `positional-ctor-to-map` resolves reserved names ONCE
+
+Per file, it `eval-with-defs!`s every candidate enum path against that file's decls — and
+discards the memo. **Ruled A′ (builder, 2026-09-11):** reserved names (`RESERVED_PREFIXES`,
+`src/resolve/reserved.rs:14`) resolve ONCE and are cached across files — honest BY CONSTRUCTION,
+because the registration gate (`src/resolve/registration.rs:165`) makes a user re-declaration of a
+reserved name either equivalent (NoOp) or refused (`ReservedPrefix`). Everything else resolves PER
+FILE — the correct model for independent programs.
+
+⛔ **Grok's first strike (option B, uncommitted in the tree) HALTS on the full corpus.** It asserts
+STOP-1 when one local name has two shapes — and 21 independent programs declare `:grid::Result` in
+two legal shapes (18 × 6 fields, 3 × 10). **Do not run it on the corpus.** Its two-pass skeleton,
+AST-shape comparison and declaring-file fallback are A′'s base. Its differential stands: A == B,
+20/20, independently re-diffed — the set is preserved at `bootstrap/pctm-gate/{orig,A,B}`.
 
 ## ⚠ RULINGS — do not re-litigate
 
-- **Character case carries NO meaning.** `user/some-enum.first` is legal; `Enum.Variant` is a BIAS.
-  Four live violations tracked in `109-kill-std/NOTE-character-case-carries-no-meaning.md` —
-  **deliberately unfixed.**
-- **A variant IS a tagged record** (arc 296). `Demo.Has -> Demo` accepts; `Demo -> Demo.Has`
-  refuses; a `Demo` receiver must `match`, a `Demo.Has` receiver need not.
-- **`git commit <paths>`** (new files need an explicit `git add <path>` first — never a sweep) ·
-  **⛔ NO SIDE BRANCHES** · **PUSH ONLY GREEN.**
-- ⚠ **Backticks inside a double-quoted `git commit -m` are SHELL-EXPANDED.** Use `-F -` + heredoc.
+- **Character case carries NO meaning.** `Enum.Variant` is a BIAS, never a rule.
+- **A variant IS a tagged record; `Variant <: Enum`.** The edge was registered long ago
+  (`types.rs:1135`); what was missing was `assignable`'s `Fn` arm (`58e9563b6`).
+- **A keyword literal means two things** (data, or a variant ctor by registry lookup). Deferred ON
+  PURPOSE to the symbol-head flip — `251-types-as-forms/NOTE-a-keyword-literal-means-two-things.md`.
+- **`::` in names is the last EDN holdout.** Angle brackets and double-slash are ZERO live in code —
+  every "live" hit I counted was inside a string literal.
 
-## ⛔ THE FAILURE PATTERNS — every one fired in the last two days
+## ⛔ THE FAILURE PATTERN OF THIS SESSION — five instances, one shape
 
-**① A CONDITIONAL PROBE CANNOT TELL CLEAN FROM NEVER-RAN. Fired FOUR times.** A mismatch-only
-print where `0 == 0` was silent; a grid that showed error text for its first row only, so a
-neighbouring row's cause got copied onto a different failure **and shipped into a brief**; and
-twice a falsification that "passed" because the corruption never landed — a `sed` for
-`"nonexistent"` cannot match `\"nonexistent\"` in the file. **VERIFY THE CORRUPTION IS PRESENT
-BEFORE READING THE GREEN.** `[[feedback_a_conditional_probe_cannot_tell_clean_from_never_ran]]`
+Every grep-shaped instrument lied, and every correction came from a CONTROL:
+26 "live" angle brackets (all strings) · 162 "lost" dispatch arms (main's `#[wat_intrinsic]` move;
+`foldl` was on the list) · 533 "`::` files" (type names, not variants) · 10 "unbalanced" files
+(parens inside strings; unbalanced BEFORE the chain too) · a `:grid::Result` census that stopped
+at the first `])` — including on a type annotation. **Run the control first. Ask the substrate
+(`--check`, `variant-parent-of`), not a regex.**
 
-**② A NUMBER ASSEMBLED FROM TWO MEASUREMENTS IS A THIRD MEASUREMENT NOBODY TOOK.** A brief shipped
-`5345 run · 5336 passed · 8 failed`. **5336 + 8 = 5344.** The run/passed pair came from one floor
-and the failure count from an older one, and the peer struck against a baseline that never existed.
-
-**③ CLOSING A RED CAN OPEN ANOTHER, AND ONLY A FULL FLOOR SEES IT.** Fixing the arc255 probe
-introduced a fresh `no_inlined_edn` violation. The scoped run showed 3/3 GREEN — a commit there
-would have shipped a regression while reporting a fix. **Scoped runs verify nothing about the floor.**
-
-**④ A STALE ASSERTION GOES RED FOR A REASON THAT IS NOT THE ONE IT NAMES.** The arc255 probe was
-"expected red, ruling given". It had actually stopped failing at RESOLVE and begun failing at CHECK,
-on a line the flip made illegal for an unrelated reason. **Re-goldening would have pinned an
-accident and called it the ruling.** Read the failure before applying the ruling.
-
-**⑤ THE FAILING-TEST LIST IS NOT THE BLAST RADIUS.** `h2__record.wat` was GREEN before a codemod
-broke it — found only by sweeping all 1119 fixtures. The same literal is a VARIANT in one file and
-a RECORD NAME in another: **a global token→token map is unsound.**
-
-**⑥ USAGE COUNT MEASURES AGE, NOT DESIRABILITY.** Nearly reverted a correct change over its single
-corpus use. It was one hour old. `[[feedback_usage_count_measures_age_not_desirability]]`
-
-**⑦ NEVER READ AN EXIT CODE THROUGH A PIPE.** `wat --check f | head` returns **head's** status. It
-reported `0` for a file that exits `1`, and nearly went into an assertion.
-
-★★★ **EVERY DEFECT HERE WAS FOUND BY SOMETHING FAILING — a rider's STOP, a peer's refutation, a
-lint, an instrument breaking loudly — and NEVER by a census of mine. Read a red as a finding.**
+And one of the four-questions kind: I disqualified option A using "file A's answer can be wrong
+for file B", then endorsed option B by calling that same fact a hidden defect. Two readings, one
+fact, opposite verdicts — neither caught it because each option was weighed alone.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Re-run the commands. Do not read the numbers.
->
-> ⛔ **NOTHING IS PUSHED AND THE FLOOR IS RED.** That is the deliberate state, not an accident.
+> ⛔ **YOU ARE ON `merge/grok-rete`. `target/release/wat` HERE CANNOT BOOT. The escape hatch is
+> `bootstrap/`, and its record is the `.gitignore` comment.**
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.` ·
 > `HAERESIS EST ITERVM ROGARE.`
