@@ -11,7 +11,7 @@
 
 ```bash
 git rev-parse --abbrev-ref HEAD      # expect merge/grok-rete   — NOT main
-git status --porcelain               # grok's A′ WIP may be in flight — see PEER below
+git status --porcelain               # expect EMPTY; a live peer strike makes it dirty
 ps -eo pid,etime,cmd | grep wat | grep -v grep     # ⛔ a codemod still running? NEVER start a 2nd
 ls -la bootstrap/ && cat bootstrap/wat-main-*.PROVENANCE     # the escape hatch — must exist
 cat /home/john/work/holon/.pulsare/to-claude       # has grok scored?
@@ -71,20 +71,29 @@ grok-rete-only reserved types (`:wat::rete::FireOutcome` / `CompileOutcome` / `I
 they print `UNRESOLVED` in phase 1. **Phase 1's UNRESOLVED lines are phase 2's worklist.** Do not
 estimate that number with grep.
 
-## ⬜ IN FLIGHT — A′: `positional-ctor-to-map` resolves reserved names ONCE
+## ✓ LANDED — A′ (`bbcb70e38`): `:wat::`/`:rust::` resolve ONCE, every local name PER FILE
 
-Per file, it `eval-with-defs!`s every candidate enum path against that file's decls — and
-discards the memo. **Ruled A′ (builder, 2026-09-11):** names under `:wat::` / `:rust::` (`RESERVED_PREFIXES`,
-`src/resolve/reserved.rs:14`, MINUS `:$bound::`, which is per-scope) resolve ONCE and are cached across files — honest BY CONSTRUCTION,
-because the registration gate (`src/resolve/registration.rs:165`) makes a user re-declaration of a
-reserved name either equivalent (NoOp) or refused (`ReservedPrefix`). Everything else resolves PER
-FILE — the correct model for independent programs.
+Honest by construction (`registration.rs:165`: equivalent-before-reserved). **Not**
+`is_reserved_prefix` — `:$bound::` is per-scope and deliberately excluded, documented in the
+codemod. Every acceptance row re-verified by the orchestrator: gate A == B 20/20 (mtime-controlled),
+the collision pair no-halt and OLD-identical, ReservedPrefix refused on `:wat::` AND accepted on
+`:u::`. 3.1× on the same 20 files. Option B's halting version is gone.
 
-⛔ **Grok's first strike (option B, uncommitted in the tree) HALTS on the full corpus.** It asserts
-STOP-1 when one local name has two shapes — and 21 independent programs declare `:grid::Result` in
-two legal shapes (18 × 6 fields, 3 × 10). **Do not run it on the corpus.** Its two-pass skeleton,
-AST-shape comparison and declaring-file fallback are A′'s base. Its differential stands: A == B,
-20/20, independently re-diffed — the set is preserved at `bootstrap/pctm-gate/{orig,A,B}`.
+## ⬜ NEXT — phase 1's SCOPE is a ruling, pending
+
+```
+A′ on representative phase-1 files (a spread sample of bootstrap/phase1-grok.txt):
+  n=1    24.96s   24.62–24.96 s/file   files changed=0   corpus-invariant=29 per-file=6
+  n=5   123.12s                        files changed=0   corpus-invariant=93 per-file=92
+```
+
+**~25 s/file FLAT, and 5/5 sampled files change NOTHING** — resolution runs whether or not an edit
+results. 338 × ~25s ≈ 2.3h is a projection from two points, not a measurement. Grok's option-B SCORE
+calls the 20 gate files "essentially every remaining positional site" — hedged, unverified.
+
+The runner is `bootstrap/run-chain.sh <binary> <paths.txt> [order.txt]`. Its guards are today's
+lessons as checks: refuses a live codemod · refuses `wat-scripts/fixes/` · refuses a binary that
+cannot boot · stops at the first nonzero rc · logs to `bootstrap/chain-runs/` before reading.
 
 ## ⚠ RULINGS — do not re-litigate
 
