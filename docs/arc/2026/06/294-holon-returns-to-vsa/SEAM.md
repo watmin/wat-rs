@@ -180,6 +180,10 @@ The builder:
      drove the gate red four ways on a different codemod than grok's. The orchestrator also fixed
      two things: the gate's count pins are gone (it freezes names), and the keyword fixture gained
      near-misses.
+   - **0b batch 1 ✓ VERIFIED + pushed `8b2312dfb`** (16 chain fixtures, SCOPE on 30). Batch 2
+     proceeds under `BRIEF-0b-ADDENDUM-batch-2.md`: close batch 1's 7 named coverage gaps first.
+     **RULED 2026-09-12: delete `variant-vector-to-tagged-map`** (its `migrate` returns `src`), so
+     the stems become 95.
    - **0b BRIEFED** (`BRIEF-0b-every-recorded-migration-replays.md`, `EXPECTATIONS-0b.md`):
      - **batch 1** is the 17 chain codemods plus SCOPE, then grok yields and the orchestrator
        verifies;
