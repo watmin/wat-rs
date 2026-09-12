@@ -400,6 +400,135 @@
     (:wat::core::Vector :- [:wat::core::String])
     epaths))
 
+;; (c) — a local path is worth try-type-of only if THIS FILE could declare it.
+;; Macro-shaped decls generate types from their arguments; when one is present
+;; keep every local path (STOP-1). Otherwise keep iff the path equals, or is
+;; prefixed by on a `::` / `.` boundary, a plain type decl's name. Filter in
+;; place (STOP-2): do not reorder. try-type-of only shrinks decls, and the
+;; empty retry cannot resolve a local (stdlib's non-reserved decls are all
+;; ~placeholders in macro templates).
+
+(:wat::core::defn :user::macro-decl-head? [h <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::or
+    (:wat::core::= h ":wat::service::defservice")
+    (:wat::core::or
+      (:wat::core::= h ":wat::query::sift-rules-defsvc")
+      (:wat::core::= h ":wat::core::defmacro"))))
+
+(:wat::core::defn :user::plain-type-head? [h <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::or
+    (:wat::core::= h ":wat::core::defenum")
+    (:wat::core::or
+      (:wat::core::= h ":wat::core::defrecord")
+      (:wat::core::or
+        (:wat::core::= h ":wat::core::defstruct")
+        (:wat::core::or
+          (:wat::core::= h ":wat::core::defsurface")
+          (:wat::core::or
+            (:wat::core::= h ":wat::core::newtype")
+            (:wat::core::or
+              (:wat::core::= h ":wat::core::typealias")
+              (:wat::core::= h ":wat::core::typeunion"))))))))
+
+(:wat::core::defn :user::decl-type-name [n <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::let [ch (:wat::core::ast->children n)]
+    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
+      ""
+      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get ch 1) "decl name")]
+        (:wat::core::if (:wat::core::= (:wat::core::ast-kind a) "keyword")
+          (:wat::core::ast-name a)
+          "")))))
+
+(:wat::core::defn :user::has-macro-decl?
+  [decls <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool d <- :wat::WatAST] -> :wat::core::bool
+      (:wat::core::or acc (:user::macro-decl-head? (:wat::fix::head-name d))))
+    false
+    decls))
+
+(:wat::core::defn :user::plain-type-names
+  [decls <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) d <- :wat::WatAST]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::if (:user::plain-type-head? (:wat::fix::head-name d))
+        (:wat::core::let [nm (:user::decl-type-name d)]
+          (:wat::core::if (:wat::core::= nm "") acc (:wat::core::conj acc nm)))
+        acc))
+    (:wat::core::Vector :- [:wat::core::String])
+    decls))
+
+(:wat::core::defn :user::under-name? [ep <- :wat::core::String nm <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::or
+    (:wat::core::= ep nm)
+    (:wat::core::or
+      (:wat::string::starts-with? ep (:wat::string::concat nm "::"))
+      (:wat::string::starts-with? ep (:wat::string::concat nm ".")))))
+
+(:wat::core::defn :user::under-any-plain?
+  [ep    <- :wat::core::String
+   names <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::bool nm <- :wat::core::String] -> :wat::core::bool
+      (:wat::core::or acc (:user::under-name? ep nm)))
+    false
+    names))
+
+(:wat::core::defn :user::keep-local-ep? [decls <- (:wat::core::Vector :- [:wat::WatAST]) ep <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:user::has-macro-decl? decls)
+    true
+    (:user::under-any-plain? ep (:user::plain-type-names decls))))
+
+;; Filter in place — same relative order as `local`. Never reorder.
+(:wat::core::defn :user::keep-local-eps
+  [decls <- (:wat::core::Vector :- [:wat::WatAST])
+   local <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) ep <- :wat::core::String]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::if (:user::keep-local-ep? decls ep)
+        (:wat::core::conj acc ep)
+        acc))
+    (:wat::core::Vector :- [:wat::core::String])
+    local))
+
+(:wat::core::defn :user::skip-local-eps
+  [decls <- (:wat::core::Vector :- [:wat::WatAST])
+   local <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) ep <- :wat::core::String]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::if (:user::keep-local-ep? decls ep)
+        acc
+        (:wat::core::conj acc ep)))
+    (:wat::core::Vector :- [:wat::core::String])
+    local))
+
+(:wat::core::defn :user::audit-skipped
+  [decls   <- (:wat::core::Vector :- [:wat::WatAST])
+   skipped <- (:wat::core::Vector :- [:wat::core::String])
+   path    <- :wat::core::String]
+  -> :wat::core::nil
+  (:wat::core::if (:wat::core::empty? skipped)
+    nil
+    (:wat::core::let [ep (:wat::core::first skipped)]
+      (:wat::core::match (:user::try-type-of ep decls)
+        [:wat::core::Option.Some {:value _}
+          (:wat::kernel::assertion-failed!
+            :message
+            (:wat::string::concat
+              "STOP-6 skipped-that-resolved-to-Some "
+              (:wat::string::concat ep (:wat::string::concat " " path))))]
+        [:wat::core::Option.None {}
+          (:user::audit-skipped decls (:wat::core::rest skipped) path)]
+        [_ (:user::audit-skipped decls (:wat::core::rest skipped) path)]))))
+
 (:wat::core::defn :user::fmap-for-src
   [src  <- :wat::core::String
    base <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
@@ -413,7 +542,8 @@
      vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
      epaths (:user::enum-paths-of vpaths)
      local  (:user::local-eps-of epaths)
-     filled (:user::fill-paths base local decls)]
+     kept   (:user::keep-local-eps decls local)
+     filled (:user::fill-paths base kept decls)]
     (:user::bind-kw-ctors filled tree)))
 
 ;; Derive unquote-ctor bindings from let-bound `*-kw` names whose value
@@ -859,12 +989,14 @@
             (:user::rewrite-each (:wat::core::rest paths) frozen)))))))
 
 ;; PASS 1: unique corpus-invariant epaths, resolved once against stdlib
-;; (empty decls). PASS 2: locals against THIS file's decls (fmap-for-src).
+;; (empty decls). PASS 2: kept locals against THIS file's decls (fmap-for-src).
 (:wat::core::defn :user::collect-pass
   [scan    <- (:wat::core::Vector :- [:wat::core::String])
    all     <- (:wat::core::Vector :- [:wat::core::String])
    inv-eps <- (:wat::core::Vector :- [:wat::core::String])
-   local-n <- :wat::core::i64
+   kept-n  <- :wat::core::i64
+   skip-n  <- :wat::core::i64
+   audit   <- :wat::core::bool
    base    <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? scan)
@@ -874,25 +1006,42 @@
           "[positional-ctor] resolve corpus-invariant="
           (:wat::string::concat
             (:wat::i64::to-string (:wat::core::length inv-eps))
-            (:wat::string::concat " per-file=" (:wat::i64::to-string local-n)))))
+            (:wat::string::concat
+              " per-file="
+              (:wat::string::concat
+                (:wat::i64::to-string (:wat::i64::+ kept-n skip-n))
+                (:wat::string::concat
+                  " kept-local="
+                  (:wat::string::concat
+                    (:wat::i64::to-string kept-n)
+                    (:wat::string::concat " skipped-local=" (:wat::i64::to-string skip-n)))))))))
       (:user::rewrite-each all
         (:user::fill-paths base inv-eps (:wat::core::Vector :- [:wat::WatAST]))))
     (:wat::core::let [path (:wat::core::first scan)]
       (:wat::core::if (:user::skip-path? path)
-        (:user::collect-pass (:wat::core::rest scan) all inv-eps local-n base)
+        (:user::collect-pass (:wat::core::rest scan) all inv-eps kept-n skip-n audit base)
         (:wat::core::let
           [src    (:wat::io::read-file path)
            tree   (:user::src-tree src)
+           decls  (:user::file-decls tree)
            vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
            feps   (:user::enum-paths-of vpaths)
            inv2   (:user::union-eps inv-eps (:user::invariant-eps-of feps))
-           loc-n  (:wat::core::length (:user::local-eps-of feps))]
-          (:user::collect-pass
-            (:wat::core::rest scan)
-            all
-            inv2
-            (:wat::i64::+ local-n loc-n)
-            base))))))
+           local  (:user::local-eps-of feps)
+           kept   (:user::keep-local-eps decls local)
+           skipped (:user::skip-local-eps decls local)]
+          (:wat::core::do
+            (:wat::core::if audit
+              (:user::audit-skipped decls skipped path)
+              nil)
+            (:user::collect-pass
+              (:wat::core::rest scan)
+              all
+              inv2
+              (:wat::i64::+ kept-n (:wat::core::length kept))
+              (:wat::i64::+ skip-n (:wat::core::length skipped))
+              audit
+              base)))))))
 
 (:wat::core::defn :user::ensure-path
   [paths <- (:wat::core::Vector :- [:wat::core::String])
@@ -902,6 +1051,16 @@
     paths
     (:wat::core::conj paths extra)))
 
+(:wat::core::defn :user::drop-audit
+  [paths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) p <- :wat::core::String]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::if (:wat::core::= p "--audit") acc (:wat::core::conj acc p)))
+    (:wat::core::Vector :- [:wat::core::String])
+    paths))
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [paths (:wat::core::match (:wat::kernel::readln)
@@ -910,11 +1069,15 @@
                (:wat::kernel::assertion-failed! :message "readln: end of input")]
              [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-     paths2 (:user::ensure-path paths "wat/service.wat")
+     audit (:wat::vec::contains? paths "--audit")
+     paths1 (:user::drop-audit paths)
+     paths2 (:user::ensure-path paths1 "wat/service.wat")
      base (:user::stdlib-fmap)]
     (:user::collect-pass
       paths2
       paths2
       (:wat::core::Vector :- [:wat::core::String])
       0
+      0
+      audit
       base)))
