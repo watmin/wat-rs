@@ -125,6 +125,55 @@ files.** The code residuals are classified on the chain UNDER THE RULING, (B), n
   - **Both sides are wrong.** The tool's rule has not changed since `556b9c08f`, so this is an
     over-match its fixture never covered, not drift.
 
+## The residuals, asked of MAIN's binary (v2) — `bootstrap/era/probe-K/classify.sh`
+
+For each residual, `--check` both main's version and the chain's (each in a mirror of the repo
+layout), on main's binary `bootstrap/wat-main-a3218644d`:
+
+| class | files | meaning |
+|---|---|---|
+| CHAIN-FAILS | 127 | main passes, chain fails: a LOUD chain failure |
+| BOTH-PASS | 74 | hand content, or a silent difference |
+| BOTH-FAIL-SAME | 22 | broken on main already |
+| BOTH-FAIL-DIFF | 5 | both broken, differently |
+| MAIN-FAILS-ONLY | 1 | the chain fixes main |
+
+- ⚠ Instrument limit: a stdlib file (`wat/*.wat`) that differs from the binary's own baked stdlib
+  reports `DuplicateMacro`/`DuplicateType`/`ReservedPrefix`. Its classification is NOT a verdict;
+  those files need a different judge.
+- The 124 non-stdlib CHAIN-FAILS, by inner error: **173** × "retired clause; a match arm is a
+  bracket" (positional arms match-arm left UNRESOLVED; (B)'s target) · **~50** × "variant arm head
+  … is not namespaced" (finding 7) · a tail of ~30 (non-exhaustive open matches, map literal as a
+  match sub-pattern, TypeMismatch, UnknownCallee, retired names, ArityMismatch). v3 re-asks under (B).
+
+## Finding 7 — `variant-separator-to-dot` is CENSUS-bound: it flips only the 382 pairs main had
+
+- It consumes `docs/arc/2026/06/255-builtin-registry/dot-flip-phase1-pairs.txt` verbatim: 382
+  (old, new) pairs from main's corpus on 2026-09-10. A variant not on the list keeps `::`, and the
+  tool prints nothing (its log has no UNRESOLVED channel).
+- Sample: `tests/rete/probe_constructor_meta_enum_variant_green.wat` declares `:cg::Status` in the
+  file. It is not on the list; main flipped it later, in `c15d76e01` (dot flip ⑦).
+- **Main refuses it LOUDLY** (probe `bootstrap/era/probe-H/sep-{colon,dot}.wat`, main's binary):
+  `(:u::E::A {:x 1})` with a `[:u::E::A {:x x} x]` arm → rc 1; the dot spelling → rc 0. So a miss
+  is a `--check` failure (STOP-2 at replay time), not silent.
+- **The replay exposure:** every enum grok-rete declares in its own files is off the census by
+  construction. Which names are variants must come from the program's declarations and the
+  registry, the same door as finding 3, never a frozen list.
+- ⚠ **Main's refusal message is STALE:** "variant arm head `:u::E::A` is not namespaced; write
+  `<enum>::<Variant>`". The remedy names the spelling it just refused.
+
+## grok-rete `.wat` files OUTSIDE the 1489 checked here (11 of its 194 modified)
+
+- 3 that main DELETED (`c5f1ee487` WALL(278); `a3f24a5c3`): the two `130-…/complected-2026-05-02/{substrate,test}.wat`,
+  and `wat-scripts/scratch-pad/probe-f64-comparator-bogus-head.wat`. grok-rete modifies them, so the
+  replay meets modify/delete. Main owns the deletion unless grok's change carries rete behaviour.
+- 8 that are grok-rete's own CODEMODS (`wat-scripts/fixes/rete-*`, `to-faithful-clojure-{net,rete}`,
+  `type-query-to-defquery`), excluded because a tool is never its own input. The replay needs a stated
+  way to bring a codemod's own source to main's syntax without the chain rewriting the string
+  literals its rules match on.
+- Plus grok-rete's 161 NEW `.wat` files: they pass through the chain with no main counterpart, so this
+  check cannot see them.
+
 ## Operational notes (all paid for today)
 
 - Long runs are launched `setsid nohup`: the harness's memory guard kills tracked background tasks.
