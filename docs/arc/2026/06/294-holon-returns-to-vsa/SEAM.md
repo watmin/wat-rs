@@ -188,7 +188,15 @@ The builder:
      - `rename-record-def-to-defrecord` was restored (ruled).
      - Floor 5391/5391 with no SLOW (`positional_ctor` has its own envelope, 63.2 s); clippy 0.
      - The orchestrator reproduced (l)(m)(n) on its own runs, (n) on a different fixture than grok's.
-   - **NEXT (pending the builder's go):**
+   - **STARTED 2026-09-13 (builder: "pulsare"):**
+     - **pilot:** `BRIEF-1-pilot-first-ten-commits.md`, grok-rete #1–#10. It builds a tracked
+       `scripts/replay/` (chain order derived from git + overrides; a SCOPE-honest converter).
+     - **the composition check:** `bootstrap/composition/run.sh`, with the FROZEN binary
+       `bootstrap/wat-replay-base-8a5b7eb20` and the exported tree `bootstrap/composition/tree-8a5b7eb20`,
+       at nice 19, never touching the tree. Timed on one file first: 54 s, 46 s of it positional-ctor.
+       The baseline run (landing order, 1489 files) is running; runs land in
+       `bootstrap/composition/runs/`.
+   - **was NEXT (pending the builder's go):**
      - **the chain-composition check** — `bootstrap/composition/`: 1001 files main changed, where
        chain(file@base) is compared with file@main, plus 488 untouched as a control. It runs on
        copies, never the tree, so the orchestrator runs it in the background.
