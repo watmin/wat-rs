@@ -62,28 +62,49 @@ Three halves, each load-bearing:
 class of failure that must stay loud. This stone does not make "crashes impossible"; it makes **a wat
 raise a graceful stop** and leaves a substrate panic exactly as fatal as it is today.
 
-## THE ROUTE — a third seam argument, and why the other two lose
+## THE ROUTE — a new `Outcome` variant, and why the other two lose
 
-`:wat::kernel::serve-dispatch-op` (`src/runtime.rs:27441`) already catches the panic and already
-broadcasts. It then chooses `std::panic::resume_unwind`. **One decision changes, at one located
-place.** The question is only who computes the replacement value.
+`:wat::kernel::serve-dispatch-op` (`src/runtime.rs:27435`) already catches the panic and already
+broadcasts. It then calls `std::panic::resume_unwind` at `:27474`. **One branch changes, at one
+located place.** The question is only what it returns instead.
 
-**CHOSEN — (C) the macro supplies an on-fault function.** `serve-dispatch-op` goes arity-3:
-`(serve-dispatch-op clients body on-fault-fn)`. Rust catches → downcasts → broadcasts → applies
-`on-fault-fn` to the cause string and returns its `Outcome`. Every policy decision — including D2-a's
-`hibernate-project` call — stays in `wat/service.wat`, where `state` and `~hibernate-project-name`
-are **already in scope** (the precedent is `service.wat:2448`, which calls
-`(~hibernate-project-name state)` today). Rust's whole job becomes *"an escaping raise has a value
-form."*
+**CHOSEN — (B) add `:Faulted [cause <- String]` to `:wat::service::Outcome` (`service.wat:80`).**
+Rust downcasts the `AssertionPayload`, broadcasts as today, and returns a constructed
+`Outcome::Faulted[cause]`. The macro's serve-loop match gains **one arm**, and that arm does the
+graceful stop — including D2-a's `(~hibernate-project-name state)` — in wat, where it belongs.
 
-**REJECTED — (A) Rust synthesizes `Outcome::Stop` itself.** Smaller diff, and it puts service policy
-in the interpreter: Rust would own whether state is projected, what the cause says, whether sends
-fan. Those are `service.wat`'s decisions and it can already make them.
+⭑⭑ **Why this is the right shape and not merely a cheaper one: the pre-op state becomes
+STRUCTURAL.** `state` is the serve fn's own fifth parameter (`service.wat:2409`), in scope at the
+match site. The new arm reads it from there, so Rust never sees a state at all and **cannot pass the
+wrong one**. Under the rejected routes, "use the pre-op state" was a discipline in a trap-door list;
+here the wrong state has no path to the call. That is the top rung of the ladder rather than a
+convention, and it is the whole reason this route is preferred.
 
-**REJECTED — (B) a new `Outcome::Faulted` variant.** Measured: **388** `Outcome::Continue` matches
-across the corpus, and `check.rs:6879` refuses a match that omits a variant — so a new variant reds
-every one of them. Same reasoning that rejected generalizing `StopOutcome` + `GateOutcome` in
-`the-gate-methods-face-an-outcome` (*"it churns 45 freshly-migrated call sites"*), at 8× the scale.
+Four facts make it cheap, each measured this session:
+
+| fact | where |
+|---|---|
+| **1 match arm** on `Outcome::Continue` in the whole corpus — the other 387 occurrences are *constructions*, which a new variant does not touch | `grep -o '((:wat::service::Outcome::Continue'` → 1, in `wat/service.wat` |
+| type params are **erased** in a runtime `type_path`, so a parametric enum is no harder | `src/runtime.rs:16170`; `service.wat:2007`, `:2288`, `:2517` |
+| `EnumValue.names` is **"carried, never looked up"** — an enum value is self-describing, so Rust needs **no `src/types.rs` registration** to build one | `src/value/value.rs:1181` (arc 296 G′) |
+| `serve-dispatch-op` keeps **arity 2**; `infer_serve_dispatch_op`'s do-style passthrough (`body`'s type IS the form's type) stays untouched | `src/check.rs:12400` |
+
+**REJECTED — (C) a third seam argument carrying an on-fault function.** Drawn first and replaced.
+It works — `apply_function` (`src/runtime.rs:19512`) is the mechanism — but it ripples the arity
+through `check.rs`'s inference, the `#[wat_intrinsic]` declaration and the emission site, makes Rust
+apply a wat function from inside a `catch_unwind`, and leaves pre-op state as a *convention*. More
+moving parts for a weaker guarantee.
+
+**REJECTED — (A) Rust synthesizes `Outcome::Stop` directly.** Smallest diff, and it cannot satisfy
+D2-a: the `Stop` arm (`service.wat:2203`) replies, fans `sends` and returns `nil` — it **does not
+project durable state**. Projection needs wat-side logic on the fault path, which is exactly what (B)
+adds. It would also put service policy in the interpreter.
+
+⛔ **Two numbers in this section's first draft were wrong and are recorded because the reasoning
+turned on them.** I rejected (B) at *"388 matches"* — a line count that conflated match patterns with
+constructions (real answer: **1**) — and then at *"Rust cannot construct a parametric wat-only
+enum"*, which was a **zero from a grep with no positive control**; params are erased and names are
+carried, so neither half held. The builder's challenge (*"that's legal, right?"*) is what reopened it.
 
 ## Out of scope = REJECTED
 
@@ -105,11 +126,11 @@ every one of them. Same reasoning that rejected generalizing `StopOutcome` + `Ga
 ## Blast radius, measured across all carriers
 
 ```
-wat/service.wat                1 emission site (:2512) + the on-fault defn to emit
-src/runtime.rs                 eval_kernel_serve_dispatch_op_tail (:27435, arity check :27441)
-src/check.rs                   infer_serve_dispatch_op (:12400) + its dispatch (:4775)
-src/intrinsic/kernel/serve.rs  the #[wat_intrinsic] declaration + its derivation doc
-.wat corpus                    0 — no user-visible form changes
+wat/service.wat                Outcome defenum (:80, +1 variant) + 1 serve-loop match arm (:2164)
+src/runtime.rs                 the Err(payload) branch ONLY (:27472-:27475)
+src/check.rs                   0 — arity unchanged, passthrough inference untouched
+src/intrinsic/kernel/serve.rs  0 — declaration unchanged
+.wat corpus                    0 constructions break; a new variant only reds MATCHES, and there is 1
 ```
 
 ## Trap-doors named up front
@@ -117,8 +138,11 @@ src/intrinsic/kernel/serve.rs  the #[wat_intrinsic] declaration + its derivation
 1. ⛔ **`wat/service.wat` is STDLIB — frozen into the binary at build time.** A Rust change ships
    alongside it, so this is the **STASH-DANCE** case. Read `wat/fix.wat`'s BOOTSTRAP / STASH-DANCE
    header before touching it; do not hand-edit your way out of a non-booting tool.
-2. ⛔ **The state must be the seam's ARGUMENT, never anything the panicking body produced.** That is
-   the whole soundness argument. `AssertUnwindSafe` is an assertion, not a proof.
+2. ⛔ **Read `state` from the serve fn's own parameter at the match site — never from anything the
+   panicking body produced.** Under the chosen route this is structural (Rust never holds a state),
+   so the trap-door is only this: **do not "improve" it by passing state through the seam.** That
+   reintroduces the mistake the shape currently forbids. `AssertUnwindSafe` is an assertion, not a
+   proof, and the pre-op state is what makes it sound.
 3. ⚠ **This seam runs on EVERY op dispatch.** Emit the on-fault function as a **top-level `defn`**
    (the shape `hibernate-project-def` already uses, `service.wat:760`) and pass its symbol — do NOT
    emit an inline `(fn …)` that allocates a closure per dispatch. The third bijection check cost

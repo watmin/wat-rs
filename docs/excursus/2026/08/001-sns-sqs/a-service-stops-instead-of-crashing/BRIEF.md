@@ -1,96 +1,91 @@
 # BRIEF — a service stops instead of crashing
 
 **Read `DESIGN.md` beside this first.** It carries the one contract decision, the sub-decision that
-keeps it honest (only an `AssertionPayload` converts), two routes affirmatively rejected with
-numbers, and seven trap-doors — including the STASH-DANCE, which governs how you edit at all.
+keeps it honest (only an `AssertionPayload` converts), two routes affirmatively rejected with measured
+reasons, and seven trap-doors — including the STASH-DANCE, which governs how you edit at all.
 
 ## The work, in one paragraph
 
 `:wat::kernel::serve-dispatch-op` already wraps every op-handler body in `catch_unwind` and already
 broadcasts `PeerCrashed` to connected clients on a crash; it then calls `std::panic::resume_unwind`
-and the service dies for everyone. Give the form a **third argument** — an on-fault function the
-`defservice` macro emits — and on a caught **`AssertionPayload`** downcast, broadcast as today, then
-apply that function to the cause and return its `Outcome` instead of resuming. The macro's on-fault
-function returns `Outcome::Stop` carrying the **pre-op** state, so the service leaves through the
-serve loop's existing clean-exit arm. Any other panic payload still resumes, unchanged.
+and the service dies for everyone. Add a `:Faulted [cause <- String]` variant to
+`:wat::service::Outcome`; in that one Rust branch, downcast the panic payload, and **if it is an
+`AssertionPayload`** broadcast as today and return a constructed `Outcome::Faulted[cause]` instead of
+resuming. Then give the serve loop's `Outcome` match one new arm that performs the graceful stop —
+projecting durable state via `hibernate-project` and ending the serve recursion. Any other panic
+payload still resumes, unchanged.
 
 ## The rooms
 
 | where | why you are going there |
 |---|---|
-| `src/runtime.rs:27435` `eval_kernel_serve_dispatch_op_tail` | ⭑ THE SEAM. Read its whole doc header first — it explains why this is the one hook with `clients` reachable, and why it must stay in tail position. The arity check is at `:27441`; the two branches at `:27468`–`:27476`. |
-| `src/host/test_runner.rs:301` | ⭑ THE PROVEN SHAPE — `catch_unwind` around `apply_function`, and the loop continues in the same process afterwards. This is the live precedent that the runtime survives catching this payload. Copy how it calls and how it recovers. |
-| `src/assertion.rs:54` `AssertionPayload` | the struct to downcast to: `message` / `actual` / `expected` / `location` / call stack. The cause string you hand the on-fault fn comes from here. |
-| `src/runtime.rs:25359` `apply_function` | how Rust applies a wat function — cited by `serve.rs`'s own derivation. |
-| `src/check.rs:12400` `infer_serve_dispatch_op` | the type authority (there is no registered `TypeScheme`). Today: `clients` checked for error coverage only, `body`'s type IS the form's type. You add the third arg's type and keep that passthrough. |
-| `src/check.rs:4775` | where the inference above is dispatched from. |
-| `src/intrinsic/kernel/serve.rs:33`+ | the `#[wat_intrinsic]` declaration and its `:ControlFlow` derivation. The doc argues the classification from the OLD two-arg shape; extend it, don't silently invalidate it. |
-| `wat/service.wat:2512` | the single emission site. `state` is in scope — the sibling `ServiceEvent::Closed` arm at `:2519` passes it to `serve-name` one line below. |
-| `wat/service.wat:2203` | the `Outcome::Stop` arm your on-fault value lands in: replies, fans `sends`, returns `nil`. Read it so you know what you are handing it. |
-| `wat/service.wat:760` `hibernate-project-def` | the shape for emitting a **top-level** helper `defn` from the macro. Use it — see STOP-3. |
+| `src/runtime.rs:27435` `eval_kernel_serve_dispatch_op_tail` | ⭑ THE SEAM. Read its whole doc header first — it explains why this is the one hook with `clients` reachable and why it must stay in tail position. **The only branch you change is `Err(payload)` at `:27472`–`:27475`.** |
+| `src/assertion.rs:54` `AssertionPayload` | the struct to downcast to: `message` / `actual` / `expected` / `location` / call stack. The `cause` string comes from here. |
+| `src/host/test_runner.rs:301` | ⭑ THE PROVEN SHAPE — `catch_unwind`, and the loop **continues in the same process** afterwards. The live precedent that the runtime survives catching this payload. |
+| `src/value/value.rs:1176` `EnumValue` | what you construct: `type_path` / `variant_name` / `names` / `fields`. ⭑ `names` is **carried, never looked up** (arc 296 G′), so no `src/types.rs` registration is needed. Type params are erased in a runtime `type_path` (`src/runtime.rs:16170`). |
+| `wat/service.wat:80` the `Outcome` defenum | where `:Faulted [cause <- :wat::core::String]` goes. |
+| `wat/service.wat:2164` the `Outcome::Continue` match arm | ⭑ the ONE match over `Outcome` in the corpus — your new arm's home. Measured: 1 arm head; the other 387 occurrences are constructions and are unaffected. |
+| `wat/service.wat:2203` the `Outcome::Stop` arm | the closest sibling shape: it replies, fans `sends`, returns `nil`. Read it to see what a clean serve-loop exit looks like — and note it does **not** project state, which is why `Stop` alone could not satisfy D2-a. |
+| `wat/service.wat:2409` `serve-params` | `state` is the serve fn's **fifth parameter**, so your arm reads the pre-op state from scope. This is the soundness argument — see DESIGN trap-door 2. |
 | `wat/service.wat:2448` | the precedent for calling `(~hibernate-project-name state)` from macro-emitted code. |
 | `wat-scripts/scratch-pad/probe-a-handler-raise-kills-the-service.wat` | the acceptance gate. It prints `b-dial=connect-REFUSED` today; the strike makes the innocent client's call succeed. |
 
 ## Implementation sketch
 
-Rust, at the seam — the `Err` branch is the only one that changes:
+Rust — the `Err` branch, and nothing else:
 
 ```rust
 Err(payload) => {
     crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
     match payload.downcast_ref::<crate::assertion::AssertionPayload>() {
-        Some(ap) => {
-            let cause = Value::String(/* ap.message (+ location, if it reads well) */);
-            apply_function(on_fault_fn, vec![cause], sym, /* span */)
-        }
+        Some(ap) => Ok(Value::Enum(EnumValue {
+            type_path: ":wat::service::Outcome".into(),   // params erased at runtime
+            variant_name: "Faulted".into(),
+            names: Arc::new(vec!["cause".into()]),        // carried, not looked up
+            fields: vec![Value::String(/* ap.message, + location if it reads well */)],
+        })),
         // NOT a wat raise — a substrate bug. Unchanged.
         None => std::panic::resume_unwind(payload),
     }
 }
 ```
 
-wat, in the macro — emit the helper at top level beside `hibernate-project-def`, then pass its symbol:
+wat — one arm beside the existing two, reading `state` from the serve fn's own parameter:
 
 ```wat
-;; emitted once per service, NOT per dispatch
-(:wat::core::defn ~on-fault-name [state <- ~state-ty  cause <- :wat::core::String] -> ~outcome-ty
-  (:wat::service::Outcome::Stop state :wat::core::None <empty sends>))
-
-;; at :2512 — the third argument closes over nothing; state is applied by the seam
-(:wat::kernel::serve-dispatch-op ~peers-only-expr
-  (:wat::core::match (:wat::kernel::retag-op op …) ~@serve-op-arms)
-  ~on-fault-partial)
+((:wat::service::Outcome::Faulted cause)
+  ;; graceful stop: project the PRE-OP durable state, then end the serve recursion.
+  ;; The client already has PeerCrashed — this arm does not invent a reply.
+  <project via (~hibernate-project-name state), then the clean exit Stop takes at :2203>)
 ```
 
-⭑ **How `state` reaches the on-fault function is yours to choose and to state in the SCORE** — a
-partial application built at the emission site, a two-arg fn the seam applies with a state it also
-receives, or a fourth argument. The DESIGN pins only that it must be the **pre-op** state the serve
-loop passed in, never anything the panicking body produced.
-
-**D2-a's projection:** the builder ruled that the durable state is projected on the way out. The
-on-fault `defn` is where `(~hibernate-project-name state)` goes, because that call already works from
-macro-emitted code (`:2448`). If projecting there proves to change what the `Stop` arm can accept,
-that is STOP-2, not a thing to improvise around.
+⭑ **What the arm does with the projection is yours to choose and to state in the SCORE.** The DESIGN
+pins only that the state comes from the serve fn's parameter and that the exit is graceful, not an
+unwind.
 
 ## Blast radius
 
-`wat/service.wat` (1 emission + 1 emitted defn) · `src/runtime.rs` (one branch) · `src/check.rs`
-(one inference) · `src/intrinsic/kernel/serve.rs` (one declaration). **No `.wat` corpus change and no
-new user-visible form** — confirm that claim rather than inheriting it.
+`wat/service.wat` — one variant on the `Outcome` defenum, one new match arm. `src/runtime.rs` — one
+branch. **Arity is unchanged**, so `src/check.rs`'s `infer_serve_dispatch_op` (`:12400`, do-style
+passthrough) and the `#[wat_intrinsic]` declaration (`src/intrinsic/kernel/serve.rs:216`) are
+untouched — confirm that rather than inheriting it.
+
+⛔ **Three citations in `src/intrinsic/kernel/serve.rs`'s header are stale** — `check.rs:11347`
+(→ `:12400`), `runtime.rs:25359` for `apply_function` (→ `:19512`), and its `runtime.rs:33041`/`:33091`
+references, which predate the current file. Its *reasoning* is sound and worth reading whole; its
+*line numbers* are not. Verify every one from the code.
 
 ## STOP triggers
 
-1. **STOP-1 — if converting the panic requires touching how `serve` recurses**, STOP and report it.
-   The trampoline (a wat fn's body is evaluated via `eval_tail` inside a plain Rust `loop`) is the
-   reason this hook can exist at all; a fix that trades TCO for crash-safety is a different stone and
-   the builder decides it.
-2. **STOP-2 — if `hibernate-project` cannot be called from the on-fault path**, STOP and say why.
-   Report whether the honest shipping shape is `Outcome::Stop` **without** projection (a graceful exit
-   that drops durable state, which is what happens today minus the crash) — do not quietly ship one
-   and describe the other.
-3. **STOP-3 — if the on-fault function cannot be emitted at top level** and an inline `(fn …)` is the
-   only shape that works, STOP and report the per-dispatch cost before shipping it. This seam runs on
-   **every message**; the last wall that walked at every expansion cost 5–9 % of floor time.
+1. **STOP-1 — if a new `Outcome` variant reds more than the one match arm at `:2164`**, STOP and
+   report the real count with the matches (`grep -o … | sort -u`, not `grep -c`). The route was chosen
+   on that number being 1; if it is not, the route is wrong and I want to know before it ships.
+2. **STOP-2 — if `hibernate-project` cannot be called from the new arm**, STOP and say why. Report
+   whether the honest shipping shape is a graceful exit **without** projection (what happens today
+   minus the crash) — do not quietly ship one and describe the other.
+3. **STOP-3 — if `catch_unwind` returning a value breaks `serve`'s recursion**, STOP and report it.
+   The trampoline (a wat fn's body evaluated via `eval_tail` inside a plain Rust `loop`) is why this
+   hook can exist at all; trading TCO for crash-safety is a different stone and the builder decides it.
 4. **STOP-4 — if a genuine (non-`AssertionPayload`) panic cannot be distinguished**, STOP. Converting
    a substrate bug into a tidy shutdown is the one outcome this stone must not produce.
 5. **STOP-5 — the 19 `"redial failed"` arms and the ~59 `Malformed` placeholders are OUT OF SCOPE.**
@@ -108,12 +103,12 @@ new user-visible form** — confirm that claim rather than inheriting it.
   `./scripts/capped.sh --limit 8g ./target/release/wat wat-scripts/fanout/circuit.wat 2000 4 3 8192 true 1000`
   → `distinct=8000;dup=0`.
 - ⭑ **A negative control you must write:** a handler that trips a genuine Rust panic (not
-  `assertion-failed!`) must STILL crash the service. A wall that swallows substrate bugs is worse
-  than no wall, and this is the one check that can tell the two apart.
+  `assertion-failed!`) must STILL crash the service. A wall that swallows substrate bugs is worse than
+  no wall, and this is the one check that can tell the two apart.
 
 ## Shape to copy
 
-`docs/excursus/2026/08/001-sns-sqs/the-dial-declares-its-peer/SCORE.md` — the last stone that changed
-`wat/service.wat` alongside Rust, including how it handled the stdlib freeze. And
-`wat-scripts/scratch-pad/probe-arc278-wire-dos-service-killed.wat` — arc 278 stone 2, the same wall
-for a narrower cause, and the source of this stone's headline.
+`docs/excursus/2026/08/001-sns-sqs/the-gate-outcome-outlives-its-file/` — the last stone that moved an
+outcome type across the Rust/wat line, and the source of the "a namespace may legitimately span Rust
+and wat" precedent. And `wat-scripts/scratch-pad/probe-arc278-wire-dos-service-killed.wat` — arc 278
+stone 2, the same wall for a narrower cause, and the source of this stone's headline.
