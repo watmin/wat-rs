@@ -180,6 +180,26 @@ The builder:
      drove the gate red four ways on a different codemod than grok's. The orchestrator also fixed
      two things: the gate's count pins are gone (it freezes names), and the keyword fixture gained
      near-misses.
+   - **0b batch 2c (`d1c47b2a4`) GREEN** (floor 5391, clippy 0). The ORACLE arm is real: (i)(j)(k)
+     reproduce RED, and all 67 history citations are on main's history. Still open for a batch 2d:
+     - `git_show` swallows a bad commit/path (a bogus path passed rc=0, reproduced);
+     - mixed fixtures skip their before-line check;
+     - `namespace-bare-top-level-names` REPRODUCES its landing on 5 of 6 files, so it must be
+       history, not spec;
+     - `rule-record-to-defrule`'s stated reason is wrong: its landing inputs are angle-bracketed
+       (lex error), not a no-op;
+     - `rename-record-def-to-defrecord` was corrupted by `dedcb74a7` (a self-migration):
+       restore or delete, PENDING the builder's ruling.
+   - ⛔ **REPLAY HAZARD, CONFIRMED on today's binary:** `positional-ctor-to-map` (landing-order line
+     25) now matches `:wat::core::Option::Some`, because `49f03f179` qualified it. A bare
+     `(:wat::core::Some 1)` prints UNRESOLVED and stays unchanged; `bare-variant-to-qualified`
+     (line 26) then leaves `(:wat::core::Option::Some 1)` POSITIONAL. **Landing order is not the
+     dependency order of TODAY's tools.**
+     - **The replay's FIRST requirement:** a chain-composition check. Run the whole chain over each
+       base-era `.wat` and compare it with main's version; every residual is a main hand-edit or a
+       chain failure, and each is explained. Only then fix the order.
+     - Evidence: the census in `bootstrap/step0-probes/` (4 codemods; 2 deliberate, 1 corruption,
+       1 this hazard).
    - **0b batch 2 ✓ GREEN + pushed `1938294c7`**: 90 fixtures + 5 runes = 95, the ledger gone,
      SCOPE on all. The runes, repairs and 7 gaps are orchestrator-verified. **REFUTED → batch 2c**
      (`BRIEF-0b-REFUTE-batch-2c.md`):
