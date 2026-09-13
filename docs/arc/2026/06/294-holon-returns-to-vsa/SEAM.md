@@ -247,7 +247,13 @@ The builder:
      - NEXT: the chain-tooling brief (2a): the ladder door, the scope rule, the variant decision,
        positional-ctor reporting by registry (not case), step 14 reporting a splice, and `convert.sh`
        giving `one-param-spec` the corpus context. It waits for the positional-ctor ladder A/B and the
-       chain under the ladder (`probe-L/pc2.sh`).
+       chain under the ladder (`probe-L/pc2.sh`, running on copies, ETA ~06:25Z).
+       - DRAFTS (untracked, `bootstrap/pending/`; each is derivable from FINDINGS if lost):
+         `BRIEF-2a-draft.md`, and `BRIEF-3-draft-every-spawned-program-starts.md` (ruling 4's gate).
+       - Ruling 4's census is DONE and classified (`3acea9e98`, FINDINGS § Finding 8). 141 literals.
+         At least 9 broken child programs hid under a green floor: 7 arc-170 probes that predate the
+         RecvOutcome/SendOutcome walls, plus `erase{,2}` (fixed in 2b). `--check` is stricter than the
+         child's real path (`src/process/verbs.rs:429-433`).
      - **✓ RULED 2026-09-13: (B)** ("B has been decided"). The eval-based codemods learn field names
        from the type declarations of the program that holds the site, on today's binary. The era
        binary (A) is rejected: it reproduces the landing's defects and runs outside stone 0's gate.
