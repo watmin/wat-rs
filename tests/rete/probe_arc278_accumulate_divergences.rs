@@ -1,0 +1,105 @@
+//! TWO LIVE native-vs-`$oracle` DIVERGENCES IN THE ACCUMULATE FAMILY.
+//!
+//! Found 2026-08-25 by `wat-scripts/fuzz/rete-differential.wat` on its first widened run — 22
+//! mismatches of 504 generated shapes, every one at the newly-added accumulate shape, decomposing
+//! into exactly the two families below. Both reproduce minimally, and both are SILENT: a caller
+//! gets a wrong row count with no error.
+//!
+//! ## Family A — a LEADING accumulate emits one row per FIXPOINT ROUND
+//!
+//! `rows == rounds`, measured: a 1-rule inert chain gives 2, a 2-rule chain gives 3, the oracle
+//! holds at 1. The chain derives facts the query never reads; its only role is to make the
+//! fixpoint iterate.
+//!
+//! **This is the same class as the leading `:not` / `:exists` defect fixed on 2026-08-24
+//! (`71d0e700e`) — and that fix did not reach accumulate.** The correctness mechanism there is
+//! `leading_emitted` persisting ACROSS rounds (`fire/delta.rs`, declared outside the round loop);
+//! whatever the accumulate path does, it is not that.
+//!
+//! ## Family B — a SECOND `where` after an accumulate matches NOTHING
+//!
+//! `qB1` and `qB2` differ by exactly one trailing, trivially-true `(where (> 1 0))`. `qB1` agrees
+//! with the oracle at 1; `qB2` drops native to **0** while the oracle holds at 1. Independent of
+//! chain depth — it reproduces at depth 0, so it is not a fixpoint issue at all.
+//!
+//! ## Why the existing corpus could not see either
+//!
+//! The accumulate axes (`accum`, `min-finding`) compare DERIVED FACTS, and `production_delta`
+//! dedups those by value — so a rule deriving one distinct fact reads identically whether the
+//! token passed once or four times. Every query here carries the rule's own LHS, so `query` reads
+//! beta, below the dedup. That is the whole reason the fuzzer was built this way.
+//!
+//! ## Status: RED, deliberately
+//!
+//! The two failing tests are `#[ignore]`d and assert CORRECT behaviour, so a fix makes them pass
+//! and un-ignoring them is the completion step. The agreeing control is NOT ignored — it guards
+//! the shape that works today, so a fix cannot break it on the way past.
+
+use wat::freeze::call_beside_value;
+use wat::runtime::Value;
+
+/// `[B1-native B1-oracle  B2-native B2-oracle  A2-native A2-oracle  A3-native A3-oracle]`
+fn rows() -> Vec<i64> {
+    let out = call_beside_value(file!(), ":user::rows").expect("eval :user::rows");
+    let items: Vec<&Value> = match &out {
+        Value::wat__core__PersistentVector(v) => v.iter().collect(),
+        Value::Vec(v) => v.iter().collect(),
+        other => panic!("expected a vector; got {other:?}"),
+    };
+    let got: Vec<i64> = items
+        .iter()
+        .map(|v| match v {
+            Value::i64(n) => *n,
+            other => panic!("expected i64; got {other:?}"),
+        })
+        .collect();
+    assert_eq!(got.len(), 8, "witness shape changed: {got:?}");
+    got
+}
+
+/// The CONTROL, and it must keep passing: fact condition + accumulate + ONE where agrees.
+/// Without this, a fix for family B could "succeed" by breaking the case that already worked.
+#[test]
+fn accumulate_after_a_fact_condition_agrees_with_the_oracle() {
+    let r = rows();
+    assert_eq!(
+        (r[0], r[1]),
+        (1, 1),
+        "the one-`where` accumulate shape stopped agreeing — native {} oracle {}. Full witness {r:?}",
+        r[0],
+        r[1]
+    );
+}
+
+#[test]
+#[ignore = "RED: family B is a live defect — a second `where` after an accumulate matches nothing"]
+fn a_second_where_after_an_accumulate_must_not_kill_the_match() {
+    let r = rows();
+    assert_eq!(
+        r[1], 1,
+        "oracle sanity: the two-`where` shape should match 1. Witness {r:?}"
+    );
+    assert_eq!(
+        r[2], r[3],
+        "native and oracle disagree on a shape differing from the agreeing control by ONE \
+         trivially-true trailing `where`: native {} oracle {}. Witness {r:?}",
+        r[2], r[3]
+    );
+}
+
+#[test]
+#[ignore = "RED: family A is a live defect — a leading accumulate emits one row per fixpoint round"]
+fn a_leading_accumulate_passes_once_per_fire_not_once_per_round() {
+    let r = rows();
+    // Slots 4 and 6 are the SAME query over the SAME facts; only the inert chain's length —
+    // and so the round count — differs. Both must be 1, and they must equal each other: a fix
+    // that special-cases the first round would satisfy one and not the other.
+    assert_eq!(
+        (r[4], r[6]),
+        (1, 1),
+        "leading accumulate emitted once per ROUND, not once per fire — 2-round chain gave {} \
+         rows, 3-round chain gave {} (expected 1 and 1). Witness {r:?}",
+        r[4],
+        r[6]
+    );
+}
