@@ -4697,6 +4697,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // the-rope-can-be-looked-at — non-consuming peek of a lineage's
+            // end-state. Same peer surface as close' (Thread | Process),
+            // return is Option<CloseOutcome>. Unrestricted. See infer_lineage_status.
+            ":wat::kernel::lineage-status" => {
+                let (val, mut errs) = infer_lineage_status(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
             // — STOP-1: `signal` is `(Process :- [I O])`-ONLY (unlike close', not shared with
             // Thread'/Peer' — a thread peer has no process to signal). See infer_signal.
@@ -11942,6 +11953,75 @@ fn infer_close_prime(
         CheckResult::ok(ret)
     } else {
         CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_lineage_status` is INTRINSIC (∀-parametric),
+// same peer surface as `infer_close_prime` — a defclause cannot enumerate every
+// (I,O) instantiation. Return is `Option<CloseOutcome>`, not CloseOutcome: an
+// observation is not must-use.
+/// Type-check `(:wat::kernel::lineage-status peer)` — the-rope-can-be-looked-at.
+///
+/// One positional arg: `args[0]` peer ((Thread' :- [I O]) or (Process' :- [I O])).
+/// Result: `(:wat::core::Option :- [:wat::kernel::CloseOutcome])`.
+fn infer_lineage_status(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::lineage-status";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let ret = || TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![TypeExpr::Path(":wat::kernel::CloseOutcome".into())],
+    };
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(ret(), local_errors);
+    }
+
+    let peer_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            return CheckResult::partial_with(ret(), local_errors);
+        }
+    };
+    let peer_surface = apply_subst(&peer_ty, subst);
+    let peer_reduced = reduce(&peer_surface, subst, env.types());
+    match &peer_reduced {
+        TypeExpr::Parametric { head, args }
+            if head == "wat::kernel::Thread" && args.len() == 2 => {}
+        TypeExpr::Parametric { head, args }
+            if head == "wat::kernel::Process" && args.len() == 2 => {}
+        other => {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "peer".into(),
+                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]))".into(),
+                    got: format_type(other),
+                },
+            });
+        }
+    }
+    if local_errors.is_empty() {
+        CheckResult::ok(ret())
+    } else {
+        CheckResult::partial_with(ret(), local_errors)
     }
 }
 

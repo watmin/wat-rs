@@ -359,3 +359,43 @@ pub(crate) fn eval_peer_process(
 ) -> Result<Value, EvalBreak> {
     crate::runtime::eval_peer_process(std::slice::from_ref(peer), list_span, env, sym)
 }
+
+/// `(:wat::kernel::lineage-status peer)` → `(:wat::core::Option :- [:wat::kernel::CloseOutcome])`.
+/// Non-consuming, unrestricted observation of how a spawned lineage ended.
+/// `None` while still running; `Some(outcome)` once ended. Does not tear
+/// down, does not reap, does not restrict the caller. The user never holds
+/// the rope; this lets them look at it.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Nondeterministic
+/// @Total         Unreviewed
+/// @Category      Probe
+/// @arg     peer ((Thread :- [I O]) | (Process :- [I O])) the lineage whose end-state to observe
+/// @ret     (:wat::core::Option :- [:wat::kernel::CloseOutcome]) `None` if still running, `Some` how it ended
+/// @example-norun (:wat::kernel::lineage-status my-process) #=> :None
+// No registered `TypeScheme` — `check.rs`'s `infer_lineage_status` is the
+// real authority: ∀-parametric over `peer<∀I,∀O>`, same partition as
+// `close` / `peer-process`. Return is `Option<CloseOutcome>` — not
+// must-use; an observation carries no failure to swallow.
+//
+// Deciding line for `@Category Probe`: interrogates a live lineage and
+// derives a FACT about it (has it ended, and how). Not a field read
+// (`:Projection` / `peer-pid`) and not teardown (`:Resource` / `close`).
+//
+// Deciding line for `@Purity Effectful` / `@Determinism Nondeterministic`:
+// process tier is `waitid(2)` (WNOWAIT); thread tier is `is_finished`.
+// The same peer answers `None` then `Some` as the far side ends — a fact
+// not determined by the arguments.
+//
+// ⛔ Does NOT consume: `with_ref`, never `with_mut` + `take`. ⛔ Does NOT
+// carry `:restricted-to`. Both are load-bearing for this stone.
+#[wat_intrinsic(":wat::kernel::lineage-status")]
+pub(crate) fn eval_lineage_status(
+    peer: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_lineage_status(std::slice::from_ref(peer), list_span, env, sym)
+}

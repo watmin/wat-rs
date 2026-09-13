@@ -695,8 +695,8 @@ mod tests {
     /// `#[wat_intrinsic` grep cannot see. So `all_entries().count()` == the anchored intrinsic
     /// grep + 2, always — recorded here after three separate riders each independently
     /// rediscovered this gap and reported it as unexplained drift.
-    /// - `:wat::kernel::` 23 of 46 — accept, address-wire?, after, allow, close, connect, deny,
-    ///   fn-forms, listener, peer-pid, peer-process, peer-wire?, poll, recv,
+    /// - `:wat::kernel::` 24 of 47 — accept, address-wire?, after, allow, close, connect, deny,
+    ///   fn-forms, lineage-status, listener, peer-pid, peer-process, peer-wire?, poll, recv,
     ///   require-wire-address, retag-op, select, send, serve-dispatch-op, signal,
     ///   spawn-process, spawn-thread, try-send
     /// - `:wat::holon::` 7 of 91 — coincident-explain, coincident?, cosine, dot, literal,
@@ -754,6 +754,7 @@ mod tests {
         ":wat::kernel::connect",
         ":wat::kernel::deny",
         ":wat::kernel::fn-forms",
+        ":wat::kernel::lineage-status",
         ":wat::kernel::listener",
         ":wat::kernel::peer-pid",
         ":wat::kernel::peer-process",

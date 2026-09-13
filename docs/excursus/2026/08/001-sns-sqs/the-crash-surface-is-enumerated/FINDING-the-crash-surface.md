@@ -70,7 +70,7 @@ Trap-door 2: Recv Stopped means the **reader's** substrate was asked to stop. No
 
 | variant | arms | status | command / missing mechanism | observed |
 |---|---|---|---|---|
-| Closed | 217 | **UNREACHABLE** | constructed only when the local send cell is already `None` (`runtime.rs` `None => send_outcome_closed()`). That is use-after-`close'`. `close'` is `:wat::kernel::`-restricted; tests cannot mint a kernel-namespace helper (`ReservedPrefix`). Peer **death** produces Lost, not Closed. | tried: process-exit send → `send-after-exit=Lost`; thread-exit send → `thread-send-after-exit=Lost`; clean `/stop` then send → `send-after-stop=Lost`; torn conn send → `send-torn=Lost` |
+| Closed | 217 | ⛔ **UNREACHABLE BY DESIGN** (arc 259 S2d, *"the user never holds the rope"* — a wall holding, NOT a gap; do not rank) | constructed only when the local send cell is already `None` (`runtime.rs` `None => send_outcome_closed()`). That is use-after-`close'`. `close'` is `:wat::kernel::`-restricted; tests cannot mint a kernel-namespace helper (`ReservedPrefix`). Peer **death** produces Lost, not Closed. | tried: process-exit send → `send-after-exit=Lost`; thread-exit send → `thread-send-after-exit=Lost`; clean `/stop` then send → `send-after-stop=Lost`; torn conn send → `send-torn=Lost` |
 | Lost | 221 | **FIRES** (scratch) | `./target/release/wat wat-scripts/scratch-pad/probe-crash-surface-send-after-exit.wat` | `send-after-exit=Lost` |
 | Stopped | 198 | **FIRES** (scratch + SIGTERM) | flood `send` against a silent peer, SIGTERM the sender | `Stopped-after=9260` |
 
@@ -80,7 +80,7 @@ Send Stopped wrapper: same shape as Recv Stopped, file `probe-crash-surface-send
 
 | variant | arms | status | command / missing mechanism | observed |
 |---|---|---|---|---|
-| Closed | 5 | **UNREACHABLE** | same local-cell-`None` constructor as Send Closed (`try_send_outcome_closed`). Death → Lost. | `try-send-after-stop=Lost` |
+| Closed | 5 | ⛔ **UNREACHABLE BY DESIGN** (arc 259 S2d — same wall; do not rank) | same local-cell-`None` constructor as Send Closed (`try_send_outcome_closed`). Death → Lost. | `try-send-after-stop=Lost` |
 | Lost | 5 | **FIRES** (scratch) | `./target/release/wat wat-scripts/scratch-pad/probe-crash-surface-die-then.wat` | `try-send-after=Lost` |
 | WouldBlock | 6 | **FIRES** (scratch) | `./target/release/wat wat-scripts/scratch-pad/probe-crash-surface-try-send-wouldblock.wat` | `WouldBlock-after=377` |
 
@@ -103,8 +103,8 @@ Send Stopped wrapper: same shape as Recv Stopped, file `probe-crash-surface-send
 
 | variant | arms | status | command / missing mechanism | observed |
 |---|---|---|---|---|
-| Failed | 3 | **UNREACHABLE** | `close'` is kernel-restricted. Constructors: thread join-panic, process wait-fail, SIGSTOP-not-terminated. Signal enum has no Stop. Same ReservedPrefix wall the Kill fixture named. | — |
-| Signaled | 5 | **UNREACHABLE** | same `close'` restriction. `tests/process/signal_kill_produces_close_outcome_signaled.rs` reads `Process::wait()`, **not** a `CloseOutcome` value. The fixture header says there is no wat-level close'. | — |
+| Failed | 3 | **FIRES** (scratch) | observability via `:wat::kernel::lineage-status` (the-rope-can-be-looked-at). SIGSTOP → `Some(Failed …)` stopped-not-terminated; not Signaled. `close'` stays restricted. | `probe-lineage-status.wat` `stopped=Some(Failed …)` |
+| Signaled | 5 | **FIRES** (scratch) | same peek. Kill then `lineage-status` → `Some(Signaled 9)`. Does not consume; `close'` stays restricted. Send Closed / TrySend Closed remain **UNREACHABLE BY DESIGN** (arc 259 S2d). | `probe-lineage-status.wat` `signaled=Some(Signaled 9)` |
 
 ### SignalOutcome (1)
 

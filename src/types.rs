@@ -2151,7 +2151,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // (DESIGN-STONE-process-signal-owner-to-child.md § "The shape";
     // BRIEF-process-signal-p2-mint.md). A CLOSED SET (R27: a closed set is an
     // enum; the name holds the value) — a bare i64 signal number would be the
-    // string-key mistake with a different hat. Six variants, three tiers,
+    // string-key mistake with a different hat. Seven variants, four tiers,
     // deliberately NOT uniform in what they cause:
     //
     //   tier   variant     POSIX     who observes, and how
@@ -2161,6 +2161,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   stop   Interrupt   SIGINT    the CHILD, and it chooses when to stop — (stopped?) reads true
     //   stop   Terminate   SIGTERM   the CHILD, and it chooses when to stop — (stopped?) reads true
     //   kill   Kill        SIGKILL   the OWNER — the child observes nothing and stops mid-instruction
+    //   freeze Stop        SIGSTOP   the OWNER — the child is FROZEN, not terminated.
+    //                                 `CloseOutcome::Failed` (stopped-not-terminated).
+    //                                 Uncatchable like Kill; Signaled means terminated,
+    //                                 never merely stopped (`types.rs` CloseOutcome).
     //
     // THIS TABLE IS THE ENUM'S DOC COMMENT, not commentary alongside it — it is
     // the only honest home for two facts about the SET that no single variant
@@ -2194,6 +2198,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             EnumVariant::Unit("Interrupt".into()),
             EnumVariant::Unit("Terminate".into()),
             EnumVariant::Unit("Kill".into()),
+            EnumVariant::Unit("Stop".into()),
         ],
     }));
 

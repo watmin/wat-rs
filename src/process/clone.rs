@@ -189,6 +189,38 @@ impl Pidfd {
         Ok(Some(extract_exit_status_from_siginfo(&info)))
     }
 
+    /// `waitid(P_PIDFD, fd, WEXITED | WSTOPPED | WNOHANG | WNOWAIT)` —
+    /// non-blocking, non-reaping status query.
+    ///
+    /// `Ok(None)` — still running (and not stopped).
+    /// `Ok(Some(status))` — exited, signaled-terminated, or stopped; the
+    /// child is left waitable so a later `wait_status` / `close` can reap.
+    /// `Err` on syscall failure.
+    ///
+    /// Distinct from [`Self::try_wait`], which uses `WEXITED | WNOHANG`
+    /// without `WNOWAIT` and therefore REAPS. A peek that reaps would
+    /// consume the lineage from the kernel's side even if the wat-level
+    /// handle stayed — that is `close` with a new name.
+    pub fn peek_status(&self) -> std::io::Result<Option<ExitStatus>> {
+        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+        let ret = unsafe {
+            libc::waitid(
+                P_PIDFD_CONST,
+                self.fd.as_raw_fd() as libc::id_t,
+                &mut info as *mut _,
+                libc::WEXITED | libc::WSTOPPED | libc::WNOHANG | libc::WNOWAIT,
+            )
+        };
+        if ret < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let si_pid = unsafe { info.si_pid() };
+        if si_pid == 0 {
+            return Ok(None);
+        }
+        Ok(Some(extract_exit_status_from_siginfo(&info)))
+    }
+
     /// `pidfd_send_signal(fd, sig, ...)` — send signal to THIS specific
     /// process. PID-reuse-safe: the signal is delivered to the exact process
     /// represented by this fd, not any future process that reuses the PID.

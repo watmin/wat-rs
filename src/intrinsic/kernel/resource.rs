@@ -542,7 +542,7 @@ pub(crate) fn eval_peer_close_prime(
 /// @Total         Unreviewed
 /// @Category      Resource
 /// @arg     peer (:wat::kernel::Process :- [I O]) the process peer to signal (process-tier only)
-/// @arg     sig :wat::kernel::Signal the POSIX signal to deliver (User1/User2/Hangup/Interrupt/Terminate/Kill)
+/// @arg     sig :wat::kernel::Signal the POSIX signal to deliver (User1/User2/Hangup/Interrupt/Terminate/Kill/Stop)
 /// @ret     :wat::kernel::SignalOutcome the delivery outcome — must-use
 /// @example-norun (:wat::kernel::signal my-process :wat::kernel::Signal::Interrupt) #=> #wat.kernel/SignalOutcome.Sent{}
 // No registered `TypeScheme` — `check.rs`'s `infer_signal` (`:11039`) is

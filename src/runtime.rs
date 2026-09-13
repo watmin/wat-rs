@@ -25951,6 +25951,154 @@ pub(crate) fn eval_peer_close_prime(
     }
 }
 
+/// `(:wat::kernel::lineage-status peer)` — the-rope-can-be-looked-at.
+///
+/// Non-consuming, unrestricted observation of how a spawned lineage ended.
+/// `None` while still running; `Some(CloseOutcome)` once ended.
+/// Does NOT take the cell, does NOT reap (process: `Pidfd::peek_status`
+/// uses WNOWAIT; thread: `JoinHandle::is_finished`). The user never holds
+/// the rope; this lets them look at it.
+///
+/// Classification of an ended process copies `eval_peer_close_prime`'s
+/// ExitStatus map (Closed / Signaled / Failed-stopped-not-terminated).
+/// A thread that has finished reports `Closed[exit = None]` — distinguishing
+/// join-panic requires consuming the JoinHandle, which this verb refuses.
+pub(crate) fn eval_lineage_status(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::lineage-status";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+
+    match &peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<
+                crate::rust_deps::custodia::ThreadOwnedCell<
+                    Option<crate::kernel::peer::Thread<Value, Value>>,
+                >,
+            > = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let out = cell
+                .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                    match opt_peer {
+                        None => Err(RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        )
+                        .into()),
+                        Some(thread) => {
+                            if thread.is_finished() {
+                                Ok(Value::Option(Arc::new(Some(close_outcome_closed(None)))))
+                            } else {
+                                Ok(Value::Option(Arc::new(None)))
+                            }
+                        }
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(out)
+        }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<
+                crate::rust_deps::custodia::ThreadOwnedCell<
+                    Option<crate::kernel::spawn::ProcessSelectable>,
+                >,
+            > = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let out = cell
+                .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
+                    match opt_bundle {
+                        None => Err(RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        )
+                        .into()),
+                        Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
+                            match bundle.peer.pidfd.peek_status() {
+                                Ok(None) => Ok(Value::Option(Arc::new(None))),
+                                Ok(Some(exit_status)) => {
+                                    let outcome = match exit_status {
+                                        crate::process::ExitStatus::Exited(code) => {
+                                            close_outcome_closed(Some(code as i64))
+                                        }
+                                        crate::process::ExitStatus::Signaled(sig) => {
+                                            close_outcome_signaled(sig as i64)
+                                        }
+                                        crate::process::ExitStatus::Stopped(sig) => {
+                                            close_outcome_failed(format!(
+                                                "Process peer stopped by signal {}",
+                                                sig
+                                            ))
+                                        }
+                                    };
+                                    Ok(Value::Option(Arc::new(Some(outcome))))
+                                }
+                                Err(io_err) => Ok(Value::Option(Arc::new(Some(
+                                    close_outcome_failed(format!(
+                                        "Process peer wait failed: {}",
+                                        io_err
+                                    )),
+                                )))),
+                            }
+                        }
+                        Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => {
+                            Err(RuntimeError::new(
+                                list_span.clone(),
+                                RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "lineage-status: not supported on a timer peer".into(),
+                                },
+                            )
+                            .into())
+                        }
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(out)
+        }
+        other => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]))",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
 /// `(:wat::kernel::signal proc sig)` — DESIGN-STONE-process-signal-owner-to-
 /// child.md; BRIEF-process-signal-p2-mint.md.
 ///
@@ -26003,6 +26151,7 @@ pub(crate) fn eval_signal(
             "Interrupt" => libc::SIGINT,
             "Terminate" => libc::SIGTERM,
             "Kill" => libc::SIGKILL,
+            "Stop" => libc::SIGSTOP,
             other_variant => return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(

@@ -188,6 +188,18 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
         drop(self.input.take()); // drain FIRST: worker's recv' raises → worker exits
         self.join.take().map(|j| j.join()) // THEN join (synchronous); None if already reaped
     }
+
+    /// Non-consuming: has the worker thread ended?
+    ///
+    /// `JoinHandle::is_finished` — does not join, does not drain. `None`
+    /// on the handle means a prior `drain_and_join` already reaped, so
+    /// the worker is gone.
+    pub(crate) fn is_finished(&self) -> bool {
+        match self.join.as_ref() {
+            Some(j) => j.is_finished(),
+            None => true,
+        }
+    }
 }
 
 impl<I: Send + 'static, O: Send + 'static> Drop for Thread<I, O> {
