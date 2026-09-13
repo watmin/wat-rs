@@ -384,7 +384,9 @@
               ;; ⛔ THREE DIFFERENT QUANTITIES, and only two existed before 2026-09-10:
               ;;   disrupt-draws — the alarm rolled the dice
               ;;   disrupt-fires — the roll was UNDER the rate, so poison was SENT   ← NEW
-              ;;   disrupt-hits  — the poisoned call came back lost/closed: it TORE
+              ;;   disrupt-hits  — the poisoned call cost us the connection: it TORE
+              ;;                    (lost / closed / malformed — oversized frame severs
+              ;;                    the sender; the service lives. See probe-crash-surface-frame-cap)
               ;; `disrupts=` on the report line is `hits`. With no `fires`, a zero there was
               ;; indistinguishable between "never injected" and "injected and the fault did
               ;; nothing" — and at the chaos gate's own 200 bp the measured pair is
@@ -539,9 +541,11 @@
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
                       (:wat::kernel::RecvOutcome::Stopped
-                        (:wat::kernel::assertion-failed! "fanout worker: disrupt poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))
+                        (:wat::kernel::assertion-failed! "fanout worker: disrupt poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost") ((:wat::kernel::RecvOutcome::Malformed _cause) "malformed"))
                     "miss")
-        tore? (:wat::core::or (:wat::core::= poisoned "lost") (:wat::core::= poisoned "closed"))
+        tore? (:wat::core::or (:wat::core::= poisoned "lost")
+                 (:wat::core::or (:wat::core::= poisoned "closed")
+                                (:wat::core::= poisoned "malformed")))
         seen' (:wat::core::if tore?
                 (:wat::core::match (:wat::kernel::connect (:fanout::worker::Record/seen-addr rec))
                   ((:wat::kernel::ConnectOutcome::Connected p) p)
@@ -2626,8 +2630,8 @@
    rts               <- :wat::core::i64
    hits              <- :wat::core::i64
    ;; ⛔ `hits` COUNTS TEARS, NOT FIRES. The worker's `-disrupt` arm increments
-   ;; `disrupt-hits` only when `tore?` — when the poisoned `Seen/check` came back
-   ;; `lost`/`closed`. `draws` is how many times the alarm rolled the dice at all. The
+   ;; `disrupt-hits` only when `tore?` — when the poisoned `Seen/check` cost us
+   ;; the connection (`lost`/`closed`/`malformed`). `draws` is how many times the alarm rolled the dice at all. The
    ;; report printed only `hits`, so `disrupts=0` was indistinguishable between "the
    ;; injector never fired" and "it fired repeatedly and tore nothing" — and the shipped
    ;; chaos gate runs at 200 bp, where the measured value IS 0. All three are now printed.

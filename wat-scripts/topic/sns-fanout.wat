@@ -366,9 +366,11 @@
                       ((:wat::kernel::RecvOutcome::Lost _c) "lost")
                       (:wat::kernel::RecvOutcome::Closed "closed")
                       (:wat::kernel::RecvOutcome::Stopped
-                        (:wat::kernel::assertion-failed! "topic-worker: disrupt poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))
+                        (:wat::kernel::assertion-failed! "topic-worker: disrupt poison stopped" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::TimedOut "lost") ((:wat::kernel::RecvOutcome::Malformed _cause) "malformed"))
                     "miss")
-        tore? (:wat::core::or (:wat::core::= poisoned "lost") (:wat::core::= poisoned "closed"))
+        tore? (:wat::core::or (:wat::core::= poisoned "lost")
+                 (:wat::core::or (:wat::core::= poisoned "closed")
+                                (:wat::core::= poisoned "malformed")))
         inbox' (:wat::core::if tore?
                  (:wat::core::match (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
                    ((:wat::kernel::ConnectOutcome::Connected p) p)
