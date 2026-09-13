@@ -1,6 +1,8 @@
 //! Committed tests must not depend on `bootstrap/`, which is gitignored and
-//! empty on a clone. A string literal beginning `"bootstrap/` in `src/` or
-//! `tests/` is that dependency.
+//! empty on a clone. Any committed `.rs` line in `src/` or `tests/` that names
+//! `bootstrap/` outside a `//` line comment is that dependency: a literal
+//! `"bootstrap/…"`, a path built as `format!("{}/bootstrap/…", env!("CARGO_MANIFEST_DIR"))`,
+//! a raw string. A trailing comment that names it fails too — loud, never silent.
 
 use std::path::{Path, PathBuf};
 
@@ -20,16 +22,11 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn code_before_comment(line: &str) -> &str {
-    match line.find("//") {
-        Some(i) => &line[..i],
-        None => line,
-    }
-}
-
-fn has_bootstrap_string_literal(line: &str) -> bool {
-    let code = code_before_comment(line);
-    code.contains("\"bootstrap/") || code.contains("r\"bootstrap/") || code.contains("r#\"bootstrap/")
+/// Not "a literal beginning `"bootstrap/`": that missed `format!("{}/bootstrap/…")`, the shape a
+/// test builds an absolute path in (measured 2026-09-13, mutation M2a). Only a whole `//` line is
+/// exempt, so a `//` inside a string (`"https://…"`) cannot hide the rest of its line.
+fn names_bootstrap_dir(line: &str) -> bool {
+    !line.trim_start().starts_with("//") && line.contains("bootstrap/")
 }
 
 #[test]
@@ -51,7 +48,7 @@ fn committed_rust_does_not_literal_bootstrap_paths() {
         let Ok(src) = std::fs::read_to_string(f) else { continue };
         let rel = f.strip_prefix(manifest).unwrap_or(f).display().to_string();
         for (idx, line) in src.lines().enumerate() {
-            if has_bootstrap_string_literal(line) {
+            if names_bootstrap_dir(line) {
                 violations.push(format!("{}:{}", rel, idx + 1));
             }
         }
@@ -59,7 +56,7 @@ fn committed_rust_does_not_literal_bootstrap_paths() {
 
     assert!(
         violations.is_empty(),
-        "committed Rust under src/ or tests/ contains a string literal beginning \"bootstrap/\" \
-         (gitignored; empty on a clone): {violations:?}"
+        "committed Rust under src/ or tests/ names the gitignored bootstrap/ dir \
+         (empty on a clone): {violations:?}"
     );
 }

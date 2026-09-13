@@ -408,6 +408,12 @@ Measured 2026-09-13 on `101626eea` (2a1 + its first refute), over the 1489-file 
 - Instruments: `bootstrap/era/probe-R/` — `corpus.sh`, `door.wat` (records + refused form),
   `r3-macro.wat`, `probes-2a1-refute2.diff` (the three Rust probes), `one-step-vs-door*.txt`.
 - Routed: `BRIEF-2a1-REFUTE-2.md` (R5 the walk, R6 tracked ground + a lint, R7 the oracle).
+- **Closed** by grok's `ca0f5c2d7` plus one orchestrator line. Full-scale identity with the
+  orchestrator's walk (`verify-refute2.sh`: 0 lost, 0 gained, 0 refusal delta). Mutation M1 (keep
+  `defn` whole) turns `declared_types_body_is_never_expanded` RED, and the tracked sift timing test
+  RED with the original `mem-store/start` refusal. Mutation M2a, a `format!("{}/bootstrap/…")` path,
+  PASSED grok's lint, which matched only literals beginning `"bootstrap/` — the brief's own narrow
+  spec. The predicate is now any non-`//` line naming `bootstrap/` (zero hits today outside the lint).
 
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 

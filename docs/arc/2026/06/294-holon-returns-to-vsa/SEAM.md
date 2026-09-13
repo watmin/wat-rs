@@ -25,18 +25,18 @@ ps -eo pid=,etime=,args= | awk '$3 ~ /wat-replay-base|wat-main-a3218644d/'   # a
 ```
 main              a3218644d   FROZEN · PUSHED                                     do not touch
 origin/grok-rete  37528f6e0   FROZEN — read with `git show`, never check it out
-replay/grok-rete  (this)      main + stone 0 + pilot (#1–#10) + 2b + 2a1 (door) + refute 1 · pushed
+replay/grok-rete  (this)      main + stone 0 + pilot (#1–#10) + 2b + 2a1 (door, CLOSED) · pushed
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
-- **In flight:** `BRIEF-2a1-REFUTE-2.md` (R5 the one-step walk, R6 tracked ground + a `"bootstrap/`
-  lint, R7 the oracle). Refute 1 (`101626eea`) verified: R1/R3/R4 ✓, R2 ✗ (finding 13). When grok
-  scores, re-run EVERY row yourself, and the bar:
-  - `bootstrap/era/probe-R/probes-2a1-refute2.diff`'s `zz_probe_one_step_walk_vs_door`, re-pointed at
-    the new door as "new" and `101626eea`'s numbers as the baseline: 0 files lose a type, 47 gain,
-    0 new refusals (`one-step-vs-door.txt` is the expected gain list);
-  - `bootstrap/era/probe-R/corpus.sh` (1457 Ok / 32 Refused), and `door.wat` on c3 and stone2a;
-  - `git grep -nF 'bootstrap/' -- '*.rs'` is empty; the lint goes RED once.
+- **2a1 is CLOSED** (grok `ca0f5c2d7` + the orchestrator's lint widening). The one-step walk, verified
+  by the orchestrator: floor 5428/5428 uncontended, clippy 0; identity with the orchestrator's own walk
+  over the 1489-file step-24 corpus (`bootstrap/era/probe-R/verify-refute2.sh`: 0 lost, 0 gained,
+  0 refusal delta — so +47 files of types vs `101626eea`); 1457 Ok / 32 Refused in 16 s; mutation M1
+  (keep `defn` whole) reddens `declared_types_body_is_never_expanded` and the sift timing test.
+- **Next: finalize `bootstrap/pending/BRIEF-2a2-draft.md`** against the closed verb (it now reports
+  holon records, `defn`'s `::Kwargs`/`::GrantHandles`/`::Coords`, and `let`-body declarations), write
+  `EXPECTATIONS-2a2`, and bring both to the builder for pulsare.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch
   owns its subsystem; replay ONE COMMIT AT A TIME; correct over fast — but **the builder cannot
   tolerate multi-hour runs between work units**, so wall clock is now a first-class goal.
@@ -47,7 +47,7 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
    `:wat::runtime::DeclaredTypes`, which is `Ok [types]` or `Refused [form cause]`.
    - It expands a program's declarations with the stdlib macros, registers them into a FRESH copy of
      a once-built stdlib snapshot, and returns `TypeInfo`s. No startup, no body check: 12–17 ms a
-     call, where `eval-with-defs!` takes ~460 ms. The refute is in flight.
+     call, where `eval-with-defs!` takes ~460 ms. CLOSED 2026-09-13 after two refutes (finding 13).
 2. **2a2 — the codemods ask the door once per program.** Draft: `bootstrap/pending/BRIEF-2a2-draft.md`.
    - match-arm, positional-ctor and variant-separator: the census is retired, and the report fires on
      "is a variant", never on case.
