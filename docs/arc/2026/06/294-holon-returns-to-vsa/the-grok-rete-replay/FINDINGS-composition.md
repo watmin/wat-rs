@@ -434,4 +434,10 @@ Measured (`bootstrap/era/probe-M/`, grok-rete tip `37528f6e0`, 1641 `.wat` outsi
   Twice today it fired on a transient spike, and the only kernel OOM victim was an unrelated 29 GB
   `python3`.
 - `pgrep -f '<script path>'` matches your OWN shell's text. Match the runner's argv prefix.
+  - Twice more on 2026-09-13:
+    - a guard `! pgrep -f 'positional-ctor-to-map.wat'` matched the Bash call carrying it;
+    - a wait loop matched a leftover harness `bash -c` whose command line held the whole launching
+      heredoc.
+  - **Do not decide on `pgrep -f` at all.** Wait on a pid you hold (`$!`, `wait`), or on a DONE line
+    the job itself writes.
 - A codemod piped EMPTY stdin dies with `"disconnected"`. That is never-ran, not "0 unresolved".
