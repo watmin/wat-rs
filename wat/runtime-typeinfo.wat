@@ -8,14 +8,18 @@
 ;; (defrecord's expansion calls Record::def at eval time). The closed-domain
 ;; enums are defenum (a builtin) and live here so the whole row is one file.
 
-;; Discriminant of TypeDef — the kind the row is about.
+;; Discriminant of TypeDef — the kind the row is about. `:Builtin` and
+;; `:Marker` are membership without a TypeDef (`type-of` answers them so
+;; it agrees with `is-type?`).
 (:wat::core::defenum :wat::runtime::TypeKind :wat::enum::Pure
   :Aggregate
   :Enum
   :Newtype
   :Alias
   :Union
-  :Surface)
+  :Surface
+  :Builtin
+  :Marker)
 
 ;; Aggregate / surface nature (the holder trit + Peer). Mirrors `Nature`.
 (:wat::core::defenum :wat::runtime::TypeNature :wat::enum::Pure
@@ -59,7 +63,12 @@
   :Alias     [expr <- :wat::WatAST]
   :Union     [members <- (:wat::core::Vector :- [:wat::WatAST])]
   :Surface   [nature <- (:wat::core::Option :- [:wat::runtime::TypeNature])
-              members <- (:wat::core::Vector :- [:wat::runtime::TypeSurfaceMember])])
+              members <- (:wat::core::Vector :- [:wat::runtime::TypeSurfaceMember])]
+  ;; A builtin's structure, parameters included, is not declared anywhere
+  ;; (`builtin_names` holds names only) — so the row's `type-params` is empty
+  ;; and the body has nothing else to say.
+  :Builtin []
+  :Marker  [children <- (:wat::core::Vector :- [:wat::core::keyword])])
 
 ;; THE row. `type-params` is on the row (every TypeDef carries them), not
 ;; buried in a kind-specific body. `body` is the rest.

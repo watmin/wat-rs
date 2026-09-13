@@ -9992,47 +9992,48 @@ fn concrete_type_name_matches(value: &Value, path_with_colon: &str) -> bool {
 /// to `contains` (`char`/`Tuple` are here and not leaves; `PersistentVector`/
 /// `Value` are leaves and not here). Stone Q's `is-type?` unions both; a count
 /// of either is not the authority (`TABLE-STONE-Q-the-mechanisms.md`).
+pub(crate) const BUILTIN_PRIMITIVES: &[&str] = &[
+    "wat::core::bool",
+    "wat::core::i64",
+    "wat::core::u8",
+    "wat::core::f64",
+    "wat::core::String",
+    "wat::core::keyword",
+    "wat::core::nil",
+    "wat::core::Uuid",
+    "wat::core::char",
+    "wat::core::rational",
+    "wat::core::bigint",
+    "wat::core::fn",
+    "wat::core::Tuple",
+    "wat::core::Vector",
+    "wat::core::List",
+    "wat::core::HashMap",
+    "wat::core::HashSet",
+    "wat::core::Option",
+    "wat::core::Result",
+    "wat::core::Record",
+    "wat::WatAST",
+    "wat::holon::HolonAST",
+    "wat::holon::Vector",
+    "wat::holon::OnlineSubspace",
+    "wat::holon::Reckoner",
+    "wat::holon::Engram",
+    "wat::holon::EngramLibrary",
+    "wat::holon::Hologram",
+    "wat::time::Instant",
+    "wat::time::Duration",
+    "wat::kernel::Sender",
+    "wat::kernel::Receiver",
+    "wat::kernel::ProgramHandle",
+    "wat::kernel::HandlePool",
+    "wat::kernel::ChildHandle",
+    "wat::io::IOReader",
+    "wat::io::IOWriter",
+];
+
 pub(crate) fn is_builtin_primitive(name: &str) -> bool {
-    matches!(
-        name,
-        "wat::core::bool"
-            | "wat::core::i64"
-            | "wat::core::u8"
-            | "wat::core::f64"
-            | "wat::core::String"
-            | "wat::core::keyword"
-            | "wat::core::nil"
-            | "wat::core::Uuid"
-            | "wat::core::char"
-            | "wat::core::rational"
-            | "wat::core::bigint"
-            | "wat::core::fn"
-            | "wat::core::Tuple"
-            | "wat::core::Vector"
-            | "wat::core::List"
-            | "wat::core::HashMap"
-            | "wat::core::HashSet"
-            | "wat::core::Option"
-            | "wat::core::Result"
-            | "wat::core::Record"
-            | "wat::WatAST"
-            | "wat::holon::HolonAST"
-            | "wat::holon::Vector"
-            | "wat::holon::OnlineSubspace"
-            | "wat::holon::Reckoner"
-            | "wat::holon::Engram"
-            | "wat::holon::EngramLibrary"
-            | "wat::holon::Hologram"
-            | "wat::time::Instant"
-            | "wat::time::Duration"
-            | "wat::kernel::Sender"
-            | "wat::kernel::Receiver"
-            | "wat::kernel::ProgramHandle"
-            | "wat::kernel::HandlePool"
-            | "wat::kernel::ChildHandle"
-            | "wat::io::IOReader"
-            | "wat::io::IOWriter"
-    )
+    BUILTIN_PRIMITIVES.contains(&name)
 }
 
 // ─── end Stone 237.5 ─────────────────────────────────────────────────────────
@@ -10136,16 +10137,10 @@ fn eval_subtype(
             .into()
     })
     })?;
-    // Validate both names are known (in TypeEnv OR a built-in primitive).
-    // This keeps `false` honest: an unknown name is bad input, not a negative result.
-    let a_known = {
-        let stripped = a_kw.strip_prefix(':').unwrap_or(&a_kw);
-        types.get(&a_kw).is_some() || is_builtin_primitive(stripped)
-    };
-    let b_known = {
-        let stripped = b_kw.strip_prefix(':').unwrap_or(&b_kw);
-        types.get(&b_kw).is_some() || is_builtin_primitive(stripped)
-    };
+    // Validate both names are known via the ONE classifier (Declared / Builtin /
+    // Marker). A derive-marker and every `builtin_names` entry are known.
+    let a_known = !matches!(types.classify(&a_kw), crate::types::TypeMembership::Unknown);
+    let b_known = !matches!(types.classify(&b_kw), crate::types::TypeMembership::Unknown);
     if !a_known {
         return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),

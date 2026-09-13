@@ -9,8 +9,11 @@
 ;;   Record                  (Rec's nature)
 ;;   :alpha                  (field-names-of Rec — not retired)
 ;;   T                       (Option's type-params)
+;;   Builtin / Builtin / Builtin / Marker / :probe::Rec
+;;     (Vector, i64, HashMap-from-string, Marker children)
 
 (:wat::core::defrecord :probe::Rec [alpha <- :wat::core::i64])
+(:wat::core::derive :probe::Rec :probe::Marker)
 
 (:wat::core::defenum :probe::Box :wat::enum::Pure
   :Full [payload <- :wat::core::i64]
@@ -34,7 +37,9 @@
     [:wat::runtime::TypeKind.Newtype {} (:wat::kernel::println "Newtype")]
     [:wat::runtime::TypeKind.Alias {} (:wat::kernel::println "Alias")]
     [:wat::runtime::TypeKind.Union {} (:wat::kernel::println "Union")]
-    [:wat::runtime::TypeKind.Surface {} (:wat::kernel::println "Surface")]))
+    [:wat::runtime::TypeKind.Surface {} (:wat::kernel::println "Surface")]
+    [:wat::runtime::TypeKind.Builtin {} (:wat::kernel::println "Builtin")]
+    [:wat::runtime::TypeKind.Marker {} (:wat::kernel::println "Marker")]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::print-kind (:wat::runtime::type-of :probe::Rec))
@@ -65,4 +70,13 @@
     (:wat::core::str (:wat::core::first (:wat::runtime::field-names-of :probe::Rec))))
   (:wat::kernel::println
     (:wat::core::first (:wat::runtime::TypeInfo/type-params
-                         (:wat::runtime::type-of :wat::core::Option)))))
+                         (:wat::runtime::type-of :wat::core::Option))))
+  (:user::print-kind (:wat::runtime::type-of :wat::core::Vector))
+  (:user::print-kind (:wat::runtime::type-of :wat::core::i64))
+  (:user::print-kind (:wat::runtime::type-of (:wat::keyword::from-string "wat::core::HashMap")))
+  (:user::print-kind (:wat::runtime::type-of :probe::Marker))
+  (:wat::core::match (:wat::runtime::TypeInfo/body (:wat::runtime::type-of :probe::Marker))
+    [:wat::runtime::TypeBody.Marker {:children cs}
+      (:wat::kernel::println
+        (:wat::string::concat ":" (:wat::keyword::to-string (:wat::core::first cs))))]
+    [_ (:wat::kernel::println "not-marker")]))

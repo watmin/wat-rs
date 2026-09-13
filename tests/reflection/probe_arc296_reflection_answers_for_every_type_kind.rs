@@ -81,6 +81,13 @@ fn reflection_answers_for_all_six_kinds_and_variant_field_order() {
     // field-names-of Rec (not retired), Option type-params.
     assert_eq!(
         out,
-        "\"Aggregate\"\n\"Enum\"\n\"Newtype\"\n\"Alias\"\n\"Union\"\n\"Surface\"\n\":left\"\n\":right\"\n\"Record\"\n\":alpha\"\n\"T\""
+        "\"Aggregate\"\n\"Enum\"\n\"Newtype\"\n\"Alias\"\n\"Union\"\n\"Surface\"\n\":left\"\n\":right\"\n\"Record\"\n\":alpha\"\n\"T\"\n\"Builtin\"\n\"Builtin\"\n\"Builtin\"\n\"Marker\"\n\":probe::Rec\""
     );
+}
+
+#[test]
+fn subtype_marker_is_true_after_derive() {
+    let (code, out) = run("probe_subtype_marker.wat");
+    assert_eq!(code, 0, "subtype? of a derive-marker must be true; got:\n{out}");
+    assert_eq!(out, "\"true\"");
 }

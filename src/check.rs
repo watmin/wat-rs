@@ -3672,9 +3672,9 @@ fn infer_list(
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::runtime::type-of" => {
-                // Arc 296 L — type-of. Same arc-009 "names are values" bypass as
-                // field-names-of: the arg is a type keyword that may also name a
-                // constructor. Infer for side effects; do not constrain.
+                // 2a1b — a literal keyword is type-position, as `is-type?` (Doctrine 1
+                // must not fire on `:wat::core::i64`). A non-literal arg is inferred
+                // as today (codemods pass computed keywords).
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
@@ -3682,7 +3682,7 @@ fn infer_list(
                         got: args.len()
                     } });
                 }
-                if !args.is_empty() {
+                if !args.is_empty() && !matches!(&args[0], WatAST::Keyword(_, _)) {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let ty = TypeExpr::Path(":wat::runtime::TypeInfo".into());
@@ -23983,6 +23983,69 @@ pub(crate) mod tests {
                 }
             }
             other => panic!("expected DeclaredTypes.Refused, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn type_of_unknown_name_raises() {
+        let src = r#"
+            (:wat::core::defn :user::go [] -> :wat::runtime::TypeInfo
+              (:wat::runtime::type-of :nope::Nothing))
+        "#;
+        let world = crate::freeze::startup_from_source(
+            src,
+            None,
+            std::sync::Arc::new(crate::load::loader::InMemoryLoader::new()),
+        )
+        .unwrap_or_else(|e| panic!("startup: {e}"));
+        let func = world.symbols().get(":user::go").expect(":user::go").clone();
+        let err = crate::runtime::apply_function(
+            func,
+            vec![],
+            world.symbols(),
+            crate::rust_caller_span!(),
+        )
+        .expect_err("unknown type must raise");
+        match err.kind() {
+            RuntimeErrorKind::MalformedForm { reason, .. } => {
+                assert_eq!(reason, "unknown type ':nope::Nothing'");
+            }
+            other => panic!("expected MalformedForm, got {other:?}"),
+        }
+    }
+
+    /// Agreement wall: every name `is-type?` admits, enumerated from the
+    /// stores, `type-of` answers without raising. No list in the test.
+    #[test]
+    fn type_of_answers_every_is_type_name() {
+        let (_sym, _macros, types) = stdlib_loaded();
+        let mut names: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (n, _) in types.iter() {
+            names.insert(n.clone());
+        }
+        for n in types.builtin_leaf_names() {
+            names.insert(n.clone());
+        }
+        for n in crate::runtime::BUILTIN_PRIMITIVES {
+            names.insert(format!(":{n}"));
+        }
+        for n in types.subtype_parent_names() {
+            names.insert(n);
+        }
+        let span = crate::rust_caller_span!();
+        for name in &names {
+            let class = types.classify(name);
+            assert!(
+                !matches!(class, crate::types::TypeMembership::Unknown),
+                "is-type? admits {name} but classify is Unknown"
+            );
+            crate::reflect::verbs::type_info_for_membership(
+                name,
+                class,
+                &span,
+                ":wat::runtime::type-of",
+            )
+            .unwrap_or_else(|e| panic!("type-of {name}: {e:?}"));
         }
     }
 

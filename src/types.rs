@@ -44,6 +44,8 @@ pub(crate) use surface::parse_defsurface;
 use crate::ast::WatAST;
 use crate::span::Span;
 use std::collections::HashMap;
+#[cfg(test)]
+use std::collections::HashSet;
 use wat_macros::wat_special_form_impl;
 
 /// Arc 215 stone 1 — type-placeholder path for HM-style inference.
@@ -577,6 +579,17 @@ pub struct TypeEnv {
     source_forms: HashMap<String, WatAST>,
 }
 
+/// One answer to "is this name a type?" — the stores `is_known_type` unions,
+/// checked Declared then Builtin then Marker. Builtins keep `get` = `None`;
+/// no `TypeDef` is fabricated.
+#[derive(Debug)]
+pub(crate) enum TypeMembership<'a> {
+    Declared(&'a TypeDef),
+    Builtin,
+    Marker { children: Vec<String> },
+    Unknown,
+}
+
 // Privilege (user vs stdlib) is the shared `crate::resolve::Privilege` — the ONE bit
 // every registration path threads (was the local `RegistrationPrivilege`, collapsed in
 // the reserved-prefix-one-gate arc).
@@ -616,29 +629,69 @@ impl TypeEnv {
         self.types.contains_key(name) || self.builtin_names.contains(name)
     }
 
-    /// Arc 255 Stone ②'s ONE DOOR — the three-store union `:wat::runtime::is-type?`
-    /// used to compute inline (`src/reflect/verbs.rs`'s `eval_is_type`) and that
-    /// `normalize`'s `:-` type position (`src/resolve/normalize.rs`) also needs:
-    /// is `kw` a known type at all — membership, not structure?
-    /// `contains` (registered `TypeDef` or builtin leaf) ∪ `is_builtin_primitive`
-    /// (runtime primitive/container table) ∪ `is_subtype_parent` (derive-marker
-    /// parent). Both callers route through this fn so the union is written once.
-    ///
-    /// Canonicalizes `:wat::type::X` → `:wat::core::X` FIRST: measured, every
-    /// store here answers `false` for a `:wat::type::` spelling — the only other
-    /// copy of this mapping is inline in `parse_type_expr`, below — so a caller
-    /// asking about the `wat.type/` spelling can never forget the canonicalization.
-    pub(crate) fn is_known_type(&self, kw: &str) -> bool {
-        let canonical = match kw.strip_prefix(":wat::type::") {
+    /// Canonicalize `:wat::type::X` → `:wat::core::X`. Every store answers
+    /// `false` for a `:wat::type::` spelling; callers must not forget this.
+    fn canonicalize_type_kw<'b>(kw: &'b str) -> std::borrow::Cow<'b, str> {
+        match kw.strip_prefix(":wat::type::") {
             // rune:lint(one-variant-separator, namespace) — rewrites the namespace segment
             // `wat::type` to its canonical `wat::core` alias; `tail` is the unchanged leaf.
             Some(tail) => std::borrow::Cow::Owned(format!(":wat::core::{tail}")),
             None => std::borrow::Cow::Borrowed(kw),
-        };
-        let stripped = canonical.strip_prefix(':').unwrap_or(&canonical);
-        self.contains(&canonical)
+        }
+    }
+
+    /// ONE classifier: Declared (`get` is Some) then Builtin (`builtin_names` ∪
+    /// `is_builtin_primitive`) then Marker (`is_subtype_parent`) then Unknown.
+    /// A name that is a `TypeDef` answers Declared even if a builtin store also
+    /// holds it (`:wat::core::Option`/`Result`).
+    pub(crate) fn classify<'b>(&'b self, kw: &str) -> TypeMembership<'b> {
+        let canonical = Self::canonicalize_type_kw(kw);
+        if let Some(def) = self.get(canonical.as_ref()) {
+            return TypeMembership::Declared(def);
+        }
+        let stripped = canonical.strip_prefix(':').unwrap_or(canonical.as_ref());
+        if self.builtin_names.contains(canonical.as_ref())
             || crate::runtime::is_builtin_primitive(stripped)
-            || self.is_subtype_parent(&canonical)
+        {
+            return TypeMembership::Builtin;
+        }
+        if self.is_subtype_parent(canonical.as_ref()) {
+            let mut children: Vec<String> = self
+                .subtype_edges
+                .iter()
+                .filter(|(_, parents)| parents.iter().any(|p| p == canonical.as_ref()))
+                .map(|(child, _)| child.clone())
+                .collect();
+            children.sort();
+            return TypeMembership::Marker { children };
+        }
+        TypeMembership::Unknown
+    }
+
+    /// Arc 255 Stone ②'s ONE DOOR — membership, not structure. Now "not Unknown"
+    /// of [`Self::classify`]: the same stores, one answer. `type-of` and
+    /// `subtype?` ask the classifier; `is-type?` and `normalize`'s `:-` position
+    /// keep calling this.
+    pub(crate) fn is_known_type(&self, kw: &str) -> bool {
+        !matches!(self.classify(kw), TypeMembership::Unknown)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn builtin_leaf_names(&self) -> impl Iterator<Item = &String> {
+        self.builtin_names.iter()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn subtype_parent_names(&self) -> Vec<String> {
+        let mut s: HashSet<String> = HashSet::new();
+        for parents in self.subtype_edges.values() {
+            for p in parents {
+                s.insert(p.clone());
+            }
+        }
+        let mut v: Vec<String> = s.into_iter().collect();
+        v.sort();
+        v
     }
 
     /// Answers STRUCTURE. Deliberately unchanged by the builtin-leaf population

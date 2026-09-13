@@ -1496,20 +1496,65 @@ pub(crate) fn eval_type_of(
     const OP: &str = ":wat::runtime::type-of";
     let type_kw = resolve_type_keyword_arg(OP, type_kw_ast, env, sym)?;
     let span = type_kw_ast.span();
-    let def = match sym.types().and_then(|t| t.get(&type_kw)) {
-        Some(d) => d,
-        None => {
-            return Err(RuntimeError::new(
-                span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("unknown type '{type_kw}'"),
-                },
-            )
-            .into());
+    let types = sym.types().ok_or_else(|| {
+        RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "type-of requires the type registry, but the SymbolTable has no TypeEnv attached \
+                         (programmer error: this build path didn't go through startup_from_source / freeze)"
+                    .into(),
+            },
+        )
+    })?;
+    type_info_for_membership(&type_kw, types.classify(&type_kw), span, OP)
+}
+
+/// Builtin and Marker TypeInfo rows — ONE function beside `type_info_value`.
+/// Declared still goes through `type_info_value` so the two cannot drift.
+pub(crate) fn type_info_for_membership(
+    type_kw: &str,
+    class: crate::types::TypeMembership<'_>,
+    span: &Span,
+    op: &str,
+) -> Result<Value, EvalBreak> {
+    match class {
+        crate::types::TypeMembership::Declared(def) => type_info_value(type_kw, def, span, op),
+        crate::types::TypeMembership::Builtin => Ok(record_value(
+            "wat::runtime::TypeInfo",
+            type_info_names(),
+            vec![
+                Value::wat__core__keyword(Arc::new(type_kw.to_string())),
+                unit_variant(TYPE_KIND, "Builtin"),
+                type_params_vec(&[]),
+                tagged_variant(TYPE_BODY, "Builtin", vec![]),
+            ],
+        )),
+        crate::types::TypeMembership::Marker { children } => {
+            let kids: Vec<Value> = children
+                .iter()
+                .map(|c| Value::wat__core__keyword(Arc::new(c.clone())))
+                .collect();
+            Ok(record_value(
+                "wat::runtime::TypeInfo",
+                type_info_names(),
+                vec![
+                    Value::wat__core__keyword(Arc::new(type_kw.to_string())),
+                    unit_variant(TYPE_KIND, "Marker"),
+                    type_params_vec(&[]),
+                    tagged_variant(TYPE_BODY, "Marker", vec![Value::Vec(Arc::new(kids))]),
+                ],
+            ))
         }
-    };
-    type_info_value(&type_kw, def, span, OP)
+        crate::types::TypeMembership::Unknown => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("unknown type '{type_kw}'"),
+            },
+        )
+        .into()),
+    }
 }
 
 /// THE TypeInfo constructor — `type-of` and `declared-types` share this.
