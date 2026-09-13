@@ -415,6 +415,28 @@ Measured 2026-09-13 on `101626eea` (2a1 + its first refute), over the 1489-file 
   PASSED grok's lint, which matched only literals beginning `"bootstrap/` — the brief's own narrow
   spec. The predicate is now any non-`//` line naming `bootstrap/` (zero hits today outside the lint).
 
+## Finding 14 — after 2a2 the codemods need a NON-RAISING stdlib type query; only `eval-with-defs!` catches the raise today
+
+Measured 2026-09-13 on `5edca1211` (probes: `bootstrap/era/probe-R/{defect-*.wat,vpo.wat,vpo2.wat}`).
+- **The door answers only what a program ADDS.** Stdlib answers come from each codemod's `try-type-of`
+  (`match-arm-to-bracket-map-pattern.wat:162`, `positional-ctor-to-map.wat:166`): `eval-with-defs!`,
+  whose `FormOutcome` is the only catch in wat. No try/catch intrinsic exists.
+- **`type-of` raises on every name `is-type?` admits without a `TypeDef`**: 35 of `is_builtin_primitive`'s
+  37 names (all but `Option` and `Result`, which are `defenum`s), plus derive-marker parents
+  (`src/types.rs:631`, `:644`, `:956`; `src/runtime.rs:9995`). `:wat::core::Vector`: `is-type?` true,
+  `type-of` raises `unknown type`, and the process still exits 0. `(type-of :wat::core::i64)` as a
+  literal is refused at check (Doctrine 1).
+- **`variant-parent-of` never raises, but answers only the `.` spelling.** `Option::Some`, `Result::Ok`,
+  `RecvOutcome::Message` (literal or `from-string`) → `None`; the `.` forms → their enum. Steps 23 and
+  26 run before the dot flip (27), so they see `::`. Its own `@example` (`src/reflect/verbs.rs:1718`)
+  claims `Option::Some` → `:wat::core::Option`, and nothing checks it:
+  `verify_examples_reports_no_failures` is `#[ignore]` (the doctest runner raises before collecting).
+- **Blast radius of making `type-of` total** (a kind for a known name with no declared structure):
+  `wat/runtime-typeinfo.wat`, `src/reflect/verbs.rs` (`type-of`'s `None` arm, `type_kind_value`,
+  `type_body_value`), one exhaustive match (`tests/reflection/probe_arc296_type_of_six_kinds.wat:32-37`).
+  Both codemods fall through with `_`.
+- Routed: the 2a2 stdlib route is the builder's ruling (four questions in the main chat, 2026-09-13).
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

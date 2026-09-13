@@ -34,9 +34,13 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   over the 1489-file step-24 corpus (`bootstrap/era/probe-R/verify-refute2.sh`: 0 lost, 0 gained,
   0 refusal delta — so +47 files of types vs `101626eea`); 1457 Ok / 32 Refused in 16 s; mutation M1
   (keep `defn` whole) reddens `declared_types_body_is_never_expanded` and the sift timing test.
-- **Next: finalize `bootstrap/pending/BRIEF-2a2-draft.md`** against the closed verb (it now reports
-  holon records, `defn`'s `::Kwargs`/`::GrantHandles`/`::Coords`, and `let`-body declarations), write
-  `EXPECTATIONS-2a2`, and bring both to the builder for pulsare.
+- **Next: 2a2 waits on ONE ruling — the stdlib query** (finding 14). The door answers only what a
+  program adds; the codemods' stdlib answers come through `eval-with-defs!`, the only catch for
+  `type-of`'s raise on builtins (`:wat::core::Vector`). Once ruled, finalize
+  `bootstrap/pending/BRIEF-2a2-draft.md` against the closed verb (it now reports holon records,
+  `defn`'s `::Kwargs`/`::GrantHandles`/`::Coords`, `let`-body declarations). Its bar is DERIVED, not
+  "0 files differ from `wL`": 0 converted sites lost vs `wL`/`pT`, and every difference explained by a
+  type the door reports that the ladder could not see.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch
   owns its subsystem; replay ONE COMMIT AT A TIME; correct over fast — but **the builder cannot
   tolerate multi-hour runs between work units**, so wall clock is now a first-class goal.
