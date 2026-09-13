@@ -1,9 +1,14 @@
-//! TWO LIVE native-vs-`$oracle` DIVERGENCES IN THE ACCUMULATE FAMILY.
+//! THREE LIVE native-vs-`$oracle` DIVERGENCES, ALL FOUND BY THE RETE FUZZER.
 //!
-//! Found 2026-08-25 by `wat-scripts/fuzz/rete-differential.wat` on its first widened run — 22
-//! mismatches of 504 generated shapes, every one at the newly-added accumulate shape, decomposing
-//! into exactly the two families below. Both reproduce minimally, and both are SILENT: a caller
-//! gets a wrong row count with no error.
+//! Found 2026-08-25 by `wat-scripts/fuzz/rete-differential.wat` as its grammar widened — 76
+//! mismatches of 828 generated shapes, decomposing into exactly three families. Every one
+//! reproduces minimally and standalone, and every one is SILENT: a caller gets a wrong row count
+//! with no error.
+//!
+//! The breakdown is clean enough to be a diagnosis rather than a symptom list: 22 at the
+//! accumulate shape (families A and B), 54 at `:not`-over-a-derived-class (family C), the latter
+//! all at depth >= 1 and never at depth 0 — exactly the dependence stratified negation should
+//! have.
 //!
 //! ## Family A — a LEADING accumulate emits one row per FIXPOINT ROUND
 //!
@@ -101,5 +106,71 @@ fn a_leading_accumulate_passes_once_per_fire_not_once_per_round() {
          rows, 3-round chain gave {} (expected 1 and 1). Witness {r:?}",
         r[4],
         r[6]
+    );
+}
+
+/// `[C-noChain-native C-noChain-oracle  C-chain-native C-chain-oracle  S2-native S2-oracle]`
+fn rows_c() -> Vec<i64> {
+    let out = call_beside_value(file!(), ":user::rows-c").expect("eval :user::rows-c");
+    let items: Vec<&Value> = match &out {
+        Value::wat__core__PersistentVector(v) => v.iter().collect(),
+        Value::Vec(v) => v.iter().collect(),
+        other => panic!("expected a vector; got {other:?}"),
+    };
+    let got: Vec<i64> = items
+        .iter()
+        .map(|v| match v {
+            Value::i64(n) => *n,
+            other => panic!("expected i64; got {other:?}"),
+        })
+        .collect();
+    assert_eq!(got.len(), 6, "witness shape changed: {got:?}");
+    got
+}
+
+/// CONTROL, not ignored: with no rule deriving `S2`, the negation passes in both engines.
+/// A fix for family C must not achieve agreement by breaking the absent case.
+#[test]
+fn negation_over_an_underived_class_agrees() {
+    let r = rows_c();
+    assert_eq!(
+        (r[0], r[1]),
+        (1, 1),
+        "with S2 never derived, `not S2` must pass in both engines — native {} oracle {}. \
+         Witness {r:?}",
+        r[0],
+        r[1]
+    );
+}
+
+/// CONTROL, not ignored: both engines really do derive `S2`. Without this, family C could be
+/// misread as native simply failing to derive the fact.
+#[test]
+fn both_engines_derive_the_fact_the_negation_should_see() {
+    let r = rows_c();
+    assert_eq!(
+        (r[4], r[5]),
+        (1, 1),
+        "S2 must be derived by BOTH engines for family C to mean what it claims — native {} \
+         oracle {}. Witness {r:?}",
+        r[4],
+        r[5]
+    );
+}
+
+#[test]
+#[ignore = "RED: family C is a live defect — `:not` over a DERIVED class ignores the derivation"]
+fn negation_over_a_derived_class_must_see_the_derivation() {
+    let r = rows_c();
+    assert_eq!(
+        r[3], 0,
+        "oracle sanity: with S2 derived, `not S2` must block. Witness {r:?}"
+    );
+    assert_eq!(
+        r[2], r[3],
+        "native's `not` over a DERIVED class ignored the derivation: it passes ({}) where the \
+         oracle blocks ({}), while native's own query confirms S2 is present. Stratified \
+         negation requires the negated class's stratum to be complete first. Witness {r:?}",
+        r[2], r[3]
     );
 }
