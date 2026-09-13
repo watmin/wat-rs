@@ -149,11 +149,18 @@ fn ws_norm(s: &str) -> String {
 }
 
 fn git_cat_file_exists(rev: &str) -> bool {
+    // `cat-file -e` answers existence through its exit status. Its "fatal: Not a valid object name"
+    // stderr is the expected NO, not a diagnostic, so it is silenced; otherwise it lands in the test
+    // output beside the gate's own message. A git that cannot even be spawned does NOT mean "does
+    // not exist": that would conflate could-not-look with looked-and-found-nothing. So a spawn
+    // failure panics, as `git_show` does.
     Command::new("git")
         .args(["-C", manifest().to_str().unwrap(), "cat-file", "-e", rev])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .unwrap_or_else(|e| panic!("git cat-file -e {rev}: {e}"))
+        .success()
 }
 
 fn git_commit_exists(commit: &str) -> bool {

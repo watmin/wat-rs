@@ -131,6 +131,21 @@ priority = 97                                             # startup-heavy: start
 # Same shape as `retirement_table_is_fully_reachable` above: a TIMEOUT, not a hang.
 # Raising a number is not the durable fix (split the positional-ctor walk, or give
 # it its own test). Warn 60s / kill 120s is the same envelope as that neighbour.
+#
+# ⏱ …_positional_ctor — the isolated test, and it gets ITS OWN envelope (this block must
+# precede the general one below: the first matching override wins). It runs
+# `positional-ctor-to-map` twice (for idempotence), ~15 s isolated each, which is dominated by
+# the once-per-run invariant pass. MEASURED under the full floor, 2026-09-12/13: 63.0 · 66.2 ·
+# 83.4 · 63.9 s. The same tree varies ~20 s run to run with contention. That is 69% of a 120 s
+# kill: a timeout flake waiting to happen, and there is no such thing as a known flake. So:
+# warn 120s / kill 240s (the envelope of `retirement_table_is_fully_reachable` above), which is
+# still far inside any real hang, plus priority to start it before the floor's contention peaks.
+# If this test is ever measured above 120 s, that is a finding, not a number to raise.
+[[profile.default.overrides]]
+filter = 'test(every_recorded_migration_replays_positional_ctor)'
+slow-timeout = { period = "120s", terminate-after = 2 }   # warn 120s, kill 240s
+priority = 97                                             # heavy: start it early
+
 [[profile.default.overrides]]
 filter = 'test(every_recorded_migration_replays)'
 slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
