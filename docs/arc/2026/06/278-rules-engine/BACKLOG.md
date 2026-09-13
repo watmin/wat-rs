@@ -1,8 +1,20 @@
 # Arc 278 — explicit work queue (real names, tractability-ordered)
 
-## ⛔ CURRENT STATE — read first (breadcrumb, 2026-06-21; replace in place)
+## ⛔ NOT THE BREADCRUMB — historical, 2026-06-21 (superseded 2026-08-25)
 
-**⛔ 278 IS PARKED — PIVOTED TO ARC 255 (builtin registry). See `docs/arc/2026/06/255-builtin-registry/DESIGN.md`.**
+> **STOP. This section is NOT the current state, and it used to claim it was.** It was headed
+> "CURRENT STATE — read first (breadcrumb)" until 2026-08-25, which made TWO files in this arc
+> each announce themselves as the one live breadcrumb — the exact "breadcrumb forks" failure
+> `curare` names, where the next self reconstructs the present from a pile and trusts the wrong
+> stratum. This one is over two months stale: it says 278 is PARKED, and 278 has been the active
+> arc through 55+ commits since.
+>
+> **The single live breadcrumb is
+> `docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md`.** Read that.
+> Everything below is kept as history because the collection-campaign detail is still accurate
+> ABOUT ITS OWN PERIOD — but nothing below is a statement about now.
+
+**⛔ [HISTORICAL 2026-06-21] 278 IS PARKED — PIVOTED TO ARC 255 (builtin registry). See `docs/arc/2026/06/255-builtin-registry/DESIGN.md`.**
 Building the collection campaign surfaced a **catastrophic checker-soundness hole**: the resolver
 blanket-accepts ANY `:wat::*` head (`is_reserved_prefix → true`) and the checker punts via a permissive
 `Infer` fallback — so a typo'd/retired/nonexistent builtin (`:wat::core::nonexistent-xyz?`) type-checks

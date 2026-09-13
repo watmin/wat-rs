@@ -1108,7 +1108,7 @@ pub(crate) fn harvest_query_memory(
             .values()
             .next()
             .is_some_and(|s| compiled_rhs_is_class(arm, s.class.as_str()));
-    let mut harvested: HashMap<String, Vec<crate::value::pmap::PMap>> = HashMap::new();
+    let mut harvested: QueryMemory = HashMap::new();
     for node_id in &arm.kind_ids.query {
         let node = match get_node(&wm.network, *node_id) {
             Some(n) => n,

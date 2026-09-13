@@ -49,3 +49,7 @@ wat-scripts/hunt/out/
 # bootstrap/pctm-gate/{orig,A,B} — 20-file regression set for positional-ctor-to-map
 #    (A == B byte-identical; costs ~19 min of the old codemod to regenerate).
 bootstrap/
+
+# arc 278 — vigilia recast scratch (run dirs + probe output). The LOOP doctrine is
+# tracked at docs/VIGILIA-LOOP.md; only its run output is scratch.
+/tmp/

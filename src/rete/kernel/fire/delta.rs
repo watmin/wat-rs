@@ -334,6 +334,26 @@ pub(crate) fn fire_fixpoint_delta_armed(
             bind_only.insert(id, fields);
         }
     }
+    // ── WHY THERE ARE TWO COPIES OF EACH — a borrow split, not an oversight ──────────────
+    // The round locals above and the `wm.*` fields below hold the SAME data for the whole
+    // fire. Both are live and both are read: passes reached from here take `&bind_only` /
+    // `&cond_key_ids` directly (see the `AlphaNews` construction sites below), while passes
+    // that receive only `&mut FireSession` — `pass/mod.rs`'s `left_activate_join` setup and
+    // `filter_after_join.rs` — read `&wm.bind_only` / `&wm.cond_key_ids` instead. A single
+    // copy cannot serve both: borrowck refuses an immutable borrow of a `wm` field held
+    // across a call that takes `&mut wm`. The clone is what buys the split.
+    //
+    // THEY CANNOT DIVERGE, and that is structural rather than a discipline: both `wm` fields
+    // are cleared at the top of this same `fire_fixpoint_delta_armed`, in the fire-scoped
+    // `clear()` block beside `wm.alpha` / `wm.beta`; this `clone_from` pair is then their
+    // ONLY writer, and neither copy is mutated afterwards. So "are they still in sync?" is not
+    // a question a reader has to carry.
+    //
+    // `sequi` flagged this on 2026-08-25 as two live copies with the reason stated nowhere —
+    // correct, and by then the silence had already sent two scans down the wrong path, each
+    // reading a `bind_only` that was not the one it thought (see the notes in
+    // `pass/filter.rs` and `pass/filter_after_join.rs`, both written by a scan that had been
+    // misled). The comment is the fix; the shape is deliberate.
     wm.bind_only.clone_from(&bind_only);
     wm.cond_key_ids.clone_from(&cond_key_ids);
 

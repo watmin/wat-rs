@@ -258,9 +258,18 @@ pub(crate) struct FireSession {
     pub(crate) i64_by_fact: Vec<Option<I64Row>>,
     /// Bind-only alphas: output field indexes into the packed row
     /// (`DESIGN-STONE-column-gather-fold`). Fire-scoped.
+    ///
+    /// **This is the `&mut FireSession` half of a deliberate borrow split.** An identical
+    /// round-local `bind_only` lives in `fire/delta.rs`, serving the passes that borrow it
+    /// directly; this field serves the passes that receive only `&mut wm` and so cannot hold
+    /// an immutable borrow of a local across the call. `delta.rs`'s `clone_from` is the only
+    /// writer of both, and the full reasoning — including why the two cannot drift apart —
+    /// is at that site. Two scans have already mistaken one copy for the other.
     pub(crate) bind_only: BindOnlyFields,
     /// Interned cond keys, parallel to `bind_only` outputs after an
     /// optional fact_bind (`DESIGN-STONE-column-gather-fold`).
+    ///
+    /// Same borrow split as [`FireSession::bind_only`] directly above — see there.
     pub(crate) cond_key_ids: CondKeyIds,
     /// True when input has a fact whose class is a class-scan query class.
     /// Harvest skips `wm.facts` when false

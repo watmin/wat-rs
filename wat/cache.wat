@@ -29,8 +29,12 @@
 ;;
 ;; ─── failure surface ─────────────────────────────────────────────────────────────────────────
 ;; Unlike `:wat::sqlite::*` (every verb errors-as-values), the two guards on this primitive
-;; PANIC: a non-positive `capacity` and a non-hashable (opaque-handle) key. That is deliberate
-;; behaviour-parity with the oracle for this stone — see src/rust_deps/cache.rs's module doc.
+;; PANIC: a non-positive `capacity` and a non-hashable (opaque-handle) key. These are the two
+;; programming-error inputs, and the checker already rejects an opaque-typed key at most call
+;; sites. Whether the no-hidden-failures law should reach them is an OPEN decision, tracked as
+;; a row in docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md ("exigere — the cache
+;; panic conversion"); the reason Stone 1 gave for deferring it has since expired. The full
+;; account is src/rust_deps/cache.rs's module doc. Converting moves BOTH files together.
 ;;
 ;; Loads after wat/core.wat (typealias/defrecord/defn + Option are core builtins) and after
 ;; wat/Record.wat is NOT required — `defrecord` is a defmacro, registered in the order-free

@@ -555,9 +555,17 @@ fn compile_operand_expr(
 /// function's own body never allocates on the Bind/Constraint (+ flattened `and`) path: `clear`
 /// followed by `resize` back up to `compiled.n_slots` never reallocates once `scratch`'s
 /// capacity has reached its high-water mark, and every write after that is a plain slice index.
-/// The one exception is `Op::Or`/`Op::Not`, which clone `scratch` into a fresh temporary — not
-/// exercised by anything in the live grid corpus (see the module doc), so it never fires on the
-/// path this stone's zero-allocation gate measures.
+/// The one exception is `Op::Or`/`Op::Not`, which copy `scratch` into a temporary — one frame
+/// per disjunction and one per negation (T7 hoisted the `Or` case out of its branch loop on
+/// 2026-08-25; the `Not` case is a single shot and was affirmatively cut, reasons at the arm).
+///
+/// **Exercised for CORRECTNESS, unreached by any PERF axis — the two are not the same claim,
+/// and this comment used to blur them.** It read "not exercised by anything in the live grid
+/// corpus", which was true when written and became false once `where-or-inline.{wat,clj}` landed
+/// (native + oracle on every floor via `spec_equals_native_on_every_where_family`, Clara via
+/// `check-where-shapes.sh`). What remains true is the narrower thing: no perf axis reaches these
+/// arms, so they never fire on the path this stone's zero-allocation gate measures, and any
+/// allocation change here is arithmetic rather than a measured win.
 ///
 /// Populate: write pairs into `pool`, `?p` first when this cond is
 /// `(?p <- :Type …)`. Returns the span. Same keys/values/order as
@@ -866,8 +874,20 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
             }
         }
         Op::Or(branches) => {
+            // ONE frame for the whole disjunction, refilled per branch, instead of one
+            // allocation per branch (T7). The COPY is the semantics — a failed branch must not
+            // leak its bindings into the next, nor a succeeding one into the parent — and
+            // `clear` + `extend_from_slice` preserves that exactly: every branch still starts
+            // from pristine `slots`, and `clone` is still discarded either way. What goes is
+            // only the repeated malloc, which was invariant work inside the loop.
+            //
+            // NOT a measured win, and it must not be quoted as one: no grid axis reaches these
+            // arms (see the module doc), so there is no before/after to cite. It is taken as
+            // arithmetic — N allocations become 1 — not as a speedup.
+            let mut clone: SlotFrame = Vec::with_capacity(slots.len());
             for branch in branches {
-                let mut clone: SlotFrame = slots.to_vec();
+                clone.clear();
+                clone.extend_from_slice(slots);
                 if exec_ops(branch, &mut clone, fact_fields, skip_seed) {
                     return true;
                 }
@@ -875,6 +895,16 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
             false
         }
         Op::Not(sub) => {
+            // Single-shot: there is no loop here, so there is nothing to hoist. Driving this
+            // last allocation to zero would need a nesting-aware frame arena (the shape
+            // `EXEC_ARENA` in `expr_ir.rs` already implements for the where-executor, since
+            // `or`/`not` nest arbitrarily and one shared scratch cannot serve two depths).
+            //
+            // AFFIRMATIVELY CUT, not deferred (T7's close, 2026-08-25): it would stand up a
+            // SECOND arena mechanism beside an existing one — the duplication `solvere` exists
+            // to catch — to buy a saving nothing in the corpus can measure, on arms no grid axis
+            // reaches. If an axis is ever built for the intra-condition `or`/`not` shape, this
+            // is the first place to look, and the arena is then worth the second mechanism.
             let mut clone: SlotFrame = slots.to_vec();
             !exec_ops(sub, &mut clone, fact_fields, skip_seed)
         }

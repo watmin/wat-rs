@@ -4,10 +4,25 @@
 //! Op model can serve all four rete surfaces (`where`, the accumulator fold, `compiled_cond`,
 //! `compiled_rhs`), so a new rete op becomes ONE opcode in ONE table.
 //!
-//! **What would REFUTE it:** `compiled_cond::Op`'s six variants failing to fall out of an expression
+//! **What would REFUTE it:** `compiled_cond::Op`'s variants failing to fall out of an expression
 //! core as *driver-level* concerns. If `Bind`/`BindCheck` are irreducibly part of the op model
 //! rather than part of what FEEDS it, the three-step plan collapses to "build `where` alone" — and
 //! that is worth learning from a probe rather than from a migration.
+//!
+//! **The variant COUNT is deliberately not written here, and the reason is instructive.** This
+//! header said "six variants" until 2026-08-25. At the commit that introduced it (`5e2216db8`,
+//! 2026-08-06) `Op` held FIVE — `Bind`, `BindCheck`, `Cmp`, `Or`, `Not` — so the number was
+//! wrong on the day it was written, not merely drifted into wrongness; it has since gained
+//! `SeedCmp` and `Fail` and stands at seven. Nothing could catch either error: this is an
+//! integration test, `Op` is `pub(crate)`, so the probe models the shapes locally and cannot be
+//! held against the real type from where it stands.
+//!
+//! The count is therefore not this file's to hold. What holds it is
+//! `every_op_variant_lands_in_core_or_driver`, in-crate at the foot of
+//! `src/rete/compiled_cond.rs`: its `lands()` is an EXHAUSTIVE match, so an eighth variant is a
+//! compile error until someone classifies it core-or-driver. That is the gate for this design
+//! claim; this probe is the argument. A number in prose beside a gate that already covers it is
+//! pure liability — it can only ever be redundant or wrong.
 //!
 //! This probe deliberately writes NO compiler. It is the cheapest thing that can say "the shapes
 //! reconcile" or "they do not", per examinare: *a ten-line probe that fails on exactly the gap,

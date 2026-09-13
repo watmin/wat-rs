@@ -5,81 +5,85 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-24 (THIRD) — supersedes every dated block below it, INCLUDING
-both earlier 2026-08-24 stamps. 55 commits, HEAD `15dcca1df`, 0/0 with origin.**
+**CURRENT STAMP 2026-08-25 — supersedes every dated block below it, INCLUDING all three
+2026-08-24 stamps. Written against HEAD `2615e94a5`; the commit carrying this stamp lands on
+top of it, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
-**THE VIGILIA IS WORKED THROUGH.** 18 wards cast; 4 converged. Of ~21 L1 and ~29 L2,
-what remained at this stamp is prose accuracy, naming, two record defects and T7.
-**Nothing open can compute a wrong answer.** Per-ward detail lives in
-`NEXT-STRIKES-theater-hunt.md`; read it before proposing rete work.
+**THE VIGILIA LIST IS DRIVEN TO ITS FLOOR.** Everything a ward raised that could be actioned
+without a builder's ruling is closed. What remains is three things, and none of them can compute
+a wrong answer: two TRACKED DECISIONS needing your call, one `CLAUDE.md` record defect whose fix
+lives in the FROZEN holon root, and two items correctly scoped as not-taken (`complectens`'
+base-layer unit test, `circumspicere`'s CI-unrunnable grid SPEED half). Per-item detail and the
+CLOSING TALLY live in `NEXT-STRIKES-theater-hunt.md`; read it before proposing rete work.
 
-**FOUR LIVE DEFECTS WERE FOUND AND FIXED, none reachable by measurement:**
-1. A leading `:not`/`:exists` emitted one token PER FIXPOINT ROUND (`71d0e700e`).
-   Rows == rounds, exactly: chain 2→2, 3→3, 4→4, 6→6.
-2. The census reported `root-join` at ~2x (`d55899373`) — a duplicated `phase_end` added
-   by a commit claiming to be a mechanically-verified pure move.
-3. A fallback op's undefined point was decided by SNIFFING the runtime value instead of
-   the row's declared `ret` (`89e09889a`) — native said 1 where the `$oracle` said 0.
-4. `cond` (and every rete macro) never expanded in a `:then` (`444ba9239`); and a
-   `:where` followed by TWO OR MORE fact conditions matched NOTHING, silently
-   (`444ba9239`) — both filed from main, both with the mechanism mis-diagnosed.
+**CLOSED 2026-08-25:** `conferre` 1 · `perspicere` 1 · `sequi` 2 · `exigere` 2 (by BOUNDING) ·
+`vocare` 2 · **T7** (half shipped, half affirmatively cut) · the `tmp/VIGILIA-LOOP.md` record
+defect · and four RECORD defects the wards never saw, found by the recolligere itself.
+
+**THE FOUR DEFECTS OF 2026-08-24 STILL STAND AS THE ARC'S CENTRAL LESSON** (all fixed, none
+reachable by measurement): a leading `:not`/`:exists` emitting one token PER FIXPOINT ROUND
+(`71d0e700e`, rows == rounds exactly); the census reporting `root-join` at ~2x (`d55899373`); a
+fallback op's undefined point decided by SNIFFING the runtime value instead of the declared `ret`
+(`89e09889a`); and `cond` never expanding in a `:then` plus a `:where` before two or more fact
+conditions matching NOTHING, silently (`444ba9239`).
 
 **THE ORACLE AND CLARA WERE RIGHT EVERY TIME.** On all three engine divergences the two
-references agreed with each other and against native. The differential machinery was
-never broken — the CORPUS lacked the shape. That is the single most useful fact in this
-file: when native disagrees with both, native is wrong, and the question is what fixture
-was missing.
+references agreed with each other and against native. The differential machinery was never
+broken — the CORPUS lacked the shape. When native disagrees with both, native is wrong, and the
+question is what fixture was missing.
 
-**SEVEN NEW GATES**, each mutation-proven to fail before landing:
-`probe_arc278_{leading_filter_multiplicity, fallback_generic_ret, then_is_an_expansion_boundary,
-where_is_positionally_free, join_carries_both_sides_into_the_rhs, rhs_unbound_span,
-stratified_query_replay}`. Plus grid axis A9 `leading-exists`, and the sized-axis
-differential now READS the `:oracle-derived` field all 11 axes were already computing and
-discarding.
+**AND THE 2026-08-25 SWEEP FOUND THE SAME MASK ONE LAYER UP.**
+`differential_exists_no_multiplicity` was named for a contract its fixture could not reach: the
+rule's `:then` binds one variable, so three token passes derive the SAME fact and
+`production_delta`'s value-dedup collapses them — the test read 1 on a correct engine AND on a
+fully-multiplying one. **That is the identical mask that hid the leading-filter defect for the
+whole arc.** The contract now has a beta-reading gate, and that gate's sensitivity is proven
+in-tree by a sibling query with the `exists` wrapper removed: 3 rows where the existential
+reads 1, on identical facts.
 
-**THREE KINDS OF GAP, and they hide differently — the taxonomy is worth more than the
-list.** MISSING data (no fixture drove the shape — leading-filter, `Op::Or`);
-DISCARDED data (computed, correct, no consumer — `:oracle-derived`); MASKED data (a
-correct layer hides a broken one — `production_delta`'s value-dedup, and
-`harvest_stratified_queries`' single-round replay). The middle is cheapest to fix and
-easiest to walk past, because nothing LOOKS absent.
+**THE RECORD ITSELF HAD DRIFTED, AND THE WARDS COULD NOT SEE IT** — the gathering found it.
+The recovery ledger named arc 170's CLIFFNOTES as the live breadcrumb (a different arc); the
+arc-enumeration step used `$(date +%m)` and EXITED 2; and the breadcrumb had **forked four ways**
+(`SEAM.md`, six stacked seams in `DESIGN-no-hidden-failures.md`, `BACKLOG.md`, and this file),
+each announcing itself as the one live current-state. `SEAM.md`'s own rule condemned the others —
+*"There is exactly ONE seam. If you find a second, one of them is lying — prune it"* — and nobody
+had ever run it. All demoted in place, none deleted. A prior self had already logged the ledger
+defect as OWED at `REALIZATIONS.md:10578`; it sat unactioned. **An untracked or unread finding
+has no re-read, so its premise rots unwitnessed** — the same shape as the cache deferral below.
 
-**THE PANIC-PROBE IS THE CHEAPEST INSTRUMENT HERE.** Arm a `panic!` in a branch, rebuild,
-run the existing corpus: it answers "does anything actually execute this?" decisively.
-Paid three times — `Op::Or` (nothing reached it), the intra-condition `:or` (reachable),
-the stratified replay (never taken).
+**A DEFERRAL'S REASON CAN EXPIRE WITHOUT ANYONE LEARNING.** The cache primitive's two panics were
+left to "a later stone" because the dispatch macro could not marshal method-internal errors back
+to wat. That has been FALSE for some time — `#[wat_dispatch]` marshals `Result<T, E>` natively,
+including `Result<Self, E>` for a constructor. The conversion is mechanically available today;
+what remains is a genuine design call (does no-hidden-failures reach a *programming-error* input,
+or stop at a *fallible* one?) and it is now a TRACKED DECISION, not prose.
 
-**GRID, 2026-08-24 — 33/33 `:match`, 33/33 `:winner :us`.** `fanout [40000]` = 23.13 ms,
-INSIDE its 23.45 ± 0.75 range, so today's fixes cost nothing measurable. Read
-`fire-share-pct` before quoting any ratio: it is ≤ 2.4% everywhere, so `:ratio` is a
-FIRE-vs-FIRE number and `:wall-ratio` (3.7–13.5x) is the honest end-to-end figure.
-`min-finding`'s 71.8x was taken at load 2.77 with a 51–92 spread — accuracy trustworthy,
-ratio not.
+**GRID, 2026-08-24 — 33/33 `:match`, 33/33 `:winner :us`.** `fanout [40000]` = 23.13 ms, INSIDE
+its 23.45 ± 0.75 range. NOT re-run on 2026-08-25; today's changes are comments, records, gates,
+and one allocation hoist on arms no axis reaches. Read `fire-share-pct` before quoting any ratio:
+it is ≤ 2.4% everywhere, so `:ratio` is a FIRE-vs-FIRE number and `:wall-ratio` (3.7–13.5x) is
+the honest end-to-end figure.
 
-**THE TWO READING RULES STILL HOLD.** A grid cell is a DISTRIBUTION — compare to its
-recorded RANGE, never to whichever run was last. And run `uptime` first.
+**THE THREE READING RULES HOLD.** A grid cell is a DISTRIBUTION — compare to its recorded RANGE,
+never to whichever run was last. Run `uptime` first. And **NEVER PIPE A LONG GATE** — redirect to
+a file and read the file. That third one earned its place again today: the floor came back
+`EXIT=100` with one failure while the tail of the log read as a clean pass. See FM 20 and FM 21
+in `docs/COMPACTION-AMNESIA-RECOVERY.md`.
 
-**⚠ AND A THIRD, LEARNED THREE TIMES TODAY: NEVER PIPE A LONG GATE.** `floor.sh | tail`
-discarded the exit code, then cut the Summary line, and `run-all.sh | tail -60` dropped
-the grid's FIRST axis so it looked like it never ran. Redirect to a file, read the file.
-See FM 20 and FM 21 in `docs/COMPACTION-AMNESIA-RECOVERY.md` — FM 21 is the string-literal
-edit class, which reddened the floor once and is the sharper lesson.
+**A GATE THAT CANNOT GO RED IS DECORATION — every gate landed today was mutation-proven.** The
+sequi-category lint was armed with a bogus category and named its site; the grid exact-set
+assertion was armed with an unassigned axis file and named it; the borrow-split claim was proven
+by compiling the single-copy form and reading `error[E0502]` ×4 rather than by reasoning.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
-Everything above is a cache written by a prior self across a very long session. You did
-not live it. It felt continuous when you woke and that feeling is the failure, not the
-all-clear. Before you propose or move: fetch `recolligere` from the datamancy MCP and run
-it against the disk — `docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file,
-`NEXT-STRIKES-theater-hunt.md`, and the source you are about to touch. The freshness probe
-is the HEAD named here against `git rev-parse HEAD`; a mismatch means trust the log over
-every line above.
-
-**AND THE RECORD STILL LIES IN ONE KNOWN PLACE:** `wat-rs/CLAUDE.md` claims its
-load-bearing subset is carried in the injected `holon/CLAUDE.md`. It is not — grepped
-three times now, zero hits. A fresh session or spawned rider gets NO wat-rs doctrine
-unless it opens that file itself. The fix means editing the FROZEN holon root, so it
-needs the builder's call. `tmp/VIGILIA-LOOP.md` is likewise stale and untracked.
-
+Everything above is a cache written by a prior self across a very long session. You did not live
+it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before
+you propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `NEXT-STRIKES-theater-hunt.md`, and
+the source you are about to touch. The freshness probe is the HEAD named at the top of this stamp
+against `git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the
+log over every line above. **And this file is the ONLY live breadcrumb — if you find another
+claiming to be, it is lying; that happened four ways here and cost a full audit to unpick.**
 
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
@@ -603,7 +607,7 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 | Fn in a fact field | **Settled.** Facts are records; records are pure data. A function is not a fact field. Same class as HOF-lexical: it cannot arrive from WM. |
 | Depth / nodes / derived-fact explosion | **Refused as a fifth axis.** Near-term DoS is closed by no recursion (`#87`). Cardinality (MySQL/Athena-shaped client guard) is not a rete fence axis; do not mint a number we have not derived. |
 | `(:Type/field ?var)` | **Settled — compile the index.** The class and field are **in the accessor head** (`:wfb::Temp/c` → type `Temp`, field `c`). `TypeEnv` gives the `usize` at rule-compile. The 2026-08-06 “we don’t know `?route`’s class” claim assumed a TestNode compiled from the expr *alone*. At rule-compile we have the form *and* `collect_rule_bind_types`. Carry-the-name is the worse residual, not the required one. |
-| `match` map-destructure field index | Only that arm. Possible; not specified. Not a v1 blocker. |
+| `match` map-destructure field index | Only that arm. Possible; not specified. **TRACKED 2026-08-25** as decision row ② in `NEXT-STRIKES-theater-hunt.md` — "not a v1 blocker" was a priority, not an answer, and carried no owner or gate. |
 
 `(foldl ?f 0 xs)` is a `LowerError` (HOF settled). No numeric
 ceiling until one is derived. Cardinality DoS is a later stone.
