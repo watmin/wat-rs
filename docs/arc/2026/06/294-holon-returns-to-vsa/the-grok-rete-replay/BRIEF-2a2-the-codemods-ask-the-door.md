@@ -1,8 +1,7 @@
 # BRIEF 2a2 — the codemods ask the door, once per program; convert.sh runs each codemod once per commit
 
-> DRAFT (orchestrator, 2026-09-13). Release only after: 2a1b verified (type-of is total) AND the
-> exclusion-loop probe (`bootstrap/era/probe-R/door-exclude.wat`) has run on the 32 refused files and its
-> numbers are written into D1 below. Supersedes `BRIEF-2a2-draft.md` and `BRIEF-2a-draft.md`.
+> Built on: 2a1 (`5edca1211`, the declaration door) and 2a1b (`92d63df31`, `type-of` answers every name
+> `is-type?` admits), both verified by the orchestrator. The exclusion loop in D1 is measured below.
 
 **The rulings this executes:** (B) field names from a program's declarations; variants from declarations
 and the registry, never a frozen census; one door in `wat/fix.wat`; the declaration door (2a1); C (2a1b:

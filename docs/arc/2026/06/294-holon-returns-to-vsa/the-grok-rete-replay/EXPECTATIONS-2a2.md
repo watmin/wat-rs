@@ -1,4 +1,4 @@
-# EXPECTATIONS 2a2 — written before the strike (DRAFT; release with BRIEF-2a2)
+# EXPECTATIONS 2a2 — written before the strike (with `BRIEF-2a2-the-codemods-ask-the-door.md`)
 
 The orchestrator re-runs every row on the SCORE commit, uncontended.
 
