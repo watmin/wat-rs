@@ -11,9 +11,20 @@ subject is crashes. What follows is the chase.
 
 ## The defect, in one sentence
 
-> **A `defservice` handler that `connect`s to another service's address is refused by NO compile-time check and
-> KILLS the forked child at runtime** — exit **0**, **no stderr**, and the caller receives
-> `CallOutcome::Lost` carrying **`LociDiedError::Disconnected []`**, a nullary variant with no cause.
+> **A `defservice` handler that `connect`s to a surface NOT declared in its `:peers` is refused by NO
+> compile-time check and KILLS the forked child at runtime** — exit **0**, **no stderr**, and the caller
+> receives `CallOutcome::Lost` carrying **`LociDiedError::Disconnected []`**, a nullary variant with no cause.
+
+⛔ **CORRECTED 2026-09-13, same day, before any fix was drawn.** My first statement of this said *"a handler
+that connects to another service's address"* — with no `:peers` qualifier. **That is overstated, and the
+corpus disproves it:** `:fanout::worker` (`circuit.wat:370`) declares
+`:peers [:queue::Queue :fanout::Seen]` with both peers in `:ephemeral`, and its `-disrupt` handler
+**successfully redials `seen`** — a handler-local dial that works, because the surface is declared and its
+forms are therefore spliced into the child.
+
+★ The correction **sharpens the fix rather than weakening the finding**: the missing check is precisely
+*"a handler `connect` to a surface absent from `:peers`"*, which the worker satisfies and my probe violated.
+So the fix would **not** forbid the legitimate redial shape the corpus relies on.
 
 ## The bisection — six variants, one variable at a time
 
