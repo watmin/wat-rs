@@ -244,7 +244,17 @@ The builder:
        - Three known flaws it surfaced are in FINDINGS § "After 2b": 3 refusal arms unreachable from wat
          (dead code pinned by text) · ~21 doc/comment lines still teach `::` (SCORE listed 4) · c03's
          `variadic-wrap` now hardcodes `:wat::core::i64`.
-     - NEXT: the chain-tooling brief (2a): the ladder door, the scope rule, the variant decision,
+     - **✓ RULED 2026-09-13: BUILD THE DECLARATION DOOR** (builder: "we build it", after the four
+       questions came back 4 YES). Findings 9–12: every `eval-with-defs!` is two full startups, and the
+       exact wat-side workaround caps at 2.4× per commit.
+       - **`BRIEF-2a1-the-declaration-door.md` + `EXPECTATIONS-2a1.md`** — ready, waiting for "pulsare".
+         A pure verb: expand a program's declarations with the stdlib macros, register them into a
+         fresh copy of the stdlib registry, and return the `TypeInfo`s. No startup, no body check.
+         Probe first, inside the crate.
+       - The exact wat-side batched ladder is the measured FALLBACK (`probe-Q/run4.sh`: 0 files differ,
+         UNRESOLVED 15, 0 constructors lost). It is also the bar 2a2 must reproduce.
+       - The 2a draft becomes **2a2**: the codemods ask the door once per program.
+     - (superseded) NEXT: the chain-tooling brief (2a): the ladder door, the scope rule, the variant decision,
        positional-ctor reporting by registry (not case), step 14 reporting a splice, and `convert.sh`
        giving `one-param-spec` the corpus context. It waits for the positional-ctor ladder A/B and the
        chain under the ladder (`probe-L/pc2.sh`, running on copies, ETA ~06:25Z).

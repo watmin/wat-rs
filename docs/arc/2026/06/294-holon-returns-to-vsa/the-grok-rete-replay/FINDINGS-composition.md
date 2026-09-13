@@ -347,6 +347,20 @@ The four-file smoke set simply contained no offender.
     ELEMENT-level one (bisect; a lone offender gets the original `try-type-of`). It is exact by
     construction, at ~2·log₂n evals per offender.
 
+### ✓ v3 (exact batching + bisection) at FULL scale — `bootstrap/era/probe-Q/run4.sh`, 2026-09-13 06:29–06:42Z, sharded 8 ways
+
+| stage | wall | result |
+|---|---|---|
+| R1 positional-ctor, batched (`pc-batch3.wat`) | 249 s | **0 files differ** from today's output; UNRESOLVED 7,663 = 7,663 |
+| R2 match-arm, batched ladder (`ma-batch-ladder3.wat`) | 250 s | **0 files differ** from the unbatched ladder; UNRESOLVED 15 |
+| R3 positional-ctor, batched ladder (`pc-batch-ladder3.wat`) | 266 s | **0 files lose** a constructor vs today; 3 gain |
+| R4 the chain under the batched ladder, vs main | — | identical **1,314** / differ **175** (v2: 1,260 / 229) |
+| main-binary classifier over the 175 | — | CHAIN-FAILS **84** (v2: 127) · BOTH-PASS 68 · BOTH-FAIL-SAME 18 · BOTH-FAIL-DIFF 4 · MAIN-FAILS-ONLY 1 |
+
+- ⚠ `run4.log`'s "evals-that-failed (BATCH-FAIL lines): 0" CANNOT SEE: v3 prints no BATCH-FAIL line.
+  It is not a count of failed batches.
+- The exact wat-side path is the FALLBACK. The primitive is the fix (finding 12, BRIEF-2a1).
+
 ## Finding 12 — the wat-side workaround CAPS; the missing primitive is "expand + register + query"
 
 - **Measured in the replay's own mode** (`convert.sh`-shaped: five files, ONE invocation):
