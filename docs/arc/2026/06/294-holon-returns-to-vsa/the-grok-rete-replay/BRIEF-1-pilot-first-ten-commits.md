@@ -52,22 +52,27 @@ remaining 641 (and the next branch) will reuse.
    - Its line says PROVISIONAL, pending the orchestrator's chain-composition check (running now,
      on copies).
    - Check: the derived list, before the override, equals `bootstrap/landing-order.txt`'s 27 lines.
-2. **`scripts/replay/convert.sh <rev> <path>`** writes to stdout `<path>` at `<rev>`, converted
-   through that chain by the tree's own `target/release/wat` (built at HEAD).
-   - Each codemod runs only if `<path>` is inside its `;; SCOPE:`.
-   - It works in a temp dir, never on the tree.
+2. **`scripts/replay/convert.sh <rev> <out-dir> <path>…`** writes each `<path>` at `<rev>`,
+   converted, to `<out-dir>/<path>`. Each codemod runs ONCE over that set's in-scope paths
+   (the tree's own `target/release/wat`, built at HEAD).
+   - Each codemod runs only if a path is inside its `;; SCOPE:`.
+   - `one-param-spec`'s CONTEXT is every `.wat` at `<rev>` outside `wat-scripts/fixes/`,
+     minus files today's reader cannot lex (each REPORTED); its TARGETS are the given paths.
    - A nonzero rc from any codemod is fatal, and prints the whole log.
-   - Deterministic: two runs, byte-identical. Prove it on one file.
+   - Deterministic: two runs, byte-identical. Batch-independent: a file converted alone
+     equals it converted in its commit's set.
 
 ## One step
 
 For grok-rete commit **C**, where #N is its index after `de827fb4c`:
 
 1. **Docs-only:** `git cherry-pick -x C`.
-2. **Otherwise:** `git cherry-pick -x --no-commit C`, then per file:
-   - **`.wat` new in C:** the result is `convert.sh C <path>`.
+2. **Otherwise:** `git cherry-pick -x --no-commit C`, then collect the `.wat` paths C adds or
+   modifies. Call convert.sh twice per commit — once for the C^ set, once for the C set:
+   `convert.sh C^ <out-before> <path>…` and `convert.sh C <out-after> <path>…`. Then per file:
+   - **`.wat` new in C:** the result is `<out-after>/<path>`.
    - **`.wat` modified in C:**
-     `git merge-file <working copy> <(convert.sh C^ <path>) <(convert.sh C <path>)`. The working
+     `git merge-file <working copy> <out-before>/<path> <out-after>/<path>`. The working
      copy is main's version, already in main's syntax. The converted before/after carry grok's change
      into main's syntax. A conflict resolves by the ownership rule.
    - **`.wat` deleted in C:** `git rm`.

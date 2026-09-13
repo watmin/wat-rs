@@ -1,3 +1,5 @@
 # ORACLE for variant-separator-to-dot — HISTORY or header spec, never the tool.
 
 history 085f3ed3e wat-scripts/fmt/fixtures/kw-table.wat wat-scripts/fmt/fixtures/pair-table.wat
+spec     :usr::Color.Red) :: is an enum declaring
+spec-before     :usr::Color::Red) :: is an enum declaring

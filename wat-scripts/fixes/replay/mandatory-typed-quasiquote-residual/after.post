@@ -3,3 +3,6 @@
   `(:wat::core::PersistentVector ~ty))
 (:wat::core::defmacro :u::m [coords-ty-kw <- :wat::WatAST coords-sym <- :wat::WatAST] -> :wat::WatAST
   `(:wat::core::Vector :- [~coords-ty-kw] ~coords-sym))
+; near-miss: unquote-splicing is REPORTED (SPLICE), never wrapped
+(:wat::core::defmacro :u::spl [items <- :wat::WatAST] -> :wat::WatAST
+  `(:wat::core::Vector ~@items))

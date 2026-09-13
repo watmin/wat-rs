@@ -1679,8 +1679,10 @@ pub(crate) fn eval_declared_types(
 /// `is_builtin_primitive` ∪ `TypeEnv::is_subtype_parent`, canonicalizing
 /// `:wat::type::` → `:wat::core::` first. A nonexistent name is `false`, not a raise.
 ///
-/// The arg is a type-position keyword, taken literally (not evaluated). Doctrine 1
-/// stands: a primitive type keyword as a *value* still refuses; here it is a name.
+/// A literal keyword is type-position (not evaluated as a value). A non-literal
+/// keyword-valued expression is resolved the same way as `type-of` (2a2's door
+/// walks candidate paths and cannot present a literal). Doctrine 1 stands for a
+/// primitive type keyword used as a *value*.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -1688,7 +1690,7 @@ pub(crate) fn eval_declared_types(
 /// @Totality         Partial
 /// @ExpandTime    Legal
 /// @Category      Reflection
-/// @arg     type_kw_ast :wat::core::keyword the type name to ask about (a literal keyword in type position)
+/// @arg     type_kw_ast :wat::core::keyword the type name to ask about (a literal keyword, or a keyword-valued expression)
 /// @ret     :wat::core::bool true iff the name is a type (TypeEnv member, runtime primitive, or derive-marker parent)
 /// @example (:wat::runtime::is-type? :wat::core::Option) #=> true
 /// @example (:wat::runtime::is-type? :usr::TotallyMadeUp) #=> false
@@ -1697,23 +1699,12 @@ pub(crate) fn eval_declared_types(
 #[wat_intrinsic(":wat::runtime::is-type?")]
 pub(crate) fn eval_is_type(
     type_kw_ast: &WatAST,
+    env: &Environment,
     sym: &SymbolTable,
-    span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::is-type?";
-    let type_kw = match type_kw_ast {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => {
-            return Err(RuntimeError::new(
-                type_kw_ast.span().clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: "arg must be a type keyword (e.g. :wat::core::i64)".into(),
-                },
-            )
-            .into());
-        }
-    };
+    let type_kw = resolve_type_keyword_arg(OP, type_kw_ast, env, sym)?;
+    let span = type_kw_ast.span();
     let types = sym.types().ok_or_else(|| {
         RuntimeError::new(
             span.clone(),

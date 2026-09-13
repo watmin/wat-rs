@@ -39,6 +39,10 @@
 ;; gated case for every other parametric); it is the narrow follow-up for the shape that gate
 ;; structurally cannot see: an unquote-wrapped (`(:wat::core::unquote name)` /
 ;; `(:wat::core::unquote-splicing name)`) reference in the type-arg slot(s).
+;; An `unquote-splicing` in a type slot is REPORTED
+;; (`[mandatory-typed-quasiquote-residual] SPLICE <path>:<line>`), never wrapped.
+;; `~@items` is one argument that expands to N forms. `unquote-wrapped?` keeps
+;; accepting `~x`.
 ;;
 ;; ── mechanics — PURE INSERTION, identical discipline to `one-param-spec.wat` ────────────────
 ;; Two insertions per matched site: `":- ["` immediately before the first type-arg's own span,
@@ -86,8 +90,19 @@
         false
         (:wat::core::let [h (:wat::core::first ch)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
-            (:wat::core::if (:wat::core::= (:wat::core::ast-name h) ":wat::core::unquote") true
-              (:wat::core::= (:wat::core::ast-name h) ":wat::core::unquote-splicing"))
+            (:wat::core::= (:wat::core::ast-name h) ":wat::core::unquote")
+            false))))
+    false))
+
+(:wat::core::defn :user::unquote-splicing?
+  [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::empty? ch)
+        false
+        (:wat::core::let [h (:wat::core::first ch)]
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
+            (:wat::core::= (:wat::core::ast-name h) ":wat::core::unquote-splicing")
             false))))
     false))
 
@@ -126,6 +141,14 @@
       (:wat::core::if (:user::unquote-wrapped? (:wat::core::first args))
         (:user::type-prefix-unquoted? (:wat::core::rest args) (:wat::i64::- n 1))
         false))))
+
+(:wat::core::defn :user::type-prefix-has-splice?
+  [args <- (:wat::core::Vector :- [:wat::WatAST]) n <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::if (:wat::i64::<= n 0) false
+    (:wat::core::if (:wat::core::empty? args) false
+      (:wat::core::if (:user::unquote-splicing? (:wat::core::first args))
+        true
+        (:user::type-prefix-has-splice? (:wat::core::rest args) (:wat::i64::- n 1))))))
 
 ;; residual-match? — head is one of the three mandatory-typed heads, args.length >= its declared
 ;; arity, and the FIRST `n` args (the type slots only — trailing values are untouched and may be
@@ -167,36 +190,52 @@
 
 ;; collect-edits — walk every List node; residual-match? fires an edit AND still recurses into
 ;; the head/args (mirrors `one-param-spec.wat`: a matched node can still contain a nested match).
+(:wat::core::defn :user::node-line [node <- :wat::WatAST] -> :wat::core::String
+  (:wat::i64::to-string (:wat::fix::span-line node)))
+
 (:wat::core::defn :user::collect-edits
-  [node <- :wat::WatAST lines <- (:wat::core::Vector :- [:wat::core::String])]
+  [node <- :wat::WatAST
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   path <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch   (:wat::core::ast->children node)
-                       here (:wat::core::if (:wat::core::empty? ch)
-                              false
+                       args (:wat::core::if (:wat::core::empty? ch)
+                              (:wat::core::Vector :- [:wat::WatAST])
+                              (:wat::core::into [] (:wat::core::rest ch)))
+                       hn   (:wat::core::if (:wat::core::empty? ch) ""
                               (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "keyword")
-                                (:user::residual-match?
-                                  (:wat::core::ast-name (:wat::core::first ch))
-                                  (:wat::core::into [] (:wat::core::rest ch)))
-                                false))]
+                                (:wat::core::ast-name (:wat::core::first ch))
+                                ""))
+                       n    (:user::residual-arity hn)
+                       here (:user::residual-match? hn args)
+                       splice (:wat::core::if (:wat::i64::< n 0) false
+                                 (:user::type-prefix-has-splice? args n))]
       (:wat::core::concat
         (:wat::core::if here
-          (:wat::core::let [n (:user::residual-arity (:wat::core::ast-name (:wat::core::first ch)))]
-            (:user::args-edits (:user::take-n (:wat::core::into [] (:wat::core::rest ch)) n) 0 n lines))
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
-        (:user::collect-edits-seq ch lines)))
+          (:user::args-edits (:user::take-n args n) 0 n lines)
+          (:wat::core::if splice
+            (:wat::core::do
+              (:wat::kernel::println
+                (:wat::string::concat
+                  "[mandatory-typed-quasiquote-residual] SPLICE "
+                  (:wat::string::concat path (:wat::string::concat ":" (:user::node-line node)))))
+              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+            (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))
+        (:user::collect-edits-seq ch lines path)))
     (:wat::core::if (:wat::fix::structural? node)
-      (:user::collect-edits-seq (:wat::core::ast->children node) lines)
+      (:user::collect-edits-seq (:wat::core::ast->children node) lines path)
       (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))))
 
 (:wat::core::defn :user::collect-edits-seq
   [items <- (:wat::core::Vector :- [:wat::WatAST])
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   path <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-    (:wat::core::concat (:user::collect-edits (:wat::core::first items) lines)
-                        (:user::collect-edits-seq (:wat::core::rest items) lines))))
+    (:wat::core::concat (:user::collect-edits (:wat::core::first items) lines path)
+                        (:user::collect-edits-seq (:wat::core::rest items) lines path))))
 
 ;; ── per-file pass ────────────────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::parse-forms [src <- :wat::core::String] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -206,10 +245,10 @@
       [:wat::core::ReadOutcome.Malformed {:cause __cause}
         (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
 
-(:wat::core::defn :user::convert [src <- :wat::core::String] -> :wat::core::String
+(:wat::core::defn :user::convert [src <- :wat::core::String path <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     forms     (:user::parse-forms src)
-                    all-edits (:user::collect-edits-seq forms lines)
+                    all-edits (:user::collect-edits-seq forms lines path)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
 
@@ -219,7 +258,7 @@
     nil
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
-        (:wat::io::write-file path (:user::convert (:wat::io::read-file path)))
+        (:wat::io::write-file path (:user::convert (:wat::io::read-file path) path))
         (:wat::kernel::println (:wat::string::concat "[mandatory-typed-quasiquote-residual] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 

@@ -6,6 +6,10 @@
 (:wat::core::defn :user::keep [] -> :wat::core::nil
   (:wat::kernel::println (:usr::Shape::Circle {:r 1})))
 
+(:wat::holon::defrecord :myapp::Point [x <- :wat::core::i64 y <- :wat::core::i64])
+(:wat::core::defn :t::work [x <- :wat::core::i64 & [n <- :wat::core::i64]] -> :wat::core::i64 x)
+(:wat::core::defenum)
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:usr::Shape::Dot))
-  (:wat::kernel::println (:usr::Shape::Circle 2)))
+  (:wat::kernel::println (:usr::Shape::Circle 2))
+  (:wat::kernel::println (:myapp::Point 1 2)))

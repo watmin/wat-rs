@@ -1372,3 +1372,374 @@
      eds   (:wat::fix::first-of-drop-walk (:wat::core::ast->children tree) src lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
+
+;; ─── 2a2 — one door: a program's enums ∪ stdlib, once per file ────────────────
+;;
+;; `:wat::fix::enum-fields` — top-level forms + candidate enum paths → the map
+;; `fill-enum` builds (variant path → field names, declaration order).
+;; `declared-types` on the forms (same top-level scope as today's file-decls);
+;; a Refused form is dropped and reported, never the file. Candidates the
+;; program does not answer go through `is-type?` then `type-of` (no hand list).
+;; Key `""` holds the filled enum paths (so a caller can ask "is :P an enum?").
+
+(:wat::core::defn :wat::fix::join-sep
+  [xs  <- (:wat::core::Vector :- [:wat::core::String])
+   sep <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::if (:wat::core::empty? xs)
+    ""
+    (:wat::core::let [h (:wat::core::first xs) tl (:wat::core::rest xs)]
+      (:wat::core::if (:wat::core::empty? tl)
+        h
+        (:wat::string::concat h (:wat::string::concat sep (:wat::fix::join-sep tl sep)))))))
+
+(:wat::core::defn :wat::fix::parent-path [vpath <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let [parts (:wat::string::split vpath "::")
+                    n     (:wat::core::length parts)]
+    (:wat::core::if (:wat::core::< n 2)
+      vpath
+      (:wat::fix::join-sep (:wat::core::into [] (:wat::core::take parts (:wat::i64::- n 1))) "::"))))
+
+(:wat::core::defn :wat::fix::leaf-of [vpath <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let [parts (:wat::string::split vpath "::")]
+    (:wat::core::Option/expect
+      (:wat::core::get parts (:wat::i64::- (:wat::core::length parts) 1))
+      "variant leaf")))
+
+(:wat::core::defn :wat::fix::kw-text [k <- :wat::core::keyword] -> :wat::core::String
+  (:wat::string::concat ":" (:wat::keyword::to-string k)))
+
+(:wat::core::defn :wat::fix::name->kw [s <- :wat::core::String] -> :wat::core::keyword
+  (:wat::keyword::from-string (:wat::fix::rename-strip-colon s)))
+
+(:wat::core::defn :wat::fix::cause-tag [cause <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let [head (:wat::core::first (:wat::string::split cause "{"))
+                    slash (:wat::string::split head "/")]
+    (:wat::core::if (:wat::core::< (:wat::core::length slash) 2)
+      (:wat::core::first (:wat::string::split head " "))
+      (:wat::core::first
+        (:wat::string::split
+          (:wat::core::Option/expect
+            (:wat::core::get slash (:wat::i64::- (:wat::core::length slash) 1))
+            "cause-tag")
+          " ")))))
+
+(:wat::core::defn :wat::fix::span-line [n <- :wat::WatAST] -> :wat::core::i64
+  (:wat::core::match (:wat::hashmap::get (:wat::core::ast-span n) :line)
+    [:wat::core::Option.Some {:value v} v]
+    [:wat::core::Option.None {} 0]))
+
+(:wat::core::defn :wat::fix::span-col [n <- :wat::WatAST] -> :wat::core::i64
+  (:wat::core::match (:wat::hashmap::get (:wat::core::ast-span n) :col)
+    [:wat::core::Option.Some {:value v} v]
+    [:wat::core::Option.None {} 0]))
+
+(:wat::core::defn :wat::fix::same-form? [a <- :wat::WatAST b <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::fix::span-line a) (:wat::fix::span-line b))
+    (:wat::core::= (:wat::fix::span-col a) (:wat::fix::span-col b))
+    false))
+
+(:wat::core::defn :wat::fix::drop-form
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
+   refused <- :wat::WatAST]
+  -> (:wat::core::Vector :- [:wat::WatAST])
+  (:wat::core::let
+    [kept (:wat::core::into []
+            (:wat::core::filter
+              (:wat::core::fn [n <- :wat::WatAST] -> :wat::core::bool
+                (:wat::core::not (:wat::fix::same-form? n refused)))
+              forms))]
+    (:wat::core::if (:wat::core::= (:wat::core::length kept) (:wat::core::length forms))
+      (:wat::core::if (:wat::core::empty? forms)
+        forms
+        (:wat::core::into [] (:wat::core::rest forms)))
+      kept)))
+
+(:wat::core::defn :wat::fix::variant-field-names
+  [v <- :wat::runtime::TypeVariant]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::into []
+    (:wat::core::map
+      (:wat::core::fn [f <- :wat::runtime::TypeField] -> :wat::core::String
+        (:wat::keyword::to-string (:wat::runtime::TypeField/name f)))
+      (:wat::runtime::TypeVariant/fields v))))
+
+(:wat::core::defn :wat::fix::names-eq?
+  [a <- (:wat::core::Vector :- [:wat::core::String])
+   b <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::length a) (:wat::core::length b)))
+    false
+    (:wat::core::foldl
+      (:wat::core::fn [ok <- :wat::core::bool i <- :wat::core::i64] -> :wat::core::bool
+        (:wat::core::if ok
+          (:wat::core::=
+            (:wat::core::Option/expect (:wat::core::get a i) "names-eq a")
+            (:wat::core::Option/expect (:wat::core::get b i) "names-eq b"))
+          false))
+      true
+      (:wat::core::range 0 (:wat::core::length a)))))
+
+(:wat::core::defn :wat::fix::index-leaf
+  [m      <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   leaf   <- :wat::core::String
+   fields <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::match (:wat::hashmap::get m leaf)
+    [:wat::core::Option.None {} (:wat::hashmap::assoc m leaf fields)]
+    [:wat::core::Option.Some {:value existing}
+      (:wat::core::if (:wat::fix::names-eq? existing fields) m m)]
+    [_ (:wat::hashmap::assoc m leaf fields)]))
+
+(:wat::core::defn :wat::fix::fill-enum
+  [m         <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   info      <- :wat::runtime::TypeInfo
+   enum-path <- :wat::core::String]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::match (:wat::runtime::TypeInfo/body info)
+    [:wat::runtime::TypeBody.Enum {:purity _ :variants vs}
+      (:wat::core::foldl
+        (:wat::core::fn
+          [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+           v   <- :wat::runtime::TypeVariant]
+          -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+          (:wat::core::let
+            [leaf   (:wat::keyword::to-string (:wat::runtime::TypeVariant/name v))
+             fields (:wat::fix::variant-field-names v)
+             fq     (:wat::string::concat enum-path (:wat::string::concat "::" leaf))
+             acc2   (:wat::hashmap::assoc acc fq fields)
+             acc3   (:wat::fix::index-leaf acc2 leaf fields)
+             short  (:wat::string::concat (:wat::fix::leaf-of enum-path) (:wat::string::concat "::" leaf))
+             acc4   (:wat::fix::index-leaf acc3 short fields)]
+            (:wat::core::if (:wat::core::or
+                              (:wat::core::= enum-path ":wat::core::Option")
+                              (:wat::core::= enum-path ":wat::core::Result"))
+              (:wat::hashmap::assoc acc4 (:wat::string::concat ":wat::core::" leaf) fields)
+              acc4)))
+        m vs)]
+    [_ m]))
+
+(:wat::core::defn :wat::fix::enum-kind? [info <- :wat::runtime::TypeInfo] -> :wat::core::bool
+  (:wat::core::match (:wat::runtime::TypeInfo/kind info)
+    [:wat::runtime::TypeKind.Enum {} true]
+    [_ false]))
+
+;; Variant singletons are registered as Enum rows named `E.V` (dot). `parent-path`
+;; splits on `::` and would call `:usr::E.Variant`'s parent `:usr`. Strip from the
+;; last `.` first; fall back to `::` when the name has no dot.
+(:wat::core::defn :wat::fix::dotted-parent [nm <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let [parts (:wat::string::split nm ".")]
+    (:wat::core::if (:wat::core::< (:wat::core::length parts) 2)
+      (:wat::fix::parent-path nm)
+      (:wat::fix::join-sep
+        (:wat::core::into [] (:wat::core::take parts (:wat::i64::- (:wat::core::length parts) 1)))
+        "."))))
+
+(:wat::core::defn :wat::fix::singleton-enum?
+  [info <- :wat::runtime::TypeInfo
+   enum-names <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::core::bool
+  (:wat::core::let [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))]
+    (:wat::core::match
+      (:wat::runtime::variant-parent-of (:wat::fix::name->kw nm))
+      [:wat::core::Option.Some {:value _} true]
+      [:wat::core::Option.None {}
+        (:wat::vec::contains? enum-names (:wat::fix::dotted-parent nm))])))
+
+(:wat::core::defn :wat::fix::enum-row-names
+  [types <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn
+      [acc  <- (:wat::core::Vector :- [:wat::core::String])
+       info <- :wat::runtime::TypeInfo]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:wat::core::if (:wat::fix::enum-kind? info)
+        (:wat::core::conj acc (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info)))
+        acc))
+    (:wat::core::Vector :- [:wat::core::String])
+    types))
+
+(:wat::core::defn :wat::fix::fill-enum-rows
+  [m          <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   filled     <- (:wat::core::Vector :- [:wat::core::String])
+   types      <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+   enum-names <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::let
+    [pair (:wat::core::foldl
+            (:wat::core::fn
+              [acc  <- (:wat::core::Tuple :-
+                         [(:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+                          (:wat::core::Vector :- [:wat::core::String])])
+               info <- :wat::runtime::TypeInfo]
+              -> (:wat::core::Tuple :-
+                   [(:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+                    (:wat::core::Vector :- [:wat::core::String])])
+              (:wat::core::if
+                (:wat::core::if (:wat::fix::enum-kind? info)
+                  (:wat::core::not (:wat::fix::singleton-enum? info enum-names))
+                  false)
+                (:wat::core::let [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))]
+                  (:wat::core::Tuple
+                    (:wat::fix::fill-enum (:wat::core::first acc) info nm)
+                    (:wat::core::if (:wat::vec::contains? (:wat::core::second acc) nm)
+                      (:wat::core::second acc)
+                      (:wat::core::conj (:wat::core::second acc) nm))))
+                acc))
+            (:wat::core::Tuple m filled)
+            types)]
+    (:wat::hashmap::assoc (:wat::core::first pair) "" (:wat::core::second pair))))
+
+(:wat::core::defn :wat::fix::register-loop
+  [tag   <- :wat::core::String
+   path  <- :wat::core::String
+   forms <- (:wat::core::Vector :- [:wat::WatAST])
+   n     <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+  (:wat::core::if (:wat::core::or (:wat::core::empty? forms) (:wat::core::< n 0))
+    (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+    (:wat::core::match (:wat::runtime::declared-types forms)
+      [:wat::runtime::DeclaredTypes.Ok {:types ts} ts]
+      [:wat::runtime::DeclaredTypes.Refused {:form f :cause c}
+        (:wat::core::do
+          (:wat::kernel::println
+            (:wat::string::concat
+              "["
+              (:wat::string::concat tag
+                (:wat::string::concat "] UNREGISTERABLE "
+                  (:wat::string::concat path
+                    (:wat::string::concat " " (:wat::fix::cause-tag c)))))))
+          (:wat::fix::register-loop tag path (:wat::fix::drop-form forms f) (:wat::i64::- n 1)))])))
+
+(:wat::core::defn :wat::fix::answered-enum?
+  [filled <- (:wat::core::Vector :- [:wat::core::String])
+   ep     <- :wat::core::String]
+  -> :wat::core::bool
+  (:wat::core::or
+    (:wat::vec::contains? filled ep)
+    (:wat::vec::contains? filled (:wat::fix::parent-path ep))))
+
+(:wat::core::defn :wat::fix::fill-stdlib-one
+  [m      <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   filled <- (:wat::core::Vector :- [:wat::core::String])
+   ep     <- :wat::core::String]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::if (:wat::fix::answered-enum? filled ep)
+    m
+    (:wat::core::if (:wat::runtime::is-type? (:wat::fix::name->kw ep))
+      (:wat::core::let [info (:wat::runtime::type-of (:wat::fix::name->kw ep))]
+        (:wat::core::if
+          (:wat::core::if (:wat::fix::enum-kind? info)
+            (:wat::core::not
+              (:wat::fix::singleton-enum? info (:wat::core::Vector :- [:wat::core::String])))
+            false)
+          (:wat::core::let
+            [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))
+             m2 (:wat::fix::fill-enum m info nm)
+             fl (:wat::core::match (:wat::hashmap::get m2 "")
+                  [:wat::core::Option.Some {:value v} v]
+                  [:wat::core::Option.None {} filled])]
+            (:wat::hashmap::assoc m2 ""
+              (:wat::core::if (:wat::vec::contains? fl nm) fl (:wat::core::conj fl nm))))
+          m))
+      m)))
+
+(:wat::core::defn :wat::fix::fill-stdlib
+  [m          <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   candidates <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::let
+    [filled (:wat::core::match (:wat::hashmap::get m "")
+              [:wat::core::Option.Some {:value v} v]
+              [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])])]
+    (:wat::core::foldl
+      (:wat::core::fn
+        [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+         ep  <- :wat::core::String]
+        -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+        (:wat::core::let
+          [fl (:wat::core::match (:wat::hashmap::get acc "")
+                [:wat::core::Option.Some {:value v} v]
+                [:wat::core::Option.None {} filled])]
+          (:wat::fix::fill-stdlib-one acc fl ep)))
+      m
+      candidates)))
+
+(:wat::core::defn :wat::fix::type-decl-head? [h <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::or
+    (:wat::core::= h ":wat::core::defenum")
+    (:wat::core::or
+      (:wat::core::= h ":wat::core::defrecord")
+      (:wat::core::or
+        (:wat::core::= h ":wat::holon::defrecord")
+        (:wat::core::or
+          (:wat::core::= h ":wat::core::defstruct")
+          (:wat::core::or
+            (:wat::core::= h ":wat::core::defsurface")
+            (:wat::core::or
+              (:wat::core::= h ":wat::core::newtype")
+              (:wat::core::or
+                (:wat::core::= h ":wat::core::typealias")
+                (:wat::core::or
+                  (:wat::core::= h ":wat::core::typeunion")
+                  (:wat::core::or
+                    (:wat::core::= h ":wat::core::recordtype")
+                    (:wat::core::or
+                      (:wat::core::= h ":wat::service::defservice")
+                      (:wat::core::or
+                        (:wat::core::= h ":wat::query::sift-rules-defsvc")
+                        (:wat::core::= h ":wat::core::defmacro")))))))))))))
+
+(:wat::core::defn :wat::fix::decl-type-name [n <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::let [ch (:wat::core::ast->children n)]
+    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
+      ""
+      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get ch 1) "decl name")]
+        (:wat::core::if (:wat::core::= (:wat::core::ast-kind a) "keyword")
+          (:wat::core::ast-name a)
+          "")))))
+
+(:wat::core::defn :wat::fix::collect-decl-names
+  [acc   <- (:wat::core::Vector :- [:wat::core::String])
+   items <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::if (:wat::core::empty? items)
+    acc
+    (:wat::core::let
+      [n  (:wat::core::first items)
+       tl (:wat::core::rest items)
+       acc2 (:wat::core::if (:wat::fix::type-decl-head? (:wat::fix::head-name n))
+              (:wat::core::let [nm (:wat::fix::decl-type-name n)]
+                (:wat::core::if (:wat::core::= nm "") acc (:wat::core::conj acc nm)))
+              acc)]
+      (:wat::fix::collect-decl-names acc2 tl))))
+
+(:wat::core::defn :wat::fix::nested-decl-names-node
+  [acc  <- (:wat::core::Vector :- [:wat::core::String])
+   node <- :wat::WatAST]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
+    (:wat::fix::collect-decl-names acc (:wat::core::ast->children node))
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::core::foldl :wat::fix::nested-decl-names-node acc (:wat::core::ast->children node))
+      acc)))
+
+(:wat::core::defn :wat::fix::nested-decl-names
+  [tree <- :wat::WatAST]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::fix::nested-decl-names-node (:wat::core::Vector :- [:wat::core::String]) tree))
+
+(:wat::core::defn :wat::fix::enum-fields
+  [tag        <- :wat::core::String
+   path       <- :wat::core::String
+   forms      <- (:wat::core::Vector :- [:wat::WatAST])
+   candidates <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::let
+    [types (:wat::fix::register-loop tag path forms (:wat::core::length forms))
+     names (:wat::fix::enum-row-names types)
+     empty (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+     m0    (:wat::hashmap::assoc empty "" (:wat::core::Vector :- [:wat::core::String]))
+     m1    (:wat::fix::fill-enum-rows m0 (:wat::core::Vector :- [:wat::core::String]) types names)]
+    (:wat::fix::fill-stdlib m1 candidates)))

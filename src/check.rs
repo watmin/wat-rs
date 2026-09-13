@@ -2831,11 +2831,10 @@ fn infer_list(
             // Arc 296 Q — `:wat::runtime::is-type?` membership predicate.
             //
             // Signature: (:TypeKeyword) -> :wat::core::bool.
-            // The arg is type-position, NOT a value. Inferring it would fire Doctrine 1
-            // on `:wat::core::i64` (the exact reason `type-of` cannot receive scalars)
-            // and the constructor-as-Fn trap on a defrecord name. Skip inference.
-            // A List is a type *expression*; this verb answers for a *name*. P-1 parses
-            // expressions. Unknown names are legal here — they are the false row.
+            // A literal keyword is type-position (skip infer; Doctrine 1 must not
+            // fire on `:wat::core::i64`). A non-literal arg is inferred as today
+            // (2a2's door passes computed keywords). Unknown names are legal —
+            // they are the false row.
             ":wat::runtime::is-type?" => {
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
@@ -2848,13 +2847,8 @@ fn infer_list(
                     } });
                     return CheckResult::errs(local_errors);
                 }
-                if !matches!(&args[0], WatAST::Keyword(_, _)) {
-                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                        head: ":wat::runtime::is-type?".into(),
-                        reason: "arg must be a type keyword (e.g. :wat::core::i64)".into(),
-                        remedies: vec![],
-                    } });
-                    return CheckResult::errs(local_errors);
+                if !args.is_empty() && !matches!(&args[0], WatAST::Keyword(_, _)) {
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
                 let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
                 return if local_errors.is_empty() {
@@ -23658,11 +23652,20 @@ pub(crate) mod tests {
     /// verb. A comment, or the `:wat::runtime::DeclaredTypes` enum name, is
     /// not. Stdlib expansion must not reach the verb: `stdlib_snapshot`'s
     /// OnceLock initializer is `build_env`, which expands stdlib.
+    ///
+    /// A call inside a `defn`/`defmacro` body is not load-time: it runs
+    /// later (2a2's `:wat::fix::enum-fields` is the door, after the snapshot
+    /// exists). Recursing into those bodies is the wrong deadlock predicate.
     fn form_calls_declared_types(form: &WatAST) -> bool {
         if let WatAST::List(items, _) = form {
             if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
                 if head.as_ref() == ":wat::runtime::declared-types" {
                     return true;
+                }
+                if head.as_ref() == ":wat::core::defn"
+                    || head.as_ref() == ":wat::core::defmacro"
+                {
+                    return false;
                 }
             }
         }

@@ -6,11 +6,13 @@
 ;;   (:ns::E::V a b)   ->  (:ns::E::V {:f1 a :f2 b})
 ;;   (:ns::E::Unit)    ->  (:ns::E::Unit {})
 ;;
-;; Field names come from `:wat::runtime::type-of` (declared fields, declaration
-;; order). In-file types are registered via eval-with-defs! of declaration forms
-;; only (no defn bodies). A tagged ctor whose fields cannot be resolved is
-;; REPORTED, never guessed. 32 of 60 affected enums are generated (defservice /
-;; defsurface) — a byte-observing map cannot see them.
+;; Field names come from `:wat::fix::enum-fields` (declared-types on this file's
+;; top-level forms, then is-type?/type-of for stdlib). A tagged ctor whose fields
+;; cannot be resolved is REPORTED, never guessed — when the head's parent is not
+;; answered, or is an enum and the leaf is not among its variants; never by
+;; character case. A `holon::defrecord` constructor and a kwargs `defn`'s
+;; `::Kwargs` do not poison neighbouring enums. An UNREGISTERABLE form is
+;; dropped and reported; the rest of the file's types still resolve.
 ;;
 ;; Idempotent: a single Map argument is already migrated. Accessors (`:ns::E/f`),
 ;; type applications `(:T :- […])`, and type references are untouched.
@@ -46,44 +48,8 @@
       (:wat::fix::node-start-offset node lines)
       (:wat::fix::node-end-offset node lines))))
 
-;; ── field names from type-of (RELAND 4 / M2) ─────────────────────────────────
-
-(:wat::core::defn :user::decl-head? [h <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::or
-    (:wat::core::= h ":wat::core::defenum")
-    (:wat::core::or
-      (:wat::core::= h ":wat::core::defrecord")
-      (:wat::core::or
-        (:wat::core::= h ":wat::core::defstruct")
-        (:wat::core::or
-          (:wat::core::= h ":wat::core::defsurface")
-          (:wat::core::or
-            (:wat::core::= h ":wat::core::newtype")
-            (:wat::core::or
-              (:wat::core::= h ":wat::core::typealias")
-              (:wat::core::or
-                (:wat::core::= h ":wat::core::typeunion")
-                (:wat::core::or
-                  (:wat::core::= h ":wat::service::defservice")
-                  (:wat::core::or
-                    (:wat::core::= h ":wat::query::sift-rules-defsvc")
-                    (:wat::core::= h ":wat::core::defmacro")))))))))))
-
-(:wat::core::defn :user::file-decls [tree <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::into []
-    (:wat::core::filter
-      (:wat::core::fn [n <- :wat::WatAST] -> :wat::core::bool
-        (:user::decl-head? (:wat::fix::head-name n)))
-      (:wat::core::ast->children tree))))
-
-(:wat::core::defn :user::type-of-form [enum-path <- :wat::core::String] -> :wat::WatAST
-  (:wat::core::match
-    (:wat::core::read-string
-      (:wat::string::concat "(:wat::runtime::type-of " (:wat::string::concat enum-path ")")))
-    [:wat::core::ReadOutcome.Forms {:forms f}
-      (:wat::core::first (:wat::core::ast->children f))]
-    [:wat::core::ReadOutcome.Malformed {:cause c}
-      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))]))
+;; ── field names from the door (2a2) ──────────────────────────────────────────
+;; alias-enum stays (shared with match-arm / bare-variant-to-qualified).
 
 (:wat::core::defn :user::join-with-space-sep
   [xs  <- (:wat::core::Vector :- [:wat::core::String])
@@ -116,76 +82,6 @@
       (:wat::core::Option.Some {:value ":wat::core::Result"})
       :wat::core::Option.None)))
 
-(:wat::core::defn :user::kw-name-text [k <- :wat::core::keyword] -> :wat::core::String
-  (:wat::keyword::to-string k))
-
-(:wat::core::defn :user::variant-field-names
-  [v <- :wat::runtime::TypeVariant]
-  -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::into []
-    (:wat::core::map
-      (:wat::core::fn [f <- :wat::runtime::TypeField] -> :wat::core::String
-        (:user::kw-name-text (:wat::runtime::TypeField/name f)))
-      (:wat::runtime::TypeVariant/fields v))))
-
-;; defservice/defsurface in the same file can poison eval-with-defs! of a
-;; neighbouring defenum (dead_child: EchoRequest's `:wat::query::Reason` field
-;; made the whole decls vector fail, so `:probe::Outcome` was UNRESOLVED).
-;; Retry with only the type-declaration forms before falling back to stdlib.
-(:wat::core::defn :user::simple-type-head? [h <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::or
-    (:wat::core::= h ":wat::core::defenum")
-    (:wat::core::or
-      (:wat::core::= h ":wat::core::defrecord")
-      (:wat::core::or
-        (:wat::core::= h ":wat::core::defstruct")
-        (:wat::core::or
-          (:wat::core::= h ":wat::core::newtype")
-          (:wat::core::or
-            (:wat::core::= h ":wat::core::typealias")
-            (:wat::core::= h ":wat::core::typeunion")))))))
-
-(:wat::core::defn :user::simple-type-decls
-  [decls <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::into []
-    (:wat::core::filter
-      (:wat::core::fn [n <- :wat::WatAST] -> :wat::core::bool
-        (:user::simple-type-head? (:wat::fix::head-name n)))
-      decls)))
-
-(:wat::core::defn :user::without-defservice
-  [decls <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::into []
-    (:wat::core::filter
-      (:wat::core::fn [n <- :wat::WatAST] -> :wat::core::bool
-        (:wat::core::not (:wat::core::= (:wat::fix::head-name n) ":wat::service::defservice")))
-      decls)))
-
-(:wat::core::defn :user::try-type-of
-  [enum-path <- :wat::core::String
-   decls     <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Option :- [:wat::runtime::TypeInfo])
-  (:wat::core::match
-    (:wat::eval-with-defs! :- [:wat::runtime::TypeInfo]
-      (:user::type-of-form enum-path) decls)
-    [:wat::eval::FormOutcome.Evaluated {:value v}
-      (:wat::core::match (:wat::runtime::TypeInfo/kind v)
-        [:wat::runtime::TypeKind.Enum {} (:wat::core::Option.Some {:value v})]
-        [_ :wat::core::Option.None])]
-    [_ (:wat::core::if (:wat::core::empty? decls)
-         :wat::core::Option.None
-         (:wat::core::let [nosvc (:user::without-defservice decls)]
-           (:wat::core::if (:wat::core::< (:wat::core::length nosvc) (:wat::core::length decls))
-             (:user::try-type-of enum-path nosvc)
-             (:wat::core::let [simple (:user::simple-type-decls decls)]
-               (:wat::core::if (:wat::core::if (:wat::core::not (:wat::core::empty? simple))
-                                  (:wat::core::not (:wat::core::= (:wat::core::length simple) (:wat::core::length decls)))
-                                  false)
-                 (:user::try-type-of enum-path simple)
-                 (:user::try-type-of enum-path (:wat::core::Vector :- [:wat::WatAST])))))))]))
-
 (:wat::core::defn :user::report [msg <- :wat::core::String] -> :wat::core::nil
   (:wat::kernel::println (:wat::string::concat "[positional-ctor] UNRESOLVED " msg)))
 
@@ -194,15 +90,6 @@
     (:wat::core::Option/expect
       (:wat::hashmap::get (:wat::core::ast-span node) :line)
       "node-line")))
-
-(:wat::core::defn :user::pascal-leaf? [nm <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:user::has-slash? nm)
-    false
-    (:wat::core::let [leaf (:user::leaf-of nm)]
-      (:wat::core::if (:wat::core::= leaf "")
-        false
-        (:wat::core::let [c (:wat::string::subs leaf 0 1)]
-          (:wat::core::= c (:wat::string::to-uppercase c)))))))
 
 (:wat::core::defn :user::report-site
   [head  <- :wat::WatAST
@@ -261,30 +148,6 @@
         m)]
     [_ (:wat::hashmap::assoc m leaf fields)]))
 
-(:wat::core::defn :user::fill-enum
-  [m         <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-   info      <- :wat::runtime::TypeInfo
-   enum-path <- :wat::core::String]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-  (:wat::core::match (:wat::runtime::TypeInfo/body info)
-    [:wat::runtime::TypeBody.Enum {:purity _ :variants vs}
-      (:wat::core::foldl
-        (:wat::core::fn
-          [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-           v   <- :wat::runtime::TypeVariant]
-          -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-          (:wat::core::let
-            [leaf   (:user::kw-name-text (:wat::runtime::TypeVariant/name v))
-             fields (:user::variant-field-names v)
-             fq     (:wat::string::concat enum-path (:wat::string::concat "::" leaf))
-             acc2   (:wat::hashmap::assoc acc fq fields)
-             acc3   (:user::index-leaf acc2 leaf fields)
-             short  (:wat::string::concat (:user::leaf-of enum-path) (:wat::string::concat "::" leaf))
-             acc4   (:user::index-leaf acc3 short fields)]
-            acc4))
-        m vs)]
-    [_ m]))
-
 (:wat::core::defn :user::collect-keywords
   [acc  <- (:wat::core::Vector :- [:wat::core::String])
    node <- :wat::WatAST]
@@ -315,67 +178,54 @@
     (:wat::core::Vector :- [:wat::core::String])
     vpaths))
 
-(:wat::core::defn :user::seed-paths [] -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::Vector :- [:wat::core::String]
-    ":wat::core::Option"
-    ":wat::core::Result"
-    ":wat::kernel::RecvOutcome"
-    ":wat::kernel::SendOutcome"
-    ":wat::service::Outcome"
-    ":wat::cache::Cache::GetResponse"
-    ":wat::cache::Cache::PutResponse"
-    ":wat::cache::Cache::GetResult"
-    ":wat::cache::Cache::Op"
-    ":wat::cache::Cache::Reply"
-    ":wat::cache::lru-svc::Admin"
-    ":wat::cache::lru-svc::Status"
-    ":wat::query::Store::PutResponse"
-    ":wat::query::Store::Reply"
-    ":wat::telemetry::Journal::WriteMetricsResponse"
-    ":wat::telemetry::Journal::Reply"
-    ":wat::kernel::StdIn::ReadFrameResponse"
-    ":wat::kernel::ReadFrameOutcome"))
-
-(:wat::core::defn :user::fill-paths
-  [m     <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-   epaths <- (:wat::core::Vector :- [:wat::core::String])
-   decls  <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-  (:wat::core::foldl
-    (:wat::core::fn
-      [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-       ep  <- :wat::core::String]
-      -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-      (:wat::core::let [seen (:wat::string::concat "#seen#" ep)]
-        (:wat::core::match (:wat::hashmap::get acc seen)
-          [:wat::core::Option.Some {:value _} acc]
-          [:wat::core::Option.None {}
-            (:wat::core::let [acc2 (:wat::hashmap::assoc acc seen (:wat::core::Vector :- [:wat::core::String]))]
-              (:wat::core::match (:user::try-type-of ep decls)
-                [:wat::core::Option.Some {:value info} (:user::fill-enum acc2 info ep)]
-                [:wat::core::Option.None {} acc2]
-                [_ acc2]))]
-          [_ acc])))
-    m epaths))
-
-(:wat::core::defn :user::stdlib-fmap []
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-  (:user::fill-paths
-    (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-    (:user::seed-paths)
-    (:wat::core::Vector :- [:wat::WatAST])))
-
-;; Not `is_reserved_prefix`. RESERVED_PREFIXES (src/resolve/reserved.rs:14) is
-;; `:wat::`, `:rust::`, AND `:$bound::`. The third is binder unforgeability —
-;; per-scope, not corpus-invariant. Caching `$bound` across files is option-A
-;; dishonesty. `gate` (src/resolve/registration.rs:165) checks
-;; Existing::Equivalent → NoOp BEFORE Reserved (tests at :317-319), so a user
-;; re-declaration of a `:wat::`/`:rust::` name is either the same answer or
-;; refused. That is why these two prefixes, and only these two, are cacheable.
 (:wat::core::defn :user::corpus-invariant-name? [nm <- :wat::core::String] -> :wat::core::bool
   (:wat::core::or
     (:wat::string::starts-with? nm ":wat::")
     (:wat::string::starts-with? nm ":rust::")))
+
+(:wat::core::defn :user::known-enum?
+  [fmap   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   parent <- :wat::core::String]
+  -> :wat::core::bool
+  (:wat::core::match (:wat::hashmap::get fmap "")
+    [:wat::core::Option.Some {:value v} (:wat::vec::contains? v parent)]
+    [:wat::core::Option.None {} false]))
+
+(:wat::core::defn :user::nested-of
+  [fmap <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::match (:wat::hashmap::get fmap "#nested")
+    [:wat::core::Option.Some {:value v} v]
+    [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])]))
+
+(:wat::core::defn :user::report-ctor?
+  [head  <- :wat::WatAST
+   node  <- :wat::WatAST
+   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   src   <- :wat::core::String
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   path  <- :wat::core::String]
+  -> :wat::core::bool
+  (:wat::core::if (:user::unquote-form? head)
+    true
+    (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::ast-kind head) "keyword"))
+      false
+      (:wat::core::let [nm (:wat::core::ast-name head)]
+        (:wat::core::if (:wat::core::or (:user::has-slash? nm)
+                          (:wat::core::not (:user::has-colon-colon? nm)))
+          false
+          (:wat::core::let
+            [parent (:user::parent-path nm)
+             nested (:user::nested-of fmap)]
+            (:wat::core::if (:wat::core::or (:wat::vec::contains? nested nm)
+                              (:wat::vec::contains? nested parent))
+              (:wat::core::do
+                (:wat::kernel::println
+                  (:wat::string::concat
+                    "[positional-ctor] UNRESOLVED nested-program "
+                    (:wat::string::concat path (:wat::string::concat ":" (:user::node-line node)))))
+                false)
+              (:user::known-enum? fmap parent))))))))
 
 (:wat::core::defn :user::invariant-eps-of
   [epaths <- (:wat::core::Vector :- [:wat::core::String])]
@@ -511,27 +361,36 @@
     (:wat::core::Vector :- [:wat::core::String])
     local))
 
-(:wat::core::defn :user::audit-skipped
-  [decls   <- (:wat::core::Vector :- [:wat::WatAST])
-   skipped <- (:wat::core::Vector :- [:wat::core::String])
-   path    <- :wat::core::String]
-  -> :wat::core::nil
-  (:wat::core::if (:wat::core::empty? skipped)
-    nil
-    (:wat::core::let [ep (:wat::core::first skipped)]
-      (:wat::core::match (:user::try-type-of ep decls)
-        [:wat::core::Option.Some {:value _}
-          (:wat::kernel::assertion-failed!
-            :message
-            (:wat::string::concat
-              "STOP-6 skipped-that-resolved-to-Some "
-              (:wat::string::concat ep (:wat::string::concat " " path))))]
-        [:wat::core::Option.None {}
-          (:user::audit-skipped decls (:wat::core::rest skipped) path)]
-        [_ (:user::audit-skipped decls (:wat::core::rest skipped) path)]))))
+(:wat::core::defn :user::merge-fmap
+  [base   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   file-m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  (:wat::core::let
+    [b-enums (:wat::core::match (:wat::hashmap::get base "")
+               [:wat::core::Option.Some {:value v} v]
+               [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])])
+     f-enums (:wat::core::match (:wat::hashmap::get file-m "")
+               [:wat::core::Option.Some {:value v} v]
+               [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])])
+     keys (:wat::hashmap::keys file-m)
+     m (:wat::core::foldl
+         (:wat::core::fn
+           [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+            k   <- :wat::core::String]
+           -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+           (:wat::core::if (:wat::core::or (:wat::core::= k "")
+                             (:wat::core::or (:wat::core::= k "#nested") (:wat::core::= k "#path")))
+             acc
+             (:wat::core::match (:wat::hashmap::get file-m k)
+               [:wat::core::Option.Some {:value v} (:wat::hashmap::assoc acc k v)]
+               [:wat::core::Option.None {} acc])))
+         base
+         keys)]
+    (:wat::hashmap::assoc m "" (:user::union-eps b-enums f-enums))))
 
 (:wat::core::defn :user::fmap-for-src
   [src  <- :wat::core::String
+   path <- :wat::core::String
    base <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::let
@@ -539,13 +398,15 @@
              [:wat::core::ReadOutcome.Forms {:forms f} f]
              [:wat::core::ReadOutcome.Malformed {:cause c}
                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
-     decls (:user::file-decls tree)
+     forms (:wat::core::ast->children tree)
      vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
      epaths (:user::enum-paths-of vpaths)
-     local  (:user::local-eps-of epaths)
-     kept   (:user::keep-local-eps decls local)
-     filled (:user::fill-paths base kept decls)]
-    (:user::bind-kw-ctors filled tree)))
+     local (:wat::fix::enum-fields "positional-ctor" path forms (:user::local-eps-of epaths))
+     merged (:user::merge-fmap base local)
+     with-n (:wat::hashmap::assoc merged "#nested" (:wat::fix::nested-decl-names tree))]
+    (:user::bind-kw-ctors
+      (:wat::hashmap::assoc with-n "#path" (:wat::core::Vector :- [:wat::core::String] path))
+      tree)))
 
 ;; Derive unquote-ctor bindings from let-bound `*-kw` names whose value
 ;; interpolates a `::Leaf` (STOP-4: not a hand-list). Field names still
@@ -843,10 +704,7 @@
               (:wat::core::match (:user::fields-for-head head fmap)
                 [:wat::core::Option.None {}
                   (:wat::core::do
-                    (:wat::core::if (:wat::core::or (:user::unquote-form? head)
-                                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-                                        (:user::pascal-leaf? (:wat::core::ast-name head))
-                                        false))
+                    (:wat::core::if (:user::report-ctor? head node fmap src lines path)
                       (:user::report-site head node src lines path)
                       nil)
                     (:wat::core::concat
@@ -983,7 +841,7 @@
           (:wat::kernel::println (:wat::string::concat "[positional-ctor] skip positional-control " path))
           (:user::rewrite-each (:wat::core::rest paths) frozen))
         (:wat::core::let [src (:wat::io::read-file path)
-                          fmap (:user::fmap-for-src src frozen)]
+                          fmap (:user::fmap-for-src src path frozen)]
           (:wat::core::do
             (:wat::io::write-file path (:user::migrate src fmap path))
             (:wat::kernel::println (:wat::string::concat "[positional-ctor] " path))
@@ -1017,32 +875,27 @@
                     (:wat::i64::to-string kept-n)
                     (:wat::string::concat " skipped-local=" (:wat::i64::to-string skip-n)))))))))
       (:user::rewrite-each all
-        (:user::fill-paths base inv-eps (:wat::core::Vector :- [:wat::WatAST]))))
+        (:wat::fix::enum-fields "positional-ctor" "<stdlib>"
+          (:wat::core::Vector :- [:wat::WatAST])
+          inv-eps)))
     (:wat::core::let [path (:wat::core::first scan)]
       (:wat::core::if (:user::skip-path? path)
         (:user::collect-pass (:wat::core::rest scan) all inv-eps kept-n skip-n audit base)
         (:wat::core::let
           [src    (:wat::io::read-file path)
            tree   (:user::src-tree src)
-           decls  (:user::file-decls tree)
            vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
            feps   (:user::enum-paths-of vpaths)
            inv2   (:user::union-eps inv-eps (:user::invariant-eps-of feps))
-           local  (:user::local-eps-of feps)
-           kept   (:user::keep-local-eps decls local)
-           skipped (:user::skip-local-eps decls local)]
-          (:wat::core::do
-            (:wat::core::if audit
-              (:user::audit-skipped decls skipped path)
-              nil)
-            (:user::collect-pass
-              (:wat::core::rest scan)
-              all
-              inv2
-              (:wat::i64::+ kept-n (:wat::core::length kept))
-              (:wat::i64::+ skip-n (:wat::core::length skipped))
-              audit
-              base)))))))
+           local  (:user::local-eps-of feps)]
+          (:user::collect-pass
+            (:wat::core::rest scan)
+            all
+            inv2
+            (:wat::i64::+ kept-n (:wat::core::length local))
+            skip-n
+            audit
+            base))))))
 
 (:wat::core::defn :user::ensure-path
   [paths <- (:wat::core::Vector :- [:wat::core::String])
@@ -1073,7 +926,7 @@
      audit (:wat::vec::contains? paths "--audit")
      paths1 (:user::drop-audit paths)
      paths2 (:user::ensure-path paths1 "wat/service.wat")
-     base (:user::stdlib-fmap)]
+     base (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
     (:user::collect-pass
       paths2
       paths2

@@ -11,14 +11,11 @@
 ;; flip is a WHOLE-TOKEN keyword rename, not a prefix/boundary walk, so no rete rule set is
 ;; needed — a straight fold over exact-token renames, exactly that file's shape.
 ;;
-;; Flips the `::` separator between a type and its variant to `.` for the 382 confirmed pairs in
-;; `docs/arc/2026/06/255-builtin-registry/dot-flip-phase1-pairs.txt` — DESIGN's phase ① census,
-;; produced by asking `:wat::runtime::variant-parent-of` with each declaring file loaded (never
-;; by matching a shape: a capitalised-leaf grep predicts 1583 and is wrong in both directions —
-;; 1203 false positives that are surface methods/`defrecord` names, and it misses
-;; `PeerKind::thread`/`::process` entirely). This codemod does NOT regenerate, filter, extend, or
-;; "sanity-check" that list against a pattern — it is the census, consumed verbatim, one
-;; `rename-keyword-exact` call per confirmed pair.
+;; Flips the `::` separator between a type and its variant to `.` iff the door
+;; (program ∪ stdlib) says `:P` is an enum declaring `V`. A `::` keyword whose
+;; `:P` is a declared enum and whose `V` is not one of its variants is REPORTED.
+;; Keep `rename-keyword-exact` (defenum declaration slots are already safe in it)
+;; and a substring prefilter.
 ;;
 ;; ⛔ DEFENUM DECLARATION SLOTS. `rename-keyword-exact` already treats a `defenum` variant-name
 ;; slot as a DECLARATION, never a use site (`wat/fix.wat`'s
@@ -59,32 +56,78 @@
 ;; because the tree cannot build between a dot-spelled corpus and a `::`-reading decomposer):
 ;;   printf '["pathA" "pathB" …]\n' | ./target/release/wat ./wat-scripts/fixes/variant-separator-to-dot.wat
 
-;; ── the census file — read ONCE, at the start of :user::main, never per-path ─────────────
-(:wat::core::defn :user::pairs-file [] -> :wat::core::String
-  "docs/arc/2026/06/255-builtin-registry/dot-flip-phase1-pairs.txt")
+(:wat::core::defn :user::parent-path [vpath <- :wat::core::String] -> :wat::core::String
+  (:wat::fix::parent-path vpath))
 
-;; parse-pair-line — one census line "old new" (single space, no quotes) -> a Tuple.
-(:wat::core::defn :user::parse-pair-line
-  [line <- :wat::core::String]
-  -> (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
-  (:wat::core::let [parts (:wat::string::split line " ")]
-    (:wat::core::Tuple (:wat::core::first parts) (:wat::core::second parts))))
+(:wat::core::defn :user::leaf-of [vpath <- :wat::core::String] -> :wat::core::String
+  (:wat::fix::leaf-of vpath))
 
-;; parse-pairs — every non-blank line. The file's trailing newline splits to one blank line at
-;; the end; skip it rather than emitting a malformed pair from it.
-(:wat::core::defn :user::parse-pairs
-  [lines <- (:wat::core::Vector :- [:wat::core::String])]
+(:wat::core::defn :user::to-dot [nm <- :wat::core::String] -> :wat::core::String
+  (:wat::string::concat (:user::parent-path nm) (:wat::string::concat "." (:user::leaf-of nm))))
+
+(:wat::core::defn :user::conj-unique
+  [acc <- (:wat::core::Vector :- [:wat::core::String])
+   s   <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::if (:wat::vec::contains? acc s) acc (:wat::core::conj acc s)))
+
+(:wat::core::defn :user::collect-keywords
+  [acc  <- (:wat::core::Vector :- [:wat::core::String])
+   node <- :wat::WatAST]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+    (:wat::core::let [nm (:wat::core::ast-name node)]
+      (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "::")) 1)
+        (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "/")) 1)
+          acc
+          (:user::conj-unique acc nm))
+        acc))
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::core::foldl :user::collect-keywords acc (:wat::core::ast->children node))
+      acc)))
+
+(:wat::core::defn :user::parents-of
+  [kws <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) kw <- :wat::core::String]
+      -> (:wat::core::Vector :- [:wat::core::String])
+      (:user::conj-unique acc (:user::parent-path kw)))
+    (:wat::core::Vector :- [:wat::core::String])
+    kws))
+
+(:wat::core::defn :user::known-enum?
+  [fmap   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   parent <- :wat::core::String]
+  -> :wat::core::bool
+  (:wat::core::match (:wat::hashmap::get fmap "")
+    [:wat::core::Option.Some {:value v} (:wat::vec::contains? v parent)]
+    [:wat::core::Option.None {} false]))
+
+(:wat::core::defn :user::pairs-from-kws
+  [kws  <- (:wat::core::Vector :- [:wat::core::String])
+   fmap <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   path <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::if (:wat::core::empty? lines)
+  (:wat::core::foldl
+    (:wat::core::fn
+      [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+       kw  <- :wat::core::String]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+      (:wat::core::match (:wat::hashmap::get fmap kw)
+        [:wat::core::Option.Some {:value _}
+          (:wat::core::conj acc (:wat::core::Tuple kw (:user::to-dot kw)))]
+        [:wat::core::Option.None {}
+          (:wat::core::do
+            (:wat::core::if (:user::known-enum? fmap (:user::parent-path kw))
+              (:wat::kernel::println
+                (:wat::string::concat
+                  "[variant-separator] UNRESOLVED "
+                  (:wat::string::concat kw (:wat::string::concat " " path))))
+              nil)
+            acc)]))
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-    (:wat::core::let [line (:wat::core::first lines)
-                      tl   (:wat::core::rest lines)]
-      (:wat::core::if (:wat::string::empty? line)
-        (:user::parse-pairs tl)
-        (:wat::core::concat
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
-            (:user::parse-pair-line line))
-          (:user::parse-pairs tl))))))
+    kws))
 
 ;; hits-for — the prefilter: every pair whose OLD token is a substring of `text`.
 (:wat::core::defn :user::hits-for
@@ -113,16 +156,21 @@
     text
     hits))
 
-;; convert-one — skip a file with zero hits entirely: no read-result mutation, no write-file
-;; call, no printed line. This is what keeps the vast majority of the 845-file corpus
-;; byte-identical and untouched.
 (:wat::core::defn :user::convert-one
-  [pairs <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-   path  <- :wat::core::String]
+  [path <- :wat::core::String]
   -> :wat::core::nil
   (:wat::core::let
     [src  (:wat::io::read-file path)
-     hits (:user::hits-for pairs src)]
+     tree (:wat::core::match (:wat::core::read-string src)
+             [:wat::core::ReadOutcome.Forms {:forms f} f]
+             [:wat::core::ReadOutcome.Malformed {:cause c}
+               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
+     kws  (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
+     fmap (:wat::fix::enum-fields "variant-separator" path
+            (:wat::core::ast->children tree)
+            (:user::parents-of kws))
+     pairs (:user::pairs-from-kws kws fmap path)
+     hits  (:user::hits-for pairs src)]
     (:wat::core::if (:wat::core::empty? hits)
       nil
       (:wat::core::do
@@ -130,22 +178,20 @@
         (:wat::kernel::println (:wat::string::concat "[variant-separator-to-dot] " path))))))
 
 (:wat::core::defn :user::convert-each
-  [pairs <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-   paths <- (:wat::core::Vector :- [:wat::core::String])]
+  [paths <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do
-      (:user::convert-one pairs (:wat::core::first paths))
-      (:user::convert-each pairs (:wat::core::rest paths)))))
+      (:user::convert-one (:wat::core::first paths))
+      (:user::convert-each (:wat::core::rest paths)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [pairs (:user::parse-pairs (:wat::string::split (:wat::io::read-file (:user::pairs-file)) "\n"))
-     paths (:wat::core::match (:wat::kernel::readln)
+    [paths (:wat::core::match (:wat::kernel::readln)
              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
              [:wat::kernel::ReadlnOutcome.Eof {}
                (:wat::kernel::assertion-failed! :message "readln: end of input")]
              [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::convert-each pairs paths)))
+    (:user::convert-each paths)))
