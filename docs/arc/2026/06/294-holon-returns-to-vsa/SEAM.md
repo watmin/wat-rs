@@ -188,8 +188,9 @@ The builder:
        history, not spec;
      - `rule-record-to-defrule`'s stated reason is wrong: its landing inputs are angle-bracketed
        (lex error), not a no-op;
-     - `rename-record-def-to-defrecord` was corrupted by `dedcb74a7` (a self-migration):
-       restore or delete, PENDING the builder's ruling.
+     - `rename-record-def-to-defrecord` was corrupted by `dedcb74a7` (a self-migration).
+       **RULED 2026-09-12: RESTORE.**
+     - **Briefed as batch 2d** (`BRIEF-0b-REFUTE-batch-2d.md`). 2d closes stone 0b.
    - ⛔ **REPLAY HAZARD, CONFIRMED on today's binary:** `positional-ctor-to-map` (landing-order line
      25) now matches `:wat::core::Option::Some`, because `49f03f179` qualified it. A bare
      `(:wat::core::Some 1)` prints UNRESOLVED and stays unchanged; `bare-variant-to-qualified`
