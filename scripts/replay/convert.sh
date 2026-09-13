@@ -175,3 +175,9 @@ for cm in "${STEPS[@]}"; do
     exit 1
   }
 done
+
+# Surface per-codemod println so a step log can carry UNREGISTERABLE /
+# UNRESOLVED / SPLICE (UNREADABLE is already printed above).
+if [[ -s "$LOG" ]]; then
+  cat "$LOG"
+fi
