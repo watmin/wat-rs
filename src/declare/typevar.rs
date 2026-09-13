@@ -209,8 +209,9 @@ pub(crate) fn first_unknown_named_type(
 }
 
 /// Shared named-type check for Path nodes and parametric heads. A head is
-/// not special-cased — same four-store union, same type-var / bound-param
-/// accepts.
+/// not special-cased — the ONE membership door (`TypeEnv::is_known_type`,
+/// 2a1b's classifier) plus this program's `use!` declarations, same
+/// type-var / bound-param accepts.
 fn consider_named_path(
     p: &str,
     found: &std::cell::RefCell<Option<String>>,
@@ -228,11 +229,7 @@ fn consider_named_path(
     if bound.iter().any(|b| b == stripped) {
         return;
     }
-    if env.contains(p)
-        || crate::runtime::is_builtin_primitive(stripped)
-        || use_decls.covers(p)
-        || env.is_subtype_parent(p)
-    {
+    if env.is_known_type(p) || use_decls.covers(p) {
         return;
     }
     *found.borrow_mut() = Some(p.to_string());

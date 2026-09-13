@@ -436,6 +436,17 @@ Measured 2026-09-13 on `5edca1211` (probes: `bootstrap/era/probe-R/{defect-*.wat
   `type_body_value`), one exhaustive match (`tests/reflection/probe_arc296_type_of_six_kinds.wat:32-37`).
   Both codemods fall through with `_`.
 - Routed: the 2a2 stdlib route is the builder's ruling (four questions in the main chat, 2026-09-13).
+- **RULED C; closed by 2a1b** (grok `deaeeb131`, verified by the orchestrator): one `TypeEnv`
+  classifier (Declared / Builtin / Marker / Unknown) that `is_known_type`, `type-of` and `subtype?` ask.
+  `bootstrap/era/probe-R/kinds.wat`: `Vector`, a literal `i64`, a computed `HashMap` → Builtin; a derive
+  marker → Marker with its children; `subtype?` on it → true; an unknown name raises as before. The
+  agreement wall (`type_of_answers_every_is_type_name`, enumerated from the stores) went RED under the
+  orchestrator's own mutation of the Marker arm (grok's was the Builtin arm). The door is unchanged
+  (corpus 1457/32; one-step identity 0/0/0). The two builtin stores differ 14 one way and 12 the other
+  (SCORE-2a1b's table); routed.
+- **The exclusion loop for 2a2** (`bootstrap/era/probe-R/door-exclude.wat`, the 32 refused step-24
+  files): all reach `Ok` after dropping 39 refused forms in 981 ms; 6 negative defservice fixtures
+  recover 15–48 types each; stdlib files exclude only the declarations that differ from HEAD.
 
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 

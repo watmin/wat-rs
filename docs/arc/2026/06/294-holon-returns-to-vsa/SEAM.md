@@ -34,16 +34,14 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   over the 1489-file step-24 corpus (`bootstrap/era/probe-R/verify-refute2.sh`: 0 lost, 0 gained,
   0 refusal delta — so +47 files of types vs `101626eea`); 1457 Ok / 32 Refused in 16 s; mutation M1
   (keep `defn` whole) reddens `declared_types_body_is_never_expanded` and the sift timing test.
-- **In flight: `BRIEF-2a1b-one-membership-door.md`** (+ `EXPECTATIONS-2a1b.md`) — RULED C: one
-  classifier on `TypeEnv` that `is-type?`, `type-of` and `subtype?` all ask (finding 14; the
-  `subtype?`-rejects-a-marker bug measured in `bootstrap/era/probe-R/subtype-marker.wat`). When grok
-  scores, re-run E1–E10 yourself.
-- **Then 2a2** — the door answers only what a program adds; after 2a1b the codemods answer stdlib
-  questions with `is-type?` then `type-of`, no `eval-with-defs!`. Finalize
-  `bootstrap/pending/BRIEF-2a2-draft.md` against the closed verb (it now reports holon records,
-  `defn`'s `::Kwargs`/`::GrantHandles`/`::Coords`, `let`-body declarations). Its bar is DERIVED, not
-  "0 files differ from `wL`": 0 converted sites lost vs `wL`/`pT`, and every difference explained by a
-  type the door reports that the ladder could not see.
+- **2a1b is CLOSED** (grok `deaeeb131` + the orchestrator's one-line `typevar.rs` routing): one
+  `TypeEnv` classifier that `is_known_type`, `type-of`, `subtype?` and the checker's annotation scan
+  all ask. Verified: floor 5431/5431, clippy 0; `bootstrap/era/probe-R/kinds.wat` (E1–E4); the
+  agreement wall RED under the orchestrator's own Marker-arm mutation; the door unchanged (1457/32,
+  identity 0/0/0). Finding 14.
+- **Next: `BRIEF-2a2-the-codemods-ask-the-door.md`** (+ `EXPECTATIONS-2a2.md`), awaiting the builder's
+  pulsare. Its D1 exclusion loop is measured (`door-exclude.wat`: 32/32 refused files reach `Ok`, 39
+  forms dropped, 981 ms). When grok scores, run `bootstrap/era/probe-S/run5.sh` and every E-row.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch
   owns its subsystem; replay ONE COMMIT AT A TIME; correct over fast — but **the builder cannot
   tolerate multi-hour runs between work units**, so wall clock is now a first-class goal.
@@ -55,15 +53,16 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
    - It expands a program's declarations with the stdlib macros, registers them into a FRESH copy of
      a once-built stdlib snapshot, and returns `TypeInfo`s. No startup, no body check: 12–17 ms a
      call, where `eval-with-defs!` takes ~460 ms. CLOSED 2026-09-13 after two refutes (finding 13).
-2. **2a2 — the codemods ask the door once per program.** Draft: `bootstrap/pending/BRIEF-2a2-draft.md`.
-   - match-arm, positional-ctor and variant-separator: the census is retired, and the report fires on
-     "is a variant", never on case.
+2. **2a2 — the codemods ask the door once per program.** `BRIEF-2a2-the-codemods-ask-the-door.md`.
+   - match-arm, positional-ctor and variant-separator: `eval-with-defs!`, the census, `seed-paths`,
+     `decl-head?` and `pascal-leaf?` are retired; a refused declaration excludes one form, never the file.
    - step 14 REPORTS a splice.
    - `convert.sh`: `one-param-spec` gets the corpus as context, minus unreadable files, which are
-     reported; each codemod runs ONCE per replayed commit, sharded.
-   - **Its bar is measured** (`bootstrap/era/probe-Q/run4.sh`): match-arm 0 files differ from
-     `probe-L/wL`, UNRESOLVED ≤ 15; positional-ctor loses 0 constructors vs `probe-L/pT`; the chain vs
-     main has ≥ 1,314 identical and CHAIN-FAILS ≤ 84.
+     reported; each codemod runs ONCE per replayed commit.
+   - **Its bar is DERIVED** (`bootstrap/era/probe-S/run5.sh`), never "0 files differ": each new tool
+     against its predecessor on IDENTICAL input (match-arm vs `probe-L/wL`, positional-ctor vs
+     `probe-L/pT`, variant-separator vs the census tool) — 0 files LOSING, every gain explained by a
+     type the door reports; the chain vs main identical ≥ 1,314.
 3. **3 — every spawned program starts** (RULED, ruling 4). Draft:
    `bootstrap/pending/BRIEF-3-draft-every-spawned-program-starts.md`.
    - A gate on the CHILD's real startup path (`src/process/verbs.rs:429-433`), NOT `--check`.
@@ -80,11 +79,14 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
 
 ## KNOWN FLAWS — routed, not left (FINDINGS-composition.md is the detail)
 
-- **Main defect:** `(is-type? :wat::core::Vector)` → true but `(type-of :wat::core::Vector)` raises
-  (finding 11); `subtype?` rejects a derive marker. Being closed by 2a1b.
-- **The builtin set lives in two stores** — `is_builtin_primitive` (37 hand-listed names,
-  `src/runtime.rs:9995`) and `builtin_names` (derived + a hand group, `src/types.rs:2544-2615`); they
-  differ both ways. 2a1b measures the difference; reconciling them is its own stone.
+- **The builtin set lives in two stores** — `BUILTIN_PRIMITIVES` (37 hand-listed names,
+  `src/runtime.rs`) and `builtin_names` (derived + a hand group, `src/types.rs:2544-2615`). Measured in
+  `SCORE-2a1b.md`: 14 names only in the first, 12 only in the second. The classifier unions them, so the
+  verbs agree; reconciling the two stores is its own stone.
+- **One ruling's table lives in two codemods:** match-arm's `alias-enum`
+  (`wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat:123`, `Some`/`None` → Option, `Ok`/`Err` →
+  Result) and `bare-variant-to-qualified.wat`'s `rename-five` (arc 296 N's five bare spellings). Same
+  fact, no wrong output today; one home in `wat/fix.wat` is its own stone.
 - **`variant-parent-of`'s own `@example` is false** (`src/reflect/verbs.rs:1718`: `Option::Some` →
   `None` on disk), and the doctest verifier that would catch it is `#[ignore]` (its NOTE awaits a
   ruling). Same class as 2b's `::`-teaching doc lines.
@@ -113,7 +115,12 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
 | exact batched chain + compare + classify | `bootstrap/era/probe-Q/run4.sh` (sharded 8 ways, ~13 min) |
 | main-binary residual classifier | `bootstrap/era/probe-K/classify.sh` |
 | nested-program census | `bootstrap/era/probe-N/extract-forms2.wat` |
-| call the door from wat | `bootstrap/era/probe-R/door.wat` |
+| call the door from wat (enums, records, the refused form) | `bootstrap/era/probe-R/door.wat` |
+| the door over the 1489-file corpus | `bootstrap/era/probe-R/corpus.sh` (one process, ~14 s) |
+| the one-step walk vs the door, full scale | `bootstrap/era/probe-R/verify-refute2.sh` (+ `zz_probe_one_step.rs.snippet`) |
+| `type-of` kinds, `subtype?` on a marker | `bootstrap/era/probe-R/kinds.wat` |
+| the exclusion loop on the refused files | `bootstrap/era/probe-R/door-exclude.wat` + `refused32.json` |
+| **the 2a2 bar** | `bootstrap/era/probe-S/run5.sh` (each tool vs its predecessor on identical input) |
 
 ## OPERATIONAL RULES — each one was paid for
 
