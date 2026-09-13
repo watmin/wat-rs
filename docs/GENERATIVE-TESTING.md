@@ -49,12 +49,32 @@ The obvious conclusion was: derive the generator from the type, `s/gen`-style, a
 `gen-of-type`. It was written down as the **highest-value open item**. Building it produced two
 findings, and the second is the one that matters.
 
-**(a) It is not expressible.** wat's reflection is READ-ONLY at runtime. `field-names-of` and
-`field-types-of` inspect a declared type, but there is no matching runtime CONSTRUCTION from a
-type value — `kwargs-construct` requires a LITERAL type keyword, resolved at type-check time. And
-macro-time reflection cannot bridge it: macros expand *before* user types are registered, so
-`field-types-of` inside a macro reports `unknown type ':user::Point'`. Verified both ways
-2026-08-25. **That is a genuine substrate gap: reflection reads shapes but cannot build them.**
+**(a) It is not expressible — but the reflection subsystem is neither lacking nor defective, and
+my first account of this was wrong.** The correction is worth more than the original claim.
+
+I reported "reflection reads shapes but cannot build them" as a substrate gap. The builder's
+reply was one line — *a type value IS its ctor* — and it is right. **A constructor is a
+first-class function value in wat:**
+
+```
+(:user::apply2 :user::Point' 3 4)   ->   #user/Point {:x 3 :y 4}
+```
+
+So construction is available, idiomatic, and fully typed; `gen-lift2` / `gen-lift3` are built
+directly on it. What is genuinely unavailable is construction from a type **keyword**, and that
+is *not a gap to fill*: the result type could not be known statically, so it would be a hole in
+the checker rather than a missing intrinsic. Static typing is the reason, and it is the same
+reason Rust cannot build a struct from a runtime `TypeId`.
+
+**The one real finding in this area is smaller and different.** `field-names-of` /
+`field-types-of` are explicitly ALLOWLISTED as macro-callable (`src/macros/eval.rs:717`), but
+they read `sym.types` — a registry the same comment says is "populated once at freeze time",
+which is *after* macro expansion. So in a macro they can only ever fail, for **every** type:
+`:wat::cache::Entry`, a stdlib type registered long before the program runs, reports
+`unknown type` at expansion time while reflecting fine at runtime. The allowlist entry is
+unreachable in practice. That is a latent inconsistency — either the registry should be
+available earlier, or the entry is misleading — and it has **no live customer**, so it is
+recorded, not acted on.
 
 **(b) It would not be worth much anyway.** `field-types-of` yields `wat.type/i64` — a type,
 carrying **no bounds**. A finite generator is nothing *but* bounds. Deriving one from `i64` would
@@ -86,11 +106,13 @@ Here the structure lives in the **index**, not the value. Shrinking is coordinat
 digits of `i`, so **one implementation shrinks every generator** built from `gen-coords`. Nothing
 per-generator to write, and nothing to get wrong per-generator.
 
-### 4. Heterogeneous `tuple` is sugar, not a primitive
+### 4. Heterogeneous `tuple` is not needed — `gen-lift2`/`gen-lift3` subsume it
 
-`gen/tuple` is a necessity in Clojure. Here `gen-coords` + `gen-fmap` already expresses any
-product: decode the coordinate, construct whatever shape you want. A typed `tuple` combinator is
-convenience we may add; nothing is blocked without it.
+`gen/tuple` is a necessity in Clojure. Here the applicative lift over a constructor value already
+produces heterogeneous products, fully typed:
+`gen-lift3 :user::Tri' (ints 0 2) (ints 5 7) (elements ["p" "q"])` yields
+`#user/Tri {:a 1 :b 6 :c "q"}` with card 8. There is no anonymous-tuple shape to add, because the
+constructor names the result type.
 
 ### 5. No seeds anywhere
 
@@ -129,10 +151,12 @@ under-count.** One fewer thing to build, found by trying to build it.
 | `gen-elements vs` | pick from a value vector |
 | `gen-such-that pred g` | exact filter — survivors ARE the new generator |
 | `gen-one-of gs` | sum of cardinalities, range dispatch |
-| `gen-record T g...` | **macro** — product of field generators, emitting a checked prime constructor |
+| `gen-lift2 f ga gb` | applicative lift over a CONSTRUCTOR VALUE — the idiomatic builder |
+| `gen-lift3 f ga gb gc` | ditto, ternary; gives heterogeneous products for free |
+| `gen-record T g...` | **macro** — N-ary sugar for 4+ fields, emitting a checked prime constructor |
 | `gen-nth c i` | read one digit of a coordinate |
 
-**Nine laws**, 278 points, proven by `wat-scripts/fuzz/gen-selftest.wat`, driven through `gen-check` itself, gated by
+**Ten laws**, 284 points, proven by `wat-scripts/fuzz/gen-selftest.wat`, driven through `gen-check` itself, gated by
 `tests/lint/gen_lib_laws.rs`. L4 (the bijection) is load-bearing: without it, enumeration can
 visit tuples twice and miss others while reporting a clean case count.
 
