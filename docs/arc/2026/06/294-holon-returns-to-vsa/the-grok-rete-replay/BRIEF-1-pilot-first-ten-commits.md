@@ -72,8 +72,10 @@ For grok-rete commit **C**, where #N is its index after `de827fb4c`:
      into main's syntax. A conflict resolves by the ownership rule.
    - **`.wat` deleted in C:** `git rm`.
    - **`.rs`:** resolve the conflicts by the ownership rule. Where main moved a home or changed a
-     signature, main's version stands and grok's change is re-expressed on it. `merge/grok-rete`'s
-     `SCORE-merge-grok-rete.md` is a crib, not an authority.
+     signature, main's version stands and grok's change is re-expressed on it. The first merge's
+     per-hunk record is a crib, not an authority. It exists only on `merge/grok-rete`, so read it
+     with `git show merge/grok-rete:docs/arc/2026/06/294-holon-returns-to-vsa/the-grok-rete-merge/SCORE-merge-grok-rete.md`
+     (never check that branch out).
    - **wat embedded in `.rs` strings:** bring it to main's syntax by hand. The codemods do not reach
      it. Log each edit.
 3. **Gate the step:**
