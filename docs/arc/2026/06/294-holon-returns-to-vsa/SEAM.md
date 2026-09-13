@@ -217,13 +217,23 @@ The builder:
      - 4: positional-ctor's UNRESOLVED count is mostly noise, from the case rule `pascal-leaf?`.
      - 5: the LANDING's match-arm leaked a type across files (reproduced), and main carries
        `{:deps addr}` in `probe-m1-ann-erase2`, which is also broken on both sides (undeclared `CMsg`).
-     - **BRIEF-2b drafted, NOT released** (`BRIEF-2b-main-teaches-what-it-refuses.md` +
-       `EXPECTATIONS-2b.md`): main-owned defects from findings 5–8. Seven refusals teach the retired
-       `::` separator; c03's template cannot expand and its test never expands it; the two
-       `probe-m1-ann-erase*` child programs die at startup. It waits for the builder's "pulsare".
-     - ⚠ **(B) as first described (pure type declarations only) REGRESSES at full scale** on the 2 sift
-       files. The probed shape is a LADDER: today's declarations first, then pure type declarations
-       (`bootstrap/era/probe-L/`). The builder must confirm the ruling covers that shape.
+     - **✓ RULED 2026-09-13 ("all recommended"), six decisions, each argued with the four questions
+       in the main chat:**
+       1. (B) is the LADDER: today's declarations first; pure type declarations + `declare-acronyms`
+          (any depth) only when those cannot answer. Measured: 403 → 15, 0 lost (`probe-L/`).
+       2. `variant-separator` decides what a variant is from the program's declarations + the
+          registry, through the same ladder. The frozen 382-pair census is retired.
+       3. The ladder lives ONCE, in `wat/fix.wat`, shared by the tools. No per-tool copies.
+       4. A GATE checks every nested program literal (`(:wat::core::forms …)`). Its own stone,
+          after 2b, whose first act is the census of the 164.
+       5. `surface-field-dispatch.wat` (a broken docs probe that grok-rete modifies) is fixed when its
+          grok-rete commit replays. Not deleted.
+       6. **BRIEF-2b RELEASED ("pulsare 2b")** — `BRIEF-2b-main-teaches-what-it-refuses.md` +
+          `EXPECTATIONS-2b.md`. ⛔ grok is on the tree: commit NOTHING until it yields.
+     - NEXT: the chain-tooling brief (2a): the ladder door, the scope rule, the variant decision,
+       positional-ctor reporting by registry (not case), step 14 reporting a splice, and `convert.sh`
+       giving `one-param-spec` the corpus context. It waits for the positional-ctor ladder A/B and the
+       chain under the ladder (`probe-L/pc2.sh`).
      - **✓ RULED 2026-09-13: (B)** ("B has been decided"). The eval-based codemods learn field names
        from the type declarations of the program that holds the site, on today's binary. The era
        binary (A) is rejected: it reproduces the landing's defects and runs outside stone 0's gate.
