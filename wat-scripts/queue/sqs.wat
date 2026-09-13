@@ -570,6 +570,53 @@
                                        "by-visible-at" (:wat::query::IndexKey :ipk q :isk isk))))))
                  (:wat::core::Vector :- [:wat::query::StoredRow])
                  (:wat::core::range 0 take))
+        ;; Local: process children do not see sibling defns (sqs.wat header / take).
+        ;; sk is uuid v4 — point-scan per row (sk-lo = sk-hi, limit 1) is the
+        ;; intersection; a (pk,sk) is unique so one page covers it.
+        count-landed
+          (:wat::core::fn
+            [st <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
+             qn <- :wat::core::String
+             rs <- (:wat::core::Vector :- [:wat::query::StoredRow])]
+            -> :wat::core::i64
+            (:wat::core::foldl
+              (:wat::core::fn [n <- :wat::core::i64  r <- :wat::query::StoredRow] -> :wat::core::i64
+                (:wat::core::let
+                  [sk (:wat::query::StoredRow/sk r)
+                   scan (:wat::query::Store/scan st
+                           (:wat::query::Store::ScanRequest
+                             :pk qn :sk-lo sk :sk-hi sk
+                             :limit 1 :cursor :wat::core::None))]
+                  (:wat::core::match scan
+                    ((:wat::kernel::RecvOutcome::Message sresp)
+                      (:wat::core::match sresp
+                        ((:wat::query::Store::ScanResponse::Success page _c)
+                          (:wat::core::if (:wat::core::empty? page) n (:wat::i64::+ n 1)))
+                        (_ (:wat::kernel::assertion-failed!
+                             "queue: probe scan failed — peer is dead, not a broken pipe"
+                             :wat::core::None :wat::core::None))))
+                    ((:wat::kernel::RecvOutcome::Lost _c)
+                      (:wat::kernel::assertion-failed!
+                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        :wat::core::None :wat::core::None))
+                    (:wat::kernel::RecvOutcome::Closed
+                      (:wat::kernel::assertion-failed!
+                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        :wat::core::None :wat::core::None))
+                    (:wat::kernel::RecvOutcome::TimedOut
+                      (:wat::kernel::assertion-failed!
+                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        :wat::core::None :wat::core::None))
+                    (:wat::kernel::RecvOutcome::Stopped
+                      (:wat::kernel::assertion-failed!
+                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        :wat::core::None :wat::core::None))
+                    ((:wat::kernel::RecvOutcome::Malformed _cause)
+                      (:wat::kernel::assertion-failed!
+                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        :wat::core::None :wat::core::None)))))
+              0
+              rs))
         t-put (:wat::time::epoch-nanos (:wat::time::now))
         put-resp (:wat::query::Store/put store
                    (:wat::query::Store::PutRequest rows))
@@ -784,6 +831,8 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
+              n-scan (:wat::core::count rows)
+              landed (count-landed fresh q rows)
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -791,11 +840,11 @@
                     :waiters (:queue::queue::State/waiters s)
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
-                    :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns)
+                    :store-calls (:wat::i64::+ sc0 (:wat::i64::+ 1 n-scan)) :store-ns (:wat::i64::+ sn0 put-ns)
                        :put-calls (:wat::i64::+ (:queue::queue::State/put-calls s) 1) :put-ns (:wat::i64::+ (:queue::queue::State/put-ns s) put-ns)
                        :delete-calls (:queue::queue::State/delete-calls s) :delete-ns (:queue::queue::State/delete-ns s)
                        :count-calls cc0 :count-ns cn0
-                       :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
+                       :scan-calls (:wat::i64::+ (:queue::queue::State/scan-calls s) n-scan) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
@@ -803,10 +852,10 @@
                     :arm-tick (:queue::queue::State/arm-tick s)
               :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
-             ;; Do not claim Accepted n — the put is unknowable. Accepted 0 is the caller's retry.
+             ;; Accepted n is a COUNT: how many of this batch's rows are in the store.
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Send
-                 (:queue::Queue::SendResponse::Accepted 0)))
+                 (:queue::Queue::SendResponse::Accepted landed)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
                none-alarms)))
          (:wat::kernel::RecvOutcome::Stopped
@@ -818,6 +867,8 @@
                       ((:wat::kernel::ConnectOutcome::Connected p) p)
                       (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
+              n-scan (:wat::core::count rows)
+              landed (count-landed fresh q rows)
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -825,11 +876,11 @@
                     :waiters (:queue::queue::State/waiters s)
                     :outbox (:queue::queue::State/outbox s)
                     :receive-calls (:queue::queue::State/receive-calls s)
-                    :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns)
+                    :store-calls (:wat::i64::+ sc0 (:wat::i64::+ 1 n-scan)) :store-ns (:wat::i64::+ sn0 put-ns)
                        :put-calls (:wat::i64::+ (:queue::queue::State/put-calls s) 1) :put-ns (:wat::i64::+ (:queue::queue::State/put-ns s) put-ns)
                        :delete-calls (:queue::queue::State/delete-calls s) :delete-ns (:queue::queue::State/delete-ns s)
                        :count-calls cc0 :count-ns cn0
-                       :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
+                       :scan-calls (:wat::i64::+ (:queue::queue::State/scan-calls s) n-scan) :scan-ns (:queue::queue::State/scan-ns s)
                        :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
                     :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
                     :q-name q
@@ -837,19 +888,46 @@
                     :arm-tick (:queue::queue::State/arm-tick s)
               :counters (:queue::queue::State/counters s)
               :seen-ids (:queue::queue::State/seen-ids s))]
-             ;; Do not claim Accepted n — the put is unknowable. Accepted 0 is the caller's retry.
+             ;; Accepted n is a COUNT: how many of this batch's rows are in the store.
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:queue::Queue::Reply::Send
-                 (:queue::Queue::SendResponse::Accepted 0)))
+                 (:queue::Queue::SendResponse::Accepted landed)))
                (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
-               none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]) s' (:queue::queue::State :durable (:queue::queue::State/durable s) :store fresh :take (:queue::queue::State/take s) :waiters (:queue::queue::State/waiters s) :outbox (:queue::queue::State/outbox s) :receive-calls (:queue::queue::State/receive-calls s) :store-calls (:wat::i64::+ sc0 1) :store-ns (:wat::i64::+ sn0 put-ns)
+               none-alarms)))
+         (:wat::kernel::RecvOutcome::TimedOut
+           (:wat::core::let
+             [fresh (:wat::core::match
+                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
+                      ((:wat::kernel::ConnectOutcome::Connected p) p)
+                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+              none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
+              n-scan (:wat::core::count rows)
+              landed (count-landed fresh q rows)
+              s' (:queue::queue::State
+                    :durable (:queue::queue::State/durable s)
+                    :store fresh
+                    :take (:queue::queue::State/take s)
+                    :waiters (:queue::queue::State/waiters s)
+                    :outbox (:queue::queue::State/outbox s)
+                    :receive-calls (:queue::queue::State/receive-calls s)
+                    :store-calls (:wat::i64::+ sc0 (:wat::i64::+ 1 n-scan)) :store-ns (:wat::i64::+ sn0 put-ns)
                        :put-calls (:wat::i64::+ (:queue::queue::State/put-calls s) 1) :put-ns (:wat::i64::+ (:queue::queue::State/put-ns s) put-ns)
                        :delete-calls (:queue::queue::State/delete-calls s) :delete-ns (:queue::queue::State/delete-ns s)
                        :count-calls cc0 :count-ns cn0
-                       :scan-calls (:queue::queue::State/scan-calls s) :scan-ns (:queue::queue::State/scan-ns s)
-                       :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns)) :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s) :q-name q :tick-armed? (:queue::queue::State/tick-armed? s) :arm-tick (:queue::queue::State/arm-tick s)
+                       :scan-calls (:wat::i64::+ (:queue::queue::State/scan-calls s) n-scan) :scan-ns (:queue::queue::State/scan-ns s)
+                       :handler-ns (:wat::i64::+ (:queue::queue::State/handler-ns s) (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns))
+                    :depth (:queue::queue::State/depth s) :total (:queue::queue::State/total s)
+                    :q-name q
+                    :tick-armed? (:queue::queue::State/tick-armed? s)
+                    :arm-tick (:queue::queue::State/arm-tick s)
               :counters (:queue::queue::State/counters s)
-              :seen-ids (:queue::queue::State/seen-ids s))] (:wat::service::Outcome::Continue s' (:wat::core::Some (:queue::Queue::Reply::Send (:queue::Queue::SendResponse::Accepted 0))) (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])]) none-alarms))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))
+              :seen-ids (:queue::queue::State/seen-ids s))]
+             ;; Accepted n is a COUNT: how many of this batch's rows are in the store.
+             (:wat::service::Outcome::Continue s'
+               (:wat::core::Some (:queue::Queue::Reply::Send
+                 (:queue::Queue::SendResponse::Accepted landed)))
+               (:wat::core::Vector :- [(:wat::service::Directed :- [:queue::Queue::Reply])])
+               none-alarms))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))
 
    (receive [s ctx req]
      (:wat::core::let
