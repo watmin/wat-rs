@@ -66,15 +66,23 @@ is *not a gap to fill*: the result type could not be known statically, so it wou
 the checker rather than a missing intrinsic. Static typing is the reason, and it is the same
 reason Rust cannot build a struct from a runtime `TypeId`.
 
-**The one real finding in this area is smaller and different.** `field-names-of` /
-`field-types-of` are explicitly ALLOWLISTED as macro-callable (`src/macros/eval.rs:717`), but
-they read `sym.types` — a registry the same comment says is "populated once at freeze time",
-which is *after* macro expansion. So in a macro they can only ever fail, for **every** type:
-`:wat::cache::Entry`, a stdlib type registered long before the program runs, reports
-`unknown type` at expansion time while reflecting fine at runtime. The allowlist entry is
-unreachable in practice. That is a latent inconsistency — either the registry should be
-available earlier, or the entry is misleading — and it has **no live customer**, so it is
-recorded, not acted on.
+**And a second thing I reported as a finding was not one.** I noted that `field-names-of` /
+`field-types-of` fail at macro-expansion time even for stdlib types, called the allowlist entry
+at `src/macros/eval.rs:717` "unreachable in practice", and framed it as a latent inconsistency
+that would cost the next person an hour.
+
+It is documented behaviour, and the codebase already routes around it. `wat/telemetry.wat:286`,
+in its own words: *"compile-time/macro-expand reflection of a baked record is **DEAD, proven**;
+runtime resolves for both stdlib and user records."* A prior self proved exactly this and wrote
+down the resolution — reflect at RUNTIME — which is what `framing-floor-of` does directly below
+that comment.
+
+It cost an hour because I theorised before grepping for prior art, not because the substrate is
+inconsistent. **There is no work item here.** Macro expansion runs before user types exist;
+making types visible at macro time would be a phase inversion, not a fix. And this library needs
+none of it: `gen-lift2`/`gen-lift3` take a constructor value (arity carried, checker-verified),
+and `gen-record` takes its arity from the caller's argument count. Neither ever called a
+reflection verb.
 
 **(b) It would not be worth much anyway.** `field-types-of` yields `wat.type/i64` — a type,
 carrying **no bounds**. A finite generator is nothing *but* bounds. Deriving one from `i64` would
