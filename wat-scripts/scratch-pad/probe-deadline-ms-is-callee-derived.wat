@@ -1,9 +1,13 @@
 ;; Does a CALLEE's :deadline-ms set the CALLER's observed timeout?
 ;;
-;; Load-bearing for the store-fault injector's cost model: if a proxy can declare
-;; :deadline-ms 300, a dropped reply costs 300 ms. If the deadline is fixed per
-;; SURFACE (default 10000), every injected fault costs 10 s and the harness has to
-;; be sized around that.
+;; MEASURED (before D4-b refused the clause):
+;;   outcome=TimedOut;elapsed-ms=10000;declared=300
+;; 10000 observed against 300 declared. The generated client method uses the default.
+;;
+;; D4-b (`the-inert-clause-is-refused`) makes `:deadline-ms` in `:satisfies` mode a
+;; compile-time refusal. The clause is dropped here so this file still loads; the
+;; numbers live in that stone's SCORE. The refusal fixture is
+;; tests/services/probe_inert_clause_is_refused.wat (this probe's shape).
 ;;
 ;; The handler parks on a 1-hour timer, so the reply never comes. We measure how
 ;; long the client's generated method takes to give up.
@@ -25,7 +29,6 @@
 
 (:wat::service::defservice :slow::slow
   :satisfies :slow::Slow
-  :deadline-ms 300
   :durable []
   :ephemeral []
   :impls

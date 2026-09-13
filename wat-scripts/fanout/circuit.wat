@@ -2080,7 +2080,6 @@
   :satisfies :fanout::Publisher
   ;; stats is the join: it must outlive one publisher's share (~20 s at N=2000).
   ;; Default 10000 would TimedOut mid -run and the parent would see a hang-shaped failure.
-  :deadline-ms 120000
   :durable   [id         <- :wat::core::String
               topic-addr <- (:wat::kernel::Address :- [:demo::Topic::Op :demo::Topic::Reply])
               lo         <- :wat::core::i64

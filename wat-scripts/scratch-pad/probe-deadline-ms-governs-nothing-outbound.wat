@@ -2,13 +2,19 @@
 ;;
 ;; Probe 1 (committed, NOTE-a-callee-deadline-ms-is-inert.md): a :satisfies-mode
 ;; CALLEE declaring :deadline-ms 300 does NOT shorten what its caller waits — 10000
-;; observed. This asks the other direction, and it decides whether circuit.wat:2083's
-;; live `:deadline-ms 120000` is doing anything at all.
+;; observed. This asked the other direction, and decided whether circuit.wat's
+;; live `:deadline-ms 120000` was doing anything at all.
 ;;
-;; fast declares :deadline-ms 300, :peers [:mid::Mid], and dials mid in :init (the only
-;; sanctioned shape — the third bijection check, 49bdf2b41). mid PARKS forever.
-;; If fast's OUTBOUND call is governed → its handler faces TimedOut in ~300ms.
-;; If not → ~10000ms (the default).
+;; MEASURED (before D4-b refused the clause):
+;;   handler-faced=TimedOut;handler-elapsed-ms=10000;declared=300
+;; 10000 observed against 300 declared. Outbound calls are not governed either.
+;;
+;; D4-b (`the-inert-clause-is-refused`) makes `:deadline-ms` in `:satisfies` mode a
+;; compile-time refusal. The clause is dropped here so this file still loads; the
+;; numbers live in that stone's SCORE.
+;;
+;; fast :peers [:mid::Mid], dials mid in :init (the only sanctioned shape — the
+;; third bijection check, 49bdf2b41). mid PARKS forever.
 
 (:wat::core::defsurface :mid::Mid :nature :wat::kernel::Peer
   :messages
@@ -51,7 +57,6 @@
 
 (:wat::service::defservice :fast::fast
   :satisfies :fast::Fast
-  :deadline-ms 300
   :peers [:mid::Mid]
   :durable [mid-addr <- (:wat::kernel::Address :- [:mid::Mid::Op :mid::Mid::Reply])]
   :ephemeral [mid <- (:wat::kernel::Peer :- [:mid::Mid::Op :mid::Mid::Reply])]

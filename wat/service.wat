@@ -2570,6 +2570,21 @@
      ;; whose off-position is "hang forever" is the same non-option as a sanitization
      ;; knob whose off-position is "die on a malformed frame." Bound here (after the
      ;; bijection goldens at :896/:913) so those snapshots do not move.
+     ;;
+     ;; ⭑ D4-b / the-inert-clause-is-refused: in :satisfies mode the clause governs
+     ;; nothing (measured: neither the caller's wait nor this service's own outbound
+     ;; calls). Fourth refusal in the :896/:913 family. :ops is RETIRED so the
+     ;; :ops+deadline-ms combination is unmeasured and unwritable for a different
+     ;; reason; this guard is still scoped to satisfies? (STOP-2). The clause is
+     ;; still READ below (STOP-3).
+     _deadline-ms-satisfies
+                    (:wat::core::if satisfies?
+                      (:wat::core::if (:wat::hashmap::contains-key? clause-map "deadline-ms")
+                        (:wat::core::macro-error
+                          (:wat::string::concat fqdn-str
+                            ": :deadline-ms is declared but governs nothing in :satisfies mode (measured: neither the caller's wait nor this service's own outbound calls) — put the deadline at the CALL SITE with (:wat::service::call-by-deadline peer op <ms> <fallback>), or drop the clause."))
+                        nil)
+                      nil)
      deadline-ms-node (:wat::core::if (:wat::hashmap::contains-key? clause-map "deadline-ms")
                          (:wat::core::Option/expect
                            (:wat::hashmap::get clause-map "deadline-ms")
