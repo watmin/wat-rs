@@ -1,0 +1,5 @@
+# PROVISIONAL: bare-variant-to-qualified runs BEFORE positional-ctor-to-map.
+# 49f03f179 rewrote positional-ctor to match qualified names only.
+# Confirmed: a bare (:wat::core::Some 1) stays positional under landing order.
+# Pending the orchestrator's chain-composition check (running on copies).
+MOVE wat-scripts/fixes/bare-variant-to-qualified.wat BEFORE wat-scripts/fixes/positional-ctor-to-map.wat
