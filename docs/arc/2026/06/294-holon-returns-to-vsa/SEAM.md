@@ -180,6 +180,22 @@ The builder:
      drove the gate red four ways on a different codemod than grok's. The orchestrator also fixed
      two things: the gate's count pins are gone (it freezes names), and the keyword fixture gained
      near-misses.
+   - **✓✓ STONE 0b CLOSED — `c92503d98` (grok's 2d) + `47efbd2af` (orchestrator fixes), PUSHED.**
+     - **All 95 recorded migrations replay:** 90 fixtures + 5 unreadable-preimage runes. Each has
+       an `ORACLE` the gate verifies against git: history on main's history, spec quoted from the
+       header, and every changed before- and after-line accounted for.
+     - `git_show` and `git_cat_file_exists` fail loudly.
+     - `rename-record-def-to-defrecord` was restored (ruled).
+     - Floor 5391/5391 with no SLOW (`positional_ctor` has its own envelope, 63.2 s); clippy 0.
+     - The orchestrator reproduced (l)(m)(n) on its own runs, (n) on a different fixture than grok's.
+   - **NEXT (pending the builder's go):**
+     - **the chain-composition check** — `bootstrap/composition/`: 1001 files main changed, where
+       chain(file@base) is compared with file@main, plus 488 untouched as a control. It runs on
+       copies, never the tree, so the orchestrator runs it in the background.
+     - **in parallel, grok's PILOT:** replay grok-rete commits #1…~#10 one at a time on the tree.
+       #2–#6 are .rs-only; #1's one `.wat` uses the positional-ctor/bare-variant order corrected
+       PROVISIONALLY, until the composition check proves it.
+     - **0 of 651 grok-rete commits are replayed so far.**
    - **0b batch 2c (`d1c47b2a4`) GREEN** (floor 5391, clippy 0). The ORACLE arm is real: (i)(j)(k)
      reproduce RED, and all 67 history citations are on main's history. Still open for a batch 2d:
      - `git_show` swallows a bad commit/path (a bogus path passed rc=0, reproduced);
