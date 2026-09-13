@@ -116,14 +116,25 @@ files.** The code residuals are classified on the chain UNDER THE RULING, (B), n
   `:wat::i64::+`. The chain renames it. **The chain is right; main never migrated it.** No gate
   loads `docs/**/*.wat`, and the file is broken on main anyway (`--check`: `MalformedDecl … defsurface
   … expected :nature`).
-- `tests/macros/probe_arc241_stone17_defmacro_canonical_c03.wat`: `one-param-spec` rewrites the
-  template `` `(:wat::core::Vector ~@items)`` to `` `(:wat::core::Vector :- [~@items])``, reading a
-  SPLICE as the param-spec. Expanded on main's binary (`bootstrap/era/probe-H/`), with `(variadic-wrap 1 2 3)`:
-  - chain: `type param-spec :- [...] must declare exactly one type (T); got 3`;
-  - main: ALSO invalid, `first argument must be a (Head :- [T]) type param-spec`. Main's template
-    has been unexpandable since the param-spec wall, and its test never expands it (both `--check` rc 0).
-  - **Both sides are wrong.** The tool's rule has not changed since `556b9c08f`, so this is an
-    over-match its fixture never covered, not drift.
+- `tests/macros/probe_arc241_stone17_defmacro_canonical_c03.wat`: the template
+  `` `(:wat::core::Vector ~@items)`` becomes `` `(:wat::core::Vector :- [~@items])``.
+  - ⚠ **CORRECTED 2026-09-13:** the first version of this finding (and commit `255c14881`'s message)
+    named `one-param-spec`. That was read off the OUTPUT's shape. Replaying the file one step at a time
+    (`bootstrap/era/probe-J/`) shows **step 14, `mandatory-typed-quasiquote-residual`**, makes the edit;
+    `one-param-spec` never touches it.
+  - The rule (its header): for the three MANDATORY-typed heads (Vector, HashMap, HashSet), "args.length
+    == declared-arity is unambiguous evidence of an attempted param-spec", so an unquote-wrapped slot is
+    wrapped in `:- [...]`. That holds for `~ty`. **It is false for a SPLICE:** `~@items` counts as one
+    argument but expands to N forms, and may even carry its own `:- [T]`. The header includes
+    `unquote-splicing` explicitly, and has since its landing `284cd7c93`. That landing's sweep touched
+    three sites (`wat/bracket.wat`, `wat/service.wat`, a census scratch), so the splice case was never
+    exercised until the chain ran the tool over the whole corpus.
+  - Expanded on main's binary (`bootstrap/era/probe-H/`), with `(variadic-wrap 1 2 3)`:
+    - chain: `type param-spec :- [...] must declare exactly one type (T); got 3`;
+    - main: ALSO invalid, `first argument must be a (Head :- [T]) type param-spec`. Main's template has
+      been unexpandable since the param-spec wall. Its test (`contract_03`, `startup_from_file` only)
+      never expands it, an acceptance row the defect satisfies (both `--check` rc 0).
+  - **Both sides are wrong.**
 
 ## The residuals, asked of MAIN's binary (v2) — `bootstrap/era/probe-K/classify.sh`
 
