@@ -217,8 +217,11 @@ The builder:
      - 4: positional-ctor's UNRESOLVED count is mostly noise, from the case rule `pascal-leaf?`.
      - 5: the LANDING's match-arm leaked a type across files (reproduced), and main carries
        `{:deps addr}` in `probe-m1-ann-erase2`, which is also broken on both sides (undeclared `CMsg`).
-     - ⬜ **(A) vs (B) is before the builder** (four questions). The v2 RESULT gives positional-ctor's
-       residuals and the census for finding 5.
+     - **✓ RULED 2026-09-13: (B)** ("B has been decided"). The eval-based codemods learn field names
+       from the type declarations of the program that holds the site, on today's binary. The era
+       binary (A) is rejected: it reproduces the landing's defects and runs outside stone 0's gate.
+       Next: a brief for grok. The v2 RESULT gives positional-ctor's residuals and the census for
+       finding 5.
    - ⛔ **COMPOSITION FINDING 2 (baseline run, landing order): the chain STOPS at step 23.**
      - `match-arm-to-bracket-map-pattern` rc=2 on `tests/process/probe_arc278_init_crash_reason.wat`,
        with `assertion-failed! … positional form is retired`.
