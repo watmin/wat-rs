@@ -478,6 +478,22 @@ on identical input; 1489 files; each tool ONE process):
   processes, each paying a startup (≈0.45 s each on average; the loop's own xtrace lines land in its
   `$LOG`, so only the loop's total is measured). Twice per commit (the C^ set, the C set).
 
+## Finding 16 — main's `:wat::*` blanket kill surfaces LATENT branch defects in the replay
+
+Batch 1 stopped at its first step, #11 (`eebf75374`): the converted `rete-differential.wat` calls
+`:wat::core::edn::to-string`, and main refuses it at startup (`UnresolvedReferences`).
+- The name **never existed** on either side (whole-tree search at `de827fb4c` and `eebf75374`: only the
+  call site itself). It resolved on grok-rete because the resolver returned true for any reserved-prefix
+  head; main's `c3fefc5ab` (2026-09-09) made resolution registry-only. The call sits on the fuzzer's
+  MISMATCH branch, which never ran — the branch's own test passed there.
+- So this is neither a chain miss (no migration renamed anything) nor a rete change: it is a defect the
+  branch carried silently, which a wall main added after the split makes visible. It will recur wherever
+  grok-rete calls an unregistered `:wat::*` verb.
+- Grok-rete's author fixed this one at #19 `a39c28e10`, with text that uses bindings #11 lacks.
+- Routed: `BRIEF-4-ADDENDUM-latent-defects.md` (RULED 4 YES) — re-express the one call head with main's
+  registered verb of the same meaning (`:wat::edn::write`), log it `LATENT (c3fefc5ab)`, let the author's
+  later fix win its conflict; STOP-7 when no registered verb has the meaning.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
