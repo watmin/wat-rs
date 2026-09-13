@@ -34,7 +34,7 @@ keeps the reference affordable.
 This is the judgement the design rests on. Each row is a thing `clojure.spec` / `test.check` must
 carry that wat can skip, and the reason is wat's type system and reflection.
 
-### 1. No `clojure.spec` layer at all — **the types ARE the spec**
+### 1. No `clojure.spec` layer at all — but NOT for the reason first assumed
 
 Clojure needs a separate shape-description language because it is dynamically typed, and spec's
 chronic failure mode is the spec drifting away from the code it describes. wat's `defrecord`
@@ -45,9 +45,28 @@ already declares field types, and they are readable at runtime. Verified 2026-08
 (:wat::runtime::field-types-of :user::Point)  ->  [wat.type/i64 wat.type/i64 wat.type/String]
 ```
 
-So a generator can be **derived from the type itself**. There is no second artifact, so there is
-nothing to keep in sync. This is the single biggest reduction against the Clojure design, and it
-is why `gen-of-type` (below) is the highest-value item on the list rather than a nicety.
+The obvious conclusion was: derive the generator from the type, `s/gen`-style, and call it
+`gen-of-type`. It was written down as the **highest-value open item**. Building it produced two
+findings, and the second is the one that matters.
+
+**(a) It is not expressible.** wat's reflection is READ-ONLY at runtime. `field-names-of` and
+`field-types-of` inspect a declared type, but there is no matching runtime CONSTRUCTION from a
+type value — `kwargs-construct` requires a LITERAL type keyword, resolved at type-check time. And
+macro-time reflection cannot bridge it: macros expand *before* user types are registered, so
+`field-types-of` inside a macro reports `unknown type ':user::Point'`. Verified both ways
+2026-08-25. **That is a genuine substrate gap: reflection reads shapes but cannot build them.**
+
+**(b) It would not be worth much anyway.** `field-types-of` yields `wat.type/i64` — a type,
+carrying **no bounds**. A finite generator is nothing *but* bounds. Deriving one from `i64` would
+have to invent a range, which is precisely the decision the author must make. `spec`'s auto-gen
+earns its keep in a language with no types to lean on; here the types are already known, and what
+is missing is the interesting SUBSET — which no amount of reflection knows.
+
+So the answer is `gen-record` (below): field generators given explicitly, and the emitted
+constructor call is **ordinary checked wat**. The checker performs exactly the verification
+reflection would have, at compile time. Proven: three generators for a two-field record is an
+`ArityMismatch`; a `String` generator for an `i64` field is `expects :wat::core::i64; got
+:wat::core::String`.
 
 ### 2. No retry-based `such-that` — filtering is EXACT
 
@@ -110,8 +129,10 @@ under-count.** One fewer thing to build, found by trying to build it.
 | `gen-elements vs` | pick from a value vector |
 | `gen-such-that pred g` | exact filter — survivors ARE the new generator |
 | `gen-one-of gs` | sum of cardinalities, range dispatch |
+| `gen-record T g...` | **macro** — product of field generators, emitting a checked prime constructor |
+| `gen-nth c i` | read one digit of a coordinate |
 
-**Eight laws**, 272 points, proven by `wat-scripts/fuzz/gen-selftest.wat`, driven through `gen-check` itself, gated by
+**Nine laws**, 278 points, proven by `wat-scripts/fuzz/gen-selftest.wat`, driven through `gen-check` itself, gated by
 `tests/lint/gen_lib_laws.rs`. L4 (the bijection) is load-bearing: without it, enumeration can
 visit tuples twice and miss others while reporting a clean case count.
 
@@ -126,12 +147,17 @@ visit tuples twice and miss others while reporting a clean case count.
 - **`gen-one-of [g...]`** — `card` is the SUM, `at` dispatches by range, branches occupy
   contiguous index blocks so a coordinate still localizes a failure. Law L8.
 
+- **`gen-record T g...`** — the macro above. Law L9, mutation-proven by reversing the field
+  wiring (4 violations). Two lessons the substrate taught while building it: a literal
+  binder in a macro template is REFUSED (hygiene bound gate E, arc 249) and must come from
+  `fresh-symbol`; and bare-positional construction is retired, so the emitted constructor is the
+  PRIME name (`:user::Point'`), built the same way `kwargs-lower` builds it.
+- ~~`gen-of-type T`~~ — **NOT BUILT, deliberately.** See §1: not expressible (reflection is
+  read-only; macros run before user types register), and not valuable (types carry no bounds).
+
 ### Open, ordered
 
-1. **`gen-of-type T`** — derive a generator from a declared record type via `field-types-of`.
-   This is the item that makes the library generic across the whole language rather than
-   per-target, and it is the one wat can have and Clojure cannot.
-2. **sampling driver** — for spaces past enumeration; still index-addressed, never seeded.
+1. **sampling driver** — for spaces past enumeration; still index-addressed, never seeded.
 3. **shrinking** — coordinate descent. Unnecessary while spaces enumerate (reading failures in
    coordinate order already hands you the minimal case), essential once they do not.
 4. **bounded collections** — `gen-vector g n`.
