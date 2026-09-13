@@ -247,6 +247,37 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
   wraps only integers. It is legal under the param-spec wall (the Vector head is mandatory-typed), and
   the test's subject is the `& items` rest binder. It is a narrowing, recorded for the builder.
 
+## Finding 9 — why the eval-based codemods are slow: two full-world freezes per QUESTION
+
+- **Measured** (`bootstrap/era/probe-P/pc-count.wat`: today's positional-ctor plus a counter in
+  `try-type-of`):
+
+  | input | time | `try-type-of` calls | per call |
+  |---|---|---|---|
+  | `tests/services/probe_arc278_sift_rules.wat` | 57.9 s | 125 | ~0.46 s |
+  | `tests/types/enums_tagged_variant.wat` (small) | 17.6 s | 38 | ~0.46 s |
+  | a no-op program (startup alone) | 0.26 s | — | — |
+
+- **The mechanism** (read). `eval-with-defs!` → `eval_form_against_defs` (`src/runtime.rs:12360`),
+  whose `freeze_forms` runs `startup_from_forms(_with_session)`, the WHOLE pipeline, stdlib included.
+  It runs it TWICE per call: once for a BASELINE (`freeze_forms(defs.clone())`, to measure the
+  session's residue length), and once with the form. That is REPL machinery (session TCO, residue
+  diffing), paid by a codemod asking one question.
+- **Waste 1: stdlib questions.** positional-ctor's pass 1 resolves every corpus-invariant path
+  against stdlib, one `eval-with-defs!` each: 1,504 in v2, about 11.5 of its 64 minutes. The running
+  program can answer them directly: `:wat::runtime::type-of` takes a computed keyword (its doc,
+  `src/reflect/verbs.rs:1489`), guarded by `:wat::runtime::is-type?`.
+- **Waste 2: one freeze per PATH.** A file's declarations do not change between its paths, yet each
+  path is a new freeze (two). positional-ctor's fallback chain retries up to four times on a poisoned
+  file; the ladder adds one more rung.
+- **What it costs the replay.** `convert.sh` runs the chain per file per replayed commit. The
+  pilot measured 29 s per probe and 51 s for `cache.wat`, positional-ctor dominating. That is a large
+  share of the ~16.5 h estimate for the remaining 641 commits.
+- **The shape that removes it.** The shared door (ruling 3) answers stdlib paths in the running
+  world, and asks all of one program's questions in ONE freeze per rung. Whether a lighter substrate
+  door exists (freeze once, no baseline) is NOT yet known; `eval-ast!` refuses `defenum`, per
+  match-arm's own header.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
