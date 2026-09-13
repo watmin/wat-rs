@@ -1,0 +1,6 @@
+# ORACLE for to-faithful-clojure-net — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec (wat.core/defn u/hit [x :- wat.type/i64] :- wat.type/nil :: G1 keyword?
+spec   (wat.core/if x :: G1 keyword?
+spec     wat.type/Tuple(i64) :: G1 keyword?

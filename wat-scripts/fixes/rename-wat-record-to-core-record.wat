@@ -1,18 +1,18 @@
 ;; wat-scripts/fixes/rename-wat-record-to-core-record.wat — arc 293 holder-vocab move,
-;; SCOPE: corpus
 ;; run over real wat source files IN WAT, through the wat CLI. The migration tool,
 ;; self-hosted: no Rust harness, no hand-edit of wat source (use-the-tool, not hand-fix).
 ;;
 ;; Gives the record holder-root its honest `:wat::core::` prefix — sibling of
-;; `:wat::core::Struct` (minted in 293 decl-a). The old `:wat::core::Record` symbol ceases to exist:
+;; `:wat::core::Struct` (minted in 293 decl-a). The old `:wat::Record` symbol ceases to exist:
 ;;   :wat::Record            -> :wat::core::Record
 ;;   :wat::Record::of        -> :wat::core::Record::of        (of-func ctor — shares the prefix)
 ;;   :wat::Record/field-at   -> :wat::core::Record/field-at   (accessor primitive — shares the prefix)
 ;;
-;; ONE full-name PREFIX rename. The prefix `:wat::core::Record` IS the full name, which still catches the
+;; ONE full-name PREFIX rename. The prefix `:wat::Record` IS the full name, which still catches the
 ;; `::of` and `/field-at` suffixes that share it — and CANNOT touch `:wat::holon::Record` (a different
-;; prefix: `:wat::holon::Record` does not start with `:wat::core::Record`).
+;; prefix: `:wat::holon::Record` does not start with `:wat::Record`).
 ;;
+;; SCOPE: corpus
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["wat/rete.wat" "wat/spawn.wat" ...]\n' | cargo wat ./wat-scripts/fixes/rename-wat-record-to-core-record.wat
 ;;

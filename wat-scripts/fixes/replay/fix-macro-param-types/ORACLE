@@ -1,0 +1,4 @@
+# ORACLE for fix-macro-param-types — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec (:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::WatAST :: read-file → :wat::fix::fix-macro-param-types → write-file

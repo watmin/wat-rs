@@ -1,0 +1,3 @@
+# ORACLE for bare-none-keyword-to-fqdn — HISTORY or header spec, never the tool.
+
+spec     (:wat::core::None 0) :: `:None` ONLY

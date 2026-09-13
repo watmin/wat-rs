@@ -1,4 +1,4 @@
 ; near-miss: already $oracle stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil :wat::rete::fire-rules$oracle)
-(:wat::core::defn :u::a [] -> :wat::core::nil :wat::rete::fire-rules-spec)
-(:wat::core::defn :u::b [] -> :wat::core::nil :wat::rete::insert-spec)
+(:wat::core::defn :nia::seed-native [] -> :wat::rete::Session
+  (:wat::rete::insert-all' (:nia::base) (:nia::the-facts)))

@@ -1,0 +1,4 @@
+# ORACLE for service-locus-to-user-rendezvous — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec (:wat::core::defn :u::hit [] -> :wat::core::nil :user::spawn::service-locus) :: :wat::spawn::service-locus  ->  :user::spawn::service-locus

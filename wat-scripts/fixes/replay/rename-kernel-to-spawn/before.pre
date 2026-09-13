@@ -1,5 +1,3 @@
 ; near-miss: other kernel heads stay
 (:wat::core::defn :u::keep [] -> :wat::core::nil (:wat::kernel::println "x"))
-(:wat::core::defn :u::a [] -> :wat::core::nil :wat::kernel::ServiceEvent)
-(:wat::core::defn :u::b [] -> :wat::core::nil :wat::kernel::Spawned)
-(:wat::core::defn :u::c [] -> :wat::core::nil :wat::kernel::Bound)
+(:wat::core::derive :wat::kernel::Thread'  :wat::kernel::Spawned)

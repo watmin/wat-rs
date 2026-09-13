@@ -1,3 +1,4 @@
 ; near-miss: already :wat-tests::test stays
-(:wat::core::defn :u::keep [] -> :wat::core::nil :wat-tests::test)
-(:wat::core::defn :u::hit [] -> :wat::core::nil :wat-tests::std::test)
+(:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-i64
+  
+  (:wat::test::assert-eq 42 42))

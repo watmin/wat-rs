@@ -1,3 +1,11 @@
 ; near-miss: spawn-peer already-home stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil :wat::test::spawn-peer)
-(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::kernel::spawn-program)
+(:wat::core::defn :my::compute-noop [] -> :wat::core::String
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
+    (:wat::core::match (:wat::kernel::recv p)
+      ((:wat::kernel::RecvOutcome::Message _m) "message")
+      ((:wat::kernel::RecvOutcome::Lost _cause) "lost")
+      (:wat::kernel::RecvOutcome::Closed "closed"))))

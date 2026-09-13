@@ -1,0 +1,8 @@
+# ORACLE for type-query-to-defquery — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec (:wat::rete::defquery :u::q-T :: query-by-type-string
+spec   :params [] :: query-by-type-string
+spec   :when [(:u::T)]) :: query-by-type-string
+spec   (:wat::rete::compile-all s (:wat::core::PersistentVector (:u::q-T))) :: query-by-type-string
+spec   (:wat::rete::query s (:u::q-T))) :: query-by-type-string

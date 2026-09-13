@@ -2,6 +2,6 @@
 (:wat::rete::defrule :u::keep
   :when [(:u::A (?x <- :x))]
   :then [(:u::B ?x)])
-(:wat::rete::defrule :u::hit
-  :when [(:u::A (?x <- :x))]
-  :then (:wat::rete::insert (:u::B ?x)))
+(:wat::rete::defrule :c::r1
+  :when [(:c::A (?k <- :k))]
+  :then (:wat::rete::insert (:c::B ?k)))

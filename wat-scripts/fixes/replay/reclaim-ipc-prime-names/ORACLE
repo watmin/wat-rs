@@ -1,0 +1,5 @@
+# ORACLE for reclaim-ipc-prime-names — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec (:wat::core::defn :u::hit [] -> :wat::core::nil :wat::kernel::send) :: the IPC/kernel primes reclaim
+spec (:wat::core::defn :u::hit2 [] -> :wat::core::nil :wat::kernel::recv) :: the IPC/kernel primes reclaim

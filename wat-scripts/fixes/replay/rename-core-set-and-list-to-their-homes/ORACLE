@@ -1,0 +1,3 @@
+# ORACLE for rename-core-set-and-list-to-their-homes — HISTORY or header spec, never the tool.
+
+history 9dd54e58a tests/collection/probe_verify_hashset_of_vector_gap.wat tests/collection/list.wat wat-scripts/scratch-pad/probe-brief-get-is-total-by-fallback.wat

@@ -1,4 +1,17 @@
 ; near-miss: Hologram/get stays; already-unprimed find stays
-(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::holon::Hologram/get)
-(:wat::core::defn :u::keep2 [] -> :wat::core::nil :wat::holon::Hologram/find)
-(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::holon::Hologram/find)
+(:wat::test::deftest :wat-tests::cache::HolographicLru::test-find-returns-match-record
+  (:wat::core::let
+    [store (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 10)
+     k (:wat::holon::Thermometer 50.0 0.0 100.0)
+     v (:wat::holon::leaf :answer-for-fifty)
+     _ (:wat::cache::HolographicLru::put store k v)
+     probe (:wat::holon::Thermometer 50.01 0.0 100.0)
+     hologram (:wat::cache::HolographicLru/hologram store)]
+    (:wat::core::match (:wat::holon::Hologram/find hologram probe)
+      ((:wat::core::Some m)
+        (:wat::core::let
+          [matched-key (:wat::holon::Match/key m)
+           matched-val (:wat::holon::Match/value m)]
+          (:wat::test::assert-eq matched-key k)
+          (:wat::test::assert-eq matched-val v)))
+      (:wat::core::None (:wat::test::assert-eq :expected-a-match :got-none)))))

@@ -1,0 +1,4 @@
+# ORACLE for unwrap-recvoutcome-false-positive — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec   (:wat::core::match x ((:u::AdminResp::Ok v) v) :: RECOVERY: reverse a false-positive

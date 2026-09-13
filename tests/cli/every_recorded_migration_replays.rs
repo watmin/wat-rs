@@ -3,9 +3,10 @@
 //! `;; SCOPE:` line. Nothing is exempt by silence.
 //!
 //! A fixture is `wat-scripts/fixes/replay/<stem>/{before.pre,after.post}` (optional
-//! `stdin`). The oracle is HISTORY or the codemod's header spec — never the
-//! tool under test. The gate asserts byte-exact output, idempotence, and
-//! non-vacuity against that oracle.
+//! `stdin`) plus `ORACLE` (provenance: `history <commit> <path>…` and/or
+//! `spec <after-line> :: <header-quote>`). The oracle is HISTORY or the
+//! codemod's header spec — never the tool under test. The gate asserts
+//! byte-exact output, idempotence, non-vacuity, and that provenance.
 //!
 //! `.pre`/`.post` stay out of `wat_scripts_fixes_load.rs` (walks `*.wat`) and
 //! `every_tracked_wat_parses.rs` (`git ls-files '*.wat'`).
@@ -138,6 +139,186 @@ fn scope_globs_hit_a_tracked_file(stem: &str, entries: &[String]) -> Result<(), 
         }
     }
     Ok(())
+}
+
+fn ws_norm(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn git_show(rev_path: &str) -> String {
+    let out = Command::new("git")
+        .args(["-C", manifest().to_str().unwrap(), "show", rev_path])
+        .output()
+        .unwrap_or_else(|e| panic!("git show {rev_path}: {e}"));
+    if !out.status.success() {
+        return String::new();
+    }
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+/// Lines that appear in `a` but not in `b`, whitespace-normalized (multiset).
+fn lines_only_in(a: &str, b: &str) -> Vec<String> {
+    let mut b_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for line in b.lines() {
+        *b_counts.entry(ws_norm(line)).or_insert(0) += 1;
+    }
+    let mut out = Vec::new();
+    for line in a.lines() {
+        let n = ws_norm(line);
+        if n.is_empty() {
+            continue;
+        }
+        match b_counts.get_mut(&n) {
+            Some(c) if *c > 0 => *c -= 1,
+            _ => out.push(line.to_string()),
+        }
+    }
+    out
+}
+
+struct OracleFile {
+    history: Vec<(String, Vec<String>)>,
+    specs: Vec<(String, String)>,
+}
+
+fn parse_oracle(stem: &str, text: &str) -> Result<OracleFile, String> {
+    let mut history = Vec::new();
+    let mut specs = Vec::new();
+    for (i, raw) in text.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("history ") {
+            let mut bits = rest.split_whitespace();
+            let Some(commit) = bits.next() else {
+                return Err(format!("{stem}: ORACLE:{}: history missing commit", i + 1));
+            };
+            let paths: Vec<String> = bits.map(str::to_string).collect();
+            if paths.is_empty() {
+                return Err(format!("{stem}: ORACLE:{}: history missing path", i + 1));
+            }
+            history.push((commit.to_string(), paths));
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("spec ") {
+            let Some((after_line, quote)) = rest.split_once(" :: ") else {
+                return Err(format!(
+                    "{stem}: ORACLE:{}: spec missing ` :: ` separator",
+                    i + 1
+                ));
+            };
+            let after_line = after_line.trim();
+            let quote = quote.trim();
+            if after_line.is_empty() || quote.is_empty() {
+                return Err(format!("{stem}: ORACLE:{}: spec after-line or quote empty", i + 1));
+            }
+            specs.push((after_line.to_string(), quote.to_string()));
+            continue;
+        }
+        return Err(format!(
+            "{stem}: ORACLE:{}: unparseable (want `history` or `spec`)",
+            i + 1
+        ));
+    }
+    if history.is_empty() && specs.is_empty() {
+        return Err(format!("{stem}: ORACLE is empty"));
+    }
+    Ok(OracleFile { history, specs })
+}
+
+fn header_comment_blob(stem: &str) -> String {
+    let path = fixes_dir().join(format!("{stem}.wat"));
+    let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{stem}: read: {e}"));
+    let mut out = String::new();
+    for line in src.lines() {
+        let t = line.trim_start();
+        if t.starts_with(';') {
+            out.push_str(t);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+fn check_oracle(stem: &str) -> Result<(), Vec<String>> {
+    let mut violations = Vec::new();
+    let oracle_path = fixture_dir(stem).join("ORACLE");
+    let text = match fs::read_to_string(&oracle_path) {
+        Ok(t) => t,
+        Err(_) => {
+            return Err(vec![format!("{stem}: no ORACLE file")]);
+        }
+    };
+    let parsed = match parse_oracle(stem, &text) {
+        Ok(p) => p,
+        Err(e) => return Err(vec![e]),
+    };
+    let before = fs::read_to_string(fixture_dir(stem).join("before.pre"))
+        .unwrap_or_else(|e| panic!("{stem}: read before.pre: {e}"));
+    let after = fs::read_to_string(fixture_dir(stem).join("after.post"))
+        .unwrap_or_else(|e| panic!("{stem}: read after.post: {e}"));
+    let changed_after = lines_only_in(&after, &before);
+    let changed_before = lines_only_in(&before, &after);
+
+    let mut hist_after = String::new();
+    let mut hist_before = String::new();
+    for (commit, paths) in &parsed.history {
+        for path in paths {
+            hist_after.push_str(&git_show(&format!("{commit}:{path}")));
+            hist_after.push('\n');
+            hist_before.push_str(&git_show(&format!("{commit}^:{path}")));
+            hist_before.push('\n');
+        }
+    }
+    let hist_after_n = ws_norm(&hist_after);
+    let hist_before_n = ws_norm(&hist_before);
+    let header = header_comment_blob(stem);
+    let header_n = ws_norm(&header);
+
+    let mut spec_unused: std::collections::HashSet<String> =
+        parsed.specs.iter().map(|(a, _)| ws_norm(a)).collect();
+
+    for line in &changed_after {
+        let n = ws_norm(line);
+        if !hist_after_n.is_empty() && hist_after_n.contains(&n) {
+            continue;
+        }
+        if let Some((spec_line, quote)) = parsed
+            .specs
+            .iter()
+            .find(|(a, _)| ws_norm(a) == n)
+        {
+            spec_unused.remove(&ws_norm(spec_line));
+            if !header.contains(quote) && !header_n.contains(&ws_norm(quote)) {
+                violations.push(format!(
+                    "{stem}: spec quote not in header: {quote}"
+                ));
+            }
+            continue;
+        }
+        violations.push(format!(
+            "{stem}: changed after.post line not in history and not a spec entry: {line}"
+        ));
+    }
+    if !parsed.history.is_empty() && parsed.specs.is_empty() {
+        // Mixed history+spec: spec-only cases are synthetic (slash forms, 2a
+        // gaps) and their before lines are not in the history parent — that's
+        // why they are spec. History-only fixtures still check every before.
+        for line in &changed_before {
+            let n = ws_norm(line);
+            if !hist_before_n.contains(&n) {
+                violations.push(format!(
+                    "{stem}: changed before.pre line not in history parent: {line}"
+                ));
+            }
+        }
+    }
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(violations)
+    }
 }
 
 fn fixture_stems() -> Vec<String> {
@@ -350,6 +531,11 @@ fn every_recorded_migration_is_fixtured_or_runed() {
             violations.push(format!(
                 "{stem}: in more than one category (fixture={fx} rune={rune_line})"
             ));
+        }
+        if fx {
+            if let Err(es) = check_oracle(stem) {
+                violations.extend(es);
+            }
         }
         let lines = scope_lines(stem);
         if lines.len() != 1 {

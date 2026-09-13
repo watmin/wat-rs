@@ -1,0 +1,4 @@
+# ORACLE for eprintln-recv-arm-to-assertion-failed — HISTORY or header spec, never the tool.
+
+history 1212c9ae6 tests/kernel/probe_arc214_alpha_crash_autoraise.wat
+spec   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) :: (:wat::kernel::assertion-failed! ARG :wat::core::None :wat::core::None)

@@ -1,3 +1,6 @@
 ; near-miss: already self-peer stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil :wat::program::self-peer)
-(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::kernel::peer-pair')
+(:wat::core::defn :w2c::probe-impure-wire-peer [] -> :wat::core::nil
+  (:wat::core::let
+    [_pair (:wat::kernel::peer-pair' :w2c::S :wat::core::i64)]
+    nil))

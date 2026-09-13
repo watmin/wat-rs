@@ -43,19 +43,6 @@
 ;; arc 282: carries `name` too — the arrow's OWN text ("<-" or "->"), the old-text claim.
 (:wat::core::defrecord :fix::ArrowConv [offset <- :wat::core::i64  len <- :wat::core::i64  name <- :wat::core::String])
 
-;; ══ PURE STRING PREDICATES (used in :where guards) ══════════════════════════
-(:wat::core::defn :fix::has-ns? [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::string::contains? name "::"))
-
-(:wat::core::defn :fix::type-shaped? [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:wat::core::if (:wat::string::contains? name "<")
-                    (:wat::string::contains? name ">")
-                    false)
-    true
-    (:wat::core::if (:wat::string::contains? name "(")
-      (:wat::string::contains? name ")")
-      false)))
-
 ;; ══ LAYER 1 · TOKEN TYPING ══════════════════════════════════════════════════
 ;; G1 keyword?
 (:wat::rete::defrule :fix::g1-keyword

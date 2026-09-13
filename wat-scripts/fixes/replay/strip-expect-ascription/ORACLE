@@ -1,0 +1,3 @@
+# ORACLE for strip-expect-ascription — HISTORY or header spec, never the tool.
+
+history 2263e3897 wat-tests/core/expect-no-ascription.wat wat-tests/core/result-expect.wat

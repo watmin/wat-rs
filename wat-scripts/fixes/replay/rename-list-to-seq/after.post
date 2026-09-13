@@ -1,3 +1,13 @@
 ; near-miss: :wat::seq already-home stays
-(:wat::core::defn :u::keep [] -> :wat::core::nil (:wat::seq::first [1]))
-(:wat::core::defn :u::hit [] -> :wat::core::nil (:wat::seq::first [1]))
+(:wat::test::deftest :wat-tests::core::list-fold-aliases::reduce-sum-i64
+  ()
+  (:wat::core::let
+    [xs (:wat::core::Vector :wat::core::i64 1 2 3 4)
+     result
+      (:wat::seq::reduce
+        (:wat::core::fn [acc <- :wat::core::i64
+                         n   <- :wat::core::i64] -> :wat::core::i64
+          (:wat::core::i64::+ acc n))
+        0
+        xs)]
+    (:wat::test::assert-eq result 10)))

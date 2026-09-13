@@ -1,0 +1,3 @@
+# ORACLE for rename-math-stat-seq-to-their-homes — HISTORY or header spec, never the tool.
+
+history 29f350365 tests/collection/probe_collection_transform_ops.wat tests/kernel/wat_math_sqrt.wat tests/kernel/wat_stat.wat

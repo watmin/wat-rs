@@ -1,0 +1,5 @@
+# ORACLE for rename-record-def-to-defrecord — HISTORY or header spec, never the tool.
+
+# spec: today's tool rewrites :wat::core::Record::def (the landing form :wat::Record::def is gone; the migrate prefix was itself migrated).
+spec (:wat::core::defrecord :u::R :x :wat::core::i64) :: :wat::core::Record::def         ->  :wat::core::defrecord
+spec (:wat::holon::defrecord :u::H :x :wat::core::i64) :: :wat::core::Record::def         ->  :wat::core::defrecord

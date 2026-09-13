@@ -1,0 +1,7 @@
+# ORACLE for bare-variant-to-qualified — HISTORY or header spec, never the tool.
+
+spec   (:wat::core::Option::None)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec   (:wat::core::Result::Ok 1)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec   (:wat::core::Result::Err 1)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec   (:wat::core::Option::None)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec   (:wat::core::Option::Some 1)) :: :wat::core::Some  ->  :wat::core::Option::Some

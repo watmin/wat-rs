@@ -1,3 +1,15 @@
 ; near-miss: binder ctx stays (header: user-facing binder is not renamed)
 (:wat::core::defn :u::keep [ctx <- :wat::core::i64] -> :wat::core::i64 ctx)
-(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::service::CallCtx)
+(:wat::service::defservice :probe::callctx3svc
+  :satisfies :probe::CallCtx3
+  :durable   []
+  :ephemeral []
+  :impls
+  [(whoami [s ctx req]
+     (:wat::service::Outcome::Reply s
+       (:probe::CallCtx3::WhoamiResponse::Ok
+         (:wat::service::CallCtx/caller-id ctx)
+         (:wat::service::CallCtx/namespace ctx)
+         (:wat::service::CallCtx/operation ctx))))
+   (ping [s req]
+     (:wat::service::Outcome::Reply s (:probe::CallCtx3::PingResponse::Ok true)))])

@@ -1,4 +1,14 @@
 ; near-miss: already-LociDiedError stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil :wat::kernel::LociDiedError)
-(:wat::core::defn :u::a [] -> :wat::core::nil :wat::kernel::LociDiedError)
-(:wat::core::defn :u::b [] -> :wat::core::nil :wat::kernel::LociDiedError)
+(:wat::core::defn :my::compute-eval-in-outer [] -> :wat::core::i64
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println 42))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message m) m)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "compute-eval-in-outer: child closed before sending its value" :wat::core::None :wat::core::None)))))

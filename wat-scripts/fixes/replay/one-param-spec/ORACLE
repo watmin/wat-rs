@@ -1,0 +1,3 @@
+# ORACLE for one-param-spec — HISTORY or header spec, never the tool.
+
+history 919a551ce tests/types/ord_vec_i64_gt.wat tests/collection/probe_arc216_stone3_hashmap_roundtrip.wat wat-scripts/scratch-pad/arc109-tuple-bracket-reader.wat

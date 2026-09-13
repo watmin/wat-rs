@@ -1,3 +1,4 @@
 ; near-miss: user-data already-new stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil :user-data)
-(:wat::core::defn :u::hit [] -> :wat::core::nil :wat.started-at)
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println (:wat::program::Env/user.program (:wat::program::env))))

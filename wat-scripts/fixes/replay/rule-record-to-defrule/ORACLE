@@ -1,0 +1,8 @@
+# ORACLE for rule-record-to-defrule — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec (:wat::rete::defrule :arith :: from hand-built `Rule` records to `defrule`
+spec   :when :: from hand-built `Rule` records to `defrule`
+spec   [(:u::A ?x) (:wat::rete::where (:wat::rete::i64::= ?x 1))] :: from hand-built `Rule` records to `defrule`
+spec   :then :: from hand-built `Rule` records to `defrule`
+spec   (:u::B ?x)) :: from hand-built `Rule` records to `defrule`

@@ -1,5 +1,11 @@
 ; near-miss: already-deprimed stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil :wat::kernel::StdOut)
-(:wat::core::defn :u::a [] -> :wat::core::nil :wat::kernel::StdOut)
-(:wat::core::defn :u::b [] -> :wat::core::nil :wat::kernel::StdErr)
-(:wat::core::defn :u::c [] -> :wat::core::nil :wat::kernel::StdIn)
+(:wat::core::defsurface :wat::kernel::StdOut :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat::kernel::StdOut::WriteRequest [bytes <- :wat::core::String])
+   (:wat::core::defenum :wat::kernel::StdOut::WriteResponse :wat::enum::Pure
+     :Ok              []
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+  :features
+  [(write [self <- :wat::kernel::StdOut  req <- :wat::kernel::StdOut::WriteRequest]
+     -> :wat::kernel::StdOut::WriteResponse :max-request-bytes 524288)])

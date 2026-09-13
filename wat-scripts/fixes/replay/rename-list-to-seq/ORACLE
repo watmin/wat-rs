@@ -1,0 +1,4 @@
+# ORACLE for rename-list-to-seq — HISTORY or header spec, never the tool.
+# File was renamed list-fold-aliases.wat → seq-fold-aliases.wat in the same commit.
+
+history 5d16c933a wat-tests/core/list-fold-aliases.wat wat-tests/core/seq-fold-aliases.wat

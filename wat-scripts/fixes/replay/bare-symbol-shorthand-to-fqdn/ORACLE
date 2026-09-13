@@ -1,0 +1,4 @@
+# ORACLE for bare-symbol-shorthand-to-fqdn — HISTORY or header spec, never the tool.
+
+history e9ff4fee4 tests/cli/wat_cli__programs_are_atoms.wat
+spec     ((:wat::core::Some _) nil) :: (Some x)` -> `(:wat::core::Some x)

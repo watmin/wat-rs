@@ -1,0 +1,3 @@
+# ORACLE for rename-four-families-to-their-homes — HISTORY or header spec, never the tool.
+
+history ef8e8a3e4 wat-tests/core/core-nth.wat tests/cli/wat_grep__balanced.wat wat-tests/holon/char-round-trip.wat

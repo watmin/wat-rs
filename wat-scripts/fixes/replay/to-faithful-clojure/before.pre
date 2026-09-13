@@ -1,4 +1,9 @@
 ; near-miss: already-clojure symbol stays
-(wat.core/if true nil nil)
-(:wat::core::defn :u::f [] -> :wat::core::nil
-  (:wat::core::if true nil nil))
+(wat.core/identity 1)
+; near-miss: non-namespaced keyword is not a namespaced head
+(:keep 1)
+; near-miss comment must stay: :wat::core::defn
+(:wat::core::defn :u::hit [x <- :wat::core::i64] -> :wat::core::nil
+  (:wat::core::if x
+    :wat::core::Tuple(i64)
+    nil))

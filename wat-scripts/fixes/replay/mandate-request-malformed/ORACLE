@@ -1,0 +1,4 @@
+# ORACLE for mandate-request-malformed — HISTORY or header spec, never the tool.
+
+history b9d61bd67 tests/macros/probe_arc265_acronym_registry_svc.wat
+spec      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])] :: (:wat::core::Vector :- [:wat::core::String])

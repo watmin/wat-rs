@@ -1,2 +1,9 @@
-(wat.core/defn u/f [] :- wat.type/nil
-  (wat.core/if true nil nil))
+; near-miss: already-clojure symbol stays (not a keyword — head-keyword->conv does not fire)
+(wat.core/identity 1)
+; near-miss: non-namespaced keyword is not HeadConv
+(:keep 1)
+; near-miss comment must stay: :wat::core::defn
+(wat.core/defn u/hit [x :- wat.type/i64] :- wat.type/nil
+  (wat.core/if x
+    wat.type/Tuple(i64)
+    nil))

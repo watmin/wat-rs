@@ -1,0 +1,3 @@
+# ORACLE for node-kind-string-to-enum — HISTORY or header spec, never the tool.
+
+history 445309d5d wat-scripts/fmt/rules/kwargs.wat wat-scripts/fmt/fixtures/kw-table.wat wat-scripts/fmt/fixtures/pair-table.wat wat-scripts/fmt/rules/atoms.wat

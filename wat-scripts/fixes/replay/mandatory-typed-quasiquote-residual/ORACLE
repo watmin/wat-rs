@@ -1,0 +1,3 @@
+# ORACLE for mandatory-typed-quasiquote-residual — HISTORY or header spec, never the tool.
+
+spec   `(:wat::core::Vector :- [~ty])) :: `(:wat::core::Vector ~ty)`

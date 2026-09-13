@@ -1,0 +1,4 @@
+# ORACLE for strip-match-ascription — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec   (:wat::core::match x   (n n) (_ 0))) :: `match` drops its `-> :T` result ascription

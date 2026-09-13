@@ -1,0 +1,6 @@
+# ORACLE for to-faithful-clojure-rete — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec (wat.core/defn u/hit [x :- wat.type/i64] :- wat.type/nil :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))
+spec   (wat.core/if x :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))
+spec     wat.type/Tuple(i64) :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))

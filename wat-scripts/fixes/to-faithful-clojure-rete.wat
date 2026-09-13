@@ -52,21 +52,6 @@
    len    <- :wat::core::i64
    name   <- :wat::core::String])
 
-;; ── pure string predicates (used in :where guards) ──────────────────────────
-(:wat::core::defn :fix::head-keyword-str?
-  [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::string::contains? name "::"))
-
-(:wat::core::defn :fix::type-shaped-keyword-str?
-  [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:wat::core::if (:wat::string::contains? name "<")
-                    (:wat::string::contains? name ">")
-                    false)
-    true
-    (:wat::core::if (:wat::string::contains? name "(")
-      (:wat::string::contains? name ")")
-      false)))
-
 ;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────
 (:wat::rete::defrule :fix::head-keyword->conv
   :when

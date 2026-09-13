@@ -1,0 +1,4 @@
+# ORACLE for sweep-lint-fixes — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec   (:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] 1 2 3) x)) :: nested-if-=-ladder

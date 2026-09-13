@@ -1,0 +1,3 @@
+# ORACLE for strip-useless-mains — HISTORY or header spec, never the tool.
+
+history 4de048acc tests/function/probe_closure_body_prelude_lift_t1.wat

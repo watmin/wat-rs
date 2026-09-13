@@ -1,3 +1,6 @@
 ; near-miss: already :wat::source::File stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil :wat::source::File)
-(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::deporder::SourceFile)
+(:wat::core::defn :wat::lint::lint-fix-file
+  [sf <- :wat::deporder::SourceFile]
+  -> :wat::core::String
+  (:wat::lint::apply-fixes sf (:wat::lint::lint-file sf)))

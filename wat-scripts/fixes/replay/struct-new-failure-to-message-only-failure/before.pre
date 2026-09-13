@@ -1,6 +1,11 @@
 ; near-miss: struct-new of a non-Failure stays
 (:wat::core::defn :u::keep [] -> :wat::core::nil
   (:wat::core::struct-new :wat::kernel::Frame 1))
-(:wat::core::defn :u::hit [msg <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::struct-new :wat::kernel::Failure msg :wat::core::None
-     (:wat::core::Vector :- [:wat::kernel::Frame]) :wat::core::None :wat::core::None))
+(:wat::core::defn :wat::kernel::failure-from-startup [err <- :wat::kernel::StartupError] -> :wat::kernel::Failure
+  (:wat::core::struct-new :wat::kernel::Failure
+      (:wat::core::string::concat
+        "startup: " (:wat::kernel::StartupError/message err))
+      :wat::core::None
+      (:wat::core::Vector :wat::kernel::Frame)
+      :wat::core::None
+      :wat::core::None))

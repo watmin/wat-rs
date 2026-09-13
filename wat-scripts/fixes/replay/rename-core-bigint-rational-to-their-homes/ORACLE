@@ -1,0 +1,4 @@
+# ORACLE for rename-core-bigint-rational-to-their-homes — HISTORY or header spec, never the tool.
+
+history 1a3f6a703 wat-scripts/scratch-pad/255-stone-a-i-both-i64-spellings.wat
+spec   (:wat::rational::numerator x)) :: :wat::core::rational/numerator   -> :wat::rational::numerator

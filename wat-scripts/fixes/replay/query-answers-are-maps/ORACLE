@@ -1,0 +1,4 @@
+# ORACLE for query-answers-are-maps — HISTORY or header spec, never the tool.
+
+# spec: no readable history form this codemod alone changed (see SCORE).
+spec   :when [(?fact <- :u::T)]) :: Query returns binding maps
