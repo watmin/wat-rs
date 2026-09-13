@@ -278,6 +278,33 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
   door exists (freeze once, no baseline) is NOT yet known; `eval-ast!` refuses `defenum`, per
   match-arm's own header.
 
+## Finding 10 — the property we need does not demand the slowness: a MISSING DOOR
+
+- The eval-based codemods need three things from a question:
+  1. a program's declarations registered as the substrate registers them (macros, acronyms,
+     generated types);
+  2. ISOLATION: a scratch world, never the tool's own and never shared across files (finding 5 is
+     the cost of breaking this);
+  3. nothing else: no body check, no `main`, no REPL baseline.
+
+  `eval-with-defs!` is the only verb with (1) + (2). It pays for isolation with two cold starts, each
+  rebuilding stdlib from its forms (`src/freeze/env.rs:107`, no cache across startups) and checking
+  every body.
+- **Isolation does not need a cold start.** The environment types are `Clone`: `TypeEnv`
+  (`src/types.rs:547`), `SymbolTable` (`src/value/symbol_table.rs:32`), `MacroRegistry`
+  (`src/macros/registry.rs:54`). `build_env` registers stdlib BEFORE user forms at each step
+  (`register_stdlib_defmacros` then `register_defmacros(user)`; `register_stdlib_types` then
+  `register_types(user)`), so the stdlib half is identical every time. So: build it once per
+  process, clone it per program, register that program's declarations on the clone, read the types.
+  Isolation holds by construction; the cost scales with the program, not with stdlib.
+- **And no body is checked, so nothing can POISON it.** Finding 3's poison is a check-time error
+  (`unknown callee`, `check_program`, step 8), and types are registered at step 5. **The ladder
+  exists only because the one door we have checks bodies.**
+- Unknown until probed INSIDE the crate (`build_env` is `pub(crate)`, `src/freeze.rs:52`):
+  - whether registration alone survives an unmigrated body, or step 7 (`resolve_references`)
+    already trips on one;
+  - how cleanly each step's stdlib half separates from its user half.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
