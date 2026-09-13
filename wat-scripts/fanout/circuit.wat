@@ -3708,6 +3708,21 @@
        _ (:wat::kernel::println (:wat::core::first triple))]
       (:wat::kernel::println (:wat::core::third triple)))))
 
+;; Floor-harnessable siblings of `:user::chaos`. That entry PRINTS and returns
+;; `nil`, so a Rust caller has nothing to assert on. These return the PHASE
+;; line (`third` of `run-chaos*`) — that is where `disrupt-draws`/`-fires`/
+;; `disrupts` are printed (`circuit.wat` `:fanout::run-with` `phases=`).
+;; `:first` is the n=/distinct= completeness line; it does not carry the
+;; injector census. Rate 200 is the shipped gate; 10000 is every draw fires.
+;; n=50 not 2000: n=2000 at 200 bp is ~24 s isolated and TIMED OUT at 40 s
+;; under the floor (`.floor/2026-09-13T04-00-06Z/`). The hand-typed
+;; `:user::chaos` stays n=2000. The rate is unchanged.
+(:wat::core::defn :user::chaos-fires [] -> :wat::core::String
+  (:wat::core::third (:user::run-chaos* 50 2 2 200 42)))
+
+(:wat::core::defn :user::chaos-fires-always [] -> :wat::core::String
+  (:wat::core::third (:user::run-chaos* 50 2 2 10000 42)))
+
 (:wat::core::defn :user::drop-after [] -> :wat::core::nil
   (:wat::core::let [triple (:user::run-drop* 2000 4 3 0 200 42 true)]
     (:wat::core::let
