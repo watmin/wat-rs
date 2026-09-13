@@ -1027,8 +1027,10 @@
                             (:wat::core::ast->children node))
                           acc1)))
      impls-dialed-surfaces
-                    (collect-impls-dialed collect-impls-dialed ops
-                      (:wat::core::Vector :- [:wat::core::String]))
+                    (:wat::core::if (:wat::core::empty? addr-fields)
+                      (:wat::core::Vector :- [:wat::core::String])
+                      (collect-impls-dialed collect-impls-dialed ops
+                        (:wat::core::Vector :- [:wat::core::String])))
      _peers-impls-dialed
                     (:wat::core::foldl
                       (:wat::core::fn [ok <- :wat::core::bool  ds <- :wat::core::String]
