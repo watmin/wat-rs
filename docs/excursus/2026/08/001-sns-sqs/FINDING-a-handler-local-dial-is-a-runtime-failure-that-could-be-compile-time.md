@@ -9,6 +9,44 @@ acceptable..."*
 thread tier to get past it. That is patching the situation instead of reading the failure, in a session whose
 subject is crashes. What follows is the chase.
 
+## ⛔⛔ SECOND CORRECTION, SAME DAY — THERE IS NO SILENT CRASH. I WAS READING THE WRONG HANDLE.
+
+This file's title and its first two versions said *silently*, *"no cause"*, and *"worse than the crashes this
+campaign fixed."* **All three are wrong.** The substrate delivers a perfect diagnostic; I never read it.
+
+```
+the DIALED PEER   → CallOutcome::Lost  (LociDiedError::Disconnected [])
+the LINEAGE       → StopOutcome::Gone  (LociDiedError::RuntimeError
+                      ["#wat.runtime/UnknownFunction {:message \"unknown function: :mid::Mid/ping\"
+                        :location … line 66 col 44 … :path \":mid::Mid/ping\"}"])
+```
+
+★★ **`src/kernel/spawn.rs:181/:202` documents exactly this:** a spawned lineage HAS a crash channel and the
+child writes its reason to it; a **bare dialed `Peer` has none** and can only observe the wire dropping. My
+probe held both (`fh` the handle, `fp` the dialed peer) and **read only the peer** — so `Disconnected []` was
+*honest*, not impoverished.
+
+⭑ And the real cause names the mechanism I had only inferred: **`unknown function: :mid::Mid/ping`** — the
+child was forked without `Mid`'s surface forms, because `:peers` was not declared, so the generated client
+method does not exist in it.
+
+### What survives, and it is much smaller
+
+| my claim | verdict |
+|---|---|
+| *"kills the forked child"* | ✅ true |
+| *"no compile-time check"* | ✅ true — this is the whole remaining finding |
+| *"silently / exit 0 / no stderr"* | ⛔ **FALSE for the owner.** The reason is on the lineage channel with file:line:col. `exit 0` and empty stderr are the *parent's*, and the parent chose not to ask. |
+| *"`Disconnected []` can't tell four worlds apart"* | ⛔ **Misdirected.** It is a dialed peer's honest report; the owner's channel disambiguates. |
+| *"worse than the crashes this campaign fixed"* | ⛔ **FALSE.** Those lost the cause. This one keeps it. |
+
+⛔ **So "give `Disconnected` a cause" is the WRONG fix** — it is honest as it stands, and `LociDiedError`
+already carries `Panic(message, failure)` / `RuntimeError(message)` / `StartupError(message)` for the cases
+that *have* a cause. The enum is not impoverished; **my read was.**
+
+★ Third time today I discarded information that was already there — the `CallOutcome::Lost` cause, `first`
+vs `third` of a triple, and now the lineage's crash channel. [[feedback_cite_an_exemplar_do_not_describe_one]].
+
 ## The defect, in one sentence
 
 > **A `defservice` handler that `connect`s to a surface NOT declared in its `:peers` is refused by NO
