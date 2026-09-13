@@ -187,6 +187,34 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
   - Each message guards a different predicate. The honest fix drives each refusal with a probe and
     checks that following its remedy passes, one site at a time; it is not a text sweep.
 
+## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
+
+- A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
+  checked only when it STARTS. `--check` and `every_wat_scripts_file_loads` check the parent.
+- Two instances, both on main's binary (`bootstrap/era/probe-H/`):
+  - `wat-scripts/probes/arc-170/probe-m1-ann-erase.wat`: parent `--check` rc 0. Run: the child dies
+    at startup, `variant arm head :probe::CMsg::Setup is not namespaced` (`CMsg` is declared only in
+    the child, so it is off finding 7's census). The run still exits 0 and prints the failure as a
+    value. Its `EXPECT (green): "echo:z"` is false.
+  - `…/probe-m1-ann-erase2.wat` (finding 5): the child's `serve` signature still names
+    `:probe::CMsg` (line 47). erase2 is erase with `PMsg`/`CMsg` → `PoolMsg`, and that one site was
+    missed. Its two arms carry the leaked `{:deps}`/`{:pair}`; the parent's sends use the right
+    `{:addr}`/`{:s}`.
+- This is what hid finding 5, and it hides finding 7 in every child program. The fix is on the
+  extirpare ladder: a gate that checks every nested program literal, not a patch to two probes.
+- Size (a TEXT count of `(:wat::core::forms`, indicative only; the real census `--check`s each child):
+  164 occurrences in 105 of main's `.wat` files (18 `wat-scripts/probes`, 11 `tests/services`, 9
+  `tests/comms`, …). grok-rete modifies or adds 13 of them.
+
+## `convert.sh` does not run `one-param-spec` the way this check did
+
+`scripts/replay/convert.sh` gives `one-param-spec` the converted file as its WHOLE context
+(`printf '["%s"]\n["%s"]\n' "$WORK" "$WORK"`). `run.sh` gave it every file in scope. The tool learns
+user-type arity from its context by design ("a type declared in file A resolves for a call site in
+file B", its header), so at replay time a grok file using a parametric type declared in ANOTHER file
+is left unconverted. Main's param-spec wall then refuses it (STOP-2, loud). The composition result
+therefore does not describe `convert.sh` for this step.
+
 ## grok-rete `.wat` files OUTSIDE the 1489 checked here (11 of its 194 modified)
 
 - 3 that main DELETED (`c5f1ee487` WALL(278); `a3f24a5c3`): the two `130-…/complected-2026-05-02/{substrate,test}.wat`,
