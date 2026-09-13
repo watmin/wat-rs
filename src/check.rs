@@ -23653,18 +23653,17 @@ pub(crate) mod tests {
     /// not. Stdlib expansion must not reach the verb: `stdlib_snapshot`'s
     /// OnceLock initializer is `build_env`, which expands stdlib.
     ///
-    /// A call inside a `defn`/`defmacro` body is not load-time: it runs
-    /// later (2a2's `:wat::fix::enum-fields` is the door, after the snapshot
-    /// exists). Recursing into those bodies is the wrong deadlock predicate.
+    /// A call inside a `defn` body is not load-time: it runs later (2a2's
+    /// `:wat::fix::enum-fields` is the door, after the snapshot exists).
+    /// A `defmacro` body runs during stdlib expansion (`build_env`) — the
+    /// re-entry this walk exists for — so it is still searched.
     fn form_calls_declared_types(form: &WatAST) -> bool {
         if let WatAST::List(items, _) = form {
             if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
                 if head.as_ref() == ":wat::runtime::declared-types" {
                     return true;
                 }
-                if head.as_ref() == ":wat::core::defn"
-                    || head.as_ref() == ":wat::core::defmacro"
-                {
+                if head.as_ref() == ":wat::core::defn" {
                     return false;
                 }
             }

@@ -7,11 +7,13 @@
 ;;   ( :Enum::Unit body)            ->  [:Enum::Unit {} body]
 ;;   (_ body) / (x body) / ({v :f} body)  ->  delimiter flip only
 ;;
-;; Field names come from `:wat::fix::enum-fields` (declared-types on this file's
-;; top-level forms, then is-type?/type-of for stdlib candidates). A tagged arm
-;; whose fields cannot be resolved is REPORTED, never guessed. A site whose type
-;; is declared only inside a nested `(:wat::core::forms …)` program is REPORTED
-;; (`UNRESOLVED nested-program <path>:<line>`).
+;; Field names come from `:wat::fix::enum-fields` (declared-types on this
+;; program's forms, then is-type?/type-of for stdlib candidates). A tagged
+;; arm whose fields cannot be resolved is REPORTED, never guessed. Each
+;; `(:wat::core::forms …)` literal is its own program: the door is asked
+;; on its children and that map applies inside that subtree only; the
+;; parent's map applies outside. Never merged — parent and child may
+;; declare the same name with different fields.
 ;; Idempotent: a Vector arm is already migrated. Nested match in a body is
 ;; still walked. `cond` is not touched.
 ;;
@@ -93,33 +95,10 @@
 (:wat::core::defn :user::node-line [node <- :wat::WatAST] -> :wat::core::String
   (:wat::i64::to-string (:wat::fix::span-line node)))
 
-(:wat::core::defn :user::nested-hit?
-  [vpath   <- :wat::core::String
-   nested  <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::bool
-  (:wat::core::or
-    (:wat::vec::contains? nested vpath)
-    (:wat::vec::contains? nested (:user::parent-path vpath))))
-
 (:wat::core::defn :user::report-unresolved
-  [vpath <- :wat::core::String
-   node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+  [vpath <- :wat::core::String]
   -> :wat::core::nil
-  (:wat::core::let
-    [nested (:wat::core::match (:wat::hashmap::get fmap "#nested")
-              [:wat::core::Option.Some {:value v} v]
-              [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])])
-     path (:wat::core::match (:wat::hashmap::get fmap "#path")
-            [:wat::core::Option.Some {:value v}
-              (:wat::core::if (:wat::core::empty? v) "" (:wat::core::first v))]
-            [:wat::core::Option.None {} ""])]
-    (:wat::core::if (:user::nested-hit? vpath nested)
-      (:wat::kernel::println
-        (:wat::string::concat
-          "[match-arm] UNRESOLVED nested-program "
-          (:wat::string::concat path (:wat::string::concat ":" (:user::node-line node)))))
-      (:user::report vpath))))
+  (:user::report vpath))
 
 
 ;; ── arm rewrite ──────────────────────────────────────────────────────────────
@@ -282,14 +261,14 @@
 (:wat::core::defn :user::builtin-or-mapped-fields
   [vpath <- :wat::core::String
    node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+   fmap  <- :wat::fix::EnumFields]
   -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::let [fopt (:wat::hashmap::get fmap vpath)]
+  (:wat::core::let [fopt (:wat::fix::enum-fields-get fmap vpath)]
     (:wat::core::match fopt
       [:wat::core::Option.Some {:value fields} fields]
       [:wat::core::Option.None {}
         (:wat::core::do
-          (:user::report-unresolved vpath node fmap)
+          (:user::report-unresolved vpath)
           (:wat::core::Vector :- [:wat::core::String]))])))
 
 (:wat::core::defn :user::variant-pattern-list?
@@ -309,7 +288,7 @@
 ;; Nested variant in a map-pattern VALUE: `(Variant binders…)` → `[Variant {:k v}]` (no body).
 (:wat::core::defn :user::nested-variant-text
   [node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
@@ -331,7 +310,7 @@
      nfields (:wat::core::if (:wat::core::= (:wat::core::length fields) (:wat::core::length btexts))
                fields
                (:wat::core::do
-                 (:user::report-unresolved vpath node fmap)
+                 (:user::report-unresolved vpath)
                  (:wat::core::Vector :- [:wat::core::String])))]
     (:wat::string::concat
       (:user::node-text head src lines)
@@ -354,7 +333,7 @@
 
 (:wat::core::defn :user::nested-pattern-edits
   [node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
@@ -376,7 +355,7 @@
 
 (:wat::core::defn :user::walk-nested-pattern-seq
   [items <- (:wat::core::Vector :- [:wat::WatAST])
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
@@ -484,7 +463,7 @@
 (:wat::core::defn :user::migrated-map-edits
   [head  <- :wat::WatAST
    mapn  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
@@ -492,13 +471,13 @@
     (:user::nested-pattern-edits mapn fmap src lines)
     (:wat::core::let
       [vpath (:wat::core::ast-name head)
-       fopt  (:wat::hashmap::get fmap vpath)]
+       fopt  (:wat::fix::enum-fields-get fmap vpath)]
       (:wat::core::match fopt
         [:wat::core::Option.Some {:value fields}
           (:wat::core::let [vals (:user::map-value-nodes mapn)]
             (:wat::core::if (:wat::core::not (:wat::core::= (:wat::core::length fields) (:wat::core::length vals)))
               (:wat::core::do
-                (:user::report-unresolved vpath mapn fmap)
+                (:user::report-unresolved vpath)
                 (:user::nested-pattern-edits mapn fmap src lines))
               (:wat::core::if (:user::names-eq? fields (:user::map-key-names mapn))
                 (:user::nested-pattern-edits mapn fmap src lines)
@@ -509,14 +488,15 @@
                     (:user::map-text fields vals src lines))))))]
         [:wat::core::Option.None {}
           (:wat::core::do
-            (:user::report-unresolved vpath mapn fmap)
+            (:user::report-unresolved vpath)
             (:user::nested-pattern-edits mapn fmap src lines))]))))
 
 (:wat::core::defn :user::arm-edits
   [arm    <- :wat::WatAST
-   fmap   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap   <- :wat::fix::EnumFields
    src    <- :wat::core::String
-   lines  <- (:wat::core::Vector :- [:wat::core::String])]
+   lines  <- (:wat::core::Vector :- [:wat::core::String])
+   path   <- :wat::core::String]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "vector")
     ;; already migrated — convert nested variant patterns in the PATTERN
@@ -532,7 +512,7 @@
             fmap src lines)
           (:user::walk-edits
             (:wat::core::Option/expect (:wat::core::get ch 2) "vector-arm body")
-            fmap src lines))
+            fmap src lines path))
         (:wat::core::if (:wat::core::= n 2)
           (:wat::core::concat
             (:user::nested-pattern-edits
@@ -540,8 +520,8 @@
               fmap src lines)
             (:user::walk-edits
               (:wat::core::Option/expect (:wat::core::get ch 1) "vector-arm body")
-              fmap src lines))
-          (:user::walk-seq-edits ch fmap src lines))))
+              fmap src lines path))
+          (:user::walk-seq-edits ch fmap src lines path))))
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "list")
       (:wat::core::let
         [ch (:wat::core::ast->children arm)
@@ -549,13 +529,13 @@
          opener (:wat::string::subs src start (:wat::core::+ start 1))]
         (:wat::core::if (:wat::core::not (:wat::core::= opener "("))
           ;; Reader-macro list (`~@arms`, `~x`) — not a paren clause. Walk only.
-          (:user::walk-seq-edits ch fmap src lines)
+          (:user::walk-seq-edits ch fmap src lines path)
         (:wat::core::if (:wat::core::= (:wat::core::length ch) 2)
           (:wat::core::let
             [pattern (:wat::core::Option/expect (:wat::core::get ch 0) "arm pattern")
              body    (:wat::core::Option/expect (:wat::core::get ch 1) "arm body")
              pk      (:wat::core::ast-kind pattern)
-             body-eds (:user::walk-edits body fmap src lines)]
+             body-eds (:user::walk-edits body fmap src lines path)]
             (:wat::core::concat
               (:wat::core::if (:wat::core::= pk "keyword")
                 (:user::variant-arm-edits arm (:wat::core::Vector :- [:wat::core::String]) src lines)
@@ -571,13 +551,13 @@
                     (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
                       (:wat::core::let
                         [vpath (:wat::core::ast-name head)
-                         fopt  (:wat::hashmap::get fmap vpath)]
+                         fopt  (:wat::fix::enum-fields-get fmap vpath)]
                         (:wat::core::match fopt
                           [:wat::core::Option.Some {:value fields}
                             (:user::variant-arm-edits arm fields src lines)]
                           [:wat::core::Option.None {}
                             (:wat::core::do
-                              (:user::report-unresolved vpath arm fmap)
+                              (:user::report-unresolved vpath)
                               (:wat::core::Vector :- [:wat::fix::Edit]))]))
                       ;; Generated template: `(~ctor binder…)` — field names are
                       ;; the binder symbols themselves (the defenum is also
@@ -612,14 +592,15 @@
                   ;; wildcard / binding / hash-destructure / literal: delimiter only
                   (:user::paren-flip-edits arm src lines)))
               body-eds))
-          (:user::walk-seq-edits ch fmap src lines))))
-      (:user::walk-edits arm fmap src lines))))
+          (:user::walk-seq-edits ch fmap src lines path))))
+      (:user::walk-edits arm fmap src lines path))))
 
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   path  <- :wat::core::String]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::or
                     (:wat::fix::calls-to? node ":wat::core::match")
@@ -628,13 +609,19 @@
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
         (:wat::core::Vector :- [:wat::fix::Edit])
         (:wat::core::concat
-          (:user::walk-edits (:wat::core::Option/expect (:wat::core::get ch 1) "match scrut") fmap src lines)
+          (:user::walk-edits (:wat::core::Option/expect (:wat::core::get ch 1) "match scrut") fmap src lines path)
           (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit]) arm <- :wat::WatAST]
               -> (:wat::core::Vector :- [:wat::fix::Edit])
-              (:wat::core::concat acc (:user::arm-edits arm fmap src lines)))
+              (:wat::core::concat acc (:user::arm-edits arm fmap src lines path)))
             (:wat::core::Vector :- [:wat::fix::Edit])
             (:wat::core::into [] (:wat::core::drop ch 2))))))
+    (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
+      (:wat::core::let
+        [vpaths (:user::collect-vpaths-node (:wat::core::Vector :- [:wat::core::String]) node)
+         epaths (:user::enum-paths-of vpaths)
+         child (:wat::fix::enum-fields-for-forms "match-arm" path node epaths)]
+        (:user::walk-seq-edits (:wat::core::ast->children node) child src lines path))
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::let [ch (:wat::core::ast->children node)]
         (:wat::core::if (:wat::core::if (:wat::core::= (:wat::fix::head-name node) ":wat::core::quasiquote")
@@ -649,25 +636,27 @@
           ;; Reader-macro `` `form `` is a 2-child list [quasiquote-kw, form].
           (:user::arm-edits
             (:wat::core::Option/expect (:wat::core::get ch 1) "qq arm")
-            fmap src lines)
-          (:user::walk-seq-edits ch fmap src lines)))
-      (:wat::core::Vector :- [:wat::fix::Edit]))))
+            fmap src lines path)
+          (:user::walk-seq-edits ch fmap src lines path)))
+      (:wat::core::Vector :- [:wat::fix::Edit])))))
 
 (:wat::core::defn :user::walk-seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   path  <- :wat::core::String]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :- [:wat::fix::Edit])
     (:wat::core::concat
-      (:user::walk-edits (:wat::core::first items) fmap src lines)
-      (:user::walk-seq-edits (:wat::core::rest items) fmap src lines))))
+      (:user::walk-edits (:wat::core::first items) fmap src lines path)
+      (:user::walk-seq-edits (:wat::core::rest items) fmap src lines path))))
 
 (:wat::core::defn :user::migrate
   [src  <- :wat::core::String
-   fmap <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+   fmap <- :wat::fix::EnumFields
+   path <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
@@ -675,7 +664,7 @@
              [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
              [:wat::core::ReadOutcome.Malformed {:cause __cause}
                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     edits (:user::walk-seq-edits (:wat::core::ast->children tree) fmap src lines)]
+     edits (:user::walk-seq-edits (:wat::core::ast->children tree) fmap src lines path)]
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
 
 (:wat::core::defn :user::conj-unique
@@ -743,7 +732,7 @@
 (:wat::core::defn :user::fmap-for-src
   [src  <- :wat::core::String
    path <- :wat::core::String]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  -> :wat::fix::EnumFields
   (:wat::core::let
     [tree (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome.Forms {:forms f} f]
@@ -752,10 +741,8 @@
      forms (:wat::core::ast->children tree)
      vpaths (:user::collect-vpaths-node (:wat::core::Vector :- [:wat::core::String]) tree)
      epaths (:user::enum-paths-of vpaths)
-     m (:wat::fix::enum-fields "match-arm" path forms epaths)
-     m2 (:wat::hashmap::assoc m "#nested" (:wat::fix::nested-decl-names tree))]
-    (:wat::hashmap::assoc m2 "#path"
-      (:wat::core::Vector :- [:wat::core::String] path))))
+     m (:wat::fix::enum-fields "match-arm" path forms epaths)]
+    m))
 
 (:wat::core::defn :user::rewrite-each
   [paths <- (:wat::core::Vector :- [:wat::core::String])]
@@ -770,7 +757,7 @@
         (:wat::core::let [src (:wat::io::read-file path)
                           fmap (:user::fmap-for-src src path)]
           (:wat::core::do
-            (:wat::io::write-file path (:user::migrate src fmap))
+            (:wat::io::write-file path (:user::migrate src fmap path))
             (:wat::kernel::println (:wat::string::concat "[match-arm] " path))
             (:user::rewrite-each (:wat::core::rest paths))))))))
 

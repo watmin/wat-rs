@@ -3,5 +3,9 @@
 history 434d7fac6 tests/types/probe_arc296_h2__unit.wat tests/types/probe_arc296_h2__variant.wat
 spec     (:wat::kernel::println (:usr::Shape::Dot {})) :: the rest of the file's types still resolve
 spec     (:wat::kernel::println (:usr::Shape::Circle {:r 2})) :: An UNREGISTERABLE form is
+spec     (:t::M::A {:x 1})) :: subtree only
+spec     (:t::M::A {:y 1 :z 2})))) :: subtree only
 spec-before     (:wat::kernel::println (:usr::Shape::Dot)) :: the rest of the file's types still resolve
 spec-before     (:wat::kernel::println (:usr::Shape::Circle 2)) :: An UNREGISTERABLE form is
+spec-before     (:t::M::A 1)) :: subtree only
+spec-before     (:t::M::A 1 2)))) :: subtree only

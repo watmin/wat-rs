@@ -6,11 +6,13 @@
 ;;   (:ns::E::V a b)   ->  (:ns::E::V {:f1 a :f2 b})
 ;;   (:ns::E::Unit)    ->  (:ns::E::Unit {})
 ;;
-;; Field names come from `:wat::fix::enum-fields` (declared-types on this file's
-;; top-level forms, then is-type?/type-of for stdlib). A tagged ctor whose fields
-;; cannot be resolved is REPORTED, never guessed — when the head's parent is not
-;; answered, or is an enum and the leaf is not among its variants; never by
-;; character case. A `holon::defrecord` constructor and a kwargs `defn`'s
+;; Field names come from `:wat::fix::enum-fields` (declared-types on this
+;; program's forms, then is-type?/type-of for stdlib). A tagged ctor whose
+;; fields cannot be resolved is REPORTED, never guessed — when the head's
+;; parent is a known enum and the leaf is not among its variants; never by
+;; character case. Each `(:wat::core::forms …)` literal is its own program:
+;; the door is asked on its children and that map applies inside that
+;; subtree only. A `holon::defrecord` constructor and a kwargs `defn`'s
 ;; `::Kwargs` do not poison neighbouring enums. An UNREGISTERABLE form is
 ;; dropped and reported; the rest of the file's types still resolve.
 ;;
@@ -183,25 +185,10 @@
     (:wat::string::starts-with? nm ":wat::")
     (:wat::string::starts-with? nm ":rust::")))
 
-(:wat::core::defn :user::known-enum?
-  [fmap   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-   parent <- :wat::core::String]
-  -> :wat::core::bool
-  (:wat::core::match (:wat::hashmap::get fmap "")
-    [:wat::core::Option.Some {:value v} (:wat::vec::contains? v parent)]
-    [:wat::core::Option.None {} false]))
-
-(:wat::core::defn :user::nested-of
-  [fmap <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
-  -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::match (:wat::hashmap::get fmap "#nested")
-    [:wat::core::Option.Some {:value v} v]
-    [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])]))
-
 (:wat::core::defn :user::report-ctor?
   [head  <- :wat::WatAST
    node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])
    path  <- :wat::core::String]
@@ -214,18 +201,7 @@
         (:wat::core::if (:wat::core::or (:user::has-slash? nm)
                           (:wat::core::not (:user::has-colon-colon? nm)))
           false
-          (:wat::core::let
-            [parent (:user::parent-path nm)
-             nested (:user::nested-of fmap)]
-            (:wat::core::if (:wat::core::or (:wat::vec::contains? nested nm)
-                              (:wat::vec::contains? nested parent))
-              (:wat::core::do
-                (:wat::kernel::println
-                  (:wat::string::concat
-                    "[positional-ctor] UNRESOLVED nested-program "
-                    (:wat::string::concat path (:wat::string::concat ":" (:user::node-line node)))))
-                false)
-              (:user::known-enum? fmap parent))))))))
+          (:wat::fix::known-enum? fmap (:user::parent-path nm)))))))
 
 (:wat::core::defn :user::invariant-eps-of
   [epaths <- (:wat::core::Vector :- [:wat::core::String])]
@@ -251,148 +227,35 @@
     (:wat::core::Vector :- [:wat::core::String])
     epaths))
 
-;; (c) — a local path is worth try-type-of only if THIS FILE could declare it.
-;; Macro-shaped decls generate types from their arguments; when one is present
-;; keep every local path (STOP-1). Otherwise keep iff the path equals, or is
-;; prefixed by on a `::` / `.` boundary, a plain type decl's name. Filter in
-;; place (STOP-2): do not reorder. try-type-of only shrinks decls, and the
-;; empty retry cannot resolve a local (stdlib's non-reserved decls are all
-;; ~placeholders in macro templates).
-
-(:wat::core::defn :user::macro-decl-head? [h <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::or
-    (:wat::core::= h ":wat::service::defservice")
-    (:wat::core::or
-      (:wat::core::= h ":wat::query::sift-rules-defsvc")
-      (:wat::core::= h ":wat::core::defmacro"))))
-
-(:wat::core::defn :user::plain-type-head? [h <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::or
-    (:wat::core::= h ":wat::core::defenum")
-    (:wat::core::or
-      (:wat::core::= h ":wat::core::defrecord")
-      (:wat::core::or
-        (:wat::core::= h ":wat::core::defstruct")
-        (:wat::core::or
-          (:wat::core::= h ":wat::core::defsurface")
-          (:wat::core::or
-            (:wat::core::= h ":wat::core::newtype")
-            (:wat::core::or
-              (:wat::core::= h ":wat::core::typealias")
-              (:wat::core::= h ":wat::core::typeunion"))))))))
-
-(:wat::core::defn :user::decl-type-name [n <- :wat::WatAST] -> :wat::core::String
-  (:wat::core::let [ch (:wat::core::ast->children n)]
-    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
-      ""
-      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get ch 1) "decl name")]
-        (:wat::core::if (:wat::core::= (:wat::core::ast-kind a) "keyword")
-          (:wat::core::ast-name a)
-          "")))))
-
-(:wat::core::defn :user::has-macro-decl?
-  [decls <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::core::bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool d <- :wat::WatAST] -> :wat::core::bool
-      (:wat::core::or acc (:user::macro-decl-head? (:wat::fix::head-name d))))
-    false
-    decls))
-
-(:wat::core::defn :user::plain-type-names
-  [decls <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) d <- :wat::WatAST]
-      -> (:wat::core::Vector :- [:wat::core::String])
-      (:wat::core::if (:user::plain-type-head? (:wat::fix::head-name d))
-        (:wat::core::let [nm (:user::decl-type-name d)]
-          (:wat::core::if (:wat::core::= nm "") acc (:wat::core::conj acc nm)))
-        acc))
-    (:wat::core::Vector :- [:wat::core::String])
-    decls))
-
-(:wat::core::defn :user::under-name? [ep <- :wat::core::String nm <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::or
-    (:wat::core::= ep nm)
-    (:wat::core::or
-      (:wat::string::starts-with? ep (:wat::string::concat nm "::"))
-      (:wat::string::starts-with? ep (:wat::string::concat nm ".")))))
-
-(:wat::core::defn :user::under-any-plain?
-  [ep    <- :wat::core::String
-   names <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool nm <- :wat::core::String] -> :wat::core::bool
-      (:wat::core::or acc (:user::under-name? ep nm)))
-    false
-    names))
-
-(:wat::core::defn :user::keep-local-ep? [decls <- (:wat::core::Vector :- [:wat::WatAST]) ep <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:user::has-macro-decl? decls)
-    true
-    (:user::under-any-plain? ep (:user::plain-type-names decls))))
-
-;; Filter in place — same relative order as `local`. Never reorder.
-(:wat::core::defn :user::keep-local-eps
-  [decls <- (:wat::core::Vector :- [:wat::WatAST])
-   local <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) ep <- :wat::core::String]
-      -> (:wat::core::Vector :- [:wat::core::String])
-      (:wat::core::if (:user::keep-local-ep? decls ep)
-        (:wat::core::conj acc ep)
-        acc))
-    (:wat::core::Vector :- [:wat::core::String])
-    local))
-
-(:wat::core::defn :user::skip-local-eps
-  [decls <- (:wat::core::Vector :- [:wat::WatAST])
-   local <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) ep <- :wat::core::String]
-      -> (:wat::core::Vector :- [:wat::core::String])
-      (:wat::core::if (:user::keep-local-ep? decls ep)
-        acc
-        (:wat::core::conj acc ep)))
-    (:wat::core::Vector :- [:wat::core::String])
-    local))
-
 (:wat::core::defn :user::merge-fmap
-  [base   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-   file-m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  [base   <- :wat::fix::EnumFields
+   file-m <- :wat::fix::EnumFields]
+  -> :wat::fix::EnumFields
   (:wat::core::let
-    [b-enums (:wat::core::match (:wat::hashmap::get base "")
-               [:wat::core::Option.Some {:value v} v]
-               [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])])
-     f-enums (:wat::core::match (:wat::hashmap::get file-m "")
-               [:wat::core::Option.Some {:value v} v]
-               [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])])
-     keys (:wat::hashmap::keys file-m)
+    [b-fields (:wat::fix::EnumFields/fields base)
+     f-fields (:wat::fix::EnumFields/fields file-m)
+     keys (:wat::hashmap::keys f-fields)
      m (:wat::core::foldl
          (:wat::core::fn
            [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
             k   <- :wat::core::String]
            -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-           (:wat::core::if (:wat::core::or (:wat::core::= k "")
-                             (:wat::core::or (:wat::core::= k "#nested") (:wat::core::= k "#path")))
-             acc
-             (:wat::core::match (:wat::hashmap::get file-m k)
-               [:wat::core::Option.Some {:value v} (:wat::hashmap::assoc acc k v)]
-               [:wat::core::Option.None {} acc])))
-         base
+           (:wat::core::match (:wat::hashmap::get f-fields k)
+             [:wat::core::Option.Some {:value v} (:wat::hashmap::assoc acc k v)]
+             [:wat::core::Option.None {} acc]))
+         b-fields
          keys)]
-    (:wat::hashmap::assoc m "" (:user::union-eps b-enums f-enums))))
+    (:wat::fix::EnumFields
+      :fields m
+      :answered (:user::union-eps
+                  (:wat::fix::EnumFields/answered base)
+                  (:wat::fix::EnumFields/answered file-m)))))
 
 (:wat::core::defn :user::fmap-for-src
   [src  <- :wat::core::String
    path <- :wat::core::String
-   base <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   base <- :wat::fix::EnumFields]
+  -> :wat::fix::EnumFields
   (:wat::core::let
     [tree (:wat::core::match (:wat::core::read-string src)
              [:wat::core::ReadOutcome.Forms {:forms f} f]
@@ -403,10 +266,10 @@
      epaths (:user::enum-paths-of vpaths)
      local (:wat::fix::enum-fields "positional-ctor" path forms (:user::local-eps-of epaths))
      merged (:user::merge-fmap base local)
-     with-n (:wat::hashmap::assoc merged "#nested" (:wat::fix::nested-decl-names tree))]
-    (:user::bind-kw-ctors
-      (:wat::hashmap::assoc with-n "#path" (:wat::core::Vector :- [:wat::core::String] path))
-      tree)))
+     fields2 (:user::bind-kw-ctors (:wat::fix::EnumFields/fields merged) tree)]
+    (:wat::fix::EnumFields
+      :fields fields2
+      :answered (:wat::fix::EnumFields/answered merged))))
 
 ;; Derive unquote-ctor bindings from let-bound `*-kw` names whose value
 ;; interpolates a `::Leaf` (STOP-4: not a hand-list). Field names still
@@ -664,23 +527,23 @@
 
 (:wat::core::defn :user::fields-for-head
   [head <- :wat::WatAST
-   fmap <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+   fmap <- :wat::fix::EnumFields]
   -> (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
     (:wat::core::let [nm (:wat::core::ast-name head)]
       (:wat::core::if (:user::has-slash? nm)
         :wat::core::Option.None
-        (:wat::hashmap::get fmap nm)))
+        (:wat::fix::enum-fields-get fmap nm)))
     (:wat::core::if (:user::unquote-form? head)
       (:wat::core::match (:user::unquote-ctor-leaf (:user::unquote-inner-name head))
-        [:wat::core::Option.Some {:value leaf} (:wat::hashmap::get fmap leaf)]
+        [:wat::core::Option.Some {:value leaf} (:wat::fix::enum-fields-get fmap leaf)]
         [:wat::core::Option.None {} :wat::core::Option.None]
         [_ :wat::core::Option.None])
       :wat::core::Option.None)))
 
 (:wat::core::defn :user::ctor-edits
   [node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])
    path  <- :wat::core::String]
@@ -726,7 +589,7 @@
 ;; Walk field vectors; skip the name. See wat/fix.wat defenum-variant-start.
 (:wat::core::defn :user::walk-defenum-variants
   [items <- (:wat::core::Vector :- [:wat::WatAST])
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])
    path  <- :wat::core::String]
@@ -749,7 +612,7 @@
 
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])
    path  <- :wat::core::String]
@@ -764,14 +627,24 @@
         (:wat::core::concat
           (:user::walk-seq pre fmap src lines path)
           (:user::walk-defenum-variants body fmap src lines path)))
-      (:user::ctor-edits node fmap src lines path))
+      (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
+        (:wat::core::let
+          [vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) node)
+           epaths (:user::enum-paths-of vpaths)
+           child (:wat::fix::enum-fields-for-forms "positional-ctor" path node epaths)
+           fields2 (:user::bind-kw-ctors (:wat::fix::EnumFields/fields child) node)
+           child2 (:wat::fix::EnumFields
+                    :fields fields2
+                    :answered (:wat::fix::EnumFields/answered child))]
+          (:user::walk-seq (:wat::core::ast->children node) child2 src lines path))
+        (:user::ctor-edits node fmap src lines path)))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::walk-seq (:wat::core::ast->children node) fmap src lines path)
       (:wat::core::Vector :- [:wat::fix::Edit]))))
 
 (:wat::core::defn :user::walk-seq
   [items <- (:wat::core::Vector :- [:wat::WatAST])
-   fmap  <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap  <- :wat::fix::EnumFields
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])
    path  <- :wat::core::String]
@@ -784,7 +657,7 @@
 
 (:wat::core::defn :user::migrate
   [src  <- :wat::core::String
-   fmap <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap <- :wat::fix::EnumFields
    path <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let
@@ -831,7 +704,7 @@
 
 (:wat::core::defn :user::rewrite-each
   [paths  <- (:wat::core::Vector :- [:wat::core::String])
-   frozen <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+   frozen <- :wat::fix::EnumFields]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil

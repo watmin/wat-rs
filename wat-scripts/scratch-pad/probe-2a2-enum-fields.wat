@@ -11,10 +11,10 @@
          (:wat::core::Vector :- [:wat::core::String] ":usr::E" ":wat::core::Option"))]
     (:wat::core::do
       (:wat::kernel::println
-        (:wat::core::str (:wat::hashmap::get m ":usr::E::Variant")))
+        (:wat::core::str (:wat::fix::enum-fields-get m ":usr::E::Variant")))
       (:wat::kernel::println
-        (:wat::core::str (:wat::hashmap::get m ":usr::E::Unit")))
+        (:wat::core::str (:wat::fix::enum-fields-get m ":usr::E::Unit")))
       (:wat::kernel::println
-        (:wat::core::str (:wat::hashmap::get m ":wat::core::Option::Some")))
+        (:wat::core::str (:wat::fix::enum-fields-get m ":wat::core::Option::Some")))
       (:wat::kernel::println
-        (:wat::core::str (:wat::hashmap::get m ""))))))
+        (:wat::core::str (:wat::fix::EnumFields/answered m))))))

@@ -1373,14 +1373,22 @@
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
 
-;; ─── 2a2 — one door: a program's enums ∪ stdlib, once per file ────────────────
+;; ─── 2a2 — one door: a program's enums ∪ stdlib, once per program ────────────
 ;;
-;; `:wat::fix::enum-fields` — top-level forms + candidate enum paths → the map
-;; `fill-enum` builds (variant path → field names, declaration order).
-;; `declared-types` on the forms (same top-level scope as today's file-decls);
-;; a Refused form is dropped and reported, never the file. Candidates the
-;; program does not answer go through `is-type?` then `type-of` (no hand list).
-;; Key `""` holds the filled enum paths (so a caller can ask "is :P an enum?").
+;; `:wat::fix::enum-fields` — forms + candidate enum paths →
+;; `:wat::fix::EnumFields {fields answered}`. `fields` is variant path →
+;; field names (declaration order). `answered` is the filled enum paths
+;; (so a caller can ask "is :P an enum?"). `declared-types` on the forms;
+;; a Refused form is dropped and reported (head, declared name, line;
+;; `fallback` when the refused span is not a top-level form), never the
+;; file. Candidates the program does not answer go through `is-type?`
+;; then `type-of` (no hand list). Each `(:wat::core::forms …)` literal is
+;; its own program: ask this door on its children and apply that map
+;; within that subtree only.
+
+(:wat::core::defrecord :wat::fix::EnumFields
+  [fields   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   answered <- (:wat::core::Vector :- [:wat::core::String])])
 
 (:wat::core::defn :wat::fix::join-sep
   [xs  <- (:wat::core::Vector :- [:wat::core::String])
@@ -1454,6 +1462,24 @@
         forms
         (:wat::core::into [] (:wat::core::rest forms)))
       kept)))
+
+;; Which form the exclusion loop actually drops, and whether it fell back
+;; to the first form (refused span did not match any top-level form).
+(:wat::core::defn :wat::fix::dropped-form-info
+  [forms   <- (:wat::core::Vector :- [:wat::WatAST])
+   refused <- :wat::WatAST]
+  -> (:wat::core::Tuple :- [:wat::WatAST :wat::core::bool])
+  (:wat::core::let
+    [hits (:wat::core::into []
+            (:wat::core::filter
+              (:wat::core::fn [n <- :wat::WatAST] -> :wat::core::bool
+                (:wat::fix::same-form? n refused))
+              forms))]
+    (:wat::core::if (:wat::core::empty? hits)
+      (:wat::core::Tuple
+        (:wat::core::if (:wat::core::empty? forms) refused (:wat::core::first forms))
+        true)
+      (:wat::core::Tuple (:wat::core::first hits) false))))
 
 (:wat::core::defn :wat::fix::variant-field-names
   [v <- :wat::runtime::TypeVariant]
@@ -1565,7 +1591,7 @@
    filled     <- (:wat::core::Vector :- [:wat::core::String])
    types      <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])
    enum-names <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  -> :wat::fix::EnumFields
   (:wat::core::let
     [pair (:wat::core::foldl
             (:wat::core::fn
@@ -1589,7 +1615,18 @@
                 acc))
             (:wat::core::Tuple m filled)
             types)]
-    (:wat::hashmap::assoc (:wat::core::first pair) "" (:wat::core::second pair))))
+    (:wat::fix::EnumFields
+      :fields   (:wat::core::first pair)
+      :answered (:wat::core::second pair))))
+
+(:wat::core::defn :wat::fix::decl-type-name [n <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::let [ch (:wat::core::ast->children n)]
+    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
+      ""
+      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get ch 1) "decl name")]
+        (:wat::core::if (:wat::core::= (:wat::core::ast-kind a) "keyword")
+          (:wat::core::ast-name a)
+          "")))))
 
 (:wat::core::defn :wat::fix::register-loop
   [tag   <- :wat::core::String
@@ -1602,15 +1639,28 @@
     (:wat::core::match (:wat::runtime::declared-types forms)
       [:wat::runtime::DeclaredTypes.Ok {:types ts} ts]
       [:wat::runtime::DeclaredTypes.Refused {:form f :cause c}
-        (:wat::core::do
-          (:wat::kernel::println
-            (:wat::string::concat
-              "["
-              (:wat::string::concat tag
-                (:wat::string::concat "] UNREGISTERABLE "
-                  (:wat::string::concat path
-                    (:wat::string::concat " " (:wat::fix::cause-tag c)))))))
-          (:wat::fix::register-loop tag path (:wat::fix::drop-form forms f) (:wat::i64::- n 1)))])))
+        (:wat::core::let
+          [info (:wat::fix::dropped-form-info forms f)
+           dropped (:wat::core::first info)
+           fallback? (:wat::core::second info)]
+          (:wat::core::do
+            (:wat::kernel::println
+              (:wat::string::concat
+                "["
+                (:wat::string::concat tag
+                  (:wat::string::concat "] UNREGISTERABLE "
+                    (:wat::string::concat path
+                      (:wat::string::concat " "
+                        (:wat::string::concat (:wat::fix::cause-tag c)
+                          (:wat::string::concat " head="
+                            (:wat::string::concat (:wat::fix::head-name dropped)
+                              (:wat::string::concat " name="
+                                (:wat::string::concat (:wat::fix::decl-type-name dropped)
+                                  (:wat::string::concat " line="
+                                    (:wat::string::concat
+                                      (:wat::i64::to-string (:wat::fix::span-line dropped))
+                                      (:wat::core::if fallback? " fallback" ""))))))))))))))
+            (:wat::fix::register-loop tag path (:wat::fix::drop-form forms f) (:wat::i64::- n 1))))])))
 
 (:wat::core::defn :wat::fix::answered-enum?
   [filled <- (:wat::core::Vector :- [:wat::core::String])
@@ -1621,12 +1671,11 @@
     (:wat::vec::contains? filled (:wat::fix::parent-path ep))))
 
 (:wat::core::defn :wat::fix::fill-stdlib-one
-  [m      <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-   filled <- (:wat::core::Vector :- [:wat::core::String])
-   ep     <- :wat::core::String]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-  (:wat::core::if (:wat::fix::answered-enum? filled ep)
-    m
+  [ef <- :wat::fix::EnumFields
+   ep <- :wat::core::String]
+  -> :wat::fix::EnumFields
+  (:wat::core::if (:wat::fix::answered-enum? (:wat::fix::EnumFields/answered ef) ep)
+    ef
     (:wat::core::if (:wat::runtime::is-type? (:wat::fix::name->kw ep))
       (:wat::core::let [info (:wat::runtime::type-of (:wat::fix::name->kw ep))]
         (:wat::core::if
@@ -1636,35 +1685,27 @@
             false)
           (:wat::core::let
             [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))
-             m2 (:wat::fix::fill-enum m info nm)
-             fl (:wat::core::match (:wat::hashmap::get m2 "")
-                  [:wat::core::Option.Some {:value v} v]
-                  [:wat::core::Option.None {} filled])]
-            (:wat::hashmap::assoc m2 ""
-              (:wat::core::if (:wat::vec::contains? fl nm) fl (:wat::core::conj fl nm))))
-          m))
-      m)))
+             m2 (:wat::fix::fill-enum (:wat::fix::EnumFields/fields ef) info nm)
+             fl (:wat::fix::EnumFields/answered ef)]
+            (:wat::fix::EnumFields
+              :fields m2
+              :answered
+                (:wat::core::if (:wat::vec::contains? fl nm) fl (:wat::core::conj fl nm))))
+          ef))
+      ef)))
 
 (:wat::core::defn :wat::fix::fill-stdlib
-  [m          <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  [ef         <- :wat::fix::EnumFields
    candidates <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-  (:wat::core::let
-    [filled (:wat::core::match (:wat::hashmap::get m "")
-              [:wat::core::Option.Some {:value v} v]
-              [:wat::core::Option.None {} (:wat::core::Vector :- [:wat::core::String])])]
-    (:wat::core::foldl
-      (:wat::core::fn
-        [acc <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-         ep  <- :wat::core::String]
-        -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-        (:wat::core::let
-          [fl (:wat::core::match (:wat::hashmap::get acc "")
-                [:wat::core::Option.Some {:value v} v]
-                [:wat::core::Option.None {} filled])]
-          (:wat::fix::fill-stdlib-one acc fl ep)))
-      m
-      candidates)))
+  -> :wat::fix::EnumFields
+  (:wat::core::foldl
+    (:wat::core::fn
+      [acc <- :wat::fix::EnumFields
+       ep  <- :wat::core::String]
+      -> :wat::fix::EnumFields
+      (:wat::fix::fill-stdlib-one acc ep))
+    ef
+    candidates))
 
 (:wat::core::defn :wat::fix::type-decl-head? [h <- :wat::core::String] -> :wat::core::bool
   (:wat::core::or
@@ -1690,15 +1731,6 @@
                       (:wat::core::or
                         (:wat::core::= h ":wat::query::sift-rules-defsvc")
                         (:wat::core::= h ":wat::core::defmacro")))))))))))))
-
-(:wat::core::defn :wat::fix::decl-type-name [n <- :wat::WatAST] -> :wat::core::String
-  (:wat::core::let [ch (:wat::core::ast->children n)]
-    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
-      ""
-      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get ch 1) "decl name")]
-        (:wat::core::if (:wat::core::= (:wat::core::ast-kind a) "keyword")
-          (:wat::core::ast-name a)
-          "")))))
 
 (:wat::core::defn :wat::fix::collect-decl-names
   [acc   <- (:wat::core::Vector :- [:wat::core::String])
@@ -1735,11 +1767,36 @@
    path       <- :wat::core::String
    forms      <- (:wat::core::Vector :- [:wat::WatAST])
    candidates <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+  -> :wat::fix::EnumFields
   (:wat::core::let
     [types (:wat::fix::register-loop tag path forms (:wat::core::length forms))
      names (:wat::fix::enum-row-names types)
      empty (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-     m0    (:wat::hashmap::assoc empty "" (:wat::core::Vector :- [:wat::core::String]))
-     m1    (:wat::fix::fill-enum-rows m0 (:wat::core::Vector :- [:wat::core::String]) types names)]
-    (:wat::fix::fill-stdlib m1 candidates)))
+     ef    (:wat::fix::fill-enum-rows empty (:wat::core::Vector :- [:wat::core::String]) types names)]
+    (:wat::fix::fill-stdlib ef candidates)))
+
+(:wat::core::defn :wat::fix::enum-fields-get
+  [ef <- :wat::fix::EnumFields
+   k  <- :wat::core::String]
+  -> (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::String])])
+  (:wat::hashmap::get (:wat::fix::EnumFields/fields ef) k))
+
+(:wat::core::defn :wat::fix::known-enum?
+  [ef     <- :wat::fix::EnumFields
+   parent <- :wat::core::String]
+  -> :wat::core::bool
+  (:wat::vec::contains? (:wat::fix::EnumFields/answered ef) parent))
+
+(:wat::core::defn :wat::fix::forms-children [node <- :wat::WatAST]
+  -> (:wat::core::Vector :- [:wat::WatAST])
+  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
+    (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children node) 1))
+    (:wat::core::Vector :- [:wat::WatAST])))
+
+(:wat::core::defn :wat::fix::enum-fields-for-forms
+  [tag        <- :wat::core::String
+   path       <- :wat::core::String
+   node       <- :wat::WatAST
+   candidates <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::EnumFields
+  (:wat::fix::enum-fields tag path (:wat::fix::forms-children node) candidates))

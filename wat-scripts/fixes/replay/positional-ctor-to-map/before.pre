@@ -13,3 +13,14 @@
   (:wat::kernel::println (:usr::Shape::Dot))
   (:wat::kernel::println (:usr::Shape::Circle 2))
   (:wat::kernel::println (:myapp::Point 1 2)))
+; parent and child declare :t::M with DIFFERENT fields
+(:wat::core::defenum :t::M :wat::enum::Pure
+  :A [x <- :wat::core::i64])
+(:wat::core::defn :fix::parent [] -> :t::M
+  (:t::M::A 1))
+(:wat::core::defn :fix::child-host [] -> :wat::core::nil
+  (:wat::core::forms
+    (:wat::core::defenum :t::M :wat::enum::Pure
+      :A [y <- :wat::core::i64 z <- :wat::core::i64])
+    (:wat::core::defn :inner::go [] -> :t::M
+      (:t::M::A 1 2))))

@@ -25,9 +25,15 @@
 ;; already closed in the shared primitive — not re-solved or re-guarded here.
 ;;
 ;; ── SHAPE ────────────────────────────────────────────────────────────────────────────────
-;;   read the pair list once (382 (old,new) tuples, parsed from the census file below)
 ;;   for each input path:
-;;     text := read-file path
+;;     tree := read-string (text := read-file path)
+;;     fmap := :wat::fix::enum-fields on this program's forms + parent paths of every `::`
+;;             keyword (stdlib via is-type?/type-of). Each `(:wat::core::forms …)` literal
+;;             is its own program: ask the door on ITS children and collect pairs from
+;;             that subtree only; the parent's map applies outside. Never merge.
+;;     pairs := for each `::` keyword, if the current door has it as a variant
+;;              (old, parent+"."+leaf); if `:P` is a known enum and `V` is not among
+;;              its variants, print UNRESOLVED, no pair.
 ;;     hits := pairs whose OLD token appears in text     (:wat::string::contains? — a plain
 ;;             substring PREFILTER, not the rewrite's correctness boundary: rename-keyword-exact
 ;;             only ever touches a keyword AST leaf, so a false-positive "hit" — old text sitting
@@ -35,21 +41,22 @@
 ;;     if hits is empty -> skip: no read-file result is mutated, no write-file call, no printed
 ;;                          line — the file is left byte-identical and untouched
 ;;     else              -> fold rename-keyword-exact over hits, then write-file
-;; The prefilter is load-bearing for RUNTIME (measured: median 2 matching pairs/file, mean 3.5,
-;; max 17 — without it every one of 845 files pays all 382 parses, since rename-keyword-exact
-;; calls read-string internally; with it, ~3).
+;; The prefilter is load-bearing for RUNTIME (rename-keyword-exact calls read-string
+;; internally; most files match a handful of pairs, not every `::` keyword).
 ;;
 ;; ── IDEMPOTENCE ──────────────────────────────────────────────────────────────────────────
 ;; After the rewrite the old token (`Type::Variant`) is gone from the file, replaced by
-;; `Type.Variant` — so a second run's prefilter finds no hits for that pair in that file: a
-;; no-op by the same argument bare-variant-to-qualified.wat documents for its inverse migration.
+;; `Type.Variant`. A second run still asks the door (the enums have not changed) but
+;; collect-keywords on a dotted leaf does not find that token in `fields` (keys are the
+;; `::` form), and `known-enum?` on the `::`-split parent of a dotted name is not the
+;; enum — so no pair is generated. Same no-op argument as bare-variant-to-qualified.wat.
 ;; Proved, not assumed: run twice on the /tmp copy and the second diff must be empty.
 ;;
 ;; ── NO CASCADE ───────────────────────────────────────────────────────────────────────────
 ;; Order-independence (the fold in apply-renames may hit pairs in any order) requires that no
-;; pair's NEW token ever equal another pair's OLD token. New tokens carry a `.` at the variant
-;; boundary; old tokens never do (③b-i forbids a dotted leaf in a declared name). Verified
-;; separately as a set intersection over the 382 pairs (see the dry-run report) — not assumed.
+;; pair's NEW token ever equal another pair's OLD token. Every NEW is parent+"."+leaf; every
+;; OLD is parent+"::"+leaf. A NEW therefore cannot equal any OLD: the variant boundary
+;; differs. Holds per file from the door, without a census pair-list intersection.
 ;;
 ;; Dry-run on a /tmp copy + diff, THEN the orchestrator lands it alongside the separator flip
 ;; (identifier.rs's compose_variant/decompose_variant + the 28 display strings — one commit,
@@ -75,16 +82,18 @@
   [acc  <- (:wat::core::Vector :- [:wat::core::String])
    node <- :wat::WatAST]
   -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::core::let [nm (:wat::core::ast-name node)]
-      (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "::")) 1)
-        (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "/")) 1)
-          acc
-          (:user::conj-unique acc nm))
-        acc))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::foldl :user::collect-keywords acc (:wat::core::ast->children node))
-      acc)))
+  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
+    acc
+    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+      (:wat::core::let [nm (:wat::core::ast-name node)]
+        (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "::")) 1)
+          (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "/")) 1)
+            acc
+            (:user::conj-unique acc nm))
+          acc))
+      (:wat::core::if (:wat::fix::structural? node)
+        (:wat::core::foldl :user::collect-keywords acc (:wat::core::ast->children node))
+        acc))))
 
 (:wat::core::defn :user::parents-of
   [kws <- (:wat::core::Vector :- [:wat::core::String])]
@@ -96,17 +105,9 @@
     (:wat::core::Vector :- [:wat::core::String])
     kws))
 
-(:wat::core::defn :user::known-enum?
-  [fmap   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-   parent <- :wat::core::String]
-  -> :wat::core::bool
-  (:wat::core::match (:wat::hashmap::get fmap "")
-    [:wat::core::Option.Some {:value v} (:wat::vec::contains? v parent)]
-    [:wat::core::Option.None {} false]))
-
 (:wat::core::defn :user::pairs-from-kws
   [kws  <- (:wat::core::Vector :- [:wat::core::String])
-   fmap <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   fmap <- :wat::fix::EnumFields
    path <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::foldl
@@ -114,12 +115,12 @@
       [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
        kw  <- :wat::core::String]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-      (:wat::core::match (:wat::hashmap::get fmap kw)
+      (:wat::core::match (:wat::fix::enum-fields-get fmap kw)
         [:wat::core::Option.Some {:value _}
           (:wat::core::conj acc (:wat::core::Tuple kw (:user::to-dot kw)))]
         [:wat::core::Option.None {}
           (:wat::core::do
-            (:wat::core::if (:user::known-enum? fmap (:user::parent-path kw))
+            (:wat::core::if (:wat::fix::known-enum? fmap (:user::parent-path kw))
               (:wat::kernel::println
                 (:wat::string::concat
                   "[variant-separator] UNRESOLVED "
@@ -156,6 +157,41 @@
     text
     hits))
 
+(:wat::core::defn :user::pairs-for-forms
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
+   path  <- :wat::core::String]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+  (:wat::core::let
+    [kws (:wat::core::foldl :user::collect-keywords
+           (:wat::core::Vector :- [:wat::core::String]) forms)
+     fmap (:wat::fix::enum-fields "variant-separator" path forms (:user::parents-of kws))]
+    (:user::pairs-from-kws kws fmap path)))
+
+(:wat::core::defn :user::nested-pairs
+  [acc  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   node <- :wat::WatAST
+   path <- :wat::core::String]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
+    (:wat::core::foldl
+      (:wat::core::fn
+        [a <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+         n <- :wat::WatAST]
+        -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+        (:user::nested-pairs a n path))
+      (:wat::core::concat acc (:user::pairs-for-forms (:wat::fix::forms-children node) path))
+      (:wat::core::ast->children node))
+    (:wat::core::if (:wat::fix::structural? node)
+      (:wat::core::foldl
+        (:wat::core::fn
+          [a <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+           n <- :wat::WatAST]
+          -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+          (:user::nested-pairs a n path))
+        acc
+        (:wat::core::ast->children node))
+      acc)))
+
 (:wat::core::defn :user::convert-one
   [path <- :wat::core::String]
   -> :wat::core::nil
@@ -165,11 +201,8 @@
              [:wat::core::ReadOutcome.Forms {:forms f} f]
              [:wat::core::ReadOutcome.Malformed {:cause c}
                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
-     kws  (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
-     fmap (:wat::fix::enum-fields "variant-separator" path
-            (:wat::core::ast->children tree)
-            (:user::parents-of kws))
-     pairs (:user::pairs-from-kws kws fmap path)
+     top (:user::pairs-for-forms (:wat::core::ast->children tree) path)
+     pairs (:user::nested-pairs top tree path)
      hits  (:user::hits-for pairs src)]
     (:wat::core::if (:wat::core::empty? hits)
       nil
