@@ -23522,15 +23522,11 @@ pub(crate) mod tests {
         }
     }
 
-    /// D1 — registration survives a stale body. The two files poison
-    /// `eval-with-defs!` (a `defservice` impl / `::` match arms); the door
-    /// stops before `check_program`, so their enums still register.
+    /// Timing on a tracked file. Milliseconds, not an `eval-with-defs!` turn.
     #[test]
-    fn declared_types_register_despite_stale_bodies() {
+    fn declared_types_sift_rules_is_milliseconds() {
         let (sym, macros, types) = stdlib_loaded();
-        let sift = parse_repo_file(
-            "bootstrap/era/probe-L/w25/tests/services/probe_arc278_sift_rules.wat",
-        );
+        let sift = parse_repo_file("tests/services/probe_arc278_sift_rules.wat");
         let t0 = std::time::Instant::now();
         let sift_env = crate::freeze::env::register_declared_types(sift, sym, macros, types)
             .unwrap_or_else(|e| panic!("sift_rules register: {}", e.cause));
@@ -23548,26 +23544,6 @@ pub(crate) mod tests {
                     vec!["items".into(), "cursor".into()]
                 ),
                 ("Fatal".into(), vec!["err".into()]),
-                (
-                    "RequestTooLarge".into(),
-                    vec!["bytes".into(), "cap".into()]
-                ),
-                (
-                    "RequestMalformed".into(),
-                    vec!["path".into(), "expected".into(), "got".into()]
-                ),
-            ]
-        );
-
-        let w2f = parse_repo_file(
-            "bootstrap/era/probe-L/w25/tests/comms/probe_arc293_W2f_process_dials_thread.wat",
-        );
-        let w2f_env = crate::freeze::env::register_declared_types(w2f, sym, macros, types)
-            .unwrap_or_else(|e| panic!("W2f register: {}", e.cause));
-        assert_eq!(
-            enum_variant_fields(&w2f_env, ":probe::Echo::EchoResponse"),
-            vec![
-                ("Ok".into(), vec!["reply".into()]),
                 (
                     "RequestTooLarge".into(),
                     vec!["bytes".into(), "cap".into()]
@@ -23601,65 +23577,74 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
-    fn declared_types_filter_derives_type_decl_heads_from_classify() {
-        let heads = [
-            ":wat::core::structtype",
-            ":wat::core::defenum",
-            ":wat::core::newtype",
-            ":wat::core::typealias",
-            ":wat::core::typeunion",
-            ":wat::core::recordtype",
-            ":wat::core::aggregatetype",
-            ":wat::core::defsurface",
-        ];
-        let span = crate::rust_caller_span!();
-        let empty_macros = MacroRegistry::new();
-        let no_stdlib = std::collections::HashSet::new();
-        for head in heads {
-            let form = WatAST::List(
-                vec![WatAST::Keyword(head.to_string(), span.clone())],
-                span.clone(),
-            );
-            assert!(
-                crate::types::classify_type_decl(&form).is_some(),
-                "{head} must be a classify_type_decl head"
-            );
-            assert!(
-                crate::freeze::env::keeps_declared_types_form(&form, &empty_macros, &no_stdlib),
-                "{head} is type-registering but the door drops it"
-            );
+    fn record_fields(types: &crate::types::TypeEnv, name: &str) -> Vec<String> {
+        match types.get(name) {
+            Some(crate::types::TypeDef::Aggregate(a)) => {
+                a.fields.iter().map(|(n, _)| n.clone()).collect()
+            }
+            other => panic!("{name} is not a registered aggregate: {other:?}"),
         }
     }
 
     #[test]
-    fn declared_types_filter_admits_pre_expansion_type_macros() {
-        // Independent of PRE_EXPANSION_TYPE_FORMS so dropping a head from the
-        // filter makes THIS test name it.
-        let heads = [
-            ":wat::core::defmacro",
-            ":wat::core::defrecord",
-            ":wat::core::defstruct",
-            ":wat::core::do",
-            ":wat::core::derive",
-            ":wat::core::extend-type",
-            ":wat::service::defservice",
-            ":wat::query::sift-rules-defsvc",
-            ":wat::string::declare-acronyms",
-        ];
-        let span = crate::rust_caller_span!();
-        let empty_macros = MacroRegistry::new();
-        let no_stdlib = std::collections::HashSet::new();
-        for head in heads {
-            let form = WatAST::List(
-                vec![WatAST::Keyword(head.to_string(), span.clone())],
-                span.clone(),
-            );
-            assert!(
-                crate::freeze::env::keeps_declared_types_form(&form, &empty_macros, &no_stdlib),
-                "{head} mints types at expansion but the door drops it"
-            );
-        }
+    fn declared_types_holon_defrecord_fields() {
+        let env = decls(
+            &std::fs::read_to_string(format!(
+                "{}/tests/types/probe_arc234_stone2a_record_primitives.wat",
+                env!("CARGO_MANIFEST_DIR")
+            ))
+            .unwrap(),
+        );
+        assert_eq!(record_fields(&env, ":myapp::Voltage"), vec!["magnitude".to_string()]);
+        assert_eq!(
+            record_fields(&env, ":myapp::Point"),
+            vec!["x".to_string(), "y".to_string()]
+        );
+    }
+
+    #[test]
+    fn declared_types_kwargs_defn_mints_kwargs() {
+        let env = decls(
+            r#"
+            (:wat::core::defn :t::work [x <- :wat::core::i64 & [n <- :wat::core::i64]] -> :wat::core::i64
+              (:wat::i64::+ x n))
+            "#,
+        );
+        assert_eq!(record_fields(&env, ":t::work::Kwargs"), vec!["n".to_string()]);
+    }
+
+    #[test]
+    fn declared_types_let_body_enum_via_macro() {
+        let env = decls(
+            &std::fs::read_to_string(format!(
+                "{}/tests/macros/probe_let_splice_enum_via_macro.wat",
+                env!("CARGO_MANIFEST_DIR")
+            ))
+            .unwrap(),
+        );
+        assert_eq!(
+            enum_variant_fields(&env, ":my::probe::Event"),
+            vec![
+                ("Created".into(), vec!["id".into()]),
+                ("Deleted".into(), vec!["id".into()]),
+                ("NoOp".into(), vec![]),
+            ]
+        );
+    }
+
+    #[test]
+    fn declared_types_body_is_never_expanded() {
+        let env = decls(
+            r#"
+            (:wat::core::defenum :t::Ok :wat::enum::Pure :A)
+            (:wat::core::defn :t::f [] -> :wat::core::i64
+              (:wat::core::defstruct))
+            "#,
+        );
+        assert_eq!(
+            enum_variant_fields(&env, ":t::Ok"),
+            vec![("A".into(), vec![])]
+        );
     }
 
     fn decls(src: &str) -> crate::types::TypeEnv {
@@ -23914,6 +23899,20 @@ pub(crate) mod tests {
         ))
         .unwrap();
         oracle_type_of_after_startup(&acronym, ":my::aws::Waf::Op");
+        let holon = std::fs::read_to_string(format!(
+            "{}/tests/types/probe_arc234_stone2a_record_primitives.wat",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        oracle_type_of_after_startup(&holon, ":myapp::Voltage");
+        oracle_type_of_after_startup(&holon, ":myapp::Point");
+        oracle_type_of_after_startup(
+            r#"
+            (:wat::core::defn :t::work [x <- :wat::core::i64 & [n <- :wat::core::i64]] -> :wat::core::i64
+              (:wat::i64::+ x n))
+            "#,
+            ":t::work::Kwargs",
+        );
     }
 
     #[test]

@@ -247,7 +247,7 @@ fn hoist_surface_messages(
 /// its bindings vector (index 2). `None` for anything else. Shared by
 /// [`is_do_or_let_containing_defmacro`] and [`hoist_defmacros_from_container`]
 /// so the two can never drift on which items are "head/bindings" vs "body".
-fn container_body_start(head: &str) -> Option<usize> {
+pub(crate) fn container_body_start(head: &str) -> Option<usize> {
     match head {
         ":wat::core::do" => Some(1),
         ":wat::core::let" => Some(2),

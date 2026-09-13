@@ -16,7 +16,7 @@
 //! Cure: ONE canonical builder here; three thin callers; divergence is
 //! unrepresentable.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use crate::ast::WatAST;
@@ -25,7 +25,7 @@ use crate::check::{
     validate_bare_legacy_primitives, validate_named_type_annotations, CheckError, CheckErrors,
 };
 use crate::macros::{
-    expand_all, register_aggregate_kwargs_companions, register_defmacros,
+    expand_all, expand_once, register_aggregate_kwargs_companions, register_defmacros,
     register_stdlib_defmacros, MacroRegistry,
 };
 use crate::declare::preregister::{preregister_acronyms, preregister_stdlib_defclause_stub};
@@ -95,8 +95,12 @@ pub(crate) struct DeclaredTypesFail {
 /// their types, and return the resulting TypeEnv. Stops before `register_defines`
 /// and before `check_program` — a stale body does not prevent registration.
 ///
-/// Mirrors `build_env`'s USER half: `register_defmacros`, `preregister_acronyms`,
-/// `expand_all`, `register_types_with_acronyms`, `register_variant_types`.
+/// After `register_defmacros` and `preregister_acronyms`, each top-level form is
+/// walked one step: a [`crate::types::classify_type_decl`] hit is kept; a do/let
+/// walks BODY children only ([`crate::macros::expand::container_body_start`]); a
+/// registered macro is [`expand_once`]'d and the result walked; anything else is
+/// dropped and never expanded. Then `expand_all` → `register_types_with_acronyms`
+/// → `register_variant_types` on the kept forms.
 pub(crate) fn register_declared_types(
     forms: Vec<WatAST>,
     stdlib_sym: &SymbolTable,
@@ -114,23 +118,17 @@ pub(crate) fn register_declared_types(
         })
     };
     let mut macros = stdlib_macros.clone();
-    let stdlib_macro_names: HashSet<String> =
-        stdlib_macros.names().map(str::to_string).collect();
-    // Register THIS program's defmacros first so a top-level call of one
-    // (`(:t::mk :demo)`) is kept. Do not expand `defn`: it is a stdlib macro,
-    // and expanding its body evals forms like `mem-store/start`.
     let rest = register_defmacros(forms.clone(), &mut macros)
         .map_err(|e| fail_at(&e.span, format!("{e}")))?;
-    let rest: Vec<WatAST> = rest
-        .into_iter()
-        .filter(|f| keeps_declared_types_form(f, &macros, &stdlib_macro_names))
-        .collect();
     let mut macro_sym = stdlib_sym.clone();
     preregister_acronyms(&rest, &mut macro_sym).map_err(|e| match e {
         EvalBreak::Diagnostic(re) => fail_at(re.span(), format!("{re}")),
         EvalBreak::Signal(_) => fail_at(fallback.span(), "eval-loop control signal escaped".into()),
     })?;
-    let expanded = expand_all(rest, &mut macros, &Environment::default(), &macro_sym)
+    let env = Environment::default();
+    let kept = collect_type_forms(rest, &macros, &env, &macro_sym)
+        .map_err(|e| fail_at(&e.span, format!("{e}")))?;
+    let expanded = expand_all(kept, &mut macros, &env, &macro_sym)
         .map_err(|e| fail_at(&e.span, format!("{e}")))?;
     let mut types = stdlib_types.clone();
     register_types_with_acronyms(expanded, &mut types, &macro_sym.acronym_registry)
@@ -141,45 +139,47 @@ pub(crate) fn register_declared_types(
     Ok(types)
 }
 
-/// Stdlib / surface heads that mint types at expansion, which
-/// [`crate::types::classify_type_decl`] does not see (it runs post-expansion
-/// on `structtype`/`recordtype`/…). Not `defn`: that is a stdlib macro whose
-/// body must not expand.
-pub(crate) const PRE_EXPANSION_TYPE_FORMS: &[&str] = &[
-    ":wat::core::defmacro",
-    ":wat::core::defrecord",
-    ":wat::core::defstruct",
-    ":wat::core::do",
-    ":wat::core::derive",
-    ":wat::core::extend-type",
-    ":wat::service::defservice",
-    ":wat::query::sift-rules-defsvc",
-    ":wat::string::declare-acronyms",
-];
-
-/// Keep a top-level form for the declaration door.
-///
-/// Type-decl heads come from [`crate::types::classify_type_decl`] (the freeze
-/// door). User macros this program just registered are kept so a call that
-/// *declares* types is expanded. `defn` is a stdlib macro and is not kept.
-pub(crate) fn keeps_declared_types_form(
-    form: &WatAST,
+fn collect_type_forms(
+    forms: Vec<WatAST>,
     macros: &MacroRegistry,
-    stdlib_macro_names: &HashSet<String>,
-) -> bool {
-    if crate::types::classify_type_decl(form).is_some() {
-        return true;
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Vec<WatAST>, crate::macros::MacroError> {
+    let mut kept = Vec::new();
+    for form in forms {
+        walk_type_forms(form, macros, env, sym, &mut kept)?;
     }
-    let WatAST::List(items, _) = form else {
-        return false;
-    };
-    let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) else {
-        return false;
-    };
-    if macros.contains(head.as_ref()) && !stdlib_macro_names.contains(head.as_ref()) {
-        return true;
+    Ok(kept)
+}
+
+fn walk_type_forms(
+    form: WatAST,
+    macros: &MacroRegistry,
+    env: &Environment,
+    sym: &SymbolTable,
+    kept: &mut Vec<WatAST>,
+) -> Result<(), crate::macros::MacroError> {
+    if crate::types::classify_type_decl(&form).is_some() {
+        kept.push(form);
+        return Ok(());
     }
-    PRE_EXPANSION_TYPE_FORMS.contains(&head.as_ref())
+    if let WatAST::List(items, _) = &form {
+        if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
+            if let Some(body_start) =
+                crate::macros::expand::container_body_start(head.as_ref())
+            {
+                for child in items.iter().skip(body_start).cloned() {
+                    walk_type_forms(child, macros, env, sym, kept)?;
+                }
+                return Ok(());
+            }
+        }
+    }
+    let expanded = expand_once(form.clone(), macros, env, sym)?;
+    if expanded == form {
+        return Ok(());
+    }
+    walk_type_forms(expanded, macros, env, sym, kept)
 }
 
 fn pos_le(line1: i64, col1: i64, line2: i64, col2: i64) -> bool {
