@@ -2,12 +2,24 @@
 //! LRU cache, core's SECOND default `:rust::` shim (registered from
 //! `with_wat_rs_defaults`, `src/rust_deps/mod.rs`, beside `sqlite`).
 //!
-//! Study-only oracle: `crates/wat-lru/src/shim.rs` (`:rust::lru::LruCache`) —
-//! the distributions-of-wat experiment that proved the shape. This is NOT a
-//! copy of it: the semantics were re-authored here at the final
-//! `:rust::cache::Lru` path, and the wat surface above it (`wat/cache.wat`)
-//! hands the evicted pair back as a NAMED `:wat::cache::Entry` record rather
-//! than the oracle's positional tuple. The crate stays intact until Stone 5.
+//! Study-only oracle (⚠ **GONE — Stone 5 annihilated it**): `crates/wat-lru/src/shim.rs`
+//! (`:rust::lru::LruCache`) — the distributions-of-wat experiment that proved
+//! the shape. This is NOT a copy of it: the semantics were re-authored here at
+//! the final `:rust::cache::Lru` path, and the wat surface above it
+//! (`wat/cache.wat`) hands the evicted pair back as a NAMED
+//! `:wat::cache::Entry` record rather than the oracle's positional tuple.
+//!
+//! This paragraph used to end "the crate stays intact until Stone 5". Stone 5
+//! LANDED — `crates/` holds no `wat-lru`, and the path above resolves to
+//! nothing. The citation is kept because the PROVENANCE is still the honest
+//! answer to "where did this shape come from"; it is marked so no reader burns
+//! time hunting a deleted file. Corrected 2026-08-25.
+//!
+//! ⚠ **"Oracle" here is a STUDY oracle — a prior implementation read for shape
+//! — and has nothing to do with rete's `$oracle`**, which is a live
+//! differential reference under `wat/rete/oracle/`. The two senses were
+//! conflated once already: a reader grepped for the rete convention, found
+//! nothing, and concluded this file's citation was fabricated.
 //!
 //! # Why a newtype
 //!
