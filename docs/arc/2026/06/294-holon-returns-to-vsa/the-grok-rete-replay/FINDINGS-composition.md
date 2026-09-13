@@ -265,6 +265,40 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
 - Size (a TEXT count of `(:wat::core::forms`, indicative only; the real census `--check`s each child):
   164 occurrences in 105 of main's `.wat` files (18 `wat-scripts/probes`, 11 `tests/services`, 9
   `tests/comms`, …). grok-rete modifies or adds 13 of them.
+  - ⚠ Superseded by the substrate census below: 141 literals, not 164. The text count also counted
+    mentions inside comments and strings.
+
+### The census, asked of the substrate (`bootstrap/era/probe-N/`, HEAD `4ff274b0a`)
+
+- **The instrument.** `extract-forms.wat` reads each file with `read-string`, collects every
+  `(:wat::core::forms …)` node at any depth, and writes that literal's children, cut by source span,
+  as a standalone program for `wat --check`.
+- **It discriminates.** On `probe-m1-ann-erase{,2}.wat` it fails exactly the pre-fix children
+  (`f2e0ac26b^`: `:probe::CMsg::Setup is not namespaced`, `unknown type :probe::CMsg`) and passes
+  grok's fixed ones.
+- **Over all 1932 tracked `.wat` outside `wat-scripts/fixes/`: 141 literals** (none unreadable).
+  110 pass `--check`: 107 look like programs, 3 like templates. 31 fail: 29 look like programs, 2
+  like templates.
+- **Most of the 29 are NOT defects.** One site of each kind was READ:
+
+  | kind | read | verdict |
+  |---|---|---|
+  | UselessMain (4) | `tests/kernel/wat_run_sandboxed.wat:34`, a `main` that is `nil` | **the instrument is stricter than production.** `validate_user_main_not_useless` has one caller, `startup_from_source` (`src/freeze.rs:947`). The child path, `startup_from_forms_with_inherit` (`src/process/verbs.rs:431`), never runs it, and `tests/kernel/wat_run_sandboxed.rs:67` asserts this child closes `"closed"` |
+  | a literal used as DATA | `tests/macros/probe_resolver_quote_awareness_forms_data.wat:3`, inside a `do`, never spawned | not a program |
+  | a deliberate negative child (6, `wat-tests/core/core-{arithmetic,equality}.wat`) | `core-arithmetic.wat:265`, whose test expects the failure | pinned by its own test |
+  | a child that relies on its parent | `probe-child-inherits-defns.wat:17` | the failure is the probe's answer |
+  | "empty input" (2) | `wat/service.wat:2490`, `` `(:wat::core::forms ~child-main-form)`` | a TEMPLATE the detector missed: an unquote's span covers only the `~` |
+
+  The rest (≈14 in `wat-scripts/probes/arc-170/`, plus `tests/process/arc112_scheme_probe.wat`,
+  `tests/wat_lang/wat_core_forms.wat`, `probe-s1-named.wat`) are NOT yet classified. Their shape
+  matches the two real defects `erase`/`erase2` were.
+
+- **What a GATE must be, from this census:**
+  - it keys on a literal in a PROGRAM-STARTING position (spawned, sandboxed, …), not on every `forms`;
+  - it runs each child on the CHILD's real path, `startup_from_forms_with_inherit` with an
+    `InMemoryLoader` (`src/process/verbs.rs:429-433`), never `--check`, which is stricter;
+  - a test that expects a child's startup to fail pins that expectation itself, and the gate honours it;
+  - a template is not a program until it is expanded.
 
 ## `convert.sh` does not run `one-param-spec` the way this check did
 
