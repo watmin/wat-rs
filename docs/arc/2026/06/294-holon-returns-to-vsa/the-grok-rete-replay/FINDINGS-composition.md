@@ -91,6 +91,24 @@ loss elsewhere. Its "fewer in none" was true of those 77 and is not a no-regress
 - (B)'s 35: 20 are this regression · 5 the `probe-m1` two-program scope gap · 9 main's hand-authored
   `service.wat` template · 1 c3, which matches main.
 
+### ✓ The LADDER, measured at full scale (`bootstrap/era/probe-L/`, 2026-09-13 04:05–04:21Z)
+
+`ma-ladder.wat` = today's match-arm plus one rung. At `fmap-for-src:864`, try today's declarations;
+only when they cannot answer, try pure type declarations + `declare-acronyms` at any depth.
+
+| | today | pure (B) | ladder |
+|---|---|---|---|
+| UNRESOLVED | 403 | 35 | **15** |
+| arms LOST vs today | — | 20 (2 files) | **0** |
+| files where it gained arms | — | 74 | **74** |
+| arms pure (B) converted that the ladder did not | — | — | **0** |
+
+The 15 left: 9 main's hand-authored `service.wat` template · 1 c3 (matches main) · 5 the `probe-m1`
+two-program scope gap (the brief's scope rule). A positional-ctor ladder (`pc-L.wat`, same rung
+in `fill-paths`) smoke-tests clean (acronym file +2 ctors = main, 0 lost); its full A/B and the chain
+under the ladder (v3L) are running (`probe-L/pc2.sh`). The pure-(B) positional-ctor and v3 runs were
+stopped as superseded.
+
 ## Finding 4 — positional-ctor's UNRESOLVED count is mostly noise (a CASE rule)
 
 - `pascal-leaf?` asks `(= c (to-uppercase c))` of the leaf's first character. That is TRUE for `+`, `=`,
