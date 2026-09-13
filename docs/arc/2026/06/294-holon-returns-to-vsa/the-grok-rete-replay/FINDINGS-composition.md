@@ -55,10 +55,46 @@ full run, it was timed on one file: 54 s, 46 s of it `positional-ctor-to-map`.
   bracket arms 3 = main**, on the frozen binary.
   - Indicator: 325 of 333 (name, file) pairs have an explicit in-file `defenum`, so (B) should reach
     ~98%.
-  - The ~8 left are macro-GENERATED (defservice Op/Reply, the acronym registry,
-    `generated-template-without-fqdn`).
-  - The 77-file side-by-side is running. Two earlier attempts were a harness kill and a relative-path
-    bug in my own runner (both runs got empty stdin), so neither measured anything.
+  - **At scale (77 files, frozen binary, `probe-B/final.sh`): today 403 UNRESOLVED → (B) 16. (B)
+    converted more arms in 73/77 files and fewer in none.** (Two earlier attempts measured nothing:
+    one harness kill, and one relative-path bug in my runner that fed empty stdin.)
+  - (B)'s 16, each classified:
+
+    | n | where | what | class |
+    |---|---|---|---|
+    | 1 | `probe_diagnostic_c3…` | template arm in a `defmacro` | **not a residual**: main has 0 bracket arms there too |
+    | 9 | `wat/service.wat` | `generated-template-without-fqdn` | **main hand content**: landing `480f38d05` hand-authored `init-arg-map-ast` in service.wat, and the era tool on `480f38d05^` cannot reproduce those 29 arms without it |
+    | 1 | `probe_arc265_acronym_registry_svc` | `Waf::Op::CreateWebACL` | **(B) gap: acronyms.** The era tool on `480f38d05^` reproduces the landing byte-for-byte. Adding `:wat::string::declare-acronyms` to (B)'s heads → 0 UNRESOLVED, `{:req req}` = main (control: unmodified (B) on a copy reproduces the 1). `probe-D/` |
+    | 5 | `probe-m1-ann-erase2` | `PoolMsg`, `Echo::EchoResponse` | **(B) gap: program scope.** The file holds TWO programs: a parent, and a child inside `(:wat::core::forms …)`. Each declares its own `PoolMsg`/`Echo` ("SEPARATE typecheck universes", its header). The deep collector merges both, so the eval fails on the duplicate. Removing the child's copies → 0 UNRESOLVED. The real fix: a nested `forms` is its own scope. `probe-D/` |
+
+## Finding 4 — positional-ctor's UNRESOLVED count is mostly noise (a CASE rule)
+
+- `pascal-leaf?` asks `(= c (to-uppercase c))` of the leaf's first character. That is TRUE for `+`, `=`,
+  `*`, `>`, so `(:wat::i64::+ …)` and `(:wat::core::= …)` are reported. It also reports collection
+  ctors (`PersistentVector`) and rete patterns inside `quote`.
+- v2 step 26 at 694 files: 1,896 reports over 306 names; the top ones are `PersistentVector` (270),
+  `:wat::i64::+` (155) and `:wat::core::=` (128).
+- It gates only the REPORT, never an edit, so the output is unaffected. But the channel cannot tell a
+  real miss from noise, and it is a case rule, which the ruling forbids ("character case bears no
+  meaning"). **For this step, the residual comparison against main is the instrument, not the count.**
+
+## Finding 5 — the LANDING's match-arm leaked a type ACROSS FILES, and main carries it
+
+- Main's `probe-m1-ann-erase2.wat` arms read `[:probe::PoolMsg.Setup {:deps addr}]` and
+  `[:probe::PoolMsg.Work {:pair s}]`. Its own `PoolMsg` (both copies) declares `addr` and `s`.
+  `deps`/`pair` are `probe-m1-phantom-d.wat`'s `PoolMsg :- [D I]`.
+- **Reproduced:** the era tool (`480f38d05` tree and binary) on `480f38d05^` of erase2 ALONE writes
+  `{:addr addr}` / `{:s s}`. With `phantom-d` in the same run it writes `{:deps addr}` /
+  `{:pair s}`, byte-matching the landing. The landing changed both files. `probe-E/`
+- So it is TOOL output, not a hand edit: one run's type state reached another file. The mechanism
+  inside the tool is not traced yet (erase2 was listed FIRST, so it is not simple order).
+- It is masked on main: the child program dies first at startup on an undeclared `:probe::CMsg`
+  (main's binary, run: `UnknownNamedType … :probe::CMsg`). `CMsg` is declared only in the sibling
+  `probe-m1-ann-erase.wat`. Grok-rete never touched erase2, so the file is broken on BOTH sides and
+  its `EXPECT (green): "echo:z"` is false.
+- **The class, not the case:** every arm main converted in the landing run could carry a same-named
+  type from another file. The chain resolves in-file only, so it writes the declared fields. **The
+  composition RESULT's residuals where chain = in-file declaration and main ≠ are this census.**
 
 ## Operational notes (all paid for today)
 

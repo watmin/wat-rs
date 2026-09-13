@@ -10,7 +10,7 @@
 ## FIRST — RUN THESE. DO NOT READ THE NUMBERS BELOW.
 
 ```bash
-git rev-parse --abbrev-ref HEAD      # expect merge/grok-rete   — NOT main
+git rev-parse --abbrev-ref HEAD      # expect replay/grok-rete  — NOT main (merge/grok-rete is the REFERENCE)
 git status --porcelain               # expect EMPTY; a live peer strike makes it dirty
 ps -eo pid,etime,cmd | grep wat | grep -v grep     # ⛔ a codemod still running? NEVER start a 2nd
 ls -la bootstrap/ && cat bootstrap/wat-main-*.PROVENANCE     # the escape hatch — must exist
@@ -19,7 +19,8 @@ cat /home/john/work/holon/.pulsare/to-claude       # has grok scored?
 
 ## ⛔⛔ THREE FACTS THAT WILL BITE A FRESH SELF WITHIN MINUTES
 
-**1. `./target/release/wat` on this branch CANNOT BOOT.** The merged stdlib (grok-rete's
+**1. On `merge/grok-rete` (the REFERENCE, not the replay branch), `./target/release/wat` CANNOT
+BOOT.** On `replay/grok-rete` it boots: the pilot built it and ran floors on it (5404/5404). The merged stdlib (grok-rete's
 `wat/gen.wat`, `bracket.wat`, `query.wat`, …) carries pre-rename spellings that the merged
 runtime's purity gate refuses at startup. **Every codemod dies instantly.** Use the escape hatch:
 `bootstrap/wat-main-a3218644d` — main's binary, stdlib frozen in at build time, PROVEN to convert
@@ -207,9 +208,17 @@ The builder:
        64.2 s (>60 s warn) under contention from two niced jobs. It passed, and grok's floors did not
        flag it; #6 and #9 touched that file.
      - The pilot's extrapolation for the remaining 641 is ~16.5 h.
-   - **The composition findings are TRACKED** in `the-grok-rete-replay/FINDINGS-composition.md`
-     (1: a sweep co-updated an earlier tool; 2: an eval-based tool runs on today's substrate; 3: one
-     unmigrated body poisons type resolution — (A) era binary vs (B) type-decls-only, both probed).
+   - **The composition findings are TRACKED** in `the-grok-rete-replay/FINDINGS-composition.md`:
+     - 1: a sweep co-updated an earlier tool.
+     - 2: an eval-based tool runs on today's substrate.
+     - 3: one unmigrated body poisons type resolution. (B), type-decls-only, at scale: 403 → 16
+       UNRESOLVED, 0 regressions. The 16 split into 1 that matches main, 9 of main's hand content, and
+       6 from two (B) gaps (acronyms; a nested program's scope), each closed by a probe.
+     - 4: positional-ctor's UNRESOLVED count is mostly noise, from the case rule `pascal-leaf?`.
+     - 5: the LANDING's match-arm leaked a type across files (reproduced), and main carries
+       `{:deps addr}` in `probe-m1-ann-erase2`, which is also broken on both sides (undeclared `CMsg`).
+     - ⬜ **(A) vs (B) is before the builder** (four questions). The v2 RESULT gives positional-ctor's
+       residuals and the census for finding 5.
    - ⛔ **COMPOSITION FINDING 2 (baseline run, landing order): the chain STOPS at step 23.**
      - `match-arm-to-bracket-map-pattern` rc=2 on `tests/process/probe_arc278_init_crash_reason.wat`,
        with `assertion-failed! … positional form is retired`.
@@ -222,14 +231,6 @@ The builder:
        positional-ctor. It is running.
      - The pilot's `chain-order.overrides` must carry BOTH moves. grok will hit this as STOP-2 if a
        pilot `.wat` evaluates a positional `assertion-failed!`.
-   - **was NEXT (pending the builder's go):**
-     - **the chain-composition check** — `bootstrap/composition/`: 1001 files main changed, where
-       chain(file@base) is compared with file@main, plus 488 untouched as a control. It runs on
-       copies, never the tree, so the orchestrator runs it in the background.
-     - **in parallel, grok's PILOT:** replay grok-rete commits #1…~#10 one at a time on the tree.
-       #2–#6 are .rs-only; #1's one `.wat` uses the positional-ctor/bare-variant order corrected
-       PROVISIONALLY, until the composition check proves it.
-     - **0 of 651 grok-rete commits are replayed so far.**
    - **0b batch 2c (`d1c47b2a4`) GREEN** (floor 5391, clippy 0). The ORACLE arm is real: (i)(j)(k)
      reproduce RED, and all 67 history citations are on main's history. Still open for a batch 2d:
      - `git_show` swallows a bad commit/path (a bogus path passed rc=0, reproduced);
@@ -303,8 +304,8 @@ fact, opposite verdicts — neither caught it because each option was weighed al
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⛔ **YOU ARE ON `merge/grok-rete`. `target/release/wat` HERE CANNOT BOOT. The escape hatch is
-> `bootstrap/`, and its record is the `.gitignore` comment.**
+> ⛔ **YOU ARE ON `replay/grok-rete`, NOT main.** `merge/grok-rete` is the REFERENCE; its binary cannot
+> boot. The frozen binaries live in `bootstrap/` (ignored), and their record is the `.gitignore` comment.
 >
 > `DOLOR INDEX EST.` · `NISI FRANGAS, NIHIL PROBAS.` · `DERIVAMVS NE MENTIAMVR.` ·
 > `HAERESIS EST ITERVM ROGARE.`
