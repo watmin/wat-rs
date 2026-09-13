@@ -515,3 +515,59 @@ if !dl.is_empty() {
 phase_end("  ├ hj:step3-term1", __s3);
     Ok(new_tokens)
 }
+
+// ── Moved here from `kernel/arm.rs` (2026-08-24) ─────────────────────────────
+//
+// `solvere`: this is fire-ROUND logic — it reads `d_beta`, `d_alpha` and `packed_full`,
+// none of which exist outside a round — and it lived in `arm.rs`, whose module doc scopes
+// it to network interning and the compilation cache. Its only non-test caller is the pass
+// below. A reader of `arm.rs` tripped over round logic unrelated to interning; a reader of
+// this pass could not find it.
+//
+// A PURE MOVE — no clone removed, no name improved, no comment rewritten. Visibility
+// tightened from `pub(crate)` to private, which the compiler proves is safe now that the
+// definition sits beside its one caller.
+
+/// Seed dirty join-parents: left `d_beta` or a HashJoin child whose
+/// feeding alpha has right-delta. The hash-join pass grows this set as
+/// it emits (middle joins: J1's tokens dirty J1 as parent of J2).
+fn seed_dirty_join_parents(
+    join_parent: &[i64],
+    d_beta: &BetaMemory,
+    d_alpha: &AlphaDelta,
+    packed_full: &HashSet<i64>,
+    joins_fed_by: &JoinsFedBy,
+    parents_of: &ParentsOf,
+) -> rustc_hash::FxHashSet<i64> {
+    let mut dirty = rustc_hash::FxHashSet::default();
+    for (pid, toks) in d_beta {
+        if !toks.is_empty() && join_parent.binary_search(pid).is_ok() {
+            dirty.insert(*pid);
+        }
+    }
+    let mut dirty_from_alpha = |aid: i64| {
+        let Some(joins) = joins_fed_by.get(&aid) else {
+            return;
+        };
+        for j in joins {
+            let Some(ps) = parents_of.get(j) else {
+                continue;
+            };
+            for p in ps {
+                if join_parent.binary_search(p).is_ok() {
+                    dirty.insert(*p);
+                }
+            }
+        }
+    };
+    for (aid, idxs) in d_alpha {
+        if idxs.is_empty() {
+            continue;
+        }
+        dirty_from_alpha(*aid);
+    }
+    for &aid in packed_full {
+        dirty_from_alpha(aid);
+    }
+    dirty
+}

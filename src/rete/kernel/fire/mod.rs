@@ -1201,94 +1201,8 @@ pub(crate) fn eval_fire_once_native(
 
 // ── Cascade fixpoint helpers (P4a) ───────────────────────────────────────────
 
-/// Flatten `production-memory`'s per-node `PV<Record>` values into one `Vec<Value>`.
-///
-/// `production-memory` is a `PersistentMap<node-id, PV<Record>>`. The outer pass visits
-/// each node's PV; the inner pass collects each Record. Mirrors `collect-derived`
-/// (`wat/rete/oracle/fire.wat`).
-///
-/// Used by the 7-strat-native stratified driver (`fire_rules_stratified`) to collect
-/// each stratum's derived facts.
-pub(crate) fn collect_derived(production_pm: &Value) -> Vec<Value> {
-    let mut out: Vec<Value> = Vec::new();
-    if let Value::wat__core__PersistentMap(m) = production_pm {
-        for (_k, v) in m.iter() {
-            if let Value::wat__core__PersistentVector(pv) = v {
-                for fact in pv.iter() {
-                    out.push(fact.clone());
-                }
-            }
-        }
-    }
-    out
-}
 
-/// Fold `derived` facts into the existing `facts` PersistentVector, conj-ing ONLY facts
-/// not already present (structural `==` dedup).
-///
-/// The dedup is the termination guard: if every derived fact is already in `facts`, the
-/// result length equals `facts` length → the fixpoint loop exits. Re-adding a present
-/// fact would grow `facts` every round and spin forever. Mirrors `merge-facts`
-/// (`wat/rete/oracle/fire.wat`).
-///
-/// Used by the 7-strat-native stratified driver (`fire_rules_stratified`) — R18: the cross-stratum
-/// derived-fact accumulation MUST value-dedup (mirrors the oracle's `merge-facts`,
-/// `wat/rete/oracle/fire.wat`), not concat, or a fact produced by more than one stratum's
-/// query is double-counted.
-///
-/// P9 perf, kept for the lineage: membership is a `HashSet` rather than a linear `.any()`
-/// scan, which was O(len(pv)) PER derived fact — O(n²) over a stratum-chain run and the exact
-/// quadratic blow-up behind the `[7,3000]`-class hang. `Value: Hash + Eq` already (the
-/// round-loop's own `seen: HashSet<Value>` dedup, above, uses the same property), so the swap
-/// cost nothing in semantics: same value-dedup, same push_back order.
-///
-/// P9 left the set REBUILT here, once per call, making the per-call cost O(len(pv) +
-/// len(derived)). That is no longer what this function does — see the next paragraph. The
-/// O(len(pv)) term is now paid ONCE by `facts_membership` outside the loop, and this call is
-/// O(len(derived)).
-///
-/// The membership set is the CALLER'S and is carried across strata — it is not
-/// rebuilt here (`DESIGN-STONE-strat-merge-carried-set`). The stratified loop
-/// calls this once per stratum with the whole accumulated closure; rebuilding
-/// the set each time re-hashed and re-cloned every fact derived so far to
-/// re-learn what the previous iteration already held, O(S*N) where the honest
-/// cost is O(N). Measured at strat-neg `[6 2000]`: 27000 hashes vs 8000, 2.23 ms
-/// of it theater (`strat_merge_present_parts`). Seed the set with
-/// `facts_membership` and thread it through the loop.
-pub(crate) fn merge_facts(
-    facts_pv: &Value,
-    present: &mut std::collections::HashSet<Value>,
-    derived: &[Value],
-) -> Value {
-    // Start with a clone of the existing PV.
-    let mut pv: crate::value::pvec::PVec = match facts_pv {
-        Value::wat__core__PersistentVector(v) => v.clone(),
-        _ => crate::value::pvec::PVec::new(),
-    };
-    #[cfg(test)]
-    {
-        census_count_n("merge:pv-owners", pv.array_owners() as u64);
-        census_count_n("merge:pv-calls", 1);
-    }
-    for fact in derived {
-        // Conj only if not already present (structural equality, now O(1) amortized).
-        if present.insert(fact.clone()) {
-            pv.push_back_mut(fact.clone());
-        }
-    }
-    Value::wat__core__PersistentVector(pv)
-}
 
-/// The membership set `merge_facts` would have collected on its first call —
-/// the seed for the carried set. The non-PersistentVector arm mirrors
-/// `merge_facts`' own `_ => PVec::new()`, so a `facts` field that is not a
-/// vector behaves exactly as before.
-pub(crate) fn facts_membership(facts_pv: &Value) -> std::collections::HashSet<Value> {
-    match facts_pv {
-        Value::wat__core__PersistentVector(v) => v.iter().cloned().collect(),
-        _ => std::collections::HashSet::new(),
-    }
-}
 
 pub(crate) fn network_has_production(network: &Value) -> bool {
     sorted_node_ids(network)
@@ -1308,59 +1222,8 @@ pub(crate) fn refuse_export_without_arm(op: &'static str, span: &Span) -> EvalBr
     .into()
 }
 
-pub(crate) fn rules_lack_ast(rules: &[Value]) -> bool {
-    if rules.is_empty() {
-        return true;
-    }
-    rules.iter().all(|r| match rule_named_field(r, "lhs") {
-        Some(Value::wat__core__PersistentVector(pv)) => {
-            !pv.iter().any(|x| matches!(x, Value::wat__WatAST(_)))
-        }
-        _ => true,
-    })
-}
 
-pub(crate) fn synthetic_rule(name: &str) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::record(
-        "wat::rete::Rule".into(),
-        crate::value::value::names_arc_from_static(RULE_FIELDS),
-        Arc::new(vec![
-            Value::String(Arc::new(name.to_string())),
-            Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()),
-            Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()),
-        ]),
-    )))
-}
 
-pub(crate) fn fire_rules_from_deps(
-    session: &Value,
-    deps: &[RuleDep],
-    sym: &SymbolTable,
-    support: Option<&mut ExplainSupport>,
-) -> Result<Value, EvalBreak> {
-    let mut parts: Vec<RuleParts> = Vec::with_capacity(deps.len());
-    for d in deps {
-        parts.push(RuleParts {
-            rule: synthetic_rule(&d.name),
-            view: d.view.clone(),
-        });
-    }
-    let pn_only: Vec<StratifyView> = parts.iter().map(|p| p.view.clone()).collect();
-    let type_strata = native_stratify(&pn_only)?;
-    let mut max_s: i64 = 0;
-    let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
-    for part in &parts {
-        let s = native_rule_stratum(&part.view.produced, &part.view.negated, &type_strata);
-        rule_strata.push(s);
-        if s > max_s {
-            max_s = s;
-        }
-    }
-    if max_s == 0 {
-        return fire_fixpoint_delta(session, sym, support);
-    }
-    fire_rules_stratified(session, &parts, &rule_strata, max_s, sym, support)
-}
 
 // ── key_of helper ────────────────────────────────────────────────────────────
 
