@@ -257,7 +257,7 @@ fn only_identifier_rs_spells_the_variant_separator() {
          \n\
          THE FIX — route through the pair:\n\
          \n\
-         \x20 compose_variant(enum_path, variant)   -> `{{enum}}::{{variant}}`\n\
+         \x20 compose_variant(enum_path, variant)   -> `{{enum}}.{{variant}}`\n\
          \x20 decompose_variant(name) -> Option<(&str, &str)>   the exact inverse\n\
          \n\
          If this site does NOT separate an enum from its variant, add a co-located\n\

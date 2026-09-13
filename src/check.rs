@@ -2874,7 +2874,7 @@ fn infer_list(
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::runtime::variant-parent-of".into(),
                         reason: format!(
-                            "expected (:wat::runtime::variant-parent-of :Ns::Enum::Variant); got {} arg(s)",
+                            "expected (:wat::runtime::variant-parent-of :Ns::Enum.Variant); got {} arg(s)",
                             args.len()
                         ),
                         remedies: vec![],
@@ -2883,7 +2883,7 @@ fn infer_list(
                 }
                 // ⛔ LITERAL OR COMPUTED — deliberately NOT `is-type?`'s literal-only gate.
                 // A literal keyword is checked as a NAME (and never inferred, since
-                // `:Ns::Enum::Variant` in value position resolves to the variant CONSTRUCTOR);
+                // `:Ns::Enum.Variant` in value position resolves to the variant CONSTRUCTOR);
                 // anything else is inferred and must be a `:wat::core::keyword`. The computed
                 // path is the reason this verb exists — a corpus codemod walks an AST and holds
                 // each candidate as a runtime value, so it can never present a literal.
@@ -6952,7 +6952,7 @@ fn cover_variant_arm(
                             kind: CheckErrorKind::MalformedForm {
                                 head: ":wat::core::match".into(),
                                 reason: format!(
-                                    "variant `{path}` must be `<enum>::<Variant>`"
+                                    "variant `{path}` must be `<enum>.<Variant>`"
                                 ),
                                 remedies: vec![],
                             },
@@ -7250,7 +7250,7 @@ fn check_nested_variant_map(
                         kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
-                                "variant constructor pattern {path} must be `<enum>::<Variant>`"
+                                "variant constructor pattern {path} must be `<enum>.<Variant>`"
                             ),
                             remedies: vec![],
                         },
@@ -7505,7 +7505,7 @@ fn check_subpattern(
                     errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
-                            "keyword sub-pattern {} must be `<enum>::<Variant>` or `:None`",
+                            "keyword sub-pattern {} must be `<enum>.<Variant>`",
                             k
                         ),
                         remedies: vec![],
@@ -7752,7 +7752,7 @@ fn check_subpattern(
                         errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
-                                "variant constructor pattern {} must be `<enum>::<Variant>`",
+                                "variant constructor pattern {} must be `<enum>.<Variant>`",
                                 variant_path
                             ),
                             remedies: vec![],

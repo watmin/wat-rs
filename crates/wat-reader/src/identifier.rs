@@ -337,8 +337,8 @@ pub fn deprimed(name: &str) -> &str {
 // the one thing all fifteen call sites actually compose: an enum variant's
 // name from its declared enum and its variant.
 
-/// Compose an enum variant's LOOKUP/keyword spelling: `enum_path::variant_name`.
-/// The `::` join is the inverse of [`path`]/[`leaf`] applied to a variant
+/// Compose an enum variant's LOOKUP/keyword spelling: `enum_path.variant_name`.
+/// The `.` join is the inverse of [`path`]/[`leaf`] applied to a variant
 /// reference: `compose_variant(path(x), leaf(x)) == x` for any `x` this
 /// function could have produced.
 ///
@@ -354,7 +354,7 @@ pub fn deprimed(name: &str) -> &str {
 /// special-cased" edge case documented above). The caller presents whatever
 /// shape it already holds — a pre-stripped `enum_path` composes a
 /// colon-free result, an as-stored `enum_path` composes a colon-ful one —
-/// and this function's only business is the `::` in the middle.
+/// and this function's only business is the `.` in the middle.
 ///
 /// The separator is THIS function's decision, made once: flipping
 /// `Enum::Variant` to `Enum.Variant` (the wat-rs dot-flip) is a one-line
@@ -364,10 +364,10 @@ pub fn compose_variant(enum_path: &str, variant_name: &str) -> String {
 }
 
 /// The INVERSE of [`compose_variant`]: split a variant's LOOKUP/keyword spelling
-/// (`enum_path::variant_name`) back into `(enum_path, variant_name)`.
+/// (`enum_path.variant_name`) back into `(enum_path, variant_name)`.
 ///
 /// The two must always agree — the separator is one decision, and it is spelled in
-/// exactly these two function bodies. `compose_variant` writes `::`; this reads `::`.
+/// exactly these two function bodies. `compose_variant` writes `.`; this reads `.`.
 /// Moving the separator means changing both, together, in this file only.
 ///
 /// This exists as its own function, rather than a caller reaching for [`path`]/[`leaf`]
@@ -380,7 +380,7 @@ pub fn compose_variant(enum_path: &str, variant_name: &str) -> String {
 /// its one caller (`TypeEnv::variant_parent_enum`, `src/types.rs`): the one-name-grammar
 /// lint bans a hand-rolled `rfind` outside `identifier.rs`.
 ///
-/// `None` when `name` has no `::` — mirroring [`path`]'s `""` return for the same input,
+/// `None` when `name` has no `.` — mirroring [`path`]'s `""` return for the same input,
 /// which callers already treat as "not a variant" (e.g. `variant_parent_enum`'s
 /// `parent.is_empty()` guard).
 pub fn decompose_variant(name: &str) -> Option<(&str, &str)> {

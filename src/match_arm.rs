@@ -105,7 +105,7 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
             [WatAST::Keyword(k, path_span), WatAST::Map(_, _), _] => Err(MatchArmError {
                 span: path_span.clone(),
                 reason: format!(
-                    "variant arm head `{k}` is not namespaced; write `<enum>::<Variant>`"
+                    "variant arm head `{k}` is not namespaced; write `<enum>.<Variant>`"
                 ),
             }),
             _ => Err(MatchArmError {
@@ -128,7 +128,7 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
     }
 }
 
-/// A variant head is namespaced (`:enum::Variant`). Discriminator
+/// A variant head is namespaced (`:enum.Variant`). Discriminator
 /// between a variant map pattern and a non-variant keyword (refused).
 pub fn is_namespaced_variant(path: &str) -> bool {
     wat_reader::identifier::decompose_variant(path).is_some()
@@ -170,7 +170,7 @@ pub fn builtin_variant(path: &str) -> Option<BuiltinVariant> {
 }
 
 /// The five illegal two-segment (and legacy `:None`) spellings, with the
-/// qualified Type::Variant replacement the refusal must name (STOP-3).
+/// qualified Type.Variant replacement the refusal must name (STOP-3).
 pub fn retired_bare_variant(path: &str) -> Option<&'static str> {
     match path {
         ":wat::core::Some" => Some(":wat::core::Option.Some"),
@@ -184,7 +184,7 @@ pub fn retired_bare_variant(path: &str) -> Option<&'static str> {
 pub fn bare_variant_retired_reason(path: &str) -> String {
     match retired_bare_variant(path) {
         Some(repl) => format!("the bare variant spelling is retired; write `{repl}`"),
-        None => format!("the bare variant spelling is retired; write a qualified Type::Variant FQDN, not `{path}`"),
+        None => format!("the bare variant spelling is retired; write a qualified Type.Variant FQDN, not `{path}`"),
     }
 }
 

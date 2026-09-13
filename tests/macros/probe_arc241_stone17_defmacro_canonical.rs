@@ -13,6 +13,7 @@
 
 use wat::freeze::{startup_from_file, StartupError};
 use wat::macros::{MacroError, MacroErrorKind};
+use wat::runtime::{apply_function, Value};
 
 // ─── C01: defmacro with new canonical Vector-triple shape WORKS ────────────────
 
@@ -46,10 +47,26 @@ fn contract_02_old_paren_pair_shape_rejected() {
 
 #[test]
 fn contract_03_defmacro_canonical_rest_binder_works() {
-    let result = startup_from_file("tests/macros/probe_arc241_stone17_defmacro_canonical_c03.wat");
-    assert!(
-        result.is_ok(),
-        "defmacro with canonical rest-binder shape must work post-stone; got: {:?}",
-        result
-    );
+    let world = startup_from_file("tests/macros/probe_arc241_stone17_defmacro_canonical_c03.wat")
+        .unwrap_or_else(|e| panic!("c03 startup (rest-binder wrap of 1 2 3): {e}"));
+    let func = world
+        .symbols()
+        .get(":test::three")
+        .expect(":test::three")
+        .clone();
+    let v = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .unwrap_or_else(|e| panic!("c03 eval: {e}"));
+    match v {
+        Value::Vec(items) => {
+            assert_eq!(
+                items.len(),
+                3,
+                "variadic-wrap of 1 2 3 must be a 3-element result; got {items:?}"
+            );
+            assert!(matches!(items[0], Value::i64(1)));
+            assert!(matches!(items[1], Value::i64(2)));
+            assert!(matches!(items[2], Value::i64(3)));
+        }
+        other => panic!("expected Vec of three i64s; got {other:?}"),
+    }
 }

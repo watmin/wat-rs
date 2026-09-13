@@ -1,0 +1,2 @@
+(:wat::core::defn :u::f [] -> (:wat::core::Option :- [:wat::core::keyword])
+  (:wat::runtime::variant-parent-of))
