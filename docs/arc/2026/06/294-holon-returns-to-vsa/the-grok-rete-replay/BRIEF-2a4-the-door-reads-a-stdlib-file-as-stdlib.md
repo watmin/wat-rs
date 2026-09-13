@@ -80,3 +80,16 @@ its body still said `:wat::core::string::concat`, which steps 1–12 rename befo
 ## Tier
 
 Commit on green. **Do not push.** Yield with `SCORE-2a4.md`; then batch 1 resumes at #22.
+
+## Order of work — your #22 overlay is still staged
+
+The staged #22 overlay bakes the UNCONVERTED `wat/gen.wat` into the stdlib (`src/load/stdlib.rs`
+`include_str!`), so every build on that tree fails. So:
+1. `git stash push -m "grok #22 overlay"` (keep the index: it holds your `git rm`/add of `gen.wat`);
+2. strike 2a4 on the clean tree (floor + clippy green), commit it, yield nothing yet;
+3. `git stash pop --index`, then redo #22 under the two-phase recipe with the new door: convert
+   `wat/gen.wat` (stdlib mode), `cargo build --release`, convert its consumers, gate, commit
+   `REPLAY(grok-rete #22)`;
+4. continue batch 1 (#23 → #60) under BRIEF-4, its addendum, and this two-phase rule for every step that
+   touches `wat/*.wat`. Yield after #60, or at the first STOP, with `SCORE-2a4.md`,
+   `SCORE-4-replay-batch-1.md` and `REPLAY-LOG.md`.
