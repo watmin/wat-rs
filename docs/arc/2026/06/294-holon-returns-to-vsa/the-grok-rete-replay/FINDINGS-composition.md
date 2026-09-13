@@ -494,6 +494,27 @@ Batch 1 stopped at its first step, #11 (`eebf75374`): the converted `rete-differ
   registered verb of the same meaning (`:wat::edn::write`), log it `LATENT (c3fefc5ab)`, let the author's
   later fix win its conflict; STOP-7 when no registered verb has the meaning.
 
+## Finding 17 — the door reads every file as USER code, so a replayed step that changes the stdlib fails
+
+Batch 1 stopped at #22 `8eeff8adc`: grok-rete promotes `wat-scripts/lib/gen.wat` into the stdlib as
+`wat/gen.wat` (`:wat::gen::*`). #11–#21 replayed clean (floor 5436/5436 on `1294f2fc3`, pushed).
+- The door runs `build_env`'s USER half (`src/freeze/env.rs:134`), so every `:wat::gen::` declaration is
+  refused `ReservedPrefix`; match-arm and positional-ctor leave the file unconverted; baked through
+  `include_str!`, it stops the binary starting (`ReturnTypeMismatch` `wat/gen.wat:143`); its consumers ask
+  `type-of` in HEAD's world, which lacks it.
+- For a stdlib file a commit CHANGES, the door refuses the changed type as a duplicate and the codemod
+  answers HEAD's PREVIOUS version — a changed field would convert stale, silently.
+- **The class:** 34 grok-rete commits from #22 touch a stdlib `wat/*.wat` file (2 add one, 25 also change
+  consumers); 19 of batch 1's remaining 39 (`bootstrap/era/replay-plan/stdlib-touch.tsv`).
+- **The probe** (three runs): `build_env`'s STDLIB half on the file's forms registers all of it —
+  `register_stdlib_defmacros`, `expand_all_with(…, Privilege::Stdlib)` (a `defstruct`'s companion macro is
+  minted during expansion), `register_stdlib_types`: `CheckOutcome` = `Checked [points violations]`,
+  `EmptySpace []`. The user door on the same text: `ReservedPrefix`.
+- Also verified in #11–#21: the 3 `#[ignore]`s added are grok-rete's own TDD red tests (defect families A/B
+  at #19, C at #20), closed by grok-rete at #46 (B) and #49 (A and C) — inside batch 1; after #60 they must
+  be gone.
+- Routed: `BRIEF-2a4-the-door-reads-a-stdlib-file-as-stdlib.md`.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
