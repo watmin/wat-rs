@@ -388,6 +388,27 @@ The four-file smoke set simply contained no offender.
   - a fresh copy per call, so no cross-file leak;
   - a structured failure naming the declaration that broke.
 
+## Finding 13 — the door at full scale: excluding a form drops everything that form declares
+
+Measured 2026-09-13 on `101626eea` (2a1 + its first refute), over the 1489-file step-24 input.
+- **One wat process, 13.2 s** (~9 ms a file including read and parse): 1457 Ok, 32 Refused, 0 unreadable.
+  The 32: 8 stdlib files colliding with the snapshot, 10 era-syntax defmacros, 8 era or negative-fixture
+  declarations, 6 negative `defservice` fixtures. None is a user-macro call.
+- **Silent drops under the head filter:**
+  - `:wat::holon::defrecord` (`wat/Record.wat:224`, emits `recordtype`): 22 of 22 records missing; the
+    control, `:wat::core::defrecord` in the same files, 17 of 17 found;
+  - what `defn` declares: `::Kwargs` (`wat/core.wat:888`), `::GrantHandles`, `::Coords` (`:1188`, `:1195`);
+  - declarations in a top-level `let` body.
+- **A static derivation over-admits** (keyword walk, then emitted-head walk): both derive `defn`, and
+  through it `deftest`, `deftest-hermetic`, `run-hermetic`, `rete::defrule`, `rete::defquery`.
+- **The one-step walk is exact**: `expand_once` from the top, containers by `container_body_start`, keep
+  what `classify_type_decl` accepts. 0 files lose a type, 47 gain, 0 new refusals; 18 s for both doors.
+  Keeping `derive`/`extend-type`/`declare-acronyms` changes nothing (identical report), so no name list.
+- **The committed D1 test read ignored `bootstrap/` files** (`175b49ea9`): green here, red on a clone.
+- Instruments: `bootstrap/era/probe-R/` — `corpus.sh`, `door.wat` (records + refused form),
+  `r3-macro.wat`, `probes-2a1-refute2.diff` (the three Rust probes), `one-step-vs-door*.txt`.
+- Routed: `BRIEF-2a1-REFUTE-2.md` (R5 the walk, R6 tracked ground + a lint, R7 the oracle).
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

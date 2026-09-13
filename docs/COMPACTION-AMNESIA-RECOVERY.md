@@ -115,7 +115,7 @@ action you took THIS session:
 
 **THE LIVE BREADCRUMB — there is exactly ONE, and this is its path:**
 
-> `docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md`
+> `docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md`
 
 Its top stamp supersedes every dated block below it, and it carries the
 **freshness probe**: the HEAD it was written against. Check that against
@@ -125,9 +125,13 @@ log over the file. (A one-commit, docs-only gap is normal: the commit that WRITE
 the stamp necessarily lands after it, so the stamp names its own parent. Confirm
 that is what you are looking at; anything more is stale.)
 
-Its companion, and the state-of-world artifact for arc 278, is
-`docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md` — the open list,
-the closing tally, and the TRACKED DECISIONS rows.
+Its companion, the state-of-world artifact, is
+`docs/arc/2026/06/294-holon-returns-to-vsa/the-grok-rete-replay/FINDINGS-composition.md`
+plus the newest `SCORE-*.md` / `BRIEF-*.md` in that directory.
+
+> Moved 2026-09-13: this block named arc 278's `CURRENT-STATE-annihilate-interpretation.md` (stamped
+> 2026-08-25) for three weeks after the work moved to arc 294's replay. That file is now PARKED and
+> points here.
 
 > ⚠ **This block is here because the ledger above used to say `live breadcrumb
 > (CLIFFNOTES "Currently")`, which is arc 170's cliff notes — a different arc,

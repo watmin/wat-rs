@@ -1,5 +1,10 @@
 # CURRENT STATE — annihilate interpretation in wat-rete
 
+> ⛔ **PARKED 2026-09-13 — NOT the live breadcrumb.** The live one is
+> `docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md`. This file's 2026-08-25 stamp is three weeks
+> stale; the recovery doc pointed here until 2026-09-13. PARKED IS NOT DEAD: the rete work resumes
+> after the grok-rete replay.
+
 > **Locked 2026-08-17 so a compaction cannot drop it.** This is the live
 > breadcrumb. Read this whole file before touching `src/rete/` or
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
