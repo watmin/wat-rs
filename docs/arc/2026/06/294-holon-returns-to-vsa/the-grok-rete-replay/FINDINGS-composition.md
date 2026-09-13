@@ -324,9 +324,28 @@ Each file converted alone, as `convert.sh` does it:
 | `tests/comms/probe_arc293_W2f_process_dials_thread.wat` (poisoned; fallback exercised) | 33.9 s | **1.8 s** | byte-identical |
 | `tests/macros/probe_arc265_acronym_registry_svc.wat` | 24.0 s | **1.9 s** | byte-identical |
 
-UNRESOLVED lines are identical too. The full-corpus identity check against today's output is running
-(`probe-Q/full.sh`). The slow unbatched ladder run (`probe-L/pc2.sh`) was stopped: batched variants
-answer its question in minutes.
+UNRESOLVED lines are identical too. The slow unbatched ladder run (`probe-L/pc2.sh`) was stopped:
+batched variants answer its question in minutes.
+
+**⚠ At FULL scale, v1 was NOT identical** (`probe-Q/run2.sh`, sharded 8 ways):
+- positional-ctor differed from today's output in **28 files** (UNRESOLVED 7,663 → 7,814), and the
+  ladder built on it lost constructors in the same 27;
+- match-arm's batched ladder WAS identical to the unbatched ladder (0 files; UNRESOLVED 15).
+
+The four-file smoke set simply contained no offender.
+- **Cause, from the batch's own outcome:** `:wat::runtime::type-of: unknown type ':wat::core::Vector'`.
+  One element that raises fails the WHOLE batch, and v1 then stepped every path down the chain.
+- **A MAIN DEFECT underneath** (`bootstrap/era/probe-H/istype-vs-typeof.wat`, main's binary):
+  `(is-type? :wat::core::Vector)` → `true`, but `(type-of :wat::core::Vector)` → `malformed … unknown type`.
+  The two reflection verbs disagree, while `type-of`'s doc claims it answers for every type. There is
+  no non-raising "is this an enum" verb (the `:wat::runtime::` list has none).
+- **The fixes, both probed:**
+  - v2 (`fill-batch2.wat`) falls back to the ORIGINAL per-path `try-type-of` on any failed batch.
+    It is exact (sqlite_interop byte-identical), but slow wherever `Vector` appears (13.7 s).
+  - v3 (`fill-batch3.wat`, `ma-fmap3.wat`) tells a DECLARATION-level failure (the declarations do not
+    freeze on their own; the whole batch steps down one rung, as every path would) from an
+    ELEMENT-level one (bisect; a lone offender gets the original `try-type-of`). It is exact by
+    construction, at ~2·log₂n evals per offender.
 
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
