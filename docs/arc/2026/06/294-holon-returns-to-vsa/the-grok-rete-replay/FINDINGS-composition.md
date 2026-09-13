@@ -293,6 +293,23 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
   `tests/wat_lang/wat_core_forms.wat`, `probe-s1-named.wat`) are NOT yet classified. Their shape
   matches the two real defects `erase`/`erase2` were.
 
+- **Where the literals sit** (`extract-forms2.wat`, which records each literal's enclosing head and
+  whether it is inside a quasiquote; still 141): plain `:wat::test::spawn-peer` 121 (102 pass, 19 fail) ·
+  `:wat::spawn::Locus/launch` 1 (pass) · `:wat::core::concat` 7 (fragments of an assembled program) ·
+  `defn` 2 · `length` 1 · `do` 1 (data) · quasiquote templates 5.
+- **The 19 `spawn-peer` children that fail, every one classified by reading:**
+
+  | n | what | a defect? |
+  |---|---|---|
+  | 4 | UselessMain (`--check` only; production's child path never runs that wall) | no, an artifact of the instrument |
+  | 6 | `wat-tests/core/core-{arithmetic,equality}.wat` `…-rejected` tests: each asserts its child FAILS | no, deliberate negatives |
+  | 1 | `probe-child-inherits-defns.wat`: the child calls a parent defn by name | no, its failure is the answer |
+  | **7** | `wat-scripts/probes/arc-170/probe-m1-{cf-norevoke,dial-runner,fix-norevoke,fix-revoke,grant-admits,worker-setup}.wat`, `probe-bracket-process-runner.wat` | **YES.** Each child predates the RecvOutcome/SendOutcome walls: `recv` and `Echo/echo` now return `(RecvOutcome :- [T])` where the child expects `T`, and `SendOutcome` gained `Stopped`, which its matches lack. These are the same two walls grok met in `erase{,2}` (SCORE-2b § D3). |
+  | 1 | `tests/process/arc112_scheme_probe.wat:12` (1 unresolved reference) | not yet classified |
+
+  **The blind spot hid at least 9 broken probes on main** (these 7, plus `erase{,2}` which 2b fixed). The
+  floor was green over every one of them.
+
 - **What a GATE must be, from this census:**
   - it keys on a literal in a PROGRAM-STARTING position (spawned, sandboxed, …), not on every `forms`;
   - it runs each child on the CHILD's real path, `startup_from_forms_with_inherit` with an
