@@ -305,6 +305,29 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
     already trips on one;
   - how cleanly each step's stdlib half separates from its user half.
 
+## Finding 11 — BATCH the questions: 10–33× per file, byte-identical, no new intrinsic
+
+`bootstrap/era/probe-Q/pc-batch.wat` is today's positional-ctor with ONLY `fill-paths` replaced. One
+generated program per batch of paths: each path appears as a LITERAL keyword in
+`(if (is-type? :P) (Some (type-of :P)) None)`, so a non-type path yields `None` instead of failing,
+and `is-type?`'s literal-keyword check is satisfied. It is evaluated ONCE per (paths, declarations),
+with try-type-of's fallback chain applied to the whole batch.
+- (`is-type?` refuses a computed keyword at check time; `type-of` accepts one. Probe
+  `probe-Q/computed.wat`.)
+
+Each file converted alone, as `convert.sh` does it:
+
+| file | today | batched | output |
+|---|---|---|---|
+| `tests/services/probe_arc278_sift_rules.wat` | 56.1 s | **1.7 s** | byte-identical |
+| `tests/types/enums_tagged_variant.wat` | 17.1 s | **1.6 s** | byte-identical |
+| `tests/comms/probe_arc293_W2f_process_dials_thread.wat` (poisoned; fallback exercised) | 33.9 s | **1.8 s** | byte-identical |
+| `tests/macros/probe_arc265_acronym_registry_svc.wat` | 24.0 s | **1.9 s** | byte-identical |
+
+UNRESOLVED lines are identical too. The full-corpus identity check against today's output is running
+(`probe-Q/full.sh`). The slow unbatched ladder run (`probe-L/pc2.sh`) was stopped: batched variants
+answer its question in minutes.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
