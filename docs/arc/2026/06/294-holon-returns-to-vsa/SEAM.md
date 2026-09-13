@@ -217,6 +217,13 @@ The builder:
      - 4: positional-ctor's UNRESOLVED count is mostly noise, from the case rule `pascal-leaf?`.
      - 5: the LANDING's match-arm leaked a type across files (reproduced), and main carries
        `{:deps addr}` in `probe-m1-ann-erase2`, which is also broken on both sides (undeclared `CMsg`).
+     - **BRIEF-2b drafted, NOT released** (`BRIEF-2b-main-teaches-what-it-refuses.md` +
+       `EXPECTATIONS-2b.md`): main-owned defects from findings 5–8. Seven refusals teach the retired
+       `::` separator; c03's template cannot expand and its test never expands it; the two
+       `probe-m1-ann-erase*` child programs die at startup. It waits for the builder's "pulsare".
+     - ⚠ **(B) as first described (pure type declarations only) REGRESSES at full scale** on the 2 sift
+       files. The probed shape is a LADDER: today's declarations first, then pure type declarations
+       (`bootstrap/era/probe-L/`). The builder must confirm the ruling covers that shape.
      - **✓ RULED 2026-09-13: (B)** ("B has been decided"). The eval-based codemods learn field names
        from the type declarations of the program that holds the site, on today's binary. The era
        binary (A) is rejected: it reproduces the landing's defects and runs outside stone 0's gate.
