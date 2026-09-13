@@ -39,9 +39,13 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   all ask. Verified: floor 5431/5431, clippy 0; `bootstrap/era/probe-R/kinds.wat` (E1–E4); the
   agreement wall RED under the orchestrator's own Marker-arm mutation; the door unchanged (1457/32,
   identity 0/0/0). Finding 14.
-- **Next: `BRIEF-2a2-the-codemods-ask-the-door.md`** (+ `EXPECTATIONS-2a2.md`), awaiting the builder's
-  pulsare. Its D1 exclusion loop is measured (`door-exclude.wat`: 32/32 refused files reach `Ok`, 39
-  forms dropped, 981 ms). When grok scores, run `bootstrap/era/probe-S/run5.sh` and every E-row.
+- **2a2 scored** (grok `9d887f753`), verified: floor 5431/5431, clippy 0; run5 — tools in minutes
+  (146 s / 28 s / 50 s, one process each), chain vs main 1367 identical, CHAIN-FAILS 28 (finding 15).
+  **In flight: `BRIEF-2a2-REFUTE.md`** — R8 a nested program's own types (one real loss, the brief's
+  error), R9–R13. When grok scores, re-run `run5.sh` and every R.
+- **RULED 2026-09-13 (4 YES):** the replay batches start as soon as 2a2 closes; stone 3 runs BETWEEN
+  batches (its gate walks the whole tree when it lands). Stone 3's re-grounded draft is in
+  `bootstrap/pending/` (D1 derived from the one child-start door; D2 must WRITE two recorded migrations).
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch
   owns its subsystem; replay ONE COMMIT AT A TIME; correct over fast — but **the builder cannot
   tolerate multi-hour runs between work units**, so wall clock is now a first-class goal.
@@ -83,10 +87,10 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `src/runtime.rs`) and `builtin_names` (derived + a hand group, `src/types.rs:2544-2615`). Measured in
   `SCORE-2a1b.md`: 14 names only in the first, 12 only in the second. The classifier unions them, so the
   verbs agree; reconciling the two stores is its own stone.
-- **One ruling's table lives in two codemods:** match-arm's `alias-enum`
-  (`wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat:123`, `Some`/`None` → Option, `Ok`/`Err` →
-  Result) and `bare-variant-to-qualified.wat`'s `rename-five` (arc 296 N's five bare spellings). Same
-  fact, no wrong output today; one home in `wat/fix.wat` is its own stone.
+- **One ruling's table lives in THREE codemods** (corrected 2026-09-13; the first census missed one):
+  `alias-enum` in match-arm and in positional-ctor (`Some`/`None` → Option, `Ok`/`Err` → Result), and
+  `bare-variant-to-qualified.wat`'s `rename-five` (arc 296 N's five bare spellings). Same fact, no
+  wrong output today; one home in `wat/fix.wat` is its own stone.
 - **`variant-parent-of`'s own `@example` is false** (`src/reflect/verbs.rs:1718`: `Option::Some` →
   `None` on disk), and the doctest verifier that would catch it is `#[ignore]` (its NOTE awaits a
   ruling). Same class as 2b's `::`-teaching doc lines.

@@ -448,6 +448,23 @@ Measured 2026-09-13 on `5edca1211` (probes: `bootstrap/era/probe-R/{defect-*.wat
   files): all reach `Ok` after dropping 39 refused forms in 981 ms; 6 negative defservice fixtures
   recover 15–48 types each; stdlib files exclude only the declarations that differ from HEAD.
 
+## Finding 15 — 2a2 at full scale: minutes, not hours; one nested-program loss my brief caused
+
+Measured 2026-09-13 on `9d887f753` (`bootstrap/era/probe-S/run5.sh`, each tool against its predecessor
+on identical input; 1489 files; each tool ONE process):
+- **Wall:** match-arm 146 s, positional-ctor 28 s, variant-separator 50 s. (Before: the eval-based tools
+  took hours unsharded; exact batching needed 8 shards and ~13 min.) `convert.sh`, one run per commit:
+  pilot #1 10 s, #9's two files 13–14 s, byte-identical across runs (was 29–51 s PER FILE).
+- **Coverage:** positional-ctor UNRESOLVED 7663 → 209 (the case rule is gone); variant-separator flips
+  335 more tokens in 62 files (enums never on the census — finding 7's prediction); the chain vs main
+  1314 → **1367** identical, CHAIN-FAILS 84 → **28**; 54 files fixed.
+- **The one loss:** `probe-m1-ann-erase.wat`'s child program declares `:probe::CMsg`; the door answers
+  top-level forms only, so its arms stay positional where the ladder and main converted them. My brief
+  cut nested programs to "report" by reasoning from today's `file-decls` instead of from the bar's
+  predecessor. With finding 8 (no gate checks a child), that cut would ship unconverted children silently.
+- Routed: `BRIEF-2a2-REFUTE.md` (R8 nested programs scoped per program; R9–R13 the filter, the guard,
+  the fallback's report, the stale header, the `""` sentinel).
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
