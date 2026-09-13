@@ -23580,6 +23580,88 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn declared_types_macro_call_declares_req_and_op() {
+        let (sym, macros, types) = stdlib_loaded();
+        let forms = parse_repo_file(
+            "tests/diagnostics/probe_diagnostic_c3_macro_emits_record_def.wat",
+        );
+        let env = crate::freeze::env::register_declared_types(forms, sym, macros, types)
+            .unwrap_or_else(|e| panic!("c3 register: {}", e.cause));
+        match env.get(":demo::Req") {
+            Some(crate::types::TypeDef::Aggregate(a)) => {
+                let names: Vec<&str> = a.fields.iter().map(|(n, _)| n.as_str()).collect();
+                assert_eq!(names, vec!["n"]);
+            }
+            other => panic!(":demo::Req not a record: {other:?}"),
+        }
+        assert_eq!(
+            enum_variant_fields(&env, ":demo::Op"),
+            vec![("Go".into(), vec!["req".into()])]
+        );
+    }
+
+    #[test]
+    fn declared_types_filter_derives_type_decl_heads_from_classify() {
+        let heads = [
+            ":wat::core::structtype",
+            ":wat::core::defenum",
+            ":wat::core::newtype",
+            ":wat::core::typealias",
+            ":wat::core::typeunion",
+            ":wat::core::recordtype",
+            ":wat::core::aggregatetype",
+            ":wat::core::defsurface",
+        ];
+        let span = crate::rust_caller_span!();
+        let empty_macros = MacroRegistry::new();
+        let no_stdlib = std::collections::HashSet::new();
+        for head in heads {
+            let form = WatAST::List(
+                vec![WatAST::Keyword(head.to_string(), span.clone())],
+                span.clone(),
+            );
+            assert!(
+                crate::types::classify_type_decl(&form).is_some(),
+                "{head} must be a classify_type_decl head"
+            );
+            assert!(
+                crate::freeze::env::keeps_declared_types_form(&form, &empty_macros, &no_stdlib),
+                "{head} is type-registering but the door drops it"
+            );
+        }
+    }
+
+    #[test]
+    fn declared_types_filter_admits_pre_expansion_type_macros() {
+        // Independent of PRE_EXPANSION_TYPE_FORMS so dropping a head from the
+        // filter makes THIS test name it.
+        let heads = [
+            ":wat::core::defmacro",
+            ":wat::core::defrecord",
+            ":wat::core::defstruct",
+            ":wat::core::do",
+            ":wat::core::derive",
+            ":wat::core::extend-type",
+            ":wat::service::defservice",
+            ":wat::query::sift-rules-defsvc",
+            ":wat::string::declare-acronyms",
+        ];
+        let span = crate::rust_caller_span!();
+        let empty_macros = MacroRegistry::new();
+        let no_stdlib = std::collections::HashSet::new();
+        for head in heads {
+            let form = WatAST::List(
+                vec![WatAST::Keyword(head.to_string(), span.clone())],
+                span.clone(),
+            );
+            assert!(
+                crate::freeze::env::keeps_declared_types_form(&form, &empty_macros, &no_stdlib),
+                "{head} mints types at expansion but the door drops it"
+            );
+        }
+    }
+
     fn decls(src: &str) -> crate::types::TypeEnv {
         let (sym, macros, types) = stdlib_loaded();
         let forms = crate::parse_all!(src).expect("parse");
@@ -23736,18 +23818,41 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn declared_types_oracle_matches_type_of_after_startup() {
-        let src = r#"
-            (:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
-            (:wat::core::defn :user::row [] -> :wat::runtime::TypeInfo
-              (:wat::runtime::type-of :t::Colour))
-        "#;
+    fn declared_types_refused_form_is_the_one_that_failed() {
+        let (sym, macros, types) = stdlib_loaded();
+        let forms = crate::parse_all!(
+            "(:wat::core::defenum :t::Ok :wat::enum::Pure :A)\n(:wat::core::defenum)"
+        )
+        .unwrap();
+        assert_eq!(forms.len(), 2, "two-form program");
+        let err = crate::freeze::env::register_declared_types(forms, sym, macros, types)
+            .expect_err("second form is malformed");
+        match &err.form {
+            WatAST::List(items, _) => {
+                let head = items
+                    .first()
+                    .and_then(crate::declare::parse::head_fqdn)
+                    .expect("malformed form still has a head");
+                assert_eq!(head.as_ref(), ":wat::core::defenum");
+                assert!(
+                    items.len() < 3,
+                    "Refused.form must be the SECOND (malformed) form, not the first; got {items:?}"
+                );
+            }
+            other => panic!("refusal must name the form, got {other:?}"),
+        }
+    }
+
+    fn oracle_type_of_after_startup(decl_src: &str, type_name: &str) {
+        let src = format!(
+            "{decl_src}\n(:wat::core::defn :user::row [] -> :wat::runtime::TypeInfo\n  (:wat::runtime::type-of {type_name}))"
+        );
         let world = crate::freeze::startup_from_source(
-            src,
+            &src,
             None,
             std::sync::Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
-        .unwrap_or_else(|e| panic!("startup: {e}"));
+        .unwrap_or_else(|e| panic!("startup {type_name}: {e}"));
         let func = world
             .symbols()
             .get(":user::row")
@@ -23759,22 +23864,56 @@ pub(crate) mod tests {
             world.symbols(),
             crate::rust_caller_span!(),
         )
-        .unwrap_or_else(|e| panic!("type-of: {e}"));
-        let (sym, macros, types) = stdlib_loaded();
-        let forms = crate::parse_all!(
-            "(:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])"
-        )
-        .unwrap();
-        let env = crate::freeze::env::register_declared_types(forms, sym, macros, types).unwrap();
-        let def = env.get(":t::Colour").expect("Colour");
+        .unwrap_or_else(|e| panic!("type-of {type_name}: {e}"));
+        let env = decls(decl_src);
+        let def = env
+            .get(type_name)
+            .unwrap_or_else(|| panic!("{type_name} missing from door"));
         let via_door = crate::reflect::verbs::type_info_value(
-            ":t::Colour",
+            type_name,
             def,
             &crate::rust_caller_span!(),
             ":wat::runtime::declared-types",
         )
-        .unwrap_or_else(|e| panic!("type_info: {e:?}"));
-        assert_eq!(via_typeof, via_door, "oracle: type-of after startup == door");
+        .unwrap_or_else(|e| panic!("type_info {type_name}: {e:?}"));
+        assert_eq!(
+            via_typeof, via_door,
+            "oracle: type-of after startup == door for {type_name}"
+        );
+    }
+
+    #[test]
+    fn declared_types_oracle_matches_type_of_after_startup() {
+        oracle_type_of_after_startup(
+            "(:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])",
+            ":t::Colour",
+        );
+        oracle_type_of_after_startup(
+            "(:wat::core::defrecord :t::Point [x <- :wat::core::i64 y <- :wat::core::i64])",
+            ":t::Point",
+        );
+        oracle_type_of_after_startup(
+            r#"
+            (:wat::core::defsurface :t::Ping :nature :wat::kernel::Peer
+              :messages
+              [(:wat::core::defrecord :t::Ping::PingRequest [n <- :wat::core::i64])
+               (:wat::core::defenum :t::Ping::PingResponse :wat::enum::Pure
+                 :Ok [n <- :wat::core::i64]
+                 :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
+                 :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                    expected <- :wat::core::String got <- :wat::core::String])]
+              :features
+              [(ping [self <- :t::Ping req <- :t::Ping::PingRequest] -> :t::Ping::PingResponse
+                 :max-request-bytes 64)])
+            "#,
+            ":t::Ping::Op",
+        );
+        let acronym = std::fs::read_to_string(format!(
+            "{}/tests/macros/probe_arc265_acronym_registry_svc.wat",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        oracle_type_of_after_startup(&acronym, ":my::aws::Waf::Op");
     }
 
     #[test]

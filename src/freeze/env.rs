@@ -16,7 +16,7 @@
 //! Cure: ONE canonical builder here; three thin callers; divergence is
 //! unrepresentable.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 use crate::ast::WatAST;
@@ -37,6 +37,7 @@ use crate::declare::register::{
 use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
 use crate::runtime::{Environment, EvalBreak, SymbolTable};
 use crate::load::stdlib::stdlib_forms;
+use crate::span::Span;
 use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
 
 /// The output of [`build_env`]: all four build-time registries plus
@@ -102,68 +103,113 @@ pub(crate) fn register_declared_types(
     stdlib_macros: &MacroRegistry,
     stdlib_types: &TypeEnv,
 ) -> Result<TypeEnv, Box<DeclaredTypesFail>> {
-    let fail = |form: WatAST, cause: String| {
-        Box::new(DeclaredTypesFail { form, cause })
-    };
-    let first = forms
+    let fallback = forms
         .first()
         .cloned()
         .unwrap_or_else(|| WatAST::NilLit(crate::rust_caller_span!()));
-    // Declarations only — expanding a `defn` body would eval macros like
-    // `mem-store/start` and is not needed to register types.
-    let forms: Vec<WatAST> = forms.into_iter().filter(is_declaration_form).collect();
+    let fail_at = |span: &Span, cause: String| {
+        Box::new(DeclaredTypesFail {
+            form: top_level_form_for_span(&forms, span).unwrap_or_else(|| fallback.clone()),
+            cause,
+        })
+    };
     let mut macros = stdlib_macros.clone();
-    let rest =
-        register_defmacros(forms, &mut macros).map_err(|e| fail(first.clone(), format!("{e}")))?;
+    let stdlib_macro_names: HashSet<String> =
+        stdlib_macros.names().map(str::to_string).collect();
+    // Register THIS program's defmacros first so a top-level call of one
+    // (`(:t::mk :demo)`) is kept. Do not expand `defn`: it is a stdlib macro,
+    // and expanding its body evals forms like `mem-store/start`.
+    let rest = register_defmacros(forms.clone(), &mut macros)
+        .map_err(|e| fail_at(&e.span, format!("{e}")))?;
+    let rest: Vec<WatAST> = rest
+        .into_iter()
+        .filter(|f| keeps_declared_types_form(f, &macros, &stdlib_macro_names))
+        .collect();
     let mut macro_sym = stdlib_sym.clone();
     preregister_acronyms(&rest, &mut macro_sym).map_err(|e| match e {
-        EvalBreak::Diagnostic(re) => fail(first.clone(), format!("{re}")),
-        EvalBreak::Signal(_) => fail(first.clone(), "eval-loop control signal escaped".into()),
+        EvalBreak::Diagnostic(re) => fail_at(re.span(), format!("{re}")),
+        EvalBreak::Signal(_) => fail_at(fallback.span(), "eval-loop control signal escaped".into()),
     })?;
     let expanded = expand_all(rest, &mut macros, &Environment::default(), &macro_sym)
-        .map_err(|e| fail(first.clone(), format!("{e}")))?;
+        .map_err(|e| fail_at(&e.span, format!("{e}")))?;
     let mut types = stdlib_types.clone();
     register_types_with_acronyms(expanded, &mut types, &macro_sym.acronym_registry)
-        .map_err(|e| fail(first.clone(), format!("{e}")))?;
+        .map_err(|e| fail_at(e.span(), format!("{e}")))?;
     types
         .register_variant_types()
-        .map_err(|e| fail(first, format!("{e}")))?;
+        .map_err(|e| fail_at(e.span(), format!("{e}")))?;
     Ok(types)
 }
 
-/// Type-registering surface forms (and the macros that mint them). Not
-/// [`crate::declare::parse::is_declaration_form`], which answers a different
-/// question (runtime `def`/`defclause` residue). Expanding a `defn` body
-/// evals macros like `mem-store/start` and is not needed to register types.
-fn is_declaration_form(form: &WatAST) -> bool {
+/// Stdlib / surface heads that mint types at expansion, which
+/// [`crate::types::classify_type_decl`] does not see (it runs post-expansion
+/// on `structtype`/`recordtype`/…). Not `defn`: that is a stdlib macro whose
+/// body must not expand.
+pub(crate) const PRE_EXPANSION_TYPE_FORMS: &[&str] = &[
+    ":wat::core::defmacro",
+    ":wat::core::defrecord",
+    ":wat::core::defstruct",
+    ":wat::core::do",
+    ":wat::core::derive",
+    ":wat::core::extend-type",
+    ":wat::service::defservice",
+    ":wat::query::sift-rules-defsvc",
+    ":wat::string::declare-acronyms",
+];
+
+/// Keep a top-level form for the declaration door.
+///
+/// Type-decl heads come from [`crate::types::classify_type_decl`] (the freeze
+/// door). User macros this program just registered are kept so a call that
+/// *declares* types is expanded. `defn` is a stdlib macro and is not kept.
+pub(crate) fn keeps_declared_types_form(
+    form: &WatAST,
+    macros: &MacroRegistry,
+    stdlib_macro_names: &HashSet<String>,
+) -> bool {
+    if crate::types::classify_type_decl(form).is_some() {
+        return true;
+    }
     let WatAST::List(items, _) = form else {
         return false;
     };
-    let Some(head_node) = items.first() else {
+    let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) else {
         return false;
     };
-    let Some(head) = crate::declare::parse::head_fqdn(head_node) else {
+    if macros.contains(head.as_ref()) && !stdlib_macro_names.contains(head.as_ref()) {
+        return true;
+    }
+    PRE_EXPANSION_TYPE_FORMS.contains(&head.as_ref())
+}
+
+fn pos_le(line1: i64, col1: i64, line2: i64, col2: i64) -> bool {
+    line1 < line2 || (line1 == line2 && col1 <= col2)
+}
+
+fn span_covers(outer: &Span, inner: &Span) -> bool {
+    if *outer.file != *inner.file {
         return false;
-    };
-    matches!(
-        head.as_ref(),
-        ":wat::core::defenum"
-            | ":wat::core::defrecord"
-            | ":wat::core::defstruct"
-            | ":wat::core::defsurface"
-            | ":wat::core::newtype"
-            | ":wat::core::typealias"
-            | ":wat::core::typeunion"
-            | ":wat::core::structtype"
-            | ":wat::core::recordtype"
-            | ":wat::core::derive"
-            | ":wat::core::extend-type"
-            | ":wat::core::defmacro"
-            | ":wat::core::do"
-            | ":wat::service::defservice"
-            | ":wat::query::sift-rules-defsvc"
-            | ":wat::string::declare-acronyms"
-    )
+    }
+    if !pos_le(outer.line, outer.col, inner.line, inner.col) {
+        return false;
+    }
+    match &outer.end {
+        Some(oe) => {
+            let (il, ic) = match &inner.end {
+                Some(ie) => (ie.line, ie.col),
+                None => (inner.line, inner.col),
+            };
+            pos_le(il, ic, oe.line, oe.col)
+        }
+        None => outer.line == inner.line && outer.col == inner.col,
+    }
+}
+
+fn top_level_form_for_span(forms: &[WatAST], span: &Span) -> Option<WatAST> {
+    forms
+        .iter()
+        .find(|f| span_covers(f.span(), span))
+        .cloned()
 }
 
 /// Build the full registered environment from already-parsed,

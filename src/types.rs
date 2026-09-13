@@ -3821,7 +3821,7 @@ fn splice_type_decls_stdlib(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, T
     splice_type_decls(form, env, &|env, def, span| env.register_stdlib_with_span(def, span))
 }
 
-fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
+pub(crate) fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
     if let WatAST::List(items, _) = form {
         // Stone 251.9 — missed by the room map (declare/* only). This is the
         // freeze door: a symbol-headed defenum never reached parse_defenum

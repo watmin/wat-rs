@@ -64,6 +64,10 @@ impl MacroRegistry {
         self.macros.contains_key(name)
     }
 
+    pub(crate) fn names(&self) -> impl Iterator<Item = &str> {
+        self.macros.keys().map(String::as_str)
+    }
+
     pub fn get(&self, name: &str) -> Option<&MacroDef> {
         self.macros.get(name)
     }
