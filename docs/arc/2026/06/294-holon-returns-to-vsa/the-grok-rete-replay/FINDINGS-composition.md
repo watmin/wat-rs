@@ -161,6 +161,20 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
   registry, the same door as finding 3, never a frozen list.
 - ⚠ **Main's refusal message is STALE:** "variant arm head `:u::E::A` is not namespaced; write
   `<enum>::<Variant>`". The remedy names the spelling it just refused.
+- **It is a CLASS: text still teaches `::` as the variant separator after the flip.** The door
+  itself composes with a dot: `crates/wat-reader/src/identifier.rs:362`
+  `compose_variant` → `format!("{enum_path}.{variant_name}")`, and `decompose_variant` splits on `.`.
+  Census (code strings, `src/` `crates/` `wat/`; no test pins any of them):
+  - `src/match_arm.rs:108` (`<enum>::<Variant>`) and `:187` (`a qualified Type::Variant FQDN`);
+  - `src/check.rs:2877` (`variant-parent-of :Ns::Enum::Variant`), `:6955`, `:7253`, `:7755`
+    (`must be <enum>::<Variant>`), and `:7508` (`<enum>::<Variant>` or `:None`; the bare `:None` is
+    ALSO retired);
+  - the lint's own help text, `tests/lint/one_variant_separator.rs:260`: `compose_variant(…) ->
+    {enum}::{variant}`;
+  - the door's own doc comment, `identifier.rs:366-371`: "`compose_variant` writes `::`; this reads
+    `::`". The code does the opposite.
+  - Each message guards a different predicate. The honest fix drives each refusal with a probe and
+    checks that following its remedy passes, one site at a time; it is not a text sweep.
 
 ## grok-rete `.wat` files OUTSIDE the 1489 checked here (11 of its 194 modified)
 
