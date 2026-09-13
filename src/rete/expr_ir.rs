@@ -21,7 +21,7 @@ use crate::runtime::{
     EvalBreak, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
-use crate::types::{EnumVariant, TypeDef};
+use crate::types::TypeDef;
 use crate::value::value::{AggregateValue, EnumValue};
 
 /// A lowered rete expression. Children are nested (builder: "matches the precedent").
@@ -821,85 +821,76 @@ fn lower_construct(
         }));
     }
 
-    // Enum variant constructor `:ns::Type::Variant` (unit or tagged).
-    if let Some((enum_path, variant)) = wat_reader::identifier::decompose_variant(head) {
-        if let Some(TypeDef::Enum(e)) = types.get(enum_path) {
-            let found = e.variants.iter().find(|v| match v {
-                EnumVariant::Unit(n) => n == variant,
-                EnumVariant::Tagged { name, .. } => name == variant,
-            });
-            let Some(found) = found else {
-                return Ok(None);
-            };
-            let (arity, names) = match found {
-                EnumVariant::Unit(_) => (0usize, Arc::new(Vec::new())),
-                EnumVariant::Tagged { fields, .. } => (
-                    fields.len(),
-                    e.variant_names_arc(variant)
-                        .unwrap_or_else(|| Arc::new(Vec::new())),
-                ),
-            };
-            let args = &items[1..];
-            if arity == 0 {
-                let got = crate::rete::eval_insert::rete_enum_unit_arg_count(args);
-                if got != 0 {
-                    return Err(LowerError::unsupported(span.clone(), format!(
-                        "constructor {head} wants 0 fields, got {got}"
-                    )));
-                }
-                return Ok(Some(Expr::Variant {
-                    type_path: enum_path.to_string(),
-                    variant_name: variant.to_string(),
-                    names,
-                    fields: Box::new([]),
-                }));
-            }
-            // Arc 296 M — tagged map ctor `(:E::V {:field v})`. One Map
-            // argument whose keys are the declared fields, in any order.
-            let field_asts: Vec<&WatAST> = match args {
-                [WatAST::Map(pairs, map_span)] => {
-                    let parsed = crate::match_arm::parse_key_first_pairs(pairs, map_span)
-                        .map_err(|e| {
-                            LowerError::unsupported(e.span, e.reason)
-                        })?;
-                    if parsed.len() != arity {
-                        return Err(LowerError::unsupported(span.clone(), format!(
-                            "constructor {head} wants {arity} fields, got {}",
-                            parsed.len()
-                        )));
-                    }
-                    let mut ordered = Vec::with_capacity(arity);
-                    for n in names.iter() {
-                        let Some((_, ast)) = parsed.iter().find(|(k, _)| k == n) else {
-                            return Err(LowerError::unsupported(span.clone(), format!(
-                                "constructor {head} map ctor missing field `:{n}`"
-                            )));
-                        };
-                        ordered.push(*ast);
-                    }
-                    ordered
-                }
-                _ => {
-                    if args.len() != arity {
-                        return Err(LowerError::unsupported(span.clone(), format!(
-                            "constructor {head} wants {arity} fields, got {}",
-                            args.len()
-                        )));
-                    }
-                    args.iter().collect()
-                }
-            };
-            let mut fields = Vec::with_capacity(field_asts.len());
-            for a in field_asts {
-                fields.push(lower_expr(a, cx)?);
+    // Enum variant constructor. Resolution through `matcher::enum_variant_ctor`
+    // — the one registry read. The lowerer keeps HEAD's map-ctor (296 M) and
+    // unit arg-count; grok's change is the shared reader.
+    if let Some((e, variant, arity)) = crate::rete::matcher::enum_variant_ctor(types, head) {
+        let names = if arity == 0 {
+            Arc::new(Vec::new())
+        } else {
+            e.variant_names_arc(variant)
+                .unwrap_or_else(|| Arc::new(Vec::new()))
+        };
+        let args = &items[1..];
+        if arity == 0 {
+            let got = crate::rete::eval_insert::rete_enum_unit_arg_count(args);
+            if got != 0 {
+                return Err(LowerError::unsupported(span.clone(), format!(
+                    "constructor {head} wants 0 fields, got {got}"
+                )));
             }
             return Ok(Some(Expr::Variant {
-                type_path: enum_path.to_string(),
+                type_path: e.name.clone(),
                 variant_name: variant.to_string(),
                 names,
-                fields: fields.into_boxed_slice(),
+                fields: Box::new([]),
             }));
         }
+        // Arc 296 M — tagged map ctor `(:E.V {:field v})`. One Map
+        // argument whose keys are the declared fields, in any order.
+        let field_asts: Vec<&WatAST> = match args {
+            [WatAST::Map(pairs, map_span)] => {
+                let parsed = crate::match_arm::parse_key_first_pairs(pairs, map_span)
+                    .map_err(|err| {
+                        LowerError::unsupported(err.span, err.reason)
+                    })?;
+                if parsed.len() != arity {
+                    return Err(LowerError::unsupported(span.clone(), format!(
+                        "constructor {head} wants {arity} fields, got {}",
+                        parsed.len()
+                    )));
+                }
+                let mut ordered = Vec::with_capacity(arity);
+                for n in names.iter() {
+                    let Some((_, ast)) = parsed.iter().find(|(k, _)| k == n) else {
+                        return Err(LowerError::unsupported(span.clone(), format!(
+                            "constructor {head} map ctor missing field `:{n}`"
+                        )));
+                    };
+                    ordered.push(*ast);
+                }
+                ordered
+            }
+            _ => {
+                if args.len() != arity {
+                    return Err(LowerError::unsupported(span.clone(), format!(
+                        "constructor {head} wants {arity} fields, got {}",
+                        args.len()
+                    )));
+                }
+                args.iter().collect()
+            }
+        };
+        let mut fields = Vec::with_capacity(field_asts.len());
+        for a in field_asts {
+            fields.push(lower_expr(a, cx)?);
+        }
+        return Ok(Some(Expr::Variant {
+            type_path: e.name.clone(),
+            variant_name: variant.to_string(),
+            names,
+            fields: fields.into_boxed_slice(),
+        }));
     }
     Ok(None)
 }

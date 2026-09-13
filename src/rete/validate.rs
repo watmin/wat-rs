@@ -856,12 +856,11 @@ fn validate_fact_type_head_only(cond: &WatAST, rule_name: &str, types: &TypeEnv,
 /// matcher uses (proven reachable by the `rete_wall_probe`).
 type FieldList = Vec<String>;
 
+/// Reads the registry through `matcher::aggregate_field_names` — the same body
+/// `class_field_names` uses. This used to be a byte-equivalent second copy, while
+/// `matcher.rs`'s doc claimed to be the registry's one reader and did not list this file.
 fn lookup_fields(types: &TypeEnv, fact_type: &str) -> Option<FieldList> {
-    let type_key = format!(":{fact_type}");
-    match types.get(&type_key) {
-        Some(TypeDef::Aggregate(a)) => Some(a.field_names().map(|s| s.to_string()).collect()),
-        _ => None,
-    }
+    crate::rete::matcher::aggregate_field_names(types, fact_type)
 }
 
 /// Sibling of `lookup_fields`, same key and same registry — the DECLARED TYPE of each field, in
@@ -1491,42 +1490,33 @@ fn walk_nested_constructors(
             }
             return;
         }
-        // Bare enum-variant constructor head (`{EnumPath}::{Variant}`) — mirrors
-        // `constructor_meta`'s own resolution (`purity.rs`).
-        if let Some((enum_path, variant)) = wat_reader::identifier::decompose_variant(head) {
-            let enum_key = if enum_path.starts_with(':') {
-                enum_path.to_string()
-            } else {
-                format!(":{enum_path}")
-            };
-            if let Some(TypeDef::Enum(e)) = types.get(&enum_key) {
-                let expected = e.variants.iter().find_map(|v| match v {
-                    EnumVariant::Unit(n) if n == variant => Some(0usize),
-                    EnumVariant::Tagged { name, fields } if name == variant => Some(fields.len()),
-                    _ => None,
-                });
-                if let Some(expected) = expected {
-                    let got = if expected == 0 {
-                        crate::rete::eval_insert::rete_enum_unit_arg_count(args)
-                    } else {
-                        args.len()
-                    };
-                    if got != expected {
-                        errors.push(ReteCheckError {
-                            span: span.clone(),
-                            kind: ReteCheckErrorKind::RhsArityMismatch {
-                                rule: rule_name.to_string(),
-                                fact_type: head.trim_start_matches(':').to_string(),
-                                expected,
-                                got,
-                            },
-                        });
-                    }
-                    for arg in args {
-                        walk_nested_constructors(arg, rule_name, types, binds, errors);
-                    }
-                    return;
+        // Bare enum-variant constructor head — one registry read via
+        // `matcher::enum_variant_ctor`. What to DO with the answer stays here:
+        // the validator's job is the arity diagnostic (HEAD's unit-arg count).
+        {
+            let expected =
+                crate::rete::matcher::enum_variant_ctor(types, head).map(|(_, _, n)| n);
+            if let Some(expected) = expected {
+                let got = if expected == 0 {
+                    crate::rete::eval_insert::rete_enum_unit_arg_count(args)
+                } else {
+                    args.len()
+                };
+                if got != expected {
+                    errors.push(ReteCheckError {
+                        span: span.clone(),
+                        kind: ReteCheckErrorKind::RhsArityMismatch {
+                            rule: rule_name.to_string(),
+                            fact_type: head.trim_start_matches(':').to_string(),
+                            expected,
+                            got,
+                        },
+                    });
                 }
+                for arg in args {
+                    walk_nested_constructors(arg, rule_name, types, binds, errors);
+                }
+                return;
             }
         }
     }
