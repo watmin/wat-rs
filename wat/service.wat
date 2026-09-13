@@ -921,6 +921,131 @@
                                         (:wat::string::concat es " …] (the explicit s2s dependency DAG)"))))))))))
                       true
                       ephemeral-peer-surfaces)
+     ;; BIJECTION check 3 (impls dial of an Address field): a `connect` inside `:impls`
+     ;; whose argument names a durable/ephemeral field typed Address<S::Op,S::Reply>
+     ;; requires S ∈ :peers. ⛔ Not the strict Address-field rule — holding without
+     ;; dialing is legitimate. ⛔ `:init` is not walked (already covered by check 2
+     ;; via the :ephemeral peer the init-dial writes).
+     ;;
+     ;; Walkers are local fns (symbol heads) so the F5 allow-list does not have to
+     ;; name them; they pass themselves as `self` because `let` is not `letfn`.
+     addr-fields-of (:wat::core::fn [fields <- :wat::WatAST]
+                      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                      (:wat::core::let [ch (:wat::core::ast->children fields)
+                                        n  (:wat::core::length ch)]
+                        (:wat::core::foldl
+                          (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                                           i   <- :wat::core::i64]
+                            -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                            (:wat::core::let
+                              [name-node (:wat::core::Option/expect
+                                           (:wat::core::get ch (:wat::i64::* i 3))
+                                           "defservice: field name out of bounds")
+                               ty-node   (:wat::core::Option/expect
+                                           (:wat::core::get ch (:wat::i64::+ (:wat::i64::* i 3) 2))
+                                           "defservice: field type out of bounds")
+                               ty-form   (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-node) "keyword")
+                                           (:wat::keyword::to-type-form-colon ty-node)
+                                           ty-node)
+                               surf      (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-form) "list")
+                                           (:wat::core::let [ty-ch (:wat::core::ast->children ty-form)]
+                                             (:wat::core::if (:wat::i64::< (:wat::core::length ty-ch) 3)
+                                               ""
+                                               (:wat::core::let [head-str (:wat::keyword::to-string (:wat::core::first ty-ch))]
+                                                 (:wat::core::if (:wat::core::= head-str "wat::kernel::Address")
+                                                   (:wat::core::let
+                                                     [arg-ch (:wat::core::ast->children (:wat::core::nth ty-ch 2))
+                                                      first-arg-str (:wat::keyword::to-string (:wat::core::first arg-ch))]
+                                                     (:wat::core::if (:wat::string::ends-with? first-arg-str "::Op")
+                                                       (:wat::string::subs first-arg-str 0
+                                                         (:wat::i64::- (:wat::string::length first-arg-str) 4))
+                                                       ""))
+                                                   ""))))
+                                           "")]
+                              (:wat::core::if (:wat::core::= surf "")
+                                acc
+                                (:wat::core::conj acc
+                                  (:wat::core::Tuple (:wat::core::ast-name name-node) surf)))))
+                          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+                          (:wat::core::range 0 (:wat::i64::/ n 3)))))
+     addr-fields    (:wat::vec::concat
+                      (addr-fields-of durable-fields)
+                      (addr-fields-of ephemeral-fields))
+     node-accesses-field?
+                    (:wat::core::fn [self <- :wat::type::Infer  node <- :wat::WatAST  field-name <- :wat::core::String]
+                      -> :wat::core::bool
+                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+                        (:wat::string::ends-with? (:wat::core::ast-name node)
+                          (:wat::string::concat "/" field-name))
+                        (:wat::core::if (:wat::core::let [k (:wat::core::ast-kind node)]
+                                         (:wat::core::or (:wat::core::= k "list")
+                                           (:wat::core::or (:wat::core::= k "vector")
+                                             (:wat::core::or (:wat::core::= k "map") (:wat::core::= k "set")))))
+                          (:wat::core::foldl
+                            (:wat::core::fn [hit <- :wat::core::bool  child <- :wat::WatAST] -> :wat::core::bool
+                              (:wat::core::or hit (self self child field-name)))
+                            false
+                            (:wat::core::ast->children node))
+                          false)))
+     collect-impls-dialed
+                    (:wat::core::fn [self <- :wat::type::Infer  node <- :wat::WatAST
+                                     acc <- (:wat::core::Vector :- [:wat::core::String])]
+                      -> (:wat::core::Vector :- [:wat::core::String])
+                      (:wat::core::let
+                        [acc1 (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+                                 (:wat::core::let [ch (:wat::core::ast->children node)]
+                                   (:wat::core::if (:wat::core::or (:wat::core::empty? ch)
+                                                     (:wat::core::not (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "keyword")))
+                                     acc
+                                     (:wat::core::if (:wat::core::and
+                                                       (:wat::core::= (:wat::core::ast-name (:wat::core::first ch)) ":wat::kernel::connect")
+                                                       (:wat::i64::>= (:wat::core::length ch) 2))
+                                       (:wat::core::foldl
+                                         (:wat::core::fn [a <- (:wat::core::Vector :- [:wat::core::String])
+                                                          pair <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
+                                           -> (:wat::core::Vector :- [:wat::core::String])
+                                           (:wat::core::let [nm (:wat::core::first pair)
+                                                             sf (:wat::core::second pair)]
+                                             (:wat::core::if (:wat::core::and
+                                                               (node-accesses-field? node-accesses-field? (:wat::core::nth ch 1) nm)
+                                                               (:wat::core::not (:wat::vec::contains? a sf)))
+                                               (:wat::core::conj a sf)
+                                               a)))
+                                         acc
+                                         addr-fields)
+                                       acc)))
+                                 acc)]
+                        (:wat::core::if (:wat::core::let [k (:wat::core::ast-kind node)]
+                                         (:wat::core::or (:wat::core::= k "list")
+                                           (:wat::core::or (:wat::core::= k "vector")
+                                             (:wat::core::or (:wat::core::= k "map") (:wat::core::= k "set")))))
+                          (:wat::core::foldl
+                            (:wat::core::fn [a <- (:wat::core::Vector :- [:wat::core::String])  child <- :wat::WatAST]
+                              -> (:wat::core::Vector :- [:wat::core::String])
+                              (self self child a))
+                            acc1
+                            (:wat::core::ast->children node))
+                          acc1)))
+     impls-dialed-surfaces
+                    (collect-impls-dialed collect-impls-dialed ops
+                      (:wat::core::Vector :- [:wat::core::String]))
+     _peers-impls-dialed
+                    (:wat::core::foldl
+                      (:wat::core::fn [ok <- :wat::core::bool  ds <- :wat::core::String]
+                        -> :wat::core::bool
+                        (:wat::core::if (:wat::vec::contains? peers-surfaces ds)
+                          ok
+                          (:wat::core::macro-error
+                            (:wat::string::concat fqdn-str
+                              (:wat::string::concat ": :impls dials Peer<"
+                                (:wat::string::concat ds
+                                  (:wat::string::concat "::Op,…::Reply> but surface :"
+                                    (:wat::string::concat ds
+                                      (:wat::string::concat
+                                        " is not declared in :peers — add :peers [… :"
+                                        (:wat::string::concat ds " …] (the explicit s2s dependency DAG)"))))))))))
+                      true
+                      impls-dialed-surfaces)
      ;; `:$surface-form` is attached by expand.rs. Walk `:features` for this op's
      ;; `:max-entries` field name. "" means the op did not declare the option —
      ;; emit no guard. The numeric cap is the runtime def `:<S>::<OP>-MAX-ENTRIES`.
