@@ -464,6 +464,19 @@ on identical input; 1489 files; each tool ONE process):
   predecessor. With finding 8 (no gate checks a child), that cut would ship unconverted children silently.
 - Routed: `BRIEF-2a2-REFUTE.md` (R8 nested programs scoped per program; R9–R13 the filter, the guard,
   the fallback's report, the stale header, the `""` sentinel).
+- **Closed** by grok's `f36c2386c`, verified by the orchestrator: floor 5431/5431, clippy 0; run5 —
+  match-arm LOSING **0** (UNRESOLVED 10), positional-ctor's one "losing" file the same deeper-conversion
+  artifact, variant-separator 0 lost / 67 gained; the chain vs main 1370 identical, CHAIN-FAILS 28. The
+  one file newly differing from main vs run4 (`probe-m1-ann-erase.wat`) differs only by its child's
+  `CMsg::Setup` → `CMsg.Setup`, which main's census never flipped (main's own `::` there is finding 8's
+  defect). `probe-m1-ann-erase2.wat`'s child fields match the file's own declarations; main's
+  `{:deps}`/`{:pair}` is finding 5's cross-FILE leak (the SCORE called it the parent's). R10: the
+  orchestrator's own mutation (a stdlib `defmacro` calling `declared-types`) turned the guard RED.
+- **Where `convert.sh`'s time goes** (bash trace, one call: #9's two files 15.9 s, #1's one file 13.9 s):
+  whole-tree extract 2.4–3.3 s, the ~1900-file parse filter ~0.6 s, and the codemod loop the rest
+  (~11.5–12.6 s): `convert.sh`'s loop runs `"$WAT" "$cm"` once per in-scope codemod — 27 `wat`
+  processes, each paying a startup (≈0.45 s each on average; the loop's own xtrace lines land in its
+  `$LOG`, so only the loop's total is measured). Twice per commit (the C^ set, the C set).
 
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 

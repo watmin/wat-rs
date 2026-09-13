@@ -39,10 +39,12 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   all ask. Verified: floor 5431/5431, clippy 0; `bootstrap/era/probe-R/kinds.wat` (E1–E4); the
   agreement wall RED under the orchestrator's own Marker-arm mutation; the door unchanged (1457/32,
   identity 0/0/0). Finding 14.
-- **2a2 scored** (grok `9d887f753`), verified: floor 5431/5431, clippy 0; run5 — tools in minutes
-  (146 s / 28 s / 50 s, one process each), chain vs main 1367 identical, CHAIN-FAILS 28 (finding 15).
-  **In flight: `BRIEF-2a2-REFUTE.md`** — R8 a nested program's own types (one real loss, the brief's
-  error), R9–R13. When grok scores, re-run `run5.sh` and every R.
+- **2a2 is CLOSED** (grok `9d887f753` + refute `f36c2386c`), verified: floor 5431/5431, clippy 0;
+  run5 — each tool one process (144 s / 29 s / 54 s), 0 files losing, chain vs main 1370 identical,
+  CHAIN-FAILS 28; the R10 guard RED under the orchestrator's own mutation (finding 15).
+- **Next: replay batch 1, grok-rete #11 → #60** (`BRIEF-4-replay-batch-1.md` +
+  `EXPECTATIONS-4-replay-batch-1.md`), awaiting the builder's pulsare. Census and batch boundaries:
+  `bootstrap/era/replay-plan/commits.tsv` (the first commit needing a new policy is #126).
 - **RULED 2026-09-13 (4 YES):** the replay batches start as soon as 2a2 closes; stone 3 runs BETWEEN
   batches (its gate walks the whole tree when it lands). Stone 3's re-grounded draft is in
   `bootstrap/pending/` (D1 derived from the one child-start door; D2 must WRITE two recorded migrations).
