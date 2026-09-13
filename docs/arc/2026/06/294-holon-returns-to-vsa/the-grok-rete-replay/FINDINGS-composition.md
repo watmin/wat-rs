@@ -96,6 +96,35 @@ full run, it was timed on one file: 54 s, 46 s of it `positional-ctor-to-map`.
   type from another file. The chain resolves in-file only, so it writes the declared fields. **The
   composition RESULT's residuals where chain = in-file declaration and main ≠ are this census.**
 
+## v2 RESULT (order-v2, TODAY's match-arm and positional-ctor) — 2026-09-13 03:43Z
+
+`bootstrap/composition/runs/2026-09-13T02-15-31Z-order-v2/`: all 27 steps rc=0.
+
+| set | reproduces main byte-for-byte | residual |
+|---|---|---|
+| worklist (1001 files main changed) | 774 | 227: 50 comment-only (main's hand prose), 177 carrying code |
+| control (488 files main never touched) | 486 | 2 (finding 6) |
+
+A residual on a file grok-rete does not touch is harmless to the replay. For a file grok modifies,
+`git merge-file` keeps main's side. **What a chain failure costs is grok's own lines, and grok's NEW
+files.** The code residuals are classified on the chain UNDER THE RULING, (B), not on v2.
+
+## Finding 6 — the two CONTROL residuals: one main miss, one tool over-match (both verified on main's binary)
+
+- `docs/arc/2026/06/278-rules-engine/probes/surface-field-dispatch.wat`: main spells
+  `:wat::core::i64::+`, which main's own `src/remedy/retirement.rs:190` retires in favour of
+  `:wat::i64::+`. The chain renames it. **The chain is right; main never migrated it.** No gate
+  loads `docs/**/*.wat`, and the file is broken on main anyway (`--check`: `MalformedDecl … defsurface
+  … expected :nature`).
+- `tests/macros/probe_arc241_stone17_defmacro_canonical_c03.wat`: `one-param-spec` rewrites the
+  template `` `(:wat::core::Vector ~@items)`` to `` `(:wat::core::Vector :- [~@items])``, reading a
+  SPLICE as the param-spec. Expanded on main's binary (`bootstrap/era/probe-H/`), with `(variadic-wrap 1 2 3)`:
+  - chain: `type param-spec :- [...] must declare exactly one type (T); got 3`;
+  - main: ALSO invalid, `first argument must be a (Head :- [T]) type param-spec`. Main's template
+    has been unexpandable since the param-spec wall, and its test never expands it (both `--check` rc 0).
+  - **Both sides are wrong.** The tool's rule has not changed since `556b9c08f`, so this is an
+    over-match its fixture never covered, not drift.
+
 ## Operational notes (all paid for today)
 
 - Long runs are launched `setsid nohup`: the harness's memory guard kills tracked background tasks.
