@@ -229,6 +229,24 @@ layout), on main's binary `bootstrap/wat-main-a3218644d`:
   - Each message guards a different predicate. The honest fix drives each refusal with a probe and
     checks that following its remedy passes, one site at a time; it is not a text sweep.
 
+## After 2b — three known flaws its verification surfaced (orchestrator re-run, 2026-09-13)
+
+- **Three refusal arms are unreachable from wat.** grok found that `match_arm.rs:187`'s fallback
+  (callers pass only the five retired bares), `check.rs:6955` and `check.rs:7253` (both behind
+  `is_namespaced_variant`, then re-asking `decompose_variant`) cannot be fired by any input. 2b pins
+  them by their source text. They are dead refusal code, and dead code should go, not stay pinned.
+- **~21 doc/comment lines still teach `::` for a variant.** SCORE-2b's E3 listed 4. The orchestrator's
+  census of `src/`/`crates/` comment lines (same pattern) finds: `closure_extract.rs:1338,1341`,
+  `freeze/env.rs:207`, `rete/expr_ir.rs:58,602`, `record/construct.rs:123,245,249`,
+  `reflect/verbs.rs:1585` (the documented signature of a PUBLIC verb), `declare/register.rs:1323`,
+  `rete/validate.rs:82,84,1375`, `runtime.rs:1732,8781,8842,8979,13593,13623`, `types.rs:695`. E3 was
+  scoped to refusal TEXT and holds; these are prose. Each is either a history note (which is kept) or
+  a live description (which is updated), and has to be judged one at a time.
+- **c03's template now hardcodes `:wat::core::i64`.** `variadic-wrap` =
+  `` `(:wat::core::Vector :- [:wat::core::i64] ~@items)``, so a macro whose name says "wrap the items"
+  wraps only integers. It is legal under the param-spec wall (the Vector head is mandatory-typed), and
+  the test's subject is the `& items` rest binder. It is a narrowing, recorded for the builder.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
@@ -256,6 +274,15 @@ user-type arity from its context by design ("a type declared in file A resolves 
 file B", its header), so at replay time a grok file using a parametric type declared in ANOTHER file
 is left unconverted. Main's param-spec wall then refuses it (STOP-2, loud). The composition result
 therefore does not describe `convert.sh` for this step.
+
+Measured (`bootstrap/era/probe-M/`, grok-rete tip `37528f6e0`, 1641 `.wat` outside `wat-scripts/fixes/`):
+- the raw corpus as context fails in 0.3 s, `lex error … angle-bracket type parameters are illegal`.
+  The file is `docs/arc/2026/05/130-cache-services-pair-by-index/complected-2026-05-02/substrate.wat`
+  (byte 2629), and its sibling `test.wat` fails the same way (byte 2263). Main DELETED both in
+  `c5f1ee487` WALL(278) ("every tracked *.wat must READ"); grok-rete modifies both.
+- without those two (1639 files): rc 0 in **2.6 s**, against 0.28 s with the single file. A corpus
+  context is affordable on every `convert.sh` call, provided unreadable files are excluded and each
+  one is REPORTED, never silently dropped.
 
 ## grok-rete `.wat` files OUTSIDE the 1489 checked here (11 of its 194 modified)
 

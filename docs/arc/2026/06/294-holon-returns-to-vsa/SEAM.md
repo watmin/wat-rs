@@ -229,7 +229,21 @@ The builder:
        5. `surface-field-dispatch.wat` (a broken docs probe that grok-rete modifies) is fixed when its
           grok-rete commit replays. Not deleted.
        6. **BRIEF-2b RELEASED ("pulsare 2b")** — `BRIEF-2b-main-teaches-what-it-refuses.md` +
-          `EXPECTATIONS-2b.md`. ⛔ grok is on the tree: commit NOTHING until it yields.
+          `EXPECTATIONS-2b.md`.
+     - **✓ 2b VERIFIED — `f2e0ac26b` (grok's SCORE-2b).** Re-run on the orchestrator's own runs:
+       - E1: 7/7 site tests PASS;
+       - E2: mutated a DIFFERENT site than grok's (`check.rs:7755`), and exactly
+         `list_constructor_pattern_teaches_dot` went red, naming the site; restored;
+       - E3: no code string teaches `::` (own census);
+       - E4: the one-variant-separator lint PASSES;
+       - E5: the old c03 template reproduces RED; E6: `contract_03` GREEN;
+       - E7: both `probe-m1-ann-erase*.wat` print `echo:z`;
+       - E8: 20 files, within the blast radius plus fixtures;
+       - clippy 0; floor **5411/5411**, no SLOW (`.floor/2026-09-13T04-58-38Z`, run uncontended: the two
+         pc2 wat processes were SIGSTOPped for the floor, then resumed).
+       - Three known flaws it surfaced are in FINDINGS § "After 2b": 3 refusal arms unreachable from wat
+         (dead code pinned by text) · ~21 doc/comment lines still teach `::` (SCORE listed 4) · c03's
+         `variadic-wrap` now hardcodes `:wat::core::i64`.
      - NEXT: the chain-tooling brief (2a): the ladder door, the scope rule, the variant decision,
        positional-ctor reporting by registry (not case), step 14 reporting a splice, and `convert.sh`
        giving `one-param-spec` the corpus context. It waits for the positional-ctor ladder A/B and the
