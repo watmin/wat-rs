@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rete-oracle-sigil.wat — rete dual-impl names: public = native,
+;; SCOPE: corpus
 ;; oracle = `$oracle` sigil. Self-hosted fix-wat: no hand-edit of the corpus.
 ;;
 ;;   :wat::rete::fire-rules-spec     -> :wat::rete::fire-rules$oracle

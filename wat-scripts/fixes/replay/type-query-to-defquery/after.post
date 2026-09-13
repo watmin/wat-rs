@@ -1,0 +1,11 @@
+; near-miss: already Clara-shaped query stays
+(:wat::core::defn :u::keep [s <- :wat::core::i64] -> :wat::core::nil
+  (:wat::rete::query s (:u::q-Keep)))
+
+(:wat::rete::defquery :u::q-T
+  :params []
+  :when [(:u::T)])
+
+(:wat::core::defn :u::hit [s <- :wat::core::i64] -> :wat::core::nil
+  (:wat::rete::compile-all s (:wat::core::PersistentVector (:u::q-T)))
+  (:wat::rete::query s (:u::q-T)))

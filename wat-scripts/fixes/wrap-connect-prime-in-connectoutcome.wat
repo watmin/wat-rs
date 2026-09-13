@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/wrap-connect-prime-in-connectoutcome.wat — arc 278 peer-lifecycle Strike 4
+;; SCOPE: corpus
 ;; (the connect'-outcome wall, the LAST peer wall) — the corpus sweep.
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.

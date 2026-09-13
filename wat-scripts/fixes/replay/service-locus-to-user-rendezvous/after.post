@@ -1,0 +1,3 @@
+; near-miss: already user::spawn::service-locus stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil :user::spawn::service-locus)
+(:wat::core::defn :u::hit [] -> :wat::core::nil :user::spawn::service-locus)

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/query-answers-are-maps.wat
+;; SCOPE: corpus
 ;;
 ;; Query returns binding maps. A leftover consumer that types the answer as a
 ;; fact is talking to the old mouth. Re-architect:

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/to-faithful-clojure-net.wat — the faithful-Clojure conversion as a
+;; SCOPE: corpus
 ;; FORWARD-CHAINING RETE NETWORK (PORTA PORTAM APERIT). Recognition is decomposed into many
 ;; trivial single-condition activation gates; each :then inserts one intermediate fact that
 ;; unlocks the next rule. The walk is PURE OBSERVATION (emits :fix::Node facts only); ALL
@@ -78,14 +79,20 @@
 (:wat::rete::defrule :fix::g4-namespaced
   :when [(:fix::Genuine (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
-         (:wat::rete::where (:fix::has-ns? ?name))]
+         (:wat::rete::where (:wat::rete::string::contains? ?name "::"))]
   :then [(:fix::Namespaced ?off)])
 
 ;; G5 type-shaped?
 (:wat::rete::defrule :fix::g5-type-shaped
   :when [(:fix::Genuine (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
-         (:wat::rete::where (:fix::type-shaped? ?name))]
+         (:wat::rete::where (:wat::rete::core::or
+                              (:wat::rete::core::and
+                                (:wat::rete::string::contains? ?name "<")
+                                (:wat::rete::string::contains? ?name ">"))
+                              (:wat::rete::core::and
+                                (:wat::rete::string::contains? ?name "(")
+                                (:wat::rete::string::contains? ?name ")"))))]
   :then [(:fix::TypeShaped ?off)])
 
 ;; ══ LAYER 3 · POSITION (joins) ══════════════════════════════════════════════
@@ -101,7 +108,7 @@
   :when [(:fix::Arrow (?aoff <- :offset))
          (:fix::Node (?aoff <- :offset) (?p <- :parent) (?ai <- :child-idx))
          (:fix::Node (?boff <- :offset) (?p <- :parent) (?bi <- :child-idx))
-         (:wat::rete::where (:wat::rete::string::= ?bi (:wat::core::+ ?ai 1)))]
+         (:wat::rete::where (:wat::rete::string::= ?bi (:wat::rete::i64::+ ?ai 1 :undefined 0)))]
   :then [(:fix::PostArrow ?boff)])
 
 ;; TypeCandidate ← type-shaped OR post-arrow (the ∪, as two trivial gates)

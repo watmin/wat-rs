@@ -1,0 +1,3 @@
+; near-miss: holon::Record stays (different prefix)
+(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::holon::Record)
+(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::Record)

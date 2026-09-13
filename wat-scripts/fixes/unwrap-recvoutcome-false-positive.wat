@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/unwrap-recvoutcome-false-positive.wat — RECOVERY: reverse a false-positive
+;; SCOPE: corpus
 ;; RecvOutcome wrap.
 ;;
 ;; The wrap codemod's "Resp" matcher over-fired on matches whose scrutinee is a BARE response from

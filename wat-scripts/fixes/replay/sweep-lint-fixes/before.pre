@@ -1,0 +1,8 @@
+; near-miss: a 2-rung if is not a ladder (≥3 lits required)
+(:wat::core::defn :u::keep [x <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= x 1) true
+    (:wat::core::if (:wat::core::= x 2) true false)))
+(:wat::core::defn :u::hit [x <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= x 1) true
+    (:wat::core::if (:wat::core::= x 2) true
+      (:wat::core::if (:wat::core::= x 3) true false))))

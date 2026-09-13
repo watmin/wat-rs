@@ -1,0 +1,11 @@
+(:wat::core::defn :wsh::items [] -> :wat::core::nil nil)
+; near-miss: already defrule stays
+(:wat::rete::defrule :wsh::keep
+  :when [(:u::A (?x <- :x))]
+  :then [(:u::B ?x)])
+(:wat::core::defn :wsh::rule-arith [] -> :wat::rete::Rule
+  (:wat::core::let [conds (:wat::core::quasiquote (:u::A ?x))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::= ?x 1)))
+                    ins (:wat::core::quasiquote (:u::B ?x))]
+    (:wat::rete::Rule :name "arith" :lhs (:wat::core::PersistentVector conds where-c)
+                                   :rhs (:wat::core::PersistentVector ins))))

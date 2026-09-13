@@ -1,0 +1,5 @@
+; near-miss: a named binding of send' stays
+(:wat::core::defn :u::keep [p <- :wat::core::i64 m <- :wat::core::i64] -> :wat::core::nil
+  (:wat::core::let [r (:wat::kernel::send' p m)] nil))
+(:wat::core::defn :u::hit [p <- :wat::core::i64 m <- :wat::core::i64] -> :wat::core::nil
+  (:wat::core::let [_ (:wat::core::match (:wat::kernel::send' p m) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] nil))

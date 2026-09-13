@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/face-underscore-bound-send-prime.wat — arc 278 send'-wall Phase 3b, Move 1
+;; SCOPE: corpus
 ;; (the SWEEP). Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files.
 ;;
 ;; THE CHANGE: a `send'` outcome bound to `_` inside a `:wat::core::let` binding vector —

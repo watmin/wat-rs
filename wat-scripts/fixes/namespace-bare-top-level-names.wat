@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/namespace-bare-top-level-names.wat — arc 278 DESIGN-STONE-namespacing-wall,
+;; SCOPE: corpus
 ;; the `.wat` / `.wat.bad` corpus half: every remaining bare top-level definitional name.
 ;;
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.

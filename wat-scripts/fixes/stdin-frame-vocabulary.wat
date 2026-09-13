@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/stdin-frame-vocabulary.wat — arc 170 closure #4, a ratified intueri rename.
+;; SCOPE: corpus
 ;;
 ;; `stdio.wat`'s Layer-2 stdin op calls `IOReader/read-frame` and relabels the result a "line" —
 ;; a frame is one-or-more physical lines accumulated until the buffer forms a complete EDN value,

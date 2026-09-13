@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/wrap-client-method-match-in-recvoutcome.wat — arc 278 the recv'-wall client-method cascade.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

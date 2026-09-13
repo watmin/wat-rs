@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/mandate-invocation-ctx-param.wat — arc 278 ctx-is-mandatory: STEP 4 codemod.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;;

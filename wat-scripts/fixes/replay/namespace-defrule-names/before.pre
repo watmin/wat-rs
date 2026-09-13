@@ -1,0 +1,10 @@
+(:wat::core::defn :wsh::items [] -> :wat::core::nil nil)
+(:wat::core::defn :wsh::run-row [rule <- :wat::core::i64] -> :wat::core::String
+  (:wat::rete::Rule/name rule))
+; near-miss: already-namespaced defrule stays
+(:wat::rete::defrule :wsh::keep
+  :when [(:u::A (?x <- :x))]
+  :then [(:u::B ?x)])
+(:wat::rete::defrule :arith
+  :when [(:u::A (?x <- :x))]
+  :then [(:u::B ?x)])

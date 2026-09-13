@@ -1,0 +1,4 @@
+; near-miss: already-clojure symbol stays
+(wat.core/if true nil nil)
+(wat.core/defn u/f [] :- wat.type/nil
+  (wat.core/if true nil nil))

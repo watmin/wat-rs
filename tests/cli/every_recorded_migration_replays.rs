@@ -1,6 +1,6 @@
-//! Gate: every recorded migration in `wat-scripts/fixes/*.wat` carries either a
-//! replay fixture, a `FROZEN_LEDGER` entry, or a header rune. Nothing is exempt
-//! by silence.
+//! Gate: every recorded migration in `wat-scripts/fixes/*.wat` carries a
+//! replay fixture XOR a header rune `rune:replay(unreadable-preimage)`, and a
+//! `;; SCOPE:` line. Nothing is exempt by silence.
 //!
 //! A fixture is `wat-scripts/fixes/replay/<stem>/{before.pre,after.post}` (optional
 //! `stdin`). The oracle is HISTORY or the codemod's header spec — never the
@@ -10,39 +10,12 @@
 //! `.pre`/`.post` stay out of `wat_scripts_fixes_load.rs` (walks `*.wat`) and
 //! `every_tracked_wat_parses.rs` (`git ls-files '*.wat'`).
 //!
-//! `FROZEN_LEDGER` is named debt: it only shrinks, and stone 0b (arc 294's grok-rete replay)
-//! empties it and deletes the constant.
-
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-const FROZEN_LEDGER: &[(&str, &str)] = &[
-    ("face-underscore-bound-send-prime", "stone 0b: fixture pending"),
-    ("fix-macro-param-types", "stone 0b: fixture pending"),
-    ("mandate-invocation-ctx-param", "stone 0b: fixture pending"),
-    ("namespace-bare-top-level-names", "stone 0b: fixture pending"),
-    ("namespace-defrule-names", "stone 0b: fixture pending"),
-    ("query-answers-are-maps", "stone 0b: fixture pending"),
-    ("rename-wat-record-to-core-record", "stone 0b: fixture pending"),
-    ("retarget-peer-purity-probes", "stone 0b: fixture pending"),
-    ("rete-oracle-sigil", "stone 0b: fixture pending"),
-    ("rule-record-to-defrule", "stone 0b: fixture pending"),
-    ("service-locus-to-user-rendezvous", "stone 0b: fixture pending"),
-    ("stdin-frame-vocabulary", "stone 0b: fixture pending"),
-    ("struct-new-failure-to-message-only-failure", "stone 0b: fixture pending"),
-    ("sweep-lint-fixes", "stone 0b: fixture pending"),
-    ("to-faithful-clojure", "stone 0b: fixture pending"),
-    ("to-faithful-clojure-net", "stone 0b: ROTTED — rete where-fence refuses a user fn (:fix::has-ns? / :fix::type-shaped?), rc=2"),
-    ("to-faithful-clojure-rete", "stone 0b: ROTTED — rete where-fence refuses a user fn (:fix::head-keyword-str?), rc=2"),
-    ("type-query-to-defquery", "stone 0b: fixture pending"),
-    ("unwrap-recvoutcome-false-positive", "stone 0b: fixture pending"),
-    ("wrap-client-method-match-in-recvoutcome", "stone 0b: fixture pending"),
-    ("wrap-connect-prime-in-connectoutcome", "stone 0b: fixture pending"),
-];
 
 fn manifest() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -101,8 +74,17 @@ fn rune_reason(stem: &str) -> Option<String> {
     None
 }
 
-fn ledger_map() -> std::collections::BTreeMap<&'static str, &'static str> {
-    FROZEN_LEDGER.iter().copied().collect()
+fn has_rune_line(stem: &str) -> bool {
+    let path = fixes_dir().join(format!("{stem}.wat"));
+    let Ok(src) = fs::read_to_string(&path) else {
+        return false;
+    };
+    src.lines().any(|l| {
+        l.trim()
+            .trim_start_matches(';')
+            .trim()
+            .starts_with("rune:replay(unreadable-preimage)")
+    })
 }
 
 /// Header `;; SCOPE: <entry> …` lines. Exactly one, non-empty, is required of every
@@ -337,68 +319,51 @@ fn every_recorded_migration_replays_positional_ctor() {
 }
 
 #[test]
-fn every_recorded_migration_is_fixtured_ledgered_or_runed() {
+fn every_recorded_migration_is_fixtured_or_runed() {
     let stems = top_level_stems();
-    let ledger = ledger_map();
     let mut violations = Vec::new();
 
     let mut fixture_n = 0usize;
-    let mut ledger_n = 0usize;
     let mut rune_n = 0usize;
 
     for stem in &stems {
         let fx = has_fixture(stem);
-        let led = ledger.get(stem.as_str()).copied();
         let rune = rune_reason(stem);
-        let n = usize::from(fx) + usize::from(led.is_some()) + usize::from(rune.is_some());
+        let rune_line = has_rune_line(stem);
+        if rune_line && rune.is_none() {
+            violations.push(format!(
+                "{stem}: rune:replay(unreadable-preimage) has an empty reason"
+            ));
+        }
+        let n = usize::from(fx) + usize::from(rune_line);
         if fx {
             fixture_n += 1;
         }
-        if led.is_some() {
-            ledger_n += 1;
-        }
-        if rune.is_some() {
+        if rune_line {
             rune_n += 1;
         }
         if n == 0 {
             violations.push(format!(
-                "{stem}: no fixture, no FROZEN_LEDGER entry, no rune:replay(unreadable-preimage)"
+                "{stem}: no fixture, no rune:replay(unreadable-preimage)"
             ));
         } else if n > 1 {
             violations.push(format!(
-                "{stem}: in more than one category (fixture={fx} ledger={} rune={})",
-                led.is_some(),
-                rune.is_some()
+                "{stem}: in more than one category (fixture={fx} rune={rune_line})"
             ));
         }
-        if fx || rune.is_some() {
-            let lines = scope_lines(stem);
-            if lines.len() != 1 {
-                violations.push(format!(
-                    "{stem}: expected exactly one `;; SCOPE:` line, found {}",
-                    lines.len()
-                ));
-            } else if lines[0].is_empty() {
-                violations.push(format!("{stem}: SCOPE line is empty"));
-            } else {
-                let entries: Vec<String> = lines[0].split_whitespace().map(str::to_string).collect();
-                if let Err(e) = scope_globs_hit_a_tracked_file(stem, &entries) {
-                    violations.push(e);
-                }
+        let lines = scope_lines(stem);
+        if lines.len() != 1 {
+            violations.push(format!(
+                "{stem}: expected exactly one `;; SCOPE:` line, found {}",
+                lines.len()
+            ));
+        } else if lines[0].is_empty() {
+            violations.push(format!("{stem}: SCOPE line is empty"));
+        } else {
+            let entries: Vec<String> = lines[0].split_whitespace().map(str::to_string).collect();
+            if let Err(e) = scope_globs_hit_a_tracked_file(stem, &entries) {
+                violations.push(e);
             }
-        }
-    }
-
-    for (stem, _why) in FROZEN_LEDGER {
-        if !stems.iter().any(|s| s == stem) {
-            violations.push(format!(
-                "{stem}: FROZEN_LEDGER entry for a stem that no longer exists"
-            ));
-        }
-        if has_fixture(stem) {
-            violations.push(format!(
-                "{stem}: FROZEN_LEDGER entry is stale — this stem now has a fixture"
-            ));
         }
     }
 
@@ -429,15 +394,11 @@ fn every_recorded_migration_is_fixtured_ledgered_or_runed() {
     );
     assert_eq!(
         stems.len(),
-        fixture_n + ledger_n + rune_n,
-        "stems={} fixtures={} ledger={} runes={} (expected stems == sum)",
+        fixture_n + rune_n,
+        "stems={} fixtures={} runes={} (expected stems == fixtures + runes)",
         stems.len(),
         fixture_n,
-        ledger_n,
         rune_n
     );
-    // No count pins. The gate freezes NAMES: every stem is covered by name above, and the
-    // ledger's stale check catches progress that forgot to shrink it. A pinned count would go
-    // red on legitimate progress (a new fixture, a new codemod) and could not name an offender.
     assert!(fixture_n > 0, "no replay fixtures found — the gate is measuring nothing");
 }

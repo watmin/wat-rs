@@ -1,0 +1,10 @@
+; near-miss: already RecvOutcome-wrapped stays
+(:wat::core::defn :u::keep [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match x
+    ((:wat::kernel::RecvOutcome::Message __recv) 1)
+    ((:wat::kernel::RecvOutcome::Lost __cause) 0)
+    (:wat::kernel::RecvOutcome::Closed 0)))
+(:wat::core::defn :u::hit [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match (:u::Client/op x) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
+    ((:u::OpResponse::Ok v) v)
+    ((:u::OpResponse::Err e) 0))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))

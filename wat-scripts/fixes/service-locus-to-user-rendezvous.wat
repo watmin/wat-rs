@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/service-locus-to-user-rendezvous.wat — arc 278, the namespacing wall's
+;; SCOPE: corpus
 ;; `Reserved` arm, made honest. Self-hosted: no hand-edit of wat source (use-the-tool).
 ;;
 ;; THE FLAW THE WALL FOUND (not a naming nit — a real design flaw):

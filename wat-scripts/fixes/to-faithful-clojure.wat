@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/to-faithful-clojure.wat — faithful-Clojure corpus converter.
+;; SCOPE: corpus
 ;;
 ;; Converts each file in the supplied path list from rust-scheme surface to the
 ;; faithful-Clojure dialect via :wat::fix::fix-text (fix.wat:339), the comment-

@@ -1,0 +1,2 @@
+(:wat::core::defn :u::f [] -> :wat::core::nil
+  (:wat::core::if true nil nil))

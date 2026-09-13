@@ -1,0 +1,3 @@
+; near-miss: already self-peer stays
+(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::program::self-peer)
+(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::kernel::peer-pair')

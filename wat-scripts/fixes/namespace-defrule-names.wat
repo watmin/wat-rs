@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/namespace-defrule-names.wat — arc 278 DESIGN-STONE-namespacing-wall, step 1:
+;; SCOPE: corpus
 ;; namespace the `where`-expressivity corpus's 89 bare `defrule` names.
 ;;
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.

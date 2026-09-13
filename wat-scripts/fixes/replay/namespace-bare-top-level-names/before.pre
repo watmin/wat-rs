@@ -1,0 +1,3 @@
+(:wat::core::defn :wsh::items [] -> :wat::core::nil nil)
+; near-miss: already-namespaced defn stays
+(:wat::core::defn :arith [] -> :wat::core::i64 1)

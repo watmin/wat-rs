@@ -1,0 +1,5 @@
+; near-miss: already [s ctx req] stays
+(:wat::service::defservice :u::Keep
+  :impls [(op [s ctx req] nil)])
+(:wat::service::defservice :u::Hit
+  :impls [(op [s req] nil)])

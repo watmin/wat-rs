@@ -1,0 +1,10 @@
+(:wat::core::defn :wsh::items [] -> :wat::core::nil nil)
+; near-miss: already defrule stays
+(:wat::rete::defrule :wsh::keep
+  :when [(:u::A (?x <- :x))]
+  :then [(:u::B ?x)])
+(:wat::rete::defrule :arith
+  :when
+  [(:u::A ?x) (:wat::rete::where (:wat::rete::i64::= ?x 1))]
+  :then
+  (:u::B ?x))

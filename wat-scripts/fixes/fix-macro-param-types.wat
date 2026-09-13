@@ -1,4 +1,5 @@
 ;; wat-scripts/fix-macro-param-types.wat — the arc-251 fix-macro-param-types codemod,
+;; SCOPE: corpus
 ;; run over real wat source files IN WAT, through the wat CLI. The migration tool,
 ;; self-hosted: no Rust harness.
 ;;

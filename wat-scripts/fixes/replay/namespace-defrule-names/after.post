@@ -1,0 +1,25 @@
+(:wat::core::defn :wsh::items [] -> :wat::core::nil nil)
+;; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may
+;; now carry this file's namespace prefix (e.g. "NS::arith") after the namespacing wall.
+;; `string::split` on "::" always returns >= 1 segment (the whole string, unsplit, when
+;; "::" is absent); folding with SEED = full while always overwriting the accumulator
+;; with the current segment lands on the LAST segment without ever calling a partial
+;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
+;; the input UNCHANGED, and even an impossible empty split falls back to the seed
+;; instead of raising.
+(:wat::core::defn :wsh::rule-display-name
+  [full <- :wat::core::String] -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
+    full
+    (:wat::core::string::split full "::")))
+
+(:wat::core::defn :wsh::run-row [rule <- :wat::core::i64] -> :wat::core::String
+  (:wsh::rule-display-name (:wat::rete::Rule/name rule)))
+; near-miss: already-namespaced defrule stays
+(:wat::rete::defrule :wsh::keep
+  :when [(:u::A (?x <- :x))]
+  :then [(:u::B ?x)])
+(:wat::rete::defrule :wsh::arith
+  :when [(:u::A (?x <- :x))]
+  :then [(:u::B ?x)])

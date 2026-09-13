@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/retarget-peer-purity-probes.wat — arc 278: the §7 wire-peer purity
+;; SCOPE: corpus
 ;; assertion outlives its host.
 ;;
 ;; `peer-pair'` is annihilated (builder-ruled: "i don't think we need this thing"). Three

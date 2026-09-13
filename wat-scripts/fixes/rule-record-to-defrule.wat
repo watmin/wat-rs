@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/rule-record-to-defrule.wat — arc 278 migration: the `where`-expressivity
+;; SCOPE: corpus
 ;; corpus (wat-scripts/perf/grid/where-*.wat) from hand-built `Rule` records to `defrule`.
 ;;
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.

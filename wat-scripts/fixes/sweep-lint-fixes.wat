@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/sweep-lint-fixes.wat — THE SWEEP. Run the self-hosted linter's auto-fixes over the
+;; SCOPE: corpus
 ;; whole wat corpus, in wat, through the wat CLI. The toolchain cleaning its own source — proof-by-diff.
 ;;
 ;; For each path on stdin (one EDN vector — list EVERY .wat to sweep; arc 283 lesson: derive the set,

@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/struct-new-failure-to-message-only-failure.wat — arc 278 item-c Strike B
+;; SCOPE: corpus
 ;; reclamation.
 ;;
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.

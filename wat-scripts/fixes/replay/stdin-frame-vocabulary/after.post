@@ -1,0 +1,3 @@
+; near-miss: IOReader/read-line stays (different verb)
+(:wat::core::defn :u::keep [] -> :wat::core::nil :wat::io::IOReader/read-line)
+(:wat::core::defn :u::hit [] -> :wat::core::nil :wat::kernel::StdIn/read-frame)

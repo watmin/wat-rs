@@ -1,0 +1,7 @@
+; near-miss: already-fact-bound condition stays
+(:wat::rete::defquery :u::keep
+  :params []
+  :when [(?fact <- :u::T)])
+(:wat::rete::defquery :u::hit
+  :params []
+  :when [(?fact <- :u::T)])

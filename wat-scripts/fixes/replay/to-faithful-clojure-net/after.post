@@ -1,0 +1,2 @@
+(wat.core/defn u/f [] :- wat.type/nil
+  (wat.core/if true nil nil))

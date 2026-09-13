@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/type-query-to-defquery.wat — rip type-readout query.
+;; SCOPE: corpus
 ;;
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — wat rewrites wat.
 ;;

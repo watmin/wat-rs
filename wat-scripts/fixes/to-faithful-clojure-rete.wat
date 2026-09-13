@@ -1,4 +1,5 @@
 ;; wat-scripts/fixes/to-faithful-clojure-rete.wat — the faithful-Clojure conversion as PURE rete.
+;; SCOPE: corpus
 ;;
 ;; wat rewrites wat with its OWN rule engine. rete is always pure: the RULES DEDUCE
 ;; classification facts; this DRIVE queries them out and ACTIONS them (the transform + the
@@ -76,9 +77,16 @@
      (?name       <- :name)
      (?post-arrow <- :post-arrow)
      (:wat::rete::string::= ?kind "keyword"))
-   (:wat::rete::where (:fix::head-keyword-str? ?name))
+   (:wat::rete::where (:wat::rete::string::contains? ?name "::"))
    (:wat::rete::where (:wat::rete::core::not ?post-arrow))
-   (:wat::rete::where (:wat::rete::core::not (:fix::type-shaped-keyword-str? ?name)))]
+   (:wat::rete::where (:wat::rete::core::not
+                        (:wat::rete::core::or
+                          (:wat::rete::core::and
+                            (:wat::rete::string::contains? ?name "<")
+                            (:wat::rete::string::contains? ?name ">"))
+                          (:wat::rete::core::and
+                            (:wat::rete::string::contains? ?name "(")
+                            (:wat::rete::string::contains? ?name ")")))))]
   :then
   [(:fix::HeadConv ?offset ?len ?name)])
 
@@ -107,7 +115,13 @@
      (:wat::rete::string::= ?kind "keyword"))
    (:wat::rete::where (:wat::rete::core::or
                         ?post-arrow
-                        (:fix::type-shaped-keyword-str? ?name)))]
+                        (:wat::rete::core::or
+                          (:wat::rete::core::and
+                            (:wat::rete::string::contains? ?name "<")
+                            (:wat::rete::string::contains? ?name ">"))
+                          (:wat::rete::core::and
+                            (:wat::rete::string::contains? ?name "(")
+                            (:wat::rete::string::contains? ?name ")")))))]
   :then
   [(:fix::TypeConv ?offset ?len ?name)])
 
