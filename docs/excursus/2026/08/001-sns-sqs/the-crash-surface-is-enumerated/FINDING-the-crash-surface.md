@@ -207,7 +207,28 @@ Ranked by cells-bought-per-work, with the campaign blocker called out.
 
 1. **⭑ Store-fault injector** — signal / kill / oversize the sqlite-store process (or a store-shaped peer the queue already holds) so `queue.send`/`queue.ack` observe Lost/Closed/TimedOut. **Does not buy new outcome variants** (those already FIRES). **Buys the §2d path**: the six arms, the unknowable write, and the measurement the A/B/C ruling needs. Blocks the banked −17.1 % `rt-store` / −60.9 % `count` patch. Copy `drop-recv-bp`'s shape: a rate, a fire counter at the suppression site, not at the dice roll.
 2. **Fix disrupt's Malformed arm** — one arm: stop `assertion-failed!`ing RecvOutcome::Malformed, count it, redial. Makes `disrupt-bp` a live chaos injector again. At 100 % it currently stalls fill. Does not buy a new variant (frame-cap already fires Malformed). Buys harness-level exercise of the poison that already exists.
-3. **Sanctioned wat-level `close'`** — unblocks Send Closed, TrySend Closed, CloseOutcome::Signaled, CloseOutcome::Failed. Four cells. The Kill fixture already named this wall (`ReservedPrefix` + kernel restriction).
+3. ⛔ **CORRECTED 2026-09-13 — this was ONE item and it is TWO; only half is a stone.** *Original text:*
+   *"Sanctioned wat-level `close'` — unblocks Send Closed, TrySend Closed, CloseOutcome::Signaled,
+   CloseOutcome::Failed. Four cells. The Kill fixture already named this wall (`ReservedPrefix` + kernel
+   restriction)."* There are **two** walls, and they split the cells:
+   - **WALL 1 (type)** — `:wat::kernel::close` takes `(Thread | Process)`, a **lineage**, never a dialed
+     `Peer`. Probed: passing a `Peer` is a `TypeMismatch`. So these cells were never behind one door.
+   - **WALL 2 (ruling)** — `close` is `:restricted-to [:wat::kernel::]` by **arc 259 S2d, "the user never
+     holds the rope"** (`tests/process/signal_kill_produces_close_outcome_signaled.wat:11–24`, which
+     records this entire crawl already, including the `ReservedPrefix` dead end *"verified empirically"*).
+   - ✅ `CloseOutcome::Signaled` + `::Failed` are an **observability** gap → `the-rope-can-be-looked-at/`
+     (a non-consuming `lineage-status` peek; reverses no ruling).
+   - ⛔ `SendOutcome::Closed` + `TrySendOutcome::Closed` are **RETIRED — UNREACHABLE BY DESIGN.** They need
+     *use-after-close*, i.e. userland consuming a lineage and then touching it, which the arc-259 ruling
+     makes **unwritable in userland**. ★★ That is a wall working, not a debt: a cell empty because the
+     mistake has no form is the top of the extirpare ladder. Reaching them would mean reversing arc 259 to
+     improve a coverage number.
+
+   ⭑⭑ **AND THE TAXONOMY OF THIS WHOLE MATRIX NEEDS A SPLIT, which matters more than these two cells:**
+   `UNREACHABLE` must distinguish **"no mechanism yet"** (a gap, worth ranking) from **"no mechanism by
+   ruling"** (a wall holding, worth recording and closing). This FINDING recorded both as one status, which
+   is how a working wall came to sit on a to-do list **ranked above real work**. Anyone re-running the sweep
+   should classify all 11 `UNREACHABLE` cells on that axis before ranking anything.
 4. **Connect Rejected** — dial an address whose answering pid ≠ minter. One cell. Needs a forged or cross-process identity, not a new outcome type.
 5. **Signal Failed** — a `pidfd_send_signal` errno that is not EINVAL/EBADF and not already-closed. One cell. Zombie is not it (`Delivered`).
 6. **Accept Failed / Connect Failed** — accept(2) / `peer_cred` io errors. Two cells. No wat handle on those syscalls today.
