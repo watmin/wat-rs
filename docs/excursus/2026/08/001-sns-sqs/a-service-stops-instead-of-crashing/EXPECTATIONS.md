@@ -19,7 +19,7 @@ gate to a parameter another stone may move, and that cost a floor red this week.
 | 3 | ⛔ **the fault is still reported, not swallowed** | same run | `a-boom` reports a FAILURE outcome (`Lost`/`Closed`/`TimedOut`) — **never `Ok`**. A success here is the stone failing in the most dangerous direction |
 | 4 | ⛔ **a substrate bug still crashes** (negative control, executor writes it) | a handler tripping a genuine Rust panic, not `assertion-failed!` | the service DIES, as today. A wall that swallows interpreter bugs is worse than no wall |
 | 4b | **the projection actually ran** (or STOP-2 was reported) | the SCORE's own words | it says whether durable state was projected via `hibernate-project`, or reports that it could not be — never silent |
-| 5 | ⭑ **the new variant reds exactly ONE match** (STOP-1's premise) | `grep -rho '((:wat::service::Outcome::' --include=*.wat . \| sort \| uniq -c` | the `Continue`/`Stop` arm heads live only in `wat/service.wat`; a 2nd site anywhere is a STOP |
+| 5 | ⭑ **the seam's value is `nil`-typed** (STOP-1's premise, re-derived not trusted) | read `wat/service.wat:3498` and `:3937` | `(defn ~serve-name ~serve-params -> :wat::core::nil …)`. If it is anything else the route is refuted again |
 | 6 | tests compile (the build does NOT compile them) | `cargo nextest run --release --no-run` | clean |
 | 7 | **the floor** | `./scripts/floor.sh` → **Summary line** | `5245 passed`, 0 FAIL. A test count that GREW is fine and must be said; a count that SHRANK is a finding |
 | 8 | lints | `cargo clippy --all-targets -D warnings` | 0 |
@@ -49,8 +49,8 @@ contention this week. If row 10's delta is material, that headroom is where it l
    was actually passed.
 3. **The trampoline** (STOP-3). Returning a value from a `catch_unwind` that must stay in tail
    position is the subtlest part of the diff.
-4. **A second `Outcome` match site** (STOP-1). The route was chosen on that count being 1; the
-   executor re-measures it before writing, with the matches, not a bare count.
+4. **Per-dispatch closure allocation** (STOP-6). Cheap to get right up front, expensive to discover
+   in a floor timeout — this seam runs on every message.
 5. **Row 12 may be unreachable.** Every chaos knob we own is *momentary* — suppress a reply, oversize
    a frame — and the one terminal knob (`store-die-bp`) points at the store. Reaching a real
    `"redial failed"` arm may need the 6-edge injector, which is D3-a's next stone. **Reporting that
