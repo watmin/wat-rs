@@ -3688,6 +3688,22 @@ fn infer_list(
                 let ty = TypeExpr::Path(":wat::runtime::TypeInfo".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
+            ":wat::runtime::declared-types" => {
+                // 2a1 — one program's forms → DeclaredTypes. The arg is a Vector of
+                // WatAST (quoted declarations); infer it. Return is the outcome enum.
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                }
+                if !args.is_empty() {
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+                let ty = TypeExpr::Path(":wat::runtime::DeclaredTypes".into());
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
             ":wat::runtime::field-names-of" => {
                 // Arc 170 Strike B — field-names-of.
                 // (type-kw :wat::core::keyword) -> (:wat::core::Vector :- [wat::core::keyword])
@@ -22970,6 +22986,26 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // 2a1 — `:wat::runtime::declared-types`
+    //
+    // :wat::runtime::declared-types :: (:wat::core::Vector :- [:wat::WatAST]) -> :wat::runtime::DeclaredTypes
+    //
+    // Rank-1 fingerprint so `doc_arg_ret_types_match_checker_scheme` verifies the
+    // `@arg`/`@ret` for real (not parked on FROZEN_CHECKER_DEBT_LEDGER). The
+    // infer_list special-case (above, beside type-of) owns call-site checking.
+    env.register(
+        ":wat::runtime::declared-types".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+            }],
+            ret: TypeExpr::Path(":wat::runtime::DeclaredTypes".into()),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 255 (variant-parent-of, step ① of the-substrate-can-be-ASKED) —
     // `:wat::runtime::variant-parent-of` membership predicate, the `is-type?` sibling.
     //
@@ -23419,7 +23455,6 @@ pub(crate) mod tests {
     use crate::runtime::{ClauseRegPhase, Environment, SymbolTable};
     use crate::types::{parse_type_expr, parse_type_node, register_types, TypeEnv};
     use crate::value::{RuntimeError, RuntimeErrorKind};
-    use std::sync::OnceLock;
 
     /// The stdlib is always part of the language. Test harnesses
     /// preload it once per process via `OnceLock`, clone the resulting
@@ -23434,12 +23469,7 @@ pub(crate) mod tests {
     /// residue and therefore skipping `preregister_stdlib_defclause_stub`
     /// + `register_stdlib_runtime_defs`. One pipeline, no drift.
     fn stdlib_loaded() -> &'static (SymbolTable, MacroRegistry, TypeEnv) {
-        static LOADED: OnceLock<(SymbolTable, MacroRegistry, TypeEnv)> = OnceLock::new();
-        LOADED.get_or_init(|| {
-            let b = crate::freeze::env::build_env(vec![])
-                .expect("stdlib env builds");
-            (b.symbols, b.macros, b.types)
-        })
+        crate::freeze::env::stdlib_snapshot()
     }
 
     pub(crate) fn check(src: &str) -> Result<(), CheckErrors> {
@@ -23464,6 +23494,358 @@ pub(crate) mod tests {
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(rest_post_types, &mut sym).expect("register defines");
         check_program(&rest, &sym, &types)
+    }
+
+    fn parse_repo_file(rel: &str) -> Vec<crate::ast::WatAST> {
+        let path = format!("{}/{rel}", env!("CARGO_MANIFEST_DIR"));
+        let src = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+        crate::parse_all_with_file(&src, &path).unwrap_or_else(|e| panic!("parse {path}: {e}"))
+    }
+
+    fn enum_variant_fields(
+        types: &crate::types::TypeEnv,
+        name: &str,
+    ) -> Vec<(String, Vec<String>)> {
+        match types.get(name) {
+            Some(crate::types::TypeDef::Enum(e)) => e
+                .variants
+                .iter()
+                .map(|v| match v {
+                    crate::types::EnumVariant::Unit(n) => (n.clone(), Vec::new()),
+                    crate::types::EnumVariant::Tagged { name, fields } => (
+                        name.clone(),
+                        fields.iter().map(|(n, _)| n.clone()).collect(),
+                    ),
+                })
+                .collect(),
+            other => panic!("{name} is not a registered enum: {other:?}"),
+        }
+    }
+
+    /// D1 — registration survives a stale body. The two files poison
+    /// `eval-with-defs!` (a `defservice` impl / `::` match arms); the door
+    /// stops before `check_program`, so their enums still register.
+    #[test]
+    fn declared_types_register_despite_stale_bodies() {
+        let (sym, macros, types) = stdlib_loaded();
+        let sift = parse_repo_file(
+            "bootstrap/era/probe-L/w25/tests/services/probe_arc278_sift_rules.wat",
+        );
+        let t0 = std::time::Instant::now();
+        let sift_env = crate::freeze::env::register_declared_types(sift, sym, macros, types)
+            .unwrap_or_else(|e| panic!("sift_rules register: {}", e.cause));
+        let sift_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        eprintln!("D1 sift_rules register_declared_types: {sift_ms:.1} ms");
+        assert!(
+            sift_ms < 200.0,
+            "one call should be milliseconds, not an eval-with-defs! turn (~460 ms); got {sift_ms:.1} ms"
+        );
+        assert_eq!(
+            enum_variant_fields(&sift_env, ":usr::my-sift::SiftRulesResponse"),
+            vec![
+                (
+                    "Deductions".into(),
+                    vec!["items".into(), "cursor".into()]
+                ),
+                ("Fatal".into(), vec!["err".into()]),
+                (
+                    "RequestTooLarge".into(),
+                    vec!["bytes".into(), "cap".into()]
+                ),
+                (
+                    "RequestMalformed".into(),
+                    vec!["path".into(), "expected".into(), "got".into()]
+                ),
+            ]
+        );
+
+        let w2f = parse_repo_file(
+            "bootstrap/era/probe-L/w25/tests/comms/probe_arc293_W2f_process_dials_thread.wat",
+        );
+        let w2f_env = crate::freeze::env::register_declared_types(w2f, sym, macros, types)
+            .unwrap_or_else(|e| panic!("W2f register: {}", e.cause));
+        assert_eq!(
+            enum_variant_fields(&w2f_env, ":probe::Echo::EchoResponse"),
+            vec![
+                ("Ok".into(), vec!["reply".into()]),
+                (
+                    "RequestTooLarge".into(),
+                    vec!["bytes".into(), "cap".into()]
+                ),
+                (
+                    "RequestMalformed".into(),
+                    vec!["path".into(), "expected".into(), "got".into()]
+                ),
+            ]
+        );
+    }
+
+    fn decls(src: &str) -> crate::types::TypeEnv {
+        let (sym, macros, types) = stdlib_loaded();
+        let forms = crate::parse_all!(src).expect("parse");
+        crate::freeze::env::register_declared_types(forms, sym, macros, types)
+            .unwrap_or_else(|e| panic!("register: {}", e.cause))
+    }
+
+    /// A list headed by `:wat::runtime::declared-types` is a CALL of the
+    /// verb. A comment, or the `:wat::runtime::DeclaredTypes` enum name, is
+    /// not. Stdlib expansion must not reach the verb: `stdlib_snapshot`'s
+    /// OnceLock initializer is `build_env`, which expands stdlib.
+    fn form_calls_declared_types(form: &WatAST) -> bool {
+        if let WatAST::List(items, _) = form {
+            if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
+                if head.as_ref() == ":wat::runtime::declared-types" {
+                    return true;
+                }
+            }
+        }
+        form.children().iter().any(form_calls_declared_types)
+    }
+
+    #[test]
+    fn stdlib_snapshot_is_once_and_stdlib_does_not_call_the_verb() {
+        let a = crate::freeze::env::stdlib_snapshot() as *const _;
+        let b = crate::freeze::env::stdlib_snapshot() as *const _;
+        assert_eq!(a, b, "stdlib_snapshot must be built at most once per process");
+        for s in crate::load::stdlib::stdlib_files() {
+            let forms = crate::parse_all_with_file(s.source, s.path)
+                .unwrap_or_else(|e| panic!("stdlib {} parses: {e}", s.path));
+            for form in &forms {
+                assert!(
+                    !form_calls_declared_types(form),
+                    "{} must not call declared-types (OnceLock re-entry / deadlock)",
+                    s.path
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn declared_types_plain_defenum_and_defrecord() {
+        let env = decls(
+            r#"
+            (:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
+            (:wat::core::defrecord :t::Point [x <- :wat::core::i64 y <- :wat::core::i64])
+            "#,
+        );
+        assert_eq!(
+            enum_variant_fields(&env, ":t::Colour"),
+            vec![
+                ("Red".into(), vec![]),
+                ("Blue".into(), vec!["n".into()]),
+            ]
+        );
+        match env.get(":t::Point") {
+            Some(crate::types::TypeDef::Aggregate(a)) => {
+                let names: Vec<&str> = a.fields.iter().map(|(n, _)| n.as_str()).collect();
+                assert_eq!(names, vec!["x", "y"]);
+            }
+            other => panic!(":t::Point not a record: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn declared_types_defsurface_generates_op_reply() {
+        let env = decls(
+            r#"
+            (:wat::core::defsurface :t::Ping :nature :wat::kernel::Peer
+              :messages
+              [(:wat::core::defrecord :t::Ping::PingRequest [n <- :wat::core::i64])
+               (:wat::core::defenum :t::Ping::PingResponse :wat::enum::Pure
+                 :Ok [n <- :wat::core::i64]
+                 :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
+                 :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
+                                    expected <- :wat::core::String got <- :wat::core::String])]
+              :features
+              [(ping [self <- :t::Ping req <- :t::Ping::PingRequest] -> :t::Ping::PingResponse
+                 :max-request-bytes 64)])
+            "#,
+        );
+        let op = enum_variant_fields(&env, ":t::Ping::Op");
+        assert!(
+            op.iter().any(|(n, f)| n == "Ping" && f == &["req".to_string()]),
+            "Ping Op variant missing or wrong fields: {op:?}"
+        );
+        assert!(
+            env.get(":t::Ping::Reply").is_some(),
+            "defsurface must mint Reply"
+        );
+    }
+
+    #[test]
+    fn declared_types_acronym_create_web_acl() {
+        let env = decls(
+            &std::fs::read_to_string(format!(
+                "{}/tests/macros/probe_arc265_acronym_registry_svc.wat",
+                env!("CARGO_MANIFEST_DIR")
+            ))
+            .unwrap(),
+        );
+        let op = enum_variant_fields(&env, ":my::aws::Waf::Op");
+        assert!(
+            op.iter().any(|(n, _)| n == "CreateWebACL"),
+            "expected CreateWebACL (acronym), got {op:?}"
+        );
+    }
+
+    #[test]
+    fn declared_types_isolation_same_name_different_fields() {
+        let (sym, macros, types) = stdlib_loaded();
+        let a = crate::parse_all!(
+            "(:wat::core::defrecord :t::Box [left <- :wat::core::i64])"
+        )
+        .unwrap();
+        let b = crate::parse_all!(
+            "(:wat::core::defrecord :t::Box [right <- :wat::core::String])"
+        )
+        .unwrap();
+        let ea = crate::freeze::env::register_declared_types(a, sym, macros, types).unwrap();
+        let eb = crate::freeze::env::register_declared_types(b, sym, macros, types).unwrap();
+        let names = |env: &crate::types::TypeEnv| match env.get(":t::Box") {
+            Some(crate::types::TypeDef::Aggregate(agg)) => agg
+                .fields
+                .iter()
+                .map(|(n, _)| n.clone())
+                .collect::<Vec<_>>(),
+            other => panic!(":t::Box: {other:?}"),
+        };
+        assert_eq!(names(&ea), vec!["left".to_string()]);
+        assert_eq!(names(&eb), vec!["right".to_string()]);
+    }
+
+    #[test]
+    fn declared_types_malformed_is_a_structured_refusal() {
+        let (sym, macros, types) = stdlib_loaded();
+        let forms = crate::parse_all!("(:wat::core::defenum)").unwrap();
+        let err = crate::freeze::env::register_declared_types(forms, sym, macros, types)
+            .expect_err("malformed defenum must refuse");
+        assert!(
+            !err.cause.is_empty(),
+            "refusal must name a cause"
+        );
+        match &err.form {
+            WatAST::List(items, _) => {
+                let head = items
+                    .first()
+                    .and_then(crate::declare::parse::head_fqdn)
+                    .expect("malformed form still has a head");
+                assert_eq!(head.as_ref(), ":wat::core::defenum");
+            }
+            other => panic!("refusal must name the form, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn declared_types_oracle_matches_type_of_after_startup() {
+        let src = r#"
+            (:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
+            (:wat::core::defn :user::row [] -> :wat::runtime::TypeInfo
+              (:wat::runtime::type-of :t::Colour))
+        "#;
+        let world = crate::freeze::startup_from_source(
+            src,
+            None,
+            std::sync::Arc::new(crate::load::loader::InMemoryLoader::new()),
+        )
+        .unwrap_or_else(|e| panic!("startup: {e}"));
+        let func = world
+            .symbols()
+            .get(":user::row")
+            .expect(":user::row")
+            .clone();
+        let via_typeof = crate::runtime::apply_function(
+            func,
+            vec![],
+            world.symbols(),
+            crate::rust_caller_span!(),
+        )
+        .unwrap_or_else(|e| panic!("type-of: {e}"));
+        let (sym, macros, types) = stdlib_loaded();
+        let forms = crate::parse_all!(
+            "(:wat::core::defenum :t::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])"
+        )
+        .unwrap();
+        let env = crate::freeze::env::register_declared_types(forms, sym, macros, types).unwrap();
+        let def = env.get(":t::Colour").expect("Colour");
+        let via_door = crate::reflect::verbs::type_info_value(
+            ":t::Colour",
+            def,
+            &crate::rust_caller_span!(),
+            ":wat::runtime::declared-types",
+        )
+        .unwrap_or_else(|e| panic!("type_info: {e:?}"));
+        assert_eq!(via_typeof, via_door, "oracle: type-of after startup == door");
+    }
+
+    #[test]
+    fn declared_types_verb_returns_ok_for_quoted_defenum() {
+        let src = r#"
+            (:wat::core::defn :user::go [] -> :wat::runtime::DeclaredTypes
+              (:wat::runtime::declared-types
+                (:wat::core::Vector :- [:wat::WatAST]
+                  (:wat::core::quote
+                    (:wat::core::defenum :t::E :wat::enum::Pure :A [x <- :wat::core::i64] :B)))))
+        "#;
+        let world = crate::freeze::startup_from_source(
+            src,
+            None,
+            std::sync::Arc::new(crate::load::loader::InMemoryLoader::new()),
+        )
+        .unwrap_or_else(|e| panic!("startup: {e}"));
+        let func = world.symbols().get(":user::go").expect(":user::go").clone();
+        let v = crate::runtime::apply_function(
+            func,
+            vec![],
+            world.symbols(),
+            crate::rust_caller_span!(),
+        )
+        .unwrap_or_else(|e| panic!("verb: {e}"));
+        match v {
+            crate::runtime::Value::Enum(e) => {
+                assert_eq!(e.type_path, ":wat::runtime::DeclaredTypes");
+                assert_eq!(e.variant_name, "Ok");
+            }
+            other => panic!("expected DeclaredTypes.Ok, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn declared_types_verb_refuses_malformed() {
+        let src = r#"
+            (:wat::core::defn :user::go [] -> :wat::runtime::DeclaredTypes
+              (:wat::runtime::declared-types
+                (:wat::core::Vector :- [:wat::WatAST]
+                  (:wat::core::quote
+                    (:wat::core::defenum)))))
+        "#;
+        let world = crate::freeze::startup_from_source(
+            src,
+            None,
+            std::sync::Arc::new(crate::load::loader::InMemoryLoader::new()),
+        )
+        .unwrap_or_else(|e| panic!("startup: {e}"));
+        let func = world.symbols().get(":user::go").expect(":user::go").clone();
+        let v = crate::runtime::apply_function(
+            func,
+            vec![],
+            world.symbols(),
+            crate::rust_caller_span!(),
+        )
+        .unwrap_or_else(|e| panic!("verb: {e}"));
+        match v {
+            crate::runtime::Value::Enum(e) => {
+                assert_eq!(e.type_path, ":wat::runtime::DeclaredTypes");
+                assert_eq!(e.variant_name, "Refused");
+                assert_eq!(e.names.as_slice(), ["form", "cause"]);
+                match &e.fields[1] {
+                    crate::runtime::Value::String(s) => {
+                        assert!(!s.is_empty(), "Refused.cause must name why");
+                    }
+                    other => panic!("Refused.cause not a String: {other:?}"),
+                }
+            }
+            other => panic!("expected DeclaredTypes.Refused, got {other:?}"),
+        }
     }
 
     // ─── Arc 170 #13 — the ONE door (register_defclause) gates ────────────

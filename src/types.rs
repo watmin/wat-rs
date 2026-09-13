@@ -2404,6 +2404,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeSurfaceMember");
     ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeBody");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeInfo");
+    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::DeclaredTypes");
 
     // :wat::core::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
     // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per

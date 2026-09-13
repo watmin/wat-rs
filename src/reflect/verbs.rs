@@ -37,6 +37,7 @@ use crate::value::{
     ValueSnapshot,
 };
 use crate::value::value::{AggregateValue, EnumValue};
+use std::collections::HashSet;
 use std::sync::Arc;
 use wat_macros::wat_intrinsic;
 
@@ -1508,16 +1509,121 @@ pub(crate) fn eval_type_of(
             .into());
         }
     };
+    type_info_value(&type_kw, def, span, OP)
+}
+
+/// THE TypeInfo constructor — `type-of` and `declared-types` share this.
+/// A second implementation of this slot would drift.
+pub(crate) fn type_info_value(
+    type_kw: &str,
+    def: &crate::types::TypeDef,
+    span: &Span,
+    op: &str,
+) -> Result<Value, EvalBreak> {
     Ok(record_value(
         "wat::runtime::TypeInfo",
         type_info_names(),
         vec![
-            Value::wat__core__keyword(Arc::new(type_kw)),
+            Value::wat__core__keyword(Arc::new(type_kw.to_string())),
             type_kind_value(def),
             type_params_vec(type_params_of(def)),
-            type_body_value(def, span, OP)?,
+            type_body_value(def, span, op)?,
         ],
     ))
+}
+
+fn asts_from_value(v: &Value, span: &Span, op: &str) -> Result<Vec<WatAST>, EvalBreak> {
+    let mut out = Vec::new();
+    let iter: Box<dyn Iterator<Item = &Value> + '_> = match v {
+        Value::Vec(xs) => Box::new(xs.iter()),
+        Value::wat__core__PersistentVector(xs) => xs.iter(),
+        other => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: op.into(),
+                    expected: "(:wat::core::Vector :- [:wat::WatAST])",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+    for item in iter {
+        match item {
+            Value::wat__WatAST(a) => out.push((**a).clone()),
+            other => {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: op.into(),
+                        expected: ":wat::WatAST",
+                        got: Box::new(ValueSnapshot::of(other)),
+                    },
+                )
+                .into());
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// `(:wat::runtime::declared-types forms) -> :wat::runtime::DeclaredTypes`
+///
+/// Expand a program's declarations against a FRESH copy of the stdlib registry
+/// and return the types those forms added. Stops before `check_program`: a
+/// stale body does not prevent registration. Each call clones the snapshot, so
+/// one program's declarations never reach another's.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Reflection
+/// @arg     forms_ast (:wat::core::Vector :- [:wat::WatAST]) the program's forms (typically quoted declarations)
+/// @ret     :wat::runtime::DeclaredTypes `Ok` with a TypeInfo row per added type (same construction as `type-of`), or `Refused` naming the form and cause
+/// @example (:wat::core::variant-name (:wat::runtime::declared-types (:wat::core::Vector :- [:wat::WatAST]))) #=> "Ok"
+/// @example-norun (:wat::runtime::declared-types (:wat::core::Vector :- [:wat::WatAST] (:wat::core::quote (:wat::core::defenum :t::E :wat::enum::Pure :A :B))))
+/// @see     :wat::runtime::type-of
+#[wat_intrinsic(":wat::runtime::declared-types")]
+pub(crate) fn eval_declared_types(
+    forms_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::declared-types";
+    const OUT: &str = ":wat::runtime::DeclaredTypes";
+    let span = forms_ast.span();
+    let forms_val = eval_inner(forms_ast, env, sym)?.value_owned();
+    let forms = asts_from_value(&forms_val, span, OP)?;
+    let (stdlib_sym, stdlib_macros, stdlib_types) = crate::freeze::env::stdlib_snapshot();
+    let before: HashSet<String> = stdlib_types.iter().map(|(n, _)| n.clone()).collect();
+    match crate::freeze::env::register_declared_types(forms, stdlib_sym, stdlib_macros, stdlib_types)
+    {
+        Ok(types) => {
+            let mut rows = Vec::new();
+            let mut names: Vec<String> = types
+                .iter()
+                .filter(|(n, _)| !before.contains(*n))
+                .map(|(n, _)| n.clone())
+                .collect();
+            names.sort();
+            for name in names {
+                let def = types.get(&name).expect("name just collected");
+                rows.push(type_info_value(&name, def, span, OP)?);
+            }
+            Ok(tagged_variant(OUT, "Ok", vec![Value::Vec(Arc::new(rows))]))
+        }
+        Err(e) => Ok(tagged_variant(
+            OUT,
+            "Refused",
+            vec![
+                Value::wat__WatAST(Arc::new(e.form)),
+                Value::String(Arc::new(e.cause)),
+            ],
+        )),
+    }
 }
 
 /// `(:wat::runtime::is-type? :TypeKeyword) -> :wat::core::bool`

@@ -68,3 +68,12 @@
    kind <- :wat::runtime::TypeKind
    type-params <- (:wat::core::Vector :- [:wat::core::String])
    body <- :wat::runtime::TypeBody])
+
+;; Outcome of `:wat::runtime::declared-types`. `Ok` carries the types the
+;; program's declarations added to a FRESH copy of the stdlib registry.
+;; `Refused` names the form that could not register and why — never a panic,
+;; never a silent drop.
+(:wat::core::defenum :wat::runtime::DeclaredTypes :wat::enum::Pure
+  :Ok [types <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])]
+  :Refused [form <- :wat::WatAST
+            cause <- :wat::core::String])

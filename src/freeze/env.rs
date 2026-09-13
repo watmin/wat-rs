@@ -17,6 +17,7 @@
 //! unrepresentable.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use crate::ast::WatAST;
 use crate::check::{
@@ -64,6 +65,105 @@ pub(crate) struct EnvBundle {
     /// deleted and the symptom when it is present. Carrying the error lets step 8 run and the
     /// cause win; the symptom is re-raised only when check finds nothing.
     pub deferred_resolve: Option<ResolveError>,
+}
+
+/// Stdlib registries after `build_env(vec![])`. Built at most once per process.
+/// The initializer is `build_env` itself — it must NOT run inside a `OnceLock`
+/// that stdlib expansion can re-enter (`runtime.rs:10294`). This lock's
+/// closure expands stdlib; stdlib must not call [`stdlib_snapshot`] or the
+/// `declared-types` verb (proven by
+/// `stdlib_snapshot_is_once_and_stdlib_does_not_call_the_verb`).
+pub(crate) fn stdlib_snapshot() -> &'static (SymbolTable, MacroRegistry, TypeEnv) {
+    static LOADED: OnceLock<(SymbolTable, MacroRegistry, TypeEnv)> = OnceLock::new();
+    LOADED.get_or_init(|| {
+        let b = build_env(vec![]).expect("stdlib env builds");
+        (b.symbols, b.macros, b.types)
+    })
+}
+
+/// A declaration that could not register. The form is the original AST (or the
+/// first form of the program when the failing span cannot be recovered); the
+/// cause is the underlying error's Display. Never a silent drop.
+#[derive(Debug)]
+pub(crate) struct DeclaredTypesFail {
+    pub form: WatAST,
+    pub cause: String,
+}
+
+/// Expand `forms`' declarations against a COPY of the stdlib registries, register
+/// their types, and return the resulting TypeEnv. Stops before `register_defines`
+/// and before `check_program` — a stale body does not prevent registration.
+///
+/// Mirrors `build_env`'s USER half: `register_defmacros`, `preregister_acronyms`,
+/// `expand_all`, `register_types_with_acronyms`, `register_variant_types`.
+pub(crate) fn register_declared_types(
+    forms: Vec<WatAST>,
+    stdlib_sym: &SymbolTable,
+    stdlib_macros: &MacroRegistry,
+    stdlib_types: &TypeEnv,
+) -> Result<TypeEnv, Box<DeclaredTypesFail>> {
+    let fail = |form: WatAST, cause: String| {
+        Box::new(DeclaredTypesFail { form, cause })
+    };
+    let first = forms
+        .first()
+        .cloned()
+        .unwrap_or_else(|| WatAST::NilLit(crate::rust_caller_span!()));
+    // Declarations only — expanding a `defn` body would eval macros like
+    // `mem-store/start` and is not needed to register types.
+    let forms: Vec<WatAST> = forms.into_iter().filter(is_declaration_form).collect();
+    let mut macros = stdlib_macros.clone();
+    let rest =
+        register_defmacros(forms, &mut macros).map_err(|e| fail(first.clone(), format!("{e}")))?;
+    let mut macro_sym = stdlib_sym.clone();
+    preregister_acronyms(&rest, &mut macro_sym).map_err(|e| match e {
+        EvalBreak::Diagnostic(re) => fail(first.clone(), format!("{re}")),
+        EvalBreak::Signal(_) => fail(first.clone(), "eval-loop control signal escaped".into()),
+    })?;
+    let expanded = expand_all(rest, &mut macros, &Environment::default(), &macro_sym)
+        .map_err(|e| fail(first.clone(), format!("{e}")))?;
+    let mut types = stdlib_types.clone();
+    register_types_with_acronyms(expanded, &mut types, &macro_sym.acronym_registry)
+        .map_err(|e| fail(first.clone(), format!("{e}")))?;
+    types
+        .register_variant_types()
+        .map_err(|e| fail(first, format!("{e}")))?;
+    Ok(types)
+}
+
+/// Type-registering surface forms (and the macros that mint them). Not
+/// [`crate::declare::parse::is_declaration_form`], which answers a different
+/// question (runtime `def`/`defclause` residue). Expanding a `defn` body
+/// evals macros like `mem-store/start` and is not needed to register types.
+fn is_declaration_form(form: &WatAST) -> bool {
+    let WatAST::List(items, _) = form else {
+        return false;
+    };
+    let Some(head_node) = items.first() else {
+        return false;
+    };
+    let Some(head) = crate::declare::parse::head_fqdn(head_node) else {
+        return false;
+    };
+    matches!(
+        head.as_ref(),
+        ":wat::core::defenum"
+            | ":wat::core::defrecord"
+            | ":wat::core::defstruct"
+            | ":wat::core::defsurface"
+            | ":wat::core::newtype"
+            | ":wat::core::typealias"
+            | ":wat::core::typeunion"
+            | ":wat::core::structtype"
+            | ":wat::core::recordtype"
+            | ":wat::core::derive"
+            | ":wat::core::extend-type"
+            | ":wat::core::defmacro"
+            | ":wat::core::do"
+            | ":wat::service::defservice"
+            | ":wat::query::sift-rules-defsvc"
+            | ":wat::string::declare-acronyms"
+    )
 }
 
 /// Build the full registered environment from already-parsed,
