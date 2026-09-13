@@ -2,3 +2,9 @@
 
 # spec: no readable history form this codemod alone changed (see SCORE).
 spec   (:wat::core::match x ((:u::AdminResp::Ok v) v) :: RECOVERY: reverse a false-positive
+
+spec-before   (:wat::core::match x :: RECOVERY: reverse a false-positive
+spec-before     ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv :: RECOVERY: reverse a false-positive
+spec-before       ((:u::AdminResp::Ok v) v) :: RECOVERY: reverse a false-positive
+spec-before     ((:wat::kernel::RecvOutcome::Lost __cause) 0) :: RECOVERY: reverse a false-positive
+spec-before     (:wat::kernel::RecvOutcome::Closed 0))) :: RECOVERY: reverse a false-positive

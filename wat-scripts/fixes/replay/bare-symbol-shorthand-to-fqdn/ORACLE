@@ -2,3 +2,5 @@
 
 history e9ff4fee4 tests/cli/wat_cli__programs_are_atoms.wat
 spec     ((:wat::core::Some _) nil) :: (Some x)` -> `(:wat::core::Some x)
+
+spec-before     ((Some _) nil) :: (Some x)` -> `(:wat::core::Some x)

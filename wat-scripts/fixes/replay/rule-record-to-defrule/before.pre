@@ -1,11 +1,15 @@
-(:wat::core::defn :wsh::items [] -> :wat::core::nil nil)
 ; near-miss: already defrule stays
 (:wat::rete::defrule :wsh::keep
-  :when [(:u::A (?x <- :x))]
-  :then [(:u::B ?x)])
+  :when [(:wsh::Req (?k <- :k))]
+  :then [(:wsh::Hit ?k)])
 (:wat::core::defn :wsh::rule-arith [] -> :wat::rete::Rule
-  (:wat::core::let [conds (:wat::core::quasiquote (:u::A ?x))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::= ?x 1)))
-                    ins (:wat::core::quasiquote (:u::B ?x))]
-    (:wat::rete::Rule :name "arith" :lhs (:wat::core::PersistentVector conds where-c)
-                                   :rhs (:wat::core::PersistentVector ins))))
+  (:wat::core::let [conds   (:wat::core::quasiquote (:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)))
+                    where-c (:wat::core::quasiquote
+                              (:wat::rete::where
+                                (:wat::core::= 3
+                                  (:wat::core::i64::- ?k
+                                    (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10)))))
+                    ins     (:wat::core::quasiquote (:wat::rete::insert (:wsh::Hit ?k)))]
+    (:wat::rete::Rule :name "arith"
+      :lhs (:wat::core::PersistentVector conds where-c)
+      :rhs (:wat::core::PersistentVector ins))))

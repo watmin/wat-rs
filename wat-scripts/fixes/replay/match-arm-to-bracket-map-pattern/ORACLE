@@ -3,3 +3,6 @@
 history 480f38d05 wat-scripts/fmt/fixtures/half-broken.wat
 spec     [:usr::E::Variant {:a a :b b} a] :: [:Enum::Variant {:a a :b b} body]
 spec     [:usr::E::Unit {} 0])) :: [:Enum::Variant {:a a :b b} body]
+
+spec-before     ((:usr::E::Variant a b) a) :: [:Enum::Variant {:a a :b b} body]
+spec-before     (:usr::E::Unit 0))) :: [:Enum::Variant {:a a :b b} body]

@@ -1,3 +1,7 @@
 # ORACLE for mandatory-typed-quasiquote-residual — HISTORY or header spec, never the tool.
+# Landing reproduces on wat/bracket.wat. The fixture isolates the Vector ~ty residual;
+# the isolated quasiquote keeps the backtick on the same line, so that line is spec.
 
-spec   `(:wat::core::Vector :- [~ty])) :: `(:wat::core::Vector ~ty)`
+history 284cd7c93 wat/bracket.wat
+spec   `(:wat::core::Vector :- [~coords-ty-kw] ~coords-sym)) :: (:wat::core::Vector ~ty)
+spec-before   `(:wat::core::Vector ~coords-ty-kw ~coords-sym)) :: (:wat::core::Vector ~ty)

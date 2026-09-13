@@ -1,4 +1,3 @@
 # ORACLE for namespace-bare-top-level-names — HISTORY or header spec, never the tool.
 
-# spec: no readable history form this codemod alone changed (see SCORE).
-spec (:wat::core::defn :wsh::arith [] -> :wat::core::i64 1) :: every remaining bare top-level definitional name
+history 72a1ac3d0 tests/types/probe_arc237_sA1_assignable_probe01.wat

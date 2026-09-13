@@ -4,3 +4,7 @@
 spec (wat.core/defn u/hit [x :- wat.type/i64] :- wat.type/nil :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))
 spec   (wat.core/if x :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))
 spec     wat.type/Tuple(i64) :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))
+
+spec-before (:wat::core::defn :u::hit [x <- :wat::core::i64] -> :wat::core::nil :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))
+spec-before   (:wat::core::if x :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))
+spec-before     :wat::core::Tuple(i64) :: HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))

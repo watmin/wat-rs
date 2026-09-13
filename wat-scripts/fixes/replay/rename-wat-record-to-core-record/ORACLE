@@ -2,3 +2,5 @@
 
 # spec: no readable history form this codemod alone changed (see SCORE).
 spec (:wat::core::defn :u::hit [] -> :wat::core::nil :wat::core::Record) :: :wat::Record            -> :wat::core::Record
+
+spec-before (:wat::core::defn :u::hit [] -> :wat::core::nil :wat::Record) :: :wat::Record            -> :wat::core::Record

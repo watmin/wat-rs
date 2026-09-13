@@ -2,3 +2,6 @@
 
 spec (:wat::core::defn :u::e [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) :: [:wat::core::i64 :wat::core::i64 :wat::core::String]  ->  [:wat::core::i64 :wat::core::String :wat::core::String]
 spec   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])) :: [:wat::core::i64 :wat::core::i64 :wat::core::String]  ->  [:wat::core::i64 :wat::core::String :wat::core::String]
+
+spec-before (:wat::core::defn :u::e [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) :: [:wat::core::i64 :wat::core::i64 :wat::core::String]  ->  [:wat::core::i64 :wat::core::String :wat::core::String]
+spec-before   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])) :: [:wat::core::i64 :wat::core::i64 :wat::core::String]  ->  [:wat::core::i64 :wat::core::String :wat::core::String]

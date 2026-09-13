@@ -1,3 +1,6 @@
 # ORACLE for rewriting-rules-join-written — HISTORY or header spec, never the tool.
 
 spec          (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col)) :: (:wat::grep::Written
+
+spec-before          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col)) :: (:wat::grep::Written
+spec-before          (:wat::grep::Named  (?id <- :id) (?n <- :name)) :: (:wat::grep::Written

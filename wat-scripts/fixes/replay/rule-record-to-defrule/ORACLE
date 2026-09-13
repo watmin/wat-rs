@@ -1,8 +1,5 @@
 # ORACLE for rule-record-to-defrule — HISTORY or header spec, never the tool.
+# Whole where-grid files are unreadable (PersistentVector<…>); this form is the
+# readable top-level rule-arith the landing rewrote ONLY by this tool.
 
-# spec: no readable history form this codemod alone changed (see SCORE).
-spec (:wat::rete::defrule :arith :: from hand-built `Rule` records to `defrule`
-spec   :when :: from hand-built `Rule` records to `defrule`
-spec   [(:u::A ?x) (:wat::rete::where (:wat::rete::i64::= ?x 1))] :: from hand-built `Rule` records to `defrule`
-spec   :then :: from hand-built `Rule` records to `defrule`
-spec   (:u::B ?x)) :: from hand-built `Rule` records to `defrule`
+history 5b86828f8 wat-scripts/perf/grid/where-shapes.wat

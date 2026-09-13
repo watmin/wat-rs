@@ -4,9 +4,12 @@
 //!
 //! A fixture is `wat-scripts/fixes/replay/<stem>/{before.pre,after.post}` (optional
 //! `stdin`) plus `ORACLE` (provenance: `history <commit> <path>…` and/or
-//! `spec <after-line> :: <header-quote>`). The oracle is HISTORY or the
+//! `spec <after-line> :: <header-quote>` and/or
+//! `spec-before <before-line> :: <header-quote>`). The oracle is HISTORY or the
 //! codemod's header spec — never the tool under test. The gate asserts
 //! byte-exact output, idempotence, non-vacuity, and that provenance.
+//! A `history` commit that does not resolve, or a cited path that exists at
+//! neither `<commit>` nor `<commit>^`, is RED (silence is not a skip).
 //!
 //! `.pre`/`.post` stay out of `wat_scripts_fixes_load.rs` (walks `*.wat`) and
 //! `every_tracked_wat_parses.rs` (`git ls-files '*.wat'`).
@@ -145,15 +148,28 @@ fn ws_norm(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn git_show(rev_path: &str) -> String {
+fn git_cat_file_exists(rev: &str) -> bool {
+    Command::new("git")
+        .args(["-C", manifest().to_str().unwrap(), "cat-file", "-e", rev])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn git_commit_exists(commit: &str) -> bool {
+    git_cat_file_exists(&format!("{commit}^{{commit}}"))
+}
+
+/// `Ok(contents)` if `rev_path` exists; `Err(())` if git cannot show it.
+fn git_show(rev_path: &str) -> Result<String, ()> {
     let out = Command::new("git")
         .args(["-C", manifest().to_str().unwrap(), "show", rev_path])
         .output()
         .unwrap_or_else(|e| panic!("git show {rev_path}: {e}"));
     if !out.status.success() {
-        return String::new();
+        return Err(());
     }
-    String::from_utf8_lossy(&out.stdout).into_owned()
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 /// Lines that appear in `a` but not in `b`, whitespace-normalized (multiset).
@@ -179,11 +195,13 @@ fn lines_only_in(a: &str, b: &str) -> Vec<String> {
 struct OracleFile {
     history: Vec<(String, Vec<String>)>,
     specs: Vec<(String, String)>,
+    spec_befores: Vec<(String, String)>,
 }
 
 fn parse_oracle(stem: &str, text: &str) -> Result<OracleFile, String> {
     let mut history = Vec::new();
     let mut specs = Vec::new();
+    let mut spec_befores = Vec::new();
     for (i, raw) in text.lines().enumerate() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -199,6 +217,24 @@ fn parse_oracle(stem: &str, text: &str) -> Result<OracleFile, String> {
                 return Err(format!("{stem}: ORACLE:{}: history missing path", i + 1));
             }
             history.push((commit.to_string(), paths));
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("spec-before ") {
+            let Some((before_line, quote)) = rest.split_once(" :: ") else {
+                return Err(format!(
+                    "{stem}: ORACLE:{}: spec-before missing ` :: ` separator",
+                    i + 1
+                ));
+            };
+            let before_line = before_line.trim();
+            let quote = quote.trim();
+            if before_line.is_empty() || quote.is_empty() {
+                return Err(format!(
+                    "{stem}: ORACLE:{}: spec-before before-line or quote empty",
+                    i + 1
+                ));
+            }
+            spec_befores.push((before_line.to_string(), quote.to_string()));
             continue;
         }
         if let Some(rest) = line.strip_prefix("spec ") {
@@ -217,14 +253,18 @@ fn parse_oracle(stem: &str, text: &str) -> Result<OracleFile, String> {
             continue;
         }
         return Err(format!(
-            "{stem}: ORACLE:{}: unparseable (want `history` or `spec`)",
+            "{stem}: ORACLE:{}: unparseable (want `history`, `spec`, or `spec-before`)",
             i + 1
         ));
     }
     if history.is_empty() && specs.is_empty() {
         return Err(format!("{stem}: ORACLE is empty"));
     }
-    Ok(OracleFile { history, specs })
+    Ok(OracleFile {
+        history,
+        specs,
+        spec_befores,
+    })
 }
 
 fn header_comment_blob(stem: &str) -> String {
@@ -264,11 +304,35 @@ fn check_oracle(stem: &str) -> Result<(), Vec<String>> {
     let mut hist_after = String::new();
     let mut hist_before = String::new();
     for (commit, paths) in &parsed.history {
+        if !git_commit_exists(commit) {
+            violations.push(format!("{stem}: history commit does not exist: {commit}"));
+            continue;
+        }
         for path in paths {
-            hist_after.push_str(&git_show(&format!("{commit}:{path}")));
-            hist_after.push('\n');
-            hist_before.push_str(&git_show(&format!("{commit}^:{path}")));
-            hist_before.push('\n');
+            let at_commit = git_show(&format!("{commit}:{path}"));
+            let at_parent = git_show(&format!("{commit}^:{path}"));
+            match (&at_commit, &at_parent) {
+                (Err(()), Err(())) => {
+                    violations.push(format!(
+                        "{stem}: history path exists at neither {commit} nor {commit}^: {path}"
+                    ));
+                }
+                (Ok(a), Ok(b)) => {
+                    hist_after.push_str(a);
+                    hist_after.push('\n');
+                    hist_before.push_str(b);
+                    hist_before.push('\n');
+                }
+                (Ok(a), Err(())) => {
+                    hist_after.push_str(a);
+                    hist_after.push('\n');
+                }
+                (Err(()), Ok(b)) => {
+                    // Rename: the path exists only at the parent. Before-check only.
+                    hist_before.push_str(b);
+                    hist_before.push('\n');
+                }
+            }
         }
     }
     let hist_after_n = ws_norm(&hist_after);
@@ -301,18 +365,26 @@ fn check_oracle(stem: &str) -> Result<(), Vec<String>> {
             "{stem}: changed after.post line not in history and not a spec entry: {line}"
         ));
     }
-    if !parsed.history.is_empty() && parsed.specs.is_empty() {
-        // Mixed history+spec: spec-only cases are synthetic (slash forms, 2a
-        // gaps) and their before lines are not in the history parent — that's
-        // why they are spec. History-only fixtures still check every before.
-        for line in &changed_before {
-            let n = ws_norm(line);
-            if !hist_before_n.contains(&n) {
+    for line in &changed_before {
+        let n = ws_norm(line);
+        if !hist_before_n.is_empty() && hist_before_n.contains(&n) {
+            continue;
+        }
+        if let Some((_, quote)) = parsed
+            .spec_befores
+            .iter()
+            .find(|(b, _)| ws_norm(b) == n)
+        {
+            if !header.contains(quote) && !header_n.contains(&ws_norm(quote)) {
                 violations.push(format!(
-                    "{stem}: changed before.pre line not in history parent: {line}"
+                    "{stem}: spec-before quote not in header: {quote}"
                 ));
             }
+            continue;
         }
+        violations.push(format!(
+            "{stem}: changed before.pre line not in history parent and not a spec-before entry: {line}"
+        ));
     }
     if violations.is_empty() {
         Ok(())

@@ -1,4 +1,5 @@
-; near-miss: Record type / of / field-at stay (header: only ::def moves)
-(:wat::core::defn :u::t [] -> :wat::core::Record nil)
-(:wat::core::Record::def :u::R :x :wat::core::i64)
-(:wat::holon::Record::def :u::H :x :wat::core::i64)
+; near-miss: already-final holon::defrecord stays
+(:wat::holon::defrecord :u::H [x <- :wat::core::i64])
+; near-miss: core::defstruct stays
+(:wat::core::defstruct :u::S [x <- :wat::core::i64])
+(:wat::Record::def :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])

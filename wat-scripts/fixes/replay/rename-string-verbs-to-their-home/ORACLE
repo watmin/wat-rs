@@ -2,3 +2,5 @@
 
 history 315bbf546 wat-scripts/perf/grid/where-string.wat tests/function/probe_arc237_stone3_guard_ensure.wat wat-scripts/scratch-pad/census-growing-collection-in-a-lazy-walk.wat wat/core.wat
 spec   (:wat::string::ends-with? s "z")) :: ends-with?
+
+spec-before   (:wat::core::String/ends-with? s "z")) :: ends-with?

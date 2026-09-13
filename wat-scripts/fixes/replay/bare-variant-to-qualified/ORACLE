@@ -5,3 +5,9 @@ spec   (:wat::core::Result::Ok 1)) :: :wat::core::Some  ->  :wat::core::Option::
 spec   (:wat::core::Result::Err 1)) :: :wat::core::Some  ->  :wat::core::Option::Some
 spec   (:wat::core::Option::None)) :: :wat::core::Some  ->  :wat::core::Option::Some
 spec   (:wat::core::Option::Some 1)) :: :wat::core::Some  ->  :wat::core::Option::Some
+
+spec-before   (:wat::core::Some 1)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec-before   (:wat::core::None)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec-before   (:wat::core::Ok 1)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec-before   (:wat::core::Err 1)) :: :wat::core::Some  ->  :wat::core::Option::Some
+spec-before   (:None)) :: :wat::core::Some  ->  :wat::core::Option::Some

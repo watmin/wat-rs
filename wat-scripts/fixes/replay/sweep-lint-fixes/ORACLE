@@ -2,3 +2,7 @@
 
 # spec: no readable history form this codemod alone changed (see SCORE).
 spec   (:wat::core::contains? (:wat::core::HashSet :- [:wat::type::Infer] 1 2 3) x)) :: nested-if-=-ladder
+
+spec-before   (:wat::core::if (:wat::core::= x 1) true :: nested-if-=-ladder
+spec-before     (:wat::core::if (:wat::core::= x 2) true :: nested-if-=-ladder
+spec-before       (:wat::core::if (:wat::core::= x 3) true false)))) :: nested-if-=-ladder

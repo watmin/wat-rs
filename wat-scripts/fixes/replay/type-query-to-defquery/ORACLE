@@ -6,3 +6,6 @@ spec   :params [] :: query-by-type-string
 spec   :when [(:u::T)]) :: query-by-type-string
 spec   (:wat::rete::compile-all s (:wat::core::PersistentVector (:u::q-T))) :: query-by-type-string
 spec   (:wat::rete::query s (:u::q-T))) :: query-by-type-string
+
+spec-before   (:wat::rete::compile s) :: query-by-type-string
+spec-before   (:wat::rete::query s :u::T)) :: query-by-type-string

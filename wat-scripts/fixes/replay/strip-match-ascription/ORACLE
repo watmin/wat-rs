@@ -2,3 +2,5 @@
 
 # spec: no readable history form this codemod alone changed (see SCORE).
 spec   (:wat::core::match x   (n n) (_ 0))) :: `match` drops its `-> :T` result ascription
+
+spec-before   (:wat::core::match x -> :wat::core::i64 (n n) (_ 0))) :: `match` drops its `-> :T` result ascription

@@ -1,4 +1,3 @@
 # ORACLE for rename-locidiederror-shutdown-to-stopped — HISTORY or header spec, never the tool.
 
-# spec: no readable history form this codemod alone changed (see SCORE).
-spec (:wat::core::defn :u::hit [] -> :wat::core::nil :wat::kernel::LociDiedError::Stopped) :: LociDiedError::Shutdown
+history ff7756630 tests/diagnostics/probe_plain_panic_produces_structured_edn.wat

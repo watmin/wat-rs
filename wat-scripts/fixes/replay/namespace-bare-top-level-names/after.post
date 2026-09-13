@@ -1,3 +1,5 @@
-(:wat::core::defn :wsh::items [] -> :wat::core::nil nil)
-; near-miss: already-namespaced defn stays
-(:wat::core::defn :wsh::arith [] -> :wat::core::i64 1)
+; near-miss: already-namespaced defrecord names stay
+(:wat::core::defrecord :my::Circle [radius <- :wat::core::f64])
+(:wat::core::defrecord :my::Square [side <- :wat::core::f64])
+(:wat::core::defn :my::needs-record [v <- :wat::core::Record] -> :wat::core::f64 1.0)
+(:wat::core::defn :my::force [c <- :my::Circle] -> :wat::core::f64 (:my::needs-record c))

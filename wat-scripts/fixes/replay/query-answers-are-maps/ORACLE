@@ -2,3 +2,5 @@
 
 # spec: no readable history form this codemod alone changed (see SCORE).
 spec   :when [(?fact <- :u::T)]) :: Query returns binding maps
+
+spec-before   :when [(:u::T)]) :: Query returns binding maps
