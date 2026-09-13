@@ -34,9 +34,12 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   over the 1489-file step-24 corpus (`bootstrap/era/probe-R/verify-refute2.sh`: 0 lost, 0 gained,
   0 refusal delta — so +47 files of types vs `101626eea`); 1457 Ok / 32 Refused in 16 s; mutation M1
   (keep `defn` whole) reddens `declared_types_body_is_never_expanded` and the sift timing test.
-- **Next: 2a2 waits on ONE ruling — the stdlib query** (finding 14). The door answers only what a
-  program adds; the codemods' stdlib answers come through `eval-with-defs!`, the only catch for
-  `type-of`'s raise on builtins (`:wat::core::Vector`). Once ruled, finalize
+- **In flight: `BRIEF-2a1b-one-membership-door.md`** (+ `EXPECTATIONS-2a1b.md`) — RULED C: one
+  classifier on `TypeEnv` that `is-type?`, `type-of` and `subtype?` all ask (finding 14; the
+  `subtype?`-rejects-a-marker bug measured in `bootstrap/era/probe-R/subtype-marker.wat`). When grok
+  scores, re-run E1–E10 yourself.
+- **Then 2a2** — the door answers only what a program adds; after 2a1b the codemods answer stdlib
+  questions with `is-type?` then `type-of`, no `eval-with-defs!`. Finalize
   `bootstrap/pending/BRIEF-2a2-draft.md` against the closed verb (it now reports holon records,
   `defn`'s `::Kwargs`/`::GrantHandles`/`::Coords`, `let`-body declarations). Its bar is DERIVED, not
   "0 files differ from `wL`": 0 converted sites lost vs `wL`/`pT`, and every difference explained by a
@@ -78,7 +81,13 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
 ## KNOWN FLAWS — routed, not left (FINDINGS-composition.md is the detail)
 
 - **Main defect:** `(is-type? :wat::core::Vector)` → true but `(type-of :wat::core::Vector)` raises
-  (finding 11). Its own stone.
+  (finding 11); `subtype?` rejects a derive marker. Being closed by 2a1b.
+- **The builtin set lives in two stores** — `is_builtin_primitive` (37 hand-listed names,
+  `src/runtime.rs:9995`) and `builtin_names` (derived + a hand group, `src/types.rs:2544-2615`); they
+  differ both ways. 2a1b measures the difference; reconciling them is its own stone.
+- **`variant-parent-of`'s own `@example` is false** (`src/reflect/verbs.rs:1718`: `Option::Some` →
+  `None` on disk), and the doctest verifier that would catch it is `#[ignore]` (its NOTE awaits a
+  ruling). Same class as 2b's `::`-teaching doc lines.
 - **2b's three:**
   - refusal arms no input reaches (`match_arm.rs:187`, `check.rs:6955`, `:7253`);
   - ~21 doc/comment lines still teach `::` for a variant;
