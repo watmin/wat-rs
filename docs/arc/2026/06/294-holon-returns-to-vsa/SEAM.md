@@ -196,6 +196,32 @@ The builder:
        at nice 19, never touching the tree. Timed on one file first: 54 s, 46 s of it positional-ctor.
        The baseline run (landing order, 1489 files) is running; runs land in
        `bootstrap/composition/runs/`.
+   - **✓ PILOT VERIFIED — grok-rete #1–#10 replayed** (`964e82c3e`…`5c51f9a8a`, SCORE `7be13903e`).
+     Re-run on the orchestrator's own runs:
+     - each trailer resolves to its grok-rete #N, and no file falls outside its source commit;
+     - #3 re-expressed on main's door (its one `rsplit_once("::")` is a doc comment, `matcher.rs:114`);
+     - `wat/cache.wat`'s 3-way identity holds (byte-identical);
+     - the standalone DuplicateDefine is pre-existing (the base binary gives it too);
+     - floor **5404/5404**, every named step test PASS; clippy 0.
+     - ⚠ watch: `wat_scripts_grid_axes_live::spec_equals_native_on_every_where_family` went SLOW at
+       64.2 s (>60 s warn) under contention from two niced jobs. It passed, and grok's floors did not
+       flag it; #6 and #9 touched that file.
+     - The pilot's extrapolation for the remaining 641 is ~16.5 h.
+   - **The composition findings are TRACKED** in `the-grok-rete-replay/FINDINGS-composition.md`
+     (1: a sweep co-updated an earlier tool; 2: an eval-based tool runs on today's substrate; 3: one
+     unmigrated body poisons type resolution — (A) era binary vs (B) type-decls-only, both probed).
+   - ⛔ **COMPOSITION FINDING 2 (baseline run, landing order): the chain STOPS at step 23.**
+     - `match-arm-to-bracket-map-pattern` rc=2 on `tests/process/probe_arc278_init_crash_reason.wat`,
+       with `assertion-failed! … positional form is retired`.
+     - Its `try-type-of` EVALUATES the file's declarations on TODAY's runtime, which already refuses a
+       form that a LATER step (24, `assertion-failed-to-kwargs`) migrates.
+     - **The rule:** eval-based codemods (match-arm, positional-ctor) run AFTER the pure rewrites
+       whose old forms today's runtime rejects.
+     - `bootstrap/composition/order-v2.txt` = landing order + two moves, each with its evidence
+       (`order-v2.README.txt`): assertion-failed → before match-arm; bare-variant → before
+       positional-ctor. It is running.
+     - The pilot's `chain-order.overrides` must carry BOTH moves. grok will hit this as STOP-2 if a
+       pilot `.wat` evaluates a positional `assertion-failed!`.
    - **was NEXT (pending the builder's go):**
      - **the chain-composition check** — `bootstrap/composition/`: 1001 files main changed, where
        chain(file@base) is compared with file@main, plus 488 untouched as a control. It runs on
