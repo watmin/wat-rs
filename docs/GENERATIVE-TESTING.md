@@ -187,15 +187,86 @@ visit tuples twice and miss others while reporting a clean case count.
 - ~~`gen-of-type T`~~ — **NOT BUILT, deliberately.** See §1: not expressible (reflection is
   read-only; macros run before user types register), and not valuable (types carry no bounds).
 
-### Open, ordered
+### Open — ONE ordered list
 
-1. **sampling driver** — for spaces past enumeration; still index-addressed, never seeded.
-3. **shrinking** — coordinate descent. Unnecessary while spaces enumerate (reading failures in
-   coordinate order already hands you the minimal case), essential once they do not.
-4. **bounded collections** — `gen-vector g n`.
-5. **widen the rete target's grammar** — accumulators, stratified negation, intra-condition
-   `:or`/`:not`, multi-rule interaction. The current space covers depth x leading-filter x prefix
-   x where-position x duplicates and nothing else.
+> This list had forked into two disagreeing orderings within a day of being written (an Open list
+> and a second, differently-ordered list under *Maturity*), with a skipped number and an item
+> present in only one of them. Same failure as a forked breadcrumb, at work-list scale. **There is
+> one list. It is this one.**
+
+1. **Widen the rete target's grammar** — accumulators, stratified negation, intra-condition
+   `:or`/`:not`, multi-rule interaction. Two payoffs at once: it hardens rete, and it is what
+   makes the unused combinators *needed* (choosing between rule shapes is `gen-one-of`; picking a
+   class name is `gen-elements`; assembling a rule from generated parts is the lifts). Today's
+   space is uniform i64 coordinates, which is precisely why only `gen-coords` is pulled.
+2. **A second target** — the promotion criterion. One consumer has tested one path, not
+   genericity.
+3. **Sampling driver** — the CEILING. See the design below; it is the only item here that
+   enlarges what the library can ever reach.
+4. **Shrinking** — coordinate descent. Unnecessary while spaces enumerate (reading failures in
+   coordinate order hands you the minimal case for free), essential the moment (3) lands.
+5. **Bounded collections** — `gen-vector g n`.
+
+## The path to a sampling driver
+
+**Sampling here is not randomness. It is a different ORDER over the same total enumeration.**
+That reframing is the whole design, and everything good follows from it:
+
+- **No seeds.** A case stays a coordinate, so a finding survives generator changes (§5).
+- **Resumable and monotone.** Run `0..K` today and `K..2K` tomorrow: coverage only grows and
+  nothing is re-tested. A seeded PRNG gives neither.
+- **One new proof obligation, already familiar.** The traversal must be a BIJECTION on `0..card`
+  — the same property as L4, provable by the same instrument. If it is not, sampling silently
+  revisits points and misses others while reporting a clean count.
+
+Two candidate orders, both deterministic:
+
+**(a) Stride.** `i_k = (k * s) mod card`, with `gcd(s, card) = 1` so the walk is a full cycle.
+Cheap; needs `gcd` and a stride choice. Spread is even but structured — a stride can align with a
+dimension's base and starve it.
+
+**(b) Digit-reversal (van der Corput / Halton, in mixed radix)** — the better fit, because the
+machinery already exists. Take `k`'s digits in bases `(b0..bn-1)`, reverse the digit sequence,
+re-read against the reversed bases. The product is unchanged and digit ranges match position-wise,
+so it is a bijection — **checked in wat, against the real library**, by
+`wat-scripts/fuzz/sampling-order-probe.wat`: over `[3 3 3 3 4]`, `card 324`, `distinct-images 324`.
+(It was first "checked" in a throwaway Python reimplementation of mixed-radix, which verified a
+MODEL of the design rather than `gen-digit`/`gen-shift` themselves — had those carried a bug, the
+Python would still have gone green. The probe recomputes it through the library's own verbs and
+agrees exactly.)
+
+**And the spread claim, measured rather than hand-waved** — same probe, same library, over the
+rete fuzzer's own bases `[3 3 3 3 4]`; dimensions covered by the first K of 324:
+
+| K | order | dim0 (3) | dim1 (3) | dim2 (3) | dim3 (3) | dim4 (4) |
+|---|---|---|---|---|---|---|
+| 16 | sequential | 3/3 | 3/3 | 2/3 | 1/3 | **1/4** |
+| 16 | reversed | 1/3 | 2/3 | 3/3 | **3/3** | **4/4** |
+| 64 | sequential | 3/3 | 3/3 | 3/3 | 3/3 | **1/4** |
+| 64 | reversed | 3/3 | 3/3 | 3/3 | 3/3 | **4/4** |
+
+So the honest statement is NOT "well-spread everywhere at any K" — the two orders are mirror
+images. Sequential covers the fastest-varying dimensions and **starves the slowest**; reversed
+covers the slowest immediately and under-covers the fastest at very small K, then evens out.
+
+That asymmetry is decisive here rather than academic: in the rete space `dim4` is **chain depth**
+— the round-count dial, the single highest-yield dimension, the one that exposed the leading-filter
+class. Sequential sampling still has not varied it after 64 samples (20% of the space). Reversed
+hits all four depths within 16.
+
+**The API consequence worth deciding early:** (b) needs the BASES at sample time, not an opaque
+`Gen`. So the sampler is built over `gen-coords`' bases — `gen-sample-order bases` — rather than
+over a `Gen`. A `Gen` produced by `fmap`/`such-that`/`lift` has lost its radix shape.
+`gen-such-that` in particular *renumbers* the space, so a sampler must be composed BEFORE it, or
+carry the surviving-index vector.
+
+**Steps.** 1. `gen-reverse-order bases k -> i`, with a bijection law over a small space, mutation-
+proven. 2. `gen-check-sampled g order n prop` — apply `prop` to the first `n` of the traversal.
+3. Report `sampled=n of card` so the denominator is never mistaken for exhaustive. 4. Only then
+widen a space past enumeration, so the first real use has the instrument under it.
+
+**Honest limit:** with a superlinear oracle, `K` is bounded by TIME, not by design. Sampling
+enlarges the reachable space; it does not make the oracle affordable.
 
 ## Maturity, measured (2026-08-25)
 
@@ -213,16 +284,8 @@ finding. Combinators were added because the QuickCheck tradition has them, then 
 laws written by the same hand that added them — a closed loop with no consumer pulling. `gen-lift3`
 shipped with zero laws AND zero consumers and was only caught by counting.
 
-**What is needed is not features. It is consumers.** Concretely, in order:
-
-1. **Widen the rete grammar so it NEEDS the combinators it does not use.** Choosing between rule
-   shapes is `gen-one-of`; picking a class or field name is `gen-elements`; building a generated
-   rule from generated parts is `gen-lift2`/`gen-lift3`. Today the space is uniform i64
-   coordinates, which is why only `gen-coords` is pulled.
-2. **A second target** — the promotion criterion below, and the only real test of genericity. One
-   consumer has tested one path.
-3. **A sampling driver.** This is a hard ceiling, not a nicety: the library can currently only
-   test what ENUMERATES. Every space it will ever face past that is unreachable.
+**What is needed is not features. It is consumers.** The ordered list lives in *Open* above and
+is not repeated here — repeating it is how this doc forked in the first place.
 
 `gen-such-that` also has an untested cost: it materializes one `i64` per surviving index and
 walks the whole source space at construction. Fine at 324; unmeasured beyond.
