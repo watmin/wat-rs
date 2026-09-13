@@ -247,7 +247,20 @@ The builder:
      - **✓ RULED 2026-09-13: BUILD THE DECLARATION DOOR** (builder: "we build it", after the four
        questions came back 4 YES). Findings 9–12: every `eval-with-defs!` is two full startups, and the
        exact wat-side workaround caps at 2.4× per commit.
-       - **`BRIEF-2a1-the-declaration-door.md` + `EXPECTATIONS-2a1.md`** — ready, waiting for "pulsare".
+       - **`BRIEF-2a1-the-declaration-door.md` + `EXPECTATIONS-2a1.md`** — released ("pulsare"); grok
+         scored `175b49ea9`: `:wat::runtime::declared-types` → `:wat::runtime::DeclaredTypes`
+         (`Ok [types]` / `Refused [form cause]`), 12–17 ms a call.
+       - **ORCHESTRATOR RE-RUN of 2a1:**
+         - floor 5421/5421 uncontended (`.floor/2026-09-13T07-32-14Z`); clippy 0;
+         - 19 tests pass;
+         - own mutation: `preregister_acronyms` neutralised → exactly the acronym test RED; restored;
+         - the verb called from wat (`bootstrap/era/probe-R/door.wat`): the acronym file is correct.
+       - ⛔ **REFUTED** (`BRIEF-2a1-REFUTE.md`, waiting for "pulsare"):
+         - R1: c3's top-level macro call `(:t::mk :demo)` is DROPPED (hand-list filter
+           `is_declaration_form`), so the verb returns NO types, silently;
+         - R2: the hand list needs a check that fails on an unadmitted type-registering head;
+         - R3: `Refused.form` is always the program's first form;
+         - R4: the oracle covers 1 of the 4 cases (the acronym file loads).
          A pure verb: expand a program's declarations with the stdlib macros, register them into a
          fresh copy of the stdlib registry, and return the `TypeInfo`s. No startup, no body check.
          Probe first, inside the crate.
