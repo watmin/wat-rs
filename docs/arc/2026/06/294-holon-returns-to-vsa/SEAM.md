@@ -180,6 +180,12 @@ The builder:
      drove the gate red four ways on a different codemod than grok's. The orchestrator also fixed
      two things: the gate's count pins are gone (it freezes names), and the keyword fixture gained
      near-misses.
+   - **0b batch 2 ✓ GREEN + pushed `1938294c7`**: 90 fixtures + 5 runes = 95, the ledger gone,
+     SCOPE on all. The runes, repairs and 7 gaps are orchestrator-verified. **REFUTED → batch 2c**
+     (`BRIEF-0b-REFUTE-batch-2c.md`):
+     - 38 oracles appear nowhere in history, uncited (35 had history available);
+     - fix = a per-fixture `ORACLE` file that the gate verifies against git;
+     - also: the `to-faithful` coverage, 4 dead helpers, and `rename-wat-record`'s lying prose.
    - **0b batch 1 ✓ VERIFIED + pushed `8b2312dfb`** (16 chain fixtures, SCOPE on 30). Batch 2
      proceeds under `BRIEF-0b-ADDENDUM-batch-2.md`: close batch 1's 7 named coverage gaps first.
      **RULED 2026-09-12: delete `variant-vector-to-tagged-map`** (its `migrate` returns `src`), so
