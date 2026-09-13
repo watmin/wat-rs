@@ -197,6 +197,36 @@ visit tuples twice and miss others while reporting a clean case count.
    `:or`/`:not`, multi-rule interaction. The current space covers depth x leading-filter x prefix
    x where-position x duplicates and nothing else.
 
+## Maturity, measured (2026-08-25)
+
+Not mature, and the instrument that says so is a call-site census — the same one that caught the
+library having no tests at all:
+
+| verb | real consumers |
+|---|---|
+| `gen-coords`, `gen-check`, `gen-such-that` | 1 each |
+| the other **seven** | **0** |
+
+Eleven laws over 296 points, every one mutation-proven, is evidence the library is
+**self-consistent**. It is not evidence that it is **useful**, and the distinction is the whole
+finding. Combinators were added because the QuickCheck tradition has them, then proven against
+laws written by the same hand that added them — a closed loop with no consumer pulling. `gen-lift3`
+shipped with zero laws AND zero consumers and was only caught by counting.
+
+**What is needed is not features. It is consumers.** Concretely, in order:
+
+1. **Widen the rete grammar so it NEEDS the combinators it does not use.** Choosing between rule
+   shapes is `gen-one-of`; picking a class or field name is `gen-elements`; building a generated
+   rule from generated parts is `gen-lift2`/`gen-lift3`. Today the space is uniform i64
+   coordinates, which is why only `gen-coords` is pulled.
+2. **A second target** — the promotion criterion below, and the only real test of genericity. One
+   consumer has tested one path.
+3. **A sampling driver.** This is a hard ceiling, not a nicety: the library can currently only
+   test what ENUMERATES. Every space it will ever face past that is unreachable.
+
+`gen-such-that` also has an untested cost: it materializes one `i64` per surviving index and
+walks the whole source space at construction. Fine at 324; unmeasured beyond.
+
 ## Promotion
 
 `gen.wat` lives in `wat-scripts/lib/` and moves to the stdlib once a **second target** proves it

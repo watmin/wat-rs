@@ -177,6 +177,33 @@
                                         (:wat::core::= (:user::Pair/b p) (:user::Pair/b q))))
       0 1)))
 
+
+;; ── L11 — gen-lift3, and it is here because a MEASUREMENT demanded it ────────
+;; A call-site census found `gen-lift3` with zero laws and zero consumers: shipped
+;; on the strength of "the tradition has a ternary lift", proven by nothing. The
+;; ternary case is not a formality — its second digit needs BOTH a shift and a
+;; digit (`shift i ca` then `digit .. cb`), which is exactly the step a binary lift
+;; never exercises and the easiest place for the radix wiring to be wrong.
+(:wat::core::defrecord :user::Tri
+  [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])
+
+(:wat::core::defn :user::law-lift3 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i (:user::at0 c 0)
+                    g (:user::gen-lift3 :user::Tri'
+                        (:user::gen-ints 0 2) (:user::gen-ints 10 13) (:user::gen-ints 100 102))
+                    t ((:user::Gen/at g) i)
+                    ea (:user::gen-digit i 2)
+                    eb (:wat::i64::+ 10 (:user::gen-digit (:user::gen-shift i 2) 3))
+                    ec (:wat::i64::+ 100 (:user::gen-shift (:user::gen-shift i 2) 3))]
+    (:wat::core::if
+      (:wat::core::and
+        (:wat::core::= (:user::Gen/card g) 12)
+        (:wat::core::and (:wat::core::= (:user::Tri/a t) ea)
+                         (:wat::core::and (:wat::core::= (:user::Tri/b t) eb)
+                                          (:wat::core::= (:user::Tri/c t) ec))))
+      0 1)))
+
 ;; ── drive every law with gen-check, over spaces built by gen-coords ─────────
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [seven  (:user::gen-coords (:wat::core::PersistentVector 7))
@@ -195,11 +222,13 @@
                     six (:user::gen-coords (:wat::core::PersistentVector 6))
                     b9 (:user::gen-check six :user::law-record)
                     b10 (:user::gen-check six :user::law-lift2)
+                    twelve (:user::gen-coords (:wat::core::PersistentVector 12))
+                    b11 (:user::gen-check twelve :user::law-lift3)
                     bad (:wat::i64::+
                           (:wat::i64::+ (:wat::i64::+ b1 b2) (:wat::i64::+ b3 (:wat::i64::+ b4 b5)))
-                          (:wat::i64::+ b6 (:wat::i64::+ b7 (:wat::i64::+ b8 (:wat::i64::+ b9 b10)))))]
+                          (:wat::i64::+ b6 (:wat::i64::+ b7 (:wat::i64::+ b8 (:wat::i64::+ b9 (:wat::i64::+ b10 b11))))))]
     (:wat::kernel::println
       (:wat::string::concat
-        (:wat::string::concat "laws=10 checked=" (:wat::i64::to-string
-          (:wat::i64::+ 7 (:wat::i64::+ 7 (:wat::i64::+ 120 (:wat::i64::+ 120 (:wat::i64::+ 1 (:wat::i64::+ 4 (:wat::i64::+ 5 (:wat::i64::+ 8 (:wat::i64::+ 6 6)))))))))))
+        (:wat::string::concat "laws=11 checked=" (:wat::i64::to-string
+          (:wat::i64::+ 7 (:wat::i64::+ 7 (:wat::i64::+ 120 (:wat::i64::+ 120 (:wat::i64::+ 1 (:wat::i64::+ 4 (:wat::i64::+ 5 (:wat::i64::+ 8 (:wat::i64::+ 6 (:wat::i64::+ 6 12))))))))))))
         (:wat::string::concat " violations=" (:wat::i64::to-string bad))))))
