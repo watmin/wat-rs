@@ -347,6 +347,33 @@ The four-file smoke set simply contained no offender.
     ELEMENT-level one (bisect; a lone offender gets the original `try-type-of`). It is exact by
     construction, at ~2·log₂n evals per offender.
 
+## Finding 12 — the wat-side workaround CAPS; the missing primitive is "expand + register + query"
+
+- **Measured in the replay's own mode** (`convert.sh`-shaped: five files, ONE invocation):
+  - today's positional-ctor: 99 s;
+  - exact batched v3 (`probe-Q/pc-batch3.wat`): 42 s, all five byte-identical.
+
+  That is 2.4×, NOT the 10–33× of v1, which was inexact. Every batch still pays `eval-with-defs!`'s
+  two full startups, and `is-type?`/`type-of`'s disagreement on builtins like `:wat::core::Vector`
+  forces bisection.
+- **The operation the codemods need is ordinary substrate work:** expand a program's declarations with
+  the stdlib macros, register their types into a COPY of the stdlib registry, and query it. The Rust
+  side does exactly that in a few lines: the test helper `stdlib_loaded()` + `check()` at
+  `src/check.rs:23436` (`#[cfg(test)]`).
+- **What wat cannot do:**
+  - the reflection verbs (`type-of`, `is-type?`, `field-names-of`) query only the RUNNING world's
+    registry;
+  - the only wat-reachable way to expand and register a program's declarations is `eval-with-defs!`,
+    a REPL turn (two full startups, stdlib rebuilt, every body checked).
+- So a verb that exposes "expand + register into a scratch copy + return the types" is not a
+  convenience. **It is the operation itself, and the workarounds around its absence are measured to
+  cap at a small multiple.** The design pins already known:
+  - a stdlib snapshot taken at STARTUP, never lazily from inside evaluation
+    (`src/runtime.rs:10294` records that deadlock);
+  - no body check, so no poisoning and no ladder;
+  - a fresh copy per call, so no cross-file leak;
+  - a structured failure naming the declaration that broke.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
