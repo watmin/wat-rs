@@ -1294,7 +1294,7 @@
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok n _ticks _l _c _t) n)
+        ((:demo::Topic::StatsResponse::Ok n _ticks _l _c _t _dd _df) n)
         (_ -1)))
     (_ -1)))
 
@@ -1311,22 +1311,23 @@
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok _n ticks _l _c _t) (:wat::core::Tuple ticks 1))
+        ((:demo::Topic::StatsResponse::Ok _n ticks _l _c _t _dd _df) (:wat::core::Tuple ticks 1))
         (_ (:wat::core::Tuple -1 1))))
     (_ (:wat::core::Tuple -1 1))))
 
-;; Returns ((lost, closed, timedout), rts) — the second slot is this call's own crossing.
+;; Returns ((lost, closed, timedout), (delay-draws, delays-fired), rts).
 (:wat::core::defn :fanout::topic-inbox-fails
   [t <- :demo::Topic]
   -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
+                           (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
                            :wat::core::i64])
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok _n _ticks lost closed timedout)
-          (:wat::core::Tuple (:wat::core::Tuple lost closed timedout) 1))
-        (_ (:wat::core::Tuple (:wat::core::Tuple -1 -1 -1) 1))))
-    (_ (:wat::core::Tuple (:wat::core::Tuple -1 -1 -1) 1))))
+        ((:demo::Topic::StatsResponse::Ok _n _ticks lost closed timedout ddraws dfired)
+          (:wat::core::Tuple (:wat::core::Tuple lost closed timedout) (:wat::core::Tuple ddraws dfired) 1))
+        (_ (:wat::core::Tuple (:wat::core::Tuple -1 -1 -1) (:wat::core::Tuple -1 -1) 1))))
+    (_ (:wat::core::Tuple (:wat::core::Tuple -1 -1 -1) (:wat::core::Tuple -1 -1) 1))))
 
 ;; ⭑ Returns (line, store-calls, receive-calls) — one reply, three things kept, `sample-of`'s
 ;; discipline. The two numbers exist so the INBOX tier can enter the round-trip budget: the
@@ -2889,7 +2890,11 @@
    ;; Precedence is one sentence: an explicit per-component knob wins; `chaos-bp` fills the
    ;; rest. No reader has to trust that sentence, because the report prints the EFFECTIVE
    ;; rate beside the OBSERVED one for every component.
-   chaos-bp <- :wat::core::i64]
+   chaos-bp <- :wat::core::i64
+   ;; latency injector on :demo::topic. Independent of chaos-bp — a chaos run must
+   ;; not start parking the topic (STOP-1: delay-bp 0 is today's behaviour).
+   delay-bp <- :wat::core::i64
+   delay-ms <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
@@ -3001,7 +3006,7 @@
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:wat::service::require-granted (:queue::queue/grant inbox-qh (:fanout::pids pl)))))
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr inbox-qh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr inbox-qh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp delay-bp :delay-ms delay-ms :delay-seed (:wat::i64::+ e-seed (:wat::i64::+ m 1)) :delays-fired 0 :delay-draws 0))
      twhandles (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:demo::topic-worker::Handle])
                                   twi <- :wat::core::i64]
@@ -3254,12 +3259,15 @@
      tticks (:wat::core::first tpair)
      ifpair (:fanout::topic-inbox-fails topic)
      ifails (:wat::core::first ifpair)
+     idelay (:wat::core::second ifpair)
      ilost  (:wat::core::first ifails)
      iclosed (:wat::core::second ifails)
      itimed (:wat::core::third ifails)
+     delay-draws-n (:wat::core::first idelay)
+     delays-fired-n (:wat::core::second idelay)
      ;; The harness's own `Topic/stats` crossings: two calls, two counts, added by the two
      ;; sites that made them rather than asserted from here.
-     topic-h-rts (:wat::i64::+ (:wat::core::second tpair) (:wat::core::second ifpair))
+     topic-h-rts (:wat::i64::+ (:wat::core::second tpair) (:wat::core::third ifpair))
      spair (:fanout::seen-stats seenh)
      sfirsts (:fanout::SeenFinal/recorded spair)
      sdups (:fanout::SeenFinal/skipped spair)
@@ -3436,7 +3444,7 @@
      ;; more than once per inbox receive.
      rt-unknown-max (:wat::i64::* inbox-recv-calls (:wat::i64::+ m 1))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};disrupt-fires={dzf};disrupt-draws={dzw};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total};chaos-seed={cseed};bp-recv={bprv};bp-ack={bpak};bp-check={bpck};bp-mark={bpmk};bp-disrupt={bpdz};seen-check-drops={scd};seen-check-calls={scc};seen-mark-drops={smd};seen-mark-calls={smc}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};disrupt-fires={dzf};disrupt-draws={dzw};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total};chaos-seed={cseed};bp-recv={bprv};bp-ack={bpak};bp-check={bpck};bp-mark={bpmk};bp-disrupt={bpdz};seen-check-drops={scd};seen-check-calls={scc};seen-mark-drops={smd};seen-mark-calls={smc};bp-delay={bpdl};delay-draws={ddw};delays-fired={ddf}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -3509,7 +3517,10 @@
               :scd (:fanout::SeenFinal/check-drops spair)
               :scc (:fanout::SeenFinal/check-calls spair)
               :smd (:fanout::SeenFinal/mark-drops spair)
-              :smc (:fanout::SeenFinal/mark-calls spair))
+              :smc (:fanout::SeenFinal/mark-calls spair)
+              :bpdl delay-bp
+              :ddw delay-draws-n
+              :ddf delays-fired-n)
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr} ;; {inbox}{subs}"
@@ -3518,25 +3529,31 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0 64 0))
+  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0 64 0 0 0))
+
+;; delay-bp 10000, delay-ms 1 — every publish parks 1 ms. Relation:
+;; delays-fired == delay-draws. n=12 like :user::compute; not a floor test.
+;; n=50 fill-first stalled (DESIGN trap-door: parking the topic parks fill).
+(:wat::core::defn :user::delay-full-rate [] -> :wat::core::String
+  (:wat::core::third (:fanout::run-with 12 2 2 1 0 0 0 0 0 false 0 0 32 false 0 0 64 0 10000 1)))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0 64 0))
+  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0 64 0 0 0))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0 64 0))
+  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0 64 0 0 0))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0 64 0))
+  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0 64 0 0 0))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -3554,10 +3571,10 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0 64 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0 64 0 0 0)))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0 64 0)))
+  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0 64 0 0 0)))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -3632,7 +3649,7 @@
   (:wat::core::let
     [argv (:wat::runtime::argv)
      proof (:user::deadline-redial-is-fresh)
-     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms [inbox-cap [chaos-bp [drop-check-bp drop-mark-bp disrupt-bp]]]]]]]"
+     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms [inbox-cap [chaos-bp [drop-check-bp drop-mark-bp disrupt-bp [delay-bp delay-ms]]]]]]]]"
      ;; ⛔ THE CLI HAD NO CHAOS SURFACE. Until 2026-09-09 every one of the six fault
      ;; knobs was pinned to a literal zero here, so no sweep run through `main` could
      ;; ever exercise a drop — the injection existed only inside the `:user::` fixtures
@@ -3691,7 +3708,11 @@
              ;; mark, and the worker/topic-worker disruptor. 0 = today's behaviour exactly.
              ;; `circuit.wat 2000 4 3 8192 true 1000 0 0 0 0 0 500` makes everything fail
              ;; at 5%, seeded 20260910 and printed.
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 13)]))))]
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 13)])
+             ;; argv 17 = topic delay-bp; argv 18 = delay-ms. Both 0-default. Independent
+             ;; of chaos-bp so a chaos run does not park the topic (STOP-1).
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 17)])
+             (:wat::core::apply opt-i64 [(:wat::core::get argv 18)]))))]
     (:wat::core::let
       [_ (:wat::kernel::println proof)
        _ (:wat::kernel::println
@@ -3839,7 +3860,7 @@
            :locus (:wat::spawn::process/post-spawn
                     (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                       (:wat::service::require-granted (:queue::queue/grant iqh (:fanout::pids pl)))))
-           :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+           :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      seenh (:fanout::seen/start :locus (:wat::spawn::process)
               :record (:fanout::seen::Record :recorded 0 :skipped 0 :calls 0 :drop-check-bp 0 :drop-mark-bp 0 :drop-seed 0 :drop-after? false :check-drops 0 :mark-drops 0 :check-calls 0 :mark-calls 0))
      wh  (:fanout::worker/start

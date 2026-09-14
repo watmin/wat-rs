@@ -72,7 +72,7 @@
                      :store-addr (:wat::query::mem-store::Handle/addr ish)
                      :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      t  (:demo::dial-topic (:demo::topic::Handle/addr th))
      q  (:demo::dial-queue (:queue::queue::Handle/addr iqh))
      tag (:wat::core::match
@@ -101,7 +101,7 @@
                      :store-addr (:wat::query::mem-store::Handle/addr ish)
                      :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      t  (:demo::dial-topic (:demo::topic::Handle/addr th))
      tag (:wat::core::match
            (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs (:once::msgs 10)))

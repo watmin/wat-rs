@@ -56,7 +56,8 @@
    (:wat::core::defenum :demo::Topic::StatsResponse :wat::enum::Pure
      :Ok [depth <- :wat::core::i64  ticks <- :wat::core::i64
           inbox-lost <- :wat::core::i64  inbox-closed <- :wat::core::i64
-          inbox-timedout <- :wat::core::i64]
+          inbox-timedout <- :wat::core::i64
+          delay-draws <- :wat::core::i64  delays-fired <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
@@ -71,7 +72,14 @@
   :durable   [inbox-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])
               inbox-lost <- :wat::core::i64
               inbox-closed <- :wat::core::i64
-              inbox-timedout <- :wat::core::i64]
+              inbox-timedout <- :wat::core::i64
+              ;; latency injector — 0/0 is today's behaviour. delays-fired increments
+              ;; AT THE PARK, never at the dice roll (faulting-store's placement).
+              delay-bp     <- :wat::core::i64
+              delay-ms     <- :wat::core::i64
+              delay-seed   <- :wat::core::i64
+              delays-fired <- :wat::core::i64
+              delay-draws  <- :wat::core::i64]
   :ephemeral [inbox <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]
   :peers     [:queue::Queue]
   :init (:wat::core::fn
@@ -87,7 +95,44 @@
   :impls
   [(publish [s ctx req]
      (:wat::core::let
-       [msgs  (:demo::Topic::PublishRequest/msgs req)
+       [d0 (:demo::topic::State/durable s)
+        delay-bp (:demo::topic::Record/delay-bp d0)
+        delay-ms (:demo::topic::Record/delay-ms d0)
+        pair (:wat::core::if (:wat::i64::> delay-bp 0)
+                (:wat::rand::int-from (:demo::topic::Record/delay-seed d0) 0 10000)
+                (:wat::core::Tuple (:demo::topic::Record/delay-seed d0) 0))
+        seed1 (:wat::core::first pair)
+        roll  (:wat::core::second pair)
+        draw? (:wat::i64::> delay-bp 0)
+        hit?  (:wat::core::and draw? (:wat::i64::< roll delay-bp))
+        draws' (:wat::i64::+ (:demo::topic::Record/delay-draws d0) (:wat::core::if draw? 1 0))
+        ;; INLINED timer park — mora-legal; a forked child cannot see parent helpers.
+        ;; delays-fired increments HERE, in the park branch, not at the roll.
+        _park (:wat::core::if hit?
+                 (:wat::core::match
+                   (:wat::kernel::recv
+                     (:wat::kernel::after :wat::program::PeerKind::thread
+                       (:wat::time::Milliseconds delay-ms) :done))
+                   ((:wat::kernel::RecvOutcome::Message _m) nil)
+                   ((:wat::kernel::RecvOutcome::Lost _c) nil)
+                   (:wat::kernel::RecvOutcome::Stopped nil)
+                   (:wat::kernel::RecvOutcome::Closed nil)
+                   (:wat::kernel::RecvOutcome::TimedOut nil)
+                   ((:wat::kernel::RecvOutcome::Malformed _c) nil))
+                 nil)
+        fired' (:wat::i64::+ (:demo::topic::Record/delays-fired d0) (:wat::core::if hit? 1 0))
+        d1 (:demo::topic::Record
+              :inbox-addr (:demo::topic::Record/inbox-addr d0)
+              :inbox-lost (:demo::topic::Record/inbox-lost d0)
+              :inbox-closed (:demo::topic::Record/inbox-closed d0)
+              :inbox-timedout (:demo::topic::Record/inbox-timedout d0)
+              :delay-bp delay-bp
+              :delay-ms delay-ms
+              :delay-seed seed1
+              :delays-fired fired'
+              :delay-draws draws')
+        s (:demo::topic::State :durable d1 :inbox (:demo::topic::State/inbox s))
+        msgs  (:demo::Topic::PublishRequest/msgs req)
         now   (:wat::time::epoch-nanos (:wat::time::now))
         ;; t0b rides in the payload. The instant send-all *returns* is after
         ;; persist, so it cannot. This is the last moment the body can carry,
@@ -180,7 +225,9 @@
                      (:queue::Stats/ticks qst)
                      (:demo::topic::Record/inbox-lost d)
                      (:demo::topic::Record/inbox-closed d)
-                     (:demo::topic::Record/inbox-timedout d))))
+                     (:demo::topic::Record/inbox-timedout d)
+                     (:demo::topic::Record/delay-draws d)
+                     (:demo::topic::Record/delays-fired d))))
                    sends none-alarms)))
              (_ (:wat::kernel::assertion-failed! "topic stats: inbox stats not Ok" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
@@ -193,7 +240,7 @@
              ;; Conservative: not drained. -1 means unread (ticks-of already uses it).
              ;; Do not invent a depth we did not read.
              (:wat::service::Outcome::Continue s'
-               (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1)))
+               (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1 -1 -1)))
                sends none-alarms)))
          (:wat::kernel::RecvOutcome::Stopped
            (:wat::kernel::assertion-failed! "topic stats: stopped" :wat::core::None :wat::core::None))
@@ -207,8 +254,8 @@
              ;; Conservative: not drained. -1 means unread (ticks-of already uses it).
              ;; Do not invent a depth we did not read.
              (:wat::service::Outcome::Continue s'
-               (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1)))
-               sends none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)] (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1))) sends none-alarms))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))])
+               (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1 -1 -1)))
+               sends none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)] (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1 -1 -1))) sends none-alarms))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))])
 
 ;; Rebuild durable with exactly one of the three inbox-send failure counters
 ;; incremented. Called from the arm that already matched Lost/Closed/TimedOut.
@@ -219,7 +266,12 @@
     :inbox-addr (:demo::topic::Record/inbox-addr d)
     :inbox-lost (:wat::i64::+ (:demo::topic::Record/inbox-lost d) lost)
     :inbox-closed (:wat::i64::+ (:demo::topic::Record/inbox-closed d) closed)
-    :inbox-timedout (:wat::i64::+ (:demo::topic::Record/inbox-timedout d) timedout)))
+    :inbox-timedout (:wat::i64::+ (:demo::topic::Record/inbox-timedout d) timedout)
+    :delay-bp (:demo::topic::Record/delay-bp d)
+    :delay-ms (:demo::topic::Record/delay-ms d)
+    :delay-seed (:demo::topic::Record/delay-seed d)
+    :delays-fired (:demo::topic::Record/delays-fired d)
+    :delay-draws (:demo::topic::Record/delay-draws d)))
 
 ;; ── internal worker ────────────────────────────────────────────────────────────
 ;; Shape of :fanout::worker: park on the inbox, take a batch, act, ack. Failure
@@ -685,7 +737,7 @@
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok n _ticks _l _c _t) n)
+        ((:demo::Topic::StatsResponse::Ok n _ticks _l _c _t _dd _df) n)
         (_ -1)))
     (_ -1)))
 
@@ -693,7 +745,7 @@
   (:wat::core::match (:demo::Topic/stats t (:demo::Topic::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:demo::Topic::StatsResponse::Ok _n ticks _l _c _t) ticks)
+        ((:demo::Topic::StatsResponse::Ok _n ticks _l _c _t _dd _df) ticks)
         (_ -1)))
     (_ -1)))
 
@@ -885,7 +937,7 @@
               (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])])
               (:wat::core::range 0 3))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
@@ -956,7 +1008,7 @@
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:wat::service::require-granted (:queue::queue/grant iqh (:demo::pids pl)))))
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      wh (:demo::topic-worker/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
@@ -1011,7 +1063,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _  (:demo::publish-until-accepted! tc "hello")
      n  (:demo::depth-of-topic tc)]
@@ -1030,7 +1082,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _  (:demo::publish-until-accepted! tc "hello")
      n  (:demo::depth-of-topic tc)]
@@ -1047,7 +1099,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      t0 (:wat::time::epoch-nanos (:wat::time::now))
      _  (:wat::core::match (:demo::Topic/publish tc (:demo::Topic::PublishRequest
@@ -1068,7 +1120,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      r1 (:demo::Topic/publish tc (:demo::Topic::PublishRequest
                                   :msgs (:wat::core::Vector :- [:wat::core::String] "a")))
@@ -1097,7 +1149,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 2 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _a (:demo::publish-until-accepted! tc "a")
      _b (:demo::publish-until-accepted! tc "b")
@@ -1112,7 +1164,7 @@
      iqh (:queue::queue/start :locus (:wat::spawn::thread)
            :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      tc (:demo::dial-topic (:demo::topic::Handle/addr th))
      _  (:demo::await-timer-ms 20)
      n  (:demo::ticks-of tc)]
@@ -1137,7 +1189,7 @@
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
@@ -1179,7 +1231,7 @@
      qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
               (:queue::queue::Handle/addr q0h) (:queue::queue::Handle/addr q1h))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0))
+          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
           :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
      q0 (:demo::dial-queue (:queue::queue::Handle/addr q0h))
