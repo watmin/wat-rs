@@ -4,9 +4,26 @@
 > deliberately absent, and **what wat does not need that Clojure does**.
 >
 > Numbers verified 2026-08-26 against the tree. The library is `wat/gen.wat` (stdlib, loads after
-> `wat/seq.wat`); its laws are `wat-tests/gen.wat` (**27 deftests**, discovered by `wat::test! {}`
-> so there is no total to hand-maintain); its first consumer is
-> `wat-tests/rete/differential-fuzz.wat`.
+> `wat/seq.wat`); its laws are `wat-tests/gen.wat` (**27 deftests**, discovered by `wat::test! {}`);
+> its pattern corpus is `wat-tests/gen-patterns.wat` (**5 deftests**); its first real consumer is
+> `wat-tests/rete/differential-fuzz.wat` (**1**, the ratchet).
+>
+> **Audience:** someone who writes wat and wants to test it. You do not need to know this library;
+> you do need to read wat. If you have never written a property-based test, §*The core idea* and
+> §*Using it* are the path; if you have, §*What wat does NOT need that Clojure does* is why this
+> one looks unfamiliar.
+>
+> **Notation, once:** `<-` binds a name to a type in a parameter or field list · `:->` is a function
+> type · `:- [T]` applies type arguments · a trailing `'` names the POSITIONAL constructor of a
+> record (`:user::Point'`), where the bare name is the kwargs form · `PV<i64>` and `Gen<T>` are this
+> document's shorthand, NOT wat — the real spellings are `(:wat::core::PersistentVector :- [...])`
+> and `(:wat::gen::Gen :- [T])`.
+>
+> **Local vocabulary:** *rete* is the rules engine in `wat/rete.wat` · *the floor* is the full
+> release test run (`scripts/floor.sh`) that must be green to push · a *ratchet* is a gate pinned to
+> a known non-zero count, so movement in either direction is a red test · `deftest` is the wat test
+> form, auto-discovered from `wat-tests/` · the *`$oracle`* is rete's slow-but-correct reference
+> implementation, which the fuzzer differentials against.
 
 ## The core idea
 
@@ -36,20 +53,56 @@ keeps the reference affordable.
 
 You declare **one space per argument**, and the library forms the **product** and walks all of it.
 
+Complete and runnable — this is the whole program, and it prints `[60 60 18]`:
+
 ```wat
-(:wat::gen::record :user::Args
-  (:wat::gen::ints 0 10)                                            ;; 10 points
-  (:wat::gen::elements (:wat::core::PersistentVector "a" "b" "c"))  ;;  3 points
-  (:wat::gen::bools))                                               ;;  2 points
-;; => card 60
+(:wat::core::defrecord :user::Args
+  [n <- :wat::core::i64  s <- :wat::core::String  flag <- :wat::core::bool])
+
+(:wat::core::defn :user::n-is-small [a <- :user::Args] -> :wat::core::bool
+  (:wat::core::< (:user::Args/n a) 7))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [g (:wat::gen::record :user::Args
+         (:wat::gen::ints 0 10)                                            ;; 10 points
+         (:wat::gen::elements (:wat::core::PersistentVector "a" "b" "c"))  ;;  3 points
+         (:wat::gen::bools))                                               ;;  2 points
+     o (:wat::gen::check g :user::n-is-small)]
+    (:wat::core::match o
+      ((:wat::gen::CheckOutcome::Checked pts v _first)
+        (:wat::kernel::println (:wat::core::PersistentVector (:wat::gen::Gen/card g) pts v)))
+      (:wat::gen::CheckOutcome::EmptySpace
+        (:wat::kernel::println (:wat::core::PersistentVector -1 -1 -1))))))
 ```
 
-`check` over that with the property `n < 7` reports **points 60, violations 18** — and 18 is
-exactly 3 failing `n` values × 3 strings × 2 bools. Every combination, visited once.
+`card` is **60**; `check` reports **points 60, violations 18** — 18 being exactly 3 failing `n`
+values × 3 strings × 2 bools. Every combination, visited once.
+
+Two things that bite on a first program: `ints lo hi` is **half-open**, so `(ints 0 10)` is 10
+points, 0..9; and the pool must be a `PersistentVector` — a bare `["a" "b" "c"]` literal is a
+`Vector`, and `elements` refuses it.
 
 **Your job is to declare each axis's bounds, not to pick values.** That is the whole difference
 from a drawing generator: `card` tells you the size before you run, and the outcome tells you the
 denominator afterward, so "0 violations" can never be reported without what it was 0 out of.
+
+### Budgets — read this before your first `deftest`
+
+Three walls, none of them visible from the wat file you are writing, and this repo has already
+paid for the third one twice:
+
+1. **A `deftest` gets 5000 ms by default** (`crates/wat-macros/src/lib.rs`). One `such-that` over
+   a large source can eat most of that at construction — see §2 above.
+2. **A wat `deftest` compiles into the `wat::kernel` binary**, via `wat::test! {}`. It is not in
+   `wat::rete`, whatever it tests.
+3. **Therefore `(:wat::test::time-limit "60s")` alone does nothing.** `scripts/floor.sh` runs
+   nextest's `[profile.default]`, which SIGKILLs at 30 s. A budget above 30 s needs a matching
+   `test(...)` override in `.config/nextest.toml` — **in all three profile mirrors** (default, ci,
+   slow), because that file mirrors overrides rather than inheriting them.
+
+If your space is large enough to want a raised budget, raise it in both places or the wat-side
+annotation is decoration.
 
 ### The surface
 
@@ -68,7 +121,8 @@ below) · `CheckOutcome`.
 | **shrink** | `shrink-index g k fails?` (any `Gen`) · `shrink c fails?` (coords-shaped, sharper) · `shrink-dim` · `descend` |
 | **index arithmetic** | `digit` · `shift` · `nth` · `with` · `reverse-index` |
 
-**`bools` is the one total generator, and the only one the library can derive with certainty.**
+**`bools` is the only total generator the library SHIPS — the only one it can hand you without
+asking for bounds.**
 `ints` and `elements` make the caller choose a range or a pool, which is right for an unbounded
 domain. `bool` has exactly two points: no range to invent, nothing the author knows that the
 library does not. It is **exhaustive, not a sample** — `check` over it has seen both, always.
@@ -96,8 +150,9 @@ The obvious conclusion — derive the generator from the type — was written do
 open item. It is **not built, and the reason is not a missing intrinsic.**
 
 **Construction from a type value is already available.** A constructor is a first-class function
-value in wat: `(:user::apply2 :user::Point' 3 4)` → `#user/Point {:x 3 :y 4}`. `lift2`/`lift3` are
-built directly on it. What is unavailable is construction from a type *keyword* — and that is not a
+value in wat — the prime-suffixed name (`:user::Point'`) IS the positional constructor, and passes
+anywhere a function does, which is exactly how `lift2`/`lift3` build records:
+`(:wat::gen::lift2 :user::Point' gx gy)`. What is unavailable is construction from a type *keyword* — and that is not a
 gap to fill, because the result type could not be known statically; it would be a hole in the
 checker, for the same reason Rust cannot build a struct from a runtime `TypeId`.
 
@@ -126,7 +181,24 @@ outright ("couldn't satisfy predicate after 100 tries") and it silently biases t
 
 A finite indexed generator has no such problem: enumerate `0..card` once, keep the passing indices,
 and the survivors ARE the new generator with an exact new cardinality. No retries, no failure mode,
-no bias. **Strictly better, and only possible because the space is finite.**
+no bias. **Strictly better on correctness and bias — and only possible because the space is finite.**
+
+**⚠ NOT better on COST, and the difference is the largest single trap in this library.** The filter
+is EAGER: `such-that` applies its predicate once per point of its SOURCE, at CONSTRUCTION, before
+`check` is ever called. `test.check`'s retry filter is O(tries) and never touches the whole space;
+this one is O(source card), always. Measured 2026-08-26, same predicate, same result (card 3):
+
+| shape | wall |
+|---|---|
+| `(such-that small? (ints 0 2000000))` — *built, never checked* | **4283 ms** |
+| `(such-that small? (take 50 (ints 0 2000000)))` | **312 ms** (~bootstrap) |
+
+**So: BOUND THE SOURCE BEFORE YOU FILTER IT.** `take`, tighter bases, a smaller `ints` — anything
+that shrinks the source shrinks the filter's whole cost. One `such-that` over a large source can
+consume a `deftest`'s entire 5000 ms budget before the property runs once.
+
+Note also what the §Cost table does NOT show: it quotes cost per *post-filter* point, so a space
+whose pre-filter source is huge reads cheap there and is not.
 
 ### 3. No per-generator shrink trees — shrinking is generator-independent
 
@@ -154,7 +226,7 @@ stop. They differ only in what a candidate index *means*, which is a parameter.
 
 `gen/tuple` is a necessity in Clojure. Here the applicative lift over a constructor value already
 produces heterogeneous products, fully typed —
-`lift3 :user::Tri' (ints 0 2) (ints 5 7) (elements ["p" "q"])` yields `#user/Tri {:a 1 :b 6 :c "q"}`
+`lift3 :user::Tri' (ints 0 2) (ints 5 7) (elements (PersistentVector "p" "q"))` yields `#user/Tri {:a 1 :b 6 :c "q"}`
 at card 8. There is no anonymous-tuple shape to add, because the constructor names the result type.
 
 ### 5. No seeds, and no `frequency`
@@ -165,7 +237,7 @@ A coordinate is the case name, stable across generator changes in a way a seed c
 Here every point is visited exactly once, so a weight cannot change what enumeration sees — and
 where it *would* matter, in a prefix of a sampled order, the bias is already expressible because
 **cardinality IS the weight**: a branch with a 3-point space occupies three times the indices.
-`one-of [a a b]` is a 2:1 mix. The combinator adds no expressive power, only a second way to say
+a `one-of` whose branch vector is `[a a b]` is a 2:1 mix. The combinator adds no expressive power, only a second way to say
 the same thing.
 
 ### 6. No `card` overflow guard — the substrate already refuses
@@ -212,10 +284,12 @@ dimensions covered by the first K:
 The two orders are mirror images: sequential covers the fastest-varying dimensions and **starves
 the slowest**; scattered covers the slowest immediately and under-covers the fastest at small K.
 
-That asymmetry is decisive rather than academic. In the rete fuzzer's space `dim4` is **chain
-depth** — the dial that exposed the leading-filter defect class. A sequential prefix has still not
-varied it after 64 of 324 points. Scattered hits all four depths within 16. **"Sample the first K
-sequentially" would have tested depth 0 and nothing else.**
+That asymmetry is decisive rather than academic. `dim4` above is the slowest-varying dimension of
+that illustration; in the rete fuzzer's own space the slowest-varying dimension is **chain depth**
+(its `Case` is `[dups wpos prefix filt fparam depth]`, so depth is the last of six — do not read
+the index across). A sequential prefix has still not varied the slowest dimension after 64 of 324
+points. Scattered hits all four values within 16. **"Sample the first K sequentially" would have
+tested depth 0 and nothing else.**
 
 **API consequence:** digit reversal needs the BASES, not an opaque `Gen`. A `Gen` from
 `fmap`/`such-that`/`lift` has lost its radix shape, and `such-that` in particular *renumbers* the
@@ -247,7 +321,8 @@ a zero count (negative returns cancelling). Every prop already returned only 0 o
 bought nothing and cost exactly those readings. A weighted prop is now a type error:
 
 ```
-:wat::gen::check: parameter #2 expects [i64 :-> bool]; got [i64 :-> i64]
+:wat::gen::check: parameter #2 expects [:wat::core::i64 :-> :wat::core::bool];
+                                   got [:wat::core::i64 :-> :wat::core::i64]
 ```
 
 Not caught — **unrepresentable.**
@@ -265,6 +340,27 @@ aliases away, so handing a coordinate where bases belong type-checks clean. The 
 legibility, not distinctness. Making the swap unrepresentable needs a wrapper record whose unwrap
 lands on the hot enumeration path — not taken, for a confusion with no recorded instance.
 
+**`at` is unbounded, and inconsistently so.** `Gen/at` is a total function of an index and
+**nothing checks that the index is in `0..card`**. The generators do not even agree on what
+happens when it is not — measured 2026-08-26:
+
+| generator | out-of-domain call | result |
+|---|---|---|
+| `(ints 0 5)` | `at 15` / `at -3` | `15` / `-3` — silently outside the declared range |
+| `(coords [2 2])`, card 4 | `at 99` | `[1 1]` — **a valid-looking ALIAS of `at 3`** |
+| `(elements …)` | past the end | raises |
+| `(such-that …)` | past the end | raises |
+
+The `coords` row is the one that matters, because it is the exact hazard §*Sampling* names as the
+bijection obligation: *"sampling silently revisits points and misses others while reporting a clean
+count."* Out of domain, `coords` **implements the revisit.** Two generators refuse and two
+fabricate.
+
+**So: only ever hand `at` an index you got from `0..card`** — and be careful with the verbs that
+take an index directly (`shrink-index g k …`, `nth`, `with`, `reverse-index`). This is not guarded
+at the constructor because the check would land on the hot enumeration path, which is the same
+argument that rejects a `Coord` wrapper above; if it ever bites, this is the note to overturn.
+
 **A `Gen` must not enter a `defrecord`.** It carries a function, so it cannot survive an EDN
 round-trip. The containment rule is supposed to refuse this and **currently does not** for the
 parametric spelling: `(defrecord Wrap [g <- (Gen :- [i64])])` loads clean and crosses the wire with
@@ -275,10 +371,15 @@ proven patch in
 
 ## Patterns — the corpus you should copy from
 
-`wat-tests/gen-patterns.wat` is **documentation that runs**: six recognizable shapes of generative
-test, each against real substrate, each with data that is not a toy (multi-token strings, enums
-carrying payloads, generated command sequences). Find the shape that matches your problem, copy it,
-swap the domain.
+`wat-tests/gen-patterns.wat` is **documentation that runs**: **five** shapes, each a deftest on the
+floor and each asserting against real substrate. The sixth — DIFFERENTIAL — is not in that file
+because it already ships as `wat-tests/rete/differential-fuzz.wat`. Find the shape that matches your
+problem, copy it, swap the domain.
+
+Three of the five carry non-toy data (P1/P2 multi-token strings, P3 payload enums and generated
+command sequences); **P4 and P5 are deliberately bare `i64` spaces** — they demonstrate the SHAPE,
+and their domains are the toy kind this library's own §6 warns against. Copy their structure, not
+their spaces.
 
 | | pattern | reach for it when | worked example |
 |---|---|---|---|
@@ -293,8 +394,9 @@ swap the domain.
 the only one of the six that has actually found a defect here: **three live rete defects, all
 silent, none reachable by the 57-query hand-written corpus.** The other five, run against the
 substrate, are green — which is evidence the substrate is sound on those paths and *not* evidence
-that the patterns are powerful. If you have a reference implementation, a slow-but-correct oracle,
-or an old version, use it. The oracle you did not have to invent is the one that cannot be wrong
+that the patterns are powerful. If you have a reference implementation, a slow-but-correct **in-process**
+oracle, or an old version, use it — but see item 5 of *When generative testing is the WRONG tool*
+for when an oracle is too expensive to enumerate against at all. The oracle you did not have to invent is the one that cannot be wrong
 in the same way as the code.
 
 **The reason differential pays is worth naming**: every other pattern requires you to *state* the
@@ -353,23 +455,24 @@ Stated so it can be argued with rather than felt:
 
 | claim | evidence | status |
 |---|---|---|
-| the machinery is self-consistent | 27 laws, every one mutation-proven | **proven** |
+| the machinery is self-consistent | 27 laws, **26 of them** mutation-proven | **proven, with one gap named** |
 | the laws can fail for the reason they exist | each fix reverted, gate must go red | **proven** — and 4 laws once could not |
 | it finds real defects | 3 live rete defects, all silent | **proven**, via P0 only |
 | a real problem can be *expressed* in it | the pattern corpus: sequences, payload enums, multi-token strings | **proven** |
 | it is useful to someone who did not write it | — | **NOT proven.** One consumer, one author. |
 
-**The last row is the honest gap, and it is not closable from inside.** Nineteen laws written by
-the hand that added the combinators is a closed loop, and this library has been in one before: a
+**The last row is the honest gap, and it is not closable from inside.** Twenty-seven laws written
+by the hand that added the combinators is a closed loop, and this library has been in one before: a
 verb once shipped with zero laws *and* zero consumers, caught only by counting call sites. The
 promotion criterion was never "more features". It is **a second consumer that someone else reached
 for** — and the corpus above exists to make that reach cheap.
 
 ## How this library is kept honest
 
-Three disciplines, each bought with an incident:
+Four disciplines, each bought with an incident:
 
-**A law per JOIN, not only per component.** Nineteen laws, every one mutation-proven and green,
+**A law per JOIN, not only per component.** Nineteen laws — the suite as it stood then — every one
+mutation-proven and green,
 did not see six defects that could compute a wrong answer — because each proved one verb in
 isolation and every defect lived at a **seam** between two separately-built pieces. When a fix is
 mutation-tested now, the recorded result is which laws go red: repeatedly it has been *"N passed, 1
@@ -398,7 +501,7 @@ single existing call (`pure`, `set-of`) stay out.
 ## Cost
 
 Per shape, and there is no single number. Measured 2026-08-26, release, mean of six, minus the
-~325ms stdlib bootstrap:
+~325 ms stdlib bootstrap (mean of six on this box; `wat/gen.wat` carries the same table):
 
 | shape | per point |
 |---|---|
@@ -418,8 +521,9 @@ matching the shape you are building.
 `wat-tests/` is for tests written **in wat, for wat**; `tests/` is for **Rust tooling**.
 
 ```
-wat/gen.wat    <->  wat-tests/gen.wat                     27 deftests
-wat/rete.wat   <->  wat-tests/rete/differential-fuzz.wat   1 deftest (the ratchet)
+wat/gen.wat    <->  wat-tests/gen.wat                     27 deftests  (the laws)
+wat/gen.wat    <->  wat-tests/gen-patterns.wat             5 deftests  (the pattern corpus)
+wat/rete.wat   <->  wat-tests/rete/differential-fuzz.wat   1 deftest   (the ratchet)
 ```
 
 **`deftest` structurally removed a bug the old shape had.** The script version summed its laws by
@@ -435,8 +539,9 @@ block unrelated work; deleting the accumulate shape to keep a gate green is the 
 refuses. Movement either way is a red test demanding an explanation.
 
 It carries `(:wat::test::time-limit "60s")` — and raising it in the wat file was only half. Until
-2026-08-26 `scripts/floor.sh` passed no `--profile`, so nextest's `[profile.default]` killed at
-**30s**, half the budget the file argues for, and the rete cohort's override missed it because it
+`scripts/floor.sh` passes no `--profile` — still, today — so `[profile.default]` is the profile
+that must carry the budget. Until 2026-08-26 it did not, and killed at
+**30s**, half the budget the file argues for; the rete cohort's override missed it because it
 filters `binary_id(wat::rete)` while a wat `deftest` compiles into `wat::kernel`.
 `.config/nextest.toml` now names it in all three profile mirrors. **If the test is renamed, that
 filter must move with it or the 30s kill returns silently.**

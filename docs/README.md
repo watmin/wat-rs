@@ -30,6 +30,14 @@ to run the binary. For the *why*, read the proposal.
 
 ## Also in this directory
 
+**[`GENERATIVE-TESTING.md`](./GENERATIVE-TESTING.md)** — property-based
+testing in wat (`:wat::gen::`). A generator here is a finite INDEXED
+SET, not a seeded random source, so enumerate / sample / shrink collapse
+into one operation and a failing case gets a permanent coordinate
+instead of a seed. Read it before writing a `deftest` over more than a
+handful of inputs — and read its "When generative testing is the WRONG
+tool" section before reaching for it at all.
+
 **[`WAT-CHEATSHEET.md`](./WAT-CHEATSHEET.md)** — single-page syntax
 reference. The rules the lexer / parser / type-checker enforce
 (colon quoting, FQDN namespace, no whitespace inside `<>`, comm-call
