@@ -1,5 +1,33 @@
 # Generative testing in wat — `wat/gen.wat` (`:wat::gen::`)
 
+> ## ⛔ THIS DOCUMENT IS UNDER AUDIT AND SEVERAL OF ITS CLAIMS ARE KNOWN FALSE
+>
+> A vigilia of 18 wards was cast against `wat/gen.wat` on 2026-08-25 — the day it was declared
+> feature-complete and promoted. **17 reported; the findings are in
+> `docs/GEN-VIGILIA-2026-08-25.md`, which supersedes this file wherever they disagree.**
+> Nothing is fixed yet.
+>
+> Known false HERE, pending the fix pass — do not trust these sections:
+> - **§"`gen-check` REFUSES an empty generator"** — it does not raise; it returns
+>   `CheckOutcome::EmptySpace`. This section contradicts §"The failure surface is a matchable
+>   VALUE" 110 lines below it.
+> - **The "Open — ONE ordered list"** — sampling, shrinking and bounded collections are all
+>   SHIPPED, with laws.
+> - **`gen-vector` "remains unbuilt"** — `vector-of` and `vector-upto` ship (L20/L21).
+> - **Every law/point count** — 18/319, 19/325 and 21 all appear here; the suite has **23**
+>   deftests and 337 check-driven points.
+> - **`tests/lint/gen_lib_laws.rs`** and **`wat-scripts/fuzz/gen-selftest.wat`** — deleted
+>   2026-08-25; the live suite is `wat-tests/gen.wat`.
+> - **The Built table's `shrink c fails?` row** — still says "generator-independent", the exact
+>   claim §3 of this document retracts.
+> - **"two live rete defects"** — there are three; family C is missing here.
+> - **The ratchet "pinned at 22"** — it is 120.
+>
+> And the library itself carries defects that can compute a wrong answer — a negative `card`
+> reaching a `Checked` result and silently eating points, `lift2`/`record` disagreeing, and a
+> law that an identity implementation passes. See the vigilia record.
+
+
 > Status 2026-08-25. **PROMOTED TO THE STDLIB** as `wat/gen.wat`, namespace `:wat::gen::`, on the
 > `wat/grep.wat` precedent — a move of proven code, with the numbers that earned it:
 >

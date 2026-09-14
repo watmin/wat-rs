@@ -1,5 +1,20 @@
 ;; wat/gen.wat — FINITE GENERATORS: the core of generative testing, in wat.
 ;;
+;; ⛔ UNDER AUDIT (2026-08-25). An 18-ward vigilia found defects in this file that can compute a
+;; WRONG ANSWER, and several claims in the comments below are known FALSE. Read
+;; `docs/GEN-VIGILIA-2026-08-25.md` before trusting anything here or changing anything.
+;; Known-false in THIS file, pending the fix pass:
+;;   :53   "No native i64 mod/rem" — false since 2026-07-05; i64::mod/rem/quot all ship.
+;;   :8-9  the cited gate files were deleted the same day this was written.
+;;   :6    "18 laws over 319 points" — the suite has 23.
+;;   :42-45 "The checker names this itself if you try" — it does not; a parametric struct passes
+;;         the purity gate, so a Gen CAN enter a record and crosses the wire with `at` nil.
+;;   :150  the emptiness guard is `= 0`, so a NEGATIVE card reaches Checked as a vacuous pass —
+;;         and silently eats points in one-of/bind dispatch.
+;;   :311  "emitted TWICE" — the `at` copy re-runs PER POINT. Measured 52x at 800 points.
+;;   error strings at :208 :229 :262 :267 :338 :393 name the retired `gen-` verbs.
+;;
+;;
 ;; PROMOTED from `wat-scripts/lib/gen.wat` 2026-08-25, on the `wat/grep.wat`
 ;; precedent: a MOVE of proven code, with the numbers that earned it.
 ;;
