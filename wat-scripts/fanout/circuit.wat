@@ -2712,6 +2712,60 @@
    e2e         <- :fanout::Hist
    sample      <- :wat::core::String])
 
+;; The harness input. Required fields are a run; Option fields are knobs whose
+;; absence (None) is the default and whose (Some 0) is ZERO — the positional
+;; scheme overloaded 0 for both, so vis-ms / inbox-vis-ms / inbox-cap could not
+;; be set to zero. Namespace is :fanout::, not :user:: (:user:: is a rendezvous).
+(:wat::core::defrecord :fanout::Input
+  [n            <- :wat::core::i64
+   m            <- :wat::core::i64
+   j            <- :wat::core::i64
+   sub-cap      <- :wat::core::i64
+   fill-first?  <- :wat::core::bool
+   p            <- (:wat::core::Option :- [:wat::core::i64])
+   rate         <- (:wat::core::Option :- [:wat::core::i64])
+   seed         <- (:wat::core::Option :- [:wat::core::i64])
+   drop-check-bp <- (:wat::core::Option :- [:wat::core::i64])
+   drop-mark-bp  <- (:wat::core::Option :- [:wat::core::i64])
+   drop-seed     <- (:wat::core::Option :- [:wat::core::i64])
+   drop-after?   <- (:wat::core::Option :- [:wat::core::bool])
+   drop-recv-bp  <- (:wat::core::Option :- [:wat::core::i64])
+   drop-ack-bp   <- (:wat::core::Option :- [:wat::core::i64])
+   vis-ms        <- (:wat::core::Option :- [:wat::core::i64])
+   inbox-vis-ms  <- (:wat::core::Option :- [:wat::core::i64])
+   inbox-cap     <- (:wat::core::Option :- [:wat::core::i64])
+   chaos-bp      <- (:wat::core::Option :- [:wat::core::i64])
+   delay-bp      <- (:wat::core::Option :- [:wat::core::i64])
+   delay-ms      <- (:wat::core::Option :- [:wat::core::i64])])
+
+(:wat::core::defn :fanout::opt-i64
+  [o <- (:wat::core::Option :- [:wat::core::i64])  fallback <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::match o
+    (:wat::core::None fallback)
+    ((:wat::core::Some n) n)))
+
+(:wat::core::defn :fanout::opt-bool
+  [o <- (:wat::core::Option :- [:wat::core::bool])  fallback <- :wat::core::bool]
+  -> :wat::core::bool
+  (:wat::core::match o
+    (:wat::core::None fallback)
+    ((:wat::core::Some b) b)))
+
+;; Bare required fields, every knob None. The positional `0 means default` callers.
+(:wat::core::defn :fanout::input
+  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
+   sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool]
+  -> :fanout::Input
+  (:fanout::Input
+    :n n :m m :j j :sub-cap sub-cap :fill-first? fill-first?
+    :p :wat::core::None :rate :wat::core::None :seed :wat::core::None
+    :drop-check-bp :wat::core::None :drop-mark-bp :wat::core::None
+    :drop-seed :wat::core::None :drop-after? :wat::core::None
+    :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
+    :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+    :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))
+
 (:wat::core::defn :fanout::parse-i64 [s <- :wat::core::String] -> :wat::core::i64
   (:wat::edn::read s))
 
@@ -2875,29 +2929,29 @@
 ;; Wiring + input stream. start workers → publish → drain on depth → Stop.
 ;; rate 0 (the default) arms no -disrupt alarm at all.
 (:wat::core::defn :fanout::run-with
-  [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64
-   rate <- :wat::core::i64  seed <- :wat::core::i64
-   drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
-   drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool
-   drop-recv-bp <- :wat::core::i64  drop-ack-bp <- :wat::core::i64
-   sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool
-   vis-ms <- :wat::core::i64  inbox-vis-ms <- :wat::core::i64
-   inbox-cap <- :wat::core::i64
-   ;; ⭑ ONE SWITCH THAT ARMS EVERY INJECTOR, added 2026-09-10 because the builder asked
-   ;; "what is our induced failure rate per component?" and the answer was 5% on two reply
-   ;; paths and ZERO everywhere else — two of five injectors reachable, one of five counted.
-   ;; `chaos-bp` is the rate for every injector that has no explicit rate of its own.
-   ;; Precedence is one sentence: an explicit per-component knob wins; `chaos-bp` fills the
-   ;; rest. No reader has to trust that sentence, because the report prints the EFFECTIVE
-   ;; rate beside the OBSERVED one for every component.
-   chaos-bp <- :wat::core::i64
-   ;; latency injector on :demo::topic. Independent of chaos-bp — a chaos run must
-   ;; not start parking the topic (STOP-1: delay-bp 0 is today's behaviour).
-   delay-bp <- :wat::core::i64
-   delay-ms <- :wat::core::i64]
+  [in <- :fanout::Input]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t-setup0 (:wat::time::epoch-nanos (:wat::time::now))
+     n (:fanout::Input/n in)
+     m (:fanout::Input/m in)
+     j (:fanout::Input/j in)
+     sub-cap (:fanout::Input/sub-cap in)
+     fill-first? (:fanout::Input/fill-first? in)
+     p (:fanout::opt-i64 (:fanout::Input/p in) 1)
+     rate (:fanout::opt-i64 (:fanout::Input/rate in) 0)
+     seed (:fanout::opt-i64 (:fanout::Input/seed in) 0)
+     drop-check-bp (:fanout::opt-i64 (:fanout::Input/drop-check-bp in) 0)
+     drop-mark-bp (:fanout::opt-i64 (:fanout::Input/drop-mark-bp in) 0)
+     drop-seed (:fanout::opt-i64 (:fanout::Input/drop-seed in) 0)
+     drop-after? (:fanout::opt-bool (:fanout::Input/drop-after? in) false)
+     drop-recv-bp (:fanout::opt-i64 (:fanout::Input/drop-recv-bp in) 0)
+     drop-ack-bp (:fanout::opt-i64 (:fanout::Input/drop-ack-bp in) 0)
+     chaos-bp (:fanout::opt-i64 (:fanout::Input/chaos-bp in) 0)
+     delay-bp (:fanout::opt-i64 (:fanout::Input/delay-bp in) 0)
+     delay-ms (:fanout::opt-i64 (:fanout::Input/delay-ms in) 0)
+     ;; ⭑ inbox-cap :3699 — Optional; 0 meant 64. None = 64; (Some 0) = ZERO (was unreachable).
+     inbox-cap (:fanout::opt-i64 (:fanout::Input/inbox-cap in) 64)
      ;; ⭑ THE EFFECTIVE RATE PER COMPONENT, resolved ONCE here and used everywhere below,
      ;; so the value that reaches a service and the value the report prints cannot diverge.
      ;; An explicit knob wins; `chaos-bp` fills the rest.
@@ -2914,22 +2968,20 @@
                  (:wat::core::if (:wat::i64::> chaos-bp 0) 20260910 0)))
      e-wseed (:wat::core::if (:wat::i64::> seed 0) seed
                (:wat::core::if (:wat::i64::> chaos-bp 0) 20260910 0))
-     ;; Drop runs: 200 ms vis so an unacked envelope (no claim-reply) becomes
-     ;; visible again. T1's 200 ms claim deadline retries the same worker;
-     ;; vis expiry is the other worker. Both are retries of a dropped reply.
-     ;; vis-ms > 0 is the sweep knob (milliseconds → nanoseconds). 0 means
-     ;; exactly today's behaviour: 200 ms if any drop rate is set, else 1000 s.
-     vis (:wat::core::if (:wat::i64::> vis-ms 0)
-            (:wat::i64::* vis-ms 1000000)
-            (:wat::core::if (:wat::core::or
-                               (:wat::core::or (:wat::i64::> e-check 0) (:wat::i64::> e-mark 0))
-                               (:wat::core::or (:wat::i64::> e-recv 0) (:wat::i64::> e-ack 0)))
-              200000000 1000000000000))
-     ;; The INBOX's visibility — symmetric with `vis` above, deliberately NOT merged
-     ;; with it (see :fanout::inbox-vis-default-ns). ms → ns; 0 = the default.
-     inbox-vis (:wat::core::if (:wat::i64::> inbox-vis-ms 0)
-                 (:wat::i64::* inbox-vis-ms 1000000)
-                 (:fanout::inbox-vis-default-ns))
+     ;; vis-ms :2920 — None = today's default (200 ms if any drop rate, else 1000 s).
+     ;; (Some 0) = ZERO nanoseconds, which the positional `> vis-ms 0` could not express.
+     vis (:wat::core::match (:fanout::Input/vis-ms in)
+            (:wat::core::None
+              (:wat::core::if (:wat::core::or
+                                 (:wat::core::or (:wat::i64::> e-check 0) (:wat::i64::> e-mark 0))
+                                 (:wat::core::or (:wat::i64::> e-recv 0) (:wat::i64::> e-ack 0)))
+                200000000 1000000000000))
+            ((:wat::core::Some ms) (:wat::i64::* ms 1000000)))
+     ;; inbox-vis-ms :2929 / :3666 — None = :fanout::inbox-vis-default-ns.
+     ;; (Some 0) = ZERO. Positional 0 was "the default, not no redelivery".
+     inbox-vis (:wat::core::match (:fanout::Input/inbox-vis-ms in)
+                  (:wat::core::None (:fanout::inbox-vis-default-ns))
+                  ((:wat::core::Some ms) (:wat::i64::* ms 1000000)))
      stores (:wat::core::foldl
               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::query::sqlite-store::Handle])
                                _i  <- :wat::core::i64]
@@ -3444,7 +3496,7 @@
      ;; more than once per inbox receive.
      rt-unknown-max (:wat::i64::* inbox-recv-calls (:wat::i64::+ m 1))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};disrupt-fires={dzf};disrupt-draws={dzw};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total};chaos-seed={cseed};bp-recv={bprv};bp-ack={bpak};bp-check={bpck};bp-mark={bpmk};bp-disrupt={bpdz};seen-check-drops={scd};seen-check-calls={scc};seen-mark-drops={smd};seen-mark-calls={smc};bp-delay={bpdl};delay-draws={ddw};delays-fired={ddf}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};disrupt-fires={dzf};disrupt-draws={dzw};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total};chaos-seed={cseed};bp-recv={bprv};bp-ack={bpak};bp-check={bpck};bp-mark={bpmk};bp-disrupt={bpdz};seen-check-drops={scd};seen-check-calls={scc};seen-mark-drops={smd};seen-mark-calls={smc};bp-delay={bpdl};delay-draws={ddw};delays-fired={ddf};vis-ns={vns};inbox-vis-ns={ivns};inbox-cap={icap}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -3520,7 +3572,10 @@
               :smc (:fanout::SeenFinal/mark-calls spair)
               :bpdl delay-bp
               :ddw delay-draws-n
-              :ddf delays-fired-n)
+              :ddf delays-fired-n
+              :vns vis
+              :ivns inbox-vis
+              :icap inbox-cap)
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr} ;; {inbox}{subs}"
@@ -3529,31 +3584,64 @@
 (:wat::core::defn :user::run*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 0 0 0 false 0 0 32 false 0 0 64 0 0 0))
+  (:fanout::run-with (:fanout::input n m j 32 false)))
 
 ;; delay-bp 10000, delay-ms 1 — every publish parks 1 ms. Relation:
 ;; delays-fired == delay-draws. n=12 like :user::compute; not a floor test.
 ;; n=50 fill-first stalled (DESIGN trap-door: parking the topic parks fill).
 (:wat::core::defn :user::delay-full-rate [] -> :wat::core::String
-  (:wat::core::third (:fanout::run-with 12 2 2 1 0 0 0 0 0 false 0 0 32 false 0 0 64 0 10000 1)))
+  (:wat::core::third (:fanout::run-with
+    (:fanout::Input
+      :n 12 :m 2 :j 2 :sub-cap 32 :fill-first? false
+      :p :wat::core::None :rate :wat::core::None :seed :wat::core::None
+      :drop-check-bp :wat::core::None :drop-mark-bp :wat::core::None
+      :drop-seed :wat::core::None :drop-after? :wat::core::None
+      :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
+      :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+      :chaos-bp :wat::core::None
+      :delay-bp (:wat::core::Some 10000) :delay-ms (:wat::core::Some 1)))))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j p 0 0 0 0 0 false 0 0 32 false 0 0 64 0 0 0))
+  (:fanout::run-with
+    (:fanout::Input
+      :n n :m m :j j :sub-cap 32 :fill-first? false
+      :p (:wat::core::Some p) :rate :wat::core::None :seed :wat::core::None
+      :drop-check-bp :wat::core::None :drop-mark-bp :wat::core::None
+      :drop-seed :wat::core::None :drop-after? :wat::core::None
+      :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
+      :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None)))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    rate <- :wat::core::i64  seed <- :wat::core::i64]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 rate seed 0 0 0 false 0 0 32 false 0 0 64 0 0 0))
+  (:fanout::run-with
+    (:fanout::Input
+      :n n :m m :j j :sub-cap 32 :fill-first? false
+      :p :wat::core::None :rate (:wat::core::Some rate) :seed (:wat::core::Some seed)
+      :drop-check-bp :wat::core::None :drop-mark-bp :wat::core::None
+      :drop-seed :wat::core::None :drop-after? :wat::core::None
+      :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
+      :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None)))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    drop-check-bp <- :wat::core::i64  drop-mark-bp <- :wat::core::i64
    drop-seed <- :wat::core::i64  drop-after? <- :wat::core::bool]
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::i64 :wat::core::String])
-  (:fanout::run-with n m j 1 0 0 drop-check-bp drop-mark-bp drop-seed drop-after? 0 0 32 false 0 0 64 0 0 0))
+  (:fanout::run-with
+    (:fanout::Input
+      :n n :m m :j j :sub-cap 32 :fill-first? false
+      :p :wat::core::None :rate :wat::core::None :seed :wat::core::None
+      :drop-check-bp (:wat::core::Some drop-check-bp) :drop-mark-bp (:wat::core::Some drop-mark-bp)
+      :drop-seed (:wat::core::Some drop-seed) :drop-after? (:wat::core::Some drop-after?)
+      :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
+      :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None)))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -3571,10 +3659,26 @@
   (:wat::core::first (:user::run-drop* 50 2 2 1000 0 42 true)))
 
 (:wat::core::defn :user::drop-recv-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 1000 0 32 false 0 0 64 0 0 0)))
+  (:wat::core::first (:fanout::run-with
+    (:fanout::Input
+      :n 50 :m 2 :j 2 :sub-cap 32 :fill-first? false
+      :p :wat::core::None :rate :wat::core::None :seed :wat::core::None
+      :drop-check-bp :wat::core::None :drop-mark-bp :wat::core::None
+      :drop-seed (:wat::core::Some 42) :drop-after? (:wat::core::Some true)
+      :drop-recv-bp (:wat::core::Some 1000) :drop-ack-bp :wat::core::None
+      :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
-  (:wat::core::first (:fanout::run-with 50 2 2 1 0 0 0 0 42 true 0 1000 32 false 0 0 64 0 0 0)))
+  (:wat::core::first (:fanout::run-with
+    (:fanout::Input
+      :n 50 :m 2 :j 2 :sub-cap 32 :fill-first? false
+      :p :wat::core::None :rate :wat::core::None :seed :wat::core::None
+      :drop-check-bp :wat::core::None :drop-mark-bp :wat::core::None
+      :drop-seed (:wat::core::Some 42) :drop-after? (:wat::core::Some true)
+      :drop-recv-bp :wat::core::None :drop-ack-bp (:wat::core::Some 1000)
+      :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -3647,78 +3751,41 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [argv (:wat::runtime::argv)
-     proof (:user::deadline-redial-is-fresh)
-     usage "usage: circuit.wat [n m j sub-cap fill-first? [vis-ms [drop-recv-bp drop-ack-bp drop-seed [inbox-vis-ms [inbox-cap [chaos-bp [drop-check-bp drop-mark-bp disrupt-bp [delay-bp delay-ms]]]]]]]]"
-     ;; ⛔ THE CLI HAD NO CHAOS SURFACE. Until 2026-09-09 every one of the six fault
-     ;; knobs was pinned to a literal zero here, so no sweep run through `main` could
-     ;; ever exercise a drop — the injection existed only inside the `:user::` fixtures
-     ;; the (ignored) Rust tests call. Every timing and correctness number this harness
-     ;; has produced from the CLI was therefore a happy-path number, and nothing said so.
-     ;;
-     ;; argv 8/9/10 are OPTIONAL and default to 0, so every existing invocation is
-     ;; byte-for-byte unchanged. `drop-after?` stays `false`: it is read only by
-     ;; `:fanout::seen::Record` (circuit.wat:2252), so it is inert while
-     ;; drop-check-bp/drop-mark-bp are 0 — those two are still not reachable from here.
-     ;;
-     ;; argv 11 is `inbox-vis-ms`, added 2026-09-09, also optional and 0-defaulting.
-     ;; ⚠ It is NOT argv 7 (`vis-ms`, the SUB queues). Two different timeouts; see
-     ;; :fanout::inbox-vis-default-ns. 0 means the default, not "no redelivery".
-     opt-i64 (:wat::core::fn [o <- (:wat::core::Option :- [:wat::core::String])] -> :wat::core::i64
-               (:wat::core::match o
-                 (:wat::core::None 0)
-                 ((:wat::core::Some v) (:fanout::parse-i64 v))))
-     triple
-       (:wat::core::match (:wat::core::get argv 2)
-         (:wat::core::None (:user::run* 2000 4 3))
-         ((:wat::core::Some ns)
-           (:fanout::run-with
-             (:fanout::parse-i64 ns)
-             (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 3) usage))
-             (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 4) usage))
-             1
-             ;; argv 16 = the worker/topic-worker DISRUPT rate; argv 14/15 = the seen
-             ;; service's check/mark reply-drop rates. All three were literal zeros here
-             ;; until 2026-09-10, so three of the five injectors could not be armed from
-             ;; the CLI AT ALL and every published number from this harness was a
-             ;; happy-path number for them. argv 10 seeds both families.
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 16)])
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 10)])
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 14)])
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 15)])
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 10)])
-             false
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 8)])
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 9)])
-             (:fanout::parse-i64 (:wat::core::Option/expect (:wat::core::get argv 5) usage))
-             (:wat::core::= (:wat::core::Option/expect (:wat::core::get argv 6) usage) "true")
-             (:wat::core::match (:wat::core::get argv 7)
-               (:wat::core::None 0)
-               ((:wat::core::Some vs) (:fanout::parse-i64 vs)))
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 11)])
-             ;; argv 12 is `inbox-cap`, added 2026-09-10. Optional; 0 means 64, which is
-             ;; the literal that sat at the inbox's `:cap` since the bound was added and
-             ;; was never swept. See the comment at that site for why the BOUND is
-             ;; justified, the NUMBER is not, and what raising it costs the fill poller.
-             (:wat::core::let [ic (:wat::core::apply opt-i64 [(:wat::core::get argv 12)])]
-               (:wat::core::if (:wat::i64::> ic 0) ic 64))
-             ;; argv 13 is `chaos-bp`, added 2026-09-10: ONE rate, in basis points, that
-             ;; arms EVERY injector the CLI could not previously reach — the inbox queue's
-             ;; two reply paths (which had no knob at all), the seen service's check and
-             ;; mark, and the worker/topic-worker disruptor. 0 = today's behaviour exactly.
-             ;; `circuit.wat 2000 4 3 8192 true 1000 0 0 0 0 0 500` makes everything fail
-             ;; at 5%, seeded 20260910 and printed.
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 13)])
-             ;; argv 17 = topic delay-bp; argv 18 = delay-ms. Both 0-default. Independent
-             ;; of chaos-bp so a chaos run does not park the topic (STOP-1).
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 17)])
-             (:wat::core::apply opt-i64 [(:wat::core::get argv 18)]))))]
+    [proof (:user::deadline-redial-is-fresh)
+     ;; Eof/Stopped RAISE. A harness without a record is a usage error, not a
+     ;; defaulted happy path (missing :n must be refused, not silently 2000).
+     ;; readln blocks: a forgotten pipe hangs against the 30 s floor wall —
+     ;; callers must always provide stdin.
+     inp (:wat::core::match (:wat::kernel::readln)
+            ((:wat::kernel::ReadlnOutcome::Datum d) d)
+            (:wat::kernel::ReadlnOutcome::Eof
+              (:wat::kernel::assertion-failed!
+                "circuit: stdin is #fanout/Input {…} — got EOF"
+                :wat::core::None :wat::core::None))
+            (:wat::kernel::ReadlnOutcome::Stopped
+              (:wat::kernel::assertion-failed!
+                "circuit: stdin stopped before #fanout/Input"
+                :wat::core::None :wat::core::None)))
+     triple (:fanout::run-with inp)]
     (:wat::core::let
       [_ (:wat::kernel::println proof)
        _ (:wat::kernel::println
            (:wat::core::format "queue-receive-calls={c}" :c (:wat::core::second triple)))
        _ (:wat::kernel::println (:wat::core::first triple))]
       (:wat::kernel::println (:wat::core::third triple)))))
+
+;; Row 2 — (Some 0) for vis-ms must reach the service as 0, not the default.
+(:wat::core::defn :user::vis-zero-reaches [] -> :wat::core::String
+  (:wat::core::third
+    (:fanout::run-with
+      (:fanout::Input
+        :n 12 :m 2 :j 2 :sub-cap 32 :fill-first? false
+        :p :wat::core::None :rate :wat::core::None :seed :wat::core::None
+        :drop-check-bp :wat::core::None :drop-mark-bp :wat::core::None
+        :drop-seed :wat::core::None :drop-after? :wat::core::None
+        :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
+        :vis-ms (:wat::core::Some 0) :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
+        :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))))
 
 (:wat::core::defn :user::chaos [] -> :wat::core::nil
   (:wat::core::let [triple (:user::run-chaos* 2000 4 3 200 42)]
