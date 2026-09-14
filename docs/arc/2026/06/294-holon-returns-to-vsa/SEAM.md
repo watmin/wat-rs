@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. 2026-09-13. ⛔ **YOU ARE ON `replay/grok-rete`, NOT MAIN.**
+# SEAM — the ONE live breadcrumb. 2026-09-14. ⛔ **YOU ARE ON `replay/grok-rete`, NOT MAIN.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice, which is why it will feel like *continuing* rather than *waking*, and **that feeling is
@@ -14,157 +14,123 @@
 ```bash
 git rev-parse --abbrev-ref HEAD        # expect replay/grok-rete (merge/grok-rete is only the REFERENCE)
 git status --porcelain                 # dirty = grok is mid-strike: commit NOTHING until it yields
-git log --oneline -8; git log origin/replay/grok-rete --oneline -1
-cat /home/john/work/holon/.pulsare/to-claude          # has grok scored? which file?
-ls bootstrap/pending/                   # parked curare / drafts; APPLY-AFTER-GROK-YIELDS.md if present
-ps -eo pid=,etime=,args= | awk '$3 ~ /wat-replay-base|wat-main-a3218644d/'   # any run of yours alive?
+git log --oneline -12; git log origin/replay/grok-rete --oneline -1
+cat /home/john/work/holon/.pulsare/to-claude          # has grok scored? which file? (compare its mtime to the last brief)
+ls bootstrap/pending/                   # parked drafts / curare
+git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has come
+readlink .census/latest                 # the census baseline the next step diffs against
 ```
+
+Stamp: written at HEAD `33f3ebcfb` (= origin). In flight with grok: nothing yet —
+`BRIEF-2a4c-the-stdlib-door-replaces-a-divergent-macro.md` awaits the builder's pulsare.
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
 ```
 main              a3218644d   FROZEN · PUSHED                                     do not touch
 origin/grok-rete  37528f6e0   FROZEN — read with `git show`, never check it out
-replay/grok-rete  (this)      main + stone 0 + pilot (#1–#10) + 2b + 2a1 (door, CLOSED) · pushed
+replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a2/2a4/2a4b (tooling, CLOSED)
+                              + batch 1 #11–#60 (CLOSED; floor 5495/5495, clippy 0, pushed)
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
-- **2a1 is CLOSED** (grok `ca0f5c2d7` + the orchestrator's lint widening). The one-step walk, verified
-  by the orchestrator: floor 5428/5428 uncontended, clippy 0; identity with the orchestrator's own walk
-  over the 1489-file step-24 corpus (`bootstrap/era/probe-R/verify-refute2.sh`: 0 lost, 0 gained,
-  0 refusal delta — so +47 files of types vs `101626eea`); 1457 Ok / 32 Refused in 16 s; mutation M1
-  (keep `defn` whole) reddens `declared_types_body_is_never_expanded` and the sift timing test.
-- **2a1b is CLOSED** (grok `deaeeb131` + the orchestrator's one-line `typevar.rs` routing): one
-  `TypeEnv` classifier that `is_known_type`, `type-of`, `subtype?` and the checker's annotation scan
-  all ask. Verified: floor 5431/5431, clippy 0; `bootstrap/era/probe-R/kinds.wat` (E1–E4); the
-  agreement wall RED under the orchestrator's own Marker-arm mutation; the door unchanged (1457/32,
-  identity 0/0/0). Finding 14.
-- **2a2 is CLOSED** (grok `9d887f753` + refute `f36c2386c`), verified: floor 5431/5431, clippy 0;
-  run5 — each tool one process (144 s / 29 s / 54 s), 0 files losing, chain vs main 1370 identical,
-  CHAIN-FAILS 28; the R10 guard RED under the orchestrator's own mutation (finding 15).
-- **Next: replay batch 1, grok-rete #11 → #60** (`BRIEF-4-replay-batch-1.md` +
-  `EXPECTATIONS-4-replay-batch-1.md`), awaiting the builder's pulsare. Census and batch boundaries:
-  `bootstrap/era/replay-plan/commits.tsv` (the first commit needing a new policy is #126).
-- **RULED 2026-09-13 (4 YES):** the replay batches start as soon as 2a2 closes; stone 3 runs BETWEEN
-  batches (its gate walks the whole tree when it lands). Stone 3's re-grounded draft is in
-  `bootstrap/pending/` (D1 derived from the one child-start door; D2 must WRITE two recorded migrations).
-- **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch
-  owns its subsystem; replay ONE COMMIT AT A TIME; correct over fast — but **the builder cannot
-  tolerate multi-hour runs between work units**, so wall clock is now a first-class goal.
+- **Batch 1 is CLOSED** (SCORE-4, SCORE-4b, REPLAY-LOG; finding 18). 50 steps; the #60 checkpoint went
+  red because two walls met the other side's content (#50's rete wall vs main-only fmt rules; main's
+  separator lint vs #60's `config.rs`). The repairs were FOLDED into #50/#60 (#51–#60 rebuilt; proof:
+  the old tip and the new differ by exactly the repairs). The TDD close held: families A/B/C live.
+- **Verified after 4b (finding 19):** 2a4b's stdlib-list gate read `stdlib.rs`'s TEXT (a commented-out
+  row passed) — rewritten to ask the runtime, `33f3ebcfb`. Absolute paths had blinded the codemods'
+  two path rules; run5 now hands repo-relative paths. **G1: the stdlib door refuses a divergent MACRO**
+  (and expands every `defn` body) — batch 1 unaffected; 6 later steps from #155 need it.
+- **Next, in order:** 2a4c (G1 + the walk + STOP-9), then stone 3 (between batches), then batch 2
+  #61–#125 (a new brief; BRIEF-4 as the shape). Stone 3's draft is `bootstrap/pending/BRIEF-3-draft-every-spawned-program-starts.md`.
+  Before its release: probe the D1 fixpoint on TODAY's stdlib (compute the derived program-carrying
+  positions and reconcile them with the census's 141 literals); run the candidate codemods on COPIES
+  of the seven arc-170 probes.
+- **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
+  its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
-## THE GRIND — the stone order for the remaining ~641 grok-rete commits
+## THE REPLAY — how a step goes (`BRIEF-1-pilot-first-ten-commits.md` § "One step")
 
-1. **2a1 — the declaration door** (RULED "we build it"). `(:wat::runtime::declared-types forms)` →
-   `:wat::runtime::DeclaredTypes`, which is `Ok [types]` or `Refused [form cause]`.
-   - It expands a program's declarations with the stdlib macros, registers them into a FRESH copy of
-     a once-built stdlib snapshot, and returns `TypeInfo`s. No startup, no body check: 12–17 ms a
-     call, where `eval-with-defs!` takes ~460 ms. CLOSED 2026-09-13 after two refutes (finding 13).
-2. **2a2 — the codemods ask the door once per program.** `BRIEF-2a2-the-codemods-ask-the-door.md`.
-   - match-arm, positional-ctor and variant-separator: `eval-with-defs!`, the census, `seed-paths`,
-     `decl-head?` and `pascal-leaf?` are retired; a refused declaration excludes one form, never the file.
-   - step 14 REPORTS a splice.
-   - `convert.sh`: `one-param-spec` gets the corpus as context, minus unreadable files, which are
-     reported; each codemod runs ONCE per replayed commit.
-   - **Its bar is DERIVED** (`bootstrap/era/probe-S/run5.sh`), never "0 files differ": each new tool
-     against its predecessor on IDENTICAL input (match-arm vs `probe-L/wL`, positional-ctor vs
-     `probe-L/pT`, variant-separator vs the census tool) — 0 files LOSING, every gain explained by a
-     type the door reports; the chain vs main identical ≥ 1,314.
-3. **3 — every spawned program starts** (RULED, ruling 4). Draft:
-   `bootstrap/pending/BRIEF-3-draft-every-spawned-program-starts.md`.
-   - A gate on the CHILD's real startup path (`src/process/verbs.rs:429-433`), NOT `--check`.
-   - Fix the 7 arc-170 probes the census found broken (RecvOutcome/SendOutcome walls), using the
-     recorded wrap codemods.
-4. **The replay batches, grok-rete #11 → #651**, per `BRIEF-1-pilot-first-ten-commits.md`'s one-step
-   recipe (docs: cherry-pick; `.wat`: convert C^ and C, then `git merge-file`; `.rs`: re-express on
-   main's door).
-   - Floor + clippy at each stone checkpoint.
-   - The pilot's extrapolation (~16.5 h) predates the door and per-commit `convert.sh`. Re-measure
-     after 2a2, never assume.
-5. **End:** cross-check against `merge/grok-rete` (its 8 tree-wide-missing grok tests,
-   `bootstrap/merge-audit/`, are the first loss signal), then floor + clippy, then main.
+- docs-only: `git cherry-pick -x C`. Otherwise cherry-pick `--no-commit`, `convert.sh C^ <out> <paths>`
+  and `convert.sh C <out> <paths>`, new `.wat` = the C output, modified `.wat` = `git merge-file` of
+  main's copy with the two converted versions, `.rs` re-expressed on main's homes; gate: build,
+  `--check` every produced `.wat`, C's own tests by name; commit `REPLAY(grok-rete #N)`.
+- **From #61 the gate adds (BRIEF-4b D):** the fast lint subset on every `.rs` step, and
+  `scripts/replay/census.sh` + `--diff` whenever the binary or any `.wat` changed. **STOP-8:** a file
+  rc 0 → non-zero that the step did not produce — a wall meeting the other side's content. Found at its
+  step, the repair is part of that step's commit.
+- **LATENT (RULED):** a `:wat::*` call head that exists on neither side is re-expressed with main's
+  registered verb of the same meaning at that one site, logged `LATENT (c3fefc5ab)`; STOP-7 if none.
+- **Stdlib steps (2a4):** a step touching `wat/*.wat` converts in two phases (stdlib files with the
+  door's stdlib mode, rebuild, then consumers). The door's stdlib mode keys on a repo-relative `wat/`
+  prefix; tracked `wat/**/*.wat` ≡ the baked list is gated by asking the runtime. Until 2a4c lands it
+  REFUSES a changed stdlib macro (G1); after it, `convert.sh` reporting `UNREGISTERABLE` for a `wat/`
+  file is STOP-9. Every path handed to a codemod is REPO-RELATIVE (the codemods' two path rules —
+  `stdlib-source-path?`, positional-ctor's `skip-path?` — assume it).
+- **A composition defect found late FOLDS into the step that needs it** (this branch becomes main; no
+  knowingly-red REPLAY commit). Rebuild the later steps; prove it with `git diff <old-tip> <new-tip>`.
+- **Batches** (census `bootstrap/era/replay-plan/commits.tsv`): #61–#125 next; later batches END BEFORE
+  each commit needing a new policy — #126 and #278 modify a file main deleted; #153 #155 #157 #159 #278
+  #438 #440 #627 #628 #630 #635 #638 change grok's own codemods (a conversion policy is still owed);
+  #379 changes `wat/service.wat`, which positional-ctor deliberately skips (arc 296 M2 RESIDUE 1).
+- **End:** cross-check against `merge/grok-rete` (its 8 tree-wide-missing grok tests,
+  `bootstrap/merge-audit/`), then floor + clippy, then main. The ignored-test NAMES in grok-rete's
+  files must equal grok-rete's own at its tip.
 
 ## KNOWN FLAWS — routed, not left (FINDINGS-composition.md is the detail)
 
-- **The builtin set lives in two stores** — `BUILTIN_PRIMITIVES` (37 hand-listed names,
-  `src/runtime.rs`) and `builtin_names` (derived + a hand group, `src/types.rs:2544-2615`). Measured in
-  `SCORE-2a1b.md`: 14 names only in the first, 12 only in the second. The classifier unions them, so the
-  verbs agree; reconciling the two stores is its own stone.
-- **One ruling's table lives in THREE codemods** (corrected 2026-09-13; the first census missed one):
-  `alias-enum` in match-arm and in positional-ctor (`Some`/`None` → Option, `Ok`/`Err` → Result), and
-  `bare-variant-to-qualified.wat`'s `rename-five` (arc 296 N's five bare spellings). Same fact, no
-  wrong output today; one home in `wat/fix.wat` is its own stone.
-- **`variant-parent-of`'s own `@example` is false** (`src/reflect/verbs.rs:1718`: `Option::Some` →
-  `None` on disk), and the doctest verifier that would catch it is `#[ignore]` (its NOTE awaits a
-  ruling). Same class as 2b's `::`-teaching doc lines.
-- **2b's three:**
-  - refusal arms no input reaches (`match_arm.rs:187`, `check.rs:6955`, `:7253`);
-  - ~21 doc/comment lines still teach `::` for a variant;
-  - c03's `variadic-wrap` now hardcodes `:wat::core::i64`.
-- `docs/…/278-rules-engine/probes/surface-field-dispatch.wat`: fixed when its grok-rete commit
-  replays (ruling 5).
-- 11 grok-rete-modified `.wat` files lie outside the composition check. 3 were deleted by main
-  (modify/delete at replay). 8 are grok's OWN codemods: they need a stated policy for converting a
-  codemod's source without rewriting its match literals.
-- `tests/process/arc112_scheme_probe.wat:12`: unclassified (nested-program census).
-- The 84 CHAIN-FAILS under the chain vs main: classify them after 2a2, with
-  `bootstrap/era/probe-K/classify.sh` (main-binary `--check` on both sides; stdlib files are an
-  instrument limit).
+- **The builtin set lives in two stores** — `BUILTIN_PRIMITIVES` (`src/runtime.rs`) and
+  `builtin_names` (`src/types.rs`): 14 only in the first, 12 only in the second (`SCORE-2a1b.md`).
+- **One ruling's table lives in THREE codemods:** `alias-enum` in match-arm and positional-ctor, and
+  `bare-variant-to-qualified`'s `rename-five`. One home in `wat/fix.wat`.
+- **`variant-parent-of`'s own `@example` is false** (`src/reflect/verbs.rs`); the doctest verifier is
+  `#[ignore]` (its NOTE awaits a ruling).
+- **2b's three:** unreachable refusal arms (`match_arm.rs`, `check.rs`); ~21 doc lines teach `::`; c03's
+  `variadic-wrap` hardcodes `:wat::core::i64`.
+- `docs/…/278-rules-engine/probes/surface-field-dispatch.wat`: fixed when its grok-rete commit replays.
+- `tests/process/arc112_scheme_probe.wat:12`: unclassified (stone 3's D3).
+- The chain vs main's 28 CHAIN-FAILS: classify with `bootstrap/era/probe-K/classify.sh`.
 
-## INSTRUMENTS — where they live (all in `bootstrap/`, ignored; record in the `.gitignore` comment)
+## INSTRUMENTS — where they live
 
 | what | where |
 |---|---|
 | frozen binaries | `bootstrap/wat-main-a3218644d` (main), `bootstrap/wat-replay-base-8a5b7eb20` (replay base) |
-| exported tree for runs | `bootstrap/composition/tree-8a5b7eb20` |
-| composition runner (landing order / order-v2) | `bootstrap/composition/run.sh`, `order-v2.txt` |
-| step-24 input, pristine | `bootstrap/era/probe-G/runs/2026-09-13T03-30-09Z-pre24/work` |
-| exact batched chain + compare + classify | `bootstrap/era/probe-Q/run4.sh` (sharded 8 ways, ~13 min) |
+| **the codemod bar** | `bootstrap/era/probe-S/run5.sh` (each tool vs its predecessor; ~10 min; clean tree; repo-relative paths since 2026-09-14 — baseline MA 0 · PC 2 · VS 0 losing, chain 1370) |
+| the stdlib door on one file | `bootstrap/era/probe-R/door-stdlib.wat` (+ `stdlib-div/` divergent copies) |
+| future steps changing a stdlib macro | `bootstrap/era/replay-plan/future-macro-changes.txt` |
+| **the whole-tree census** | `scripts/replay/census.sh` (tracked; captures in ignored `.census/`) |
+| the #60 probe, sites, old-tip census | `bootstrap/era/probe-T/` |
 | main-binary residual classifier | `bootstrap/era/probe-K/classify.sh` |
+| the door over the corpus / the one-step identity | `bootstrap/era/probe-R/corpus.sh`, `verify-refute2.sh` |
+| the replay census | `bootstrap/era/replay-plan/{commits,flags,stdlib-touch}.tsv`, `main-deleted.txt` |
 | nested-program census | `bootstrap/era/probe-N/extract-forms2.wat` |
-| call the door from wat (enums, records, the refused form) | `bootstrap/era/probe-R/door.wat` |
-| the door over the 1489-file corpus | `bootstrap/era/probe-R/corpus.sh` (one process, ~14 s) |
-| the one-step walk vs the door, full scale | `bootstrap/era/probe-R/verify-refute2.sh` (+ `zz_probe_one_step.rs.snippet`) |
-| `type-of` kinds, `subtype?` on a marker | `bootstrap/era/probe-R/kinds.wat` |
-| the exclusion loop on the refused files | `bootstrap/era/probe-R/door-exclude.wat` + `refused32.json` |
-| **the 2a2 bar** | `bootstrap/era/probe-S/run5.sh` (each tool vs its predecessor on identical input) |
+
+A temporary Rust probe goes in `src/check.rs`'s tests module before `    fn decls(src: &str)` by SCRIPT,
+on a stashed tree, then `git checkout -- src/check.rs`.
 
 ## OPERATIONAL RULES — each one was paid for
 
 - **Never commit on a tree grok is working in.** Park tracked edits in `bootstrap/pending/`.
-- **Never decide on `pgrep -f`**: it matches its own shell and harness wrappers. `setsid … & $!` is
-  the setsid's pid, not the job's. Wait on a DONE line the job writes. `[[feedback_never_decide_on_pgrep_f]]`
-- **A floor runs uncontended.** SIGSTOP your background runs for it, then SIGCONT (a niced run once
-  pushed a test to SLOW).
-- **Time one file first. Tools are never their own input. A speedup counts only after full-scale
-  identity.** `[[feedback_a_speedup_is_claimed_only_after_full_scale_identity]]`
-- **Name the step that wrote a line by replaying one file step by step,** never by the output's shape.
+- **A floor runs uncontended, and nothing tracked is edited while it runs** (lint tests read source
+  text at runtime).
+- **Never decide on `pgrep -f`.** Wait on a DONE line the job writes.
+- **A probe's input is what the real stage receives; a probe guards that its edits actually ran**
+  (the #60 probe's first run pointed at a missing site file and dropped nothing).
+- **A gate's sabotage must falsify the CLAIM, not the proxy** (2a4b's text-scan gate passed with
+  `wat/gen.wat` un-baked). `[[feedback_a_green_test_can_prove_nothing]]`
+- **A step gate sees only what the step produced.** `[[feedback_a_step_gate_sees_only_what_the_step_produced]]`
+- **A rider's STOP can be right while its cause is wrong** (#11 was latent; #60's arm 1 was #60, not #59).
 
 ## ⚠ RULINGS — do not re-litigate
 
-- **Character case carries NO meaning.** `Enum.Variant` is a BIAS, never a rule.
-- **A variant IS a tagged record; `Variant <: Enum`.**
-- **A keyword literal means two things** (data, or a variant ctor by registry lookup), deferred ON
-  PURPOSE to the symbol-head flip.
-- 2026-09-12:
-  - replay one commit at a time;
-  - all 94 migrations replay on a fixture;
-  - delete `variant-vector-to-tagged-map`;
-  - restore `rename-record-def-to-defrecord`.
-- 2026-09-13:
-  - (B) is the declaration route;
-  - variants come from declarations, not a census;
-  - one door in `wat/fix.wat`;
-  - a nested-program gate;
-  - surface-field-dispatch waits for its replay;
-  - 2b released;
-  - **BUILD THE DECLARATION DOOR.**
-
-## THE FAILURE PATTERN — every grep-shaped instrument lied; every correction came from a CONTROL
-
-Run the control first. Ask the substrate (`--check`, `variant-parent-of`, the door), not a regex.
-The four questions discriminate between options; they never validate a premise BOTH share. The
-ladder was a workaround for a missing door, and only asking "does the property we need demand this
-cost?" found it. `[[feedback_when_asked_for_wall_clock_change_the_operation]]`
+- **Character case carries NO meaning.** **A variant IS a tagged record; `Variant <: Enum`.**
+- 2026-09-12: replay one commit at a time; all migrations replay on a fixture.
+- 2026-09-13: build the declaration door; C (one membership door); stone 3 between batches;
+  batch 1 = #11–#60; the LATENT rule; the `convert.sh` speedup DROPPED (seconds are fine).
+- 2026-09-14: 2a4 (the door's stdlib mode + two-phase stdlib steps); 4b (fold the #60 repairs into
+  #50/#60; a wall-driven recorded migration; the per-step census). All four 4-YES.
 
 ---
 

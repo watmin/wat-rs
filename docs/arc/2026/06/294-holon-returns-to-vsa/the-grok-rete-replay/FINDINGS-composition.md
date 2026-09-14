@@ -542,6 +542,28 @@ A/B/C's three tests are live, un-ignored, as on grok-rete at its #60.
 - Routed: `BRIEF-4b-checkpoint-60-the-walls-meet.md` (fold the repairs into #50 and #60; the recorded
   migration; 2a4b; the per-step census).
 
+## Finding 19 — absolute paths blinded two path rules; the stdlib door refuses a divergent MACRO
+
+Verifying 4b (fold proof reproduced; floor 5495/5495 on `b6ffccbda`, pushed):
+- **2a4b's gate read a proxy.** `tracked_wat_dir_is_exactly_stdlib_sources` scanned `src/load/stdlib.rs`'s
+  text; with `wat/gen.wat`'s row commented out (not baked) it PASSED. Rewritten to ask the runtime
+  (`(:wat::stdlib::sources)`): FAIL `only-tracked: ["wat/gen.wat"]`, PASS on revert (`33f3ebcfb`).
+- **The path contract.** The codemods carry exactly two path rules — 2a4b's `stdlib-source-path?` and
+  positional-ctor's `skip-path?` (a hand list: `wat/service.wat` and three more, "RESIDUE 1" of arc 296
+  M2, templates it cannot convert). Both assume REPO-RELATIVE paths; `convert.sh` (until 2a4b) and
+  `run5.sh` (until the orchestrator's fix) passed absolute ones, so the skip list never matched and,
+  after 2a4b, run5 sent every stdlib file through the USER door — the bar stopped measuring the stdlib
+  mode (VS report lines 35 → 38 with no losing file). run5 now hands repo-relative paths: PC's second
+  "losing" file is `wat/service.wat`, which it now skips as its list says. Batch 1 touched no skip-listed
+  path; **#379 is the one later step that does** — a batch boundary.
+- **G1:** the stdlib door replaces a divergent TYPE (probed: `defrecord Node` + `depth`, top level and in
+  a `do`) but REFUSES a divergent MACRO (`DuplicateMacro`, registry gate `src/macros/registry.rs:71-93`).
+  Batch 1: #31 #38 #40 #43 changed `:wat::gen::record`, which mints no type — no answer changed. Later: 6
+  steps change 4 stdlib macros (#155 #157 #159 #226 #377 #379).
+- **The stdlib half does not walk**: it expands every `defn` body, so 2 `defn`s refuse
+  (`ProgramBodyEvalFailed`) though they declare nothing.
+- Routed: `BRIEF-2a4c-the-stdlib-door-replaces-a-divergent-macro.md`.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
