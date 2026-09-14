@@ -75,6 +75,7 @@ mod tests {
             capacity_mode: CapacityMode::Error,
             global_seed: 42,
             dim_count: DEFAULT_DIM_COUNT,
+            max_fire_rounds: crate::config::DEFAULT_MAX_FIRE_ROUNDS,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
             redef_allowed: false,

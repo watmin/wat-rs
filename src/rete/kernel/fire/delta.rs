@@ -379,6 +379,53 @@ pub(crate) fn fire_fixpoint_delta_armed(
     #[cfg(test)]
     let mut round_no: usize = 0;
 
+    // ── THE TERMINATION CAP ──────────────────────────────────────────────────────────────────
+    //
+    // THIS IS THE STONE 4b DEFERRED, AND IT NAMED IT EXACTLY. `DESIGN-STONE-4b-cascade-fixpoint`
+    // § Termination does not claim divergence is impossible — it names the boundary and defers:
+    // "a rule that derives an unbounded stream of distinct facts (e.g. arithmetic in a fact-arg
+    // producing X(n) -> X(n+1)) would not terminate ... if one is ever needed, a depth/round
+    // safety cap is its own future stone (let need reveal)."
+    //
+    // The need revealed. `circumspicere` found nothing protects an embedder, and the shape 4b
+    // predicted was measured 2026-08-27 in 11 lines of legal wat: the process died on
+    // `memory allocation of 545259536 bytes failed` — no wat error, no span, no rule named, and
+    // with no ulimit that is the machine's memory rather than one test's.
+    //
+    // ★ 4b's OBJECTION TO A CAP, ANSWERED RATHER THAN IGNORED: "a cap would mask a genuine
+    // user-rule error and pick an arbitrary N".
+    //   - MASKING: it does the opposite. Without the cap the user-rule error surfaced as an
+    //     allocator abort naming nothing; with it, the error names the cap, the still-growing
+    //     count, and the rule shape to look for. The cap is what makes the error VISIBLE.
+    //   - ARBITRARY N: yes, and it is chosen against measurement rather than taste — see below.
+    //
+    // WHAT THIS BOUNDS, AND WHAT IT DOES NOT. It bounds NON-TERMINATION, not memory. One round may
+    // still derive without bound — `fanout` derives 40_000 facts in a SINGLE round — and that is a
+    // legitimate workload shape this deliberately does not limit. Capping rounds catches the
+    // qualitative bug (a fixpoint that never converges) without putting a ceiling on honest volume.
+    //
+    // THE VALUE IS PER-PROGRAM: `(:wat::config::set-max-fire-rounds! n)`, defaulting to
+    // `crate::config::DEFAULT_MAX_FIRE_ROUNDS` (which carries why a single number cannot be right
+    // for everyone). It is read through `config`, not through an encoding field, so it inherits
+    // into spawned sub-programs like every other config value.
+    //
+    // ⚠ THIS IS A BACKSTOP, NOT THE GUARANTEE. The real answer is a load-time verifier that
+    // REFUSES a rule set it cannot prove terminates — the eBPF-verifier shape, and the rung above
+    // this one. `stratify` already refuses un-stratifiable sets at load ("negation cycle detected
+    // — rule set is not stratifiable"), so half the machinery exists. Do not let this diagnostic
+    // become the reason that never gets built: "I gave up after N rounds" is not "this program
+    // cannot diverge".
+    //
+    // ⚠ THE ORACLE HAS NO SUCH CAP and will still hang on the same input. That asymmetry is
+    // deliberate and bounded: the cap fires only on rule sets that are already broken, the
+    // differential fuzzers cannot generate one (the case would hang the suite rather than fail
+    // it), and `$oracle` is the slow-but-correct reference an embedder never runs.
+    let max_fire_rounds: usize = sym
+        .encoding_ctx()
+        .map(|c| c.config.max_fire_rounds)
+        .unwrap_or(crate::config::DEFAULT_MAX_FIRE_ROUNDS);
+    let mut rounds_run: usize = 0;
+
     phase_end("SETUP: indexes", __setup);
     let __rounds = phase_start();
     loop {
@@ -592,12 +639,28 @@ pub(crate) fn fire_fixpoint_delta_armed(
         // ── 5. Terminate or loop. ─────────────────────────────────────────────────
         let __ep = phase_start();
         let __done = next_delta.is_empty();
+        // Captured BEFORE the move below — it is the evidence the fixpoint was still GROWING at
+        // the cap rather than merely deep, which is what separates a runaway rule from a big one.
+        let __still_deriving = next_delta.len();
         if !__done {
             owned_delta = next_delta;
         }
         phase_end("  └ round:epilogue", __ep);
         if __done || matches!(kind, FireKind::Once) {
             break;
+        }
+        // Counted only on rounds that did NOT terminate, so a fire that converges can never trip
+        // this no matter how deep it ran.
+        rounds_run += 1;
+        if rounds_run >= max_fire_rounds {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::FixpointRoundCapExceeded {
+                    cap: max_fire_rounds,
+                    still_deriving: __still_deriving,
+                },
+            )
+            .into());
         }
     }
 
