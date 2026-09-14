@@ -515,6 +515,33 @@ Batch 1 stopped at #22 `8eeff8adc`: grok-rete promotes `wat-scripts/lib/gen.wat`
   be gone.
 - Routed: `BRIEF-2a4-the-door-reads-a-stdlib-file-as-stdlib.md`.
 
+## Finding 18 — at the merge, a wall from one side meets the other side's content; the per-step gate never looked
+
+Batch 1 replayed #11–#60 (2a4 `c184348f7`; checkpoint #35 green 5463/5463) and the #60 checkpoint went red,
+5 tests (`.floor/2026-09-14T01-43-05Z`). Verified by the orchestrator: 50 REPLAY commits, every `-x`
+trailer matching `commits.tsv`; E2/E8 pass; E3 holds (of the 18 `.wat` the batch touched, only
+`wat/{fix,gen}.wat` fail `--check`, the stdlib-as-user instrument limit); the TDD close — defect families
+A/B/C's three tests are live, un-ignored, as on grok-rete at its #60.
+- **Arms 2–5:** #50's `UnconsumedWrapperBind` (grok-rete's rete wall: a bind fresh inside a `:not` must be
+  consumed there) refuses 24 dead binds in main-only `wat-scripts/fmt/rules/{kwargs,defrecord}.wat`
+  (created on main after the fork, never on grok-rete). The whole-tree census: 19 files fail on it, all of
+  them the two rule files or their loaders.
+- **Arm 1:** main's `one_variant_separator` lint (`7ccce48ba`, never on grok-rete) flags #60's
+  `config.rs:415` `leaf(head)` — a namespace test. (SCORE-4 says #59; both sides add it at #60.)
+- **The probe** (`bootstrap/era/probe-T/probe-60-fix.sh`): dropping the 24 binds by the wall's own spans,
+  guarded, plus the lint's `namespace` rune → the 19 files `--check` clean and the 5 tests pass, the fmt byte
+  golden unchanged. (Its first run proved nothing: a wrong site-file path, so no drop ran; caught from the
+  output, re-run with a guard that aborts unless exactly 24 sites and 24 changed lines.)
+- **Why the step gate missed it:** it checks what a step PRODUCED; a wall meets content the step never
+  touched. A whole-tree `--check` census takes 30.6 s at `-P32` (2047 files, 219 failing at baseline), and
+  200 of the remaining 591 steps change the binary or a `.wat`.
+- **2a4's two flaws** (no replayed output affected): a replaced enum keeps its old variant singletons in the
+  door's copy (`retract_for_door_replace` removes only the parent; `register_variant_types` skips an
+  existing singleton); `stdlib-source-path?`'s `contains "/wat/"` classifies 5 non-stdlib tracked files as
+  stdlib, while tracked `wat/**/*.wat` equal the 63 `STDLIB_FILES` paths exactly.
+- Routed: `BRIEF-4b-checkpoint-60-the-walls-meet.md` (fold the repairs into #50 and #60; the recorded
+  migration; 2a4b; the per-step census).
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
