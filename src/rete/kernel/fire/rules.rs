@@ -507,18 +507,6 @@ fn requery_closed_world(
         return Ok(fired);
     }
 
-    // The closure this fire produced: input ∪ derived — the same value the stratified driver
-    // carries across strata and hands its own harvest.
-    let production_pm = session_named_field(&fired, "production-memory")
-        .cloned()
-        .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
-    let derived = collect_derived(&production_pm);
-    let input_facts = session_named_field(&fired, "facts")
-        .cloned()
-        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()));
-    let mut present = facts_membership(&input_facts);
-    let closed = merge_facts(&input_facts, &mut present, &derived);
-
     // child-id → parent-ids, the same inversion `fire_rules_stratified` builds for its slice.
     // `close_upstream` additionally follows the Negation/Exists/Accumulate tested-alpha
     // REFERENCE field, which is not a children edge — missing it would slice the tested type
@@ -532,6 +520,59 @@ fn requery_closed_world(
             rev_children.entry(child).or_default().push(id);
         }
     }
+
+    // ── ONLY A NON-MONOTONIC QUERY NEEDS THIS, AND THE DIFFERENCE IS 4x ──────────────────────
+    //
+    // The defect is that a later round can INVALIDATE a token already sitting in beta. Only a
+    // NON-MONOTONIC condition can be invalidated that way: an accumulate (its result changes as
+    // its `:from` set grows) and a `:not` (it holds until the negated fact appears). `:exists` is
+    // MONOTONE — once satisfied, no additional fact can unsatisfy it — and its own round-
+    // multiplicity defect was already closed on 2026-08-24 (`leading_emitted`, `71d0e700e`). A
+    // plain join is monotone for the same reason.
+    //
+    // Measured, and this gate is not an optimisation but a REGRESSION FIX: without it,
+    // `leading-exists` — the one grid axis whose query is constrained yet purely monotone — paid a
+    // full extra query-slice fire on every fire, for protection it did not need.
+    // Same-session A/B against `ee1fe443b`, 8 interleaved samples per binary:
+    // `[200]` 177us -> 587us, `[500]` 347us -> 1394us, `[1000]` 658us -> 2777us — 3.3x to 4.2x.
+    // The fuzzer's own evidence agrees that it was never needed: its `:exists` shapes diverged
+    // ZERO times across 1260 shapes, while all 72 real divergences were accumulate and `:not`.
+    //
+    // Cheap by construction: the walk is over the QUERY CLOSURE (network-sized, not fact-sized),
+    // and a session that skips here never builds the closed fact set below at all.
+    let mut q_ids: HashSet<i64> = HashSet::new();
+    let mut q_front: Vec<i64> = Vec::new();
+    for &qid in &arm.kind_ids.query {
+        if q_ids.insert(qid) {
+            q_front.push(qid);
+        }
+    }
+    close_upstream(
+        network,
+        &rev_children,
+        &arm.compiled_drivers,
+        &mut q_ids,
+        &mut q_front,
+    );
+    let feeds_a_non_monotonic_node = q_ids.iter().any(|id| {
+        get_node(network, *id)
+            .is_some_and(|n| matches!(kind_of(n), NodeKind::Negation | NodeKind::Accumulate))
+    });
+    if !feeds_a_non_monotonic_node {
+        return Ok(fired);
+    }
+
+    // The closure this fire produced: input ∪ derived — the same value the stratified driver
+    // carries across strata and hands its own harvest.
+    let production_pm = session_named_field(&fired, "production-memory")
+        .cloned()
+        .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
+    let derived = collect_derived(&production_pm);
+    let input_facts = session_named_field(&fired, "facts")
+        .cloned()
+        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()));
+    let mut present = facts_membership(&input_facts);
+    let closed = merge_facts(&input_facts, &mut present, &derived);
 
     let qmem = harvest_stratified_queries(session, &arm, &rev_children, &closed, &derived, sym)?;
     Ok(session_with_fields(&fired, &[("query-memory", qmem)]))

@@ -40,6 +40,36 @@ the same-session leftover `Instant` harness (`fanout_three_leftover_split`,
 before/after in ONE session, and cites the grid only for accuracy + rank.
 Do not gate a sub-ms intern on the grid.
 
+#### ⚠ 2026-08-27 — THE FLOOR ABOVE IS TOO GENEROUS. `GRID_RUNS=3` MANUFACTURED THREE
+#### FALSE REGRESSIONS OF +10% TO +19.6%, TWO OF THEM ON *BIG* CELLS.
+
+The pair above was same-HEAD-no-code-between, which bounds the instrument at rest. This is the
+sharper measurement: two full grid runs across a real code change, then the flagged cells
+re-measured properly — baseline and current binaries **interleaved A/B/A/B, 8 samples each**, in
+one session.
+
+| cell | `GRID_RUNS=3` said | 8-sample interleaved A/B | spreads |
+|---|---:|---:|---|
+| deep-cascade `[50 100]` | **+19.58%** | **−2.59%** | 9.49–12.26 vs 9.56–13.31 ms |
+| neg-consumer `[500]` | **+14.31%** | **−2.77%** | 1.08–1.17 vs 1.08–1.42 ms |
+| fanout `[20000]` | **+9.96%** | **−3.12%** | 10.21–11.33 vs 9.82–11.54 ms |
+
+Every one INVERTED, and the spreads overlap heavily. Two are big cells where the ~1% rule would
+have licensed calling +19.58% a real regression. None of the three axes can even be reached by the
+change under test (`neg-consumer` is stratified, so the new door never runs; `deep-cascade` and
+`fanout` are class-scan, so it returns early) — which is how they were caught: a delta on an axis
+the change cannot touch is a statement about the instrument, not the engine.
+
+**The operating rule, then:** a `GRID_RUNS=3` delta is evidence of NOTHING in either direction, at
+any cell size. It is fine for `:accuracy` and rank, which is what the grid is for. Any perf claim —
+win or regression — needs a same-session interleaved A/B at 6+ samples per side, and the spreads
+reported alongside the medians so the reader can see the overlap. [[FM 27]]
+
+**The corollary that actually saved this session:** the same discipline surfaced a REAL regression
+the whole test suite was blind to. Floor green, fuzzer at 0, three references agreeing, 33/33
+`:accuracy :match` — and `leading-exists` had gone **4x slower**. Correctness gates cannot see
+perf; only a measurement can, and only a properly-sampled one.
+
 ### Live leftover at this HEAD (measured this session, mean of 3)
 
 `fanout_three_leftover_split` [100 20], instrument 152.1 ns per mark pair:
