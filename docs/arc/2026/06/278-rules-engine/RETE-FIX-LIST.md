@@ -73,6 +73,38 @@ re-learn it here.
 **Hypothesis, untested:** the accumulate pass has no equivalent of `leading_emitted`, so a
 parentless accumulate re-emits its token every round the way the leading filters used to.
 
+### ~~B — a SECOND `where` after an accumulate matches NOTHING~~ · **CLOSED 2026-08-26**
+
+> **Root, and it was not where anyone looked.** A `:where` that binds NOTHING sorts into
+> `sort-lhs`'s INDEPENDENT partition (`wat/rete/compile.wat`) and is placed **above** the
+> accumulate — Clara's own deferral ordering, and correct. The graph is therefore
+> `RootJoin → Test(> 1 0) → Accumulate → Test(>= ?n 2) → Production`. But the accumulate pass is
+> **3.25** and the filter pass is **3.5**, so that leading Test had never been dispatched when the
+> accumulate read its parent delta. The accumulate saw nothing, derived nothing, and the rule
+> matched ZERO — while the same rule *without* the bindless `:where` matched fine, because then
+> the accumulate's parent is the RootJoin. **The compiler was right; the engine's fixed pass
+> order could not execute the graph it emitted.**
+>
+> **Fix:** a pre-dispatch loop in `src/rete/kernel/fire/pass/accumulate.rs` pulls a Test parent
+> forward before the accumulate reads it, returning the set for the filter pass to skip (a Test
+> dispatched twice against one parent delta duplicates its tokens into production). Reordering the
+> two passes was rejected: the existing order exists so a `:where` ON the result-var sees its
+> binding, and swapping would trade this defect for that one.
+>
+> **Closed per this list's own exit rule, all four steps:**
+> 1. probe un-`#[ignore]`d and passing;
+> 2. grid axis `where-accum-where-chain.{wat,clj}` added — two rules differing by exactly one
+>    trivially-true trailing `:where`, so a diff isolates the tautology and nothing else. It
+>    asserted the FAIL state before the fix (native `row 2 n=0`, oracle `n=3`);
+> 3. **Clara 0.24.0 ran and agrees** — `row 1 n=3`, `row 2 n=3`, byte-identical to native-after-fix
+>    and to the `$oracle`. Three independent references concur;
+> 4. ratchet lowered **120 → 72**, and the 48 it removed are named: family B was 48 of the 66
+>    `f=3` accumulate divergences, leaving 18 for family A and 54 for family C.
+>
+> Two rete tests regressed: none. 389/389 in the rete target.
+
+<details><summary>original entry, kept for the reproduction</summary>
+
 ### B — a SECOND `where` after an accumulate matches NOTHING
 
 **Found** 2026-08-25 · **Probe** `probe_arc278_fuzzer_found_divergences.rs::a_second_where_after_an_accumulate_must_not_kill_the_match`
@@ -91,6 +123,8 @@ breaking the case that already works.
 **Adjacent prior art:** a `:where` before two or more fact conditions silently matched nothing
 (fixed 2026-08-24, `444ba9239`). Same smell — `where` placement relative to other LHS elements —
 but a different arrangement, and the earlier fix does not cover it.
+
+</details>
 
 ### C — `:not` over a DERIVED class ignores the derivation
 
@@ -127,7 +161,8 @@ reference first.
 
 ## FIXED
 
-*(none yet — this list is one day old)*
+- **B — a second `where` after an accumulate matched nothing.** Closed 2026-08-26; see the entry
+  above for the root, the fix and the four-step closure. Ratchet 120 → 72.
 
 ---
 

@@ -23,13 +23,70 @@ pub(crate) fn accumulate_pass(
     d_beta: &mut BetaMemory,
     gather_cache: &mut GatherCache,
     sym: &SymbolTable,
-) -> Result<(), EvalBreak> {
+) -> Result<HashSet<i64>, EvalBreak> {
     let kind_ids = &arm.kind_ids;
     let compiled_conds = &arm.compiled_conds;
     let compiled_acc_folds = &arm.compiled_acc_folds;
     let beta_readers = &arm.beta_readers;
     let parents_of = &arm.parents_of;
+    let where_tree = &arm.where_tree;
+    let compiled_wheres = &arm.compiled_wheres;
     let RoundScratch { match_scratch, .. } = scratch;
+
+// ── 3.20 PRE-DISPATCH: a TEST parent must fire before the accumulate it feeds. ──
+//
+// `sort-lhs` (wat/rete/compile.wat) defers accumulators so a later fact can bind the group
+// key — Clara's own ordering, and correct. A consequence is that a `:where` binding NOTHING
+// sorts into the INDEPENDENT partition and lands ABOVE the accumulate:
+//
+//     RootJoin -> Test(> 1 0) -> Accumulate -> Test(>= ?n 2) -> Production
+//
+// This pass is 3.25 and the filter pass is 3.5, so that leading Test had never been dispatched
+// when the accumulate read its parent delta. The accumulate saw nothing, derived nothing, and
+// the rule silently matched ZERO — while the SAME rule without the bindless `:where` matched
+// fine, because then the accumulate's parent is the RootJoin.
+//
+// Found by the rete differential fuzzer, family B (2026-08-25): two rules differing by one
+// trivially-true trailing `:where`, native 0 vs oracle 1. Held by grid axis
+// `where-accum-where-chain`; Clara agrees with the oracle.
+//
+// Pulling the parent forward, rather than reordering the passes, is the smaller and safer move:
+// the pass order exists so a `:where` ON the result-var sees its binding (the comment below),
+// and swapping the two passes would break that in exchange for this.
+//
+// The returned set is what the filter pass must SKIP: dispatching a Test twice against the same
+// parent delta duplicates its tokens, and the duplicates reach production as duplicate rows.
+let mut pre_dispatched: HashSet<i64> = HashSet::new();
+let pullable: Vec<i64> = kind_ids
+    .acc
+    .iter()
+    .filter(|id| get_node(&wm.network, **id).is_some_and(|n| kind_of(n) == NodeKind::Accumulate))
+    .flat_map(|id| parents_of.get(id).map(|v| v.as_slice()).unwrap_or(&[]).iter().copied())
+    .filter(|pid| get_node(&wm.network, *pid).is_some_and(|n| kind_of(n) == NodeKind::Test))
+    .collect();
+for pid in pullable {
+    // Already fed this round — nothing to pull.
+    if d_beta.get(&pid).is_some_and(|t| !t.is_empty()) {
+        continue;
+    }
+    let parent_tokens = d_beta_from_parents(parents_of, d_beta, pid);
+    if parent_tokens.is_empty() {
+        continue;
+    }
+    dispatch_where_tests(
+        std::slice::from_ref(&pid),
+        &parent_tokens,
+        &mut WhereSink {
+            where_tree,
+            compiled_wheres,
+            beta_readers,
+            wm,
+            d_beta,
+            sym,
+        },
+    )?;
+    pre_dispatched.insert(pid);
+}
 
 // ── 3.25 Accumulate-pass (8-b): dispatch AccumulateNode. ────────────────
 let __pt3 = phase_start();
@@ -271,5 +328,5 @@ for node_id in &kind_ids.acc {
 }
 
 phase_end("accumulate", __pt3);
-    Ok(())
+    Ok(pre_dispatched)
 }
