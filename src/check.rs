@@ -3682,9 +3682,8 @@ fn infer_list(
                 let ty = TypeExpr::Path(":wat::runtime::TypeInfo".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
-            ":wat::runtime::declared-types" => {
-                // 2a1 — one program's forms → DeclaredTypes. The arg is a Vector of
-                // WatAST (quoted declarations); infer it. Return is the outcome enum.
+            ":wat::runtime::declared-types" | ":wat::runtime::declared-stdlib-types" => {
+                // 2a1 / 2a4 — forms → DeclaredTypes. Stdlib mode is the same scheme.
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
@@ -23000,6 +22999,20 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // 2a4 — sibling of declared-types; same scheme, stdlib privilege.
+    env.register(
+        ":wat::runtime::declared-stdlib-types".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+            }],
+            ret: TypeExpr::Path(":wat::runtime::DeclaredTypes".into()),
+            rest_param_type: None,
+        },
+    );
+
     // Arc 255 (variant-parent-of, step ① of the-substrate-can-be-ASKED) —
     // `:wat::runtime::variant-parent-of` membership predicate, the `is-type?` sibling.
     //
@@ -23648,6 +23661,74 @@ pub(crate) mod tests {
             .unwrap_or_else(|e| panic!("register: {}", e.cause))
     }
 
+    fn stdlib_decls(src: &str) -> (crate::types::TypeEnv, Vec<String>) {
+        let (sym, macros, types) = stdlib_loaded();
+        let forms = crate::parse_all!(src).expect("parse");
+        crate::freeze::env::register_declared_stdlib_types(forms, sym, macros, types)
+            .unwrap_or_else(|e| panic!("stdlib-register: {}", e.cause))
+    }
+
+    #[test]
+    fn declared_stdlib_types_registers_reserved_prefix() {
+        let (env, names) = stdlib_decls(
+            r#"
+            (:wat::core::defenum :wat::probe2a4::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
+            "#,
+        );
+        assert!(
+            names.iter().any(|n| n == ":wat::probe2a4::Colour"),
+            "declared names: {names:?}"
+        );
+        assert_eq!(
+            enum_variant_fields(&env, ":wat::probe2a4::Colour"),
+            vec![
+                ("Red".into(), vec![]),
+                ("Blue".into(), vec!["n".into()]),
+            ]
+        );
+        let (sym, macros, types) = stdlib_loaded();
+        let forms = crate::parse_all!(
+            r#"
+            (:wat::core::defenum :wat::probe2a4::Colour :wat::enum::Pure :Red :Blue [n <- :wat::core::i64])
+            "#
+        )
+        .expect("parse");
+        let user = crate::freeze::env::register_declared_types(forms, sym, macros, types);
+        let err = user.expect_err("user door must refuse ReservedPrefix");
+        // rune:lint(loose-assert) — cause EDN embeds a span that moves with the call site
+        assert!(
+            err.cause.contains("ReservedPrefix"),
+            "cause: {}",
+            err.cause
+        );
+    }
+
+    #[test]
+    fn declared_stdlib_types_replaces_divergent_fields() {
+        let src_old = r#"
+            (:wat::core::defenum :wat::probe2a4::E :wat::enum::Pure :V [a <- :wat::core::i64])
+        "#;
+        let src_new = r#"
+            (:wat::core::defenum :wat::probe2a4::E :wat::enum::Pure :V [b <- :wat::core::i64 c <- :wat::core::i64])
+        "#;
+        let (env1, _) = stdlib_decls(src_old);
+        assert_eq!(
+            enum_variant_fields(&env1, ":wat::probe2a4::E"),
+            vec![("V".into(), vec!["a".into()])]
+        );
+        let (env2, names) = stdlib_decls(src_new);
+        assert!(names.iter().any(|n| n == ":wat::probe2a4::E"));
+        assert_eq!(
+            enum_variant_fields(&env2, ":wat::probe2a4::E"),
+            vec![("V".into(), vec!["b".into(), "c".into()])]
+        );
+        // isolation: env1 is a different copy; snapshot unchanged
+        assert_eq!(
+            enum_variant_fields(&env1, ":wat::probe2a4::E"),
+            vec![("V".into(), vec!["a".into()])]
+        );
+    }
+
     /// A list headed by `:wat::runtime::declared-types` is a CALL of the
     /// verb. A comment, or the `:wat::runtime::DeclaredTypes` enum name, is
     /// not. Stdlib expansion must not reach the verb: `stdlib_snapshot`'s
@@ -23660,7 +23741,9 @@ pub(crate) mod tests {
     fn form_calls_declared_types(form: &WatAST) -> bool {
         if let WatAST::List(items, _) = form {
             if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
-                if head.as_ref() == ":wat::runtime::declared-types" {
+                if head.as_ref() == ":wat::runtime::declared-types"
+                    || head.as_ref() == ":wat::runtime::declared-stdlib-types"
+                {
                     return true;
                 }
                 if head.as_ref() == ":wat::core::defn" {

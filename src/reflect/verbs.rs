@@ -1671,6 +1671,64 @@ pub(crate) fn eval_declared_types(
     }
 }
 
+/// `(:wat::runtime::declared-stdlib-types forms) -> :wat::runtime::DeclaredTypes`
+///
+/// 2a4 — `build_env`'s STDLIB half on these forms, against a FRESH copy of the
+/// snapshot. Companion macros expand under `Privilege::Stdlib`; a type the file
+/// declares that the snapshot holds DIVERGENTLY is replaced in that copy only.
+/// Returns a TypeInfo row for every type the file declared (including
+/// replacements), not only names absent from the snapshot.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality      Partial
+/// @ExpandTime    Legal
+/// @Category      Reflection
+/// @arg     forms_ast (:wat::core::Vector :- [:wat::WatAST]) the stdlib file's forms
+/// @ret     :wat::runtime::DeclaredTypes `Ok` with a TypeInfo row per declared type, or `Refused` naming the form and cause
+/// @example (:wat::core::variant-name (:wat::runtime::declared-stdlib-types (:wat::core::Vector :- [:wat::WatAST]))) #=> "Ok"
+/// @see     :wat::runtime::declared-types
+#[wat_intrinsic(":wat::runtime::declared-stdlib-types")]
+pub(crate) fn eval_declared_stdlib_types(
+    forms_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::declared-stdlib-types";
+    const OUT: &str = ":wat::runtime::DeclaredTypes";
+    let span = forms_ast.span();
+    let forms_val = eval_inner(forms_ast, env, sym)?.value_owned();
+    let forms = asts_from_value(&forms_val, span, OP)?;
+    let (stdlib_sym, stdlib_macros, stdlib_types) = crate::freeze::env::stdlib_snapshot();
+    match crate::freeze::env::register_declared_stdlib_types(
+        forms,
+        stdlib_sym,
+        stdlib_macros,
+        stdlib_types,
+    ) {
+        Ok((types, mut declared)) => {
+            declared.sort();
+            declared.dedup();
+            let mut rows = Vec::new();
+            for name in declared {
+                if let Some(def) = types.get(&name) {
+                    rows.push(type_info_value(&name, def, span, OP)?);
+                }
+            }
+            Ok(tagged_variant(OUT, "Ok", vec![Value::Vec(Arc::new(rows))]))
+        }
+        Err(e) => Ok(tagged_variant(
+            OUT,
+            "Refused",
+            vec![
+                Value::wat__WatAST(Arc::new(e.form)),
+                Value::String(Arc::new(e.cause)),
+            ],
+        )),
+    }
+}
+
 /// `(:wat::runtime::is-type? :TypeKeyword) -> :wat::core::bool`
 ///
 /// Arc 296 Q — membership, not structure. `type-of` asks `TypeEnv::get` and

@@ -25,8 +25,8 @@ use crate::check::{
     validate_bare_legacy_primitives, validate_named_type_annotations, CheckError, CheckErrors,
 };
 use crate::macros::{
-    expand_all, expand_once, register_aggregate_kwargs_companions, register_defmacros,
-    register_stdlib_defmacros, MacroRegistry,
+    expand_all, expand_all_with, expand_once, register_aggregate_kwargs_companions,
+    register_defmacros, register_stdlib_defmacros, MacroRegistry,
 };
 use crate::declare::preregister::{preregister_acronyms, preregister_stdlib_defclause_stub};
 use crate::declare::register::{
@@ -38,7 +38,9 @@ use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
 use crate::runtime::{Environment, EvalBreak, SymbolTable};
 use crate::load::stdlib::stdlib_forms;
 use crate::span::Span;
-use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
+use crate::types::{
+    register_stdlib_types, register_stdlib_types_replacing, register_types_with_acronyms, TypeEnv,
+};
 
 /// The output of [`build_env`]: all four build-time registries plus
 /// the post-resolve user residue that the caller will type-check and
@@ -137,6 +139,53 @@ pub(crate) fn register_declared_types(
         .register_variant_types()
         .map_err(|e| fail_at(e.span(), format!("{e}")))?;
     Ok(types)
+}
+
+/// 2a4 — `build_env`'s STDLIB half on `forms`, against a FRESH copy of the
+/// snapshot. `register_stdlib_defmacros` → `expand_all_with(…, Privilege::Stdlib)`
+/// → `register_stdlib_types_replacing` → `register_variant_types`. A divergent
+/// snapshot type is replaced in this copy only. Returns the env AND the names
+/// this file declared (including replacements).
+pub(crate) fn register_declared_stdlib_types(
+    forms: Vec<WatAST>,
+    stdlib_sym: &SymbolTable,
+    stdlib_macros: &MacroRegistry,
+    stdlib_types: &TypeEnv,
+) -> Result<(TypeEnv, Vec<String>), Box<DeclaredTypesFail>> {
+    let fallback = forms
+        .first()
+        .cloned()
+        .unwrap_or_else(|| WatAST::NilLit(crate::rust_caller_span!()));
+    let fail_at = |span: &Span, cause: String| {
+        Box::new(DeclaredTypesFail {
+            form: top_level_form_for_span(&forms, span).unwrap_or_else(|| fallback.clone()),
+            cause,
+        })
+    };
+    let mut macros = stdlib_macros.clone();
+    let rest = register_stdlib_defmacros(forms.clone(), &mut macros)
+        .map_err(|e| fail_at(&e.span, format!("{e}")))?;
+    let mut macro_sym = stdlib_sym.clone();
+    preregister_acronyms(&rest, &mut macro_sym).map_err(|e| match e {
+        EvalBreak::Diagnostic(re) => fail_at(re.span(), format!("{re}")),
+        EvalBreak::Signal(_) => fail_at(fallback.span(), "eval-loop control signal escaped".into()),
+    })?;
+    let env = Environment::default();
+    let expanded = expand_all_with(
+        rest,
+        &mut macros,
+        &env,
+        &macro_sym,
+        crate::resolve::Privilege::Stdlib,
+    )
+    .map_err(|e| fail_at(&e.span, format!("{e}")))?;
+    let mut types = stdlib_types.clone();
+    let (_rest, declared) = register_stdlib_types_replacing(expanded, &mut types)
+        .map_err(|e| fail_at(e.span(), format!("{e}")))?;
+    types
+        .register_variant_types()
+        .map_err(|e| fail_at(e.span(), format!("{e}")))?;
+    Ok((types, declared))
 }
 
 fn collect_type_forms(

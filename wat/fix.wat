@@ -1628,6 +1628,15 @@
           (:wat::core::ast-name a)
           "")))))
 
+;; A stdlib source path is `wat/…` (the include_str! home), including a
+;; convert.sh out-dir copy (`/tmp/…/wat/gen.wat`). `wat-scripts/` is user.
+(:wat::core::defn :wat::fix::stdlib-source-path? [path <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:wat::string::contains? path "wat-scripts")
+    false
+    (:wat::core::or
+      (:wat::string::starts-with? path "wat/")
+      (:wat::string::contains? path "/wat/"))))
+
 (:wat::core::defn :wat::fix::register-loop
   [tag   <- :wat::core::String
    path  <- :wat::core::String
@@ -1636,7 +1645,10 @@
   -> (:wat::core::Vector :- [:wat::runtime::TypeInfo])
   (:wat::core::if (:wat::core::or (:wat::core::empty? forms) (:wat::core::< n 0))
     (:wat::core::Vector :- [:wat::runtime::TypeInfo])
-    (:wat::core::match (:wat::runtime::declared-types forms)
+    (:wat::core::match
+      (:wat::core::if (:wat::fix::stdlib-source-path? path)
+        (:wat::runtime::declared-stdlib-types forms)
+        (:wat::runtime::declared-types forms))
       [:wat::runtime::DeclaredTypes.Ok {:types ts} ts]
       [:wat::runtime::DeclaredTypes.Refused {:form f :cause c}
         (:wat::core::let

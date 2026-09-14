@@ -702,6 +702,15 @@ impl TypeEnv {
         self.types.get(name)
     }
 
+    /// 2a4 — the stdlib-mode door's private copy only. A divergent re-declaration
+    /// of a snapshot type is REPLACED by the file's form; retract first so
+    /// `register_stdlib_with_span` sees `Existing::Absent`.
+    pub(crate) fn retract_for_door_replace(&mut self, name: &str) {
+        self.types.remove(name);
+        self.subtype_edges.remove(name);
+        self.source_forms.remove(name);
+    }
+
     /// Register a name that has membership but no structure — a primitive, a
     /// built-in parametric container head, or an opaque capability/handle type.
     /// Stone 255-builtin-registry, storage option C (see the DESIGN's
@@ -3692,6 +3701,40 @@ pub fn register_stdlib_types(
         &splice_type_decls_stdlib,
         &HashMap::new(),
     )
+}
+
+/// 2a4 — stdlib-mode door. Like [`register_stdlib_types`], but a type the file
+/// declares that the snapshot already holds DIVERGENTLY is replaced in `env`
+/// (the door's private copy). Returns the names this file registered, including
+/// replacements — not only names that were absent from the snapshot.
+pub fn register_stdlib_types_replacing(
+    forms: Vec<WatAST>,
+    env: &mut TypeEnv,
+) -> Result<(Vec<WatAST>, Vec<String>), TypeError> {
+    let declared = std::cell::RefCell::new(Vec::<String>::new());
+    let rest = register_types_impl(
+        forms,
+        env,
+        &|env, def, span| {
+            let name = def.name().to_string();
+            if let Some(existing) = env.get(&name) {
+                if existing != &def {
+                    env.retract_for_door_replace(&name);
+                }
+            }
+            let r = env.register_stdlib_with_span(def, span);
+            if r.is_ok() {
+                let mut d = declared.borrow_mut();
+                if !d.iter().any(|n| n == &name) {
+                    d.push(name);
+                }
+            }
+            r
+        },
+        &splice_type_decls_stdlib,
+        &HashMap::new(),
+    )?;
+    Ok((rest, declared.into_inner()))
 }
 
 /// Arc 170 slice 3 Gap J — recurse into a top-level `do` or `let` form,

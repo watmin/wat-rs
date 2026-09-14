@@ -4,6 +4,13 @@
 # ONCE over that set's in-scope paths. Work happens in a temp dir plus <out-dir>;
 # the tree is never written.
 #
+# 2a4 TWO-PHASE (the RECIPE — this script does not cargo-build):
+#   A step that touches wat/*.wat (stdlib source):
+#     (a) convert.sh C <out-std> wat/*.wat     # enum-fields uses declared-stdlib-types
+#     (b) copy those files into the tree, cargo build --release
+#     (c) convert.sh C <out-rest> <other .wat>  # rebuilt binary; type-of sees the new world
+#   The C^ set uses HEAD's binary (HEAD already carries C^'s stdlib).
+#
 # usage: scripts/replay/convert.sh <rev> <out-dir> <path>…
 set -euo pipefail
 
