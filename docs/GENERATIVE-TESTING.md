@@ -176,7 +176,7 @@ under-count.** One fewer thing to build, found by trying to build it.
 | `gen-record T g...` | **macro** — N-ary sugar for 4+ fields, emitting a checked prime constructor |
 | `gen-nth c i` | read one digit of a coordinate |
 
-**Nineteen laws**, 325 points, proven by `wat-scripts/fuzz/gen-selftest.wat`, driven through `gen-check` itself, gated by
+**Nineteen laws**, 325 points, proven by `wat-tests/gen.wat`, driven through `gen-check` itself, gated by
 `tests/lint/gen_lib_laws.rs`. L4 (the bijection) is load-bearing: without it, enumeration can
 visit tuples twice and miss others while reporting a clean case count.
 
@@ -353,6 +353,28 @@ every caller must remember is the rot this codebase keeps pulling out.
 `gen-check` now raises on an empty space, so the trap is closed once in the library rather than
 re-defended at each call site. An empty branch inside `gen-one-of` remains legitimate (L15) — it
 is *enumerating* nothing that is a caller bug, not *containing* nothing.
+
+## Where the tests live — corrected 2026-08-25
+
+`wat-tests/` is for tests written **in wat, for wat**; `tests/` is for **Rust tooling**. The law
+suite and the fuzzer were both wat programs testing wat, driven by thin Rust wrappers — backwards
+on both counts. They now live where the README says:
+
+```
+wat/gen.wat            <->  wat-tests/gen.wat                    21 deftests
+wat/rete.wat           <->  wat-tests/rete/differential-fuzz.wat  1 deftest (the ratchet)
+```
+
+**And `deftest` structurally fixed a bug the old shape had.** The script version summed its laws
+by hand — `(+ b1 (+ b2 (+ b3 ...)))` nested twenty deep — with a `checked=` total that was a
+hand-maintained LITERAL. Adding three laws, the hand-edited sum silently failed to match: three
+laws fell out of the total while the suite still reported `laws=21 checked=325 violations=0`. The
+true point count was **341**. One law per `deftest` removes the shape entirely — there is no sum,
+so there is nothing to drop a law from.
+
+The fuzzer carries `(:wat::test::time-limit "60s")`: the default deftest budget is 5000ms and the
+run takes ~9.3s, because the `$oracle` is ~300x the cost of everything else. The budget was raised
+rather than the space shrunk — cutting shapes to fit a timer trades coverage for a green clock.
 
 ## Promotion — done 2026-08-25, and what actually earned it
 
