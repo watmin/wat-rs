@@ -23662,6 +23662,17 @@ pub(crate) mod tests {
     }
 
     fn stdlib_decls(src: &str) -> (crate::types::TypeEnv, Vec<String>) {
+        let (env, _macros, names) = stdlib_decls_full(src);
+        (env, names)
+    }
+
+    fn stdlib_decls_full(
+        src: &str,
+    ) -> (
+        crate::types::TypeEnv,
+        crate::macros::MacroRegistry,
+        Vec<String>,
+    ) {
         let (sym, macros, types) = stdlib_loaded();
         let forms = crate::parse_all!(src).expect("parse");
         crate::freeze::env::register_declared_stdlib_types(forms, sym, macros, types)
@@ -23762,6 +23773,98 @@ pub(crate) mod tests {
             env.get(":wat::probe2a4b::E.W").is_none(),
             "removed variant singleton must not survive"
         );
+    }
+
+    /// 2a4c — a divergent stdlib macro is retracted in the door's copy so
+    /// call 2 expands the NEW mint. Call 1 registers `mk` minting `E.V [a]`;
+    /// call 2's snapshot is call 1's output and `mk` mints `E.V [b c]`.
+    #[test]
+    fn declared_stdlib_types_replaces_divergent_macro() {
+        let src_a = r#"
+            (:wat::core::defmacro :wat::probe2a4c::mk [] -> :wat::WatAST
+              `(:wat::core::defenum :wat::probe2a4c::E :wat::enum::Pure :V [a <- :wat::core::i64]))
+            (:wat::probe2a4c::mk)
+        "#;
+        let src_b = r#"
+            (:wat::core::defmacro :wat::probe2a4c::mk [] -> :wat::WatAST
+              `(:wat::core::defenum :wat::probe2a4c::E :wat::enum::Pure :V [b <- :wat::core::i64 c <- :wat::core::i64]))
+            (:wat::probe2a4c::mk)
+        "#;
+        let (env1, macros1, _) = stdlib_decls_full(src_a);
+        assert_eq!(
+            enum_variant_fields(&env1, ":wat::probe2a4c::E"),
+            vec![("V".into(), vec!["a".into()])]
+        );
+        let (sym, _, _) = stdlib_loaded();
+        let forms_b = crate::parse_all!(src_b).expect("parse");
+        let (env2, _, names) = crate::freeze::env::register_declared_stdlib_types(
+            forms_b, sym, &macros1, &env1,
+        )
+        .unwrap_or_else(|e| panic!("call 2: {}", e.cause));
+        assert!(
+            names.iter().any(|n| n == ":wat::probe2a4c::E"),
+            "declared names: {names:?}"
+        );
+        assert_eq!(
+            enum_variant_fields(&env2, ":wat::probe2a4c::E"),
+            vec![("V".into(), vec!["b".into(), "c".into()])]
+        );
+        assert_eq!(
+            enum_variant_fields(&env1, ":wat::probe2a4c::E"),
+            vec![("V".into(), vec!["a".into()])],
+            "call 1's copy is isolated"
+        );
+    }
+
+    /// 2a4c — a `defn` body that cannot expand in the door must not refuse
+    /// the file. The walk keeps type decls; the body is never expanded.
+    #[test]
+    fn declared_stdlib_types_skips_unexpandable_defn_body() {
+        let (env, names) = stdlib_decls(
+            r#"
+            (:wat::core::defenum :wat::probe2a4c::Colour :wat::enum::Pure :Red)
+            (:wat::core::defn :wat::probe2a4c::bad [] -> :wat::core::nil
+              (:wat::kernel::start-primed-stdio))
+            "#,
+        );
+        assert!(
+            names.iter().any(|n| n == ":wat::probe2a4c::Colour"),
+            "declared names: {names:?}"
+        );
+        assert_eq!(
+            enum_variant_fields(&env, ":wat::probe2a4c::Colour"),
+            vec![("Red".into(), vec![])]
+        );
+    }
+
+    /// STOP-1 after 2a4c: the stdlib door reads every current `wat/` file
+    /// as it declares itself.
+    #[test]
+    fn declared_stdlib_types_accepts_every_tracked_stdlib_file() {
+        let (sym, macros, types) = stdlib_loaded();
+        let out = std::process::Command::new("git")
+            .args(["ls-files", "--", "wat/*.wat", "wat/**/*.wat"])
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .output()
+            .expect("git ls-files wat/");
+        assert!(out.status.success(), "git ls-files failed: {out:?}");
+        let paths: Vec<String> = String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
+            .collect();
+        assert!(
+            !paths.is_empty(),
+            "git ls-files wat/ returned nothing — this gate is measuring nothing"
+        );
+        for rel in &paths {
+            let forms = parse_repo_file(rel);
+            if let Err(e) =
+                crate::freeze::env::register_declared_stdlib_types(forms, sym, macros, types)
+            {
+                panic!("STOP-1 {rel}: {}", e.cause);
+            }
+        }
     }
 
     /// A list headed by `:wat::runtime::declared-types` is a CALL of the

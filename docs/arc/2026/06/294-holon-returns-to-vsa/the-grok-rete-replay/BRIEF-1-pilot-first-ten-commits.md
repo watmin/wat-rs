@@ -95,6 +95,9 @@ For grok-rete commit **C**, where #N is its index after `de827fb4c`:
      changed any `.wat`:** `scripts/replay/census.sh`, then
      `scripts/replay/census.sh --diff <previous> .census/latest [produced.txt]`.
      A file going rc 0 → non-zero that the step did not produce is **STOP-8**.
+   - **From 2a4c — `convert.sh` reporting `UNREGISTERABLE` for a `wat/…` path is STOP-9.**
+     After 2a4c the stdlib door reads every current `wat/` file as it declares itself; a
+     refusal is no longer a report line to skip.
 4. **Commit:** `REPLAY(grok-rete #N): <C's subject>`, whose body carries C's hash, every conflict,
    and how each was resolved. `-x` adds the trailer.
 5. **Log it** in `PILOT-LOG.md` (this directory): N, C, the wall time, the files, the conflicts and
@@ -118,6 +121,8 @@ play.
   the 27.
 - **STOP-8 (from #61):** a whole-tree `--check` census file goes rc 0 → non-zero and the step did
   not produce that file.
+- **STOP-9 (from 2a4c):** `convert.sh` reports `UNREGISTERABLE` for a `wat/…` path. The stdlib
+  door refused a stdlib file; name the file, the form, and the cause.
 
 ## Blast radius
 

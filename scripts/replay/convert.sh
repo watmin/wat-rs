@@ -188,3 +188,11 @@ done
 if [[ -s "$LOG" ]]; then
   cat "$LOG"
 fi
+
+# 2a4c STOP-9: after the stdlib door reads every wat/ file as itself, a
+# refusal of a repo-relative wat/ path is a rejection, not a report line.
+if grep -qE 'UNREGISTERABLE wat/' "$LOG" 2>/dev/null; then
+  echo "convert.sh: STOP-9 — stdlib door refused a wat/ file" >&2
+  grep -E 'UNREGISTERABLE wat/' "$LOG" >&2 || true
+  exit 9
+fi

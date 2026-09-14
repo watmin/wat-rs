@@ -1673,10 +1673,11 @@ pub(crate) fn eval_declared_types(
 
 /// `(:wat::runtime::declared-stdlib-types forms) -> :wat::runtime::DeclaredTypes`
 ///
-/// 2a4 — `build_env`'s STDLIB half on these forms, against a FRESH copy of the
-/// snapshot. Companion macros expand under `Privilege::Stdlib`; a type the file
-/// declares that the snapshot holds DIVERGENTLY is replaced in that copy only.
-/// Returns a TypeInfo row for every type the file declared (including
+/// 2a4 / 2a4c — `build_env`'s STDLIB half on these forms, against a FRESH copy of the
+/// snapshot. A divergent snapshot macro is retracted in that copy; companion macros
+/// expand under `Privilege::Stdlib`; a `defn` body is never expanded (one-step walk).
+/// A type the file declares that the snapshot holds DIVERGENTLY is replaced in that
+/// copy only. Returns a TypeInfo row for every type the file declared (including
 /// replacements), not only names absent from the snapshot.
 ///
 /// @added         1.0.0
@@ -1707,7 +1708,7 @@ pub(crate) fn eval_declared_stdlib_types(
         stdlib_macros,
         stdlib_types,
     ) {
-        Ok((types, mut declared)) => {
+        Ok((types, _macros, mut declared)) => {
             declared.sort();
             declared.dedup();
             let mut rows = Vec::new();

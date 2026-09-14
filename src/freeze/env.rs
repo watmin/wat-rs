@@ -26,7 +26,7 @@ use crate::check::{
 };
 use crate::macros::{
     expand_all, expand_all_with, expand_once, register_aggregate_kwargs_companions,
-    register_defmacros, register_stdlib_defmacros, MacroRegistry,
+    register_defmacros, register_stdlib_defmacros, retract_divergent_stdlib_macros, MacroRegistry,
 };
 use crate::declare::preregister::{preregister_acronyms, preregister_stdlib_defclause_stub};
 use crate::declare::register::{
@@ -141,17 +141,20 @@ pub(crate) fn register_declared_types(
     Ok(types)
 }
 
-/// 2a4 — `build_env`'s STDLIB half on `forms`, against a FRESH copy of the
-/// snapshot. `register_stdlib_defmacros` → `expand_all_with(…, Privilege::Stdlib)`
-/// → `register_stdlib_types_replacing` → `register_variant_types`. A divergent
-/// snapshot type is replaced in this copy only. Returns the env AND the names
-/// this file declared (including replacements).
+/// 2a4 / 2a4c — `build_env`'s STDLIB half on `forms`, against a FRESH copy of
+/// the snapshot. A divergent snapshot MACRO is retracted in this copy
+/// (`retract_divergent_stdlib_macros`) then `register_stdlib_defmacros`. The
+/// one-step walk (`collect_type_forms`) keeps only what can declare a type, so
+/// a `defn` body is never expanded; kept forms expand under
+/// `Privilege::Stdlib` so a companion minted mid-walk still registers. A
+/// divergent snapshot type is replaced in this copy only. Returns the env, the
+/// copy's macros (call 2's snapshot), and the names this file declared.
 pub(crate) fn register_declared_stdlib_types(
     forms: Vec<WatAST>,
     stdlib_sym: &SymbolTable,
     stdlib_macros: &MacroRegistry,
     stdlib_types: &TypeEnv,
-) -> Result<(TypeEnv, Vec<String>), Box<DeclaredTypesFail>> {
+) -> Result<(TypeEnv, MacroRegistry, Vec<String>), Box<DeclaredTypesFail>> {
     let fallback = forms
         .first()
         .cloned()
@@ -163,6 +166,8 @@ pub(crate) fn register_declared_stdlib_types(
         })
     };
     let mut macros = stdlib_macros.clone();
+    retract_divergent_stdlib_macros(&forms, &mut macros)
+        .map_err(|e| fail_at(&e.span, format!("{e}")))?;
     let rest = register_stdlib_defmacros(forms.clone(), &mut macros)
         .map_err(|e| fail_at(&e.span, format!("{e}")))?;
     let mut macro_sym = stdlib_sym.clone();
@@ -171,8 +176,10 @@ pub(crate) fn register_declared_stdlib_types(
         EvalBreak::Signal(_) => fail_at(fallback.span(), "eval-loop control signal escaped".into()),
     })?;
     let env = Environment::default();
+    let kept = collect_type_forms(rest, &macros, &env, &macro_sym)
+        .map_err(|e| fail_at(&e.span, format!("{e}")))?;
     let expanded = expand_all_with(
-        rest,
+        kept,
         &mut macros,
         &env,
         &macro_sym,
@@ -185,7 +192,7 @@ pub(crate) fn register_declared_stdlib_types(
     types
         .register_variant_types()
         .map_err(|e| fail_at(e.span(), format!("{e}")))?;
-    Ok((types, declared))
+    Ok((types, macros, declared))
 }
 
 fn collect_type_forms(

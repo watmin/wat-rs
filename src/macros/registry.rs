@@ -89,6 +89,19 @@ impl MacroRegistry {
         Ok(())
     }
 
+    /// 2a4c — the stdlib-mode door's private copy only. A divergent
+    /// re-declaration of a snapshot macro is retracted so a subsequent
+    /// `register_stdlib_defmacros` sees `Existing::Absent`. Equivalent is
+    /// left in place (register is a no-op).
+    pub(crate) fn retract_if_divergent(&mut self, def: &MacroDef) {
+        match self.macros.get(&def.name) {
+            Some(e) if !macro_structurally_equivalent(e, def) => {
+                self.macros.remove(&def.name);
+            }
+            _ => {}
+        }
+    }
+
 }
 
 /// Arc 054 — structural equivalence check for two `MacroDef` values.

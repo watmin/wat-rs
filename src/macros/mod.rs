@@ -109,7 +109,10 @@ pub mod error_edn;
 pub use error::{MacroError, MacroErrorKind};
 pub use registry::{MacroDef, MacroRegistry};
 pub use expand::{expand_all, expand_all_with, expand_fully, expand_once};
-pub use parse::{register_aggregate_kwargs_companions, register_defmacros, register_stdlib_defmacros};
+pub use parse::{
+    register_aggregate_kwargs_companions, register_defmacros, register_stdlib_defmacros,
+    retract_divergent_stdlib_macros,
+};
 pub use expand::EXPANSION_DEPTH_LIMIT;
 
 /// A batch of expanded forms, or the macro error that stopped expansion.

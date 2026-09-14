@@ -44,6 +44,23 @@ pub fn register_stdlib_defmacros(
     Ok(rest)
 }
 
+/// 2a4c — the macro mirror of `TypeEnv::retract_for_door_replace`. A
+/// top-level `defmacro` the file defines that the cloned registry holds
+/// DIVERGENTLY is retracted from this copy so [`register_stdlib_defmacros`]
+/// sees `Existing::Absent`. An equivalent re-definition is left in place.
+pub fn retract_divergent_stdlib_macros(
+    forms: &[WatAST],
+    registry: &mut MacroRegistry,
+) -> Result<(), MacroError> {
+    for form in forms {
+        if is_defmacro_form(form) {
+            let def = parse_defmacro_form(form.clone())?;
+            registry.retract_if_divergent(&def);
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
     matches!(
         form,
