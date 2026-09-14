@@ -53,7 +53,7 @@ Deadlock walk also flags `declared-stdlib-types`. `macros/mod.rs` re-exports `ex
 |---|---|
 | Floor + clippy | **PASS.** 5438/5438, clippy 0. First floor red captured. |
 | `run5.sh` unchanged | **PASS.** See table. 0 files losing on match-arm and variant-separator; PC LOSING=1 is the same 2a2 artifact; chain vs main identical **1370**, CHAIN-FAILS **28**. |
-| #22 `wat/gen.wat` converts, binary starts, named tests pass | next: stash pop, two-phase, SCORE-4. |
+| #22 `wat/gen.wat` converts, binary starts, named tests pass | **PASS.** `a8a95400f`. convert of `wat/gen.wat`: 0 UNREGISTERABLE ReservedPrefix. `--check` consumers 0. `gen_library_satisfies_its_own_laws` PASS [0.315s]; `rete_fuzzer_finds_no_native_oracle_divergence` PASS [4.925s]. |
 
 ## run5 (`bootstrap/era/probe-S/run5.sh` on `02e1ee81e`, SCORE-only amend after)
 
