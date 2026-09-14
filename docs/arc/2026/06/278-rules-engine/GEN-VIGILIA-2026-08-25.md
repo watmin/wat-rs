@@ -1,11 +1,11 @@
 # The vigilia against `wat/gen.wat` — 2026-08-25
 
 > 18 inward wards cast in parallel against the finite-generator library on the day it was
-> declared feature-complete and promoted into the stdlib. **17 reported; `excusare` had not
-> returned when the session closed. `circumspicere` was never cast** — it goes last by doctrine,
-> and it is the one aimed at what the whole guard walked past. **Cast it first when work resumes.**
+> declared feature-complete and promoted into the stdlib. **17 reported on 2026-08-25;
+> `circumspicere` was cast 2026-08-26** — its report is the last section of this file.
 >
-> Nothing below is fixed. This is the audit; the fixes are the next session's work.
+> **Fix status is tracked per finding.** Closed so far: **A**, **B** (negative card, `762771096`)
+> and **circumspicere 1** and **2**. Everything else below is still open.
 
 ## Why this document exists
 
@@ -339,3 +339,118 @@ ever exercised one.** Note before anyone proposes "add a debug run to the floor"
 applied, debug still failed 13 + 1, every one at exactly the 5000ms `deftest` budget or nextest's
 30s ceiling — budget exhaustion in an unoptimized build, not defects. A debug gate needs those
 budgets scaled first, or it is a red gate on day one.
+
+
+---
+
+# `circumspicere` — the perimeter, cast 2026-08-26
+
+The 18th ward, and the one that had never been cast. Its quarry is the complement of the inward
+guard: not "is this code wrong" but "what is true here that no lens examined". It found the
+defects at the seam between **the file and its harness** — where the inward wards, by
+construction, cannot look.
+
+Six findings. Every load-bearing number below was re-verified against the disk by the orchestrator
+before crediting, and finding 1's measurements were re-run independently.
+
+## 1 · CLOSED — the "~23us/point · ~300x cheaper · never the bottleneck" claim
+
+**Five sites**, one of them compiled into every binary: `wat/gen.wat`'s SHIPPED NUMBERS block,
+`src/stdlib.rs`, `GENERATIVE-TESTING.md` (the summary table AND a second prose site at :428 that
+the ward did not name), and `differential-fuzz.wat`'s budget argument.
+
+**Re-measured independently 2026-08-26** — release binary, wall-clock, minus the ~337ms stdlib
+bootstrap, replicating the fuzzer's space to its exact card of **1260** (so the replica IS the
+space, not an approximation):
+
+| shape | per point |
+|---|---|
+| `ints`, 500k | **~2.4 us** |
+| `coords`, bases `[50 100 100]`, 500k | **~33 us** |
+| `such-that ∘ bind ∘ record`, card 1260 — **the only shape that ships** | **~490 us** |
+
+So `~23us/point` was a **`coords`** figure with the shape qualifier dropped, and the shape that
+actually ships is **~20x dearer**. The ward measured ~465us/point; the orchestrator got ~466-492
+across three runs. Independently reproduced.
+
+**The RATIO was deleted rather than corrected, and that is the durable half — builder's ruling:**
+
+> *"the `$oracle` tooling is slow-but-correct... it has no perf requirement — it gets passively
+> faster when we stop interpreting wat."*
+
+A ratio whose denominator is expected to shrink is a claim that **decays toward false with nobody
+touching it**, and *"never the bottleneck"* decays fastest of all — as the oracle speeds up, this
+library's SHARE of a case grows. Absolute per-shape cost is the only figure that stays true. All
+five sites now carry the table and no ratio.
+
+## 2 · CLOSED — the 60s deftest budget was UNREACHABLE; nextest killed at 30s
+
+`differential-fuzz.wat` argues at length for `(:wat::test::time-limit "60s")`. `scripts/floor.sh`
+passes no `--profile`, so `[profile.default]`'s `15s × terminate-after 2` SIGTERMed at **30s**. The
+test measured **17.165s** on `.floor/2026-08-26T05-29-30Z` and tripped SLOW: **1.75x headroom**, on
+a cohort whose own recorded contention band is 3.5x-4.4x.
+
+The override that should have covered it missed: `binary_id(wat::rete)` does not match a wat
+deftest, which compiles into **`wat::kernel`** via `tests/kernel/test.rs`'s `wat::test! {}`. The
+config's own comment already names this trap for `accum_fire_phase_census`; this was its second
+instance. Fixed in all THREE profile mirrors (this file mirrors overrides, it does not inherit).
+
+**Mutation-proven, because the naive check does not work** — run in isolation the test takes 9.2s,
+under even the OLD 15s warn, so an absent SLOW line proves nothing. Dropping the rule's period to
+1s made it print SLOW every second ⇒ the filter matches. Confirmed on a loaded floor: SLOW count
+**1 → 0** at the same 17.17s, and run position moved 2976 → 239 (priority=98's early wave).
+
+**`excusare` had UPHELD this annotation** as "the sanctioned escape hatch". It verified the budget
+was *permitted*; it never asked whether the runner could *grant* it. That gap is the perimeter.
+
+## 3 · OPEN — the sampling-order probe never runs, and triplicates what it certifies
+
+`wat-scripts/fuzz/sampling-order-probe.wat` exists to stop a Python-model verification — its own
+header says *"the thing under test is the thing that ships"*. But nothing invokes `:user::main`
+(the only gate, `tests/lint/wat_scripts_fixes_load.rs`, loads it **without running it**), it
+`println`s instead of asserting, and `:user::rev` is a structural CLONE of
+`:wat::gen::reverse-index` — so it never calls the one verb `coords-scattered` adds over `coords`.
+A **third** independent copy of the reversal arithmetic that no ward counted. Ward ran it manually:
+324/324, no live defect today.
+
+**Closure:** move to `wat-tests/` as a deftest asserting `distinct-images == card`, calling
+`reverse-index`/`coords-scattered` directly. That also gives `coords-scattered` its first consumer,
+closing an L2 above in the same move.
+
+## 4 · OPEN — the retired-name lint is structurally blind to `.wat`
+
+`tests/lint/retired_name_justified.rs` — whose thesis is *"a wat name in a Rust string must be a
+name a user can type"* — scans `src/**/*.rs` only, and matches only the prime-suffix shape. The six
+`gen-` raise strings (finding K) sit outside both axes. The stdlib is now a first-class diagnostic
+surface and no gate reads its user-facing strings.
+
+## 5 · OPEN — `lint-stdlib` exists, gates nothing, reports 91 findings
+
+`wat/lint.wat`'s `:wat::lint::lint-stdlib` has exactly one consumer in the tree: a scratch script.
+Ward ran it: **91** findings overall, **0** for `wat/gen.wat`. gen.wat is clean — the finding is
+that nothing would have said so. Closure: a ratchet frozen **by file** (per this repo's own
+"a gate freezes names, never a count" doctrine).
+
+## 6 · OPEN — 24 stdlib verbs entered with no purity ruling
+
+`src/rete/purity.rs` states *"a verb NOT in this list ⇒ RED"*, but its scan population is Rust
+`#[wat_dispatch]` homes, so a wat-defined stdlib file contributes zero rows. `:wat::gen::` appears
+nowhere in it. The gate is green and correct by its own terms; **promotion into the stdlib does not
+enter the purity-review population at all**. Ward flagged its own uncertainty: whether this has
+teeth today (is a `:wat::gen::` verb reachable from a rete `where`?) was NOT chased.
+
+## Recorded CLEAN — so the absence is falsifiable
+
+Namespace collision (proven by execution: `ReservedPrefix` refuses a user `:wat::gen::` define,
+macros too) · load order (genuinely gated by `:wat::deporder::verify-stdlib`) · dangling doc
+pointers after the arc-278 doc move (none) · README staleness (nothing to be stale) ·
+`(:wat::stdlib::sources)` exposure (ships the UNDER AUDIT banner too — the honest posture) ·
+gen consumers outside this repo (none; five files reference `:wat::gen::`).
+
+## The shape of it, in the ward's own summary
+
+> The inward guard found this library's defects at the seams **inside** the file. The perimeter's
+> defects are at the seam between the file and its **harness** — a performance claim the shipped
+> consumer's own shape refutes by 20x, and a budget the shipped consumer argues for at length that
+> the runner cannot grant. Both are the same error made twice: **a number measured on one shape,
+> then reasoned with on another.**

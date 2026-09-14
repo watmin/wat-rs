@@ -1,7 +1,7 @@
 # Rete — the fix list
 
 > Defects found and **not yet fixed**, each with a minimal reproduction and the gate that will
-> turn green when it is. Populated by `wat-scripts/fuzz/rete-differential.wat`; the method is
+> turn green when it is. Populated by `wat-tests/rete/differential-fuzz.wat`; the method is
 > audit-and-accumulate — find them all first, assess after, and never lose the reproduction.
 >
 > **The `$oracle` is the arbiter here, and the arc's hardest-won lesson applies:** when native
@@ -16,6 +16,31 @@
 3. A permanent probe asserts the CORRECT behaviour and is `#[ignore]`d, so the fix makes it pass
    and un-ignoring it is the completion step.
 4. The fuzzer's ratchet count (`tests/rete/fuzz_rete_differential_live.rs`) accounts for it.
+
+## ⛔ HOW AN ENTRY LEAVES THIS LIST — THE GRID IS PART OF THE FIX
+
+**Builder's ruling, 2026-08-26:** *"when we approach fixing the wat-rete issues wat-gen
+revealed... we must add them to our grid.... we must ensure we are completely accurate relative
+to clara."*
+
+A fix is NOT done when the `#[ignore]`d probe goes green. Each defect below is a shape the grid
+did not cover — that is precisely why the fuzzer found them and the 57-query where-family corpus
+did not. So closing an entry requires, in this order:
+
+1. the minimal probe un-`#[ignore]`d and passing;
+2. **a new grid axis for the shape** (`wat-scripts/perf/grid/`), so the shape is measured on every
+   grid run and cannot silently regress. Note `grid_axes_run_and_derive_nonvacuously` asserts the
+   on-disk sized axes EXACTLY equal `SIZED_AXES` — a new axis must be given a non-vacuous size
+   deliberately, which is the gate that stops a vacuous addition;
+3. **agreement with Clara on that axis** — `:match` and `:us`, not merely native-vs-`$oracle`.
+   Clara is the third reference and the arbiter of what the semantics ARE. The `$oracle` says what
+   we *intended*; Clara says what a rules engine *does*. Entry **C** below is exactly the case
+   where those two can disagree, which is why it is marked as needing Clara BEFORE a fix.
+4. the ratchet count lowered by the number of divergences the fix removed, with the family named.
+
+**Accuracy relative to Clara is the acceptance criterion, not speed.** A fix that makes the probe
+pass while moving an axis away from Clara has not closed the entry — it has traded a known defect
+for an unknown one.
 
 ---
 
