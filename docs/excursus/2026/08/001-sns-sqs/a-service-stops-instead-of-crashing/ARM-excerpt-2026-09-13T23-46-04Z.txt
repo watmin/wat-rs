@@ -1,0 +1,46 @@
+FLOOR RED — 2026-09-13T23-46-04Z
+exit=100
+     Summary [ 536.288s] 5246 tests run: 5244 passed (9 slow), 2 failed, 22 skipped
+
+==============================================================
+FAILING TESTS
+==============================================================
+        FAIL [   1.043s] (3588/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_admin_carries
+        FAIL [   2.269s] (3595/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_admin_carries
+        SLOW [>120.000s] (─────────) wat::cli retirement_table_reachable::retirement_table_is_fully_reachable
+        SLOW [> 15.000s] (─────────) wat::services probe_arc278_sane_circuit::receive_calls_are_not_triple_the_messages
+        SLOW [> 15.000s] (─────────) wat::services probe_chaos_gate_has_teeth::chaos_gate_full_rate_fires_eq_draws
+        SLOW [> 15.000s] (─────────) wat::services probe_chaos_gate_has_teeth::chaos_gate_shipped_rate_draws_and_hits_eq_fires
+        SLOW [> 15.000s] (─────────) wat::services probe_ex001_fanout::fanout_compute_is_complete_and_lossless
+        SLOW [> 15.000s] (─────────) wat::value probe_rational_C5c_nan_unordered::c5c_nan_is_unordered_gate
+        SLOW [> 15.000s] (─────────) wat::value probe_rational_C5_mixed_compare::c5b_exact_mixed_numeric_order_gate
+        SLOW [>300.000s] (─────────) wat::lint wat_scripts_fixes_load::every_wat_scripts_file_loads_on_the_current_runtime
+        SLOW [> 60.000s] (─────────) wat::rete wat_scripts_grid_axes_live::spec_equals_native_on_every_where_family
+
+==============================================================
+THE ARM — each failing test's WHOLE stdout+stderr block, verbatim.
+Report THIS. Not a summary of it. Not a window into it.
+==============================================================
+
+
+…[1745-line ARM truncated. Full capture: .floor/2026-09-13T23-46-04Z/ — ⛔ NOT in DR, see FINDING]…
+
+8:        FAIL [   1.043s] (3588/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_admin_carries
+9:        FAIL [   2.269s] (3595/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_admin_carries
+25:        FAIL [   1.043s] (3588/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_admin_carries
+29:    test probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_admin_carries ... FAILED
+34:        probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_admin_carries
+39:    #wat.kernel/AssertionFailure {:thread "wat-thread-peer::<anon>" :message "BOOM-CRASH-SENTINEL-9173" :location #wat.kernel/Location {:file "tests/services/probe_arc278_recv_outcome_wall.wat" :line 43 :col 1} :actual "boom" :expected "ok" :frames [#wat.kernel/Frame {:file "tests/services/probe_arc278_recv_outcome_wall.wat" :line 43 :symbol ":probe::crash::serve"} #wat.kernel/Frame {:file "wat/spawn.wat" :line 348 :symbol ":wat::core::Fn"}] :upstream-chain nil}
+41:    thread 'probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_admin_carries' (1517881) panicked at /home/john/work/holon/wat-rs/tests/services/probe_arc278_recv_outcome_wall.rs:33:5:
+53:        PASS [   1.134s] (3590/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_client_reason_free
+57:        PASS [   1.077s] (3594/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_rterr_thread_admin_carries
+58:        FAIL [   2.269s] (3595/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_admin_carries
+62:    test probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_admin_carries ... FAILED
+67:        probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_admin_carries
+73:    thread 'probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_admin_carries' (1517557) panicked at /home/john/work/holon/wat-rs/tests/services/probe_arc278_recv_outcome_wall.rs:33:5:
+84:        PASS [   1.128s] (3596/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_rterr_thread_client_reason_free
+85:        PASS [   2.225s] (3597/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_client_reason_free
+86:        PASS [   2.209s] (3598/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_rterr_process_admin_carries
+88:        PASS [   2.260s] (3600/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_rterr_process_client_reason_free
+1743:        FAIL [   1.043s] (3588/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_thread_admin_carries
+1744:        FAIL [   2.269s] (3595/5246) wat::services probe_arc278_recv_outcome_wall::recv_outcome_wall_panic_process_admin_carries

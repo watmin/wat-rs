@@ -158,13 +158,13 @@ pub(crate) fn eval_retag_op(
     )
 }
 
-/// `(:wat::kernel::serve-dispatch-op clients body)` — tail position. The ONE
-/// hook that can reach a `defservice` serve loop's live `clients` binding
-/// while an op handler panics: wraps `body` (the op-dispatch `match`) in
-/// `catch_unwind`, best-effort broadcasts the reserved `PeerCrashed` sentinel
-/// to every peer in `clients` on a genuine crash, then propagates. `body`'s
-/// ordinary return — including a self-tail-call to `serve` — passes through
-/// unchanged.
+/// `(:wat::kernel::serve-dispatch-op clients body state on-fault)` — tail position.
+/// The ONE hook that can reach a `defservice` serve loop's live `clients`
+/// binding while an op handler panics: wraps `body` (the op-dispatch `match`)
+/// in `catch_unwind`, best-effort broadcasts `PeerCrashed` on a crash. A wat
+/// raise (`AssertionPayload`) is handed to `on-fault` with the PRE-OP `state`;
+/// any other panic still unwinds. `body`'s ordinary return — including a
+/// self-tail-call to `serve` — passes through unchanged.
 ///
 /// @added         1.0.0
 /// @Purity        Effectful
@@ -173,8 +173,10 @@ pub(crate) fn eval_retag_op(
 /// @Category      ControlFlow
 /// @arg     clients (:wat::core::Vector :- [(:wat::kernel::Peer :- [S R])]) the connected clients to notify on a handler crash
 /// @arg     body :T the op-dispatch form to evaluate (a `(:wat::core::match op ~@arms)`)
+/// @arg     state :S the serve loop's pre-op state (fifth parameter), forwarded never reconstructed
+/// @arg     on_fault :wat::core::keyword the per-service on-fault fn; applied to (state, cause) on a wat raise
 /// @ret     :T `body`'s own result — this primitive is a transparent wrapper (do-style passthrough)
-/// @example-norun (:wat::kernel::serve-dispatch-op clients (:wat::core::match op (Ping :pong))) #=> :pong
+/// @example-norun (:wat::kernel::serve-dispatch-op clients (:wat::core::match op (Ping :pong)) state :svc::on-fault) #=> :pong
 // No registered `TypeScheme` — `check.rs`'s `infer_serve_dispatch_op`
 // (`:11347`) is the real authority: `clients` checked for error coverage
 // only; `body`'s inferred type IS the form's own type (do-style passthrough,
@@ -217,12 +219,14 @@ pub(crate) fn eval_retag_op(
 pub(crate) fn eval_kernel_serve_dispatch_op(
     clients: &WatAST,
     body: &WatAST,
+    state: &WatAST,
+    on_fault: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     crate::runtime::eval_kernel_serve_dispatch_op_tail(
-        &[clients.clone(), body.clone()],
+        &[clients.clone(), body.clone(), state.clone(), on_fault.clone()],
         list_span,
         env,
         sym,

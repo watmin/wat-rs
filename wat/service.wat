@@ -2407,6 +2407,19 @@
                     selectables <- ~selectable-entry-vec-ty
                     next-id     <- :wat::core::i64
                     state       <- ~state-ty-ann]
+     ;; D1-a: on-fault helper, emitted ONCE per service (STOP-6: not an inline
+     ;; fn per dispatch). Bound here so the bijection goldens at :896/:913
+     ;; do not move. Projects PRE-OP durable state, then returns nil — the
+     ;; seam is in tail position of serve (`-> nil`), so nil ends the loop.
+     on-fault-name-str (:wat::string::interpolate "{b}::on-fault" :b fqdn-base)
+     on-fault-name (:wat::keyword::from-string on-fault-name-str)
+     on-fault-def `(:wat::core::defn ~on-fault-name
+                     [state <- ~state-ty-ann  cause <- :wat::core::String]
+                     -> :wat::core::nil
+                     (:wat::core::do
+                       (~hibernate-project-name state)
+                       cause
+                       nil))
 
      ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
@@ -2516,7 +2529,9 @@
                          ;; `eval_retag_op` canonicalizes both to their base names (params are
                          ;; erased in a runtime `type_path`). Monomorphic ⇒ unchanged.
                          (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-ann ~service-op-decl-kw-runtime)
-                           ~@serve-op-arms)))
+                           ~@serve-op-arms)
+                         state
+                         ~on-fault-name))
                      ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))
                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
@@ -3474,6 +3489,7 @@
                           ~init-def
                           ~stop-project-def
                           ~hibernate-project-def
+                          ~on-fault-def
                           ~admin-enum-def
                           ~status-enum-def
                           ~dispatch-admin-def
@@ -3913,6 +3929,7 @@
        ~init-def
        ~stop-project-def
        ~hibernate-project-def
+       ~on-fault-def
        ~dispatch-admin-def
        ~extract-addr-def
        ~@methods

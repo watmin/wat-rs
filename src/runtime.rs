@@ -27439,12 +27439,12 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::serve-dispatch-op";
-    if args.len() != 2 {
+    if args.len() != 4 {
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 2,
+                expected: 4,
                 got: args.len(),
             },
         )
@@ -27452,6 +27452,28 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
     }
     let clients_val = eval_inner(&args[0], env, sym)?.value_owned();
     let body = &args[1];
+    let state_val = eval_inner(&args[2], env, sym)?.value_owned();
+    let on_fault_fn = match &args[3] {
+        WatAST::Keyword(k, _) => sym
+            .get(k.as_str())
+            .cloned()
+            .ok_or_else(|| {
+                RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::UnknownFunction(k.to_string()),
+                )
+            })?,
+        _other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "on-fault argument must be a function keyword".into(),
+                },
+            )
+            .into());
+        }
+    };
     let outcome =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_tail(body, env, sym)));
     match outcome {
@@ -27471,7 +27493,23 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
         }
         Err(payload) => {
             crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
-            std::panic::resume_unwind(payload);
+            // D1-a: a wat raise (`AssertionPayload`) is handed to the macro's
+            // on-fault fn with the PRE-OP `state`. Its result is nil and ends
+            // the serve recursion (the seam is in tail position of serve).
+            // Any other panic is a substrate bug — resume, unchanged (STOP-4).
+            match payload.downcast_ref::<crate::assertion::AssertionPayload>() {
+                Some(ap) => {
+                    let cause = Value::String(Arc::new(ap.message.clone()));
+                    apply_function(
+                        on_fault_fn,
+                        vec![state_val, cause],
+                        sym,
+                        list_span.clone(),
+                    )
+                    .map_err(Into::into)
+                }
+                None => std::panic::resume_unwind(payload),
+            }
         }
     }
 }
@@ -28405,6 +28443,27 @@ mod tests {
             .next()
             .expect("one form in, one form out");
         eval_inner(&ast, &Environment::new(), &sym).map(|tv| tv.value_owned())
+    }
+
+    #[test]
+    fn serve_dispatch_op_resumes_a_non_assertion_panic() {
+        // Row 4 / STOP-4: a genuine Rust panic is not AssertionPayload and
+        // must still unwind. Every wat-level raise in this tree is
+        // AssertionPayload by contract, so this drives the same downcast
+        // the Err branch uses.
+        let payload = std::panic::catch_unwind(|| {
+            panic!("substrate bug — not an AssertionPayload");
+        })
+        .expect_err("must panic");
+        assert!(
+            payload
+                .downcast_ref::<crate::assertion::AssertionPayload>()
+                .is_none()
+        );
+        let resumed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            std::panic::resume_unwind(payload);
+        }));
+        assert!(resumed.is_err(), "resume_unwind must still unwind");
     }
 
     // ─── Arc 278 "errors first-class EDN" (stone 1) — the acceptance gate ──
