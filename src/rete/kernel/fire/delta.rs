@@ -323,6 +323,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
     // guards allocates nothing (row 2 of the DESIGN-STONE's scorecard).
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
     let mut cand_scratch: Vec<i64> = Vec::new();
+    // Written by pass 3.20, read by pass 3.5, cleared per round by 3.20 — see
+    // `RoundScratch::pre_dispatched`. Declared beside the other scratch so it is allocated once.
+    let mut pre_dispatched: std::collections::HashSet<i64> = std::collections::HashSet::new();
     let mut cond_key_ids: CondKeyIds = HashMap::new();
     let mut bind_only: BindOnlyFields = HashMap::new();
     for (&id, c) in compiled_conds {
@@ -415,6 +418,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     seen_ids: &mut seen_ids,
                     seen_rest: &mut seen_rest,
                     leaf_aids: &leaf_aids,
+                    pre_dispatched: &mut pre_dispatched,
                 },
                 &input_facts,
                 &arm.compiled_conds,
@@ -435,6 +439,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     seen_ids: &mut seen_ids,
                     seen_rest: &mut seen_rest,
                     leaf_aids: &leaf_aids,
+                    pre_dispatched: &mut pre_dispatched,
                 },
                 &owned_delta,
                 &arm.compiled_conds,
@@ -467,6 +472,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 seen_ids: &mut seen_ids,
                 seen_rest: &mut seen_rest,
                 leaf_aids: &leaf_aids,
+                pre_dispatched: &mut pre_dispatched,
             },
             &mut d_beta,
             &mut left_idx,
@@ -474,7 +480,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut join_keys_cache,
         )?;
 
-        let pre_dispatched = crate::rete::kernel::fire::pass::accumulate_pass(
+        crate::rete::kernel::fire::pass::accumulate_pass(
             &mut wm,
             &arm,
             &mut crate::rete::kernel::fire::pass::RoundScratch {
@@ -487,6 +493,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 seen_ids: &mut seen_ids,
                 seen_rest: &mut seen_rest,
                 leaf_aids: &leaf_aids,
+                pre_dispatched: &mut pre_dispatched,
             },
             &mut d_beta,
             &mut gather_cache,
@@ -506,11 +513,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 seen_ids: &mut seen_ids,
                 seen_rest: &mut seen_rest,
                 leaf_aids: &leaf_aids,
+                pre_dispatched: &mut pre_dispatched,
             },
             &mut d_beta,
             &mut gather_cache,
             &mut leading_emitted,
-            &pre_dispatched,
             sym,
         )?;
 
@@ -537,6 +544,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 seen_ids: &mut seen_ids,
                 seen_rest: &mut seen_rest,
                 leaf_aids: &leaf_aids,
+                pre_dispatched: &mut pre_dispatched,
             },
             &mut d_beta,
             &mut right_idx,

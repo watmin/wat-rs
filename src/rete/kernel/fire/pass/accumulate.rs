@@ -23,7 +23,7 @@ pub(crate) fn accumulate_pass(
     d_beta: &mut BetaMemory,
     gather_cache: &mut GatherCache,
     sym: &SymbolTable,
-) -> Result<HashSet<i64>, EvalBreak> {
+) -> Result<(), EvalBreak> {
     let kind_ids = &arm.kind_ids;
     let compiled_conds = &arm.compiled_conds;
     let compiled_acc_folds = &arm.compiled_acc_folds;
@@ -31,7 +31,7 @@ pub(crate) fn accumulate_pass(
     let parents_of = &arm.parents_of;
     let where_tree = &arm.where_tree;
     let compiled_wheres = &arm.compiled_wheres;
-    let RoundScratch { match_scratch, .. } = scratch;
+    let RoundScratch { match_scratch, pre_dispatched, .. } = scratch;
 
 // ── 3.20 PRE-DISPATCH: a TEST parent must fire before the accumulate it feeds. ──
 //
@@ -56,7 +56,7 @@ pub(crate) fn accumulate_pass(
 //
 // The returned set is what the filter pass must SKIP: dispatching a Test twice against the same
 // parent delta duplicates its tokens, and the duplicates reach production as duplicate rows.
-let mut pre_dispatched: HashSet<i64> = HashSet::new();
+pre_dispatched.clear();
 let pullable: Vec<i64> = kind_ids
     .acc
     .iter()
@@ -328,5 +328,5 @@ for node_id in &kind_ids.acc {
 }
 
 phase_end("accumulate", __pt3);
-    Ok(pre_dispatched)
+    Ok(())
 }
