@@ -4,8 +4,14 @@
 //! is new). The tracked files under `wat/` are the include_str! home. If a file
 //! is added under `wat/` without a `STDLIB_FILES` row, or a row names a path that
 //! is not tracked, this gate goes red.
+//!
+//! The load list is asked of the running substrate — `(:wat::stdlib::sources)`, via the
+//! co-located fixture — never scanned out of `src/load/stdlib.rs`'s text: a text scan
+//! counts a commented-out row as baked, so the gate would pass while the file is gone.
 
 use std::process::Command;
+use wat::freeze::call_beside_value;
+use wat::runtime::Value;
 
 fn tracked_wat_paths() -> Vec<String> {
     let out = Command::new("git")
@@ -24,18 +30,19 @@ fn tracked_wat_paths() -> Vec<String> {
 }
 
 fn stdlib_paths() -> Vec<String> {
-    const STDLIB_RS: &str = include_str!("../../src/load/stdlib.rs");
-    let mut out = Vec::new();
-    for (i, _) in STDLIB_RS.match_indices("path: \"") {
-        let after = &STDLIB_RS[i + "path: \"".len()..];
-        let Some(close) = after.find('"') else { continue };
-        let p = after[..close].to_string();
-        if p.starts_with("wat/") {
-            out.push(p);
-        }
-    }
+    let val = call_beside_value(file!(), ":user::stdlib-source-paths")
+        .expect("(:wat::stdlib::sources) should evaluate");
+    let Value::Vec(items) = val else {
+        panic!("expected a Vector of paths; got {val:?}");
+    };
+    let mut out: Vec<String> = items
+        .iter()
+        .map(|item| match item {
+            Value::String(s) => s.to_string(),
+            other => panic!("expected a path String; got {other:?}"),
+        })
+        .collect();
     out.sort();
-    out.dedup();
     out
 }
 
@@ -47,13 +54,10 @@ fn tracked_wat_dir_is_exactly_stdlib_sources() {
         !tracked.is_empty(),
         "git ls-files wat/ returned nothing — this gate is measuring nothing"
     );
-    assert!(
-        !loaded.is_empty(),
-        "STDLIB_FILES scan found no path: entries"
-    );
+    assert!(!loaded.is_empty(), "(:wat::stdlib::sources) returned no files");
     assert_eq!(
         tracked, loaded,
-        "tracked wat/**/*.wat and STDLIB_FILES paths must be the same set.\n\
+        "tracked wat/**/*.wat and the baked stdlib's paths must be the same set.\n\
          only-tracked: {:?}\n\
          only-loaded: {:?}",
         tracked.iter().filter(|p| !loaded.contains(p)).collect::<Vec<_>>(),
