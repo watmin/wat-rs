@@ -120,7 +120,26 @@ Related: `held`'s `(> pts 0)` is **constant-true** — every deftest passes a li
 card — and `points` is the SUT echoing its own `Gen/card` back. Mutate `check` to report any
 wrong *positive* count, or to enumerate `(range 1 card)`, and all 23 laws stay green.
 
-### E · The containment claim is FALSE — a `Gen` crosses the wire and arrives dead
+### E · CLOSED 2026-08-26 (gen half) / HANDED TO ARC 293 (substrate half) — the containment claim is FALSE
+
+> **The false sentence is gone** and the `Gen` defstruct now states what is and is not caught,
+> both halves measured: a bare function field IS refused; the same function wrapped in
+> `(Gen :- [i64])` LOADS CLEAN.
+>
+> **The substrate half is diagnosed with a PROVEN patch**, in
+> `docs/arc/2026/06/293-struct-record-symmetry/NOTE-a-parametric-struct-passes-the-purity-gate.md`.
+> The root is that `is_pure_type`'s Parametric arm never asks the `TypeEnv` what the head IS —
+> it consults a hardcoded list, then falls through to "pure iff its type args are pure". The
+> arm's OWN comment records this exact failure happening before, to `Peer`/`Thread`/`Process`,
+> and the fix then was to extend the list — the stem, not the root.
+>
+> The patch (consult `nature.is_pure()` before the fallthrough) was implemented, built, and
+> floor-tested here, then **REVERTED**: `src/check.rs` is untouched on `grok-rete`. It refuses
+> the `Gen` case, still admits a pure parametric record (positive control), and the floor goes
+> **5085/5087** — the only two failures being arc 293's own goldens, which pin an internal
+> `check.rs` line that the insertion moved. That pin is a builder overrule from 2026-08-15 with
+> *"Do not re-propose dropping it"* recorded, so re-pinning is the sanctioned cost of landing it,
+> not evidence against it.
 *ward: secare*
 
 `wat/gen.wat:42-45` asserts *"The checker names this itself if you try — it is a good error."*
