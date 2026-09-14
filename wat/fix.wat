@@ -1628,14 +1628,16 @@
           (:wat::core::ast-name a)
           "")))))
 
-;; A stdlib source path is `wat/…` (the include_str! home), including a
-;; convert.sh out-dir copy (`/tmp/…/wat/gen.wat`). `wat-scripts/` is user.
+;; A stdlib source path is a repo-relative `wat/…` (the include_str! home).
+;; convert.sh runs the codemods from the out-dir so TARGETS are `wat/gen.wat`.
+;; The old `contains "/wat/"` clause admitted
+;; `crates/wat-edn/wat-edn-clj/wat/shared.wat` and `examples/*/wat/*.wat`.
+;; An absolute path (fixture `{FILE}`, convert.sh context) is not stdlib —
+;; those take the user door. A loud refuse of absolute paths was dropped:
+;; `{FILE}` fixtures and convert.sh context pass absolute paths, and refuse
+;; killed positional-ctor-to-map / match-arm / variant-separator replay.
 (:wat::core::defn :wat::fix::stdlib-source-path? [path <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:wat::string::contains? path "wat-scripts")
-    false
-    (:wat::core::or
-      (:wat::string::starts-with? path "wat/")
-      (:wat::string::contains? path "/wat/"))))
+  (:wat::string::starts-with? path "wat/"))
 
 (:wat::core::defn :wat::fix::register-loop
   [tag   <- :wat::core::String

@@ -705,7 +705,28 @@ impl TypeEnv {
     /// 2a4 — the stdlib-mode door's private copy only. A divergent re-declaration
     /// of a snapshot type is REPLACED by the file's form; retract first so
     /// `register_stdlib_with_span` sees `Existing::Absent`.
+    ///
+    /// 2a4b — also retract this enum's variant singletons. `register_variant_types`
+    /// skips an already-present FQDN, so leaving `E.V` would keep the OLD fields
+    /// and a removed `E.W` would survive.
     pub(crate) fn retract_for_door_replace(&mut self, name: &str) {
+        let variant_fqdns: Vec<String> = if !self.is_variant_type(name) {
+            match self.types.get(name) {
+                Some(TypeDef::Enum(e)) => e
+                    .variants
+                    .iter()
+                    .map(|v| wat_reader::identifier::compose_variant(name, v.name()))
+                    .collect(),
+                _ => Vec::new(),
+            }
+        } else {
+            Vec::new()
+        };
+        for fqdn in &variant_fqdns {
+            self.types.remove(fqdn);
+            self.subtype_edges.remove(fqdn);
+            self.source_forms.remove(fqdn);
+        }
         self.types.remove(name);
         self.subtype_edges.remove(name);
         self.source_forms.remove(name);

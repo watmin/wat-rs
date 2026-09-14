@@ -23,6 +23,9 @@ wat-scripts/hunt/out/
 # the read). The SCRIPT is tracked; its captures are not.
 /.floor/
 
+# BRIEF-4b D — scripts/replay/census.sh whole-tree --check captures.
+/.census/
+
 # arc 278 — preserved pre-change wat binaries for the STASH-DANCE bootstrap
 # (wat/fix.wat:23-53). ~22MB each; kept on disk, never committed.
 #

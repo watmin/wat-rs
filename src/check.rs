@@ -23729,6 +23729,41 @@ pub(crate) mod tests {
         );
     }
 
+    /// 2a4b — retract the replaced enum's variant singletons. Without it,
+    /// `register_variant_types` skips `E.V` (already present) so the copy
+    /// keeps the OLD fields and a removed `E.W` survives.
+    #[test]
+    fn declared_stdlib_types_retracts_old_variant_singletons() {
+        let src_old = r#"
+            (:wat::core::defenum :wat::probe2a4b::E :wat::enum::Pure :V [a <- :wat::core::i64] :W)
+        "#;
+        let src_new = r#"
+            (:wat::core::defenum :wat::probe2a4b::E :wat::enum::Pure :V [b <- :wat::core::i64 c <- :wat::core::i64])
+        "#;
+        let (mut env, _) = stdlib_decls(src_old);
+        assert_eq!(
+            enum_variant_fields(&env, ":wat::probe2a4b::E.V"),
+            vec![("V".into(), vec!["a".into()])]
+        );
+        assert!(
+            env.get(":wat::probe2a4b::E.W").is_some(),
+            "unit W singleton present before replace"
+        );
+        let forms = crate::parse_all!(src_new).expect("parse");
+        crate::types::register_stdlib_types_replacing(forms, &mut env)
+            .unwrap_or_else(|e| panic!("replace: {e}"));
+        env.register_variant_types()
+            .unwrap_or_else(|e| panic!("variants: {e}"));
+        assert_eq!(
+            enum_variant_fields(&env, ":wat::probe2a4b::E.V"),
+            vec![("V".into(), vec!["b".into(), "c".into()])]
+        );
+        assert!(
+            env.get(":wat::probe2a4b::E.W").is_none(),
+            "removed variant singleton must not survive"
+        );
+    }
+
     /// A list headed by `:wat::runtime::declared-types` is a CALL of the
     /// verb. A comment, or the `:wat::runtime::DeclaredTypes` enum name, is
     /// not. Stdlib expansion must not reach the verb: `stdlib_snapshot`'s

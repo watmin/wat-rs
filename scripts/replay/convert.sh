@@ -164,17 +164,17 @@ for cm in "${STEPS[@]}"; do
   fi
   {
     echo "=== $cm ==="
+    # 2a4b: run from the out-dir so TARGET paths are repo-relative (`wat/gen.wat`).
+    # Codemod path stays absolute. one-param-spec CONTEXT may stay absolute (tmp ctx-tree).
     if [[ "$(basename "$cm")" == "one-param-spec.wat" ]]; then
       mapfile -t CTX_OK < "$CTX_LIST"
       if [[ ${#CTX_OK[@]} -eq 0 ]]; then
-        edn_vec "${SCOPED[@]}"
-        edn_vec "${SCOPED[@]}"
+        (cd "$ABS_OUT" && { edn_vec "${SCOPED_REL[@]}"; edn_vec "${SCOPED_REL[@]}"; } | "$WAT" "$ROOT/$cm")
       else
-        edn_vec "${CTX_OK[@]}"
-        edn_vec "${SCOPED[@]}"
-      fi | "$WAT" "$cm"
+        (cd "$ABS_OUT" && { edn_vec "${CTX_OK[@]}"; edn_vec "${SCOPED_REL[@]}"; } | "$WAT" "$ROOT/$cm")
+      fi
     else
-      edn_vec "${SCOPED[@]}" | "$WAT" "$cm"
+      (cd "$ABS_OUT" && edn_vec "${SCOPED_REL[@]}" | "$WAT" "$ROOT/$cm")
     fi
   } >> "$LOG" 2>&1 || {
     echo "convert.sh: $cm failed on $REV [${SCOPED_REL[*]}]" >&2

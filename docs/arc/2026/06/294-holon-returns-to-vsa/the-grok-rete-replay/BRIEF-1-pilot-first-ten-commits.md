@@ -88,6 +88,13 @@ For grok-rete commit **C**, where #N is its index after `de827fb4c`:
    - every `.wat` the step produced passes `./target/release/wat --check`, or is a deliberate `.bad`;
    - **the tests C adds or changes** are run by name (`cargo nextest run --release -E 'test(<name>)'`)
      and pass.
+   - **From #61 on — every step with a `.rs` change:**
+     `cargo nextest run --release -E 'binary(lint) - test(every_wat_scripts_file_loads_on_the_current_runtime)'`
+     (138 tests; would have caught arm 1 at #60).
+   - **From #61 on — every step whose build changed the `wat` binary (sha256 before/after) or that
+     changed any `.wat`:** `scripts/replay/census.sh`, then
+     `scripts/replay/census.sh --diff <previous> .census/latest [produced.txt]`.
+     A file going rc 0 → non-zero that the step did not produce is **STOP-8**.
 4. **Commit:** `REPLAY(grok-rete #N): <C's subject>`, whose body carries C's hash, every conflict,
    and how each was resolved. `-x` adds the trailer.
 5. **Log it** in `PILOT-LOG.md` (this directory): N, C, the wall time, the files, the conflicts and
@@ -109,6 +116,8 @@ play.
 - **STOP-4:** a checkpoint floor is red for a reason inside the replayed commits' files.
 - **STOP-5:** `convert.sh` is not deterministic, or `chain-order.sh`'s derived list disagrees with
   the 27.
+- **STOP-8 (from #61):** a whole-tree `--check` census file goes rc 0 → non-zero and the step did
+  not produce that file.
 
 ## Blast radius
 

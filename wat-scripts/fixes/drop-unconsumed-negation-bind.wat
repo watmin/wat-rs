@@ -7,8 +7,8 @@
 ;; Never re-derived — a second implementation of "fresh and unconsumed" would be
 ;; two slots that can disagree.
 ;;
-;; Edit: at each site, remove the child list whose `ast-span` starts at `line:col`
-;; and one adjacent space — via `fix-source` / `fix-text-apply` span edits.
+;; Edit: remove the child list whose ast-span starts at line:col and one adjacent space
+;; — via `fix-source` / `fix-text-apply` span edits.
 ;;
 ;; Guard: the node at the span must be exactly `(?<var> <- :<field>)` with the
 ;; reported var. A missing site (already dropped) is a no-op so a second run is
