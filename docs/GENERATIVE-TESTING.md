@@ -119,9 +119,22 @@ no failure mode, no bias. **Strictly better, and only possible because the space
 In Clojure every generator must carry its own shrinker, because a generated value is opaque and
 only its producer knows how to make it smaller.
 
-Here the structure lives in the **index**, not the value. Shrinking is coordinate descent on the
-digits of `i`, so **one implementation shrinks every generator** built from `gen-coords`. Nothing
-per-generator to write, and nothing to get wrong per-generator.
+Here the structure lives in the **index**, not the value, so **one implementation shrinks every
+generator**. There are two, and the distinction matters:
+
+- **`shrink-index g k fails?`** — general. Walks down for the smallest index that still fails,
+  which is meaningful because enumeration order IS a simplicity order: `coords` yields all-zero
+  first, `one-of`/`bind` place earlier branches first, `vector-upto` puts short vectors before
+  long ones. Works on any `Gen`, including `bind`-shaped spaces.
+- **`shrink c fails?`** — coordinate descent on digits. Sharper (O(sum of bases) rather than
+  O(k)) but only for a `coords`-shaped space.
+
+**⚠ A claim this document made from the day `shrink` was written, and it was false.** It said
+"shrinking is generator-independent" while the only implementation took a COORDINATE — so it
+composed with none of `bind`, `such-that`, `one-of` or `record`, the combinators that make the
+library worth having. The claim described the design's potential; the code delivered it for one
+shape. `shrink-index` is the general form, added 2026-08-25 when the seam was finally checked
+rather than assumed.
 
 ### 4. Heterogeneous `tuple` is not needed — `gen-lift2`/`gen-lift3` subsume it
 
@@ -396,6 +409,18 @@ holon, no rete, no comms. `:wat::deporder::verify-stdlib` enforces the position.
 
 ## Feature completeness
 
+**Two gaps were found at the SEAMS, 2026-08-25, and they were invisible while each piece was
+built alone.** Asked whether the tooling was complete, the pieces all looked done; what was
+missing was the paths BETWEEN them.
+
+- **`check` returned a COUNT and no witness.** A caller learned "3 violations" and could not reach
+  a single one of them — and inside a `deftest`, which cannot print, that is the whole difference
+  between a tool that finds bugs and one that reports a number. `Checked` now carries
+  `first-failure` (L22).
+- **`shrink` only accepted a coordinate**, so it composed with none of the combinators. See §3.
+  `shrink-index` is the general form (L23).
+
+
 **`bind` — dependent generation — BUILT 2026-08-25 (L19).** It was the one real functional gap:
 a generator whose SHAPE depends on a previously generated value, which the finite model does not
 get free from `coords` because a coordinate space has a fixed shape and this one does not.
@@ -429,7 +454,7 @@ expresses. Another place the finite design needs less.
 `check` returns `CheckOutcome`:
 
 ```
-:Checked [points violations]   ·   :EmptySpace
+:Checked [points violations first-failure]   ·   :EmptySpace
 ```
 
 An earlier version RAISED on an empty generator — the same defect the no-hidden-failures LAW
