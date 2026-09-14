@@ -1,95 +1,102 @@
-# NOTE — `Keyword` is two disjoint type names, and rete's keyword equality is dead surface
+# NOTE — `Keyword` is two type names, and only one of them can be compared inline
 
-**Found** 2026-08-27, from arc 278, while widening the rete differential fuzzer to the scalar-type
-surface. **Handed to arc 109** because the root is a type-NAME split, which is this arc's ground.
-Not fixed here; nothing in arc 278 depends on it.
+**Found** 2026-08-27 from arc 278, widening the rete differential fuzzer to the scalar surface.
+**Handed to arc 109** because the root is a type-NAME split, this arc's ground. Not fixed here.
 
-**Builder's read on hearing it:** *"huh.... feels like a miss...."* — it is.
+**Builder's read on hearing keyword was missing:** *"huh.... feels like a miss...."* — it is, though
+not the miss either of us first thought.
 
-## The one-line version
+> ⚠ **THIS NOTE WAS WRONG ON ITS FIRST WRITING AND IS KEPT AT THE SAME PATH DELIBERATELY.** Its
+> first version claimed rete's keyword equality was "dead surface, unreachable from any user
+> record". That is FALSE, and the disk disproved it within the hour:
+> `wat-scripts/perf/grid/../scratch-pad/probe-cond-rete-where.wat` is a live, compiling, FIRING
+> rule that declares `[tier <- :wat::core::keyword]` and compares it with
+> `:wat::rete::core::keyword::=`. The filename still says "dead surface" because renaming it would
+> break the citation in `differential-fuzz-scalars.wat` and in arc 278's RETE-OPEN-WORK; the
+> headline above is the correct claim. **The lesson is the useful part: "I grepped and found
+> nothing" and "this cannot be written" are different statements, and the first was reported as
+> the second.**
 
-`:wat::core::Keyword` and `:wat::core::keyword` are **two different type names**, and each is
-missing exactly what the other has. A field declared with the capitalised one is recognised by
-rete but can never hold a value; a field declared with the lower-case one can hold a value but
-rete refuses to compare it. The consequence is that the `keyword::=` and `keyword::not=` rows in
-`RETE_OPS` are **unreachable from any user record** — minted, gated, documented, and dead.
+## What is actually true
 
-## Measured, three probes, on `2361bf8b3`
+**`:wat::core::keyword` (lower-case) is a real, working field type.** Declared, constructed,
+bound, and compared — proven twice, once by the pre-existing probe above and once by an
+independent one written for this NOTE:
 
-**1. The capitalised name is an accepted field type with NO INHABITANTS.**
+```
+all=2  where-eq=1        ;; two keyword facts inserted; `keyword::=` in a `where` selects one
+```
+
+**`:wat::core::Keyword` (capital) is an accepted field type with NO INHABITANTS.**
 
 ```wat
 (:wat::core::defrecord :kw::R [v <- :wat::core::Keyword])   ;; declares clean, exit 0
 (:kw::R :alpha)
-;; #wat.check/TypeMismatch — :kw::R: parameter #1 expects :wat::core::Keyword;
-;;                          got :wat::core::keyword
+;; #wat.check/TypeMismatch — expects :wat::core::Keyword; got :wat::core::keyword
 ```
 
-The declaration type-checks. Every construction of it cannot. That is a shape whose only possible
-use is a compile error — the arc's own standard says the wrong thing should have no form, and here
-it has a form that looks right.
+The declaration type-checks; every construction of it cannot. A form whose only possible use is a
+compile error.
 
-**2. The lower-case name is constructible but NOT COMPARABLE.**
+**And the two facts collide in one place, which is the actual defect:**
+
+`rete_type_segment_of` (`src/rete/validate.rs`) maps `"wat::core::Keyword"` — the capital,
+uninhabitable spelling — and nothing maps the lower-case one. So the lower-case type falls through
+to the enum-registry lookup, misses, and returns `None`:
 
 ```wat
-(:wat::core::defrecord :kw::R [v <- :wat::core::keyword])
+;; INLINE ALPHA CONSTRAINT on a keyword field — REFUSED
 :when [(:kw::R (?v <- :v) (:wat::rete::core::keyword::= ?v :alpha))]
-;; #wat.rete/ConstraintTypeNotComparable — `:wat::rete::core::keyword::=` compares operand `?v`,
-;; declared `:wat::core::keyword`, for which rete has NO comparator — the rete equality surface
-;; is i64/f64/string/bool/keyword/enum. Compare a scalar FIELD of it instead
+;; #wat.rete/ConstraintTypeNotComparable — ... declared `:wat::core::keyword`, for which rete has
+;; NO comparator — the rete equality surface is i64/f64/string/bool/keyword/enum
+
+;; THE SAME COMPARISON IN A `where` FENCE — WORKS
+:when [(:kw::R (?v <- :v))
+       (:wat::rete::where (:wat::rete::core::keyword::= ?v :alpha))]
 ```
 
-**The diagnostic contradicts itself**: it lists `keyword` as part of the surface in the same
-sentence that refuses a keyword. The cause is one line — `rete_type_segment_of`
-(`src/rete/validate.rs`) matches `"wat::core::Keyword"` and nothing maps the lower-case spelling,
-so it falls through to the enum-registry lookup, misses, and returns `None`.
+Same record, same field, same op, two spellings of the same rule — one refused, one fires. The
+`where` path works because a fence's interior is deliberately OUT of this wall's scope (design
+call 3 in `validate.rs`), so it never consults `rete_type_segment_of` at all.
 
-**3. Even with the types aligned, a keyword LITERAL cannot be written as an operand.**
+**The diagnostic is also self-contradicting**: it lists `keyword` as part of the equality surface
+in the same sentence that refuses a keyword, and says rete has "NO comparator" for a type that
+demonstrably has a working one one line away.
 
-The same probe also reports `UnknownField { field: "alpha" }` — `:alpha` in operand position is
-read as a FIELD REFERENCE. That is deliberate and documented at `src/rete/matcher.rs`'s
-`ast_literal_value`: *"Keyword-as-field stays out: in operand position a keyword is a field
-reference, never a keyword value."*
+## A third, independent wrinkle
 
-So there are three independent blocks, and removing any one or two of them still leaves keyword
-equality unreachable.
+Even with the type mapping fixed, `:alpha` in INLINE OPERAND position is read as a FIELD
+REFERENCE, not a keyword literal — deliberate and documented at `src/rete/matcher.rs`'s
+`ast_literal_value`: *"in operand position a keyword is a field reference, never a keyword value."*
+(Inside a `where` fence there is no such grammar, which is the other half of why that path works.)
+So fixing the type map alone makes `keyword::=` usable inline only for comparing two keyword
+FIELDS to each other, never a field to a constant.
 
 ## Why this is arc 109's
 
-The capital/lower-case split is a type-NAME normalisation defect, which is what this arc annihilates
-(`:wat::core::String` vs `String`, the angle-bracket sweep, `a-type-reference-must-resolve`). Every
-other rete scalar has ONE spelling that is both inhabitable and recognised: `wat::core::i64`,
-`wat::core::f64`, `wat::core::String`, `wat::core::bool`. Keyword is the only one that forked.
+Every other rete scalar has ONE spelling that is both inhabitable and recognised —
+`wat::core::i64`, `wat::core::f64`, `wat::core::String`, `wat::core::bool`. Keyword is the only one
+that forked, and the recognised half is the uninhabitable half. That is a type-NAME normalisation
+defect, which is what this arc annihilates.
 
 ## What a fix has to decide (NOT decided here)
 
-1. **Which spelling survives.** The value's own type is `:wat::core::keyword`, and values are the
-   thing that cannot be renamed by fiat, so the lower-case one looks like the survivor — but
-   `String` is capitalised and also a value type, so the convention is not self-evident and this is
-   a ruling, not a lookup.
-2. **Whether the loser is REFUSED or ALIASED.** Aliasing keeps existing source working; refusing
-   makes the uninhabitable declaration impossible. The arc's own ladder argues for refusing the
-   name outright, since a declaration that can never be constructed is exactly a form the mistake
-   can be written in.
-3. **Whether a keyword literal becomes writable in operand position.** Without this, fixing (1)
-   and (2) still leaves `keyword::=` usable only for comparing two keyword FIELDS to each other,
-   never a field to a constant — which is the shape a rule actually wants. Note this one is a
-   deliberate grammar choice, not an oversight, so changing it needs its own justification.
+1. **Which spelling survives**, or whether the loser is aliased or REFUSED. A declaration that can
+   never be constructed is exactly a form a mistake can be written in, which argues for refusing
+   the capital name outright rather than aliasing it.
+2. **Whether `rete_type_segment_of` should map the lower-case name** so the inline path matches the
+   `where` path. This is the smallest possible fix and would remove the two-paths-one-works
+   asymmetry — but see (3) before assuming it is sufficient.
+3. **Whether a keyword literal becomes writable in inline operand position.** Without it, (2) buys
+   only field-to-field comparison. This one is a deliberate grammar choice, so changing it needs
+   its own justification, not just "it would be consistent".
 
-## A gate this would have failed, if one existed
+## The durable cure is not this row
 
-Nothing asserts that every `RETE_OPS` row is REACHABLE from a user record. The rows are gated for
-purity, totality, arity and type — but not for "can a user actually get here". `keyword::=` has
-passed every one of those gates since it was minted. A reachability ledger over `RETE_OPS`
-(*for each row, one user-authored rule that exercises it*) would have caught this the day the row
-landed, and would be the durable cure rather than fixing this one instance. Arc 278's rete fuzzer
-now covers i64/f64/string/bool/enum and would host such a ledger naturally — it found this gap by
-trying to add the sixth type and failing.
-
-## Where this came from
-
-`wat-tests/rete/differential-fuzz-scalars.wat` — the scalar-type differential fuzzer, which covers
-five of the six comparator modules. Its header states keyword's absence and why. That header
-originally claimed "there is no `:wat::core::Keyword` record-field type", which is FALSE and was
-corrected when these probes were run: the type name exists and is accepted; it is the inhabitants
-that do not.
+Nothing asserts that every `RETE_OPS` row is REACHABLE. Rows are gated for purity, totality, arity
+and type, never for "can a user get here". A reachability ledger is proposed in arc 278's
+`RETE-OPEN-WORK.md` § 4.1 — and **this NOTE's own error is the strongest argument for what such a
+ledger must be**: a grep-based one would have called `keyword::=` dead (it appears in only two
+scratch-pad files), and a compile-based one would have called it fine. Reachability has to be
+asked PER CALL SITE KIND — inline constraint vs `where` fence are different reachability questions
+about the same row, and this row is reachable in one and not the other.
