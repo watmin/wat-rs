@@ -217,12 +217,17 @@ it survived the fork it warns about and died of staleness instead. `:467` and `:
 - **`one-of` and `bind` are one dispatch fold written twice** (solvere); `shrink-dim` and
   `shrink-index` share one descent fold, comment and all. `nth`/`nth-str` are one generic
   function at two types.
-- **`bind` caches cardinalities but discards the generators**, re-running `f` per lookup
-  (temperare, struere, sequi). Measured at **29-35% of the rete fuzzer's generator time**.
-  temperare warns the obvious `bind = one-of` simplification is a *regression* when `f` is cheap
-  — keep both vectors.
-- **Nested `bind` multiplies**: depth-3 nested bind vs `coords` on identical 10,000-point spaces
-  — 18.1s vs 0.73s, ~25x (struere).
+- ~~**`bind` caches cardinalities but discards the generators**~~ — **CLOSED 2026-08-26.** `f` now
+  runs exactly once per branch and the `Gen` it returns is kept, so the dispatch fold indexes a
+  cached vector instead of re-calling `f` per lookup. Both vectors kept, per temperare's warning
+  that collapsing onto `one-of` is a regression when `f` is cheap. Measured with a REBUILD each
+  side: the fuzzer's own space **~406 → ~265 us/point (−35%)**, landing exactly on the predicted
+  29-35%.
+- ~~**Nested `bind` multiplies**~~ — **CLOSED by the same fix, and this is where it compounded:**
+  every level was re-running every level below it. Depth-4 nested bind, 10,000 points:
+  **~17.6s → ~1.94s (~10.7x)**. Against `coords` on the identical space (~708ms) nested `bind`
+  was **~45x** and is now **~4.3x**. `coords` remains the right shape for a fixed product; `bind`
+  is for spaces a product cannot express.
 - ~~**Four laws re-derive expected values with the implementation's own arithmetic**~~ —
   **CLOSED 2026-08-26.** L9, L11, L12, L20 now compare against LITERAL TABLES enumerated from the
   real spaces. **Proven blind by mutation for three of the four** — the mutation must break the
@@ -503,3 +508,39 @@ gen consumers outside this repo (none; five files reference `:wat::gen::`).
 > consumer's own shape refutes by 20x, and a budget the shipped consumer argues for at length that
 > the runner cannot grant. Both are the same error made twice: **a number measured on one shape,
 > then reasoned with on another.**
+
+
+---
+
+## A GAP FOUND BY A QUESTION, NOT BY A WARD — `bools` (2026-08-26)
+
+The builder asked what looked like a usage question: *"for some fn composed of [i64, string, bool]
+— how do we choose values to pass to it? is the author meant to choose values to pull from?"*
+
+The answer is yes for two of the three, and **no for the third**, and the library had it wrong:
+
+- **`i64`** — the author must choose. A `Gen` is `{card, at}`, finite by construction, so "all
+  i64" is a 2^64-point space and not a test. Which SUBSET is interesting IS the test design.
+- **`String`** — same; unbounded domain, author picks the pool.
+- **`bool`** — **exactly one right answer exists**: `[false true]`, card 2, exhaustive. No range to
+  invent, no pool to write, nothing the author knows that the library does not. Yet
+  `:wat::gen::` had 26 verbs and none of them generated a boolean, so every caller hand-wrote
+  `(elements [false true])`.
+
+**Now `:wat::gen::bools`, with L27 pinning the whole space** (card 2, at(0) false, at(1) true, and
+composing to card 6 under `lift2` with a 3-point axis). The law of a TOTAL generator is stronger
+than the law of a sampled one: it does not assert "some booleans were seen", it pins the space.
+
+**The rule this establishes, and it falls out of being enumerative rather than random:** where a
+type's domain is finite and small, the generator is total and canonical — ship it. Where the
+domain is unbounded, choosing the subset is the test, and only the author can do it. `bools` is
+not "flip a coin"; it is "both, always", which a drawing generator cannot promise.
+
+The same argument covers any all-unit enum (card = variant count) and `u8` (card 256). **Neither
+is built** — no caller, and a verb with no caller is a claim rather than a capability. The
+argument for building them is recorded at `bools` for when one appears.
+
+**Worth noting how this was found.** Eighteen wards did not find it. A ward asks "is what is here
+correct?"; this needed "what is a caller trying to DO?" — and that came from the builder using the
+thing. It is the same shape as the `check`-has-no-witness and `shrink`-doesn't-compose gaps two
+rounds earlier, which also arrived as questions rather than findings.
