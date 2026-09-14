@@ -1,0 +1,4 @@
+;; Fixture for drop-unconsumed-negation-bind — a dead bind under :not, the #50 wall's shape.
+(:wat::rete::defrule :t::r
+  :when [(:wat::rete::not (:t::Node))]
+  :then [(:t::Hit :k 1)])

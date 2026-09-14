@@ -97,7 +97,7 @@
          (:wat::rete::where (:wat::rete::string::not= ?cn "wat.enum/Impure"))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?v <- :id) (?p <- :parent) (?vi <- :index) (?vk <- :kind))
+             (:wat::grep::Node  (?p <- :parent) (?vi <- :index) (?vk <- :kind))
              (:wat::rete::where (:wat::rete::core::enum::= ?vk (:wat::grep::NodeKind.Vector {})))
              (:wat::rete::where (:wat::rete::i64::= ?vi (:wat::rete::i64::+ ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::EmptyVecAfter :id ?c)])

@@ -18,7 +18,7 @@
 (:wat::rete::defrule :wnn::lead-not-not
   :when [(:wat::rete::not
            (:wat::rete::not
-             (:wnn::Temp (?c <- :c))))]
+             (:wnn::Temp)))]
   :then [(:wnn::Yes :k 1)])
 
 (:wat::rete::defquery :wnn::q-Hit

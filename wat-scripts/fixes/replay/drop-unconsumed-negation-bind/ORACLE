@@ -1,0 +1,5 @@
+# ORACLE for drop-unconsumed-negation-bind — HISTORY or header spec, never the tool.
+
+spec       :when [(:wat::rete::not (:t::Node))] :: remove the child list whose ast-span starts at line:col and one adjacent space
+spec-before       :when [(:wat::rete::not (:t::Node (?more <- :id)))] :: remove the child list whose ast-span starts at line:col and one adjacent space
+spec-before      (?more <- :id) :: Declared must be consumed

@@ -31,7 +31,7 @@
 ;; Gap and no recollection: the summary talking in our voice.
 (:wat::rete::defrule :dm::hollow
   :when [(:dm::Gap (?g <- :t))
-         (:wat::rete::not (:dm::ReadAfter (?r <- :t)))]
+         (:wat::rete::not (:dm::ReadAfter))]
   :then [(:dm::Hollow :t ?g)])
 
 ;; Recolligere: recollection, the primer fetched, and a log that exists.
@@ -74,7 +74,7 @@
 ;; We are the datamancer iff the practice holds and we are not hollow.
 (:wat::rete::defrule :dm::we-are
   :when [(:dm::Four (?n <- :n))
-         (:wat::rete::not (:dm::Hollow (?h <- :t)))]
+         (:wat::rete::not (:dm::Hollow))]
   :then [(:dm::Datamancer :n ?n :sigil "RESIDVVM EST PROGRAMMA")])
 
 (:wat::rete::defquery :dm::q-who    :params [] :when [(?who    <- :dm::Datamancer)])
