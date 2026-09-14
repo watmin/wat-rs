@@ -32,22 +32,25 @@ Stone 2 from one cause to all wat-level raises.
 
 ## ⛔ THE ONE CONTRACT DECISION
 
-**An `assertion-failed!` escaping an op handler becomes `Outcome::Stop` carrying the PRE-OP state,
-and the `PeerCrashed` broadcast is RETAINED.**
+**An `assertion-failed!` escaping a public op handler becomes `Outcome::Faulted[cause]`. The service
+CONTINUES SERVING from its PRE-OP state, the client is told via `PeerCrashed`, and the owner is told
+via `Status::Faulted[cause]`.**
+
+⚠ **This REVISES D2-a (exit through the stop path), on the builder's ruling:**
+*"all of the chaos engineering work is meant to simulate networks doing networking things … we are
+preparing for adding networking to wat."* In a network a peer failing mid-op is **routine**. If every
+such failure makes a service gracefully *stop*, a flaky network takes the fleet down — gracefully, and
+completely. Exit is also refuted by measurement: it fails this stone's own acceptance gate (v2 above).
 
 Three halves, each load-bearing:
 
-1. **`Outcome::Stop`, not a new variant.** The serve loop's existing `Stop` arm
-   (`wat/service.wat:2203`) already sends the reply, fans `sends`, and returns `nil` — a clean end to
-   the serve recursion. The service *leaves*; it does not unwind.
-2. **PRE-OP state.** The seam holds the `state` the serve loop passed IN. The handler's transition
-   never completed, so there is no half-written state — this is what makes D2-a sound rather than
-   merely possible, and it is why the state must come from the seam's argument and **never** from
-   anything the panicking body produced.
-3. **The broadcast stays.** Clients still get `PeerCrashed` → `Lost`. ⛔ This is the answer to D2-a's
-   honesty gap, which the builder was asked about and confirmed: the service exits gracefully **and
-   still says it faulted**. A silent clean stop would collapse a failure into a success — the exact
-   defect `[[feedback_a_fallback_that_collapses_failures_reports_nothing]]` names.
+1. **PRE-OP state.** The handler's transition never completed, so the serve fn's own fifth parameter
+   (`service.wat:2409`) is the last valid state. The failed op becomes a **no-op** — atomic-by-failure.
+   The state must come from that parameter and **never** from anything the panicking body produced.
+2. **Continue, not exit.** The acceptance gate is that an innocent second client can still connect.
+3. **Nobody is muted.** Client via `PeerCrashed` (already), owner via `Status::Faulted`. ⛔ A service
+   that silently absorbs a fault is the failure this campaign exists to remove — a crash traded for a
+   silence is not a win.
 
 ### ⛔ AND THE SUB-DECISION THAT KEEPS IT HONEST: only an AssertionPayload converts
 
@@ -62,50 +65,50 @@ Three halves, each load-bearing:
 class of failure that must stay loud. This stone does not make "crashes impossible"; it makes **a wat
 raise a graceful stop** and leaves a substrate panic exactly as fatal as it is today.
 
-## THE ROUTE — a third seam argument carrying an on-fault function
+## THE ROUTE — wrap the Outcome SCRUTINEE, and tell all three parties
 
-⛔⛔ **THIS SECTION WAS WRONG TWICE. Read the correction before the route.** The seam does **not**
-return an `Outcome`. `serve` is declared `-> :wat::core::nil` (`wat/service.wat:3498`, `:3937`), and
-`serve-dispatch-op` sits in its tail position, so the form's type is **`nil`** (or a `TailCall` signal
-for the recursion). Each dispatch arm consumes its own `Outcome` **inside** the arm — matching it and
-then either recursing into `serve` or returning `nil`. **The `Outcome` never reaches the seam's return
-position.** Returning a constructed `Outcome::Faulted` there would put an enum value where `nil`
-belongs.
+⛔ **v3. Two earlier routes were drawn and both failed on the floor or the gate. The measured
+history is kept below because the route turns on it.**
 
-`:wat::kernel::serve-dispatch-op` (`src/runtime.rs:27435`) already catches the panic and already
-broadcasts. It then calls `std::panic::resume_unwind` at `:27474`. **One branch changes.** The question
-is what it returns instead — and the answer must be `nil`-typed.
+`serve-dispatch-op` already catches the panic and already broadcasts `PeerCrashed`. Move its wrap
+**inward** — from the whole op-dispatch match to **each public handler body (the `Outcome` match
+scrutinee)**. There the form's type IS `Outcome`, so a caught `AssertionPayload` can return
+`Outcome::Faulted[cause]` and the serve loop's new arm is well-typed.
 
-**CHOSEN — a third argument: an on-fault function the `defservice` macro emits.**
-`(serve-dispatch-op clients body state on-fault-fn)`. Rust downcasts the payload, broadcasts as today,
-then applies `on-fault-fn` to `(state, cause)` and returns its result — which is `nil`, ending the
-serve recursion cleanly. `apply_function` (`src/runtime.rs:19512`) is the mechanism; the precedent that
-the runtime survives catching this payload and keeps evaluating is `src/host/test_runner.rs:301`.
+**Three parties must learn, and today only one does:**
 
-⭑ **Why the on-fault function and not a bare `Ok(Value::Nil)`.** Returning nil alone *would* deliver a
-graceful exit with a one-line diff — but it runs no wat code, so D2-a's durable-state projection
-cannot happen. The on-fault function is the only shape that both ends the loop cleanly and lets
-`(~hibernate-project-name state)` run, and that call already works from macro-emitted code
-(`service.wat:2448`). **If projection proves impossible there, the bare-nil shape is the honest
-fallback and it is STOP-2 in the BRIEF — to be reported, not silently substituted.**
+| party | how | status |
+|---|---|---|
+| the **client** whose call raised | `PeerCrashed` broadcast → `Lost` | ✅ already works (measured: client-side wall tests pass) |
+| the **service** | the `Faulted` arm continues with PRE-OP state | the stone |
+| the **owner** (holds the lineage) | `Status::Faulted [cause]` sent up `self` | ⛔ **THE HOLE THIS VERSION CLOSES** |
 
-**`state` is passed BY the seam, taken from the serve fn's own fifth parameter** (`service.wat:2409`).
-Rust forwards the same value it received and never constructs one, so the pre-op state is what the
-on-fault function gets. Appending the two new arguments keeps `args[0]`/`args[1]` meaning what they
-mean today, so `infer_serve_dispatch_op`'s do-style passthrough on `args[1]` is preserved.
+⭑⭑ **The owner hole is what the floor red bought.** `recv_outcome_wall_panic_{thread,process}_admin_carries`
+assert the owner observes `Lost [true]` **carrying the crash reason**. Route C's graceful exit gave it
+`Closed []` — reason-free, *"the mute the recv-outcome wall killed for clients, relocated to the
+owner"*. Continuing silently is no better: the owner learns nothing at all. **Both earlier variants
+muted the owner**, and the DESIGN never asked, because it pinned "PeerCrashed is RETAINED" and that
+covers clients only. `Status` is the owner's existing channel (`service.wat:1600`), so the fix uses
+the mechanism already there.
 
-**REJECTED — a new `Outcome::Faulted` variant.** Drawn as the route, then refuted by the type above:
-the seam cannot return an `Outcome`. ⚠ Recorded because the *blast-radius* reasoning that got it
-chosen was independently wrong too, and both errors were mine:
+### The measured history, kept because each route died on evidence
+
+| route | what it did | how it died |
+|---|---|---|
+| **v1** `Outcome::Faulted`, wrap the whole dispatch | seam returns the new variant | **refuted on type**: `serve` is `-> nil` (`:3472`/`:3912`), the seam sits in its tail, so the Outcome never reaches the return position |
+| **v2** route C — third/fourth arg, on-fault fn returning nil | graceful exit through the stop path | **measured RED**: acceptance row 1 fails (`b-dial=connect-REFUSED` — the innocent client is still refused) **and** floor 5244/2 FAIL on the owner mute. `.floor/2026-09-13T23-46-04Z/`, ARM kept |
+| **v3 (this)** wrap the scrutinee + `Faulted` + `Status::Faulted` | the type holds, the client survives, the owner is told | — |
+
+⛔ **v1's refutation was the orchestrator's error and it cost a working strike.** *"The seam cannot
+return an Outcome"* is true only **at the original wrap site**. The remedy was to move the wrap, which
+the executor had already done and **measured green** (`b-after=Ok`) before the refute made it discard
+that work. Three claims of mine died on this stone; all three are recorded rather than quietly fixed:
 
 | I claimed | measured | the defect |
 |---|---|---|
-| 388 `Outcome` matches would red | **1** arm head, `wat/service.wat` | a LINE count conflating match patterns with constructions (387 are constructions) |
-| Rust cannot construct a parametric wat-only enum | params are **erased** (`runtime.rs:16170`); `names` is **carried** (`value/value.rs:1181`) | a **zero** from a grep with no positive control |
-| the seam returns an `Outcome`, so a new variant lands there | serve is `-> nil`; the Outcome is consumed one level below | the shape was read from the emission site's NEIGHBOURHOOD, never traced to the return position |
-
-**REJECTED — Rust synthesizes the graceful exit itself (bare `Ok(Value::Nil)`).** One line, and it
-cannot satisfy D2-a: no wat runs, so nothing projects. Kept as STOP-2's reportable fallback.
+| 388 `Outcome` matches would red | **1** arm head | a LINE count conflating match patterns with constructions |
+| Rust cannot construct a parametric wat-only enum | params **erased**; `names` **carried** | a **zero** from a grep with no positive control |
+| the seam cannot return an Outcome ⇒ the route is dead | true of the WRAP SITE, not the route | a shape read from the emission site's NEIGHBOURHOOD, never traced to its return position |
 
 ## Out of scope = REJECTED
 

@@ -14,19 +14,20 @@ gate to a parameter another stone may move, and that cost a floor red this week.
 
 | # | what | command | expected |
 |---|---|---|---|
-| 1 | ⭑ **the innocent client survives** — the headline | `./target/release/wat wat-scripts/scratch-pad/probe-a-handler-raise-kills-the-service.wat` | `b-` line reports a **served call**, no longer `connect-REFUSED` |
+| 1 | ⭑ **the innocent client survives** — the headline | `./target/release/wat wat-scripts/scratch-pad/probe-a-handler-raise-kills-the-service.wat` | `b-` line reports a **served call**, no longer `connect-REFUSED`. ⚠ v2 FAILED this by exiting; continue-serving is what satisfies it |
 | 2 | **non-vacuity: the service still works** | same run | `a-control=Ok` — unchanged. If this regresses, nothing else on this card means anything |
 | 3 | ⛔ **the fault is still reported, not swallowed** | same run | `a-boom` reports a FAILURE outcome (`Lost`/`Closed`/`TimedOut`) — **never `Ok`**. A success here is the stone failing in the most dangerous direction |
 | 4 | ⛔ **a substrate bug still crashes** (negative control, executor writes it) | a handler tripping a genuine Rust panic, not `assertion-failed!` | the service DIES, as today. A wall that swallows interpreter bugs is worse than no wall |
 | 4b | **the projection actually ran** (or STOP-2 was reported) | the SCORE's own words | it says whether durable state was projected via `hibernate-project`, or reports that it could not be — never silent |
-| 5 | ⭑ **the seam's value is `nil`-typed** (STOP-1's premise, re-derived not trusted) | read `wat/service.wat:3498` and `:3937` | `(defn ~serve-name ~serve-params -> :wat::core::nil …)`. If it is anything else the route is refuted again |
+| 5 | ⭑ **the `Status::Faulted` blast radius** (STOP-1) | `grep -o … \| sort -u` over `Status::` match arms | the macro's own matches plus ~2 in `circuit.wat`. Larger ⇒ STOP, reported WITH the matches |
+| 5b | ⛔ **the OWNER is told** — the hole the floor red exposed | drive a handler panic, observe the lineage | the owner sees `Status::Faulted` **carrying the cause**. An event with no cause is a fail |
 | 6 | tests compile (the build does NOT compile them) | `cargo nextest run --release --no-run` | clean |
 | 7 | **the floor** | `./scripts/floor.sh` → **Summary line** | `5245 passed`, 0 FAIL. A test count that GREW is fine and must be said; a count that SHRANK is a finding |
 | 8 | lints | `cargo clippy --all-targets -D warnings` | 0 |
 | 9 | the circuit is unchanged | `./scripts/capped.sh --limit 8g ./target/release/wat wat-scripts/fanout/circuit.wat 2000 4 3 8192 true 1000` | `distinct=8000;dup=0` |
 | 10 | ⚠ **per-dispatch cost — REPORT, do not gate** | floor wall clock vs the 528.052 s baseline | report the delta. The happy path adds no work (the new branch is reached only on a caught panic), so ~0 is expected — **say the number either way**. No threshold: it is an observation the builder rules on |
 | 11 | **scope is stated, not overclaimed** — REPORT | read the SCORE's own headline | it says *"a raise in an op handler is a graceful stop"* and NOT *"a service cannot crash"*. `:init`/`:hibernate`/`:stop`/the serve-loop frame are still fatal |
-| 12 | one of the 19 real arms behaves | pick one `"redial failed — peer is dead"` arm and drive it | the service stops gracefully instead of dying. ⚠ If no existing injector can reach one, **say so** — that is D3-a's whole point and the absence is the finding, not a gap to paper over |
+| 12 | one of the 19 real arms behaves (⚠ v2 reported this ABSENT — no injector drives them; absence is still a pass) | pick one `"redial failed — peer is dead"` arm and drive it | the service stops gracefully instead of dying. ⚠ If no existing injector can reach one, **say so** — that is D3-a's whole point and the absence is the finding, not a gap to paper over |
 
 ## Runtime prediction
 
