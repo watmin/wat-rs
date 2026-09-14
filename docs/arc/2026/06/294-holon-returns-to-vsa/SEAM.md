@@ -21,15 +21,15 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `33f3ebcfb` (= origin). In flight with grok: nothing yet —
-`BRIEF-2a4c-the-stdlib-door-replaces-a-divergent-macro.md` awaits the builder's pulsare.
+Stamp: written at HEAD `38a865b99` (= origin). In flight with grok: nothing yet —
+`BRIEF-3-every-spawned-program-starts.md` (+ `EXPECTATIONS-3.md`) awaits the builder's pulsare.
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
 ```
 main              a3218644d   FROZEN · PUSHED                                     do not touch
 origin/grok-rete  37528f6e0   FROZEN — read with `git show`, never check it out
-replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a2/2a4/2a4b (tooling, CLOSED)
+replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a2/2a4/2a4b/2a4c (tooling, CLOSED)
                               + batch 1 #11–#60 (CLOSED; floor 5495/5495, clippy 0, pushed)
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
@@ -42,11 +42,12 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   row passed) — rewritten to ask the runtime, `33f3ebcfb`. Absolute paths had blinded the codemods'
   two path rules; run5 now hands repo-relative paths. **G1: the stdlib door refuses a divergent MACRO**
   (and expands every `defn` body) — batch 1 unaffected; 6 later steps from #155 need it.
-- **Next, in order:** 2a4c (G1 + the walk + STOP-9), then stone 3 (between batches), then batch 2
-  #61–#125 (a new brief; BRIEF-4 as the shape). Stone 3's draft is `bootstrap/pending/BRIEF-3-draft-every-spawned-program-starts.md`.
-  Before its release: probe the D1 fixpoint on TODAY's stdlib (compute the derived program-carrying
-  positions and reconcile them with the census's 141 literals); run the candidate codemods on COPIES
-  of the seven arc-170 probes.
+- **2a4c is CLOSED** (`0bdac1ccd`; the orchestrator's floor 5498/5498 and run5 reproduced grok's: MA 0 ·
+  PC 2 · VS 0 losing, chain 1370; the only `wat/` refusals left are the era `format`/`defservice` bodies).
+- **Next, in order:** stone 3 (`BRIEF-3-every-spawned-program-starts.md`, probed: the census re-taken at
+  HEAD is identical to the era's, 141; the derivation reaches every starting literal if it follows `let`;
+  the one existing wrap codemod changes none of the seven — `::`-pinned), then batch 2 #61–#125 (drafts
+  `bootstrap/pending/BRIEF-5-replay-batch-2.md` + `EXPECTATIONS-5-…`, released after stone 3).
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
