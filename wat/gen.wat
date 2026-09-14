@@ -625,7 +625,8 @@
         bases))))
 
 ;; The same coordinate space, visited so the SLOWEST-varying dimensions move
-;; first. Measured over `[3 3 3 3 4]` (`wat-scripts/fuzz/sampling-order-probe.wat`):
+;; first. Measured over `[3 3 3 3 4]` (`wat-tests/gen.wat`'s L26, which RUNS on every floor —
+;; it replaced a wat-scripts probe that never ran and cloned `reverse-index` rather than calling it):
 ;; in the first 16 of 324, sequential order covers the last dimension 1/4 and this
 ;; order covers it 4/4; at 64 sequential is STILL 1/4. The two orders are mirror
 ;; images — this one under-covers the fastest-varying dimensions at very small K —

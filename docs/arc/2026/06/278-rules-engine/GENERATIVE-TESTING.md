@@ -319,7 +319,9 @@ dimension's base and starve it.
 machinery already exists. Take `k`'s digits in bases `(b0..bn-1)`, reverse the digit sequence,
 re-read against the reversed bases. The product is unchanged and digit ranges match position-wise,
 so it is a bijection — **checked in wat, against the real library**, by
-`wat-scripts/fuzz/sampling-order-probe.wat`: over `[3 3 3 3 4]`, `card 324`, `distinct-images 324`.
+`wat-tests/gen.wat`'s **L26** (`test-sampling-order`), which runs on every floor: over `[3 3 3 3 4]`,
+`card 324`, `distinct-images 324`. It replaced a `wat-scripts/` probe that was never invoked and that
+cloned `reverse-index` instead of calling it — see GEN-VIGILIA, circumspicere finding 3.
 (It was first "checked" in a throwaway Python reimplementation of mixed-radix, which verified a
 MODEL of the design rather than `gen-digit`/`gen-shift` themselves — had those carried a bug, the
 Python would still have gone green. The probe recomputes it through the library's own verbs and
