@@ -44,34 +44,50 @@ for an unknown one.
 
 ---
 
-## OPEN
+## CLOSED — the reproductions are kept in place
 
-### A — a LEADING accumulate emits one row per FIXPOINT ROUND
+> Each entry keeps its minimal reproduction, its measured table and its four-step closure.
+> A closed entry is not deleted: the reproduction is the durable artifact, and the roots below
+> generalise (B is "a kind-ordered pass sequence over a DAG is only correct while the DAG's
+> kind-order matches it"; A and C are "a non-monotonic condition must not be evaluated inside
+> the fixpoint"). The live list is **OPEN**, further down.
 
-**Found** 2026-08-25 · **Probe** `probe_arc278_fuzzer_found_divergences.rs::a_leading_accumulate_passes_once_per_fire_not_once_per_round`
+### ~~A — a LEADING accumulate emits one row per FIXPOINT ROUND~~ · **CLOSED 2026-08-26**
 
-```
-:when [(?n <- (:wat::rete::acc::count) :from (:user::W))
-       (:wat::rete::where (:wat::rete::core::i64::>= ?n 2))]
-```
-
-Rows track the fixpoint round count exactly. Measured with an INERT chain — one that derives
-facts the query never reads, whose only role is to make the fixpoint iterate:
-
-| chain | rounds | native | oracle |
-|---|---|---|---|
-| 1 rule | 2 | **2** | 1 |
-| 2 rules | 3 | **3** | 1 |
-
-**This is the same class as the leading `:not`/`:exists` defect fixed 2026-08-24 in `71d0e700e`,
-and that fix did not reach accumulate.** Worth reading before attempting this one: the correctness
-mechanism there is `leading_emitted` persisting ACROSS rounds (declared at `fire/delta.rs:318`,
-OUTSIDE the round loop). The round gate in `fire/pass/filter.rs` is a performance shortcut and
-disabling it changes nothing observable — a distinction that cost an hour to learn, so do not
-re-learn it here.
-
-**Hypothesis, untested:** the accumulate pass has no equivalent of `leading_emitted`, so a
-parentless accumulate re-emits its token every round the way the leading filters used to.
+> **A and C are ONE defect. Read the C entry below for the root — it is the same root.**
+>
+> **Found** 2026-08-25 · **Probe** `probe_arc278_fuzzer_found_divergences.rs::a_leading_accumulate_passes_once_per_fire_not_once_per_round` — now live, not `#[ignore]`d.
+>
+> ```
+> :when [(?n <- (:wat::rete::acc::count) :from (:user::W))
+>        (:wat::rete::where (:wat::rete::core::i64::>= ?n 2))]
+> ```
+>
+> Rows tracked the fixpoint round count exactly, measured with an INERT chain — one deriving facts
+> the query never reads, whose only role is to make the fixpoint iterate:
+>
+> | chain | rounds | native (before) | oracle | native (after) |
+> |---|---|---|---|---|
+> | 1 rule | 2 | **2** | 1 | 1 |
+> | 2 rules | 3 | **3** | 1 | 1 |
+>
+> **The standing hypothesis in this entry was wrong, and worth recording as such.** It read: *"the
+> accumulate pass has no equivalent of `leading_emitted`, so a parentless accumulate re-emits its
+> token every round the way the leading filters used to."* The accumulate pass emits correctly. The
+> defect was one level downstream, in how a QUERY is harvested — which is why the prior art
+> (`71d0e700e`, `leading_emitted` persisting across rounds) genuinely did not reach it, though not
+> for the reason guessed here.
+>
+> **Closed per this list's own exit rule, all four steps:**
+> 1. probe un-`#[ignore]`d and passing, with its agreeing control still green;
+> 2. grid axis `where-accum-lead-cascade.{wat,clj}` added — a leading accumulate in a QUERY under
+>    an inert cascade of depth 0, 1 and 2, so the row count must be INDEPENDENT of the cascade and
+>    any spread between the rows IS the defect. `where-accum-lead` has the accumulate but in a rule
+>    with no cascade; `leading-exists` has the cascade but for the `:exists` form. Neither reached
+>    this shape;
+> 3. **Clara 0.24.0 ran and agrees** — `n=1` at all three depths, byte-identical to native-after-fix
+>    and to the `$oracle`;
+> 4. ratchet **72 → 0**, closed together with C: A was 18 of the 72 and C the other 54.
 
 ### ~~B — a SECOND `where` after an accumulate matches NOTHING~~ · **CLOSED 2026-08-26**
 
@@ -126,36 +142,99 @@ but a different arrangement, and the earlier fix does not cover it.
 
 </details>
 
-### C — `:not` over a DERIVED class ignores the derivation
+### ~~C — `:not` over a DERIVED class ignores the derivation~~ · **CLOSED 2026-08-26**
 
-**Found** 2026-08-25 · **Probe** `probe_arc278_fuzzer_found_divergences.rs::negation_over_a_derived_class_must_see_the_derivation`
+> **Found** 2026-08-25 · **Probe** `probe_arc278_fuzzer_found_divergences.rs::negation_over_a_derived_class_must_see_the_derivation` — now live, with BOTH controls still green.
+>
+> ```
+> r1:  :when [(S1 (?k <- :k))] :then [(S2 :k ?k)]      ;; S2 exists ONLY by derivation
+> qC:  :when [(:wat::rete::not (S2 (?s <- :k)))]
+> ```
+>
+> 54 of the fuzzer's 76 divergences, **all at depth >= 1 and never at depth 0**.
+>
+> #### The Clara ruling this entry was waiting for
+>
+> This was the one entry marked ⚠ NEEDS A CLARA RULING BEFORE A FIX, because if a `defquery` were
+> deliberately un-stratified then the ORACLE would have been wrong and 54 of the ratchet's 72 would
+> not have been defects. **Clara 0.24.0 settled it 2026-08-26: a query's negation IS stratified
+> exactly the way a rule's is** — the query-side row and the rule-side row print the same number.
+> The oracle was right, native was wrong, and the arc's standing rule held unbroken.
+>
+> #### THE ROOT — and it is shared with A
+>
+> **A query's NON-MONOTONIC condition was evaluated inside the fixpoint instead of once against the
+> closed world.** `harvest_query_memory` (`fire/mod.rs`) has two branches: a CLASS-SCAN query reads
+> the closed bag and is correct; every other query — which means every `:not` and every accumulate
+> — falls to the `else` branch and reads `wm.beta[parent]`. Beta memories, by the semi-naive
+> fixpoint's own design contract, **accumulate across rounds and are never cleared**. So a
+> constrained query reads tokens that were only ever true of the round that produced them:
+>
+> - **A** — the leading accumulate's parent gains a token every round; the harvest reads all of them.
+> - **C** — the `:not` propagated its token in round 0, before the negated class existed. A later
+>   round derives the fact; nothing retracts the token already in beta.
+>
+> That is why all 72 divergences were `:not` and accumulate and nothing else: non-monotonic is
+> exactly the class a later round can invalidate.
+>
+> **How it was found, in one probe and no engine edits.** Adding an unrelated rule that negates a
+> type — whose only effect is to push `max_s` above 0 and route through the stratified driver —
+> made BOTH defects vanish with the queries themselves untouched (A: 3 rows → 1; C: passes →
+> blocks). The path was the variable, not the query. That single observation merged two entries.
+>
+> **Fix:** `fire_unstratified` in `src/rete/kernel/fire/rules.rs` — the fixpoint, then constrained
+> queries re-derived against the closed world via the door the stratified driver already used
+> (`harvest_stratified_queries`). It is ONE door and **both** `max_s == 0` exits go through it: the
+> AST door and the Export door (`fire_rules_from_deps`) each had the defect, and wrapping both call
+> sites would have been a convention the second door had already disproved. Class-scan queries are
+> deliberately untouched — they never read beta.
+>
+> **Closed per this list's own exit rule, all four steps:**
+> 1. probe un-`#[ignore]`d and passing, both controls green;
+> 2. grid axis `where-not-derived-in-query.{wat,clj}` added — query-side `:not` over a DERIVED
+>    class, at depth 1 and depth 2, with the rule-side form as the contrast row IN THE OUTPUT. No
+>    prior axis crossed the two: every query-side `:not` in the grid negates an INSERTED class
+>    (`where-query-compat`'s Wind), and every derived-class `:not` lives in a RULE (`strat-neg`,
+>    `negation`, `neg-consumer`);
+> 3. **Clara 0.24.0 ran and agrees** — all five rows byte-identical to native-after-fix and to the
+>    `$oracle`;
+> 4. ratchet **72 → 0**, closed together with A.
 
-54 of the fuzzer's 76 divergences, **all at depth >= 1 and never at depth 0** — precisely the
-dependence stratified negation should have, which is what makes the count a diagnosis rather than
-a symptom list.
+---
+
+## OPEN
+
+### D — wat ACCEPTS a binding inside `:not` that Clara REFUSES
+
+**Found** 2026-08-26, while writing C's Clara twin · **No probe yet** · ⚠ **NEEDS A RULING — this
+one is a language decision, not a defect the `$oracle` can arbitrate.**
+
+wat's own C fixture writes the negation as:
 
 ```
-r1:  :when [(S1 (?k <- :k))] :then [(S2 :k ?k)]      ;; S2 exists ONLY by derivation
-qC:  :when [(:wat::rete::not (S2 (?s <- :k)))]
+(:wat::rete::not (:user::S2 (?s <- :k)))
 ```
 
-| world | native | oracle |
-|---|---|---|
-| no chain — S2 absent | 1 | 1 ✓ |
-| chain present — S2 derived | **1** | **0** |
-| control: is S2 actually there? | 1 | 1 |
+`?s` is bound inside the negation and used nowhere — it cannot be used anywhere, because a
+negation that matches nothing binds nothing. wat compiles this silently. Clara 0.24.0 refuses it,
+at compile time:
 
-**Both engines derive the fact. Only the oracle's negation sees it.** The third row is gated
-non-ignored so this can never be misread as native failing to derive S2 — it derives it and
-negates as though it had not.
+```
+Using variable that is not previously bound. ... Note that variables used in negations are not
+bound for subsequent rules since the negation can never match.
+Unbound variables: #{?s}
+```
 
-**⚠ This one is a SEMANTICS question, not just a wiring bug, and deserves Clara before a fix.**
-Stratified negation requires the negated class's stratum to be complete before the negation
-evaluates. The oracle does that. Native does not — but it is worth establishing whether a
-`defquery` is *meant* to be stratified the same way a `defrule` is, because if queries are
-deliberately un-stratified then the ORACLE is the one that is wrong. Everything else on this list
-is native-is-wrong by the arc's standing rule; this entry is the one where I would check the third
-reference first.
+**Why it is on this list.** It is a divergence in what the two engines ACCEPT rather than what they
+compute, so no fuzzer run and no `$oracle` differential can see it — both wat sides agree, because
+both wat sides are wat. It surfaced only because a Clara twin was written for an axis, which is an
+argument for the twins beyond arbitration.
+
+**Why it is not folded into C.** A fix for one is not a fix for the other, and this one has a real
+question in front of it: is the binding a *user error wat should reject* (Clara's position, and the
+`extirpare` reading — the wrong thing currently has a form), or a *harmless no-op wat tolerates*?
+Rejecting is a source-compatibility change for any existing rule that writes it, including this
+arc's own fixture. **The builder's call, not mine.**
 
 ---
 
@@ -163,6 +242,13 @@ reference first.
 
 - **B — a second `where` after an accumulate matched nothing.** Closed 2026-08-26; see the entry
   above for the root, the fix and the four-step closure. Ratchet 120 → 72.
+- **A — a leading accumulate emitted one row per fixpoint round.** Closed 2026-08-26.
+- **C — `:not` over a derived class ignored the derivation.** Closed 2026-08-26. A and C were ONE
+  root; see C's entry. Ratchet 72 → **0**.
+
+**The fuzzer's divergence count is now 0 and the gate is an equality, not a ratchet.** Native and
+the `$oracle` agree bit-for-bit across all 1260 generated shapes. Any nonzero from here is a
+regression carrying its own coordinate, not a known defect.
 
 ---
 
