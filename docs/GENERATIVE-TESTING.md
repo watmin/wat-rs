@@ -1,9 +1,18 @@
-# Generative testing in wat — `wat-scripts/lib/gen.wat`
+# Generative testing in wat — `wat/gen.wat` (`:wat::gen::`)
 
-> Status 2026-08-25. The library exists, proves its own laws, and has ONE consumer
-> (`wat-scripts/fuzz/rete-differential.wat`). It is **not mature**. This doc is the tracking
-> record: what is built, what is missing, and — the part worth reading — **what wat does not need
-> that Clojure does**, with the reason for each.
+> Status 2026-08-25. **PROMOTED TO THE STDLIB** as `wat/gen.wat`, namespace `:wat::gen::`, on the
+> `wat/grep.wat` precedent — a move of proven code, with the numbers that earned it:
+>
+> | evidence | number |
+> |---|---|
+> | laws, all mutation-proven, driven through the library's own driver | **18 over 319 points** |
+> | live rete defects found by its first consumer | **3** |
+> | scale, measured | linear to **500k points at ~23us/point** |
+> | cost relative to the oracle it drives | **~300x cheaper** — never the bottleneck |
+>
+> The `gen-` name prefix dissolved into the namespace on promotion, as `:user::wat-grep` became
+> `:wat::grep::`: it is `(:wat::gen::ints 0 3)`, not `gen-ints`. This doc is the design record —
+> what is built, what is deliberately absent, and **what wat does not need that Clojure does**.
 
 ## The core idea
 
@@ -342,8 +351,71 @@ every caller must remember is the rot this codebase keeps pulling out.
 re-defended at each call site. An empty branch inside `gen-one-of` remains legitimate (L15) — it
 is *enumerating* nothing that is a caller bug, not *containing* nothing.
 
-## Promotion
+## Promotion — done 2026-08-25, and what actually earned it
 
-`gen.wat` lives in `wat-scripts/lib/` and moves to the stdlib once a **second target** proves it
-generic — the `wat-grep` precedent, which sat in scripts for months before earning promotion. One
-consumer has not tested genericity; it has only tested one path.
+The bar was never "a second consumer". That reading came from misapplying `CONVENTIONS.md`'s
+*"a primitive earns its slot when a concrete caller demands it — not speculatively"*, which
+guards against speculative LANGUAGE primitives; testing infrastructure has no prior test
+demanding it, by construction.
+
+What `wat/grep.wat` actually records as its own criterion is **a MOVE of proven code, with
+shipped numbers**. Those are in the banner above.
+
+**The namespace was also a live defect, not merely a promotion chore.** In scripts the library
+defined `:user::Gen`, `:user::ints` … — squatting in its own consumer's namespace, where any
+program wanting a record named `Gen` would collide. Scripts cannot define under `:wat::` (the
+reserved-prefix gate admits only baked sources), so **promotion was the only available fix**.
+
+Loads after `wat/seq.wat` (uses `into`/`filter`/`foldl`/`mapv`) and needs nothing further — no
+holon, no rete, no comms. `:wat::deporder::verify-stdlib` enforces the position.
+
+## Feature completeness — no, and the gap is `bind`
+
+Asked whether the tooling is feature complete, the honest answer is no. The quality gaps are
+easier to see than the functional one, and I listed those first while skipping this.
+
+**`bind` — dependent generation — is the real absence.** `test.check`'s `gen/bind` builds a
+generator whose SHAPE depends on a previously generated value: *generate n, then generate a
+vector of length n*. Nothing here can express that. The rete target fakes it today with fixed
+dimension slots and a "none" option per slot, which is why its `filt` dimension is an if-ladder
+over 8 fixed shapes rather than "generate a rule, then generate its conditions".
+
+It IS expressible in the finite model: `card(bind ga f) = sum over a of card(f(a))`, with `at`
+dispatching like `one-of` over a computed rather than a literal branch list. The cost is real —
+constructing `f(a)` for every `a` in the source — but it is bounded and known.
+
+**Bounded collections** (`gen-vector g n`) follow from it: fixed length is expressible today by
+repeated `lift`, variable length needs `bind`.
+
+**`frequency` / weighted choice is deliberately absent, and stays absent.** In `test.check` it
+biases a random draw. Here every point is visited exactly once, so a weight has no meaning at
+all — and to bias a SAMPLE you enlarge a dimension's base, which the coordinate model already
+expresses. Another place the finite design needs less.
+
+## The failure surface is a matchable VALUE (2026-08-25)
+
+`check` returns `CheckOutcome`:
+
+```
+:Checked [points violations]   ·   :EmptySpace
+```
+
+An earlier version RAISED on an empty generator — the same defect the no-hidden-failures LAW
+forbids, written hours after reading it. But a nicer raise was never the fix. The hazard is that
+`violations = 0` reads as success whether the property held at ten thousand points or was never
+applied at all, and a guard that raises still hands back a bare count everywhere else.
+
+`Checked` carries BOTH numbers, so a caller cannot extract a violation count without the point
+count arriving in the same match arm. **The wrong reading has no form.** `EmptySpace` is then the
+honest name for card 0, and whether that is an error is the CALLER's ruling — the law suite counts
+it as a violation, the fuzzer prints `EMPTY-SPACE: this run tested NOTHING`.
+
+Six `Option/expect` sites remain, all internal index invariants rather than caller-facing paths.
+
+### Still open, and honestly
+
+- **Genericity** remains untested by a second consumer. Promotion does not change that; it just
+  stops the namespace squatting while the second consumer is found.
+- **`gen-vector`** (bounded collections) is the one combinator the tradition has that this does
+  not. Not built, deliberately — nothing has asked for it, and building it speculatively is the
+  closed loop this library already fell into once.
