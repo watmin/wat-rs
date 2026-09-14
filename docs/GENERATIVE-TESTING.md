@@ -273,6 +273,98 @@ proven patch in
 `docs/arc/2026/06/293-struct-record-symmetry/NOTE-a-parametric-struct-passes-the-purity-gate.md`.
 **Until that lands, nothing stops it.**
 
+## Patterns — the corpus you should copy from
+
+`wat-tests/gen-patterns.wat` is **documentation that runs**: six recognizable shapes of generative
+test, each against real substrate, each with data that is not a toy (multi-token strings, enums
+carrying payloads, generated command sequences). Find the shape that matches your problem, copy it,
+swap the domain.
+
+| | pattern | reach for it when | worked example |
+|---|---|---|---|
+| **P0** | **DIFFERENTIAL** | you have a second implementation | `wat-tests/rete/differential-fuzz.wat` |
+| P1 | ROUND-TRIP | you have an inverse pair | `split ∘ join == id` |
+| P2 | METAMORPHIC | you have **no oracle** | joined length == Σ parts + separators |
+| P3 | MODEL-BASED | the thing is **stateful** | a command program vs a simpler model |
+| P4 | ALGEBRAIC | the thing is an **operation** | `HashSet/conj` idempotent + commutative |
+| P5 | DEPENDENT | valid inputs are a **relation** | an index that is in range *by construction* |
+
+**P0 is first for a reason, and the ranking is empirical rather than aesthetic.** Differential is
+the only one of the six that has actually found a defect here: **three live rete defects, all
+silent, none reachable by the 57-query hand-written corpus.** The other five, run against the
+substrate, are green — which is evidence the substrate is sound on those paths and *not* evidence
+that the patterns are powerful. If you have a reference implementation, a slow-but-correct oracle,
+or an old version, use it. The oracle you did not have to invent is the one that cannot be wrong
+in the same way as the code.
+
+**The reason differential pays is worth naming**: every other pattern requires you to *state* the
+property, and a property you state is a property you already thought of. A differential test
+asserts only *"these two agree"* — so it finds the disagreements you would never have predicted.
+That is exactly how family C was found (`:not` over a derived class), which nobody would have
+written a law for.
+
+## ⛔ When generative testing is the WRONG tool
+
+A generator here is **finite and total over a product**. That is its power and it is the whole
+source of its limits. Reach for a plain `deftest` when any of these holds — and a generative test
+written anyway is theatre, which is worse than no test because it looks like coverage.
+
+**1 · You cannot bound the input.** `Gen<T> = {card, at}`. An arbitrary-length stream, a real file,
+an unbounded recursion — none has a `card`. You can bound a *proxy*, but then the proxy is what you
+tested, and the gap between it and the real input is exactly where the bug will live.
+
+**2 · The interesting case is SPARSE, not SMALL.** Enumeration reaches everything in a space that
+fits; it reaches almost nothing in a space that does not. A hash collision, one overflow boundary,
+a specific timestamp — those are one point in 2⁶⁴, and neither enumeration nor a scattered prefix
+will find them. **Generative testing finds bugs that are DENSE in a small space. Example tests find
+bugs you can NAME.** If you can name it, name it.
+
+**3 · The bug is a SCHEDULE, not a value.** Races, deadlocks, lock ordering, timeouts — none is a
+point in a product space. P3 generates a *sequence* of operations, which is sequential interleaving;
+it says nothing about concurrent ones. A generator cannot produce a thread schedule.
+
+**4 · Deciding pass/fail needs state the value does not carry.** `prop` is `[T :-> bool]`: pure and
+total. If the property needs a clock, a peer, a file, or the outcome of an earlier test, `check` is
+the wrong harness — it is an enumeration, not a fixture runner.
+
+**5 · The oracle costs more than the coverage is worth.** The rete fuzzer pays ~13.6 ms per case
+for 1260 cases because its oracle is a second engine in-process. If yours is a network call, a
+product space is the wrong shape and you want a handful of chosen cases.
+
+**6 · One example states the contract better.** The one people get wrong. A generative test says
+"this holds across the space"; an example says "THIS must be true". When the contract *is* the
+specific thing — an exact error message, a documented special case, a boundary that is interesting
+precisely because it is that value — the example is clearer and the generator buries it. **A
+generative test that restates a single example is theatre.**
+
+**7 · You would have to write the implementation twice.** If the only way to state the expected
+answer is to recompute what the code computes, you have a tautology, not a test — break the code
+and the "expected" value breaks identically. This is not hypothetical: four laws in this library's
+own suite did exactly that and could not fail (GEN-VIGILIA L2). If round-trip, metamorphic and
+model-based all fail to fit, that is the signal the generator is not the tool here.
+
+> **The test to apply before writing one:** *what would this catch that a hand-written case would
+> not?* If the answer is "a case I did not think of", proceed. If it is "the same case, with more
+> ceremony", write the case.
+
+## What "mature" would mean, and what is actually proven
+
+Stated so it can be argued with rather than felt:
+
+| claim | evidence | status |
+|---|---|---|
+| the machinery is self-consistent | 27 laws, every one mutation-proven | **proven** |
+| the laws can fail for the reason they exist | each fix reverted, gate must go red | **proven** — and 4 laws once could not |
+| it finds real defects | 3 live rete defects, all silent | **proven**, via P0 only |
+| a real problem can be *expressed* in it | the pattern corpus: sequences, payload enums, multi-token strings | **proven** |
+| it is useful to someone who did not write it | — | **NOT proven.** One consumer, one author. |
+
+**The last row is the honest gap, and it is not closable from inside.** Nineteen laws written by
+the hand that added the combinators is a closed loop, and this library has been in one before: a
+verb once shipped with zero laws *and* zero consumers, caught only by counting call sites. The
+promotion criterion was never "more features". It is **a second consumer that someone else reached
+for** — and the corpus above exists to make that reach cheap.
+
 ## How this library is kept honest
 
 Three disciplines, each bought with an incident:
