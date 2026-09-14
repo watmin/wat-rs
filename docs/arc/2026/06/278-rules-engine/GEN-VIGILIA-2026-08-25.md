@@ -241,8 +241,15 @@ it survived the fork it warns about and died of staleness instead. `:467` and `:
   perf fix first is what turned a warned-against simplification into a free one. `one-of` also
   gained the hoisted `cards` vector that `bind`'s copy had: it was re-reading `Gen/card` twice
   per branch per lookup. Measured free — 287 us/point both sides, mean of 6.
-- **`shrink-dim`/`shrink-index` share a descent fold, and `nth`/`nth-str` are one generic at two
-  types** (solvere) — still open.
+- ~~**`shrink-dim`/`shrink-index` share a descent fold, and `nth`/`nth-str` are one generic at two
+  types**~~ — **BOTH CLOSED 2026-08-26.** `:wat::gen::descend` is now THE search: walk `0..start`,
+  keep the first candidate that still fails, stop. The two callers differ in exactly one thing —
+  what a candidate index MEANS (`Gen/at` vs `with c j v`) — so that difference became a parameter.
+  **Mutation-proven shared:** `descend` → identity reddens BOTH `test-shrink-index` and
+  `test-shrink`. And `nth` is one generic `:- [T]`; `nth-str` is deleted. The `Coord` typing on
+  `nth` was documentation, not a constraint — aliases are transparent and it was already being
+  called on `cards`, a plain `PV<i64>`, where its "coordinate digit out of range" message was
+  simply wrong.
 - ~~**`Coord` is unnamed**~~ — **CLOSED 2026-08-26.** `:wat::gen::Coord` and `:wat::gen::Bases`
   now name the two nouns across all 25 sites (21 coordinates, 4 bases). ⚠ **Transparent aliases,
   and the file says so:** `is_pure_type` canonicalizes by expanding aliases, so the two remain the
@@ -518,7 +525,27 @@ Ward ran it: **91** findings overall, **0** for `wat/gen.wat`. gen.wat is clean 
 that nothing would have said so. Closure: a ratchet frozen **by file** (per this repo's own
 "a gate freezes names, never a count" doctrine).
 
-## 6 · OPEN — 24 stdlib verbs entered with no purity ruling
+## 6 · CLOSED 2026-08-26 — 24 stdlib verbs entered with no purity ruling
+
+> **The ward flagged its own uncertainty — "whether this has teeth today ... I did not chase it"
+> — so it was chased.** The answer decides the closure, and it is the ward's SECOND option
+> (bound the population), not its first (add a `RULES` row).
+>
+> `where`-admission is namespace-based but has a **composition door**: `sym.functions` recurses
+> through `classify_fn`. Probed: a `where` calling a user fn that calls `:wat::gen::card-of` is
+> analysed **two levels deep** and rejected — on `:wat::core::i64::*` inside `card-of`'s own
+> product fold, which is not total because a checked multiply can raise `IntegerOverflow`:
+>
+> ```
+> compile-condition: where expr is not total — ':wat::core::i64::*' is not total
+> ```
+>
+> So a wat-defined stdlib verb reached from a rete predicate **is** governed — PER-EXPRESSION at
+> where-compile time by the totality analysis, rather than PER-NAMESPACE by the ledger. Two
+> mechanisms, two populations, neither a hole in the other. `src/rete/purity.rs`'s `RULES` doc now
+> records the bound and the probe, and says explicitly not to add a `:wat::gen::` row to close a
+> gap the ledger does not have — that would be the laundering its own `KNOWN_UNREVIEWED` doc
+> forbids, applied to a namespace the scan cannot see.
 
 `src/rete/purity.rs` states *"a verb NOT in this list ⇒ RED"*, but its scan population is Rust
 `#[wat_dispatch]` homes, so a wat-defined stdlib file contributes zero rows. `:wat::gen::` appears
