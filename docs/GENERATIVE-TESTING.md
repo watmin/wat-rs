@@ -5,7 +5,7 @@
 >
 > | evidence | number |
 > |---|---|
-> | laws, all mutation-proven, driven through the library's own driver | **18 over 319 points** |
+> | laws, all mutation-proven, driven through the library's own driver | **19 over 325 points** |
 > | live rete defects found by its first consumer | **3** |
 > | scale, measured | linear to **500k points at ~23us/point** |
 > | cost relative to the oracle it drives | **~300x cheaper** — never the bottleneck |
@@ -168,12 +168,15 @@ under-count.** One fewer thing to build, found by trying to build it.
 | `gen-elements vs` | pick from a value vector |
 | `gen-such-that pred g` | exact filter — survivors ARE the new generator |
 | `gen-one-of gs` | sum of cardinalities, range dispatch |
+| `bind ga f` | DEPENDENT generation — `one-of` over a computed branch list |
+| `take n g` · `coords-scattered bs` | prefix · low-discrepancy order (sampling) |
+| `shrink c fails?` | coordinate descent, generator-independent |
 | `gen-lift2 f ga gb` | applicative lift over a CONSTRUCTOR VALUE — the idiomatic builder |
 | `gen-lift3 f ga gb gc` | ditto, ternary; gives heterogeneous products for free |
 | `gen-record T g...` | **macro** — N-ary sugar for 4+ fields, emitting a checked prime constructor |
 | `gen-nth c i` | read one digit of a coordinate |
 
-**Ten laws**, 284 points, proven by `wat-scripts/fuzz/gen-selftest.wat`, driven through `gen-check` itself, gated by
+**Nineteen laws**, 325 points, proven by `wat-scripts/fuzz/gen-selftest.wat`, driven through `gen-check` itself, gated by
 `tests/lint/gen_lib_laws.rs`. L4 (the bijection) is load-bearing: without it, enumeration can
 visit tuples twice and miss others while reporting a clean case count.
 
@@ -313,7 +316,7 @@ library having no tests at all:
 | `gen-coords`, `gen-check`, `gen-such-that` | 1 each |
 | the other **seven** | **0** |
 
-Fifteen laws over 316 points, every one mutation-proven, is evidence the library is
+Nineteen laws over 325 points, every one mutation-proven, is evidence the library is
 **self-consistent**. It is not evidence that it is **useful**, and the distinction is the whole
 finding. Combinators were added because the QuickCheck tradition has them, then proven against
 laws written by the same hand that added them — a closed loop with no consumer pulling. `gen-lift3`
@@ -369,23 +372,30 @@ reserved-prefix gate admits only baked sources), so **promotion was the only ava
 Loads after `wat/seq.wat` (uses `into`/`filter`/`foldl`/`mapv`) and needs nothing further — no
 holon, no rete, no comms. `:wat::deporder::verify-stdlib` enforces the position.
 
-## Feature completeness — no, and the gap is `bind`
+## Feature completeness
 
-Asked whether the tooling is feature complete, the honest answer is no. The quality gaps are
-easier to see than the functional one, and I listed those first while skipping this.
+**`bind` — dependent generation — BUILT 2026-08-25 (L19).** It was the one real functional gap:
+a generator whose SHAPE depends on a previously generated value, which the finite model does not
+get free from `coords` because a coordinate space has a fixed shape and this one does not.
 
-**`bind` — dependent generation — is the real absence.** `test.check`'s `gen/bind` builds a
-generator whose SHAPE depends on a previously generated value: *generate n, then generate a
-vector of length n*. Nothing here can express that. The rete target fakes it today with fixed
-dimension slots and a "none" option per slot, which is why its `filt` dimension is an if-ladder
-over 8 fixed shapes rather than "generate a rule, then generate its conditions".
+```
+(bind (ints 1 4) (fn [n] (ints 0 n)))    card 6,  sequence  0 | 0 1 | 0 1 2
+```
 
-It IS expressible in the finite model: `card(bind ga f) = sum over a of card(f(a))`, with `at`
-dispatching like `one-of` over a computed rather than a literal branch list. The cost is real —
-constructing `f(a)` for every `a` in the source — but it is bounded and known.
+It is `one-of` over a COMPUTED branch list, so the contiguous-block property survives: branch i
+occupies a run of consecutive indices, and a failing index still localizes.
 
-**Bounded collections** (`gen-vector g n`) follow from it: fixed length is expressible today by
-repeated `lift`, variable length needs `bind`.
+**The cost is real and unlike every other combinator here**, which is why it is stated at the
+definition: `f` is applied once per source point at construction (cached in `cards`) and once more
+per `at` call, making `bind` O(card(ga)) per lookup where everything else is roughly O(1). That is
+affordable at the small source sizes dependent generation actually takes — and the cache is why
+`card` does not rebuild every branch generator on every call.
+
+**Bounded collections** (`gen-vector`) now follow from it and remain unbuilt — nothing has asked.
+
+**What `bind` unlocks for the first consumer:** the rete target's `filt` dimension is an if-ladder
+over 8 fixed shapes precisely because dependency could not be expressed — "generate a rule, THEN
+generate its conditions" had no form. It does now.
 
 **`frequency` / weighted choice is deliberately absent, and stays absent.** In `test.check` it
 biases a random draw. Here every point is visited exactly once, so a weight has no meaning at
