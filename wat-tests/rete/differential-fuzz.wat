@@ -279,8 +279,8 @@
 ;; `$oracle` is "~300x the cost of everything else here (measured: ~7ms/case
 ;; against the library's ~23us/point)". The library figure was a `coords`
 ;; measurement; this file's space is `such-that o bind o record`, measured
-;; 2026-08-26 at ~265us/point — ~11x dearer. What is true and stays true: the
-;; generator is a SMALL fraction of a case (~0.27ms of the floor's 13.6ms/case,
+;; 2026-08-26 at ~287us/point (mean of 6) — ~12x dearer. What is true and stays true: the
+;; generator is a SMALL fraction of a case (~0.29ms of the floor's 13.6ms/case,
 ;; ~2%) and the engines-plus-oracle are the rest. The RATIO itself is not worth
 ;; pinning: the `$oracle` is slow-but-correct by design, carries no perf
 ;; requirement, and gets passively faster as wat stops being interpreted — so any
