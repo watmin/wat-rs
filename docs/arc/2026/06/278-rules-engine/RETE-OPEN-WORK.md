@@ -142,6 +142,25 @@ start by hand-writing 74 snippets.
 
 ---
 
+### ~~4.2 THE TERMINATION VERIFIER~~ · **LANDED 2026-08-27** — refuse at load what cannot be proven
+
+`src/rete/kernel/stratify.rs::refuse_non_terminating`, hooked at `arm-session` so it covers every
+rule reaching `compile-all` — declared OR built at runtime, which the freeze-time `defrule` wall
+cannot do. A computed head inside a positive produces→consumes cycle is refused, named, before a
+fact is inserted. Gated by `tests/rete/probe_arc278_fixpoint_round_cap.rs`.
+
+**⚠ WHAT IT DOES NOT PROVE, and this is the honest half.** A fn-headed `:then`
+(`(:my::mk-fact ?k)`) is opaque, so a cycle through one is NOT proven terminating — it is
+ADMITTED. The first cut refused it and the FLOOR priced that: `:then` fn-heads are a shipped,
+deliberate feature (Stone B) and `probe_arc278_then_user_forms` exercises a cyclic one. Refusing it
+would delete a working capability on a guess, to close a hole nobody has fallen into, while the
+shape actually measured to kill the process is refused either way. Closing it needs analysis of the
+fn's RETURN EXPRESSION — is every field copied from a parameter? — which is its own strike. **Until
+then the round cap (3.1) stands behind it, which is the second honest reason that cap exists,
+alongside Export's missing AST.**
+
+<details><summary>the original entry, kept for the reasoning that produced it</summary>
+
 ### 4.2 THE TERMINATION VERIFIER — refuse at load what cannot be proven to terminate
 **The rung above 3.1, and the builder's framing: rete should be like the kernel's eBPF verifier.**
 It already is, for everything except termination — `validate_rete_rules` refuses unregistered fact
@@ -183,16 +202,19 @@ improves it — the truer "deep but terminating" workload is transitive closure,
 `reach(x,z) :- reach(x,y), edge(y,z)` over a 500-edge path, which runs 500 rounds and IS
 range-restricted because `z` comes from `edge`.
 
+</details>
+
 ---
 
 ## The order, and why
 
 1. **4.1 the reachability ledger** — small, converts a proven-live defect class into a standing
    gate, and immediately tells us how much dead surface there is.
-2. **1.1 interleaved retract** — the highest-yield fuzzing gap, in the territory that has paid.
-3. **4.2 the termination verifier** — 3.1's backstop landed 2026-08-27, which makes this the open
-   item. Zero blast radius, all machinery present, and it is the difference between "I gave up"
-   and "this cannot diverge".
+2. **1.1 interleaved retract** — DONE 2026-08-27.
+3. **4.2 the termination verifier** — DONE 2026-08-27, with the fn-headed `:then` hole named
+   rather than papered over. **Closing that hole is now the head of the list**: it needs the fn's
+   return expression analysed, and it is the difference between "one unbounded shape is
+   impossible" and "unbounded derivation is impossible".
 4. **3.2 CI parity**, then **1.2 generated rules**, then the PILE 2 tail with `conformare` first.
 
 > ⚠ **A green fuzzer is not an empty list.** 4104 shapes at zero divergences means the engine is

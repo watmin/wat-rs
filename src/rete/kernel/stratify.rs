@@ -281,3 +281,203 @@ pub(crate) fn native_rule_stratum(
         .unwrap_or(0);
     from_p.max(from_n)
 }
+
+// ── THE TERMINATION VERIFIER ────────────────────────────────────────────────────────────────
+//
+// `RETE-OPEN-WORK.md` § 4.2, and the builder's framing: rete should be like the kernel's eBPF
+// verifier. It already IS, for everything except termination — `validate_rete_rules` refuses
+// unregistered fact types, unrecognised clause shapes, unreal field-refs, non-rete constraints and
+// unconsumed `:not` binds, and `stratify` above refuses un-stratifiable sets outright. Termination
+// was the hole, and it was not theoretical: 11 lines of legal wat killed the process on
+// `memory allocation of 545259536 bytes failed`, with no wat error and no rule named.
+//
+// THE RULE. Datalog terminates because its fact domain is FINITE — every head value comes from the
+// body, so no rule can mint a value that was not already there. That property is RANGE
+// RESTRICTION. A `:then` that COMPUTES a value breaks it, and inside a derivation CYCLE that means
+// a structurally novel fact every round, forever. So:
+//
+//     a COMPUTED head inside a positive produces->consumes CYCLE is refused, named, at compile.
+//
+// eBPF refuses an unbounded loop; this refuses an unbounded derivation. Outside a cycle a computed
+// head is FINE and stays legal — `(:Celsius :c (- ?f 32))` derives once and stops, which is why
+// the check is about the cycle and not about arithmetic.
+//
+// ★ NO ESCAPE HATCH, by two builder rulings. A `rune:` marker was proposed and refused ("no magic
+// comments"), then a data form on the `Rule` record — `Termination::Asserted [why <- String]` —
+// was refused in turn: *"so.... we allow users to make mistakes that they own?... their strings
+// are their reason for themselves?"* Correct: an author's string is not a proof, and taking one as
+// a termination guarantee would mint exactly the unchecked exemption `excusare` exists to hunt.
+// With no opt-out there is nothing to declare, so `Rule` needs no new field and its 60 hand-built
+// construction sites are untouched. If a bounded pattern must exist later, the answer is a FORM
+// the verifier can CHECK — eBPF's `bpf_loop()` move, the bound as a verified argument — never a
+// promise it must trust.
+//
+// WHERE IT RUNS, AND WHY NOT THE `defrule` WALL. At `arm-session`, which `compile-all` calls for
+// every session. The freeze-time wall sees DECLARED rules only; rules built at runtime as `Rule`
+// values (both differential fuzzers do this) bypass it entirely. `compile-all` is the one door
+// every rule passes, which is the same reason the declaration had to be data rather than a comment.
+//
+// WHAT IT CANNOT SEE, stated rather than left as a silent hole:
+//   - An imported Export carries no rule AST (`rules_lack_ast`), so there is nothing to analyse.
+//     That is where the runtime round cap keeps earning its place — the path where static proof is
+//     unavailable, rather than a general apology for not having proof.
+//   - A fn-headed `:then` is opaque: `(:my::mk-fact ?k)` may compute anything inside `mk-fact`,
+//     so a cycle through one is NOT proven terminating. It is nonetheless ADMITTED, and that is a
+//     deliberate narrowing rather than an oversight.
+//
+//     The first cut refused it, on the reasoning that "cannot see inside" and "proved safe" are
+//     different claims — which is true. The FLOOR measured what that costs: `:then` fn-heads are a
+//     shipped, deliberate feature (arc 278 Stone B widened an item's head to "a fn whose declared
+//     return type is a fact type"), and `probe_arc278_then_user_forms` exercises exactly a cyclic
+//     one. Refusing it would delete a working capability on a guess, to close a hole nobody has
+//     fallen into, while the shape actually MEASURED to kill the process — a computed ARGUMENT —
+//     is refused either way.
+//
+//     So the honest position: this verifier proves the absence of ONE unbounded-derivation shape,
+//     not of all of them. Closing the fn-headed case needs analysis of the fn's RETURN EXPRESSION
+//     (is every field of the constructed fact copied from a parameter?), which is real work and
+//     its own strike. Until then the runtime round cap is what stands behind it — which is the
+//     second honest reason that cap exists, alongside Export's missing AST.
+
+/// Every type the rule's `:then` derives, paired with the rule's `:when` types — the edge
+/// `consumed -> produced` this rule contributes to the derivation graph.
+struct RuleEdge {
+    name: String,
+    produced: Vec<String>,
+    consumed: Vec<String>,
+    /// The `:then` form that computes rather than copies, if any, with its own span for the error.
+    computed: Option<(String, crate::span::Span)>,
+}
+
+/// A `:then` fact-form COMPUTES rather than copies when any argument is itself a call.
+///
+/// `(:N :k ?k)` copies a bound variable — range-restricted, finite domain, terminates.
+/// `(:N :k (:wat::rete::core::i64::+ ?k 1 :undefined 0))` computes — the domain is now unbounded.
+/// A nested CONSTRUCTOR counts too and is not a special case: `(:N :k (:Wrap ?k))` wraps one layer
+/// deeper every round, which is the same unbounded structure by a different route.
+///
+/// Field-name keywords in kwargs position are `Keyword`, values are `Symbol`/literal/`List`, so
+/// "any `List` argument" reads both call shapes without having to know which one it is looking at.
+fn then_form_computes(form: &WatAST) -> bool {
+    let WatAST::List(items, _) = form else {
+        return false;
+    };
+    items.iter().skip(1).any(|a| matches!(a, WatAST::List(..)))
+}
+
+/// Refuse a rule set that cannot be proven to terminate.
+///
+/// See the doctrine block above. Called from `arm-session`, so it covers every rule that reaches
+/// `compile-all` — declared or built at runtime.
+pub(crate) fn refuse_non_terminating(
+    rules: &Value,
+    sym: &SymbolTable,
+) -> Result<(), crate::runtime::EvalBreak> {
+    let Value::wat__core__PersistentVector(pv) = rules else {
+        return Ok(());
+    };
+    let mut edges: Vec<RuleEdge> = Vec::new();
+    for r in pv.iter() {
+        let Some(name) = crate::rete::kernel::session::rule_named_field(r, "name") else {
+            continue;
+        };
+        let name = match name {
+            Value::String(s) => s.to_string(),
+            _ => String::from("<unnamed>"),
+        };
+        let lhs = crate::rete::kernel::session::rule_asts_field(r, "lhs");
+        let rhs = crate::rete::kernel::session::rule_asts_field(r, "rhs");
+        // An imported Export carries no AST — nothing to analyse, and saying so is the honest
+        // outcome rather than passing it as proven.
+        if lhs.is_empty() && rhs.is_empty() {
+            continue;
+        }
+        let computed = rhs
+            .iter()
+            .find(|f| then_form_computes(f))
+            .map(|f| {
+                (
+                    fact_type_head(f).unwrap_or_else(|| String::from("<unknown>")),
+                    f.span().clone(),
+                )
+            });
+        edges.push(RuleEdge {
+            name,
+            produced: rule_produces(&rhs, sym),
+            consumed: rule_consumes(&lhs),
+            computed,
+        });
+    }
+    if edges.iter().all(|e| e.computed.is_none()) {
+        // The overwhelmingly common case: nothing computes, so no cycle can be unbounded and the
+        // graph never has to be built. Measured 2026-08-27: 371 of 381 corpus rules take this exit.
+        return Ok(());
+    }
+
+    // ── the derivation graph, consumed -> produced ────────────────────────────────────────────
+    // Transitive closure by repeated relaxation. Types number in the tens, and this runs once per
+    // `compile-all` rather than per fire, so the simple fixpoint is the right shape — and it is
+    // itself bounded, which would be an embarrassing place to loop forever.
+    let mut reach: HashMap<String, Vec<String>> = HashMap::new();
+    for e in &edges {
+        for c in &e.consumed {
+            let to = reach.entry(c.clone()).or_default();
+            for p in &e.produced {
+                if !to.contains(p) {
+                    to.push(p.clone());
+                }
+            }
+        }
+    }
+    loop {
+        let mut grew = false;
+        let keys: Vec<String> = reach.keys().cloned().collect();
+        for k in keys {
+            let current = reach.get(&k).cloned().unwrap_or_default();
+            let mut add: Vec<String> = Vec::new();
+            for t in &current {
+                if let Some(next) = reach.get(t) {
+                    for n in next {
+                        if !current.contains(n) && !add.contains(n) {
+                            add.push(n.clone());
+                        }
+                    }
+                }
+            }
+            if !add.is_empty() {
+                grew = true;
+                reach.entry(k).or_default().extend(add);
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+
+    for e in &edges {
+        let Some((fact_type, span)) = &e.computed else {
+            continue;
+        };
+        // In a cycle iff something this rule PRODUCES can reach something it CONSUMES — then
+        // produced -> ... -> consumed -> produced closes the loop through this very rule. The
+        // `p == c` case (a rule reading and deriving one type) is covered: `reach[p]` contains `p`
+        // via this rule's own edge.
+        let cyclic = e.produced.iter().any(|p| {
+            e.consumed.contains(p)
+                || reach
+                    .get(p)
+                    .is_some_and(|rs| rs.iter().any(|t| e.consumed.contains(t)))
+        });
+        if cyclic {
+            return Err(crate::runtime::RuntimeError::new(
+                span.clone(),
+                crate::runtime::RuntimeErrorKind::RuleSetMayNotTerminate {
+                    rule: e.name.clone(),
+                    fact_type: fact_type.clone(),
+                },
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
