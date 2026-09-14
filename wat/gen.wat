@@ -46,6 +46,14 @@
 ;;     GenRev, Pick). A record is FORCED pure; a struct merely may be. `Gen` is the one
 ;;     struct, and it earns it by carrying a function. (`BindPick` was a sixth until `bind`
 ;;     collapsed onto `one-of` and it became unreachable — it is deleted, not converted.)
+;;   ✓ the PROSE SWEEP (findings H, I, J, L). `docs/GENERATIVE-TESTING.md` was a dated build log
+;;     carrying claims that had almost all rotted — a `Built` table in the retired `gen-` names,
+;;     "gen-check REFUSES an empty generator / now RAISES" (it returns `EmptySpace`), a "ONE
+;;     ordered list" of work that had all shipped, `bools` listed as deliberately absent, and
+;;     `bind`'s cost paragraph describing behaviour fixed the same morning. Rewritten as a
+;;     standing REFERENCE and moved to `docs/` — the durable reasoning kept (the indexed-set
+;;     thesis, the six things wat needs less of than Clojure, the sampling design), the build
+;;     log dropped, every number re-verified against the tree.
 ;;
 ;; STILL FALSE / STILL OPEN
 ;;   ✗ NOTHING GATES THE NAMES ABOVE (circumspicere finding 4). `tests/lint/retired_name_justified.rs`
@@ -60,7 +68,7 @@
 ;; PROMOTED from `wat-scripts/lib/gen.wat` 2026-08-25, on the `wat/grep.wat`
 ;; precedent: a MOVE of proven code, with the numbers that earned it.
 ;;
-;;   SHIPPED NUMBERS  24 laws, every one mutation-proven — the library proves its
+;;   SHIPPED NUMBERS  27 laws, every one mutation-proven — the library proves its
 ;;                    own laws THROUGH its own driver. They live in
 ;;                    `wat-tests/gen.wat` and are discovered by `wat::test! {}`
 ;;                    (`tests/kernel/test.rs`), so there is no hand-maintained
@@ -102,7 +110,7 @@
 ;; `:user::wat-grep` became `:wat::grep::`. `(:wat::gen::ints 0 3)`, not
 ;; `gen-ints`.
 ;;
-;; Design record + what wat needs LESS of than Clojure: docs/arc/2026/06/278-rules-engine/GENERATIVE-TESTING.md
+;; Design record + what wat needs LESS of than Clojure: docs/GENERATIVE-TESTING.md
 ;;
 ;; A generator is an INDEXED SET, not a seeded random source:
 ;;

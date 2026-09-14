@@ -19,9 +19,10 @@
 > **circumspicere 4** (the retired-name lint is blind to `.wat`) → arc 255 · **circumspicere 5**'s
 > ratchet and the `concat-abuse` message → arc 277.
 >
-> **STILL OPEN HERE:** **H**/**I**/**J**/**L** — the prose sweep, deferred by the builder's ruling
-> *"we polish the gen testing doc — AFTER — the wat-gen tooling is deemed an exemplar. code, then
-> docs."*
+> **CLOSED 2026-08-26:** **H**/**I**/**J**/**L** — the prose sweep, taken last by the builder's
+> ruling *"we polish the gen testing doc — AFTER — the wat-gen tooling is deemed an exemplar.
+> code, then docs."* `GENERATIVE-TESTING.md` was rewritten from a dated build log into a standing
+> reference and moved to `docs/`. **THE LIST IS EMPTY.**
 >
 > Every closure is MUTATION-PROVEN: the fix is reverted, the gate must go red, and the file is
 > diffed back to identical. **Four of those mutations are recorded for what they revealed — in
