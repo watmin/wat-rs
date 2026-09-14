@@ -27401,37 +27401,33 @@ pub(crate) fn eval_kernel_after(
     }
 }
 
-/// `(:wat::kernel::serve-dispatch-op clients body)` — tail position.
+/// `(:wat::kernel::serve-dispatch-op clients body)` — wraps a public op
+/// handler body (the `Outcome` match scrutinee).
 ///
 /// Arc 278 RST stone, Option A (`docs/arc/2026/06/278-rules-engine/
-/// DESIGN-STONE-rst-peer-notify.md`). The ONE hook that can reach a
-/// `defservice` serve loop's live `clients` binding while an op handler
-/// panics: `clients` and `body` (the `Message idx op` arm's codegen used to
-/// emit a bare `(:wat::core::match op ~@serve-op-arms)` directly as the
-/// arm body; it now wraps that same form in this primitive) are both
-/// evaluated in THIS Rust stack frame, so `body`'s evaluation can be wrapped
-/// in `catch_unwind` with `clients` still reachable — unlike the top-level
-/// `catch_unwind` sites (`finish_forked_child`, `spawn_thread_peer`), which
-/// only see the panic AFTER the whole `serve` recursion (and its `clients`
+/// DESIGN-STONE-rst-peer-notify.md`), revised by D1-a: the wrap moved
+/// INWARD from the whole op-dispatch match onto each public handler
+/// body. `clients` and `body` are both evaluated in THIS Rust stack
+/// frame, so `body`'s evaluation can be wrapped in `catch_unwind` with
+/// `clients` still reachable — unlike the top-level `catch_unwind`
+/// sites (`finish_forked_child`, `spawn_thread_peer`), which only see
+/// the panic AFTER the whole `serve` recursion (and its `clients`
 /// binding) has already unwound past them.
 ///
-/// On a genuine handler panic: best-effort broadcasts the reserved
-/// `PeerCrashed` sentinel to every peer in `clients`
-/// (`kernel::peer::broadcast_peer_crashed_best_effort` — never blocks, skips
-/// a peer whose channel is full or already gone), then
-/// `std::panic::resume_unwind`s the ORIGINAL, untouched payload — the crash
-/// propagates exactly as before (same exit code, same owner crash-reason via
-/// `emit_structured_exit` / `PeerRecvError::Crashed`; that path is untouched
-/// by this primitive). `body`'s ordinary (non-panicking) return — including
-/// an `EvalSignal::TailCall` for `serve`'s own self-recursion — passes
-/// through `catch_unwind`'s `Ok` arm completely unchanged: a returned
-/// `Err(EvalBreak::Signal(..))` is a normal value, not a panic;
-/// `catch_unwind` only intercepts genuine unwinds. This is why
-/// `serve-dispatch-op'` must be dispatched from HERE (tail position, via
-/// `eval_tail`'s special-case match) rather than treated as an ordinary
-/// primitive: the trampoline that makes `serve`'s indefinite recursion not
-/// grow the Rust stack depends on the recursive call staying in tail
-/// position all the way through this wrapper.
+/// Two panic populations, distinguished by downcast:
+///
+/// - `AssertionPayload` (`assertion-failed!` / `raise!`) — a wat-level
+///   raise. Broadcast `PeerCrashed` to `clients`, then return
+///   `Outcome::Faulted[cause]`. The serve loop's Faulted arm tells the
+///   owner and continues serving from pre-op state.
+/// - anything else — a genuine Rust panic, i.e. a substrate bug.
+///   Broadcast, then `resume_unwind` the original payload. Unchanged.
+///
+/// `body` is evaluated with `eval_inner`, not `eval_tail`. Measured
+/// (D1-a v1): `eval_tail` TailCalls the `Outcome::Continue` constructor
+/// and the match never sees the value (client `Closed`). The wrap is
+/// the handler, not the serve recur; serve TCO lives in the Continue /
+/// Faulted arms OUTSIDE this wrapper.
 pub(crate) fn eval_kernel_serve_dispatch_op_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -27452,8 +27448,12 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
     }
     let clients_val = eval_inner(&args[0], env, sym)?.value_owned();
     let body = &args[1];
-    let outcome =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_tail(body, env, sym)));
+    // eval_inner, not eval_tail: body returns an Outcome constructor. eval_tail
+    // TailCalls that constructor and the serve-loop match never sees it
+    // (measured: client Closed).
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        eval_inner(body, env, sym).map(|tv| tv.value_owned())
+    }));
     match outcome {
         // Arc 278 the recv'-outcome wall (move #2) — a wat RuntimeError bubbling out of
         // the op handler is a crash too (the `rterr` column of the 4×2 measure). It used
@@ -27462,7 +27462,8 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
         // reason-free PeerCrashed sentinel to `clients` on a Diagnostic, THEN propagate —
         // so a client on ANY crash kind gets `Lost`, never a mute `Closed`. An
         // EvalSignal (TailCall for serve's own self-recursion / try / option) is NORMAL
-        // control flow, not a crash → never broadcast.
+        // control flow, not a crash → never broadcast. D1-a does NOT convert a
+        // Diagnostic into Faulted — only AssertionPayload.
         Ok(result) => {
             if let Err(EvalBreak::Diagnostic(_)) = &result {
                 crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
@@ -27471,8 +27472,24 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
         }
         Err(payload) => {
             crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
-            std::panic::resume_unwind(payload);
+            serve_dispatch_op_caught_panic(payload)
         }
+    }
+}
+
+/// D1-a: an `AssertionPayload` becomes `Outcome::Faulted[cause]`; any other
+/// panic is a substrate bug and `resume_unwind`s.
+fn serve_dispatch_op_caught_panic(
+    payload: Box<dyn std::any::Any + Send>,
+) -> Result<Value, EvalBreak> {
+    match payload.downcast_ref::<crate::assertion::AssertionPayload>() {
+        Some(ap) => Ok(Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::service::Outcome".into(),
+            variant_name: "Faulted".into(),
+            names: Arc::new(vec!["cause".into()]),
+            fields: vec![Value::String(Arc::new(ap.message.clone()))],
+        }))),
+        None => std::panic::resume_unwind(payload),
     }
 }
 
@@ -34841,5 +34858,48 @@ mod tests {
             2,
             "ServiceEvent::Message [idx <- i64  msg <- T]: {names:?}"
         );
+    }
+
+    /// D1-a row 4 — an AssertionPayload at the seam becomes Outcome::Faulted carrying
+    /// the exact cause. Exact field match, not a substring (no_loose_string_assert).
+    #[test]
+    fn d1a_assertion_payload_becomes_outcome_faulted() {
+        let ap = crate::assertion::AssertionPayload {
+            message: "handler raised".into(),
+            actual: None,
+            expected: None,
+            location: None,
+            frames: vec![],
+            upstream_chain: None,
+            thread_name: None,
+            raised_error: None,
+        };
+        let v = super::serve_dispatch_op_caught_panic(Box::new(ap)).expect("Faulted");
+        match v {
+            Value::Enum(ev) => {
+                assert_eq!(ev.type_path.as_str(), ":wat::service::Outcome");
+                assert_eq!(ev.variant_name.as_str(), "Faulted");
+                assert_eq!(ev.names.as_slice(), &["cause".to_string()]);
+                match &ev.fields[..] {
+                    [Value::String(s)] => assert_eq!(s.as_str(), "handler raised"),
+                    other => panic!("unexpected Faulted fields: {other:?}"),
+                }
+            }
+            other => panic!("expected Enum, got {other:?}"),
+        }
+    }
+
+    /// D1-a row 4 negative control — a genuine Rust panic (not AssertionPayload)
+    /// still resume_unwind's. The original payload is preserved.
+    #[test]
+    fn d1a_non_assertion_payload_resumes_unwind() {
+        let caught = std::panic::catch_unwind(|| {
+            let _ = super::serve_dispatch_op_caught_panic(Box::new("substrate bug"));
+        });
+        let payload = caught.expect_err("substrate panic must resume_unwind");
+        let s = payload
+            .downcast_ref::<&str>()
+            .expect("original &'static str payload");
+        assert_eq!(*s, "substrate bug");
     }
 }

@@ -1,7 +1,10 @@
 //! Arc 278 — the recv'-outcome wall RED GATE (acceptance; reshaped from
 //! probe_arc278_crash_split_measure). Asserts, all four paths (panic/rterr × thread/process):
-//!   ADMIN  (Handle/handle) MATCHES `RecvOutcome::Lost cause` as a VALUE (never a raise) and
-//!          reports that `(Failure/message cause)` carries the crash sentinel — the owner gets the reason.
+//!   ADMIN panic (Handle/handle) — D1-a re-draw: MATCHES `RecvOutcome::Message` of
+//!          `Status::Faulted cause` as a VALUE, carrying the raise's message exactly.
+//!          A handler panic no longer kills the service, so Lost is the wrong observation.
+//!   ADMIN rterr — still MATCHES `RecvOutcome::Lost cause` (Diagnostic is not
+//!          AssertionPayload; the service still dies) carrying the crash sentinel.
 //!   CLIENT (connected peer) MATCHES `RecvOutcome::Lost` (NEVER `::Closed` — the mute we killed)
 //!          and reports its reason-free 500 does NOT carry the sentinel.
 //! At HEAD (pre-reshape) recv' raised → no RecvOutcome to match → RED. GREEN once the reshape lands.

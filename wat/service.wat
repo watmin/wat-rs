@@ -75,8 +75,7 @@
 ;; Arc 278 the outcome composes — lifecycle is the only remaining sum. Reply/sends/arms
 ;; are fields so "and also" has a form (the queue no longer needs a 1 ms timer to say it).
 ;; `reply` is Option, never a vector: at most one reply per invocation is the protocol.
-;; `Stop` has sends (a stopping service can still answer parked waiters) and NO arms
-;; (future work on a terminating service is incoherent).
+;; `Stop` has sends (a stopping service can still answer parked waiters) and NO arms (future work on a terminating service is incoherent).
 (:wat::core::defenum :wat::service::Outcome :- [S R O] :wat::enum::Pure
   :Continue [state <- :S
              reply <- (:wat::core::Option :- [:R])
@@ -84,7 +83,8 @@
              arms  <- (:wat::core::Vector :- [(:wat::service::Alarm :- [O])])]
   :Stop     [state <- :S
              reply <- (:wat::core::Option :- [:R])
-             sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])])
+             sends <- (:wat::core::Vector :- [(:wat::service::Directed :- [:R])])]
+  :Faulted  [cause <- :wat::core::String])
 
 ;; Internal arms have no caller, so they have no reply field — the mistake cannot be written.
 (:wat::core::defenum :wat::service::SelfOutcome :- [S R O] :wat::enum::Pure
@@ -1555,6 +1555,9 @@
                           (:wat::string::interpolate "{b}::Admin::DenyPeer" :b fqdn-base))
      status-peers-denied-kw (:wat::keyword::from-string
                               (:wat::string::interpolate "{b}::Status::PeersDenied" :b fqdn-base))
+     ;; D1-a: Status::Faulted — owner is told when a public op handler raises.
+     status-faulted-kw (:wat::keyword::from-string
+                          (:wat::string::interpolate "{b}::Status::Faulted" :b fqdn-base))
      ;; arc 293: fold binders for the serve DenyPeer arm's (deny' l pid) sweep — synthetic
      ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
      deny-acc-sym (:wat::core::symbol-node "acc")
@@ -1595,6 +1598,7 @@
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
      ;; arc 278: Status::PeersAllowed (unit) — the AllowPeer request/reply ack.
      ;; arc 293: Status::PeersDenied (unit) — the DenyPeer request/reply ack.
+     ;; D1-a: Status::Faulted carries the raise's message so the owner is never muted.
      ;; Status's tp-syms are `handle-tp-syms` (always non-empty — the transport marker),
      ;; so the binder splice here is unconditional (mirrors `handle-record` above).
      status-enum-def `(:wat::core::defenum ~status-ty-decl :- [~@handle-tp-syms] :wat::enum::Pure
@@ -1602,7 +1606,8 @@
                              :Stopped     [resp     <- ~resp-ty]
                              :Hibernated [snapshot <- ~record-ty-ann]
                              :PeersAllowed
-                             :PeersDenied)
+                             :PeersDenied
+                             :Faulted    [cause    <- :wat::core::String])
 
      ;; ── arc 291 3a-ii-α: dispatch-admin defn ────────────────────────────────
      ;; fn [ai <- Admin] -> State
@@ -2145,8 +2150,14 @@
                                                   (:wat::string::interpolate "{b}::{op-str}/Response"
                                                     :b proto-base :op-str op-str)))
                               op-resp-ty      `(~op-resp-base-kw :- [~@proto-args])
+                              ;; D1-a: wrap the Outcome SCRUTINEE (the handler body), not the
+                              ;; whole op-dispatch. The form's type here IS Outcome, so a caught
+                              ;; AssertionPayload can return Outcome::Faulted and this match
+                              ;; stays well-typed. Internal -run/-tick arms (SelfOutcome) are
+                              ;; not wrapped — a publisher -run crash is NOT fixed by this stone.
                               outcome-match `(:wat::core::match
-                                                  (:wat::core::let ~arm-let-bindings ~body)
+                                                  (:wat::kernel::serve-dispatch-op ~peers-only-expr
+                                                    (:wat::core::let ~arm-let-bindings ~body))
                                                 ;; arc 278 the send'-outcome wall — a reply to a gone
                                                 ;; client is NOT a service error (the client left); every
                                                 ;; arm's continuation is the SAME regardless of outcome.
@@ -2235,7 +2246,19 @@
                                                             false))
                                                         true
                                                         sends)
-                                                    nil)))
+                                                    nil))
+                                                ;; D1-a: a public-handler raise is a no-op. Tell the
+                                                ;; owner (Status::Faulted carrying the cause), then
+                                                ;; keep serving from the serve fn's OWN pre-op
+                                                ;; `state` — never anything the panicking body
+                                                ;; produced. SendOutcome::Stopped still ends the
+                                                ;; loop (the world is stopping).
+                                                ((:wat::service::Outcome::Faulted cause)
+                                                  (:wat::core::match (:wat::kernel::send self (~status-faulted-kw cause))
+                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
+                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))
+                                                    (:wat::kernel::SendOutcome::Stopped nil)
+                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))))
                               ;; ── arc 278 — the REQUEST-MALFORMED sanitization wall (UNCONDITIONAL) ──
                               ;; The SIZE guard's sibling, in the SAME slot and for the same reason.
                               ;; `:max-request-bytes` asks "is this request too BIG?"; this asks "is
@@ -2500,23 +2523,19 @@
                              "defservice serve: Admin::Resume after startup (protocol error)"
                              :wat::core::None
                              :wat::core::None))))
-                     ;; arc 278 RST stone — the op-dispatch is wrapped in `serve-dispatch-op'`
-                     ;; instead of a bare match: it is the ONE hook that can reach `clients`
-                     ;; while a handler panic is caught (the interpreter's own catch_unwind,
-                     ;; inserted around THIS form's evaluation, not the top-level one that has
-                     ;; already lost `clients` by the time a panic reaches it). On a genuine
-                     ;; handler panic it best-effort broadcasts PeerCrashed to `clients`, then
-                     ;; resumes the SAME panic unchanged — the service still crashes exactly as
-                     ;; before; this arm's own Reply/Stop behavior (the match body) is untouched.
+                     ;; D1-a: serve-dispatch-op wrap moved INWARD onto each public handler
+                     ;; body (the Outcome match scrutinee). A caught AssertionPayload returns
+                     ;; Outcome::Faulted; the arm above tells the owner and recourses. This
+                     ;; Message arm is now a bare retag-op match — TCO of serve lives in the
+                     ;; Continue/Faulted/Closed arms, not through this wrapper.
                      ((:wat::spawn::ServiceEvent::Message idx op)
-                       (:wat::kernel::serve-dispatch-op ~peers-only-expr
                          ;; Arc 278 the parametric protocol — TYPE-position spellings on both
                          ;; sides: `infer_retag_op` reads arg[2] as this form's RESULT TYPE, and
                          ;; the arms below dispatch over the instantiated `(<service>::Op :- [K V])`.
                          ;; `eval_retag_op` canonicalizes both to their base names (params are
                          ;; erased in a runtime `type_path`). Monomorphic ⇒ unchanged.
                          (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-ann ~service-op-decl-kw-runtime)
-                           ~@serve-op-arms)))
+                           ~@serve-op-arms))
                      ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))
                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
@@ -3136,6 +3155,35 @@
                                         "defservice stop: owner-wait-gone returned Stopped"
                                         :wat::core::None
                                         :wat::core::None))))
+                                ;; D1-a: Status::Faulted is an unsolicited notice. It may be
+                                ;; queued on the lineage ahead of Stopped. Drain and re-recv
+                                ;; (same shape as owner-wait-gone's still-emitting arm). A
+                                ;; second unexpected variant still raises.
+                                ((~status-faulted-kw _cause)
+                                  (:wat::core::match
+                                    (:wat::service::owner-recv-loop (~handle-handle-acc h) ~stop-t0-sym 10000 "recv")
+                                    ((:wat::service::StopOutcome::Stopped recvd2)
+                                      (:wat::core::match recvd2
+                                        ((~status-stopped-kw resp)
+                                          (:wat::core::match
+                                            (:wat::service::owner-wait-gone (~handle-handle-acc h) ~stop-t0-sym 10000 "close")
+                                            ((:wat::service::StopOutcome::Gone _c)
+                                              (:wat::service::StopOutcome::Stopped resp))
+                                            ((:wat::service::StopOutcome::GaveUp w l)
+                                              (:wat::service::StopOutcome::GaveUp w l))
+                                            ((:wat::service::StopOutcome::Stopped _)
+                                              (:wat::kernel::assertion-failed!
+                                                "defservice stop: owner-wait-gone returned Stopped"
+                                                :wat::core::None
+                                                :wat::core::None))))
+                                        (_ (:wat::kernel::assertion-failed!
+                                             "defservice stop: expected Status::Stopped"
+                                             :wat::core::None
+                                             :wat::core::None))))
+                                    ((:wat::service::StopOutcome::Gone c)
+                                      (:wat::service::StopOutcome::Gone c))
+                                    ((:wat::service::StopOutcome::GaveUp w l)
+                                      (:wat::service::StopOutcome::GaveUp w l))))
                                 (_ (:wat::kernel::assertion-failed!
                                      "defservice stop: expected Status::Stopped"
                                      :wat::core::None
@@ -3197,6 +3245,31 @@
                                              "defservice hibernate: owner-wait-gone returned Stopped"
                                              :wat::core::None
                                              :wat::core::None))))
+                                     ((~status-faulted-kw _cause)
+                                       (:wat::core::match
+                                         (:wat::service::owner-recv-loop (~handle-handle-acc h) ~hib-t0-sym 10000 "recv")
+                                         ((:wat::service::StopOutcome::Stopped recvd2)
+                                           (:wat::core::match recvd2
+                                             ((~status-hibernated-kw snapshot)
+                                               (:wat::core::match
+                                                 (:wat::service::owner-wait-gone (~handle-handle-acc h) ~hib-t0-sym 10000 "close")
+                                                 ((:wat::service::StopOutcome::Gone _c)
+                                                   (:wat::service::StopOutcome::Stopped snapshot))
+                                                 ((:wat::service::StopOutcome::GaveUp w l)
+                                                   (:wat::service::StopOutcome::GaveUp w l))
+                                                 ((:wat::service::StopOutcome::Stopped _)
+                                                   (:wat::kernel::assertion-failed!
+                                                     "defservice hibernate: owner-wait-gone returned Stopped"
+                                                     :wat::core::None
+                                                     :wat::core::None))))
+                                             (_ (:wat::kernel::assertion-failed!
+                                                  "defservice hibernate: expected Status::Hibernated"
+                                                  :wat::core::None
+                                                  :wat::core::None))))
+                                         ((:wat::service::StopOutcome::Gone c)
+                                           (:wat::service::StopOutcome::Gone c))
+                                         ((:wat::service::StopOutcome::GaveUp w l)
+                                           (:wat::service::StopOutcome::GaveUp w l))))
                                      (_ (:wat::kernel::assertion-failed!
                                           "defservice hibernate: expected Status::Hibernated"
                                           :wat::core::None
@@ -3249,6 +3322,20 @@
                                 ((:wat::service::StopOutcome::Stopped recvd)
                                   (:wat::core::match recvd
                                     (~status-peers-allowed-kw (:wat::service::GateOutcome::Applied))
+                                    ((~status-faulted-kw _cause)
+                                      (:wat::core::match
+                                        (:wat::service::owner-recv-loop (~handle-handle-acc h) ~grant-t0-sym 10000 "recv")
+                                        ((:wat::service::StopOutcome::Stopped recvd2)
+                                          (:wat::core::match recvd2
+                                            (~status-peers-allowed-kw (:wat::service::GateOutcome::Applied))
+                                            (_ (:wat::kernel::assertion-failed!
+                                                 "defservice grant: expected Status::PeersAllowed"
+                                                 :wat::core::None
+                                                 :wat::core::None))))
+                                        ((:wat::service::StopOutcome::Gone c)
+                                          (:wat::service::GateOutcome::Gone c))
+                                        ((:wat::service::StopOutcome::GaveUp w l)
+                                          (:wat::service::GateOutcome::GaveUp w l))))
                                     (_ (:wat::kernel::assertion-failed!
                                          "defservice grant: expected Status::PeersAllowed"
                                          :wat::core::None
@@ -3293,6 +3380,20 @@
                                  ((:wat::service::StopOutcome::Stopped recvd)
                                    (:wat::core::match recvd
                                      (~status-peers-denied-kw (:wat::service::GateOutcome::Applied))
+                                     ((~status-faulted-kw _cause)
+                                       (:wat::core::match
+                                         (:wat::service::owner-recv-loop (~handle-handle-acc h) ~revoke-t0-sym 10000 "recv")
+                                         ((:wat::service::StopOutcome::Stopped recvd2)
+                                           (:wat::core::match recvd2
+                                             (~status-peers-denied-kw (:wat::service::GateOutcome::Applied))
+                                             (_ (:wat::kernel::assertion-failed!
+                                                  "defservice revoke: expected Status::PeersDenied"
+                                                  :wat::core::None
+                                                  :wat::core::None))))
+                                         ((:wat::service::StopOutcome::Gone c)
+                                           (:wat::service::GateOutcome::Gone c))
+                                         ((:wat::service::StopOutcome::GaveUp w l)
+                                           (:wat::service::GateOutcome::GaveUp w l))))
                                      (_ (:wat::kernel::assertion-failed!
                                           "defservice revoke: expected Status::PeersDenied"
                                           :wat::core::None

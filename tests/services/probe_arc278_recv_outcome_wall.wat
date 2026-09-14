@@ -1,8 +1,10 @@
 ;; Arc 278 — the recv'-outcome wall RED GATE (acceptance; reshaped from
 ;; probe_arc278_crash_split_measure.{rs,wat}). Asserts, all four paths
 ;; (panic/rterr × thread/process):
-;;   ADMIN  (Handle/handle) MATCHES `RecvOutcome::Lost cause` as a VALUE (never a raise)
-;;          and `(Failure/message cause)` CONTAINS the crash sentinel — the owner gets the reason.
+;;   ADMIN panic (Handle/handle) — D1-a re-draw: MATCHES `RecvOutcome::Message` of
+;;          `Status::Faulted cause` as a VALUE, carrying the raise's message exactly.
+;;   ADMIN rterr — still MATCHES `RecvOutcome::Lost cause` (Diagnostic is not
+;;          AssertionPayload; the service still dies) carrying the crash sentinel.
 ;;   CLIENT (connected peer) MATCHES `RecvOutcome::Lost` (NEVER `::Closed` — the mute we
 ;;          killed) and its cause message does NOT contain the sentinel (a reason-free 500).
 ;; At HEAD (pre-reshape) recv' raised → no RecvOutcome to match → RED. GREEN once the
@@ -13,8 +15,12 @@
 ;; location never leaves wat; only its boolean RESULT crosses to the .rs golden). "wat stdio is edn
 ;; — assert the structure exactly" (builder, 2026-07-22; R55 REVOLVTIONE, NVLLA LARVA).
 (:wat::core::defenum :probe::Outcome :wat::enum::Pure
-  :Message []                                       ;; matched ::Message (the .rs asserts this NEVER happens)
-  :Lost    [sentinel-present? <- :wat::core::bool]  ;; matched ::Lost — admin: true (reason carried); client: false (reason-free 500)
+  :Message []                                       ;; matched ::Message of an unexpected Status (the .rs asserts this NEVER happens)
+  :Lost    [sentinel-present? <- :wat::core::bool]  ;; matched ::Lost — client panic: false (reason-free 500); rterr admin: true (service still dies)
+  ;; D1-a re-draw: a handler panic no longer kills the service, so the owner recvs
+  ;; Message(Status::Faulted cause) instead of Lost. The cause is the raise's message,
+  ;; carried exactly — not a boolean that an event happened.
+  :Faulted [cause <- :wat::core::String]
   ;; arc 278 #73 — matched ::Stopped (the .rs asserts this NEVER happens either: this probe
   ;; never asks the substrate to stop, it only crashes the peer). A structural twin of
   ;; ::Closed, not folded into it — a stop is neither the peer dying nor the peer closing.
@@ -85,14 +91,19 @@
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)) (:wat::kernel::RecvOutcome::TimedOut (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
 
 ;; ── ADMIN helpers: raw send' the crashing op FIRE-AND-FORGET, then MATCH the Handle lineage peer. ────
-;; On ::Lost → (Outcome::Lost true) — `(Failure/message cause)` CARRIES the sentinel (the owner gets
-;; the exact reason). ::Closed → Outcome::Closed; ::Message → Outcome::Message (both asserted NEVER).
+;; D1-a re-draw of the panic admin path: a handler raise no longer kills the service, so the owner
+;; recvs Message(Status::Faulted cause) carrying the raise's message exactly. Weakening this to
+;; "an event was observed" (Message with no cause, or Lost[false]) is the mute this stone forbids.
+;; The rterr admin path still dies (Diagnostic is not AssertionPayload) → Lost with the sentinel.
 (:wat::core::defn :probe::admin-boom-msg [h <- :probe::crash::Handle] -> :probe::Outcome
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect (:probe::crash::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s (:wat::kernel::send c (:probe::Crash::Op::Boom (:probe::Crash::BoomRequest)))]
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
-      ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
+      ((:wat::kernel::RecvOutcome::Message m)
+        (:wat::core::match m
+          ((:probe::crash::Status::Faulted cause) (:probe::Outcome::Faulted cause))
+          (_ (:probe::Outcome::Message))))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
