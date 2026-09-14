@@ -10,7 +10,7 @@ why the SCOREs' invocation strings must NOT be rewritten.
 ## The work, in one paragraph
 
 Replace `circuit.wat`'s 15-slot positional argv with one EDN record read from stdin. Declare
-`:user::Input` with required fields for what a run cannot mean without (`n`, `m`, `j`, `sub-cap`,
+`:fanout::Input` with required fields for what a run cannot mean without (`n`, `m`, `j`, `sub-cap`,
 `fill-first?`) and `(Option i64)` for every knob that today has a default. `main` reads it with
 `(:wat::kernel::readln)` and passes accessors to `run-with`. The point is not brevity: it is that
 `None` and `(Some 0)` become different, so `vis-ms`, `inbox-vis-ms` and `inbox-cap` stop having an
@@ -32,7 +32,7 @@ unreachable value.
 ## Implementation sketch
 
 ```wat
-(:wat::core::defrecord :user::Input
+(:wat::core::defrecord :fanout::Input
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
    sub-cap <- :wat::core::i64  fill-first? <- :wat::core::bool
    vis-ms <- (:wat::core::Option :- [:wat::core::i64])
@@ -44,11 +44,11 @@ unreachable value.
            ((:wat::kernel::ReadlnOutcome::Datum d) d)
            (:wat::kernel::ReadlnOutcome::Eof    <decide deliberately — STOP-3>)
            (:wat::kernel::ReadlnOutcome::Stopped <decide deliberately>))]
-    …(:fanout::run-with (:user::Input/n inp) …)…))
+    …(:fanout::run-with (:fanout::Input/n inp) …)…))
 ```
 
 ```
-printf '#user/Input {:n 2000 :m 4 :j 3 :sub-cap 8192 :fill-first? true :vis-ms 1000}\n' \
+printf '#fanout/Input {:n 2000 :m 4 :j 3 :sub-cap 8192 :fill-first? true :vis-ms 1000}\n' \
   | ./target/release/wat wat-scripts/fanout/circuit.wat
 ```
 

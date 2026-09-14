@@ -52,7 +52,7 @@ go back to being spelled `0`. The distinction between *absent* and *zero* is wha
 cannot express, and it is the reason to do this at all.
 
 ```
-(:wat::core::defrecord :user::Input
+(:wat::core::defrecord :fanout::Input
   [n m j            <- :wat::core::i64                          ;; required — a run is meaningless without
    sub-cap          <- :wat::core::i64
    fill-first?      <- :wat::core::bool
@@ -71,12 +71,35 @@ cannot express, and it is the reason to do this at all.
 this stone reads an EDN **record**. Same primitive, richer datum.
 
 ```
-printf '#user/Input {:n 2000 :m 4 :j 3 :sub-cap 8192 :fill-first? true :vis-ms 1000}\n' \
+printf '#fanout/Input {:n 2000 :m 4 :j 3 :sub-cap 8192 :fill-first? true :vis-ms 1000}\n' \
   | ./target/release/wat wat-scripts/fanout/circuit.wat
 ```
 
-⭑ Note the namespace: the builder wrote `#u/Input`; wat renders `:user::Input` as `#user/Input`, which
-matches `:user::main` already in the file. Naming is the builder's to overrule.
+### ⛔ THE NAMESPACE, CORRECTED — `:user::` is a RENDEZVOUS, not a home for user types
+
+The first draft of this DESIGN put the record in `:user::`. **Wrong**, and the builder's correction is
+the rule:
+
+> *"the `user` namespace is a rendezvous for known locations user code must be — the kernel will
+> invoke `:user::main` … but users are free to use whatever namespace they want."*
+
+Measured, and it is sharper than a convention:
+
+```
+invoked by the KERNEL, by name          4    :user::main (6 sites) · ::grep · ::compute · ::caller
+invoked by the TEST HARNESS, by name  738    distinct :user:: entry points across tests/**.rs
+```
+
+So `:user::` holds exactly one kind of thing: **a name something OUTSIDE the program looks up.**
+`circuit.wat`'s 29 `:user::` defns are all such entry points — not squatting. A **record type** is
+invoked by nothing, so it does not belong there.
+
+⭑ The record lives in the program's own namespace: **`:fanout::Input`**, rendering `#fanout/Input {…}`.
+The builder's `#u/Input` gave the shape, not the namespace.
+
+⚠ This rule does not appear to be written down anywhere in the tree — it was recoverable only by
+measuring who looks up what. Where it should live is the builder's call; it is recorded here because
+this stone got it wrong first.
 
 ## Out of scope = REJECTED
 
