@@ -1,5 +1,5 @@
 ;; wat-scripts/fuzz/sampling-order-probe.wat — DISCONFIRMING PROBE for the sampling
-;; driver's traversal order (docs/GENERATIVE-TESTING.md), computed IN WAT against
+;; driver's traversal order (docs/arc/2026/06/278-rules-engine/GENERATIVE-TESTING.md), computed IN WAT against
 ;; the REAL library.
 ;;
 ;; WHY THIS FILE EXISTS. Both properties below were first "verified" in a throwaway

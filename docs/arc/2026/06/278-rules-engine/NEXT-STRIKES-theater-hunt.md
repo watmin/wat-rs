@@ -1207,7 +1207,7 @@ the builder.)
     had been blurring, which is how "unexercised" survived as a reason to not look.
 - **RECORD** — `wat-rs/CLAUDE.md`'s delivery claim STILL OPEN (fix lives in the FROZEN holon
   root: builder's call; re-confirmed 2026-08-25 — `grep -c wat-rs holon/CLAUDE.md` → 0).
-  `tmp/VIGILIA-LOOP.md` CLOSED: moved to `docs/VIGILIA-LOOP.md`, tracked, freshness re-tended;
+  `tmp/VIGILIA-LOOP.md` CLOSED: moved to `docs/arc/2026/06/278-rules-engine/VIGILIA-LOOP.md`, tracked, freshness re-tended;
   `/tmp/` gitignored so the scratch run-dirs stop showing as untracked work.
 - **RECORD — FOUND DURING THE 2026-08-25 RECOLLIGERE, not on any ward's list.** The recovery
   map itself had drifted, in the two places that cost a waking instance the most:
