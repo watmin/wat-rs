@@ -19,7 +19,7 @@
      s0    (:wat::rete::insert
              (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cd::q-Box)))
              (:cd::Src :k (:cd::K.Bb {})))
-     fired (:wat::rete::fire-rules s0)
+     fired (:wat::core::match (:wat::rete::fire-rules s0) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      hits  (:wat::rete::query fired (:cd::q-Box))]
     (:wat::core::Option/expect
       (:wat::map::get (:wat::core::first hits) "?label")

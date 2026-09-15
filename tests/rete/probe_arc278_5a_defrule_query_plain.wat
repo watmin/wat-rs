@@ -29,7 +29,7 @@
     (:weather::WindSpeed :kph 45 :location "Oslo")))
 
 (:wat::core::defn :test::fired-oslo [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-plain))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-plain))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
 (:wat::core::defn :user::query-coldandwindy-count [] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query (:test::fired-oslo) (:weather::q-ColdAndWindy))))

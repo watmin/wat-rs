@@ -38,13 +38,14 @@ fn busy_count(fire_fn: &str, acc: &str, gate: &str, readings: &[(&str, i64)]) ->
         .map(|(loc, v)| format!("             session (:wat::rete::insert session (:w::Reading :location \"{loc}\" :value {v}))\n"))
         .collect();
     let run = format!(
+        // rune:lint(no-inlined-edn) — wat fire-rules wrap, FireOutcome match (not an EDN golden)
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
              session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Busy)))\n\
              session (:wat::rete::insert session (:w::Station :location \"Oslo\"))\n\
 {reading_inserts}\
-             fired   (:wat::rete::{fire_fn} session)]\n\
+             fired   (:wat::core::match (:wat::rete::{fire_fn} session) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\
             (:wat::rete::query fired (:w::q-Busy))))"
     );
     let world_src = world(acc, gate);

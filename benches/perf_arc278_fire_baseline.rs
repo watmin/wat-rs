@@ -61,7 +61,13 @@ fn run_for(n: usize) {
         idx += 1;
     }
     let expr = format!(
-        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-rules$oracle s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
+        "(:wat::core::let [{binds}\n fired (:wat::core::match (:wat::rete::fire-rules$oracle s{prev})\
+             [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired]\
+             [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} \
+               (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")]\
+             [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} \
+               (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])\n \
+           pmem (:wat::rete::Session/production-memory fired)]\
            (:wat::core::length (:wat::map::keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");
@@ -110,7 +116,7 @@ fn run_native(n: usize) {
     // a bench that silently measured a refused fire would report a wonderful number for no work.
     let expr = format!(
         "(:wat::core::let [{binds}\n fired (:wat::core::match (:wat::rete::fire-once s{prev})\
-             [:wat::rete::FireOutcome.Fired {{:session __f}} __f]\
+             [:wat::rete::FireOutcome.Fired {{:value __f}} __f]\
              [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __l :used __u :rounds __r}} \
                (:wat::kernel::assertion-failed! :message \"bench: memory ceiling\")]\
              [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __c :still-deriving __s}} \

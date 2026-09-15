@@ -24,5 +24,5 @@
          session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:md::q)))
          session (:wat::rete::insert session (:md::In :k "hit"  :p (:md::Point :x 40 :y 2)))
          session (:wat::rete::insert session (:md::In :k "miss" :p (:md::Point :x 1 :y 1)))
-         fired   (:wat::rete::fire-rules session)]
+         fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
         (:wat::rete::query fired (:md::q))))))

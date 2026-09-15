@@ -26,7 +26,7 @@
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Wrap)))
      session (:wat::rete::insert session (:cg::Anchor :x 0))
-     fired   (:wat::rete::fire-rules$oracle session)
+     fired   (:wat::core::match (:wat::rete::fire-rules$oracle session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      derived (:wat::rete::query fired (:cg::q-Wrap))
      r       (:wat::core::first derived)
      s       (:wat::core::Option/expect
@@ -41,7 +41,7 @@
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Wrap)))
      session (:wat::rete::insert session (:cg::Anchor :x 0))
-     fired   (:wat::rete::fire-rules session)
+     fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      derived (:wat::rete::query fired (:cg::q-Wrap))
      r       (:wat::core::first derived)
      s       (:wat::core::Option/expect

@@ -292,14 +292,14 @@
                     staged  (:strat::seed-items (:wat::rete::compile-all rules (:wat::core::PersistentVector (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
-                    fired   (:wat::rete::fire-rules staged)
+                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     n1      (:wat::time::now)
                     derived (:strat::derived-vector fired strata)
                     nat-ns  (:strat::ns-between n0 n1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
-                    ofired  (:wat::rete::fire-rules$oracle staged)
+                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "strat-neg" :size (:wat::core::PersistentVector strata items) :derived derived :native-ns nat-ns :oracle-derived (:strat::derived-vector ofired strata) :oracle-ns (:strat::ns-between o0 o1)))))

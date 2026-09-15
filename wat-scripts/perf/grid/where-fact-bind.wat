@@ -57,11 +57,11 @@
                     queries (:wat::core::PersistentVector
                               (:wfb::q-bound) (:wfb::q-plain) (:wfb::q-both)
                               (:wfb::q-Hit))
-                    world (:wat::rete::fire-rules
+                    world (:wat::core::match (:wat::rete::fire-rules
                             (:wat::rete::insert
                               (:wat::rete::compile-all rules queries)
                               (:wfb::Temp :c 15 :loc "MCI")
-                              (:wfb::Temp :c 80 :loc "MCI")))
+                              (:wfb::Temp :c 80 :loc "MCI"))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     bound (:wat::rete::query world (:wfb::q-bound))
                     plain (:wat::rete::query world (:wfb::q-plain))
                     both  (:wat::rete::query world (:wfb::q-both))
@@ -89,13 +89,13 @@
               (:wat::map::get (:wat::core::first hits) "?c")
               "q-Hit: ?c")))))
     (:wfb::line 5 "from"
-      (:wat::core::let [only-q (:wat::rete::fire-rules
+      (:wat::core::let [only-q (:wat::core::match (:wat::rete::fire-rules
                                  (:wat::rete::insert
                                    (:wat::rete::compile-all
                                      (:wat::core::PersistentVector)
                                      (:wat::core::PersistentVector (:wfb::q-from)))
                                    (:wfb::Temp :c 15 :loc "MCI")
-                                   (:wfb::Temp :c 80 :loc "MCI")))
+                                   (:wfb::Temp :c 80 :loc "MCI"))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                         grouped (:wat::rete::query only-q (:wfb::q-from))]
         (:wat::string::concat
           " n=" (:wat::i64::to-string (:wat::core::length grouped)))))))

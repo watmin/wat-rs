@@ -19,7 +19,7 @@
 ;;
 ;;   (fire-once ARG)
 ;;     ->  (:wat::core::match (fire-once ARG)
-;;           [:wat::rete::FireOutcome.Fired {:session __fired} __fired]
+;;           [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
 ;;           [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (assertion-failed! :message "…")]
 ;;           [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}          (assertion-failed! :message "…")])
 ;;
@@ -106,7 +106,7 @@
     (:wat::core::Tuple (:user::start-off node lines) ""
       "(:wat::core::match ")
     (:wat::core::Tuple (:user::end-off node lines) ""
-      " [:wat::rete::FireOutcome.Fired {:session __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message \"fire-once: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message \"fire-once: fixpoint round cap exceeded\")])")))
+      " [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message \"fire-once: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message \"fire-once: fixpoint round cap exceeded\")])")))
 
 ;; recurse a node's children WITHOUT wrapping the node's own top (idempotency suppression).
 (:wat::core::defn :user::node-edits-no-top

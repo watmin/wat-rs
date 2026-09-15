@@ -53,9 +53,21 @@
 ;; closure so beta is live. First-producer-wins, matching the native index.
 (:wat::core::defn :wat::rete::fire-rules-explain$oracle
   [session <- :wat::rete::Session]
-  -> :wat::rete::Explained
+  ;; ⛔ SAME TYPE AS THE NATIVE, by the dual-impl contract — `(FireOutcome :- [Explained])`. The
+  ;; oracle enforces no ceilings, so it can only ever answer `Fired`; answering a bare `Explained`
+  ;; would make the differential harness unwrap one side and not the other, i.e. compare two
+  ;; different things.
+  -> (:wat::rete::FireOutcome :- [:wat::rete::Explained])
   (:wat::core::let [input       (:wat::rete::Session/facts session)
-                    oracle-sess (:wat::rete::fire-rules$oracle session)
+                    ;; HAND-FACED (arc 278 the fire-outcome wall) — stdlib, per-site semantic.
+                    ;; The oracle enforces no ceilings, so only `Fired` is reachable; the other
+                    ;; arms say so loudly rather than being swallowed.
+                    oracle-sess (:wat::core::match (:wat::rete::fire-rules$oracle session)
+                                  [:wat::rete::FireOutcome.Fired {:value __f} __f]
+                                  [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+                                    (:wat::kernel::assertion-failed! :message "fire-rules-explain$oracle: memory ceiling — the oracle enforces none")]
+                                  [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+                                    (:wat::kernel::assertion-failed! :message "fire-rules-explain$oracle: round cap — the oracle enforces none")])
                     derived     (:wat::rete::collect-derived
                                   (:wat::rete::Session/production-memory oracle-sess))
                     closed      (:wat::rete::merge-facts input derived)
@@ -83,7 +95,7 @@
                                       :facts closed
                                       :next-id (:wat::rete::Session/next-id session)
                                       :query-memory empty))
-                                  [:wat::rete::FireOutcome.Fired {:session __replayed} __replayed]
+                                  [:wat::rete::FireOutcome.Fired {:value __replayed} __replayed]
                                   [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
                                     (:wat::kernel::assertion-failed! :message "fire-rules-explain$oracle: the oracle replay hit a memory ceiling — the oracle enforces none")]
                                   [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
@@ -92,5 +104,6 @@
                                   (:wat::rete::Session/network replay)
                                   (:wat::rete::Session/beta-memory replay)
                                   (:wat::rete::Session/rules session))]
-    (:wat::rete::Explained :session oracle-sess :support support)))
+    (:wat::rete::FireOutcome.Fired
+      {:value (:wat::rete::Explained :session oracle-sess :support support)})))
 

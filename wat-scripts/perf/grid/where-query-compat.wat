@@ -182,8 +182,8 @@
           (:wqc::q-fields) (:wqc::q-plain) (:wqc::q-bound) (:wqc::q-at)
           (:wqc::q-join) (:wqc::q-count-at) (:wqc::q-count-wind)
           (:wqc::q-no-wind) (:wqc::q-has-wind) (:wqc::q-cool))
-     world (:wat::rete::fire-rules
-             (:wqc::seed (:wat::rete::compile-all (:wat::core::PersistentVector) qs)))
+     world (:wat::core::match (:wat::rete::fire-rules
+             (:wqc::seed (:wat::rete::compile-all (:wat::core::PersistentVector) qs))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      fields (:wat::rete::query world (:wqc::q-fields))
      plain  (:wat::rete::query world (:wqc::q-plain))
      bound  (:wat::rete::query world (:wqc::q-bound))
@@ -196,15 +196,15 @@
      some   (:wat::rete::query world (:wqc::q-has-wind))
      cool   (:wat::rete::query world (:wqc::q-cool))
      hits   (:wat::rete::query
-              (:wat::rete::fire-rules
+              (:wat::core::match (:wat::rete::fire-rules
                 (:wqc::seed
                   (:wat::rete::compile-all
                     (:wat::core::PersistentVector (:wqc::mark))
-                    (:wat::core::PersistentVector (:wqc::q-Hit)))))
+                    (:wat::core::PersistentVector (:wqc::q-Hit))))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
               (:wqc::q-Hit))
      empty  (:wat::rete::query
-              (:wat::rete::fire-rules
-                (:wat::rete::compile-all (:wat::core::PersistentVector) qs))
+              (:wat::core::match (:wat::rete::fire-rules
+                (:wat::rete::compile-all (:wat::core::PersistentVector) qs)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
               (:wqc::q-fields))]
     (:wqc::line 1 "fields"
       (:wat::string::concat

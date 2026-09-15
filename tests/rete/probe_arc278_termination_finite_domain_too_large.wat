@@ -18,9 +18,9 @@
   (:wat::kernel::println
     (:wat::core::length
       (:wat::rete::query
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert
             (:wat::rete::compile-all (:wat::core::PersistentVector (:tl::flip))
               (:wat::core::PersistentVector (:tl::q)))
-            (:tl::Wide :f0 true :f1 true :f2 true :f3 true :f4 true :f5 true :f6 true :f7 true :f8 true :f9 true :f10 true :f11 true :f12 true :f13 true :f14 true :f15 true :f16 true :f17 true :f18 true :f19 true)))
+            (:tl::Wide :f0 true :f1 true :f2 true :f3 true :f4 true :f5 true :f6 true :f7 true :f8 true :f9 true :f10 true :f11 true :f12 true :f13 true :f14 true :f15 true :f16 true :f17 true :f18 true :f19 true))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
         (:tl::q)))))

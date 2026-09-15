@@ -30,8 +30,8 @@
 
 (:wat::core::defn :user::native-count [] -> :wat::core::i64
   (:wat::core::length
-    (:wat::rete::query (:wat::rete::fire-rules (:user::stage)) (:tw::q-ColdWindy))))
+    (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:user::stage)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:tw::q-ColdWindy))))
 
 (:wat::core::defn :user::spec-count [] -> :wat::core::i64
   (:wat::core::length
-    (:wat::rete::query (:wat::rete::fire-rules$oracle (:user::stage)) (:tw::q-ColdWindy))))
+    (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:user::stage)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:tw::q-ColdWindy))))

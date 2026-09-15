@@ -82,7 +82,7 @@
 (:wat::core::defn :wtc::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules (:wtc::build-rules row)
                     rule  (:wat::core::first rules)
-                    fired (:wat::rete::fire-rules (:wtc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wtc::q-Pair)))))
+                    fired (:wat::core::match (:wat::rete::fire-rules (:wtc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wtc::q-Pair))))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     name  (:wat::core::foldl
                              (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String]
                                -> :wat::core::String seg)

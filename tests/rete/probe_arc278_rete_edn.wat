@@ -40,7 +40,7 @@
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [exp   (:wat::edn::read txt)
                     s0    (:wat::rete::import exp)
-                    fired (:wat::rete::fire-rules (seed s0))]
+                    fired (:wat::core::match (:wat::rete::fire-rules (seed s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::PersistentVector
       (:wat::core::length (:wat::rete::query fired (:dm::q-who)))
       (:wat::core::length (:wat::rete::query fired (:dm::q-hollow))))))
@@ -61,7 +61,7 @@
 (:wat::core::defn :user::sigil [txt <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [exp   (:wat::edn::read txt)
                     s0    (:wat::rete::import exp)
-                    fired (:wat::rete::fire-rules (:dm::seed-practice s0))
+                    fired (:wat::core::match (:wat::rete::fire-rules (:dm::seed-practice s0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     who   (:wat::rete::query fired (:dm::q-who))
                     fact  (:wat::core::Option/expect
                             (:wat::map::get

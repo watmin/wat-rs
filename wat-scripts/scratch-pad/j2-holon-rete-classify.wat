@@ -37,7 +37,7 @@
     (:j2::Catalog :name "const-false" :obs (:j2::table-of (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool false)))))
 
 (:wat::core::defn :j2::run
-  [fire    <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session
+  [fire    <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
    mystery <- :wat::core::Fn(wat::core::bool)->wat::core::bool]
   -> :wat::core::String
   (:wat::core::let
@@ -46,7 +46,7 @@
              (:wat::core::PersistentVector (:j2::q-Guess)))
      s1    (:wat::rete::insert-all s0 (:j2::catalog))
      s2    (:wat::rete::insert s1 (:j2::Observation :obs (:j2::table-of mystery)))
-     fired (fire s2)
+     fired (:wat::core::match (fire s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])
      hits  (:wat::rete::query fired (:j2::q-Guess))
      n     (:wat::core::length hits)]
     (:wat::core::if (:wat::i64::= n 1)

@@ -89,7 +89,7 @@
          [template <- :wat::rete::Session  seed <- :usr::Temp]
          -> (:wat::core::PersistentVector :- [:wat::core::Value])
          (:wat::core::let
-           [~fired-sym (:wat::rete::fire-rules (:wat::rete::insert template seed))]
+           [~fired-sym (:wat::core::match (:wat::rete::fire-rules (:wat::rete::insert template seed)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
            (:wat::core::concat ~@query-calls))))))
 
 (:probe::mk-deduce

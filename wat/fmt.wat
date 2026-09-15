@@ -1141,7 +1141,12 @@
         (:wat::rete::with-overlay rules queries
           (:wat::core::fn [overlay <- :wat::rete::Overlay]
             -> :wat::core::String
-            (:wat::core::let [fired (overlay records)]
+            (:wat::core::let [fired (:wat::core::match (overlay records)
+                                      [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
+                                      [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                                        (:wat::kernel::assertion-failed! :message "fmt: session memory ceiling exceeded")]
+                                      [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                                        (:wat::kernel::assertion-failed! :message "fmt: fixpoint round cap exceeded")])]
               (:wat::fmt::emit forms comments
                 (:wat::fmt::breaks-map fired)
                 (:wat::fmt::owned-set fired)

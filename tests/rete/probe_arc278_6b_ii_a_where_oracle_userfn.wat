@@ -25,7 +25,7 @@
       [rules   (:wat::rete::collect-rules :wb)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wb::q-Gate)))
        session (:wat::rete::insert session (:weather::Temperature :celsius 150 :location "Oslo"))
-       fired   (:wat::rete::fire-rules$oracle session)]
+       fired   (:wat::core::match (:wat::rete::fire-rules$oracle session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
       (:wat::rete::query fired (:wb::q-Gate)))))
 
 ;; 3b — the same user-fn predicate blocks below threshold: big?(50) → zero.
@@ -35,6 +35,6 @@
       [rules   (:wat::rete::collect-rules :wb)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wb::q-Gate)))
        session (:wat::rete::insert session (:weather::Temperature :celsius 50 :location "Oslo"))
-       fired   (:wat::rete::fire-rules$oracle session)]
+       fired   (:wat::core::match (:wat::rete::fire-rules$oracle session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
       (:wat::rete::query fired (:wb::q-Gate)))))
 

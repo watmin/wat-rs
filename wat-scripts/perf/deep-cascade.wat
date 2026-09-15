@@ -79,11 +79,11 @@
                     staged  (:perf::seed-level-0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node))) width)
                     ;; time the wat SPEC engine fire-rules-spec (re-run-from-scratch reference)
                     w0      (:wat::time::now)
-                    fired-w (:wat::rete::fire-rules$oracle staged)
+                    fired-w (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     w1      (:wat::time::now)
                     ;; time the native fire-rules' (P4a cascade fixpoint) on the SAME staged session
                     n0      (:wat::time::now)
-                    fired-n (:wat::rete::fire-rules staged)
+                    fired-n (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     n1      (:wat::time::now)
                     deepest (:perf::count-at-level fired-n depth)
                     derived (:wat::i64::* 2 (:wat::i64::* depth width))

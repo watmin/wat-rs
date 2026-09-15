@@ -109,13 +109,13 @@
 
      ;; (1) COLD — fire an unfired base of n facts. The yardstick.
      c0        (:wat::time::now)
-     fired     (:wat::rete::fire-rules staged)
+     fired     (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      c1        (:wat::time::now)
 
      ;; (2) NO-OP — fire the ALREADY-FIRED session again, nothing added. If this is not ~free, the
      ;;     engine redoes its work unconditionally and no overlay design can be cheap.
      p0        (:wat::time::now)
-     refired   (:wat::rete::fire-rules fired)
+     refired   (:wat::core::match (:wat::rete::fire-rules fired) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      p1        (:wat::time::now)
 
      ;; (3) OVERLAY — the with-block's real shape: already-fired base + a FIXED small delta.
@@ -123,7 +123,7 @@
                  (:wat::i64::+ (:ovl::temp-lo)
                    (:wat::i64::* (:ovl::temp-n) 10)))
      o0        (:wat::time::now)
-     overlaid  (:wat::rete::fire-rules scratch)
+     overlaid  (:wat::core::match (:wat::rete::fire-rules scratch) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      o1        (:wat::time::now)
 
      base-d    (:ovl::derived-count fired)

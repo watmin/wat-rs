@@ -62,12 +62,12 @@
   -> :wat::core::i64
   (:wat::core::length
     (:wat::rete::query
-      (:wat::rete::fire-rules
+      (:wat::core::match (:wat::rete::fire-rules
         (:wat::rete::insert
           (:wat::rete::compile-all rules
             (:wat::core::PersistentVector
               (:wndq::q-not-S2) (:wndq::q-not-S3) (:wndq::q-Hit) (:wndq::q-S2)))
-          (:wndq::S1 :k 1)))
+          (:wndq::S1 :k 1))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
       q)))
 
 ;; Row 1 is the agreeing control and is here, not in a separate file, so a "fix" that achieves

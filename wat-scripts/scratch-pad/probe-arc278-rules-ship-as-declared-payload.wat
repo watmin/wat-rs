@@ -87,7 +87,7 @@
   (:wat::core::quote
     (:wat::core::length
       (:wat::rete::query
-        (:wat::rete::fire-rules
+        (:wat::core::match (:wat::rete::fire-rules
           (:wat::rete::insert
             (:wat::rete::compile-all
               (:wat::rete::collect-rules :usr)
@@ -95,7 +95,7 @@
                 (:wat::rete::make-query "usr::Hot"
                   (:wat::core::quote [])
                   (:wat::core::quote [(:usr::Hot)]))))
-            (:usr::Temp :c 150)))
+            (:usr::Temp :c 150))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
         (:wat::rete::make-query "usr::Hot"
           (:wat::core::quote [])
           (:wat::core::quote [(:usr::Hot)]))))))

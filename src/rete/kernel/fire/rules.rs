@@ -581,7 +581,10 @@ fn requery_closed_world(
 
 // ── Public entry: native fire-rules ──────────────────────────────────────────
 
-/// `(:wat::rete::fire-rules <session>) -> :wat::rete::Session`
+/// `(:wat::rete::fire-rules <session>) -> (:wat::rete::FireOutcome :- [:wat::rete::Session])`
+///
+/// Arc 278 the fire-outcome wall — it answers a matchable outcome, never a bare Session and never
+/// a raise. The two ceilings become arms at this boundary (`outcome::fire_result_to_outcome`).
 ///
 /// Native cascade fixpoint. Delegates to `fire_fixpoint_delta` (semi-naive),
 /// or to `fire_rules_stratified` when a rule negates a same-or-lower-stratum type.
@@ -614,7 +617,11 @@ pub(crate) fn eval_fire_rules_native(
 
     // Evaluate the session argument.
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    fire_rules_on_session(&session, sym, None)
+    // ⛔ THE WALL, at the wat boundary — the same one `fire-once` stands behind
+    // (`fire/mod.rs`). `fire_rules_on_session` keeps returning `Result<Session>` because rust
+    // reads it too; this is the one place `fire-rules` becomes a wat value, so it is the one
+    // place the two ceilings become matchable arms instead of a raise. See `rete::kernel::outcome`.
+    crate::rete::kernel::outcome::fire_result_to_outcome(fire_rules_on_session(&session, sym, None))
 }
 
 /// Native cascade fixpoint on an already-evaluated Session. Shared by

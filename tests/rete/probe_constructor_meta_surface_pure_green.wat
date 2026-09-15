@@ -30,7 +30,7 @@
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Handle)))
      session (:wat::rete::insert session (:cg::Anchor :x 5))
-     fired   (:wat::rete::fire-rules$oracle session)
+     fired   (:wat::core::match (:wat::rete::fire-rules$oracle session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      derived (:wat::rete::query fired (:cg::q-Handle))
      r       (:wat::core::first derived)]
     (:wat::core::Option/expect

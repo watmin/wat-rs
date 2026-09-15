@@ -56,9 +56,9 @@
     "q-Rate: ?count"))
 
 (:wat::core::defn :test::run
-  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
   -> :wat::core::i64
-  (:test::count-rate (fire (:test::seed-anchor-rate (:test::compile-tf)))))
+  (:test::count-rate (:wat::core::match (fire (:test::seed-anchor-rate (:test::compile-tf))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])))
 
 ;; Fires via the WAT ORACLE. NOT an unconfounded witness for "a NEW fact was derived" — the
 ;; extraction-only fn returns a value structurally IDENTICAL to the accumulated input, so a plain

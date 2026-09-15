@@ -1,0 +1,4 @@
+# ORACLE for wrap-fire-rules-explain-in-fireoutcome — HISTORY or header spec, never the tool.
+
+spec       ex      (:wat::core::match (:wat::rete::fire-rules-explain session) [:wat::rete::FireOutcome.Fired {:value __explained} __explained] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules-explain: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules-explain: fixpoint round cap exceeded")])] :: each call in the FireOutcome match
+spec-before ex      (:wat::rete::fire-rules-explain session)] :: each call in the FireOutcome match

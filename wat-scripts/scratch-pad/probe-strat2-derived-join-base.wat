@@ -83,13 +83,13 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [f (:wat::rete::fire-rules
+    [f (:wat::core::match (:wat::rete::fire-rules
          (:wat::rete::insert
            (:wat::rete::insert
              (:wat::rete::compile-all (:wat::core::PersistentVector
                (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)) (:wat::core::PersistentVector (:z::q-S) (:z::q-S2) (:z::q-Out2) (:z::q-Out)))
              (:z::A :c "i64"))
-           (:z::R :c "i64" :t "wat.core.i64")))]
+           (:z::R :c "i64" :t "wat.core.i64"))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::do
       ;; non-vacuity: both gates must derive, or the Out rows below mean nothing
       (:z::show "S  via negation (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-S))))

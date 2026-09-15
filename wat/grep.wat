@@ -432,7 +432,12 @@
   (:wat::core::let
     [facts       (:wat::grep::facts-of path (:wat::io::read-file path))
      records     (:wat::grep::facts-as-records facts)
-     fired       (overlay records)
+     fired       (:wat::core::match (overlay records)
+                   [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
+                   [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                     (:wat::kernel::assertion-failed! :message (:wat::string::concat "wat::grep: session memory ceiling exceeded on " path))]
+                   [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                     (:wat::kernel::assertion-failed! :message (:wat::string::concat "wat::grep: fixpoint round cap exceeded on " path))])
      matches     (:wat::rete::query fired (:wat::grep::q-match))
      ran-matches (:wat::core::run! :wat::grep::print-match matches)]
     (:wat::grep::Facts/unreadable facts)))

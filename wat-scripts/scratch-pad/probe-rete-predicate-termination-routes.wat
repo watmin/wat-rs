@@ -77,8 +77,8 @@
     ;; on a predicate that can loop forever, and passed all four. That is the whole finding,
     ;; and proving it needs NO fire — so this file cannot hang no matter what.
     [template (:wat::rete::compile-all (:wat::core::PersistentVector (:probe-term::recursive-predicate-is-admitted)) (:wat::core::PersistentVector (:probe-term::q-Done)))
-     fired    (:wat::rete::fire-rules
-                (:wat::rete::insert template (:probe-term::Tick :n 0)))]
+     fired    (:wat::core::match (:wat::rete::fire-rules
+                (:wat::rete::insert template (:probe-term::Tick :n 0))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::do
       ;; the fence ADMITTED an unboundedly-recursive predicate: `compile` above returned.
       (:wat::kernel::println ":route-a-admitted true")

@@ -229,13 +229,52 @@ The unknowns it settles, all of them cheap to learn at 31 sites and expensive at
      SHADOWS any same-named enclosing binding at every site it rewrites. It got away with it at
      160 sites; a 1_182-site sweep will not.
 
-3. **S2b — `fire-rules` + `fire-rules-explain` (529 + explain), NEXT.** The enum, the derive, the
-   `builtin_enum_variant_names` arms and the codemod all EXIST — this reuses them. Order: hand-face
-   the stdlib sites first (there are more than `fire-once` had), rebuild, then sweep with a copy of
-   `wrap-fire-once-in-fireoutcome.wat` carrying the two head keywords changed.
-   `fire-rules-explain` returns `:wat::rete::Explained`, so it needs the one open decision — an
-   `ExplainOutcome`, or `Explained` reached through `FireOutcome`.
-4. **S2c — `insert` / `insert-all`** with `InsertOutcome` (640).
+3. ~~**S2b — `fire-rules` + `fire-rules-explain`.**~~ **LANDED 2026-08-29. Floor 5161/5161.**
+
+   **⛔ `FireOutcome` BECAME PARAMETRIC, and that resolved the open decision by derivation.**
+   `fire-rules-explain` returns `Explained`, not `Session`. The alternative was a second enum with
+   a byte-identical copy of both ceiling arms — two places holding one truth. Parametric wat
+   `defenum`s exist (`ServiceEvent :- [I O A]`, `Cache::GetResult :- [V]`), so `(FireOutcome :- [T])`
+   serves both: `fire-rules`/`fire-once` at `[Session]`, `explain` at `[Explained]`. The ceiling
+   arms do not mention `T` — a breach is the same fact whatever the fire was going to produce,
+   which is exactly why one enum can serve both.
+
+   **THE CASCADE, as a progress meter: 94 → 59 → 38 → 23 → 2 → 0.** Each round named the next
+   class. What the corpus codemod could NOT reach, and how each was found:
+
+   | class | why the tool was blind | found by |
+   |---|---|---|
+   | wat in a Rust `format!` (38 sites, 5 files) | no `.wat` tree-walk sees it | grep `.rs` |
+   | the verb as a `{fire_fn}` PLACEHOLDER | the head is not a literal | the cascade |
+   | the verb as a `FIRE_VERB` template token | same | the cascade |
+   | the verb passed as a first-class `Fn` param (8 sites) | it is not a call form at all | the cascade |
+   | `wat-scripts/fixes/` (excluded by design) | a codemod rewriting a codemod eats itself | `every_wat_scripts_file_loads` |
+   | a harness that TEXT-SUBSTITUTES the call (`skip_oracle_fire`) | it swapped the scrutinee out and orphaned the match | the grid liveness gate |
+
+   ⚠ **AND MY OWN TRANSFORMER HAD A BUG THE DIFF CAUGHT: RAW STRINGS.** All 12 `reachability.rs`
+   sites are `r#"…"#`, where `\"` is a literal backslash-quote, not an escape — it would have
+   emitted broken wat into the ledger's every generated program. **The other 26 sites are normal
+   strings where `\"` is correct**, so a blanket choice either way was wrong. Recovery-file FM 21
+   is exactly this class; reading the diff is what caught it.
+
+   ⛔ **TOTALITY CHANGED WHAT THE CEILING GATES CAN SEE, AND THEY HAD TO BE REBUILT.** A breach no
+   longer raises, so `rete_error()` had nothing to parse and the program now EXITS 0. The codemod's
+   generic `assertion-failed!` arms would have made both gates green while throwing away the
+   `limit`/`used`/`rounds` they exist to assert. Both fixtures are now hand-faced to MATCH the arm
+   and print its fields, and the gates assert on those — **a stronger claim than before: the
+   program SURVIVES its ceiling and reports it as data.**
+
+4. **S2c — `insert` / `insert-all` (640 sites) with `InsertOutcome`. NEXT.** A SEPARATE enum, not
+   `FireOutcome` parametrised: `insert` runs no rounds, so it has no `RoundCapExceeded` arm, and an
+   arm that cannot occur is the two-facts defect this arc keeps pulling out. Parametricity solved a
+   different problem (one payload TYPE varying); it does not merge two different ARM SETS.
+
+   **The order is the one S2a/S2b paid for — do not rediscover it:** hand-face the stdlib sites
+   first (the codemod is a wat program and cannot load while the stdlib is red) → `cargo build`
+   (the stdlib is `include_str!`'d) → dry-run + diff the codemod on a `/tmp` copy → sweep → then
+   chase the cascade for what no `.wat` tree-walk can see: wat inside Rust `format!`s, verbs as
+   `{placeholder}`s or template tokens, verbs passed as first-class `Fn` params, `wat-scripts/fixes/`
+   (excluded by design), and harnesses that TEXT-SUBSTITUTE the call.
 5. **S2d — the lint wall:** a ceiling breach may not be constructed as a raise anywhere in rete.
    The rung that stops the class regrowing; the recv wall's S4 is the shape to copy.
 

@@ -39,13 +39,14 @@ fn world(threshold: i64) -> String {
 /// the derived ColdAndWindy facts. Temperature(-5, Oslo) ⋈ WindSpeed(45, Oslo) → one joined token.
 fn count(world_src: &str, fire_fn: &str) -> Result<i64, String> {
     let run = format!(
+        // rune:lint(no-inlined-edn) — wat fire-rules wrap, FireOutcome match (not an EDN golden)
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :weather)\n\
              session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))\n\
              session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
              session (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\"))\n\
-             fired   (:wat::rete::{fire_fn} session)]\n\
+             fired   (:wat::core::match (:wat::rete::{fire_fn} session) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\
             (:wat::rete::query fired (:weather::q-ColdAndWindy))))"
     );
     let world = startup_from_source(world_src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))

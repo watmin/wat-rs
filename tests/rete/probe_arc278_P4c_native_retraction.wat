@@ -48,43 +48,43 @@
 
 ;; ── single retract: drop a support → its derived ColdAndWindy is gone ──────────────
 (:wat::core::defn :user::native-retract-drops-cw [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab-rules)))
-                   fired (:wat::rete::fire-rules (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab-rules))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::oracle-retract-drops-cw [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab-rules)))
-                   fired (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab-rules))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-ColdAndWindy))))
 
 ;; ── transitive: retract Temp → CW gone → WA (derived from CW) gone too ─────────────
 (:wat::core::defn :user::native-retract-cascade-wa [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab-rules)))
-                   fired (:wat::rete::fire-rules (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab-rules))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-WeatherAlert))))
 
 (:wat::core::defn :user::oracle-retract-cascade-wa [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab-rules)))
-                   fired (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-oslo (:test::compile-ab-rules))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-WeatherAlert))))
 
 ;; ── precise: retract Oslo's Temp; Bergen's independent derivation survives ─────────
 (:wat::core::defn :user::native-retract-precise-cw [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules))))
-                   fired (:wat::rete::fire-rules (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules)))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::native-retract-precise-wa [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules))))
-                   fired (:wat::rete::fire-rules (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules)))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-WeatherAlert))))
 
 (:wat::core::defn :user::oracle-retract-precise-cw [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules$oracle (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules))))
-                   fired (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules)))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-ColdAndWindy))))
 
 (:wat::core::defn :user::oracle-retract-precise-wa [] -> :wat::core::i64
-  (:wat::core::let [f0    (:wat::rete::fire-rules$oracle (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules))))
-                   fired (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0))]
+  (:wat::core::let [f0    (:wat::core::match (:wat::rete::fire-rules$oracle (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules)))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                   fired (:wat::core::match (:wat::rete::fire-rules$oracle (:test::retract-oslo-temp f0)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:test::count-derived fired (:weather::q-WeatherAlert))))

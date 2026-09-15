@@ -334,7 +334,7 @@
   (:wat::core::let [rules   (:wsc::build-rules row)
                     rule    (:wat::core::first rules)
                     staged  (:wsc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsc::q-Hit))) (:wsc::items))
-                    fired   (:wat::rete::fire-rules staged)
+                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     derived (:wsc::derived-ints fired)
                     n       (:wat::vec::length derived)]
     (:wat::string::concat

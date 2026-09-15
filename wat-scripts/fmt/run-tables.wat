@@ -51,7 +51,12 @@
             (:wat::core::fn [overlay <- :wat::rete::Overlay]
               -> :wat::core::nil
               (:wat::core::let
-                [fired (overlay records)
+                [fired (:wat::core::match (overlay records)
+                         [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
+                         [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                           (:wat::kernel::assertion-failed! :message "fmt/run-tables: session memory ceiling exceeded")]
+                         [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                           (:wat::kernel::assertion-failed! :message "fmt/run-tables: fixpoint round cap exceeded")])
                  sizes (:wat::core::foldl
                          (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::i64 :wat::core::i64])
                                           binding <- :wat::core::PersistentMap]

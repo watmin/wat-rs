@@ -94,5 +94,5 @@
   (:wat::core::mapv
     (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
     (:wat::vector::concat
-      (:wpf::counts (:wat::rete::fire-rules (:wpf::staged)))
-      (:wpf::counts (:wat::rete::fire-rules$oracle (:wpf::staged))))))
+      (:wpf::counts (:wat::core::match (:wat::rete::fire-rules (:wpf::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+      (:wpf::counts (:wat::core::match (:wat::rete::fire-rules$oracle (:wpf::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

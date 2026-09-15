@@ -40,16 +40,16 @@
     (:weather::WindSpeed :kph 45 :location "Bergen")))
 
 (:wat::core::defn :test::cascade-fired-session [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-ab))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
 (:wat::core::defn :test::cascade-fired-bergen [] -> :wat::rete::Session
-  (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-ab))))
+  (:wat::core::match (:wat::rete::fire-rules (:test::seed-bergen (:test::compile-ab))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
 (:wat::core::defn :test::query-count [s <- :wat::rete::Session q <- :wat::rete::Query] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query s q)))
 
 (:wat::core::defn :user::compile-ab-fires-nothing [] -> :wat::core::i64
-  (:test::query-count (:wat::rete::fire-rules (:test::compile-ab)) (:weather::q-ColdAndWindy)))
+  (:test::query-count (:wat::core::match (:wat::rete::fire-rules (:test::compile-ab)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:weather::q-ColdAndWindy)))
 
 (:wat::core::defn :user::weatheralert-count-oslo [] -> :wat::core::i64
   (:test::query-count (:test::cascade-fired-session) (:weather::q-WeatherAlert)))

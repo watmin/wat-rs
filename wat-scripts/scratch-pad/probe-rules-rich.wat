@@ -43,7 +43,7 @@
 
 (:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Event] -> :wat::core::String
   (:wat::core::let
-    [fired (:wat::rete::fire-rules (:wat::rete::insert template seed))
+    [fired (:wat::core::match (:wat::rete::fire-rules (:wat::rete::insert template seed)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      s (:wat::core::length (:wat::rete::query fired (:usr::q-Suspect)))
      a (:wat::core::length (:wat::rete::query fired (:usr::q-Anomaly)))]
     (:wat::string::concat "Suspect=" (:wat::string::concat (:wat::core::str s)

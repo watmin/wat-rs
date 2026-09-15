@@ -93,8 +93,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     ;; 1. The `if` control fires and derives — so the branching logic is fine.
-    [ctl     (:wat::rete::fire-rules
-               (:pcf::seed (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit)))))
+    [ctl     (:wat::core::match (:wat::rete::fire-rules
+               (:pcf::seed (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit))))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      _ok     (:wat::kernel::println
                (:wat::string::concat "if-control derived n=" (:wat::i64::to-string (:pcf::derived ctl))))
 
@@ -104,5 +104,5 @@
      _fence   (:wat::kernel::println "cond-subject PASSED compile + the purity fence")
 
      ;; 3. FIRE. This raises #wat.runtime/UnknownFunction on :wat::core::cond.
-     _fire    (:wat::rete::fire-rules (:pcf::seed compiled))]
+     _fire    (:wat::core::match (:wat::rete::fire-rules (:pcf::seed compiled)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::kernel::println "UNEXPECTED: cond fired without raising — the split may be CLOSED; re-read this probe's header")))

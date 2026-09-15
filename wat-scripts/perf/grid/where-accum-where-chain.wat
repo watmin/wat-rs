@@ -85,6 +85,6 @@
                (:wawc::Reading :loc "MCI" :v 2)
                (:wawc::Reading :loc "MCI" :v 3)))]
     (:wawc::line 1 "one-where"
-      (:wawc::sum-n (:wat::rete::fire-rules (facts one))))
+      (:wawc::sum-n (:wat::core::match (:wat::rete::fire-rules (facts one)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wawc::line 2 "two-wheres"
-      (:wawc::sum-n (:wat::rete::fire-rules (facts two))))))
+      (:wawc::sum-n (:wat::core::match (:wat::rete::fire-rules (facts two)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

@@ -180,10 +180,10 @@
     (:wat::i64::to-string
       (:wat::core::length
         (:wat::rete::query
-          (:wat::rete::fire-rules
+          (:wat::core::match (:wat::rete::fire-rules
             (:shape::seed
               (:wat::rete::compile-all
                 (:shape::build-rules)
                 (:wat::core::PersistentVector (:shape::q-Hit)))
-              50))
+              50)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
           (:shape::q-Hit))))))

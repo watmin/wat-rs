@@ -168,8 +168,8 @@
 (:wat::core::defn :wat-tests::rete::rules::prop [c <- :wat-tests::rete::rules::Case]
   -> :wat::core::bool
   (:wat::core::let [st (:wat-tests::rete::rules::seed c)]
-    (:wat::core::= (:wat-tests::rete::rules::readout (:wat::rete::fire-rules st) c)
-                   (:wat-tests::rete::rules::readout (:wat::rete::fire-rules$oracle st) c))))
+    (:wat::core::= (:wat-tests::rete::rules::readout (:wat::core::match (:wat::rete::fire-rules st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) c)
+                   (:wat-tests::rete::rules::readout (:wat::core::match (:wat::rete::fire-rules$oracle st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) c))))
 
 (:wat::core::defn :wat-tests::rete::rules::space []
   -> (:wat::gen::Gen :- [:wat-tests::rete::rules::Case])
@@ -197,14 +197,14 @@
 (:wat::core::defn :wat-tests::rete::rules::witness-of-pair
   [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
   (:wat-tests::rete::rules::witness
-    (:wat::rete::fire-rules
+    (:wat::core::match (:wat::rete::fire-rules
       (:wat::rete::insert
         (:wat::rete::compile-all
           (:wat::core::PersistentVector)
           (:wat::core::PersistentVector
             (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)
             (:wat-tests::rete::rules::q-two-at)))
-        (:wat-tests::rete::rules::Two :a a :b b)))))
+        (:wat-tests::rete::rules::Two :a a :b b))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
 
 (:wat::test::time-limit "60s")
 (:wat::test::deftest :wat-tests::rete::rules::test-the-witness-can-see-a-transposition
@@ -239,9 +239,9 @@
     [base (:wat-tests::rete::rules::Case :ord 0 :arity 1 :nrules 1 :srcs 3 :qparam 0)
      rev  (:wat-tests::rete::rules::Case :ord 1 :arity 1 :nrules 1 :srcs 3 :qparam 0)
      w0   (:wat-tests::rete::rules::witness
-            (:wat::rete::fire-rules (:wat-tests::rete::rules::seed base)))
+            (:wat::core::match (:wat::rete::fire-rules (:wat-tests::rete::rules::seed base)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
      w1   (:wat-tests::rete::rules::witness
-            (:wat::rete::fire-rules (:wat-tests::rete::rules::seed rev)))
+            (:wat::core::match (:wat::rete::fire-rules (:wat-tests::rete::rules::seed rev)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
      ;; Non-vacuous on its own terms: a witness of 0 on both sides would make "equal" meaningless.
      _    (:wat::test::assert-true (:wat::core::> w0 0))
      ;; And PINNED, not merely equal — 3024 is (a=0,b=7) (1,8) (2,9). If both sides drifted to the
@@ -268,7 +268,7 @@
           (:wat-tests::rete::rules::Case :ord 0 :arity 1 :nrules 1 :srcs 3 :qparam qp))
      fire (:wat::core::fn [c <- :wat-tests::rete::rules::Case] -> :wat::core::i64
             (:wat-tests::rete::rules::readout
-              (:wat::rete::fire-rules (:wat-tests::rete::rules::seed c)) c))
+              (:wat::core::match (:wat::rete::fire-rules (:wat-tests::rete::rules::seed c)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) c))
      all  (fire (mk 0))
      one  (fire (mk 1))
      none (fire (mk 2))

@@ -120,14 +120,14 @@
                     staged  (:asym::seed-items (:wat::rete::compile-all rules (:wat::core::PersistentVector (:asym::q-B) (:asym::q-C))) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
-                    fired   (:wat::rete::fire-rules staged)
+                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     n1      (:wat::time::now)
                     derived (:asym::derived-vector fired)
                     nat-ns  (:asym::ns-between n0 n1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
-                    ofired  (:wat::rete::fire-rules$oracle staged)
+                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "asym-join" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:asym::derived-vector ofired) :oracle-ns (:asym::ns-between o0 o1)))))

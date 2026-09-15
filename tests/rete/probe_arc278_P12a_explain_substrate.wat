@@ -35,15 +35,15 @@
     (:weather::WindSpeed :kph 40 :location "Oslo")))
 
 (:wat::core::defn :test::explain-oslo [] -> :wat::rete::Explained
-  (:wat::rete::fire-rules-explain (:test::seed-oslo (:test::compile-weather))))
+  (:wat::core::match (:wat::rete::fire-rules-explain (:test::seed-oslo (:test::compile-weather))) [:wat::rete::FireOutcome.Fired {:value __explained} __explained] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules-explain: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules-explain: fixpoint round cap exceeded")]))
 
 (:wat::core::defn :test::explain-oslo-oracle [] -> :wat::rete::Explained
-  (:wat::rete::fire-rules-explain$oracle (:test::seed-oslo (:test::compile-weather))))
+  (:wat::core::match (:wat::rete::fire-rules-explain$oracle (:test::seed-oslo (:test::compile-weather))) [:wat::rete::FireOutcome.Fired {:value __explained} __explained] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules-explain: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules-explain: fixpoint round cap exceeded")]))
 
 (:wat::core::defn :user::compile-weather-fires-nothing [] -> :wat::core::i64
   (:wat::core::length
     (:wat::rete::query
-      (:wat::rete::fire-rules (:test::compile-weather))
+      (:wat::core::match (:wat::rete::fire-rules (:test::compile-weather)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
       (:weather::q-ColdAndWindy))))
 
 ;; 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real

@@ -52,7 +52,7 @@
     [rules    (:wat::rete::collect-rules :user)
      template (:wat::rete::compile-all rules
                 (:wat::core::PersistentVector (:user::q-HitA) (:user::q-HitC)))
-     fired    (:wat::rete::fire-rules
+     fired    (:wat::core::match (:wat::rete::fire-rules
                 (:wat::rete::insert
                   (:wat::rete::insert
                     (:wat::rete::insert
@@ -62,7 +62,7 @@
                       ;; ignored rather than evaluated, ARM-A counts these too.
                       (:user::EnumNode :id 3 :kind (:user::NodeKind.Vector {})))
                     (:user::EnumNode :id 4 :kind (:user::NodeKind.Keyword {})))
-                  (:user::StrNode :id 2 :kind "list")))]
+                  (:user::StrNode :id 2 :kind "list"))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::kernel::println
       (:wat::string::interpolate "ARM-A-enum={a} (MUST be 1 of 3 inserted) ARM-C-string-control={c}"
         :a (:wat::i64::to-string (:wat::core::length (:wat::rete::query fired (:user::q-HitA))))

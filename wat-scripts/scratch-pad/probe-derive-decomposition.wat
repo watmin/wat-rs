@@ -69,7 +69,7 @@
      staged  (:dd::seed (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:dd::q-Pair))) keys fanout)
 
      f0      (:wat::time::now)
-     fired   (:wat::rete::fire-rules staged)
+     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      f1      (:wat::time::now)
 
      ;; ── the derive, stage by stage ──────────────────────────────────────────────────────

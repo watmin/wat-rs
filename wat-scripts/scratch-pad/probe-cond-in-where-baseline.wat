@@ -34,6 +34,6 @@
   (:wat::core::let
     [rules   (:wat::core::PersistentVector (:probe::r1))
      staged  (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hit))) (:probe::Req :a true))
-     fired   (:wat::rete::fire-rules staged)
+     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      hits    (:wat::rete::query fired (:probe::q-Hit))]
     (:wat::kernel::println (:wat::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))

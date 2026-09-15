@@ -38,7 +38,7 @@
                     s1       (:wat::rete::insert s0 (:c::A 1))
                     s2       (:wat::rete::insert s1 (:c::A 2))
                     ;; Native delta engine (fire-rules')
-                    native   (:wat::rete::fire-rules s2)
+                    native   (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     ;; Wat oracle (fire-fixpoint)
                     oracle   (:wat::rete::fire-fixpoint s2)
                     n-a      (:wat::core::length (:wat::rete::query native (:c::q-A)))

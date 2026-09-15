@@ -162,7 +162,12 @@
      lines   (:wat::string::split src "\n")
      facts   (:wat::grep::facts-of path src)
      records (:wat::grep::facts-as-records facts)
-     fired   (overlay records)
+     fired   (:wat::core::match (overlay records)
+               [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
+               [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                 (:wat::kernel::assertion-failed! :message "codemod: session memory ceiling exceeded")]
+               [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                 (:wat::kernel::assertion-failed! :message "codemod: fixpoint round cap exceeded")])
      rows    (:wat::rete::query fired (:rn::q-match))
      empty-e (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
      edits   (:rn::edits-of rows lines empty-e)

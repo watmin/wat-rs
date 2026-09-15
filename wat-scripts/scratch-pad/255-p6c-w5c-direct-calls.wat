@@ -28,7 +28,7 @@
                       session (:wat::rete::compile rules)
                       session (:wat::rete::insert session (:w5cprobe::Temperature :celsius 10 :location "Oslo"))
                       session (:wat::rete::insert session (:w5cprobe::WindSpeed :kph 40 :location "Oslo"))
-                      ex      (:wat::rete::fire-rules-explain session)
+                      ex      (:wat::core::match (:wat::rete::fire-rules-explain session) [:wat::rete::FireOutcome.Fired {:value __explained} __explained] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules-explain: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules-explain: fixpoint round cap exceeded")])
                       root    (:wat::rete::explain ex (:w5cprobe::ColdAndWindy :location "Oslo"))
                       step0   (:wat::core::Option/expect (:wat::core::get (:wat::rete::DerivationNode/via root) 0) "via[0]")]
       (:wat::core::do

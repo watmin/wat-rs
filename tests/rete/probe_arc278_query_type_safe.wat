@@ -27,7 +27,7 @@
      sess0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules s2)]
+     fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 ;; ── inline path: a hand-built Rule literal, no defrule macro ────────────────────────────────
@@ -41,6 +41,6 @@
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules s2)]
+     fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 

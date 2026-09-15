@@ -821,9 +821,19 @@ pub(crate) fn eval_fire_rules_explain(
     // Evaluate the session argument (mirrors eval_fire_rules_native).
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
 
+    // ⛔ THE CEILING ARMS SHORT-CIRCUIT HERE, through the ONE conversion site. `explain` is a fire
+    // like any other and carries both ceilings; what differs is only its payload, which is why
+    // `FireOutcome` is parametric — this answers `(FireOutcome :- [Explained])` while `fire-rules`
+    // answers `(FireOutcome :- [Session])`, out of the same enum and the same converter.
+    //
     // Same stratify-or-delta door as fire-rules; support records on both arms.
     let mut idx: HashMap<Value, (String, Value)> = HashMap::new();
-    let session_out = fire_rules_on_session(&session, sym, Some(&mut idx))?;
+    let session_out = match fire_rules_on_session(&session, sym, Some(&mut idx)) {
+        Ok(s) => s,
+        // A breach: hand the Err straight to the converter, which turns it into the matchable
+        // ceiling arm. There is no half-built `Explained` to discard — the fire never returned one.
+        Err(e) => return crate::rete::kernel::outcome::fire_result_to_outcome(Err(e)),
+    };
 
     // Build the support PersistentMap: derived-fact → Support{rule, token_value}.
     let mut support_pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
@@ -847,5 +857,5 @@ pub(crate) fn eval_fire_rules_explain(
         ]),
     )));
 
-    Ok(explained)
+    crate::rete::kernel::outcome::fire_result_to_outcome(Ok(explained))
 }

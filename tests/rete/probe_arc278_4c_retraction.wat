@@ -41,7 +41,7 @@
     (:weather::WindSpeed :kph 50 :location "Bergen")))
 
 (:wat::core::defn :test::fire [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::fire-rules s))
+  (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
 (:wat::core::defn :test::count-derived [s <- :wat::rete::Session q <- :wat::rete::Query] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query s q)))

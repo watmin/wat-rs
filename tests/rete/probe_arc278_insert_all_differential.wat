@@ -79,7 +79,7 @@
   (:wat::core::length (:wat::rete::Session/facts s)))
 
 (:wat::core::defn :nia::fired-outs [s <- :wat::rete::Session] -> :wat::core::PersistentVector
-  (:wat::rete::query (:wat::rete::fire-rules s) (:nia::q-Out)))
+  (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:nia::q-Out)))
 
 (:wat::core::defn :nia::fired-count [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:nia::fired-outs s)))

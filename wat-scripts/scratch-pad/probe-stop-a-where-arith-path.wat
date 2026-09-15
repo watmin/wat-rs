@@ -86,7 +86,7 @@
                  (:stopa::Big :k 1 :n 1)
                  (:stopa::Big :k 2 :n 9223372036854775807)))
      _       (:wat::kernel::println "before-fire")
-     fired   (:wat::rete::fire-rules session)
+     fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      _       (:wat::kernel::println "after-fire")]
     (:wat::kernel::println
       (:wat::i64::to-string

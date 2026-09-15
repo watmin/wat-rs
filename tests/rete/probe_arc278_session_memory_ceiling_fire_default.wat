@@ -31,5 +31,5 @@
     [rules (:wat::rete::collect-rules :fd)
      s     (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fd::q)))
      s     (:fd::seed s)
-     f     (:wat::rete::fire-rules s)]
+     f     (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::kernel::println (:wat::core::length (:wat::rete::query f (:fd::q))))))

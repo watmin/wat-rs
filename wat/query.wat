@@ -455,9 +455,23 @@
                               -> (:wat::core::PersistentVector :- [:wat::core::Value])
                               (:wat::core::concat ~acc-sym
                                 (:wat::core::let
-                                  [~fired-sym (:wat::rete::fire-rules
-                                                (:wat::rete::insert (~state-template-kw s)
-                                                  (:wat::edn::read (:wat::telemetry::Log/message ~log-sym))))]
+                                  ;; ⛔ ARC 278 the fire-outcome wall, inside a MACRO TEMPLATE —
+                                  ;; hand-faced, because no `.wat` tree-walk can safely rewrite a
+                                  ;; quasiquoted body (the codemod would be editing a program that
+                                  ;; does not exist yet). `sift` fires per log line; a ceiling
+                                  ;; breach here is a Fault the query surface already knows how to
+                                  ;; carry, but the sift fold has no Fault channel at this depth —
+                                  ;; so it dies loudly and names the verb, rather than silently
+                                  ;; contributing an empty row to the result.
+                                  [~fired-sym (:wat::core::match
+                                                (:wat::rete::fire-rules
+                                                  (:wat::rete::insert (~state-template-kw s)
+                                                    (:wat::edn::read (:wat::telemetry::Log/message ~log-sym))))
+                                                [:wat::rete::FireOutcome.Fired {:value __f} __f]
+                                                [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+                                                  (:wat::kernel::assertion-failed! :message "sift: session memory ceiling exceeded")]
+                                                [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __st}
+                                                  (:wat::kernel::assertion-failed! :message "sift: fixpoint round cap exceeded")])]
                                   ~concat-chain)))
                             (:wat::core::PersistentVector)
                             logs)

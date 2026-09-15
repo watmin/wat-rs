@@ -96,8 +96,9 @@ fn chain_expr(n: usize, query_type: &str) -> String {
         prev = cur;
     }
     format!(
+        // rune:lint(no-inlined-edn) — wat fire-rules wrap, FireOutcome match (not an EDN golden)
         "(:wat::core::let [{binds}\n\
-           fired (FIRE_VERB s{prev})]\n\
+           fired (:wat::core::match (FIRE_VERB s{prev}) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\
            (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
@@ -154,8 +155,9 @@ fn triple_expr(n: usize, query_type: &str) -> String {
         prev = i;
     }
     format!(
+        // rune:lint(no-inlined-edn) — wat fire-rules wrap, FireOutcome match (not an EDN golden)
         "(:wat::core::let [{binds}\n\
-           fired (FIRE_VERB s{prev})]\n\
+           fired (:wat::core::match (FIRE_VERB s{prev}) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\
            (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
@@ -215,8 +217,9 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
         prev = idx;
     }
     format!(
+        // rune:lint(no-inlined-edn) — wat fire-rules wrap, FireOutcome match (not an EDN golden)
         "(:wat::core::let [{binds}\n\
-           fired (FIRE_VERB s{prev})]\n\
+           fired (:wat::core::match (FIRE_VERB s{prev}) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\
            (:wat::core::length (:wat::rete::query fired {q})))"
     )
 }
