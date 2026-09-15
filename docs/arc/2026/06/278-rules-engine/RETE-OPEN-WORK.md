@@ -1021,6 +1021,50 @@ field. Reachable, but not constructible inside a fence.
    round cap is already the answer and the refusal is already correct. That is a real design
    question with a real precedent behind it, and it is NOT the annotation this entry used to name.
 
+   ★★★ **MEASURED 2026-08-29 — the verifier refuses THREE provably-terminating shapes and one
+   genuinely-diverging one, and cannot tell them apart.** Builder: *"do your measurements — we do
+   not know what we don't know."* The termination check was temporarily disarmed behind an env
+   flag, each shape driven to completion, and the flag REMOVED (verified: the bool case is refused
+   again with the flag still set).
+
+   | computed field | reachable domain | with the verifier disarmed | verdict today |
+   |---|---|---|---|
+   | `bool` — `:then` derives `(not ?b)` | **2** | **converges at 2** | REFUSED |
+   | enum, 3 variants — derives via `if`/`enum::=` | 3 | **converges at 2** (reachable subset) | REFUSED |
+   | `i64` + `(where (< ?k 500))` | 501 | **converges at 501** | REFUSED |
+   | `i64`, unguarded | infinite | **`FixpointRoundCapExceeded`** | REFUSED |
+
+   **The fixpoint converges exactly when the reachable value set is finite, and the round cap
+   catches the case where it is not.** Both mechanisms are already correct. What is missing is any
+   way to KNOW the set is finite.
+
+   ⛔ **AND THE BLIND SPOT IS NOT THE `where` FENCE — IT IS THE TYPE.** This item, and the inbound
+   report, both framed the gap as "the cyclicity test does not read the `where` fence". The `bool`
+   row shows that is too narrow: **a fact domain of TWO, with no fence at all, is refused.** The
+   verifier never consults the computed field's TYPE, and finiteness is a type property while range
+   restriction is a syntactic one. It tests the second; the first is invisible.
+
+   **THAT SPLITS THE PROBLEM, and one half is cheap.**
+   - **Finite BY TYPE** (`bool`, any `defenum`): the cardinality is the type's own, statically
+     known, needs no analysis, no fence reading and no author declaration. **This is exactly
+     eBPF's `[u32; 16]` move** — the bound is a consequence of the state's shape. A cycle whose
+     computed fields are all finite-typed is bounded by the product of their cardinalities.
+   - **Finite BY GUARD** (`i64` + a fence): needs monotonicity plus comparison-direction reasoning.
+     Genuinely hard, correctly punted, and NOT what the cheap half requires.
+
+   So the honest next strike is the first half only: **read the type, not the fence, and not a
+   declaration.** It admits `bool` and enum cycles — small, but they are the shapes a state machine
+   is written in — and it leaves the `i64` cases exactly where they are. `max_fire_rounds` stays the
+   host ceiling for everything it cannot prove, which is the eBPF posture rather than a second
+   budget beside it.
+
+   ⚠ **UNCONFIRMED SIDE OBSERVATION, recorded so it is not lost:** a `match` inside a `:then` was
+   refused with `RhsArityMismatch` — *"`:then` insert of `:fd::C::A` expects 0 positional
+   argument(s); got 1"* — i.e. the RHS validator appears to read a match ARM as an insert form. The
+   probe was rewritten with `if` and the measurement continued. **Not investigated; may be
+   legitimate (a `:then` may simply not admit `match`) or may be the same class as the
+   map-destructure gap just closed.** Drive it before believing either.
+
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
    their reason for themselves?"*). An author's string is not a proof. The direction the design
