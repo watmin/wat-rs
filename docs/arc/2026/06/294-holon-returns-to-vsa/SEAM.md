@@ -21,8 +21,8 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `38a865b99` (= origin). In flight with grok: nothing yet —
-`BRIEF-3-every-spawned-program-starts.md` (+ `EXPECTATIONS-3.md`) awaits the builder's pulsare.
+Stamp: written at HEAD `cb6437b1f` (= origin). In flight with grok: nothing yet —
+`BRIEF-5-replay-batch-2.md` (+ `EXPECTATIONS-5-replay-batch-2.md`) awaits the builder's pulsare.
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
@@ -31,6 +31,7 @@ main              a3218644d   FROZEN · PUSHED                                  
 origin/grok-rete  37528f6e0   FROZEN — read with `git show`, never check it out
 replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a2/2a4/2a4b/2a4c (tooling, CLOSED)
                               + batch 1 #11–#60 (CLOSED; floor 5495/5495, clippy 0, pushed)
+                              + stone 3, the nested-program gate (CLOSED; floor 5502/5502, pushed)
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -44,10 +45,14 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   (and expands every `defn` body) — batch 1 unaffected; 6 later steps from #155 need it.
 - **2a4c is CLOSED** (`0bdac1ccd`; the orchestrator's floor 5498/5498 and run5 reproduced grok's: MA 0 ·
   PC 2 · VS 0 losing, chain 1370; the only `wat/` refusals left are the era `format`/`defservice` bodies).
-- **Next, in order:** stone 3 (`BRIEF-3-every-spawned-program-starts.md`, probed: the census re-taken at
-  HEAD is identical to the era's, 141; the derivation reaches every starting literal if it follows `let`;
-  the one existing wrap codemod changes none of the seven — `::`-pinned), then batch 2 #61–#125 (drafts
-  `bootstrap/pending/BRIEF-5-replay-batch-2.md` + `EXPECTATIONS-5-…`, released after stone 3).
+- **Stone 3 is CLOSED** (`91ed5fc54`; SCORE-3): `tests/lint/nested_program_starts.rs` starts every
+  nested program in a derived program-carrying position on the child's real path (123 checked; RED on
+  the pre-2b erase child; a pin must name a live test); the seven arc-170 children start, via three
+  recorded `wrap-nested-forms-*` migrations; `arc112_scheme_probe` shipped its worker. Verified by the
+  orchestrator (floor 5502/5502), plus two probe headers and a dead parent worker fixed.
+  `cf-norevoke`'s raise is HISTORY: the committed revoke test was fixed long ago (`Outcome.Bounced/Served`).
+- **Next: batch 2 #61–#125** (`BRIEF-5-replay-batch-2.md` + `EXPECTATIONS-5-…`): no `wat/` step; STOP-10 —
+  stone 3's gate runs with the census on every step whose binary or any `.wat` changed.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
