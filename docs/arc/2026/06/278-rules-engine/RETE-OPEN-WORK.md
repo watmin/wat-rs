@@ -968,8 +968,40 @@ field. Reachable, but not constructible inside a fence.
    refused.** A computed head whose fields are all finite-typed is now ADMITTED: `bool` and unit
    `defenum` cycles compile and converge, and the `i64` axis — where the danger was measured — is
    untouched. `stratify.rs`'s `domain_cardinality` + `computed_fields_are_provably_finite`, capped
-   at `MAX_PROVABLE_FACT_POPULATION = 10_000` so a provably-finite-but-enormous product (twenty
+   at `MAX_PROVABLE_FACT_POPULATION = 1_000_000` so a provably-finite-but-enormous product (twenty
    `bool` fields is 2^20) is refused as "too large to prove" rather than admitted on a technicality.
+
+   ⚠ **THAT CAP WAS 10_000 FOR ONE COMMIT AND IT WAS WRONG — the builder caught it: *"why is 10k our
+   preferred limit — I want our default to be actually good."*** 10_000 was chosen to match
+   `DEFAULT_MAX_FIRE_ROUNDS`, which is symmetry rather than evidence, and **the two bound different
+   things**: a round cap bounds WORK per fire, this bounds STATE. That is precisely the split the
+   eBPF comparison exists to keep straight — the kernel bounds per-invocation work tightly (33 tail
+   calls, a 512-byte stack) while the maps a program reads are enormous
+   (`with_max_entries(5_000_000)` in our own XDP scrubber). Small step budget, large state budget;
+   10_000 borrowed the wrong one.
+
+   **And it was BELOW a workload we run on every push.** The grid's `fanout` axis derives **40_000**
+   facts at its top rung and is now a CI job. Refusing to CERTIFY a population four times smaller
+   than one the suite materialises unbounded is incoherent — withholding a proof from the safe case
+   while permitting the larger one unproven.
+
+   **Re-derived from measurement** — insert N, derive N, read peak child RSS: `N=0` 50_460 KB,
+   `N=20_000` 68_968, `N=100_000` 171_864, `N=400_000` 548_704. That is **~600 B per fact**, stable
+   across three sizes (474 / 622 / 623 B), covering the fact, its alpha memory, the token and the
+   index entries. So 1_000_000 facts is **~600 MB worst case**, 25x the corpus's own largest
+   legitimate population, and the number is now arguable instead of mystical.
+
+   **What would change it:** raise it once a runtime STATE ceiling exists (this item's other
+   strike) — exhaustion becomes catchable, so certifying more costs less. Lower it if 600 MB is too
+   generous — **but never below 40_000**, or it is again refusing to prove what the suite runs. No
+   knob was added: `dim_count` and `max_fire_rounds` are tunable because they trade DEEP against
+   DIVERGENT with no single right answer; this one has a measured floor and a measured cost. If it
+   bites a real program, that is the evidence for a knob — not before.
+
+   **The cap is gated.** `probe_arc278_termination_finite_domain_too_large.wat` — 20 computed `bool`
+   fields, 2^20 = 1_048_576 — must be refused. Mutation-proven: raise the constant to 9_000_000 and
+   that row fires. Without it the constant could be set to anything, or deleted, and every other row
+   would still pass.
 
    ⚠ **THE ANALYSIS I DESIGNED WAS BIGGER THAN THE ONE THAT WAS NEEDED, and building it showed
    that.** The plan was exhaustive closure — evaluate the `:then` at every point of a finite domain
