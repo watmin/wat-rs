@@ -2054,6 +2054,15 @@
       :asleep    (:wat::core::first (:wat::core::second pair))
       :attempts  (:wat::core::second (:wat::core::second pair)))))
 
+;; Publisher publish-ladder. TIME, not tries. The match must name Exhausted;
+;; the payload cannot lie about why. Not :fanout::Verdict — that governs
+;; parent-side pollers and forbids Exhausted (a-give-up-has-no-form-for-attempts).
+(:wat::core::defenum :fanout::PublishLadder :wat::enum::Pure
+  :Accepted  []
+  :Exhausted [elapsed-ms <- :wat::core::i64
+              ceiling-ms <- :wat::core::i64
+              last       <- :wat::core::String])
+
 ;; ── publisher: one client, one share of the id range, its own seed ──────────
 (:wat::core::defsurface :fanout::Publisher :nature :wat::kernel::Peer
   :messages
@@ -2067,7 +2076,12 @@
    (:wat::core::defenum :fanout::Publisher::StatsResponse :wat::enum::Pure
      :Ok [done <- :wat::core::bool  calls <- :wat::core::i64
           retries <- :wat::core::i64  asleep <- :wat::core::i64
-          attempts <- :wat::core::i64]
+          attempts <- :wat::core::i64
+          ;; Give-up reaches the parent through stats (STOP-2). last="" means
+          ;; Exhausted was not produced.
+          exh-elapsed-ms <- :wat::core::i64
+          exh-ceiling-ms <- :wat::core::i64
+          exh-last       <- :wat::core::String]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
@@ -2091,7 +2105,11 @@
               retries    <- :wat::core::i64
               asleep     <- :wat::core::i64
               attempt    <- :wat::core::i64
-              attempts   <- :wat::core::i64]
+              attempts   <- :wat::core::i64
+              ceiling-ms     <- :wat::core::i64
+              exh-elapsed-ms <- :wat::core::i64
+              exh-ceiling-ms <- :wat::core::i64
+              exh-last       <- :wat::core::String]
   :ephemeral [topic      <- (:wat::kernel::Peer :- [:demo::Topic::Op :demo::Topic::Reply])
               remaining  <- (:wat::core::Vector :- [:wat::core::String])]
   :peers     [:demo::Topic]
@@ -2130,7 +2148,10 @@
              (:fanout::publisher::Record/calls rec)
              (:fanout::publisher::Record/retries rec)
              (:fanout::publisher::Record/asleep rec)
-             (:fanout::publisher::Record/attempts rec))))
+             (:fanout::publisher::Record/attempts rec)
+             (:fanout::publisher::Record/exh-elapsed-ms rec)
+             (:fanout::publisher::Record/exh-ceiling-ms rec)
+             (:fanout::publisher::Record/exh-last rec))))
          none-sends none-arms)))
    (-run [s ctx]
      (:wat::core::let
@@ -2141,6 +2162,9 @@
         lo  (:fanout::publisher::Record/lo rec)
         hi  (:fanout::publisher::Record/hi rec)
         seed0 (:fanout::publisher::Record/seed rec)
+        ;; Clock at the -run boundary, not in the nested acc (trap-door 4).
+        t-run (:wat::time::epoch-nanos (:wat::time::now))
+        ceiling-ms (:fanout::publisher::Record/ceiling-ms rec)
         stamp
           (:wat::core::fn [start <- :wat::core::i64  ntake <- :wat::core::i64]
             -> (:wat::core::Vector :- [:wat::core::String])
@@ -2178,15 +2202,15 @@
               (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
         n (:wat::core::if (:wat::i64::>= lo hi) 0 (:wat::i64::- hi lo))
         nbatches (:wat::i64::/ (:wat::i64::+ n 9) 10)
-        acc0 (:wat::core::Tuple (:wat::core::Tuple 0 0 0) (:wat::core::Tuple 0 seed0))
+        acc0 (:wat::core::Tuple (:wat::core::Tuple 0 0 0) (:wat::core::Tuple 0 seed0 ""))
         acc
           (:wat::core::foldl
             (:wat::core::fn
               [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
-                                            (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+                                            (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                b <- :wat::core::i64]
               -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
-                                        (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
+                                        (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
               (:wat::core::let
                 [calls (:wat::core::first (:wat::core::first acc))
                  retries (:wat::core::second (:wat::core::first acc))
@@ -2224,6 +2248,8 @@
                           done (:wat::core::third right)]
                          (:wat::core::if done
                            st
+                           (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                             st
                            (:wat::core::match (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs remaining))
                              ((:wat::kernel::RecvOutcome::Message r)
                                (:wat::core::match r
@@ -2235,11 +2261,8 @@
                                        (:wat::core::if (:wat::i64::<= c 0)
                                          (:wat::core::let
                                            [elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) start-ns) 1000000)]
-                                           (:wat::core::if (:wat::i64::>= elapsed 60000)
-                                             (:wat::kernel::assertion-failed!
-                                               (:wat::core::format "verdict=never-accepted;attempts={a};elapsed={ms}"
-                                                 :a rtry :ms elapsed)
-                                               :wat::core::None :wat::core::None)
+                                           (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                                             (:wat::core::Tuple left (:wat::core::Tuple sd 106 true) att1)
                                              (:wat::core::let
                                                [shifted (:wat::core::if (:wat::i64::>= attempt 7)
                                                           100
@@ -2261,28 +2284,53 @@
                                            (:wat::core::Tuple (drop-first remaining c) rtry aslp)
                                            (:wat::core::Tuple sd 0 false)
                                            att1)))))
-                                 (_ (:wat::kernel::assertion-failed! "fanout: publish not Accepted" :wat::core::None :wat::core::None))))
-                             ((:wat::kernel::RecvOutcome::Lost cause)
-                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                                 (_ (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                                      (:wat::core::Tuple left (:wat::core::Tuple sd 105 true) att)
+                                      st))))
+                             ((:wat::kernel::RecvOutcome::Lost _cause)
+                               (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                                 (:wat::core::Tuple left (:wat::core::Tuple sd 102 true) att)
+                                 st))
                              (:wat::kernel::RecvOutcome::Stopped
-                               (:wat::kernel::assertion-failed! "fanout: publish stopped" :wat::core::None :wat::core::None))
+                               (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                                 (:wat::core::Tuple left (:wat::core::Tuple sd 103 true) att)
+                                 st))
                              (:wat::kernel::RecvOutcome::Closed
-                               (:wat::kernel::assertion-failed! "fanout: publish closed" :wat::core::None :wat::core::None))
+                               (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                                 (:wat::core::Tuple left (:wat::core::Tuple sd 104 true) att)
+                                 st))
                              (:wat::kernel::RecvOutcome::TimedOut
-                               (:wat::kernel::assertion-failed! "recv: timed out — the peer is alive and silent" :wat::core::None :wat::core::None)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))))
+                               (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                                 (:wat::core::Tuple left (:wat::core::Tuple sd 101 true) att)
+                                 st))
+                             ((:wat::kernel::RecvOutcome::Malformed _cause)
+                               (:wat::core::if (:wat::i64::>= (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000) ceiling-ms)
+                                 (:wat::core::Tuple left (:wat::core::Tuple sd 107 true) att)
+                                 st)))))))
                      st0
                      (:wat::core::range 0 256))
                  left (:wat::core::first st)
                  right (:wat::core::second st)
-                 _ok (:wat::core::if (:wat::core::third right)
-                       nil
-                       (:wat::kernel::assertion-failed! "fanout: publisher batch never accepted" :wat::core::None :wat::core::None))]
+                 batch-last (:wat::core::if (:wat::core::third right)
+                              (:wat::core::if (:wat::i64::>= (:wat::core::second right) 101)
+                                (:wat::core::if (:wat::i64::= (:wat::core::second right) 101) "TimedOut"
+                                  (:wat::core::if (:wat::i64::= (:wat::core::second right) 102) "Lost"
+                                    (:wat::core::if (:wat::i64::= (:wat::core::second right) 103) "Stopped"
+                                      (:wat::core::if (:wat::i64::= (:wat::core::second right) 104) "Closed"
+                                        (:wat::core::if (:wat::i64::= (:wat::core::second right) 105) "not-Accepted"
+                                          (:wat::core::if (:wat::i64::= (:wat::core::second right) 106) "never-accepted"
+                                            "Malformed"))))))
+                                "")
+                              (:wat::core::if (:wat::core::empty? (:wat::core::first left)) "" "fold-cap"))]
                 (:wat::core::Tuple
                   (:wat::core::Tuple (:wat::i64::+ calls 1) (:wat::i64::+ retries (:wat::core::second left))
                     (:wat::i64::+ attempts (:wat::core::third st)))
-                  (:wat::core::Tuple (:wat::i64::+ asleep (:wat::core::third left)) (:wat::core::first right)))))
+                  (:wat::core::Tuple (:wat::i64::+ asleep (:wat::core::third left)) (:wat::core::first right)
+                    batch-last))))
             acc0
             (:wat::core::range 0 nbatches))
+        rec-last (:wat::core::third (:wat::core::second acc))
+        rec-elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t-run) 1000000)
         rec' (:fanout::publisher::Record
                :id (:fanout::publisher::Record/id rec)
                :topic-addr (:fanout::publisher::Record/topic-addr rec)
@@ -2293,7 +2341,11 @@
                :retries (:wat::core::second (:wat::core::first acc))
                :asleep (:wat::core::first (:wat::core::second acc))
                :attempt 0
-               :attempts (:wat::core::third (:wat::core::first acc)))
+               :attempts (:wat::core::third (:wat::core::first acc))
+               :ceiling-ms ceiling-ms
+               :exh-elapsed-ms (:wat::core::if (:wat::core::= rec-last "") 0 rec-elapsed)
+               :exh-ceiling-ms (:wat::core::if (:wat::core::= rec-last "") 0 ceiling-ms)
+               :exh-last rec-last)
         s' (:fanout::publisher::State :durable rec' :topic t
              :remaining (:wat::core::Vector :- [:wat::core::String]))]
        (:wat::service::SelfOutcome::Continue s' none-sends none-arms)))])
@@ -2325,7 +2377,7 @@
   -> :fanout::Publisher::StatsResponse
   (:wat::core::let
     [inert (:fanout::Publisher::Reply::Stats
-             (:fanout::Publisher::StatsResponse::Ok false 0 0 0 0))]
+             (:fanout::Publisher::StatsResponse::Ok false 0 0 0 0 0 0 ""))]
     (:wat::core::match
       (:wat::service::call-by-deadline w
         (:fanout::Publisher::Op::Stats (:fanout::Publisher::StatsRequest))
@@ -2352,7 +2404,7 @@
                      w  <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
       -> :wat::core::bool
       (:wat::core::match (:fanout::publisher-stats w)
-        ((:fanout::Publisher::StatsResponse::Ok d _c _r _s _a) (:wat::core::and ok d))
+        ((:fanout::Publisher::StatsResponse::Ok d _c _r _s _a _ee _ec _el) (:wat::core::and ok d))
         (_ false)))
     true
     peers))
@@ -2368,7 +2420,7 @@
       -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
                                 (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])
       (:wat::core::match (:fanout::publisher-stats w)
-        ((:fanout::Publisher::StatsResponse::Ok _d c r s att)
+        ((:fanout::Publisher::StatsResponse::Ok _d c r s att _ee _ec _el)
           (:wat::core::Tuple
             (:wat::core::Tuple
               (:wat::i64::+ (:wat::core::first (:wat::core::first a)) c)
@@ -2394,9 +2446,55 @@
                      w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
       -> :wat::core::i64
       (:wat::core::match (:fanout::publisher-stats w)
-        ((:fanout::Publisher::StatsResponse::Ok d _c _r _s _a)
+        ((:fanout::Publisher::StatsResponse::Ok d _c _r _s _a _ee _ec _el)
           (:wat::core::if d (:wat::i64::+ n 1) n))
         (_ n)))
+    0
+    peers))
+
+;; First non-empty exh-last among publishers. "" means nobody exhausted.
+(:wat::core::defn :fanout::publisher-exh-last
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
+  -> :wat::core::String
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::String
+                     w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+      -> :wat::core::String
+      (:wat::core::if (:wat::core::= acc "")
+        (:wat::core::match (:fanout::publisher-stats w)
+          ((:fanout::Publisher::StatsResponse::Ok _d _c _r _s _a _ee _ec last) last)
+          (_ acc))
+        acc))
+    ""
+    peers))
+
+(:wat::core::defn :fanout::publisher-exh-elapsed
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64
+                     w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+      -> :wat::core::i64
+      (:wat::core::if (:wat::i64::> acc 0) acc
+        (:wat::core::match (:fanout::publisher-stats w)
+          ((:fanout::Publisher::StatsResponse::Ok _d _c _r _s _a ee _ec last)
+            (:wat::core::if (:wat::core::= last "") 0 ee))
+          (_ acc))))
+    0
+    peers))
+
+(:wat::core::defn :fanout::publisher-exh-ceiling
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])])]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64
+                     w <- (:wat::kernel::Peer :- [:fanout::Publisher::Op :fanout::Publisher::Reply])]
+      -> :wat::core::i64
+      (:wat::core::if (:wat::i64::> acc 0) acc
+        (:wat::core::match (:fanout::publisher-stats w)
+          ((:fanout::Publisher::StatsResponse::Ok _d _c _r _s _a _ee ec last)
+            (:wat::core::if (:wat::core::= last "") 0 ec))
+          (_ acc))))
     0
     peers))
 
@@ -2736,7 +2834,8 @@
    inbox-cap     <- (:wat::core::Option :- [:wat::core::i64])
    chaos-bp      <- (:wat::core::Option :- [:wat::core::i64])
    delay-bp      <- (:wat::core::Option :- [:wat::core::i64])
-   delay-ms      <- (:wat::core::Option :- [:wat::core::i64])])
+   delay-ms      <- (:wat::core::Option :- [:wat::core::i64])
+   publish-ceiling-ms <- (:wat::core::Option :- [:wat::core::i64])])
 
 (:wat::core::defn :fanout::opt-i64
   [o <- (:wat::core::Option :- [:wat::core::i64])  fallback <- :wat::core::i64]
@@ -2764,7 +2863,8 @@
     :drop-seed :wat::core::None :drop-after? :wat::core::None
     :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
     :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
-    :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))
+    :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None
+    :publish-ceiling-ms :wat::core::None))
 
 (:wat::core::defn :fanout::parse-i64 [s <- :wat::core::String] -> :wat::core::i64
   (:wat::edn::read s))
@@ -2950,6 +3050,15 @@
      chaos-bp (:fanout::opt-i64 (:fanout::Input/chaos-bp in) 0)
      delay-bp (:fanout::opt-i64 (:fanout::Input/delay-bp in) 0)
      delay-ms (:fanout::opt-i64 (:fanout::Input/delay-ms in) 0)
+     ;; Default 60000 = the existing never-accepted wall at the publisher fold,
+     ;; already a time bound and already > one 10 s Topic/publish deadline (STOP-1).
+     ;; Some ms < 10000 is refused: a ceiling shorter than one attempt is a no-op ladder.
+     ceiling-in (:fanout::opt-i64 (:fanout::Input/publish-ceiling-ms in) 60000)
+     ceiling-ms (:wat::core::if (:wat::i64::< ceiling-in 10000)
+                  (:wat::kernel::assertion-failed!
+                    "publish-ceiling-ms must be >= 10000 (one Topic/publish deadline)"
+                    :wat::core::None :wat::core::None)
+                  ceiling-in)
      ;; ⭑ inbox-cap :3699 — Optional; 0 meant 64. None = 64; (Some 0) = ZERO (was unreachable).
      inbox-cap (:fanout::opt-i64 (:fanout::Input/inbox-cap in) 64)
      ;; ⭑ THE EFFECTIVE RATE PER COMPONENT, resolved ONCE here and used everywhere below,
@@ -3113,7 +3222,8 @@
                                 :lo (:fanout::share-lo i n p)
                                 :hi (:fanout::share-hi i n p)
                                 :seed (:fanout::publisher-seed i)
-                                :done false :calls 0 :retries 0 :asleep 0 :attempt 0 :attempts 0))))
+                                :done false :calls 0 :retries 0 :asleep 0 :attempt 0 :attempts 0
+                                :ceiling-ms ceiling-ms :exh-elapsed-ms 0 :exh-ceiling-ms 0 :exh-last ""))))
                 (:wat::core::Vector :- [:fanout::publisher::Handle])
                 (:wat::core::range 0 p))
      tw-start-rts (:wat::core::foldl
@@ -3227,12 +3337,23 @@
      ;; The join loop's own crossings — one `Publisher/stats` per publisher per iteration, on
      ;; a 1 ms timer for the whole of `fill`. Never counted before this stone.
      pub-join-rts (:wat::core::third pub-pair)
+     pub-exh-last (:fanout::publisher-exh-last ppeers)
+     pub-exh-elapsed (:fanout::publisher-exh-elapsed ppeers)
+     pub-exh-ceiling (:fanout::publisher-exh-ceiling ppeers)
+     ;; Named here, on the parent, so Exhausted cannot be dropped. The child
+     ;; cannot see this script-level enum (same wall as SeenRetry).
+     pub-exh-faced (:wat::core::match
+                     (:wat::core::if (:wat::core::= pub-exh-last "")
+                       (:fanout::PublishLadder::Accepted)
+                       (:fanout::PublishLadder::Exhausted pub-exh-elapsed pub-exh-ceiling pub-exh-last))
+                     ((:fanout::PublishLadder::Accepted) "none")
+                     ((:fanout::PublishLadder::Exhausted _e _c last) last))
      ;; The fill poller's verdict and its crossings, split so `require!` sees a Verdict.
      ;; n×m is the work measure; the poller spends it as a WALL ceiling (30 s + 12 ms/pair)
      ;; and gives up on lack of ARRIVAL progress before that. The expression is the same one
      ;; that used to be an attempt budget; what it buys changed. Three verdicts, not one:
      ;; see poll-until-filled*.
-     fill-poll (:wat::core::if fill-first?
+     fill-poll (:wat::core::if (:wat::core::and fill-first? (:wat::core::= pub-exh-last ""))
                  (:fanout::poll-until-filled qclients topic n (:wat::i64::* n m))
                  (:wat::core::Tuple (:fanout::Verdict::Done) 0 0))
      _filled (:fanout::require! (:wat::core::first fill-poll))
@@ -3261,7 +3382,9 @@
      ;; n×m is the work measure; the poller spends it as a WALL ceiling (30 s + 12 ms/pair)
      ;; and gives up on lack of delivery progress before that. Scales with the work; not a
      ;; raised constant. Three verdicts, not one: see poll-until-drained*.
-     drain-pair (:fanout::poll-until-drained qclients topic (:wat::i64::* n m))
+     drain-pair (:wat::core::if (:wat::core::= pub-exh-last "")
+                  (:fanout::poll-until-drained qclients topic (:wat::i64::* n m))
+                  (:wat::core::Tuple (:fanout::Verdict::Done) 0 0))
      drain-v (:wat::core::first drain-pair)
      _drain (:fanout::require!
               (:wat::core::match drain-v
@@ -3496,7 +3619,7 @@
      ;; more than once per inbox receive.
      rt-unknown-max (:wat::i64::* inbox-recv-calls (:wat::i64::+ m 1))
      phases (:wat::core::format
-              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};disrupt-fires={dzf};disrupt-draws={dzw};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total};chaos-seed={cseed};bp-recv={bprv};bp-ack={bpak};bp-check={bpck};bp-mark={bpmk};bp-disrupt={bpdz};seen-check-drops={scd};seen-check-calls={scc};seen-mark-drops={smd};seen-mark-calls={smc};bp-delay={bpdl};delay-draws={ddw};delays-fired={ddf};vis-ns={vns};inbox-vis-ns={ivns};inbox-cap={icap}"
+              "setup={setup};fill={fill};arm={arm};drain={drain};collect={collect};stop={stop};fill-depth={fd};fill-excess={fx};fill-stale-max={fsm};qticks={ticks};topic-ticks={tt};disrupts={dh};disrupt-fires={dzf};disrupt-draws={dzw};check-exhausted={ce};mark-exhausted={me};ack-retries={ar};ack-exhausted={ae};seen-recorded={sf};seen-skipped={sd};publish-calls={pc};full-retries={fr};inbox-lost={il};inbox-closed={ic};inbox-timedout={ito};asleep={asleep};publish-attempts={pa};poll-calls={polls};drain-stale-max={dsm};store-calls={sc};store-ms={sms};drain-store-calls={dsc};drain-store-ms={dsms};fill-busy-ms={fbms};arm-busy-ms={abms};drain-busy-ms={dbms};collect-busy-ms={cbms};stop-busy-ms={sbms};rt-store={rtst};rt-queue={rtq};rt-q-recv={rtqr};rt-q-ack={rtqa};rt-q-stats={rtqs};rt-seen={rtsn};rt-worker={rtw};rt-topic={rtt};rt-tw={rttw};rt-pub={rtp};rt-poll={rtpo};rt-total={rtot};rt-unknown={rtu};rt-unknown-max={rtum};total={total};chaos-seed={cseed};bp-recv={bprv};bp-ack={bpak};bp-check={bpck};bp-mark={bpmk};bp-disrupt={bpdz};seen-check-drops={scd};seen-check-calls={scc};seen-mark-drops={smd};seen-mark-calls={smc};bp-delay={bpdl};delay-draws={ddw};delays-fired={ddf};vis-ns={vns};inbox-vis-ns={ivns};inbox-cap={icap};pub-exh-elapsed={pee};pub-exh-ceiling={pec};pub-exh-last={pel}"
               :setup (ms t-setup0 t-pub0)
               :fill (ms t-pub0 t-arm0)
               :arm (ms t-arm0 t-drain0)
@@ -3575,7 +3698,10 @@
               :ddf delays-fired-n
               :vns vis
               :ivns inbox-vis
-              :icap inbox-cap)
+              :icap inbox-cap
+              :pee pub-exh-elapsed
+              :pec pub-exh-ceiling
+              :pel pub-exh-faced)
      traces (:fanout::traces-report (:fanout::traces-of outs))]
     (:wat::core::Tuple summary calls
       (:wat::core::format "{p} ;; {tr} ;; {inbox}{subs}"
@@ -3599,7 +3725,8 @@
       :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
       :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
       :chaos-bp :wat::core::None
-      :delay-bp (:wat::core::Some 10000) :delay-ms (:wat::core::Some 1)))))
+      :delay-bp (:wat::core::Some 10000) :delay-ms (:wat::core::Some 1)
+      :publish-ceiling-ms :wat::core::None))))
 
 (:wat::core::defn :user::run-p*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64  p <- :wat::core::i64]
@@ -3612,7 +3739,8 @@
       :drop-seed :wat::core::None :drop-after? :wat::core::None
       :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
       :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
-      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None)))
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None
+      :publish-ceiling-ms :wat::core::None)))
 
 (:wat::core::defn :user::run-chaos*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
@@ -3626,7 +3754,8 @@
       :drop-seed :wat::core::None :drop-after? :wat::core::None
       :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
       :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
-      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None)))
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None
+      :publish-ceiling-ms :wat::core::None)))
 
 (:wat::core::defn :user::run-drop*
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64
@@ -3641,7 +3770,8 @@
       :drop-seed (:wat::core::Some drop-seed) :drop-after? (:wat::core::Some drop-after?)
       :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
       :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
-      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None)))
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None
+      :publish-ceiling-ms :wat::core::None)))
 
 (:wat::core::defn :user::drop-before-summary [] -> :wat::core::String
   (:wat::core::first (:user::run-drop* 2000 4 3 0 200 42 false)))
@@ -3667,7 +3797,8 @@
       :drop-seed (:wat::core::Some 42) :drop-after? (:wat::core::Some true)
       :drop-recv-bp (:wat::core::Some 1000) :drop-ack-bp :wat::core::None
       :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
-      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))))
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None
+      :publish-ceiling-ms :wat::core::None))))
 
 (:wat::core::defn :user::drop-ack-tiny [] -> :wat::core::String
   (:wat::core::first (:fanout::run-with
@@ -3678,7 +3809,8 @@
       :drop-seed (:wat::core::Some 42) :drop-after? (:wat::core::Some true)
       :drop-recv-bp :wat::core::None :drop-ack-bp (:wat::core::Some 1000)
       :vis-ms :wat::core::None :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
-      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))))
+      :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None
+      :publish-ceiling-ms :wat::core::None))))
 
 (:wat::core::defn :user::run
   [n <- :wat::core::i64  m <- :wat::core::i64  j <- :wat::core::i64]
@@ -3785,7 +3917,8 @@
         :drop-seed :wat::core::None :drop-after? :wat::core::None
         :drop-recv-bp :wat::core::None :drop-ack-bp :wat::core::None
         :vis-ms (:wat::core::Some 0) :inbox-vis-ms :wat::core::None :inbox-cap :wat::core::None
-        :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None))))
+        :chaos-bp :wat::core::None :delay-bp :wat::core::None :delay-ms :wat::core::None
+      :publish-ceiling-ms :wat::core::None))))
 
 (:wat::core::defn :user::chaos [] -> :wat::core::nil
   (:wat::core::let [triple (:user::run-chaos* 2000 4 3 200 42)]
