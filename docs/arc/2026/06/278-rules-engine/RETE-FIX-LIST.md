@@ -208,6 +208,78 @@ but a different arrangement, and the earlier fix does not cover it.
 
 ---
 
+## CLOSED — E
+
+### ~~E — `:then` kwargs in a RUNTIME-BUILT rule are read POSITIONALLY~~ · **CLOSED 2026-08-27**
+
+**Found** 2026-08-27 · **Probe** `probe_arc278_then_kwargs_positional.rs::reversed_kwargs_derive_the_same_fact_as_declaration_order` (`#[ignore]`d; its declaration-order control is NOT)
+
+```
+;; the SAME rule, built as a `Rule` VALUE, written two ways
+:then [(:tk::Two :a ?x :b ?y)]   ;; declaration order -> witness 3024   CORRECT
+:then [(:tk::Two :b ?y :a ?x)]   ;; reversed          -> witness 24003  TRANSPOSED
+```
+
+`Src` facts `(0,7) (1,8) (2,9)`; 3024 is `(a=0,b=7) (1,8) (2,9)`, 24003 is `(a=7,b=0) (8,1) (9,2)`
+— the same pairs in the wrong fields. A **declared `defrule`** with those same reversed kwargs
+derives 3024, so the two doors disagree:
+
+| rule built by | reversed-kwargs result |
+|---|---|
+| declared `defrule` | reordered, correct |
+| runtime `Rule` value | **transposed** |
+
+**Root.** `reorder_kwargs_by_field_name` rewrites `:then` kwargs into declaration order inside the
+FREEZE-TIME `defrule` wall. A rule constructed at runtime never passes that wall, so its kwargs
+reach `build_insert_fact` in written order and are consumed positionally. This is verbatim the
+class arc 294's wall was built for — *"the RHS insert form takes kwargs POSITIONALLY with no
+name-check or reorder... NOTHING screamed"* — closed for declarations, left open for values.
+
+**⚠ WHY NO EXISTING GATE COULD SEE IT, and the lesson for the other fuzzers.** Row counts are
+blind: a transposed `:then` derives exactly as many facts. And the ENGINE DIFFERENTIAL is blind
+too — native and `$oracle` transpose identically, so they agree perfectly on the wrong answer.
+`differential-fuzz-rules.wat` found it on its first run only because it compares an independent
+VALUE witness (`sum(a*1000 + b)`, asymmetric so a swap moves the number) instead of a count.
+
+**THE MECHANISM, per the builder:** *"the pattern we use all over is kwargs is default, they are
+consumed to call the positional head, which is typically primed"*. So `(:Two :a ?x :b ?y)` is meant
+to be consumed into a positional call on `:Two'`. An UNREORDERED kwargs list consumed that way maps
+its values onto the primed constructor's slots **in written order** — which is precisely the
+transposition measured above, and why the symptom is a swap rather than an error.
+
+**Fix shape, and the builder's framing changes it.** The obvious patch is a second reorder before
+the RHS is compiled — it cannot go at `arm-session`, which is too late (`compile-all` has already
+built the network from those forms), so it would land in `compile-rule`/`compile_rhs`. But that
+would make TWO places that know how kwargs become positional, and the defect is precisely that the
+freeze-time one is not on every path. The better shape is ONE DOOR: route the rete `:then` through
+the same kwargs→positional consumption the rest of the language uses, so the declaration order is
+resolved by NAME wherever a `:then` is built. The wall's bespoke reorder then has nothing left to
+do, rather than gaining a twin.
+
+**Fixed at the ONE door.** `rete_kwargs_value_asts` (`src/rete/eval_insert.rs`) — the helper shared
+by `build_insert_fact`, `compile_rhs` and `lower_construct` — returned
+`args.iter().skip(1).step_by(2)`: the values in WRITTEN order, field names DISCARDED. Every caller
+already held the type's declaration order; it now resolves by NAME there. The freeze wall's
+`reorder_kwargs_by_field_name` becomes redundant rather than gaining a twin, which was the point —
+two implementations of "kwargs become positional", only one of them on every path, WAS the defect.
+
+Probe un-`#[ignore]`d; the declaration-order control still passes; the fuzzer gate that found it is
+restored and now PINS 3024 rather than merely asserting the two sides are equal — if both drifted
+to the transposed value together, "equal" would certify the defect as fixed.
+
+**⚠ ONE THING I GOT WRONG ON THE WAY, and the floor caught it.** The first cut also returned `None`
+for a MISSING field, refusing under-supplied kwargs. That reddened
+`compiled_rhs::tests::compiled_rhs_result_identical_to_interpreter`, whose fixture deliberately
+compiles `(:fan::Pair :key ?k :lid ?l)` against a THREE-field record to check both paths treat the
+short form identically. Arity is the wall's question (`RhsMissingFields`), not this helper's — I
+had fixed order and arity in one change when only order was broken. Narrowed to order alone.
+
+---
+
+## CLOSED — A, B, C, D
+
+---
+
 ## CLOSED — entry D
 
 ### ~~D — wat ACCEPTS a binding inside `:not` that Clara REFUSES~~ · **CLOSED 2026-08-26**
