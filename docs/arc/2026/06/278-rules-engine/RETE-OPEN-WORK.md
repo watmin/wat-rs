@@ -1364,6 +1364,39 @@ field. Reachable, but not constructible inside a fence.
    trips a ceiling mid-fire is worse UX than refusing it up front. **Two mechanisms, two moments;
    they are not duplicates.**
 
+   ★★★★★★★ **THE FENCE HALF IS CLOSED — REFUSED, AND THE REPORT'S CENTRAL CLAIM IS WRONG.**
+   Measured 2026-08-29 before building anything, which is the only reason nothing was built.
+
+   The inbound note is titled *"the termination verifier refuses a class of **PROVABLY BOUNDED**
+   recursion"*, and this item inherited that word. Driven, same rule and same guard, only the SEED
+   changed:
+
+   | `N(k+1) :- N(k), (where (< ?k 500))` seeded at | result |
+   |---|---|
+   | `0` | **501 facts, converges** |
+   | `-1_000_000` | **`FixpointRoundCapExceeded`** |
+
+   **The guard does not bound the derivation — the SEED does.** The size is `500 - seed`, and the
+   seed arrives at `insert` time, which is runtime data the verifier cannot see. So the class is
+   provably **TERMINATING** (it halts for every seed) and NOT provably **BOUNDED** (its size is a
+   function of data). Those are different claims and the report conflates them.
+
+   **THAT KILLS THE ANALYSIS THIS ITEM WAS GOING TO BUILD.** Monotonicity plus comparison-direction
+   reasoning would establish termination — and termination was never the dangerous property.
+   `N(k) :- N(k), (where (< ?k 500))` seeded at `i64::MIN` terminates and derives 2^63 facts. **A
+   verifier that admitted it on a termination proof would be admitting an OOM with a certificate.**
+
+   **So the refusal STANDS, on a stronger footing than "hard to prove": a static proof cannot reach
+   the quantity that matters, because that quantity is an input.** What handles it is the runtime
+   ceiling built above — and it now does, which is the honest division of labour: prove what is
+   provable from the TYPE (finite domains, admitted), bound the rest at RUN (the per-session byte
+   ceiling), and refuse what is neither.
+
+   ⚠ **AND THIS IS WHY THE TWO REFUSED ESCAPE HATCHES WERE RIGHT TWICE OVER.** A `rune:` marker or
+   `Termination::Asserted [why <- String]` would let an author assert termination — which is TRUE
+   for the guarded counter and still not safe. **The thing they would have certified is not the
+   thing that hurts.**
+
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
    their reason for themselves?"*). An author's string is not a proof. The direction the design
