@@ -1042,15 +1042,18 @@ was verified that session at the cited path:
   `filter_after_join.rs:17`, `hash_join.rs:394`, `hash_join.rs:463`) that the ward never named.
   Each is only a defect if it sits BELOW the 8-arg threshold, which is unmeasured. Closing a
   ward's row is not closing the class it sampled.
-- ⚠ **`partire` x7 — GENUINELY OPEN, AND IT WAS TRACKED NOWHERE.** It appears in neither the
-  CLOSED tally nor the STILL-OPEN list below; it fell between the two and so was never looked at
-  again. That is `exigere`'s rule broken in the record that enforces it. Split proposals for
-  `fire/mod.rs` (3), `validate.rs` (2), `expr_ir.rs` (1), `arm.rs` (2); `purity.rs`, `export.rs`,
-  `vocabulary.rs`, `session.rs`, `compiled_cond.rs` all LEAVE. **Re-grounded 2026-08-27:**
-  `fire/mod.rs` 1893 lines, `validate.rs` 2169, `expr_ir.rs` 1719 — all still at the shapes that
-  drew the proposals — and `arm.rs` has MOVED to `src/rete/kernel/arm.rs` (1124 lines), so that
-  citation was stale as written. Nothing here can compute a wrong answer; it is a decomposition
-  call and it needs an owner or an affirmative CUT, not another silent pass.
+- ~~⚠ **`partire` x7 — GENUINELY OPEN, AND IT WAS TRACKED NOWHERE.**~~ **RESOLVED 2026-08-28 —
+  the full verdict lives in `RETE-OPEN-WORK.md` § "The order" item 4; this is the pointer, not a
+  second copy.** In short: it lingered a week because **it was a TALLY, not a finding** — only
+  counts were ever recorded (`fire/mod.rs` (3), `validate.rs` (2), `expr_ir.rs` (1), `arm.rs` (2)),
+  never the proposals, and you cannot act on a count. **And the counts were measuring TEST LINES as
+  file size.** On production lines: `arm.rs` is 593 (not 1124) → **LEAVE, never a candidate**;
+  `fire/mod.rs` is 1593 with 316 test-only → **LEAVE on the three**, though a real machine-marked
+  seam exists (the `#[cfg(test)]` reference passes vs the armed path's helpers). Two genuine cuts
+  are now NAMED rather than tallied: `expr_ir.rs` at its own `// ── exec` seam (lowering vs
+  execution), and `validate.rs` into `:when` validator / `:then` validator / operand typer. Neither
+  can compute a wrong answer. ✅ And the one CONCRETE partire finding — `delta.rs`'s 1774-line
+  fixpoint — shipped long ago (`DESIGN-STONE-partire-fire-loop.md`); only the tally lingered.
 - `complectens` — the `harvest_stratified_queries` replay path is isolated by no test; the probe
   is the contract's only gate and is end-to-end. **OPEN, and DELIBERATELY not taken** — see the
   "STILL OPEN" block below for why (`filter_pass` is unreachable from an integration test).
@@ -1212,7 +1215,7 @@ one away) · `excusare` 2 L2 · `perspicere` 2 of 3 L2 · **`solvere` all 7 L2**
 
 **STILL OPEN — nothing here can compute a wrong answer.** Rows marked CLOSED below were driven
 down on 2026-08-25/27. **Re-audited 2026-08-27; this roster is the answer to "what is left":**
-`partire` x7 (open and, until this audit, tracked in NO list — see L2 above), `complectens` 1
+~~`partire` x7~~ (**RESOLVED 2026-08-28** — two closures, two named cuts; see L2 above), `complectens` 1
 (open, deliberately not taken), `circumspicere` 1 (open, and its stated reason has EXPIRED — see
 below), the two TRACKED DECISIONS at the foot of this file, and the `CLAUDE.md` record defect
 that needs the builder. **T7 was named here as open while being marked CLOSED thirty lines
