@@ -1034,9 +1034,30 @@ field. Reachable, but not constructible inside a fence.
    | `i64` + `(where (< ?k 500))` | 501 | **converges at 501** | REFUSED |
    | `i64`, unguarded | infinite | **`FixpointRoundCapExceeded`** | REFUSED |
 
-   **The fixpoint converges exactly when the reachable value set is finite, and the round cap
-   catches the case where it is not.** Both mechanisms are already correct. What is missing is any
-   way to KNOW the set is finite.
+   **The fixpoint converges exactly when the reachable value set is finite.** What is missing is
+   any way to KNOW the set is finite.
+
+   ⛔⛔ **AND MY FIRST READING OF THIS TABLE WAS WRONG — CORRECTED BY MEASURING, at the builder's
+   prompt (*"does this table assert that we have code who is already correct and a thing called
+   before that is flawed?"*).** I had written *"the round cap catches the case where it is not —
+   both mechanisms are already correct"*, which reads as: the runtime is right and the gate in
+   front of it is merely over-broad. **That is false, and the cap's own doc says so** — *"the cap
+   bounds NON-TERMINATION, not memory: one round may still derive without bound"*. Measured:
+
+   | divergence shape | what actually happens | round cap |
+   |---|---|---|
+   | LINEAR — `:then` derives one novel fact per fact | `FixpointRoundCapExceeded` in **0.35s**, located diagnostic | **catches it** |
+   | EXPONENTIAL — `:then` derives TWO novel facts per fact | **`memory allocation of 56 bytes failed` in 6.2s** — a hard abort, no wat diagnostic at all | **never fires** |
+
+   **So the verifier is LOAD-BEARING, not merely conservative.** It is the only thing between a
+   fanout-diverging rule set and an OOM abort, because the cap counts ROUNDS and a fanout diverges
+   WITHIN a round. `DEFAULT_MAX_FIRE_ROUNDS = 10_000` is chosen to *"fire before the allocator
+   does"* — true for a linear derivation, false for a branching one, and nothing said which.
+
+   **That does not rescue the three false refusals; it changes what the fix may do.** Weakening or
+   removing the refusal is off the table. The type-based admission below is the right shape
+   precisely because it NARROWS the refusal only where finiteness is provable from the type, and
+   leaves it in force everywhere it is protecting against an abort the runtime cannot report.
 
    ⛔ **AND THE BLIND SPOT IS NOT THE `where` FENCE — IT IS THE TYPE.** This item, and the inbound
    report, both framed the gap as "the cyclicity test does not read the `where` fence". The `bool`
