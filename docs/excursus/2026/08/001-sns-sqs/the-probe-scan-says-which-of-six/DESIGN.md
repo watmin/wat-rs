@@ -39,12 +39,34 @@ path that reports *"peer is dead"*.
 |---|---|---|
 | ⛔⛔ **`:Transient [err]`** | **a RETRYABLE store error** | ⛔ and `transient-means-try-again` (struck) was drawn *specifically* to make the queue **retry** these instead of dying on them. **This site dies on one, in the same file.** |
 | `:Fatal [err]` | a real store failure | the only one close to true, and still not "the peer" |
-| ⛔ `:RequestTooLarge [bytes cap]` | **OUR frame exceeded the cap** | our defect, blamed on the store |
-| ⛔ `:RequestMalformed [path expected got]` | **OUR frame did not decode** | our defect, blamed on the store |
+| ⛔ `:RequestTooLarge [bytes cap]` | **this caller's frame exceeded the declared cap** | blamed on the store |
+| ⛔ `:RequestMalformed [path expected got]` | **this caller's frame did not decode** | blamed on the store |
 
-⭑ So the message is wrong in **seven of nine** worlds, it blames the store for **two of our own bugs**,
-and it kills the queue on an error a sibling stone made retryable. ⚠ **The "6 strings" this stone was
-drawn from were the visible half**; the `_` hid the worse half.
+⭑ So the message is wrong in **seven of nine** worlds, it blames the store for **two failures the
+caller caused**, and it kills the queue on an error a sibling stone made retryable. ⚠ **The "6 strings"
+this stone was drawn from were the visible half**; the `_` hid the worse half.
+
+### ⛔⛔ A CALLER-CAUSED REFUSAL IS A FIRST-CLASS FAILURE MODE, NOT A LESSER TIER
+
+Builder, correcting this DESIGN's first draft: *"'own bugs' — they are well within scope here… we're
+finding all the necessary things to make service-to-service (of any complexity) an exemplar."*
+
+The first draft called `RequestTooLarge` / `RequestMalformed` *"our own bugs"*, which implied a lower
+tier of concern. **There is no such tier.** A caller that oversizes or malforms a request is exactly the
+case an exemplar must handle well, and this campaign already ruled the **receiving** half:
+arc 278 Stone 2 — *"a bad caller, malicious or dumb, cannot crash anything"* — generated a request-shape
+guard into every op and forced `:RequestMalformed` onto every response so the refusal is **a value the
+caller cannot ignore**.
+
+⭐ **This site is the SENDING half of that same doctrine, and it fails it.** The service does its job:
+it refuses honestly and says exactly what was wrong (`bytes`/`cap`, or `path`/`expected`/`got`). The
+caller then **throws that away, blames the peer, and dies.** The receiving side was made
+crash-proof; the sending side discards the diagnosis it was handed.
+
+⚠ **So their DISPOSITION is in scope too, not only their message** — and the SCORE must say what it
+should be. This stone still changes no disposition (see the contract), but *"a caller must not die on a
+refusal it caused, holding the very information needed to fix it"* is a finding this stone surfaces and
+must not bury.
 
 ## ⛔ THE ONE CONTRACT DECISION
 
