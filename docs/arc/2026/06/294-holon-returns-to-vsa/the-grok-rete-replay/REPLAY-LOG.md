@@ -83,7 +83,7 @@ Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=205
 - RETE_OPS homes: `:wat::rete::{i64,f64,string,vector,vec,linkedlist,map}::*`
 - `crate::load::loader::InMemoryLoader`
 - Vector ctor `(:wat::core::Vector :- [T] v)`; List ctor `(:wat::core::List v)` (`List/of` retired)
-- enum values `(:probe::E.A {})`; match arms `[:probe::E.A {} true]` KEY-FIRST; defenum unit `[]`
+- unit-variant KEYWORD `:probe::E.A` (not constructor); match arms `[:probe::E.A {} true]` KEY-FIRST; defenum unit `:A :B` (no `[]` — that makes tagged-empty)
 - Main-only RETE_OPS row `:wat::rete::core::variant-name` re-injected after each take-theirs
 - LATENT #95: `:wat::core::keyword/{to,from}-string` → `:wat::keyword::{to,from}-string` / `:wat::rete::keyword::*`
 - HEAD `WatAST::CharLit` added to exhaustive rewrite_field_refs / bind_field_refs leaf arms (#98)
@@ -124,7 +124,9 @@ Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=205
 | 97 | `5cf17bbe7` → `96ba536d6` | docs | |
 | 98 | `1a97cf12b` → `895f517a9` | shared | vector field-ref. CharLit arms. census `.census/2026-09-15T05-53-37Z.txt` files=2064 |
 | 99 | `4c19b9029` → `1e9625225` | shared | computed operand typed. CharLit + diagnostic home. census `.census/2026-09-15T05-59-38Z.txt` |
+| 100 | `ad2286133` → `81a761cd6` | shared | inline cond/let/match/if. Vector match-arms. census `.census/2026-09-15T06-04-37Z.txt` |
+| 101 | `b7f54a17f` → `0fff3a0fa` | shared | ONE rule: keyword operand is field-ref or constant. convert.sh keyword→ctor over-rewrote; unit defenum `:A :B`; `decompose_variant` door. census `.census/2026-09-15T06-26-16Z.txt` files=2065 |
 
 ## STOP
 
-None. Batch 2 continues at #100.
+None. Batch 2 continues at #102.

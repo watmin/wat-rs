@@ -682,6 +682,52 @@ exclusion is a claim; this one is false and must be fixed before any holon row i
    structured-EDN panic rendering and would need another trigger). **Not started. Not mine to
    rule.**
 
+9. **THE TERMINATION VERIFIER REFUSES A CLASS OF PROVABLY BOUNDED RECURSION.** Reported by
+   claude-compute (the main x grok-rete integration branch) 2026-08-28 as
+   `~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`. **Weighed against
+   this tree and CONFIRMED** — every citation checked, and the refusal reproduced by driving:
+
+   ```
+   N(k+1) :- N(k), (where (< ?k 500))     -> RuleSetMayNotTerminate. It terminates at k=500.
+   ```
+
+   The cyclicity test is structural (reachability over fact-type edges) and does not read the
+   `where` fence. **The refusal is correct by the verifier's own stated claim** — it proves the
+   absence of ONE shape — but a bounded counter is the first thing anyone writes in recursive
+   Datalog-with-arithmetic, and until now the ONLY record that it is refused-though-terminating was
+   prose inside an unrelated fixture's header.
+
+   **DONE: the minimum ask.** The class is now named in `stratify.rs`'s own "WHAT IT CANNOT SEE"
+   block, beside the two holes that were already stated there — which is the model the report itself
+   named.
+
+   ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
+   marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
+   their reason for themselves?"*). An author's string is not a proof. The direction the design
+   already names is a FORM THE VERIFIER CAN CHECK — eBPF's `bpf_loop()` posture, the bound as an
+   argument it reads. Open questions belonging to whoever takes it: does a bound interact with or
+   subsume `max_fire_rounds`; is per-rule or per-cycle the right granularity; and an imported Export
+   carries no AST, so a static bound is meaningless there and the round cap stays the only guard.
+
+   **TWO DIAGNOSTIC DEFECTS FOUND WHILE DRIVING IT — not in the report, not yet fixed:**
+   1. The message asserts *"the fixpoint can never converge"*. For the guarded counter that is
+      **FALSE** — it converges at k=500. R29 `RVINA ERVDIT`: the ruin must teach, and this one
+      teaches something untrue about the very program in front of the user.
+   2. With a fn-headed `:then` the message names the **FUNCTION** as the offending fact type —
+      *"derives `:bc::mk-next` ... and `:bc::mk-next` feeds back into this rule's own `:when`"* —
+      where `mk-next` is a fn appearing nowhere in the `:when`. **The DETECTION is correct**
+      (`produced` resolves the return type through `sym`); only the message is wrong, because
+      `computed` carries `fact_type_head(f)`, the raw head. A one-line resolve fixes it.
+
+   **Also measured: the doctrine block is now stale IN OUR FAVOUR.** It says a computing fn-headed
+   `:then` is caught by an adjacent fence ("is not total"). Driving one today gets the CYCLICITY
+   refusal instead — `rete_fn_body_mints` (a later addition) catches the minting fn directly. The
+   hole is narrower than the paragraph claims; the paragraph should be re-measured when someone
+   takes this item.
+
+   **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
+   with our own green floor). That is exactly when this class is cheapest to widen.
+
 ~~1.1 interleaved retract~~ · ~~1.2 generated rules~~ · ~~1.3 query params~~ ·
 ~~1.4 nested combinators~~ · ~~3.1 fixpoint cap~~ · ~~3.2 CI parity~~ · ~~4.2 termination
 verifier~~ · ~~PILE 2's ward tail~~ — all DONE or audited-empty 2026-08-26/27.
