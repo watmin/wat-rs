@@ -237,14 +237,14 @@ was added 2026-08-28 for the same reason (below).
 |---|---:|
 | FIRES inline · FIRES fence | 16 |
 | REFUSED inline · FIRES fence | 18 |
-| **MATCHES-NOTHING inline** · FIRES fence | **33** |
+| **MATCHES-NOTHING inline** · FIRES fence | **35** |
 | NOT-GENERABLE — every holon row (two `HolonAST` operands, no literal spelling) | 4 |
-| **CANNOT RUN — a DEFECT** | **3** (was 5; two fixed 2026-08-28) |
+| **CANNOT RUN — a DEFECT** | **1** (was 6; five fixed 2026-08-28) |
 
-**Of the 67 rows that reach the executor at all, every one fires in a `where` fence. Inline, only
+**Of the 69 rows that reach the executor at all, every one fires in a `where` fence. Inline, only
 16 work.**
 
-#### ⛔ SIX ROWS PASSED EVERY STATIC GATE AND COULD NOT RUN — THREE FIXED, THREE NEED A RULING
+#### ⛔ SIX ROWS PASSED EVERY STATIC GATE AND COULD NOT RUN — FIVE FIXED, ONE LEFT
 
 **FIXED 2026-08-28:**
 - **`PersistentMap/contains-key?`** — no `OpExec` arm; delegated to
@@ -264,17 +264,18 @@ was added 2026-08-28 for the same reason (below).
 > could execute the row to find it. Recorded rather than papered over: answering an empty reduce
 > with an invented value would be the worse bug. **This is a ruling, and it is small.**
 
-**STILL BROKEN — and each needs a RULING, not an arm:**
+- **`mapv` and `filterv`** — the builder's call, and the right shape. The rows WERE
+  `:wat::core::map`/`:wat::core::filter`, which return a **lazy Stream**; a fence has no stream
+  machinery and nothing there can consume one, so both were unreachable in every position. The fix
+  is not an eager arm under the lazy head — that would make `:wat::rete::core::map` mean something
+  different from `:wat::core::map`, silently, against the `Redispatch` contract "same routine as
+  `core_name`". wat already ships the eager materializers under their clojure names
+  (`wat/seq.wat`: *"mapv / filterv — the eager forms"*), so the ROWS moved to those. `exec_mapv`
+  mirrors `eval_mapv` (every exit `Ok(Value::Vec(..))`); `exec_filterv` mirrors the `filterv`
+  defclause. All four HOF arms share `compiled_fn_arg`/`eager_items` so they cannot drift.
 
-- **`map` and `filter`** — they return a **LAZY STREAM** at core
-  (`transform.rs`: `Value::wat__stream__Stream(lazy_map_stream(..))`). Giving them eager semantics
-  in the compiled path would make `:wat::rete::core::map` mean something DIFFERENT from
-  `:wat::core::map`, silently, when the whole `Alias`/`Redispatch` contract is "same routine as
-  `core_name`". That fails Honest and was deliberately not invented. Nothing in a fence can consume
-  a Stream either, so an arm producing one would be reachable and useless. **The real question is
-  whether these belong in `RETE_OPS` at all** — and note their `total: true` was asserted on the
-  correct principle that absence of callers is not evidence of partiality, by a ruling that never
-  asked whether they could RUN.
+**STILL BROKEN — ONE ROW, and it needs a RULING rather than an arm:**
+
 - **`Tuple`** — same missing arm, and separately UNOBSERVABLE: no rete row reads a Tuple's
   elements, so even with an arm nothing could compare one. One of the three rows appearing nowhere
   in the 1569-file corpus, and now it is clear why nobody could have used it.
@@ -548,18 +549,19 @@ range-restricted because `z` comes from `edge`.
 ## The order, and why
 
 **As of 2026-08-28: 4.1 is COMPLETE — all 74 rows verdicted. It found SIX rows that pass every
-static gate and cannot execute; THREE are fixed and three need a ruling. Below those,
+static gate and could not execute; FIVE are fixed and one needs a ruling. Below those,
 one decomposition ruling and three builder rulings — none of which is work, all of which is a
 judgment call.**
 
 1. ~~**4.1 the reachability ledger**~~ — **COMPLETE 2026-08-28**, all 74 rows verdicted. It found
    six rows that pass every static gate and cannot execute (one fixed), 17 refused inline, and 32
    accepted inline that silently match nothing.
-2. **Three rows that cannot run, each needing a BUILDER RULING rather than code.** `map` and
-   `filter` return lazy Streams at core, so eager compiled semantics would silently diverge from
-   `:wat::core::map` — the question is whether they belong in `RETE_OPS` at all. `Tuple` has no
-   arm and no accessor. Plus a small one: `reduce`'s 2-arity form raises on empty while its row
-   declares `total: true`. (The coverage GATE this item used to name is done — the ledger is it.)
+2. **Two small rulings, both surfaced only by being able to RUN the rows.** `Tuple` has no
+   compiled arm AND no accessor — nothing could compare a constructed Tuple even with one, so the
+   question is whether the row should exist. And `reduce`'s 2-arity form raises on an empty
+   collection while its row declares `total: true`, a wall every row must pass. (The coverage GATE
+   this item used to name is done — the ledger is it. `map`/`filter` are CLOSED: the rows moved to
+   the eager `mapv`/`filterv`.)
 3. **The inline-constraint gap.** Only 16 of 74 rows work as an inline constraint: 17 are refused
    and **32 are accepted and silently match nothing**. Arc 109's NOTE frames this as `keyword::=`'s
    type-mapping bug; the ledger shows it is every unary op, every `Type/method` spelling, every
