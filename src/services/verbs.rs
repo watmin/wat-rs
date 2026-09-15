@@ -43,12 +43,12 @@ fn write_pretty_wat_value(
     types: Option<&TypeEnv>,
     env: &Environment,
     sym: &SymbolTable,
-) -> String {
+) -> Result<String, RuntimeError> {
     match v {
         Value::Aggregate(a) if a.class.as_ref() == DOC_ROW_CLASS => {
             write_pretty_doc_row(a, types, env, sym)
         }
-        _ => wat_edn::write_pretty(&value_to_edn_with(v, types)),
+        _ => Ok(wat_edn::write_pretty(&value_to_edn_with(v, types)?)),
     }
 }
 
@@ -79,8 +79,13 @@ fn current_col(out: &str) -> usize {
     out.rsplit('\n').next().map(str::len).unwrap_or(0)
 }
 
-fn append_pretty_field(out: &mut String, v: &Value, types: Option<&TypeEnv>, indent: usize) {
-    let pretty = wat_edn::write_pretty(&value_to_edn_with(v, types));
+fn append_pretty_field(
+    out: &mut String,
+    v: &Value,
+    types: Option<&TypeEnv>,
+    indent: usize,
+) -> Result<(), RuntimeError> {
+    let pretty = wat_edn::write_pretty(&value_to_edn_with(v, types)?);
     let mut first = true;
     for line in pretty.lines() {
         if first {
@@ -94,6 +99,7 @@ fn append_pretty_field(out: &mut String, v: &Value, types: Option<&TypeEnv>, ind
             out.push_str(line);
         }
     }
+    Ok(())
 }
 
 fn try_format_source(src: &str, env: &Environment, sym: &SymbolTable) -> String {
@@ -129,15 +135,15 @@ fn write_pretty_examples(
     types: Option<&TypeEnv>,
     env: &Environment,
     sym: &SymbolTable,
-) {
+) -> Result<(), RuntimeError> {
     let Some(entries) = as_value_slice(examples) else {
-        append_pretty_field(out, examples, types, 2);
-        return;
+        append_pretty_field(out, examples, types, 2)?;
+        return Ok(());
     };
     out.push('[');
     if entries.is_empty() {
         out.push(']');
-        return;
+        return Ok(());
     }
     out.push('\n');
     for (i, ex) in entries.iter().enumerate() {
@@ -158,7 +164,7 @@ fn write_pretty_examples(
                         }
                         other => {
                             out.push_str("      ");
-                            append_pretty_field(out, other, types, 6);
+                            append_pretty_field(out, other, types, 6)?;
                             out.push('\n');
                         }
                     }
@@ -167,7 +173,7 @@ fn write_pretty_examples(
             }
             _ => {
                 out.push_str("    ");
-                append_pretty_field(out, ex, types, 4);
+                append_pretty_field(out, ex, types, 4)?;
             }
         }
         if i + 1 < entries.len() {
@@ -176,6 +182,7 @@ fn write_pretty_examples(
     }
     out.push('\n');
     out.push_str("  ]");
+    Ok(())
 }
 
 fn write_pretty_doc_row(
@@ -183,7 +190,7 @@ fn write_pretty_doc_row(
     types: Option<&TypeEnv>,
     env: &Environment,
     sym: &SymbolTable,
-) -> String {
+) -> Result<String, RuntimeError> {
     let mut out = String::from("#wat.doc/Row {\n");
     for (name, field) in row.names.iter().zip(row.fields.iter()) {
         out.push_str("  :");
@@ -192,15 +199,15 @@ fn write_pretty_doc_row(
         match name.as_str() {
             "doc" => match field {
                 Value::String(s) => push_prose_string(&mut out, s),
-                other => append_pretty_field(&mut out, other, types, 2),
+                other => append_pretty_field(&mut out, other, types, 2)?,
             },
-            "examples" => write_pretty_examples(&mut out, field, types, env, sym),
-            _ => append_pretty_field(&mut out, field, types, 2),
+            "examples" => write_pretty_examples(&mut out, field, types, env, sym)?,
+            _ => append_pretty_field(&mut out, field, types, 2)?,
         }
         out.push('\n');
     }
     out.push('}');
-    out
+    Ok(out)
 }
 
 /// The terminal tail shared by `eprintln` / `epprintln`: after the value's
@@ -337,7 +344,7 @@ pub fn eval_kernel_println(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::println";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     // Append the line terminator HERE (the service is now a raw byte writer — no implicit newline);
     // the batched `stdio-write-out` fragments this `<edn>\n` payload into ≤budget raw chunks, so the
     // bytes on fd1 are identical to the old `writeln(edn)` path (`<edn>\n`) even for oversized output.
@@ -357,7 +364,7 @@ pub fn eval_kernel_pprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::pprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let mut line = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym);
+    let mut line = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym)?;
     line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
     Ok(Value::Unit)
@@ -376,7 +383,7 @@ pub fn eval_kernel_eprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::eprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()))?;
     // The emitted value's EDN is the crash reason carried by the terminal panic (no trailing newline —
     // a reason is a message, not stream bytes). The written PAYLOAD gets the terminator (raw-writer
     // service); batched → identical bytes to the old `writeln(edn)` path.
@@ -397,7 +404,7 @@ pub fn eval_kernel_epprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::epprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let reason = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym);
+    let reason = write_pretty_wat_value(&v, sym.types().map(|a| a.as_ref()), env, sym)?;
     let payload = format!("{reason}\n");
     write_via_stderr(OP, list_span, sym, payload)?;
     eprintln_terminate(reason)

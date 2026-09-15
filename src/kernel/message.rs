@@ -229,7 +229,7 @@ pub(crate) fn eval_peer_send_prime(
             let edn_str = wat_edn::write(&crate::edn::render::value_to_edn_with(
                 &payload_val,
                 sym.types().map(|a| a.as_ref()),
-            ));
+            )?);
             let outcome = cell
                 .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
                     match opt_bundle {
@@ -285,7 +285,7 @@ pub(crate) fn eval_peer_send_prime(
                             let wire = crate::edn::render::value_to_edn_string_with(
                                 &payload_val,
                                 sym.types().map(|a| a.as_ref()),
-                            );
+                            )?;
                             match peer.send_wire(wire) {
                                 Ok(()) => send_outcome_sent(),
                                 Err(e) => send_outcome_from_error(&e),
@@ -362,16 +362,23 @@ pub(crate) fn eval_peer_try_send_prime(
                     OP,
                     list_span.clone(),
                 )?;
+            // ENCODED BEFORE THE CLOSURE, deliberately. `with_ref`'s callback here returns a
+            // bare outcome (this is `try-send'`, whose whole contract is "never block, never
+            // fail"), so a `?` has nowhere to go inside it — and a LOSSY encode would be worse
+            // than either: it would put an `#wat.edn/Unencodable` marker on the WIRE as if it
+            // were the payload. An unencodable value must fail the call, not be transmitted.
+            // The encode needs no peer, so it simply happens where the error can propagate.
+            let wire_pre = crate::edn::render::value_to_edn_string_with(
+                &payload_val,
+                sym.types().map(|a| a.as_ref()),
+            )?;
             let outcome = cell
                 .with_ref(OP, |opt_peer| {
                     match opt_peer {
                         // Already closed → Closed (never an error).
                         None => try_send_outcome_closed(),
                         Some(peer) if peer.is_socket_tier() => {
-                            let wire = crate::edn::render::value_to_edn_string_with(
-                                &payload_val,
-                                sym.types().map(|a| a.as_ref()),
-                            );
+                            let wire = wire_pre.clone();
                             match peer.try_send_wire(wire) {
                                 crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
                                 crate::kernel::peer::TrySendResult::Full => {

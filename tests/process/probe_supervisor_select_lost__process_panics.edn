@@ -15,7 +15,7 @@
         :frames [
           #wat.kernel/Frame {
             :file "src/freeze.rs"
-            :line 1525
+            :line 1526
             :symbol ":user::main"
           }
         ]

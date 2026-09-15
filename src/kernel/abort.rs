@@ -70,7 +70,7 @@ pub(crate) fn eval_kernel_raise(
         // Defensive: the checker gates `data` to `:wat::core::Error` (a String
         // `message` field), so this only fires for an out-of-band caller — fall
         // back to the EDN rendering rather than an empty message.
-        .unwrap_or_else(|| wat_edn::write(&crate::edn::render::value_to_edn_with(&data, types)));
+        .unwrap_or_else(|| crate::edn::render::value_to_edn_string_lossy(&data, types));
     let frames = snapshot_call_stack();
     let location = frames.first().map(|f| f.call_span.clone());
     let payload = crate::assertion::AssertionPayload {

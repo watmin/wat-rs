@@ -19,16 +19,16 @@
 //! a variant is `#ns/Enum.Variant {:field …}` (unit `{}`); discriminator is the tag.
 
 use std::sync::Arc;
-use wat::edn::render::{edn_to_value, value_to_edn, value_to_edn_with};
+use wat::edn::render::{edn_to_value, value_to_edn_with};
 use wat::runtime::{EnumValue, Value};
 use wat::types::{EnumDef, EnumVariant, Purity, TypeDef, TypeEnv};
 
 fn write_value(v: &Value) -> String {
-    wat_edn::write(&value_to_edn(v))
+    wat_edn::write(&value_to_edn_with(v, None).expect("test value must encode"))
 }
 
 fn write_value_with(v: &Value, types: &TypeEnv) -> String {
-    wat_edn::write(&value_to_edn_with(v, Some(types)))
+    wat_edn::write(&value_to_edn_with(v, Some(types)).expect("test value must encode"))
 }
 
 fn round_trip(v: &Value) -> Value {

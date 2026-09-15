@@ -246,8 +246,7 @@ pub(crate) fn thread_crash_panic_edn(
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
     let chain = single_died_chain(thread_died_error_panic(message, assertion));
-    let edn = crate::edn::render::value_to_edn_with(&chain, types);
-    wat_edn::write(&edn)
+    crate::edn::render::value_to_edn_string_lossy(&chain, types)
 }
 
 /// Arc 278 no-hidden-failures — the RuntimeError sibling of
@@ -260,8 +259,7 @@ pub(crate) fn thread_crash_runtime_edn(
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
     let chain = single_died_chain(thread_died_error_runtime(crate::edn::contract::to_wire_edn(re)));
-    let edn = crate::edn::render::value_to_edn_with(&chain, types);
-    wat_edn::write(&edn)
+    crate::edn::render::value_to_edn_string_lossy(&chain, types)
 }
 
 /// Derive the human message from a `LociDiedError` variant's carried payload.

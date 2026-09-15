@@ -1125,7 +1125,7 @@ pub(crate) fn eval_kernel_after(
         // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'
         // and as a real socket peer's frames, so `poll'`/`select'` decode it via
         // `decode_trusted_wire` identically to any accepted connection.
-        let edn_node = crate::edn::render::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()));
+        let edn_node = crate::edn::render::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()))?;
         let edn_str = wat_edn::write(&edn_node);
         let mut frame: Vec<u8> = edn_str.into_bytes();
         frame.push(b'\n');

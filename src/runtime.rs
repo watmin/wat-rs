@@ -9786,7 +9786,7 @@ pub(crate) fn eval_edn_validate(
             reason: "validate requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
         }).into());
     }
-    let edn = crate::edn::render::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()))?;
     Ok(
         match crate::edn::render::edn_to_typed_value(&texpr, &edn, sym) {
             Ok(_) => Value::Enum(Arc::new(EnumValue {

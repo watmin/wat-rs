@@ -52,14 +52,15 @@ use crate::value::{Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Val
 ///   quotes strings; routing a top-level `String` through it would corrupt
 ///   every caller that expects unquoted text (`(join "-" ["a" "b"])` would
 ///   render `"\"a\"-\"b\""` instead of `"a-b"`).
-/// - everything else → `value_to_edn_string_with`, passed `types` so a
+/// - everything else → `value_to_edn_string_lossy`, passed `types` so a
 ///   record renders by field NAME (`{:x 1}`) rather than positionally
 ///   (`{:field-0 1}`) — the 296/279.2 fix. Callers with no registry pass
-///   `None` explicitly, per `edn::render::value_to_edn_string_with`'s stated discipline.
+///   `None` explicitly. `str`/`join` are total over every `Value`; an
+///   unencodable holon must render a marker, not abort the process.
 pub(crate) fn render_str_total(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {
     match v {
         Value::String(s) => (**s).clone(),
-        other => crate::edn::render::value_to_edn_string_with(other, types),
+        other => crate::edn::render::value_to_edn_string_lossy(other, types),
     }
 }
 
