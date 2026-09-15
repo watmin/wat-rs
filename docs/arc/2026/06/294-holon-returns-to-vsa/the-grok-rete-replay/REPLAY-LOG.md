@@ -123,7 +123,8 @@ Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=205
 | 96 | `d4fe222c2` → `7b55480b9` | shared | inline any bool expr. auto-merge |
 | 97 | `5cf17bbe7` → `96ba536d6` | docs | |
 | 98 | `1a97cf12b` → `895f517a9` | shared | vector field-ref. CharLit arms. census `.census/2026-09-15T05-53-37Z.txt` files=2064 |
+| 99 | `4c19b9029` → `1e9625225` | shared | computed operand typed. CharLit + diagnostic home. census `.census/2026-09-15T05-59-38Z.txt` |
 
 ## STOP
 
-None. Batch 2 continues at #99.
+None. Batch 2 continues at #100.

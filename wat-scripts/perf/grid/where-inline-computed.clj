@@ -20,7 +20,7 @@
 ;; on both engines at once, which is exactly how a position-specific defect survives 36 axes.
 ;;
 ;; `mk-session` takes an EXPLICIT production list per row — never the namespace symbol — so the
-;; eight rules do not collapse into one session and union their derived sets.
+;; fourteen rules do not collapse into one session and union their derived sets.
 ;;
 ;; ── ROWS 5-8: THE BINDER VECTOR, AND WHY CLARA IS LOAD-BEARING HERE ──────────────────────────
 ;;
@@ -28,6 +28,18 @@
 ;; 2026-08-28 that was a second live silent never-match, still open on the day entry F was
 ;; declared closed, because our rewriter walked `Keyword` and `List` and swept `Vector` into an
 ;; `other => clone` catch-all.
+;;
+;; ── ROWS 9-14: THREE FORMS WE HAD DENIED OURSELVES ───────────────────────────────────────────
+;;
+;; `cond`, `let` and `match` were REFUSED as the head of an inline constraint until 2026-08-28, on
+;; the stated ground that they are "polymorphic in their body's type and the inline position has no
+;; type check that could demand bool of them". Polymorphic-in-the-body means the type is a FUNCTION
+;; of the body, and the body is in the AST — and `cond` was not failing a type test at all: the
+;; macro expander descended into `where` bodies ONLY, so an inline `cond` never expanded.
+;;
+;; Clojure has all three, which is what makes rows 9-14 a comparison rather than a claim: `cond`
+;; and `let` directly, and `case` for a match on a boolean (literal dispatch values, so `case` is
+;; the honest mirror of wat's `(match <bool> (true …) (false …))`).
 ;;
 ;; ⛔ BOTH OUR ENGINES WERE WRONG, AGAIN. `$native` and `$oracle` share that rewriter's shape, so
 ;; they returned the same wrong answer and every differential gate we own was satisfied. That is
@@ -88,6 +100,41 @@
   [:test (= (let [x ?k] x) 100)]
   => (insert! (->Hit ?k)))
 
+;; ROW 9 — `cond` as the inline HEAD. Our side refused this outright until 2026-08-28.
+(defrule inline-cond
+  [Req (= ?k k) (cond (> k 100) true :else false)]
+  => (insert! (->Hit ?k)))
+
+;; ROW 10 — FENCE via :test. This position always worked on our side, which is how the inline
+;; refusal stayed invisible.
+(defrule fence-cond
+  [Req (= ?k k)]
+  [:test (cond (> ?k 100) true :else false)]
+  => (insert! (->Hit ?k)))
+
+;; ROW 11 — `let` as the inline HEAD.
+(defrule inline-let-head
+  [Req (= ?k k) (let [x k] (> x 100))]
+  => (insert! (->Hit ?k)))
+
+;; ROW 12 — FENCE.
+(defrule fence-let-head
+  [Req (= ?k k)]
+  [:test (let [x ?k] (> x 100))]
+  => (insert! (->Hit ?k)))
+
+;; ROW 13 — `match` as the inline HEAD. `case` over literal true/false is the honest mirror of
+;; wat's `(match <bool> (true …) (false …))`. `= 100` so n=1 brackets it from both sides.
+(defrule inline-match
+  [Req (= ?k k) (case (= k 100) true true false false)]
+  => (insert! (->Hit ?k)))
+
+;; ROW 14 — FENCE.
+(defrule fence-match
+  [Req (= ?k k)]
+  [:test (case (= ?k 100) true true false false)]
+  => (insert! (->Hit ?k)))
+
 (defquery hit-q [] [?fact <- Hit])
 
 (def rows
@@ -98,7 +145,13 @@
    [5 "inline-let-gt" inline-let-gt]
    [6 "fence-let-gt"  fence-let-gt]
    [7 "inline-let-eq" inline-let-eq]
-   [8 "fence-let-eq"  fence-let-eq]])
+   [8 "fence-let-eq"  fence-let-eq]
+   [9  "inline-cond"     inline-cond]
+   [10 "fence-cond"      fence-cond]
+   [11 "inline-let-head" inline-let-head]
+   [12 "fence-let-head"  fence-let-head]
+   [13 "inline-match"    inline-match]
+   [14 "fence-match"     fence-match]])
 
 (def seeds (mapv (fn [i] (->Req i)) (range items)))
 
