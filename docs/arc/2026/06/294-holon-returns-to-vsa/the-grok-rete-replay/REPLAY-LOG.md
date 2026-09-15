@@ -228,8 +228,20 @@ First P1+Q1 batch. POLICY-codemod-source. Census start `.census/2026-09-15T21-17
 | 154 | `7f5915de9` → `3f5f8defb` | docs | cherry-pick -x |
 | 155 | `701cf473a` → `406a7c340` | P1+Q1 fire-rules | FireOutcome parametric; field session→value; wrap-fire-rules{,-explain}; 10 composition files. census files=2089 |
 | 156 | `d23526d08` → `4188d2753` | docs | cherry-pick -x |
-| 157 | `5ec2f6bb8` → (this commit) | P1+Q1 insert | InsertOutcome; wrap-insert; Q1 rete+net; 10 composition files. census `.census/2026-09-15T22-15-03Z.txt` files=2090 |
+| 157 | `5ec2f6bb8` → `d32f91a63` | P1+Q1 insert | InsertOutcome; wrap-insert; Q1 rete+net; 10 composition files. census `.census/2026-09-15T22-15-03Z.txt` files=2090 |
+| 158 | `ec444424f` → `d66f8d4b1` | docs | cherry-pick -x |
+| 159 | `ab82872f5` → `2637df1a8` | P1+Q1 compile | CompileOutcome; wrap-compile; Q1 rete+net; wrap-compile on probe_then_match_is_refused.wat (STOP-8 class). census `.census/2026-09-15T23-00-05Z.txt` files=2091; --diff no STOP-8 |
+
+## Checkpoint
+
+```
+#159  scripts/floor.sh   .floor/2026-09-15T23-01-49Z
+      Summary [231.356s] 5551 tests run: 5551 passed, 22 skipped   exit=0
+clippy cargo clippy --release --all-targets -- -D warnings           CLIPPY_RC=0
+```
+
+`verify-step-record.sh 18eb21a71 HEAD` → `step-record: complete`
 
 ## STOP
 
-None remaining at #157. Floor+clippy only after #159. Do not push. Main untouched.
+None remaining. Do not push. Main untouched.
