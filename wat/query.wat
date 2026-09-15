@@ -465,8 +465,12 @@
                                   ;; contributing an empty row to the result.
                                   [~fired-sym (:wat::core::match
                                                 (:wat::rete::fire-rules
-                                                  (:wat::rete::insert (~state-template-kw s)
-                                                    (:wat::edn::read (:wat::telemetry::Log/message ~log-sym))))
+                                                  (:wat::core::match
+                                                    (:wat::rete::insert (~state-template-kw s)
+                                                      (:wat::edn::read (:wat::telemetry::Log/message ~log-sym)))
+                                                    [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
+                                                    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __il :used __iu :staged __ist}
+                                                      (:wat::kernel::assertion-failed! :message "sift: session memory ceiling exceeded while staging a log line")]))
                                                 [:wat::rete::FireOutcome.Fired {:value __f} __f]
                                                 [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
                                                   (:wat::kernel::assertion-failed! :message "sift: session memory ceiling exceeded")]

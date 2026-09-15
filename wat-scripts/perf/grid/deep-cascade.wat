@@ -91,7 +91,7 @@
     (:wat::core::range 0 width)))
 
 (:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all session (:dc::level-0-facts width)))
+  (:wat::core::match (:wat::rete::insert-all session (:dc::level-0-facts width)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; enc kind level id — canonical single-i64 witness for one derived fact (mirrors accum.wat's
 ;; :acc::enc: kind*1e15 + level*1e9 + id).
@@ -137,7 +137,7 @@
                     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag)))
                     facts   (:dc::level-0-facts width)
                     p0      (:wat::time::now)
-                    staged  (:wat::rete::insert-all session facts)
+                    staged  (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     i1      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     f1      (:wat::time::now)

@@ -95,8 +95,8 @@
     [s0   (:wat::rete::compile-all
             (:wat::core::PersistentVector rule)
             (:wat::core::PersistentVector (:vsa::q-Guess)))
-     s1   (:wat::rete::insert-all s0 (:vsa::catalog))
-     s2   (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery)))
+     s1   (:wat::core::match (:wat::rete::insert-all s0 (:vsa::catalog)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2   (:wat::core::match (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (fire s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])
      hits  (:wat::rete::query fired (:vsa::q-Guess))
      n     (:wat::core::length hits)]
@@ -117,7 +117,7 @@
      s0    (:wat::rete::compile-all
              (:wat::core::PersistentVector rule)
              (:wat::core::PersistentVector (:vsa::q-Hit)))
-     s1    (:wat::rete::insert s0 (:vsa::Pair :a zero :b other))
+     s1    (:wat::core::match (:wat::rete::insert s0 (:vsa::Pair :a zero :b other)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (fire s1) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:vsa::q-Hit)))))
 
@@ -176,8 +176,8 @@
     [s0    (:wat::rete::compile-all
              (:wat::core::PersistentVector (:vsa::classify-presence))
              (:wat::core::PersistentVector (:vsa::q-Guess)))
-     s1    (:wat::rete::insert s0 (:vsa::Catalog :name cat-name :obs (:vsa::table-of cat-fn)))
-     s2    (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery)))
+     s1    (:wat::core::match (:wat::rete::insert s0 (:vsa::Catalog :name cat-name :obs (:vsa::table-of cat-fn))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2    (:wat::core::match (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (fire s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])
      hits  (:wat::rete::query fired (:vsa::q-Guess))
      n     (:wat::core::length hits)]

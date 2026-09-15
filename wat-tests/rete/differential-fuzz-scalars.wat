@@ -257,11 +257,11 @@
   [ty <- :wat::core::i64  n <- :wat::core::i64  s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::let [m (:wat::core::if (:wat::core::> n 1) (:wat::i64::- n 1) 1)]
     (:wat::core::cond
-      ((:wat::core::= ty 0) (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-i64 m)))
-      ((:wat::core::= ty 1) (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-f64 m)))
-      ((:wat::core::= ty 2) (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-str m)))
-      ((:wat::core::= ty 3) (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-bool m)))
-      (:else                (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-enum m))))))
+      ((:wat::core::= ty 0) (:wat::core::match (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-i64 m)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      ((:wat::core::= ty 1) (:wat::core::match (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-f64 m)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      ((:wat::core::= ty 2) (:wat::core::match (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-str m)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      ((:wat::core::= ty 3) (:wat::core::match (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-bool m)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (:else                (:wat::core::match (:wat::rete::insert-all s (:wat-tests::rete::scalars::pfacts-enum m)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))))
 
 ;; Retract the FIRST fact of the driving type, then re-fire — the same non-monotonic direction the
 ;; sibling file added, asked per TYPE. Retraction removes by VALUE, so this also exercises each
@@ -283,11 +283,11 @@
                          (:wat::core::PersistentVector)
                          (:wat::core::PersistentVector q))
                     s1 (:wat::core::cond
-                         ((:wat::core::= ty 0) (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-i64 dups)))
-                         ((:wat::core::= ty 1) (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-f64 dups)))
-                         ((:wat::core::= ty 2) (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-str dups)))
-                         ((:wat::core::= ty 3) (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-bool dups)))
-                         (:else                (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-enum dups))))]
+                         ((:wat::core::= ty 0) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-i64 dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+                         ((:wat::core::= ty 1) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-f64 dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+                         ((:wat::core::= ty 2) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-str dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+                         ((:wat::core::= ty 3) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-bool dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+                         (:else                (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-enum dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))]
     (:wat::core::if (:wat::core::= shape 2) (:wat-tests::rete::scalars::partner-facts ty dups s1) s1)))
 
 ;; ── the case ─────────────────────────────────────────────────────────────────

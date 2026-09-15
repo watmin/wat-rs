@@ -26,23 +26,23 @@
     (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :test::staged-oslo [] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert (:test::compile-cw) (:weather::Temperature :celsius 15 :location "Oslo"))
-    (:weather::WindSpeed :kph 45 :location "Oslo")))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert (:test::compile-cw) (:weather::Temperature :celsius 15 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (:weather::WindSpeed :kph 45 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :test::staged-bergen [] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert (:test::compile-cw) (:weather::Temperature :celsius 15 :location "Oslo"))
-    (:weather::WindSpeed :kph 45 :location "Bergen")))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert (:test::compile-cw) (:weather::Temperature :celsius 15 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (:weather::WindSpeed :kph 45 :location "Bergen")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :test::staged-2x2 [] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert
-      (:wat::rete::insert
-        (:wat::rete::insert (:test::compile-cw) (:weather::Temperature :celsius 15 :location "Oslo"))
-        (:weather::Temperature :celsius 10 :location "Bergen"))
-      (:weather::WindSpeed :kph 45 :location "Oslo"))
-    (:weather::WindSpeed :kph 50 :location "Bergen")))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert
+      (:wat::core::match (:wat::rete::insert
+        (:wat::core::match (:wat::rete::insert (:test::compile-cw) (:weather::Temperature :celsius 15 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+        (:weather::Temperature :celsius 10 :location "Bergen")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+      (:weather::WindSpeed :kph 45 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (:weather::WindSpeed :kph 50 :location "Bergen")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :test::cw-count [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query s (:weather::q-ColdAndWindy))))

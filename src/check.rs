@@ -23272,6 +23272,9 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 the fire-outcome wall, S2c — `insert` answers a matchable
+    // `(:wat::rete::InsertOutcome)`. Staging grows the session, and the session ceiling is enforced
+    // at BOTH doors; a breach here cannot be proven at load, so it is a VALUE.
     env.register(
         ":wat::rete::insert$native".into(),
         TypeScheme {
@@ -23280,7 +23283,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::rete::Session".into()),
                 TypeExpr::Path(":wat::core::Record".into()),
             ],
-            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            ret: TypeExpr::Path(":wat::rete::InsertOutcome".into()),
             rest_param_type: None,
         },
     );
@@ -23295,7 +23298,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":wat::core::Record".into())],
                 },
             ],
-            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            ret: TypeExpr::Path(":wat::rete::InsertOutcome".into()),
             rest_param_type: None,
         },
     );

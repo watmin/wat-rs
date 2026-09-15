@@ -37,20 +37,20 @@
 (:wat::core::defn :seedp::seed-per-fact [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert acc (:seedp::Left :key i :lid i)))
+      (:wat::core::match (:wat::rete::insert acc (:seedp::Left :key i :lid i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     s
     (:wat::core::range 0 n)))
 
 ;; PATH B — build the fact vector, then ONE call to the native batch verb.
 (:wat::core::defn :seedp::seed-batch [s <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     s
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::vector::conj acc (:seedp::Left :key i :lid i)))
       (:wat::core::PersistentVector)
-      (:wat::core::range 0 n))))
+      (:wat::core::range 0 n))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

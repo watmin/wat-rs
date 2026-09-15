@@ -113,12 +113,12 @@
   (:wat::core::let
     [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos) (:fx::arrow-line))
-     s0    (:wat::rete::insert-all
+     s0    (:wat::core::match (:wat::rete::insert-all
              (:wat::rete::compile-all rules
                (:wat::core::PersistentVector (:fx::q-IsArrow) (:fx::q-IsHeadKw) (:fx::q-IsTypePos) (:fx::q-ArrowLine)))
-             (:wat::grep::Facts/nodes facts))
-     s1    (:wat::rete::insert-all s0 (:wat::grep::Facts/named facts))
-     s2    (:wat::rete::insert-all s1 (:wat::grep::Facts/spans facts))
+             (:wat::grep::Facts/nodes facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s1    (:wat::core::match (:wat::rete::insert-all s0 (:wat::grep::Facts/named facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2    (:wat::core::match (:wat::rete::insert-all s1 (:wat::grep::Facts/spans facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      arrow-lines (:wat::rete::query fired (:fx::q-ArrowLine))
      n-arrow-lines (:wat::core::length arrow-lines)]
@@ -141,12 +141,12 @@
   (:wat::core::let
     [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::match-arrow))
-     s0    (:wat::rete::insert-all
+     s0    (:wat::core::match (:wat::rete::insert-all
              (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wat::grep::q-match)))
-             (:wat::grep::Facts/nodes facts))
-     s1    (:wat::rete::insert-all s0 (:wat::grep::Facts/spans facts))
+             (:wat::grep::Facts/nodes facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s1    (:wat::core::match (:wat::rete::insert-all s0 (:wat::grep::Facts/spans facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      ;; the ONE Source fact — the rule joins it for :file, so it must be inserted like any other.
-     s2    (:wat::rete::insert s1 (:wat::grep::Facts/source facts))
+     s2    (:wat::core::match (:wat::rete::insert s1 (:wat::grep::Facts/source facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      matches (:wat::rete::query fired (:wat::grep::q-match))
      m       (:wat::core::Option/expect

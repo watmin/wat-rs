@@ -264,28 +264,50 @@ The unknowns it settles, all of them cheap to learn at 31 sites and expensive at
    and print its fields, and the gates assert on those — **a stronger claim than before: the
    program SURVIVES its ceiling and reports it as data.**
 
-4. **S2c — `insert` / `insert-all` (640 sites) with `InsertOutcome`. NEXT.** A SEPARATE enum, not
-   `FireOutcome` parametrised: `insert` runs no rounds, so it has no `RoundCapExceeded` arm, and an
-   arm that cannot occur is the two-facts defect this arc keeps pulling out. Parametricity solved a
-   different problem (one payload TYPE varying); it does not merge two different ARM SETS.
+4. ~~**S2c — `insert` / `insert-all` with `InsertOutcome`.**~~ **LANDED 2026-08-29.**
 
-   **The order is the one S2a/S2b paid for — do not rediscover it:** hand-face the stdlib sites
-   first (the codemod is a wat program and cannot load while the stdlib is red) → `cargo build`
-   (the stdlib is `include_str!`'d) → dry-run + diff the codemod on a `/tmp` copy → sweep → then
-   chase the cascade for what no `.wat` tree-walk can see: wat inside Rust `format!`s, verbs as
-   `{placeholder}`s or template tokens, verbs passed as first-class `Fn` params, `wat-scripts/fixes/`
-   (excluded by design), and harnesses that TEXT-SUBSTITUTE the call.
-5. **S2d — the lint wall:** a ceiling breach may not be constructed as a raise anywhere in rete.
-   The rung that stops the class regrowing; the recv wall's S4 is the shape to copy.
+   `InsertOutcome` is a SEPARATE enum, not `FireOutcome` parametrised — `insert` runs no rounds, so
+   it has no `RoundCapExceeded` arm, and an arm that cannot occur is the two-facts defect. (S2b's
+   parametricity solved a varying payload TYPE; it does not merge two different ARM SETS.)
 
-Each of 2–4 is its own codemod under `wat-scripts/fixes/`, dry-run and diffed on a `/tmp` copy
-before it touches the corpus (R21; never hand edits, never python/sed). The exhaustive-match
-cascade drives each sweep — every red site names the next.
+   **The cascade: 110 → 38 → 9 → 1 → 0.** Two new blind spots, both mine:
 
-### Out of scope — affirmative cuts, not deferrals
-- **`max-fire-rounds` and `max-session-bytes` stay CONFIG, not per-call arguments.** A bound passed
-  per call is a bound each caller can quietly raise; one program, one value, chosen at startup, is
-  the same ruling `dim_count` already carries.
-- **Bounding a session's whole history across fires** is what S1 now does BY CONSTRUCTION (the
-  origin is `compile-all`, not fire entry). `config.rs`'s old "Not cumulative across fires"
-  paragraph asserted the opposite and is struck — it was the ruling the builder overturned.
+   - ⛔ **THE CODEMOD NEEDED SIX HEADS, NOT FOUR.** `insert$native` / `insert-all$native` are called
+     DIRECTLY by two differential fixtures that isolate the prime. And `insert` is a strict PREFIX
+     of the other five, so exact-equality matching is load-bearing here in a way it was not for the
+     fire verbs — a `starts-with?` matcher would wrap `insert-all` twice.
+   - ⛔ **MY RUST SCRIPT SKIPPED NESTED CALLS, AND wat-fix DOES NOT.** After wrapping, it advanced
+     past the whole wrapped expression, so the inner call of `(insert (insert s A) B)` was never
+     visited — an `InsertOutcome` flowed into a Session parameter. **The wat-fix codemod gets this
+     right by recursing into children; a linear scan has to be told.** Fixed by resuming *inside*
+     the wrapper with an exact-prefix already-faced guard (a window search would have suppressed
+     the nested call too). **This is the second defect in a row that came from the `.rs` side, and
+     it is the argument for a rust-fix** (`RETE-OPEN-WORK.md` § "A rust-fix").
+
+5. ~~**S2d — the lint wall.**~~ **LANDED 2026-08-29 — `tests/lint/no_ceiling_raise_in_rete.rs`.**
+
+   Inside `src/rete/`, the three ceiling variants may be CONSTRUCTED only at the doors that own
+   them (`kernel/session.rs`, `kernel/fire/delta.rs`) and CONVERTED only at the one site that turns
+   a breach into an arm (`kernel/outcome.rs`). A new door that raises instead of returning a value
+   is a red build.
+
+   ⚠ **THIS IS A CHECK, NOT A TYPE, AND THE FILE SAYS SO.** The top rung would be ceiling variants
+   unconstructible outside those doors — Rust has no per-variant visibility, and splitting
+   `RuntimeErrorKind` would be paid for by ~400 construction sites across the substrate. The rung
+   reached is named rather than left as a silent compromise.
+
+   **Mutation-proven in BOTH directions**, and the second is the one that matters: a raise planted
+   in `kernel/arm.rs` goes RED naming the file, line and variant; and pointing the gate at a
+   variant that exists nowhere goes RED with *"guarding an empty room"* — without that arm, deleting
+   the ceilings would leave this gate quietly green forever, a control outliving its subject.
+
+## The wall is complete
+
+Every wat-facing rete verb answers a matchable outcome. `fire-rules`, `fire-once`,
+`fire-rules-explain` → `(FireOutcome :- [T])`; `insert`, `insert-all` → `InsertOutcome`; all six
+`$oracle`/`$native` spellings included, by the dual-impl contract. **No rete ceiling reaches wat as
+a raise, and the lint keeps it that way.**
+
+⚠ **What still raises, correctly:** `RuleSetMayNotTerminate` — the termination verifier's refusal at
+`compile-all`. That is a COMPILE-time refusal of a program that cannot be proven to terminate, not
+a runtime bound on one that can; it is eBPF's load-time "no" and belongs exactly where it is.

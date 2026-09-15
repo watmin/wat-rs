@@ -568,6 +568,24 @@ from this arc's inline-constraint and expression-lowering work. **A finding that
 accident is not a process that works** — it is the same outcome as luck, and the next one may not
 be adjacent to whatever is being built that week.
 
+## A rust-fix — builder's want, NOT now (named 2026-08-29)
+
+⛔ **`wat-fix` cannot see wat that lives inside a Rust string literal, and that blind spot has now
+cost real defects.** Builder: *"this is the codemod native for wat… rust ofcourse can't do this…
+(yet… i want a rust-fix soon…. not now….)"*
+
+The S2b sweep is the evidence. The `.wat` corpus went through three recorded, dry-run-diffed,
+idempotent codemods. The **38 sites of wat embedded in `.rs` `format!` strings** could not: they
+went through a throwaway script, and that script shipped a bug — 12 of the 38 are raw strings
+(`r#"…"#`) where `\"` is a literal backslash-quote while the other 26 need the escape. It was
+caught by reading the diff, which is not a mechanism.
+
+**This is NOT scheduled and must not be built on the strength of this note.** It is recorded so the
+next hand knows the want exists and knows what would justify it: a rust-fix would give embedded wat
+the same parse-rewrite-verify path `.wat` files already have, instead of regex over string
+literals. Until it exists, the rule stands: **read the diff of every blanket edit** (FM 21), and
+expect raw-vs-normal string escaping to differ WITHIN one file.
+
 ## The order, and why
 
 **As of 2026-08-28 (LATE — four commits after the stamp above): the inline position is CLOSED.

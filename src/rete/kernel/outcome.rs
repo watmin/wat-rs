@@ -105,3 +105,61 @@ pub(crate) fn fire_result_to_outcome(r: Result<Value, EvalBreak>) -> Result<Valu
         Err(other) => Err(other),
     }
 }
+
+// ── `(:wat::rete::InsertOutcome)` — the staging door's twin ───────────────────
+
+/// `(:wat::rete::InsertOutcome)`, declared in `wat/rete.wat`.
+const INSERT_OUTCOME_TYPE: &str = ":wat::rete::InsertOutcome";
+
+/// `InsertOutcome::Inserted [session]` — the happy path.
+fn inserted(session: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: INSERT_OUTCOME_TYPE.into(),
+        variant_name: "Inserted".into(),
+        names: crate::runtime::builtin_enum_variant_names(INSERT_OUTCOME_TYPE, "Inserted"),
+        fields: vec![session],
+    }))
+}
+
+/// `InsertOutcome::MemoryCeilingExceeded [limit used staged]`.
+fn insert_memory_ceiling_exceeded(limit: usize, used: usize, staged: usize) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: INSERT_OUTCOME_TYPE.into(),
+        variant_name: "MemoryCeilingExceeded".into(),
+        names: crate::runtime::builtin_enum_variant_names(
+            INSERT_OUTCOME_TYPE,
+            "MemoryCeilingExceeded",
+        ),
+        fields: vec![
+            Value::i64(limit as i64),
+            Value::i64(used as i64),
+            Value::i64(staged as i64),
+        ],
+    }))
+}
+
+/// Turn a staging `Result` into an `InsertOutcome` VALUE.
+///
+/// ⛔ **ONE ARM, NOT TWO** — the mirror of [`fire_result_to_outcome`], and deliberately narrower.
+/// `insert` runs no rounds, so `FixpointRoundCapExceeded` is not merely unhandled here, it is
+/// **unreachable**: nothing on the staging path can construct it. Adding a third arm "for
+/// symmetry" would put a branch in the reader's way that no input can take.
+///
+/// Everything that is not the staging ceiling propagates unchanged, for the reason stated on
+/// [`fire_result_to_outcome`]: a ceiling is a bound the substrate chose and the caller can act on;
+/// a malformed session or a non-Record fact is a bug in the program, and turning those into arms
+/// would hand every caller a match over failures they cannot do anything about.
+pub(crate) fn insert_result_to_outcome(r: Result<Value, EvalBreak>) -> Result<Value, EvalBreak> {
+    match r {
+        Ok(session) => Ok(inserted(session)),
+        Err(EvalBreak::Diagnostic(e)) => match e.kind() {
+            RuntimeErrorKind::SessionMemoryCeilingExceededOnInsert {
+                limit,
+                used,
+                staged,
+            } => Ok(insert_memory_ceiling_exceeded(*limit, *used, *staged)),
+            _ => Err(EvalBreak::Diagnostic(e)),
+        },
+        Err(other) => Err(other),
+    }
+}

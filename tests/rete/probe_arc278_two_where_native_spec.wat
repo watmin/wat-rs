@@ -21,12 +21,12 @@
 
 
 (:wat::core::defn :user::stage [] -> :wat::rete::Session
-  (:wat::rete::insert
+  (:wat::core::match (:wat::rete::insert
     (:wat::rete::compile-all (:wat::rete::collect-rules :tw) (:wat::core::PersistentVector (:tw::q-ColdWindy)))
     (:tw::Temp :c 5 :loc "oslo")
     (:tw::Wind :kph 40 :loc "oslo")
     (:tw::Temp :c 22 :loc "rome")
-    (:tw::Wind :kph 35 :loc "rome")))
+    (:tw::Wind :kph 35 :loc "rome")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :user::native-count [] -> :wat::core::i64
   (:wat::core::length

@@ -44,9 +44,9 @@
     (:wat::core::PersistentVector (:tf::q-Rate))))
 
 (:wat::core::defn :test::seed-anchor-rate [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert
-    (:wat::rete::insert s (:tf::Anchor :x 0))
-    (:tf::Rate :count 5)))
+  (:wat::core::match (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert s (:tf::Anchor :x 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (:tf::Rate :count 5)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::Option/expect

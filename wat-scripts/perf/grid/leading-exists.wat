@@ -99,7 +99,7 @@
 ;; Seed: Wind(i) TWICE for each i in [0, items) — the duplicate is what makes the
 ;; distinct-inner-binding rule load-bearing — plus one S1 to start the cascade.
 (:wat::core::defn :lx::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::vector::conj
       (:wat::core::foldl
@@ -110,7 +110,7 @@
             (:lx::Wind i)))
         (:wat::core::PersistentVector)
         (:wat::core::range 0 items))
-      (:lx::S1 1))))
+      (:lx::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :lx::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))

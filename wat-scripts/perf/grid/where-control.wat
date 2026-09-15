@@ -280,7 +280,7 @@
 ;; seed — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild). Every field is a
 ;; FORMULA over i, independently computable on the Clara side so nothing rots as a hand-kept table.
 (:wat::core::defn :wsc::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
+  (:wat::core::match (:wat::rete::insert-all
     session
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
@@ -293,7 +293,7 @@
           (:wat::vector::conj acc
             (:wsc::Req :k i :a a :b b :n n :o o))))
       (:wat::core::PersistentVector)
-      (:wat::core::range 0 items))))
+      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wsc::derived-ints

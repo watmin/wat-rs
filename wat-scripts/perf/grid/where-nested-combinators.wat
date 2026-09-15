@@ -38,9 +38,9 @@
   (:wat::core::let
     [s0 (:wat::rete::compile-all (:wat::core::PersistentVector)
           (:wat::core::PersistentVector (:wnc::q5) (:wnc::q6) (:wnc::q7)))
-     s1 (:wat::core::if (:wnc::has w 1) (:wat::rete::insert s0 (:wnc::A :k 1)) s0)
-     s2 (:wat::core::if (:wnc::has w 2) (:wat::rete::insert s1 (:wnc::B :k 1)) s1)
-     s3 (:wat::core::if (:wnc::has w 4) (:wat::rete::insert s2 (:wnc::C :k 1)) s2)]
+     s1 (:wat::core::if (:wnc::has w 1) (:wat::core::match (:wat::rete::insert s0 (:wnc::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s0)
+     s2 (:wat::core::if (:wnc::has w 2) (:wat::core::match (:wat::rete::insert s1 (:wnc::B :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s1)
+     s3 (:wat::core::if (:wnc::has w 4) (:wat::core::match (:wat::rete::insert s2 (:wnc::C :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s2)]
     (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules s3) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) q))))
 
 (:wat::core::defn :wnc::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil

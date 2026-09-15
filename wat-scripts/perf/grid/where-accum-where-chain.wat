@@ -79,11 +79,11 @@
             (:wat::core::PersistentVector (:wawc::two-wheres))
             (:wat::core::PersistentVector (:wawc::q-Busy)))
      facts (:wat::core::fn [s <- :wat::rete::Session] -> :wat::rete::Session
-             (:wat::rete::insert s
+             (:wat::core::match (:wat::rete::insert s
                (:wawc::Station :loc "MCI")
                (:wawc::Reading :loc "MCI" :v 1)
                (:wawc::Reading :loc "MCI" :v 2)
-               (:wawc::Reading :loc "MCI" :v 3)))]
+               (:wawc::Reading :loc "MCI" :v 3)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))]
     (:wawc::line 1 "one-where"
       (:wawc::sum-n (:wat::core::match (:wat::rete::fire-rules (facts one)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wawc::line 2 "two-wheres"

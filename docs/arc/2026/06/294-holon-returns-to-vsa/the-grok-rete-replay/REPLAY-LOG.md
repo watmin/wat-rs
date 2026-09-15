@@ -212,3 +212,24 @@ Start tip: BRIEF-6 `0ae232d3d`. Census start `.census/2026-09-15T06-53-02Z.txt` 
 ## STOP
 
 None remaining. Do not push. Main untouched.
+
+---
+
+# REPLAY-LOG — grok-rete #153–#159 onto `replay/grok-rete` (BRIEF-7a)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` (git show only). **Not pushed.** Main untouched.
+First P1+Q1 batch. POLICY-codemod-source. Census start `.census/2026-09-15T21-17-48Z.txt` files=2089.
+
+## Steps
+
+| N | C → replayed | kind | notes |
+|---|---|---|---|
+| 153 | `cb2b58117` → `8c1392ca4` | P1 wrap-fire-once | convert.sh chain-member guard. Fire-once totality. |
+| 154 | `7f5915de9` → `3f5f8defb` | docs | cherry-pick -x |
+| 155 | `701cf473a` → `406a7c340` | P1+Q1 fire-rules | FireOutcome parametric; field session→value; wrap-fire-rules{,-explain}; 10 composition files. census files=2089 |
+| 156 | `d23526d08` → `4188d2753` | docs | cherry-pick -x |
+| 157 | `5ec2f6bb8` → (this commit) | P1+Q1 insert | InsertOutcome; wrap-insert; Q1 rete+net; 10 composition files. census `.census/2026-09-15T22-15-03Z.txt` files=2090 |
+
+## STOP
+
+None remaining at #157. Floor+clippy only after #159. Do not push. Main untouched.

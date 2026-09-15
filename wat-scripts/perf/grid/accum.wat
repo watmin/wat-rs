@@ -167,7 +167,7 @@
 
 ;; seed session G W — stage Group(g) + its W Readings for every g in [0, G).
 (:wat::core::defn :acc::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all session (:acc::all-facts G W)))
+  (:wat::core::match (:wat::rete::insert-all session (:acc::all-facts G W)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; codes fired — every derived fact across all five types, canonically encoded, into a (Vector :- [i64]).
 ;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.
@@ -207,7 +207,7 @@
                     facts   (:acc::all-facts groups reads)
                     ;; protocol: insert + fire + query. Compile and fact-construct are setup.
                     p0      (:wat::time::now)
-                    staged  (:wat::rete::insert-all session facts)
+                    staged  (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     i1      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     f1      (:wat::time::now)

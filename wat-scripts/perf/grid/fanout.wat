@@ -89,7 +89,7 @@
 ;; delegates to the native `insert-all'`: one rebuild, not N). Order is preserved exactly —
 ;; ascending k, and within a key ascending f, Left before Right — so `:derived` is unchanged.
 (:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all s (:fan::all-facts keys fanout)))
+  (:wat::core::match (:wat::rete::insert-all s (:fan::all-facts keys fanout)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; enc key lid rid — canonical single-i64 witness for one derived Pair fact.
 (:wat::core::defn :fan::enc [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64] -> :wat::core::i64
@@ -128,7 +128,7 @@
                     session (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair)))
                     facts   (:fan::all-facts keys fanout)
                     p0      (:wat::time::now)
-                    staged  (:wat::rete::insert-all session facts)
+                    staged  (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     i1      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     f1      (:wat::time::now)

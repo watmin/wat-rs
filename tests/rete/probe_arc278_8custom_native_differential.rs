@@ -45,7 +45,7 @@ fn world(gate: &str) -> String {
 fn flagged_count(fire_fn: &str, gate: &str, readings: &[i64]) -> Result<i64, String> {
     let reading_inserts: String = readings
         .iter()
-        .map(|v| format!("             session (:wat::rete::insert session (:w::Reading :location \"Oslo\" :value {v}))\n"))
+        .map(|v| format!("             session (:wat::core::match (:wat::rete::insert session (:w::Reading :location \"Oslo\" :value {v})) [:wat::rete::InsertOutcome.Inserted {{:session __staged}} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {{:limit __ilimit :used __iused :staged __icount}} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\n"))
         .collect();
     let run = format!(
         // rune:lint(no-inlined-edn) — wat fire-rules wrap, FireOutcome match (not an EDN golden)
@@ -53,7 +53,7 @@ fn flagged_count(fire_fn: &str, gate: &str, readings: &[i64]) -> Result<i64, Str
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
              session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Flagged)))\n\
-             session (:wat::rete::insert session (:w::Station :location \"Oslo\"))\n\
+             session (:wat::core::match (:wat::rete::insert session (:w::Station :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {{:session __staged}} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {{:limit __ilimit :used __iused :staged __icount}} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\n\
 {reading_inserts}\
              fired   (:wat::core::match (:wat::rete::{fire_fn} session) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\
             (:wat::rete::query fired (:w::q-Flagged))))"

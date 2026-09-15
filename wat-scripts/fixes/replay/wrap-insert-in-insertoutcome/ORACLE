@@ -1,0 +1,9 @@
+# ORACLE for wrap-insert-in-insertoutcome — HISTORY or header spec, never the tool.
+
+spec       (:wat::core::match (:wat::rete::insert :: (insert ARG …)
+spec       (:wat::core::match (:wat::rete::insert s (:user::Temp :value 25)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) :: [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
+spec       (:user::Temp :value 15)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) :: (insert ARG …)
+spec-before   (:wat::rete::insert :: (insert ARG …)
+spec-before     (:wat::rete::insert s (:user::Temp :value 25)) :: (insert ARG …)
+spec-before     (:user::Temp :value 15))) :: (insert ARG …)
+

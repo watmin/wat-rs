@@ -23,10 +23,10 @@
     (:wat::core::PersistentVector (:alert::q-Unattended))))
 
 (:wat::core::defn :test::seed-oslo-temp [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert s (:weather::Temperature :celsius -5 :location "Oslo")))
+  (:wat::core::match (:wat::rete::insert s (:weather::Temperature :celsius -5 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :test::seed-maint [s <- :wat::rete::Session loc <- :wat::core::String] -> :wat::rete::Session
-  (:wat::rete::insert s (:ops::Maintenance :location loc)))
+  (:wat::core::match (:wat::rete::insert s (:ops::Maintenance :location loc)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :test::fire-oracle [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules$oracle s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))

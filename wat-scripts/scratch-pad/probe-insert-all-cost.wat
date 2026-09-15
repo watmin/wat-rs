@@ -47,7 +47,7 @@
 (:wat::core::defn :iac::seed-chained [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:iac::Reading :g 0 :v i)))
+      (:wat::core::match (:wat::rete::insert s (:iac::Reading :g 0 :v i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
     (:wat::core::range 0 n)))
 
@@ -59,7 +59,7 @@
                                (:wat::vector::conj acc (:iac::Reading :g 0 :v i)))
                              (:wat::core::PersistentVector)
                              (:wat::core::range 0 n))]
-    (:wat::rete::insert-all session facts)))
+    (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln )

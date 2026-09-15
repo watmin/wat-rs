@@ -15,10 +15,10 @@
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:qhp::cool))
                          (:wat::core::PersistentVector (:qhp::q-Hit)))
-                    s1 (:wat::rete::insert s0 (:qhp::Temp :c 10))
+                    s1 (:wat::core::match (:wat::rete::insert s0 (:qhp::Temp :c 10)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     f1 (:wat::core::match (:wat::rete::fire-rules s1) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     n1 (:wat::core::length (:wat::rete::query f1 (:qhp::q-Hit)))
-                    s2 (:wat::rete::insert f1 (:qhp::Temp :c 15))
+                    s2 (:wat::core::match (:wat::rete::insert f1 (:qhp::Temp :c 15)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     n2 (:wat::core::length (:wat::rete::query s2 (:qhp::q-Hit)))
                     f2 (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     n3 (:wat::core::length (:wat::rete::query f2 (:qhp::q-Hit)))]

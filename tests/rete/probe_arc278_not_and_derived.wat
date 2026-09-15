@@ -22,7 +22,7 @@
 (:wat::rete::defquery :nad::q-Ok  :params [] :when [(?f <- :nad::Ok)])
 
 (:wat::core::defn :nad::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::rete::insert s (:nad::A :k 1) (:nad::A :k 2)))
+  (:wat::core::match (:wat::rete::insert s (:nad::A :k 1) (:nad::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :nad::counts [fired <- :wat::rete::Session]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])

@@ -25,8 +25,8 @@
   (:wat::core::let
     [rules (:wat::core::PersistentVector (:weather::cold-and-windy))
      sess0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
-     s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
+     s1    (:wat::core::match (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2    (:wat::core::match (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
@@ -39,8 +39,8 @@
      rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "weather::cold-and-windy" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
-     s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
+     s1    (:wat::core::match (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2    (:wat::core::match (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 

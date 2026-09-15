@@ -35,13 +35,13 @@
   ;; proving only that *something* stopped. The arm is the assertion; print its fields.
   (:wat::core::match
     (:wat::rete::fire-rules
-      (:wat::rete::insert
-        (:wat::rete::insert-all
+      (:wat::core::match (:wat::rete::insert
+        (:wat::core::match (:wat::rete::insert-all
           (:wat::rete::compile-all
             (:wat::core::PersistentVector (:cap::seed) (:cap::step))
             (:wat::core::PersistentVector (:cap::q)))
-          (:cap::edges))
-        (:cap::Start :n 0)))
+          (:cap::edges)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+        (:cap::Start :n 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     [:wat::rete::FireOutcome.Fired {:value fired}
       ;; The permissive off-by-one: one round SHORT of the workload must NOT complete.
       (:wat::kernel::println

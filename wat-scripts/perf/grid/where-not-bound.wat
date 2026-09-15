@@ -26,11 +26,11 @@
 
 (:wat::core::defn :wnb::fire [lo <- :wat::core::i64  hi <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules
-    (:wat::rete::insert
+    (:wat::core::match (:wat::rete::insert
       (:wat::rete::compile-all (:wat::core::PersistentVector (:wnb::max-not-below)) (:wat::core::PersistentVector (:wnb::q-Busy)))
       (:wnb::Station :loc "OSL")
       (:wnb::Reading :loc "OSL" :v lo)
-      (:wnb::Reading :loc "OSL" :v hi))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+      (:wnb::Reading :loc "OSL" :v hi)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
 (:wat::core::defn :wnb::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println

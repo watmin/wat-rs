@@ -38,7 +38,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules  (:wat::core::PersistentVector (:probe::score-rule))
-     staged (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hit))) (:probe::Item :tier :silver))
+     staged (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hit))) (:probe::Item :tier :silver)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
      fired  (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      hits   (:wat::rete::query fired (:probe::q-Hit))]
     (:wat::kernel::println (:wat::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))
