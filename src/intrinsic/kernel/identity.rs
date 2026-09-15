@@ -399,3 +399,44 @@ pub(crate) fn eval_lineage_status(
 ) -> Result<Value, EvalBreak> {
     crate::runtime::eval_lineage_status(std::slice::from_ref(peer), list_span, env, sym)
 }
+
+/// `(:wat::kernel::dialed-from peer)` → `(:wat::core::Option :- [(Address :- [I O])])`.
+/// Non-consuming observation of the address a peer was dialed from.
+/// `Some` only for a process-tier dial (`SocketAddress::connect` stored `self`).
+/// `None` means this peer was not dialed — an accepted connection, a self-peer,
+/// a timer, a thread-tier peer. Not a missing feature: an accepted socket's
+/// remote name is not dialable.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Total         Unreviewed
+/// @Category      Projection
+/// @arg     peer ((Peer :- [I O]) | (Thread :- [I O]) | (Process :- [I O]) | (ThreadSelfPeer :- [I O])) the peer to read the dialed-from address of
+/// @ret     (:wat::core::Option :- [(:wat::kernel::Address :- [I O])]) `Some` iff this peer was dialed from a process-tier address
+/// @example-norun (:wat::kernel::dialed-from client) #=> (Some addr)
+// No registered `TypeScheme` — `check.rs`'s `infer_dialed_from` is the
+// real authority: projective over `peer<I,O>` into `(Address :- [I O])`,
+// same partition as `recv` / `peer-process`. Return is `Option` — not
+// must-use; an observation carries no failure to swallow.
+//
+// Deciding line for `@Category Projection`: reads a STORED FIELD
+// (`Peer::dialed_from`), captured once at `from_socket` and never mutated.
+//
+// Deciding line for `@Purity Pure`: `with_ref`, never `with_mut` + `take`.
+//
+// ⚠ `@Determinism Nondeterministic`: the live cell can already be taken
+// (`peer already closed` raises), so two calls on the same handle can
+// disagree after `close` — same correction as `peer-pid`.
+//
+// ⛔ Does NOT consume: `with_ref`, never `take`. The original peer still
+// serves afterwards.
+#[wat_intrinsic(":wat::kernel::dialed-from")]
+pub(crate) fn eval_dialed_from(
+    peer: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_dialed_from(std::slice::from_ref(peer), list_span, env, sym)
+}

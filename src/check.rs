@@ -4708,6 +4708,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // a-peer-remembers-its-address — non-consuming peek of the address a
+            // Peer was dialed from. Parametric: (Peer :- [I O]) → (Option :- [(Address :- [I O])]).
+            // Type params are erased at runtime; the checker threads them. See infer_dialed_from.
+            ":wat::kernel::dialed-from" => {
+                let (val, mut errs) = infer_dialed_from(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
             // — STOP-1: `signal` is `(Process :- [I O])`-ONLY (unlike close', not shared with
             // Thread'/Peer' — a thread peer has no process to signal). See infer_signal.
@@ -12163,6 +12174,63 @@ fn infer_peer_process(
             let ret = TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
                 args: vec![process_ty],
+            };
+            if local_errors.is_empty() {
+                CheckResult::ok(ret)
+            } else {
+                CheckResult::partial_with(ret, local_errors)
+            }
+        }
+        Err(()) => {
+            let t = fresh.fresh();
+            CheckResult::partial_with(t, local_errors)
+        }
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_dialed_from` is INTRINSIC (projective).
+// I,O flow from the peer's Parametric type params into `(Address :- [I O])`.
+// A defclause cannot enumerate every (I,O) instantiation — same as recv'/peer-process.
+/// Type-check `(:wat::kernel::dialed-from peer)` — a-peer-remembers-its-address.
+///
+/// One positional arg: `args[0]` peer (anything `project_peer_io` accepts).
+/// Result: `(:wat::core::Option :- [(wat::kernel::Address :- [I O])])`.
+/// Not must-use — an observation carries no failure to swallow.
+fn infer_dialed_from(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::dialed-from";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+
+    match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+        Ok((i_ty, o_ty)) => {
+            let addr_ty = TypeExpr::Parametric {
+                head: "wat::kernel::Address".into(),
+                args: vec![apply_subst(&i_ty, subst), apply_subst(&o_ty, subst)],
+            };
+            let ret = TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![addr_ty],
             };
             if local_errors.is_empty() {
                 CheckResult::ok(ret)

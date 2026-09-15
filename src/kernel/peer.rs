@@ -267,6 +267,11 @@ pub struct Peer {
     pub(crate) tx: PeerTx,
     /// Receive endpoint (transport-erased; `Send` required; `as_any` for `select'` downcast).
     pub(crate) rx: Box<dyn crate::comms::CommReceiver<crate::value::Value> + Send>,
+    /// The address this peer was DIALED FROM, when it was dialed at all.
+    /// `None` for an accepted peer (the remote bound no listener — storing the
+    /// client's autobind name would claim a redial that cannot work), a self-peer,
+    /// a dead sentinel, and every thread-tier peer (no socket address exists).
+    pub(crate) dialed_from: Option<crate::kernel::address::SocketAddress>,
 }
 
 /// Reserved sentinel — the wire form of the best-effort, reason-free
@@ -342,7 +347,12 @@ impl Peer {
         rx: crate::comms::thread::Receiver<crate::value::Value>,
     ) -> Self {
         // Both thread::Sender<Value> and thread::Receiver<Value> are Send.
-        Self { tx: PeerTx::Thread(Box::new(tx)), rx: Box::new(rx) }
+        // Thread tier has no socket address — None is the constructor, not a defaulted param.
+        Self {
+            tx: PeerTx::Thread(Box::new(tx)),
+            rx: Box::new(rx),
+            dialed_from: None,
+        }
     }
 
     /// Construct a socket (process-tier) peer.
@@ -356,8 +366,22 @@ impl Peer {
     pub fn from_socket(
         tx: crate::comms::process::Sender<String>,
         rx: crate::comms::process::Receiver<crate::value::Value>,
+        // `Some` only at the dialer (`SocketAddress::connect`, where `self` IS the
+        // address). Every other site must pass `None` deliberately — a defaulted
+        // parameter is how the dialer silently stops remembering.
+        dialed_from: Option<crate::kernel::address::SocketAddress>,
     ) -> Self {
-        Self { tx: PeerTx::Socket(Box::new(tx)), rx: Box::new(rx) }
+        Self {
+            tx: PeerTx::Socket(Box::new(tx)),
+            rx: Box::new(rx),
+            dialed_from,
+        }
+    }
+
+    /// The address this peer was dialed from, if it was dialed. A peek: does not
+    /// move the field out of the peer.
+    pub(crate) fn dialed_from(&self) -> Option<&crate::kernel::address::SocketAddress> {
+        self.dialed_from.as_ref()
     }
 
     /// Returns `true` if this peer is socket-tier (process comms); `false` for

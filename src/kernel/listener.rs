@@ -372,7 +372,14 @@ impl CommListener for SocketListener {
                                         ))));
                                     }
                                 };
-                            return Ok(Ok(Peer::from_socket(tx.reinterpret::<String>(), rx)));
+                            // ⛔ ACCEPTED — None. The remote bound no listener; storing
+                            // getpeername() would paint a brick that claims it can be re-dialed
+                            // and cannot (a-peer-remembers-its-address trap-door 1).
+                            return Ok(Ok(Peer::from_socket(
+                                tx.reinterpret::<String>(),
+                                rx,
+                                None,
+                            )));
                         }
                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                             continue; // spurious; re-poll

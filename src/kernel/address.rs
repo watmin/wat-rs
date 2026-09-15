@@ -153,6 +153,7 @@ impl CommAddress for ThreadAddress {
 /// wraps the stream as a `Peer` via `Peer::from_socket`.
 ///
 /// Verbatim body from the former socket arm of `eval_connect_prime`.
+#[derive(Clone)]
 pub struct SocketAddress {
     /// The abstract-namespace UDS name as RAW BYTES. Arc 272: an autobind address is
     /// kernel-minted (5 random bytes), NOT UTF-8 — a `String` would corrupt it. The name is
@@ -245,7 +246,13 @@ impl CommAddress for SocketAddress {
                     ))));
                 }
             };
-        Ok(Ok(Peer::from_socket(tx.reinterpret::<String>(), rx)))
+        // ⭐ THE DIALER — `self` IS the address. Clone it into the peer so
+        // `dialed-from` can hand it back; the observation must not steal `self`.
+        Ok(Ok(Peer::from_socket(
+            tx.reinterpret::<String>(),
+            rx,
+            Some(self.clone()),
+        )))
     }
 }
 

@@ -382,7 +382,12 @@ pub(crate) fn run_forms_as_server_child(
     let self_peer_value = crate::rust_deps::marshal::make_rust_opaque(
         crate::kernel::spawn::PEER_TYPE_PATH,
         std::sync::Arc::new(crate::rust_deps::custodia::ThreadOwnedCell::new(Some(
-            crate::kernel::peer::Peer::from_socket(self_peer_tx.reinterpret::<String>(), self_peer_rx),
+            // Self-peer: inherited stdio fds, not a dial. None, deliberately.
+            crate::kernel::peer::Peer::from_socket(
+                self_peer_tx.reinterpret::<String>(),
+                self_peer_rx,
+                None,
+            ),
         ))),
     );
     let _self_peer_guard = crate::services::install_self_peer(self_peer_value);
