@@ -40,6 +40,9 @@ use super::*;
 /// `filter.rs`, and the exact mirror of `AlphaNews::of`, which had the opposite
 /// defect (claiming a borrow it did not take).
 pub(crate) struct FireCtx<'a> {
+    /// Needed by `Op::Eval` — a computed inline operand runs through the one expression core,
+    /// which dispatches `RETE_OPS` opcodes and wants the symbol table for holon rows (fix-list F).
+    pub(crate) sym: &'a SymbolTable,
     pub(crate) compiled_conds: &'a HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     pub(crate) scratch: &'a mut SlotFrame,
     pub(crate) pool: &'a mut Vec<(u32, u32)>,
@@ -91,6 +94,7 @@ pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<
         for aid in cand_scratch.iter().copied() {
             let compiled = rematch_compiled(&arm.compiled_conds, aid)?;
             let Some((off, len)) = crate::rete::compiled_cond::exec_compiled_with_key_ids(
+                crate::rete::compiled_cond::test_sym(),
                 compiled,
                 fact_fields,
                 &mut match_scratch,
@@ -253,6 +257,7 @@ fn binding_extensions(
         CondDriver::Leaf(alpha_id) => {
             let compiled = rematch_compiled(compiled_conds, *alpha_id)?;
             Ok(seeded_bindings_keyed(
+                sym,
                 gather_cache,
                 wm,
                 *alpha_id,
@@ -283,6 +288,7 @@ pub(crate) fn rematch_compiled(
 }
 
 fn fact_holds_under<B: Bindings + ?Sized>(
+    sym: &SymbolTable,
     fact: &Value,
     seed: &B,
     compiled: &crate::rete::compiled_cond::CompiledCond,
@@ -292,10 +298,11 @@ fn fact_holds_under<B: Bindings + ?Sized>(
         Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
         _ => return false,
     };
-    crate::rete::compiled_cond::exec_compiled_under_holds(compiled, fact_fields, scratch, seed)
+    crate::rete::compiled_cond::exec_compiled_under_holds(sym, compiled, fact_fields, scratch, seed)
 }
 
 fn fact_bindings_under<B: Bindings + ?Sized>(
+    sym: &SymbolTable,
     fact: &Value,
     seed: &B,
     compiled: &crate::rete::compiled_cond::CompiledCond,
@@ -306,7 +313,7 @@ fn fact_bindings_under<B: Bindings + ?Sized>(
         _ => return None,
     };
     let pairs =
-        crate::rete::compiled_cond::exec_compiled_under(compiled, fact_fields, scratch, seed)?;
+        crate::rete::compiled_cond::exec_compiled_under(sym, compiled, fact_fields, scratch, seed)?;
     let pairs = crate::rete::compiled_cond::attach_fact(compiled, fact, pairs);
     // Unify with the seed. A Bind of `?c` compiles as a first-write (the cond
     // in isolation does not know the left token already bound `?c`). Conflict
@@ -339,6 +346,7 @@ fn token_exists_under<B: Bindings + ?Sized>(
         CondDriver::Leaf(alpha_id) => {
             let compiled = rematch_compiled(compiled_conds, *alpha_id)?;
             Ok(any_seeded_keyed(
+                sym,
                 gather_cache,
                 wm,
                 *alpha_id,
@@ -400,6 +408,7 @@ fn exists_cond_under(
         CondDriver::Leaf(leaf_id) => {
             let compiled = rematch_compiled(compiled_conds, *leaf_id)?;
             Ok(any_seeded_keyed(
+                sym,
                 gather_cache,
                 wm,
                 *leaf_id,
@@ -570,6 +579,7 @@ pub(crate) fn join_extend(
     // fold-the-wall). Rematch cannot reject a member (`DESIGN-STONE-join-extend-no-leftover`).
     if compiled.has_seed_cmp()
         && !fact_holds_under(
+            ctx.sym,
             fact_at(ctx.facts, ctx.derived, ctx.n_input, el.fact),
             &bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds),
             compiled,
@@ -722,6 +732,7 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
     let node_ids = &arm.node_ids;
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
     let mut ctx = FireCtx {
+        sym: crate::rete::compiled_cond::test_sym(),
         compiled_conds: &arm.compiled_conds,
         scratch: &mut match_scratch,
         pool: &mut wm.bind_pool,
@@ -1697,6 +1708,7 @@ fn ensure_gather<'a, B: Bindings + ?Sized>(
 
 /// Exists/Not Leaf: probe the token's bucket. Empty bucket is absence (contract clause 2).
 fn any_seeded_keyed<B: Bindings + ?Sized>(
+    sym: &SymbolTable,
     cache: &mut GatherCache,
     wm: &FireSession,
     alpha_id: i64,
@@ -1717,6 +1729,7 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
     bucket.iter().any(|&i| {
         census_gather_visit();
         fact_holds_under(
+            sym,
             fact_at(&wm.facts, &wm.derived_facts, wm.n_input, elements[i].fact),
             seed,
             compiled,
@@ -1727,6 +1740,7 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
 
 /// Leftover rematch / combinator Leaf: every matching binding in the token's bucket.
 fn seeded_bindings_keyed(
+    sym: &SymbolTable,
     cache: &mut GatherCache,
     wm: &FireSession,
     alpha_id: i64,
@@ -1765,6 +1779,7 @@ fn seeded_bindings_keyed(
         .filter_map(|&i| {
             census_gather_visit();
             fact_bindings_under(
+                sym,
                 fact_at(&wm.facts, &wm.derived_facts, wm.n_input, elements[i].fact),
                 seed,
                 compiled,

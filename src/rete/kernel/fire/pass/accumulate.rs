@@ -242,6 +242,7 @@ for node_id in &kind_ids.acc {
                 let el = &from_elements[i];
                 census_gather_visit();
                 let ok = fact_holds_under(
+                    sym,
                     fact_at(&wm.facts, &wm.derived_facts, wm.n_input, el.fact),
                     &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                     from_compiled,
