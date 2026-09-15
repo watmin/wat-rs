@@ -565,46 +565,63 @@ refutation is not a literal, it is a SECOND FIELD. With `v` and `w` both `:wat::
 | `presence?` | FIRES | FIRES |
 | `cosine` (`f64::>` … `0.9`) | FIRES | FIRES |
 | `dot` (`f64::>` … `1000.0`) | FIRES | FIRES |
-| `coincident?` | **REFUSED** | FIRES |
+| `coincident?` | **was REFUSED — FIXED, now FIRES** | FIRES |
 
-**Seven of eight, not eight of eight.** The earlier claim on this page and in the breadcrumb —
+**Seven of eight when measured; eight of eight after the fix below.** The earlier claim on this page and in the breadcrumb —
 *"all four FIRE, inline and fence"* — was WRONG, and it was written from a hand-drive whose exact
 shape was never recorded. Thresholds above are MEASURED, not guessed: `cosine` 1.0 vs −0.018,
 `dot` 4333.0 vs −81.0, `coincident?`/`presence?` return bool directly
 (`wat-scripts/scratch-pad/probe-holon-rete-cell-values.wat`).
 
-⛔⛔ **`coincident?` INLINE IS A LIVE DEFECT, AND IT IS THE FIFTH INSTANCE OF THE DAY'S PATTERN —
-the one the pattern table lists as still OPEN.** It is refused with *"malformed rete clause … not a
-recognized :when shape"*. Cause, driven not read:
+✅ **`coincident?` INLINE WAS A LIVE DEFECT — FIXED 2026-08-28, and the fix was the LADDER'S TOP
+RUNG, not the one-liner.** It is now `1` inline and `1` in a fence. It was the **fifth instance of
+the day's pattern**, and the row of the pattern table still holding it.
 
-- `coincident?` is `OpClass::Redispatch` (it keeps core's `HolonAST | Vector` polymorphism, so its
-  PARAMS cannot be a rank-1 scheme) but its RETURN is always `bool`.
-- `expr_is_provably_boolean` (`clause.rs:266-275`) trusts `row.ret` **only for `Alias`/`Fallback`**,
-  because on `Form`/`Redispatch` rows `ret: Bool` is a documented PLACEHOLDER. So one value means
-  both *"returns bool"* and *"has no scheme at all"*, and the genuinely-boolean row is refused
-  rather than believed.
-- **The one-line widening is UNSOUND and I proved it before proposing it.** Admitting `Redispatch`
-  makes `(:wat::rete::core::Tuple/first (:wat::rete::core::Tuple :v 99))` — an `i64` — a legal
-  inline constraint that compiles, fires and **silently matches nothing**. That is fix-list F's
-  class reopened on a new row. Probe driven and discarded; do not re-propose it.
-- `enum::=` / `enum::not=` are `Form` rows that genuinely return bool and fire inline anyway —
-  they reach `ReteClauseShape::Constraint` by NAME pattern (`classify_constraint_head`), a path
-  that never reads `ret`. **`coincident?` is the only row in the table that genuinely returns bool
-  and is in neither path.**
+**The defect.** `coincident?` is `OpClass::Redispatch` (its PARAMS keep core's `HolonAST | Vector`
+polymorphism, so they cannot be a rank-1 scheme) but its RETURN is always `bool`.
+`expr_is_provably_boolean` trusted `row.ret` only for `Alias`/`Fallback`, because on
+`Form`/`Redispatch` rows `ret: ParamType::Bool` was a documented PLACEHOLDER. One value, two facts —
+so the genuinely-boolean row was refused rather than believed, invisibly, because it worked in a
+`where` fence the whole time.
 
-**THE ROOT, AND WHY IT IS WORTH THE LADDER'S TOP RUNG.** The conflation forces the SAME guard
-clause at three independent sites, each re-deriving "you may not believe `ret` unless the class is
-`Alias`/`Fallback`": `clause.rs:266`, `validate.rs:1337`, `check.rs:17267`. A rule repeated by hand
-at three sites is rung 1 of the extirpare ladder, and it has now produced a live wrong answer.
-The cure is to make the placeholder **unspellable** — `ret: Ret::Is(ParamType) | Ret::NoScheme` —
-after which every guard collapses into reading `ret` honestly, `coincident?` declares `Is(Bool)`
-and is believed, and a `Form`/`Redispatch` row can no longer be mistaken for a boolean.
-Audited: of the 22 `Form`/`Redispatch` rows, **5 genuinely return bool** (`and`, `or`, `enum::=`,
-`enum::not=`, `coincident?`) and 17 are true placeholders.
+**⛔ THE ONE-LINE WIDENING IS UNSOUND AND WAS DRIVEN BEFORE IT WAS PROPOSED.** Admitting
+`Redispatch` makes `(Tuple/first (Tuple :v 99))` — an `i64` whose row ALSO said `ret: Bool` — a
+legal inline constraint that compiles, fires and returns `Ok(0)`: **silently matches nothing.**
+Fix-list F's class, reopened on a new row. Do not re-propose it.
 
-**Order for this item is therefore:** fix the `ret` conflation FIRST (it is the bug), then generate
-the holon cells — which need `Cell` to carry an optional SECOND field, since one field cannot
-discriminate a self-comparison (`cosine(h,h)` is 1.0 for every `h`).
+**THE CURE — the placeholder now has no spelling.** `ret: Ret::Is(ParamType) | Ret::NoScheme`
+(`vocabulary.rs`). 79 rows migrated: 57 `Alias`/`Fallback` → `Is(...)`, 5 → `Is(Bool)`, 17 →
+`NoScheme`. **The compiler then named every reader — seven, not the three I had predicted.** Four
+were invisible to grep because they reach `ret` through a shared helper
+(`classify_fallback_outcome`, called from `expr_ir`, `where_tree` and `runtime`), which is itself
+the argument for the type change: a convention cannot make the compiler find its own violations.
+
+- `clause.rs` and `validate.rs`: the `class` test is **DELETED**. Its absence is the point.
+- `check.rs`: the `class` test **STAYS**, and that is not an inconsistency — that site builds a
+  WHOLE rank-1 scheme, so it is guarding on PARAMS, not on `ret`. `coincident?` is exactly the row
+  that separates the two questions, which is why `ret` got its own enum rather than both folding
+  into one `Scheme`.
+- `params: &[]` keeps the same two-facts shape and is an **AFFIRMATIVE CUT**, stated in `Ret`'s doc:
+  no rete row takes zero operands, so it is unambiguous today. If a zero-arity row is ever minted,
+  `params` needs this treatment and that paragraph is the notice.
+
+**TWO GATES, BOTH MUTATION-PROVEN:**
+1. `a_row_that_declares_bool_is_believed_inline_whatever_its_class` — `coincident?` inline AND
+   fence, plus **the soundness twin**: `Tuple/first` must stay REFUSED. Mutating the table makes
+   each arm fire on its own (`Got: Ok(0)` for the twin — the F-class signature, in the failure text).
+2. `only_the_named_scheme_less_rows_declare_a_return_type` — freezes by NAME which scheme-less rows
+   state a return (`and`, `or`, `enum::=`, `enum::not=`, `coincident?`), asserts every
+   `Alias`/`Fallback` states one, and carries two non-vacuity floors. The mutation prints both
+   offenders in one diff.
+
+**Also learned, and it belongs in the ledger's design:** `enum::=`/`enum::not=` are `Form` rows that
+fire inline via `classify_constraint_head`'s NAME-pattern path, which never reads `ret` at all. So
+`coincident?` was the only row in the whole table that genuinely returns bool and sat in neither
+admission path — a population of one, which is why no count would ever have surfaced it.
+
+**Remaining for this item:** generate the holon cells. They need `Cell` to carry an optional SECOND
+field, because one field cannot discriminate a self-comparison (`cosine(h,h)` is 1.0 for every `h`)
+— the ledger's stated reason, "no literal spelling", is true and beside the point.
 
 > ⛔ **NONE OF THIS WAS A VIGILIA ITEM, AND THAT IS THE FINDING UNDER THE FINDING.** The full watch
 > CONVERGED before any of it: recasts 12 and 13 both `0 L1 + 0 L2`, inward 17/17 plus
