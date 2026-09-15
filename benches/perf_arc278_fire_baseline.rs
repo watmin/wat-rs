@@ -103,8 +103,19 @@ fn run_native(n: usize) {
         binds.push_str(&format!("   s{idx} (:wat::rete::insert s{prev} (:weather::WindSpeed :kph 45 :location \"loc{j}\"))\n"));
         prev = idx; idx += 1;
     }
+    // Arc 278 the fire-outcome wall — `fire-once` yields a matchable `(FireOutcome)`, so the
+    // benchmark faces it like any caller. HAND-FACED rather than codemod'd: this is wat inside a
+    // Rust `format!`, which no `.wat` tree-walk can see. The ceiling arms are unreachable here (a
+    // few thousand facts against the 1 GiB default) and say so loudly instead of being swallowed —
+    // a bench that silently measured a refused fire would report a wonderful number for no work.
     let expr = format!(
-        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-once s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
+        "(:wat::core::let [{binds}\n fired (:wat::core::match (:wat::rete::fire-once s{prev})\
+             [:wat::rete::FireOutcome.Fired {{:session __f}} __f]\
+             [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __l :used __u :rounds __r}} \
+               (:wat::kernel::assertion-failed! :message \"bench: memory ceiling\")]\
+             [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __c :still-deriving __s}} \
+               (:wat::kernel::assertion-failed! :message \"bench: round cap\")])\n \
+           pmem (:wat::rete::Session/production-memory fired)]\
            (:wat::core::length (:wat::map::keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");

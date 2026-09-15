@@ -35,6 +35,23 @@ if [[ ! -x "$WAT" ]]; then
   exit 2
 fi
 
+# Chain members are CODEMODS, never TARGETS. Load the derived list before
+# writing anything; a chain member's path handed in is refused, loudly.
+# POLICY-codemod-source: a wat-scripts/fixes/*.wat that is NOT a chain member
+# converts like any .wat (P1). one-param-spec CONTEXT still excludes that
+# directory (arity context, not TARGETS) — see all.wat below.
+mapfile -t STEPS < <("$CHAIN" "$ORDER_BASE" "$ORDER_MAIN")
+declare -A CHAIN_MEMBERS=()
+for cm in "${STEPS[@]}"; do
+  CHAIN_MEMBERS["$cm"]=1
+done
+for p in "${PATHS[@]}"; do
+  if [[ -n "${CHAIN_MEMBERS[$p]:-}" ]]; then
+    echo "convert.sh: refuses chain member $p — the chain never converts itself" >&2
+    exit 2
+  fi
+done
+
 in_scope() {
   local codemod=$1
   local path=$2
@@ -53,7 +70,9 @@ if not scope:
     sys.exit(1)
 for ent in scope.split():
     if ent == "corpus":
-        if path.endswith(".wat") and not path.startswith("wat-scripts/fixes/"):
+        # All .wat TARGETS, including non-chain wat-scripts/fixes/*.wat.
+        # Chain members never arrive (refused above).
+        if path.endswith(".wat"):
             sys.exit(0)
         continue
     if ent.endswith("/"):
@@ -87,8 +106,6 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 LOG="$TMP/log"
 : > "$LOG"
-
-mapfile -t STEPS < <("$CHAIN" "$ORDER_BASE" "$ORDER_MAIN")
 
 # one-param-spec CONTEXT: every .wat at <rev> outside wat-scripts/fixes/,
 # minus files today's reader cannot lex, each REPORTED.

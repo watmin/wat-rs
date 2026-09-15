@@ -236,13 +236,70 @@ pub fn normalize_rust_source_span_lines(v: &mut ::wat_edn::OwnedValue) {
     }
 }
 
+/// Blank the `:line` of any span whose `:file` is a **Rust** source path, in place.
+///
+/// ── THE CLASS THIS KILLS ─────────────────────────────────────────────────────────────────────
+///
+/// `rust_caller_span!()` is the sentinel meaning *"there is no recoverable USER source location"*.
+/// It renders as a real `#wat.core/Span` — `{:file "src/runtime.rs" :line 25802 …}` — and eight
+/// goldens froze that integer. **What deserves assertion is that the location IS the sentinel
+/// (the FILE); which LINE of the interpreter it happens to be is an accident of editing.**
+///
+/// It cost five red floors before this existed, and every one of them was a COMMENT: on 2026-08-28
+/// alone the number moved 25722 → 25793 → 25799 → 25802, each move a doc note, each discovery a
+/// full 375-second floor, each fix one integer in five files. The fifth (2026-08-29) was 36 lines
+/// of `wat_enum_field_names_from!` for the fire-outcome wall — work that had nothing to do with any
+/// of those five tests. **A gate that fails on edits above it is testing its own accident.**
+///
+/// ── WHY IT IS SAFE, and it is the predicate that makes it so ─────────────────────────────────
+///
+/// This fires ONLY on a map that carries a `:file` whose value is a String matching
+/// `src/**.rs` — a RUST path. A `.wat` file's `:line` is a real assertion about user source and is
+/// left exactly alone; so is every other integer in the tree. Surveyed 2026-08-29 across every
+/// `.edn` golden in the repo: **8 goldens pin a `src/*.rs` line, in 3 files** — 5 →
+/// `src/runtime.rs`, 1 → `src/freeze.rs`, 2 → `src/check.rs`. Nothing else in the corpus does, so
+/// the blast radius is exactly those eight and the predicate cannot reach anything else.
+///
+/// ⚠ **APPLIED ON CAPTURE TOO** (`assert_edn_matches_file!` under `UPDATE_EDN=1`), so the golden
+/// on disk literally reads `:line 0`. A file showing a real-looking line number that nothing
+/// compares would be a worse lie than the one this removes — the reader must be able to see what
+/// is asserted by reading the golden.
+pub fn blank_rust_source_lines(v: &mut ::wat_edn::OwnedValue) {
+    use ::wat_edn::Value;
+    match v {
+        Value::Map(entries) => {
+            let is_rust_span = entries.iter().any(|(k, val)| {
+                matches!(k, Value::Keyword(kw) if kw.name() == "file")
+                    && matches!(val, Value::String(f)
+                        if f.starts_with("src/") && f.ends_with(".rs"))
+            });
+            for (k, val) in entries.iter_mut() {
+                if is_rust_span && matches!(k, Value::Keyword(kw) if kw.name() == "line") {
+                    *val = Value::Integer(0);
+                } else {
+                    blank_rust_source_lines(val);
+                }
+            }
+        }
+        Value::List(xs) | Value::Vector(xs) | Value::Set(xs) => {
+            for x in xs.iter_mut() {
+                blank_rust_source_lines(x);
+            }
+        }
+        Value::Tagged(_, inner) => blank_rust_source_lines(inner),
+        _ => {}
+    }
+}
+
 /// Assert two EDN strings are DATA-equal: parse both via `wat_edn::parse_owned`,
 /// normalize any `.rs`-file `#wat.core/Span` `:line` (see
-/// [`normalize_rust_source_span_lines`] — arc 255 Stone A-i), and compare the
-/// parsed `OwnedValue`s. A malformed emission FAILS to parse → the test fails
-/// (you cannot green a non-EDN error face). On mismatch the failure message
-/// shows the raw (PRE-normalization) strings so the diff is readable — a real
-/// difference, `.rs`-span or not, is never swallowed.
+/// [`normalize_rust_source_span_lines`] — arc 255 Stone A-i), blank any map
+/// whose `:file` is a `src/**.rs` path (see [`blank_rust_source_lines`] — grok-rete
+/// #153, including `#wat.kernel/Frame`), and compare the parsed `OwnedValue`s.
+/// A malformed emission FAILS to parse → the test fails (you cannot green a
+/// non-EDN error face). On mismatch the failure message shows the raw
+/// (PRE-normalization) strings so the diff is readable — a real difference,
+/// `.rs`-span or not, is never swallowed.
 ///
 /// Stone C (arc 296): this is the wall — the test proves EDN-ness by PARSING,
 /// not by trusting a string. A non-EDN face cannot pass; key-order / whitespace
@@ -268,6 +325,8 @@ macro_rules! assert_edn_eq {
                  expected: {}", err, e_raw));
         $crate::normalize_rust_source_span_lines(&mut a_val);
         $crate::normalize_rust_source_span_lines(&mut e_val);
+        $crate::blank_rust_source_lines(&mut a_val);
+        $crate::blank_rust_source_lines(&mut e_val);
         assert_eq!(a_val, e_val,
             "EDN data mismatch\n--- actual (raw) ---\n{}\n--- expected (raw) ---\n{}",
             a_raw, e_raw);
@@ -289,6 +348,8 @@ macro_rules! assert_edn_eq {
                  expected: {}", $msg, err, e_raw));
         $crate::normalize_rust_source_span_lines(&mut a_val);
         $crate::normalize_rust_source_span_lines(&mut e_val);
+        $crate::blank_rust_source_lines(&mut a_val);
+        $crate::blank_rust_source_lines(&mut e_val);
         assert_eq!(a_val, e_val,
             "EDN data mismatch ({})\n--- actual (raw) ---\n{}\n--- expected (raw) ---\n{}",
             $msg, a_raw, e_raw);
@@ -328,9 +389,12 @@ macro_rules! assert_edn_matches_file {
             // PRETTY on capture — the assert is DATA-equality (it parses both sides), so the
             // golden's FORMAT is free; pretty-print (wat_edn::write_pretty, 2-space indent) makes
             // it legible instead of a flat one-line blob. The data compared is identical either way.
-            let a_val = ::wat_edn::parse_owned(&a_raw).unwrap_or_else(|err| panic!(
+            let mut a_val = ::wat_edn::parse_owned(&a_raw).unwrap_or_else(|err| panic!(
                 "STOP-1: refusing to capture a non-EDN face as a golden — a non-EDN \
                  error face survived stone B.\n parse error: {}\n actual: {}", err, a_raw));
+            // The golden must SHOW what it asserts: a rust-sentinel span's line is blanked here
+            // too, so the file reads `:line 0` rather than a real-looking number nothing compares.
+            $crate::blank_rust_source_lines(&mut a_val);
             let body = format!("{}\n", ::wat_edn::write_pretty(&a_val));
             ::std::fs::write(&edn_path, body)
                 .unwrap_or_else(|e| panic!("UPDATE_EDN: failed to write {:?}: {}", edn_path, e));
@@ -523,4 +587,64 @@ pub fn eval_algebra_source(
 #[doc(hidden)]
 pub fn retirement_table_names_for_gate() -> Vec<&'static str> {
     remedy::retirement_table_names()
+}
+
+#[cfg(test)]
+mod blank_rust_source_lines_tests {
+    //! ⛔ THE CURE NEEDS ITS OWN GATE, and one direction is not enough.
+    //!
+    //! `blank_rust_source_lines` exists to stop a golden failing when an unrelated COMMENT moves a
+    //! line in the interpreter (five red floors before it existed). But a normaliser that blanked
+    //! *every* `:line` would make all eight goldens pass while silently deleting the `.wat` source
+    //! locations they are actually there to assert — a control that looks green and proves less.
+    //! So both directions are pinned: it MUST blank a rust span, and it MUST NOT touch a wat one.
+
+    use wat_edn::{parse_owned, Value};
+
+    fn norm(src: &str) -> Value<'static> {
+        let mut v = parse_owned(src).expect("fixture parses");
+        crate::blank_rust_source_lines(&mut v);
+        v
+    }
+
+    /// A `rust_caller_span!()` sentinel loses its line — the whole point.
+    #[test]
+    fn a_rust_source_span_loses_its_line() {
+        let v = norm(r#"{:file "src/runtime.rs" :line 25802 :col 17}"#);
+        let expected = parse_owned(r#"{:file "src/runtime.rs" :line 0 :col 17}"#).unwrap();
+        assert_eq!(v, expected, "a src/*.rs span's :line must be blanked");
+    }
+
+    /// ⛔ THE NON-VACUITY HALF. A `.wat` span's line is a REAL assertion about user source and
+    /// must survive untouched — without this row, `*val = Integer(0)` on every `:line` in the tree
+    /// would pass the test above and gut every golden in the repo.
+    #[test]
+    fn a_wat_source_span_keeps_its_line() {
+        let src = r#"{:file "tests/diagnostics/p1.wat" :line 3 :col 8}"#;
+        assert_eq!(norm(src), parse_owned(src).unwrap(), "a .wat span's :line is load-bearing");
+    }
+
+    /// The predicate is per-MAP, not per-document: a rust span nested beside a wat span blanks only
+    /// its own line. This is the shape every one of the eight real goldens actually has.
+    #[test]
+    fn a_rust_span_nested_beside_a_wat_span_blanks_only_its_own() {
+        let v = norm(
+            r#"#wat.runtime/NotCallable {:location {:file "src/runtime.rs" :line 25802}
+                                        :got {:span {:file "p1.wat" :line 4}}}"#,
+        );
+        let expected = parse_owned(
+            r#"#wat.runtime/NotCallable {:location {:file "src/runtime.rs" :line 0}
+                                        :got {:span {:file "p1.wat" :line 4}}}"#,
+        )
+        .unwrap();
+        assert_eq!(v, expected);
+    }
+
+    /// A bare `:line` with no `:file` beside it is not a span and is left alone — the predicate
+    /// keys on the FILE, so it cannot reach an integer that merely shares the key's name.
+    #[test]
+    fn a_line_key_without_a_file_key_is_untouched() {
+        let src = r#"{:line 42 :count 7}"#;
+        assert_eq!(norm(src), parse_owned(src).unwrap());
+    }
 }

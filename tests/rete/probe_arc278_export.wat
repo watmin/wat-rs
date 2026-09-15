@@ -86,7 +86,7 @@
                     s1 (:wat::rete::import (:wat::rete::export s0))]
     (:wat::core::length
       (:wat::rete::query
-        (:wat::rete::fire-once$oracle (:exp::seed s1))
+        (:wat::core::match (:wat::rete::fire-once$oracle (:exp::seed s1)) [:wat::rete::FireOutcome.Fired {:session __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])
         (:exp::q-Hit)))))
 
 (:wat::core::defn :user::import-hits [] -> :wat::core::i64

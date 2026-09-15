@@ -1527,7 +1527,8 @@ field. Reachable, but not constructible inside a fence.
 
    **NOT STARTED — this is the next work.**
 
-11. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
+11. ~~**A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER**~~ · ✅ **CLASS KILLED 2026-08-29** (the
+    cure is at the end of this item). FIVE false reds, across THREE source files, none of them
     behaviour.** `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs`'s five goldens
     pin `:location #wat.core/Span {:file "src/runtime.rs" :line N}`. On 2026-08-28 that `N` moved
     **three times** — 25722→25793→25799→25802 — and **every move was a COMMENT**
@@ -1572,6 +1573,28 @@ field. Reachable, but not constructible inside a fence.
     "what else pins such a line" measurement it was waiting on is now DONE: eight goldens, all
     listed above, all pinning `rust_caller_span!()` sentinels where the FILE is the assertion worth
     keeping and the LINE is the accident. Nothing outside this table pins one.
+
+    ✅ **AND THEN THE CLASS WAS KILLED, THE SAME DAY, BY ITS OWN FIFTH OCCURRENCE.** Adding 36
+    lines of `wat_enum_field_names_from!` to `runtime.rs` for the fire-outcome wall moved the
+    sentinel 25802 → 25838 and reddened all five `runtime.rs` goldens at once. **Every prior
+    occurrence had been patched at the stem** — bump the integer, four times — and a fifth bump was
+    guaranteed, because S2b/S2c add more derives to that same file.
+
+    **THE CURE: `wat::blank_rust_source_lines` (`src/lib.rs`), wired into BOTH `assert_edn_eq!`
+    and `assert_edn_matches_file!`.** It replaces the `:line` of any map carrying a `:file` that
+    matches `src/**.rs` with `0`. It is applied **on capture too**, so the golden on disk literally
+    reads `:line 0` — a file showing a real-looking number that nothing compares would be a worse
+    lie than the one being removed.
+
+    **The eight goldens were recaptured; the diff is exactly eight lines, every one `:line N` →
+    `:line 0`, and nothing else moved.** The `.wat` spans beside them (`:line 3`, `:line 4`) are
+    untouched — those are real assertions about user source.
+
+    **Four gates, and the second is the one that matters** (`blank_rust_source_lines_tests`):
+    a rust span MUST lose its line; **a `.wat` span MUST KEEP its line**; a rust span nested beside
+    a wat span blanks only its own; a `:line` with no `:file` beside it is not a span. Without the
+    non-vacuity row, `*val = Integer(0)` on every `:line` in the tree would pass the first test and
+    silently gut every golden in the repo.
 
 ~~1.1 interleaved retract~~ · ~~1.2 generated rules~~ · ~~1.3 query params~~ ·
 ~~1.4 nested combinators~~ · ~~3.1 fixpoint cap~~ · ~~3.2 CI parity~~ · ~~4.2 termination
