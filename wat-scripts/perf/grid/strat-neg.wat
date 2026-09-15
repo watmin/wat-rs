@@ -289,7 +289,7 @@
                     strata  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [strata items]")
                     items   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [strata items]")
                     rules   (:strat::build-rules strata)
-                    staged  (:strat::seed-items (:wat::rete::compile-all rules (:wat::core::PersistentVector (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))) items)
+                    staged  (:strat::seed-items (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])

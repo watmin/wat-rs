@@ -23312,13 +23312,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // register them here.
 
     // Arc 278 — intern the rust InternedNetwork at compile-all (`DESIGN-STONE-arm-at-compile`).
-    // (:wat::rete::arm-session <session: :wat::rete::Session>) → :wat::rete::Session
+    // (:wat::core::match (:wat::rete::arm-session <session: :wat::rete::Session>) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")]) → :wat::rete::Session
     env.register(
         ":wat::rete::arm-session".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
-            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            ret: TypeExpr::Path(":wat::rete::CompileOutcome".into()),
             rest_param_type: None,
         },
     );

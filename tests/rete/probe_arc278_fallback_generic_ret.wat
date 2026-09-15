@@ -37,8 +37,8 @@
 (:wat::core::defn :fgr::staged [] -> :wat::rete::Session
   (:wat::core::let [inf (:wat::f64::/ 1.0 0.0)]
     (:wat::core::match (:wat::rete::insert-all
-      (:wat::rete::compile-all (:wat::rete::collect-rules :fgr)
-                               (:wat::core::PersistentVector (:fgr::q)))
+      (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :fgr)
+                               (:wat::core::PersistentVector (:fgr::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
       (:wat::core::PersistentVector (:fgr::Item :k 1 :vs (:wat::core::PersistentVector inf)))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))
 
 ;; [native-hits, oracle-hits] — both must be 0, and they must agree.

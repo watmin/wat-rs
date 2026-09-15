@@ -81,7 +81,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [session (:wat::core::match (:wat::rete::insert-all
-               (:wat::rete::compile-all (:wat::core::PersistentVector (:stopa::overflow-in-where)) (:wat::core::PersistentVector (:stopa::q-Hit)))
+               (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:stopa::overflow-in-where)) (:wat::core::PersistentVector (:stopa::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                (:wat::core::PersistentVector
                  (:stopa::Big :k 1 :n 1)
                  (:stopa::Big :k 2 :n 9223372036854775807))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])

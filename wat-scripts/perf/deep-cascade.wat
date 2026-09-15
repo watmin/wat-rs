@@ -76,7 +76,7 @@
                     depth   (:wat::core::Option/expect   (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect   (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:perf::build-rules depth)
-                    staged  (:perf::seed-level-0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node))) width)
+                    staged  (:perf::seed-level-0 (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) width)
                     ;; time the wat SPEC engine fire-rules-spec (re-run-from-scratch reference)
                     w0      (:wat::time::now)
                     fired-w (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])

@@ -130,10 +130,10 @@
           (:wat-tests::rete::rules::Case/ord c)
           (:wat-tests::rete::rules::Case/arity c)
           (:wat-tests::rete::rules::Case/nrules c))
-     s0 (:wat::rete::compile-all rs
+     s0 (:wat::core::match (:wat::rete::compile-all rs
           (:wat::core::PersistentVector
             (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)
-            (:wat-tests::rete::rules::q-two-at)))
+            (:wat-tests::rete::rules::q-two-at))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      ;; x and y DIFFER per fact (i and i+7), so a transposed write moves the witness rather than
      ;; landing on the same number by symmetry.
      facts (:wat::core::into (:wat::core::PersistentVector)
@@ -199,11 +199,11 @@
   (:wat-tests::rete::rules::witness
     (:wat::core::match (:wat::rete::fire-rules
       (:wat::core::match (:wat::rete::insert
-        (:wat::rete::compile-all
+        (:wat::core::match (:wat::rete::compile-all
           (:wat::core::PersistentVector)
           (:wat::core::PersistentVector
             (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)
-            (:wat-tests::rete::rules::q-two-at)))
+            (:wat-tests::rete::rules::q-two-at))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
         (:wat-tests::rete::rules::Two :a a :b b)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
 
 (:wat::test::time-limit "60s")

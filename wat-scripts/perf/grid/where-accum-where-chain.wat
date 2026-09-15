@@ -72,12 +72,12 @@
 ;; must report n=3. Native reports 3 and 0 — the trailing tautology erases the match.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [one  (:wat::rete::compile-all
+    [one  (:wat::core::match (:wat::rete::compile-all
             (:wat::core::PersistentVector (:wawc::one-where))
-            (:wat::core::PersistentVector (:wawc::q-Busy)))
-     two  (:wat::rete::compile-all
+            (:wat::core::PersistentVector (:wawc::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+     two  (:wat::core::match (:wat::rete::compile-all
             (:wat::core::PersistentVector (:wawc::two-wheres))
-            (:wat::core::PersistentVector (:wawc::q-Busy)))
+            (:wat::core::PersistentVector (:wawc::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      facts (:wat::core::fn [s <- :wat::rete::Session] -> :wat::rete::Session
              (:wat::core::match (:wat::rete::insert s
                (:wawc::Station :loc "MCI")

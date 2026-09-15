@@ -34,22 +34,22 @@
   (:nad::counts
     (:wat::core::match (:wat::rete::fire-rules
       (:nad::seed
-        (:wat::rete::compile-all
+        (:wat::core::match (:wat::rete::compile-all
           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
-          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok))))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
 
 (:wat::core::defn :user::spec-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:nad::counts
     (:wat::core::match (:wat::rete::fire-rules$oracle
       (:nad::seed
-        (:wat::rete::compile-all
+        (:wat::core::match (:wat::rete::compile-all
           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
-          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok))))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
 
 (:wat::core::defn :user::import-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [s0  (:wat::rete::compile-all
+  (:wat::core::let [s0  (:wat::core::match (:wat::rete::compile-all
                           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
-                          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok)))
+                          (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     exp (:wat::rete::export s0)
                     s1  (:wat::rete::import exp)]
     (:nad::counts (:wat::core::match (:wat::rete::fire-rules (:nad::seed s1)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))))

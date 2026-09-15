@@ -108,7 +108,7 @@
                                 (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
                     items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
-                    staged  (:dc::seed (:wat::rete::compile-all (:dc::build-rules rules-n) (:wat::core::PersistentVector (:dc::q-Out))) items)
+                    staged  (:dc::seed (:wat::core::match (:wat::rete::compile-all (:dc::build-rules rules-n) (:wat::core::PersistentVector (:dc::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
 
                     ;; ── the chain as the axis writes it, link by link ────────

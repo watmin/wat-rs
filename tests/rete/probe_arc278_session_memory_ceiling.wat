@@ -37,7 +37,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules (:wat::rete::collect-rules :fd)
-     s     (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fd::q)))
+     s     (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fd::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      s     (:fd::seed s)]
     ;; ⛔ THIS FIXTURE MATCHES THE ARM AND PRINTS ITS FIELDS — it is NOT codemod material, and the
     ;; codemod's generic `assertion-failed!` arms were UNDONE here on purpose. The whole point of

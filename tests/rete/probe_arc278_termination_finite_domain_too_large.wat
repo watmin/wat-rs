@@ -15,12 +15,24 @@
 (:wat::rete::defquery :tl::q :params [] :when [(?fact <- :tl::Wide)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println
+  ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
+  ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
+  ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to
+  ;; pin the verdict's `rule` and `fact-type`, and a message string throws both away.
+  (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:tl::flip))
+              (:wat::core::PersistentVector (:tl::q)))
+    [:wat::rete::CompileOutcome.Compiled {:session __session}
+      (:wat::kernel::println
     (:wat::core::length
       (:wat::rete::query
         (:wat::core::match (:wat::rete::fire-rules
           (:wat::core::match (:wat::rete::insert
-            (:wat::rete::compile-all (:wat::core::PersistentVector (:tl::flip))
-              (:wat::core::PersistentVector (:tl::q)))
+            __session
             (:tl::Wide :f0 true :f1 true :f2 true :f3 true :f4 true :f5 true :f6 true :f7 true :f8 true :f9 true :f10 true :f11 true :f12 true :f13 true :f14 true :f15 true :f16 true :f17 true :f18 true :f19 true)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-        (:tl::q)))))
+        (:tl::q))))]
+    [:wat::rete::CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
+      (:wat::core::do
+        (:wat::kernel::println "ARM MayNotTerminate")
+        (:wat::kernel::println rule)
+        (:wat::kernel::println fact-type))]))
+

@@ -51,7 +51,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:usr::hot) (:usr::alert) (:usr::critical))
-     template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Alert) (:usr::q-Critical)))]
+     template (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Alert) (:usr::q-Critical))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:wat::core::do
       (:wat::kernel::println (:wat::string::concat "Temp=60: " (:usr::fire-one template (:usr::Temp :c 60))))
       (:wat::kernel::println (:wat::string::concat "Temp=95: " (:usr::fire-one template (:usr::Temp :c 95)))))))

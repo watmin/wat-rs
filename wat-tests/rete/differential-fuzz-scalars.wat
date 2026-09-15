@@ -279,9 +279,9 @@
 (:wat::core::defn :wat-tests::rete::scalars::seed
   [ty <- :wat::core::i64  dups <- :wat::core::i64  shape <- :wat::core::i64  q <- :wat::rete::Query]
   -> :wat::rete::Session
-  (:wat::core::let [s0 (:wat::rete::compile-all
+  (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all
                          (:wat::core::PersistentVector)
-                         (:wat::core::PersistentVector q))
+                         (:wat::core::PersistentVector q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1 (:wat::core::cond
                          ((:wat::core::= ty 0) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-i64 dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
                          ((:wat::core::= ty 1) (:wat::core::match (:wat::rete::insert-all s0 (:wat-tests::rete::scalars::facts-f64 dups)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))

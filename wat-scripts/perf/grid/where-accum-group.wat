@@ -41,27 +41,27 @@
     (:wag::line 1 "two-locs"
       (:wag::n-busy
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all by (:wat::core::PersistentVector (:wag::q-Busy)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all by (:wat::core::PersistentVector (:wag::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wag::Temp :c 10 :loc "MCI")
             (:wag::Temp :c 20 :loc "MCI")
             (:wag::Temp :c 30 :loc "ORD")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wag::line 2 "empty-group"
-      (:wag::n-busy (:wat::core::match (:wat::rete::fire-rules (:wat::rete::compile-all by (:wat::core::PersistentVector (:wag::q-Busy)))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+      (:wag::n-busy (:wat::core::match (:wat::rete::fire-rules (:wat::core::match (:wat::rete::compile-all by (:wat::core::PersistentVector (:wag::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wag::line 3 "one-loc"
       (:wag::n-busy
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all by (:wat::core::PersistentVector (:wag::q-Busy)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all by (:wat::core::PersistentVector (:wag::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wag::Temp :c 10 :loc "MCI")
             (:wag::Temp :c 20 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wag::line 4 "acc-first-wind-empty-temp"
       (:wag::n-busy
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all af (:wat::core::PersistentVector (:wag::q-Busy)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all af (:wat::core::PersistentVector (:wag::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wag::Wind :kph 20 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wag::line 5 "acc-first-two-winds"
       (:wag::n-busy
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all af (:wat::core::PersistentVector (:wag::q-Busy)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all af (:wat::core::PersistentVector (:wag::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wag::Wind :kph 20 :loc "MCI")
             (:wag::Wind :kph 20 :loc "SFO")
             (:wag::Temp :c 40 :loc "SFO")

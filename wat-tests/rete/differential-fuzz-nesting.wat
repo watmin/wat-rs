@@ -63,7 +63,7 @@
 (:wat::core::defn :wat-tests::rete::nest::seed
   [world <- :wat::core::i64  q <- :wat::rete::Query] -> :wat::rete::Session
   (:wat::core::let
-    [s0 (:wat::rete::compile-all (:wat::core::PersistentVector) (:wat::core::PersistentVector q))
+    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector) (:wat::core::PersistentVector q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      s1 (:wat::core::if (:wat-tests::rete::nest::has world 1)
           (:wat::core::match (:wat::rete::insert s0 (:wat-tests::rete::nest::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s0)
      s2 (:wat::core::if (:wat-tests::rete::nest::has world 2)

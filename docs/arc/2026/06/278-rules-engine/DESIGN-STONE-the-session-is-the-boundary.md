@@ -301,6 +301,46 @@ The unknowns it settles, all of them cheap to learn at 31 sites and expensive at
    variant that exists nowhere goes RED with *"guarding an empty room"* — without that arm, deleting
    the ceilings would leave this gate quietly green forever, a control outliving its subject.
 
+## S2e — the TERMINATION VERDICT becomes a value (2026-08-29)
+
+> **Builder:** *"how could we make RuleSetMayNotTerminate total…. compile…. it can be matchable?….
+> the long term future is all of wat is total…. panics are essentially illegal at runtime…."*
+
+**Yes — and the reason it qualifies is a fact about WHEN the rules exist, not a preference.**
+
+`compile-all` is reached by two paths, and only one is static:
+
+1. **Declared rules** (`defrule`) are judged at FREEZE. A non-terminating set means the program
+   never starts — a startup error like a type error. No call site can observe it, and totality has
+   nothing to say about a program that does not run.
+2. **Rules built at RUNTIME as `Rule` values** bypass that wall entirely (both differential fuzzers
+   do this; `stratify.rs` calls `compile-all` *"the one door every rule passes"*). **Here the
+   verdict depends on DATA.** A service compiling a session from rules it was handed cannot know in
+   advance whether they will be admitted, and a raise there unwinds past the caller and kills the
+   process — the exact mute this wall exists to remove.
+
+```clojure
+(:wat::core::defenum :wat::rete::CompileOutcome :wat::enum::Pure
+  :Compiled        [session <- :wat::rete::Session]
+  :MayNotTerminate [rule <- :wat::core::String  fact-type <- :wat::core::String])
+```
+
+⛔ **THE OTHER REFUSALS AT THAT SAME DOOR STAY RAISES, and the line is the one this stone has drawn
+throughout.** `arm-session` can also refuse an `ArityMismatch` or a `Session` argument that is not
+a Session. Those are **bugs in the program** — statically preventable, nothing a caller could
+branch on. **A judgement about the caller's DATA is a value; a malformed call is a raise.** Turning
+the latter into arms would hand every caller a match over failures they cannot act on.
+
+**Sweep: ~368 sites**, a fifth recorded codemod (`wrap-compile-in-compileoutcome.wat`). Its matcher
+is the most exactness-critical yet: `compile` is a strict prefix of `compile-all` **and** of the
+internal `compile-rule`/`compile-query`/`compile-condition`, which return a `CompileState`, not a
+Session — a prefix matcher would wrap those and emit nonsense that still parses.
+
+**The verifier gates were rebuilt like the ceiling gates**: the fixtures hoist the compile match to
+the top of `main` and print `rule` / `fact-type`, and the gates assert those. `rete_error`,
+`field_str` and `field_i64` are all now DELETED — **every refusal this file gates arrives as an arm,
+so nothing reads a corpse. Their disappearance is the wall.**
+
 ## The wall is complete
 
 Every wat-facing rete verb answers a matchable outcome. `fire-rules`, `fire-once`,
@@ -308,6 +348,18 @@ Every wat-facing rete verb answers a matchable outcome. `fire-rules`, `fire-once
 `$oracle`/`$native` spellings included, by the dual-impl contract. **No rete ceiling reaches wat as
 a raise, and the lint keeps it that way.**
 
-⚠ **What still raises, correctly:** `RuleSetMayNotTerminate` — the termination verifier's refusal at
-`compile-all`. That is a COMPILE-time refusal of a program that cannot be proven to terminate, not
-a runtime bound on one that can; it is eBPF's load-time "no" and belongs exactly where it is.
+### What still raises in `src/rete/`, measured — and the honest read on "all of wat is total"
+
+Counted 2026-08-29 across `src/rete/`, every `RuntimeErrorKind` construction:
+
+| kind | count | is it a totality candidate? |
+|---|---|---|
+| `TypeMismatch` · `MalformedForm` · `ArityMismatch` | 136 | **No.** Statically preventable program bugs — the checker's job. A caller cannot branch on "I called this wrong". |
+| `IntegerOverflow` · `DivisionByZero` | 10 | **YES — these are the next honest candidates.** They are DATA-dependent exactly as the ceilings are: the same program on different input either overflows or does not, and the caller can act (clamp, guard, choose a wider type). |
+| `NoEncodingCtx` · `UnboundSymbol` · `UnknownField` | 10 | Mostly configuration/program bugs; `NoEncodingCtx` is arguably a capability question worth its own look. |
+
+**The rule this arc converged on, stated once so the next verb does not re-derive it:** *a bound,
+ceiling or verdict the caller can ACT ON becomes a matchable value; a malformed program stays a
+raise.* Every conversion in this stone passes that test, and every raise left in rete fails it —
+except the ten arithmetic ones, which are the visible next step toward *"panics are essentially
+illegal at runtime"*.

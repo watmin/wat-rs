@@ -163,3 +163,55 @@ pub(crate) fn insert_result_to_outcome(r: Result<Value, EvalBreak>) -> Result<Va
         Err(other) => Err(other),
     }
 }
+
+// ── `(:wat::rete::CompileOutcome)` — the termination verdict ──────────────────
+
+/// `(:wat::rete::CompileOutcome)`, declared in `wat/rete.wat`.
+const COMPILE_OUTCOME_TYPE: &str = ":wat::rete::CompileOutcome";
+
+/// `CompileOutcome::Compiled [session]` — the armed session.
+fn compiled(session: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: COMPILE_OUTCOME_TYPE.into(),
+        variant_name: "Compiled".into(),
+        names: crate::runtime::builtin_enum_variant_names(COMPILE_OUTCOME_TYPE, "Compiled"),
+        fields: vec![session],
+    }))
+}
+
+/// `CompileOutcome::MayNotTerminate [rule fact-type]`.
+fn may_not_terminate(rule: &str, fact_type: &str) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: COMPILE_OUTCOME_TYPE.into(),
+        variant_name: "MayNotTerminate".into(),
+        names: crate::runtime::builtin_enum_variant_names(COMPILE_OUTCOME_TYPE, "MayNotTerminate"),
+        fields: vec![
+            Value::String(Arc::new(rule.to_string())),
+            Value::String(Arc::new(fact_type.to_string())),
+        ],
+    }))
+}
+
+/// Turn `arm-session`'s `Result` into a `CompileOutcome` VALUE.
+///
+/// ⛔ **ONE ARM CONVERTS; THE REST STILL RAISE, AND THAT IS THE DESIGN.** `arm-session` can also
+/// refuse an `ArityMismatch` or a `Session` argument that is not a Session. Those are BUGS IN THE
+/// PROGRAM — statically preventable, and nothing a caller could branch on — so they propagate
+/// unchanged. `RuleSetMayNotTerminate` is different in kind: it is a judgement about the caller's
+/// **data**, reachable only for rule sets built at runtime (declared rules are refused at freeze,
+/// before the program runs), and its diagnostic names an action the author can take.
+///
+/// The line is the same one [`fire_result_to_outcome`] draws for the ceilings: a bound or verdict
+/// the caller can act on becomes a value; a malformed call stays a raise.
+pub(crate) fn compile_result_to_outcome(r: Result<Value, EvalBreak>) -> Result<Value, EvalBreak> {
+    match r {
+        Ok(session) => Ok(compiled(session)),
+        Err(EvalBreak::Diagnostic(e)) => match e.kind() {
+            RuntimeErrorKind::RuleSetMayNotTerminate { rule, fact_type } => {
+                Ok(may_not_terminate(rule, fact_type))
+            }
+            _ => Err(EvalBreak::Diagnostic(e)),
+        },
+        Err(other) => Err(other),
+    }
+}

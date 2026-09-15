@@ -15,7 +15,7 @@
      queries (:wat::core::PersistentVector
                (:wat::rete::make-query "usr::Hot" (:wat::core::quote []) (:wat::core::quote [(?fact <- :usr::Hot)]))
                (:wat::rete::make-query "usr::Warn" (:wat::core::quote []) (:wat::core::quote [(?fact <- :usr::Warn)])))
-     session (:wat::rete::compile-all rules queries)
+     session (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      encoded (:wat::edn::write (:usr::Temp :c 60))
      fact (:wat::edn::read encoded)
      fired (:wat::rete::fire-rules (:wat::core::match (:wat::rete::insert session fact) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))]

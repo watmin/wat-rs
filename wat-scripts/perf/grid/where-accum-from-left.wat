@@ -43,9 +43,9 @@
         (:wat::string::concat " n=" (:wat::i64::to-string n))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [base (:wat::rete::compile-all
+  (:wat::core::let [base (:wat::core::match (:wat::rete::compile-all
                            (:wat::core::PersistentVector (:wafl::count-winds-above-temp))
-                           (:wat::core::PersistentVector (:wafl::q-Hit)))]
+                           (:wat::core::PersistentVector (:wafl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:wafl::line 1 "empty"
       (:wafl::sum-n (:wat::core::match (:wat::rete::fire-rules base) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wafl::line 2 "temp-only"

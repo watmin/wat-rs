@@ -28,7 +28,7 @@
         (:wat::rete::query
           (:wat::core::match (:wat::rete::fire-rules
             (:wat::core::match (:wat::rete::insert
-              (:wat::rete::compile-all (:wat::core::PersistentVector (:bt::r))
-                (:wat::core::PersistentVector (:bt::q)))
+              (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:bt::r))
+                (:wat::core::PersistentVector (:bt::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
               (:bt::In :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
           (:bt::q))))))

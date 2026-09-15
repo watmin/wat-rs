@@ -94,13 +94,13 @@
   (:wat::core::let
     ;; 1. The `if` control fires and derives — so the branching logic is fine.
     [ctl     (:wat::core::match (:wat::rete::fire-rules
-               (:pcf::seed (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit))))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+               (:pcf::seed (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      _ok     (:wat::kernel::println
                (:wat::string::concat "if-control derived n=" (:wat::i64::to-string (:pcf::derived ctl))))
 
      ;; 2. COMPILE the cond rule. The purity fence runs HERE and passes — this line does not raise,
      ;;    which is precisely the defect: every static gate has now said yes.
-     compiled (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-cond)) (:wat::core::PersistentVector (:pcf::q-Hit)))
+     compiled (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-cond)) (:wat::core::PersistentVector (:pcf::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      _fence   (:wat::kernel::println "cond-subject PASSED compile + the purity fence")
 
      ;; 3. FIRE. This raises #wat.runtime/UnknownFunction on :wat::core::cond.

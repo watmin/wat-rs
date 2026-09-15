@@ -50,8 +50,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules    (:wat::rete::collect-rules :user)
-     template (:wat::rete::compile-all rules
-                (:wat::core::PersistentVector (:user::q-HitA) (:user::q-HitC)))
+     template (:wat::core::match (:wat::rete::compile-all rules
+                (:wat::core::PersistentVector (:user::q-HitA) (:user::q-HitC))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      fired    (:wat::core::match (:wat::rete::fire-rules
                 (:wat::core::match (:wat::rete::insert
                   (:wat::core::match (:wat::rete::insert

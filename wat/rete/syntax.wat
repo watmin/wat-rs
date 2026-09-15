@@ -295,7 +295,14 @@
    queries <- (:wat::core::PersistentVector :- [:wat::rete::Query])
    body-fn <- [:wat::rete::Session :-> T]]
   -> T
-  (:wat::core::let [base   (:wat::rete::compile-all rules queries)
+  ;; ⛔ HAND-FACED (arc 278). `with-network` compiles for its BODY, which cannot be entered without
+  ;; a session — so a non-terminating rule set here is loud and terminal rather than a value the
+  ;; macro could thread anywhere useful. The arm still NAMES the rule, which the raise it replaces
+  ;; also did.
+  (:wat::core::let [base   (:wat::core::match (:wat::rete::compile-all rules queries)
+                             [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
+                             [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
+                               (:wat::kernel::assertion-failed! :message "with-network: the rule set may not terminate")])
                     result (body-fn base)]
     (:wat::core::do
       (:wat::rete::release-session base)

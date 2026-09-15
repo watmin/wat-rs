@@ -71,8 +71,8 @@
                     n       (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
 
                     ;; Two independent compiled sessions, compiled OUTSIDE every timed window.
-                    session-a (:wat::rete::compile (:wat::rete::collect-rules :iac))
-                    session-b (:wat::rete::compile (:wat::rete::collect-rules :iac))
+                    session-a (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :iac)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    session-b (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :iac)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
 
                     t0      (:wat::time::now)
                     sa      (:iac::seed-chained session-a n)

@@ -39,7 +39,7 @@
                (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))])
                (:wat::core::quote [(:usr::Warn :c ?c)])))
      queries (:wat::core::PersistentVector (:user::hot-q) (:user::warn-q))
-     session (:wat::rete::compile-all rules queries)
+     session (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
      maddr (:wat::query::mem-store::Handle/addr msh)

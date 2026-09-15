@@ -86,8 +86,8 @@
     [f (:wat::core::match (:wat::rete::fire-rules
          (:wat::core::match (:wat::rete::insert
            (:wat::core::match (:wat::rete::insert
-             (:wat::rete::compile-all (:wat::core::PersistentVector
-               (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)) (:wat::core::PersistentVector (:z::q-S) (:z::q-S2) (:z::q-Out2) (:z::q-Out)))
+             (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector
+               (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)) (:wat::core::PersistentVector (:z::q-S) (:z::q-S2) (:z::q-Out2) (:z::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
              (:z::A :c "i64")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
            (:z::R :c "i64" :t "wat.core.i64")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::do

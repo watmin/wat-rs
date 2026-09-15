@@ -74,8 +74,8 @@
       (:wat::core::match (:wat::rete::insert-all
         (:wat::core::match (:wat::rete::insert-all
           (:wat::core::match (:wat::rete::insert-all
-            (:wat::rete::compile-all (:wat::rete::collect-rules :wpf)
-              (:wat::core::PersistentVector (:wpf::q1) (:wpf::q2) (:wpf::q4) (:wpf::qt)))
+            (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :wpf)
+              (:wat::core::PersistentVector (:wpf::q1) (:wpf::q2) (:wpf::q4) (:wpf::qt))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wat::core::PersistentVector (:wpf::A :id 1 :k "yes") (:wpf::A :id 2 :k "no"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
           (:wat::core::PersistentVector (:wpf::B :id 1) (:wpf::B :id 2))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
         (:wat::core::PersistentVector (:wpf::C :id 1) (:wpf::C :id 2))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])

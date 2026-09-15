@@ -76,7 +76,7 @@
     ;; If this line returns a template, the fence measured pure ∧ deterministic ∧ total ∧ rete
     ;; on a predicate that can loop forever, and passed all four. That is the whole finding,
     ;; and proving it needs NO fire — so this file cannot hang no matter what.
-    [template (:wat::rete::compile-all (:wat::core::PersistentVector (:probe-term::recursive-predicate-is-admitted)) (:wat::core::PersistentVector (:probe-term::q-Done)))
+    [template (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:probe-term::recursive-predicate-is-admitted)) (:wat::core::PersistentVector (:probe-term::q-Done))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      fired    (:wat::core::match (:wat::rete::fire-rules
                 (:wat::core::match (:wat::rete::insert template (:probe-term::Tick :n 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
     (:wat::core::do

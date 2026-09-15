@@ -42,7 +42,7 @@ fn busy_count(fire_fn: &str, acc: &str, gate: &str, readings: &[(&str, i64)]) ->
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
-             session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Busy)))\n\
+             session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Busy))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\n\
              session (:wat::core::match (:wat::rete::insert session (:w::Station :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {{:session __staged}} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {{:limit __ilimit :used __iused :staged __icount}} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\n\
 {reading_inserts}\
              fired   (:wat::core::match (:wat::rete::{fire_fn} session) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\

@@ -134,7 +134,7 @@
                     depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:dc::build-rules depth)
-                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag)))
+                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     facts   (:dc::level-0-facts width)
                     p0      (:wat::time::now)
                     staged  (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])

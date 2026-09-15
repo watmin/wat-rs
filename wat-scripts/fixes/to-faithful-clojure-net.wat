@@ -269,7 +269,12 @@
                     ;; top-level forms have no enclosing list → :fix::Parent::Root (no sentinel).
                     nodes   (:fix::walk-seq forms :fix::Parent.Root 0 lines)
                     rules   (:wat::rete::collect-rules :fix)
-                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
+                    session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fix::q-HeadConv) (:fix::q-ArrowConv) (:fix::q-TypeConv)))
+        ;; ⛔ HAND-FACED (arc 278) — `wat-scripts/fixes/*.wat` is excluded from the corpus
+        ;; sweep, so a codemod that HAPPENS to drive rete pays for that exclusion by hand.
+        [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
+        [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft}
+          (:wat::kernel::assertion-failed! :message "to-faithful-clojure: the rule set may not terminate")])
                     staged  (:fix::insert-nodes session nodes)
                     fired   (:wat::rete::fire-fixpoint staged)
                     empty-e (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])

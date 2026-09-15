@@ -32,7 +32,14 @@
 (:wat::rete::defquery :fm::q :params [] :when [(?fact <- :fm::N)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  ;; No println before compile-all: an earlier version of this fixture announced "compiled" FIRST,
+  ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
+  ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
+  ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to
+  ;; pin the verdict's `rule` and `fact-type`, and a message string throws both away.
+  (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector (:fm::grow))
+                (:wat::core::PersistentVector (:fm::q)))
+    [:wat::rete::CompileOutcome.Compiled {:session __session}
+      ;; No println before compile-all: an earlier version of this fixture announced "compiled" FIRST,
   ;; which prints whether or not the compile then fails, and cost real time reading a verdict that
   ;; was never a verdict.
   (:wat::kernel::println
@@ -41,7 +48,12 @@
         (:wat::rete::query
           (:wat::core::match (:wat::rete::fire-rules
             (:wat::core::match (:wat::rete::insert
-              (:wat::rete::compile-all (:wat::core::PersistentVector (:fm::grow))
-                (:wat::core::PersistentVector (:fm::q)))
+              __session
               (:fm::N :k 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-          (:fm::q))))))
+          (:fm::q)))))]
+    [:wat::rete::CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
+      (:wat::core::do
+        (:wat::kernel::println "ARM MayNotTerminate")
+        (:wat::kernel::println rule)
+        (:wat::kernel::println fact-type))]))
+

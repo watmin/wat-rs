@@ -76,7 +76,7 @@
   [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n)
-                    s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
+                    s0    (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1    (:wat::core::match (:wat::rete::insert s0 (:n::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     s2    (:wat::core::match (:wat::rete::insert s1 (:n::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     fired (:wat::core::match (fire s2)
@@ -97,7 +97,7 @@
   [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n3)
-                    s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
+                    s0    (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     s1    (:wat::core::match (:wat::rete::insert s0 (:n3::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     s2    (:wat::core::match (:wat::rete::insert s1 (:n3::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                     s3    (:wat::core::match (:wat::rete::insert s2 (:n3::A :k 3)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])

@@ -133,7 +133,7 @@
                     locs    (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [locs reads]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [locs reads]")
                     rules   (:wat::rete::collect-rules :ur)
-                    staged  (:ur::seed-all (:wat::rete::compile-all rules (:wat::core::PersistentVector (:ur::q-Agg))) locs reads)
+                    staged  (:ur::seed-all (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:ur::q-Agg))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) locs reads)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
                     n0      (:wat::time::now)
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])

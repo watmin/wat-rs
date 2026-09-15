@@ -42,7 +42,7 @@
      queries (:wat::core::PersistentVector
                (:user::hot-q)
                (:user::warn-q))
-     session (:wat::rete::compile-all rules queries)
+     session (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      one (:wat::edn::write (:usr::Temp :c 60))
      items1 (:user::run-one session one)]
     (:wat::kernel::println "ONE-FACT")

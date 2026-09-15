@@ -1,0 +1,4 @@
+# ORACLE for wrap-compile-in-compileoutcome — HISTORY or header spec, never the tool.
+
+spec       (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))) :: (compile-all ARGS)
+spec-before (:wat::rete::compile (:wat::core::PersistentVector rule)))) :: (compile-all ARGS)

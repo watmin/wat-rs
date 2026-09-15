@@ -19,7 +19,7 @@
                  (:wat::core::quote [(?fact <- :usr::Hot)]))
                (:wat::rete::make-query "usr::Warn" (:wat::core::quote [])
                  (:wat::core::quote [(?fact <- :usr::Warn)])))
-     session (:wat::rete::compile-all rules queries)
+     session (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      boxed (:r10::Box :template session)
      pulled (:r10::Box/template boxed)
      fact (:wat::edn::read (:wat::edn::write (:usr::Temp :c 60)))]

@@ -54,47 +54,47 @@
   (:wat::core::let [lead (:wat::core::PersistentVector (:wnan::lead))
                     nest (:wat::core::PersistentVector (:wnan::nested))]
     (:wnan::line 1 "lead-empty"
-      (:wnan::n-hit (:wat::core::match (:wat::rete::fire-rules (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+      (:wnan::n-hit (:wat::core::match (:wat::rete::fire-rules (:wat::core::match (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wnan::line 2 "lead-temp"
       (:wnan::n-hit
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wnan::Temp :c 10 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wnan::line 3 "lead-mismatch"
       (:wnan::n-hit
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wnan::Temp :c 10 :loc "MCI")
             (:wnan::Cold :c 20)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wnan::line 4 "lead-match"
       (:wnan::n-hit
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all lead (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wnan::Temp :c 10 :loc "MCI")
             (:wnan::Cold :c 10)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wnan::line 5 "nest-wind"
       (:wnan::n-at
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wnan::Wind :kph 10 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wnan::line 6 "nest-cold20"
       (:wnan::n-at
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wnan::Wind :kph 10 :loc "MCI")
             (:wnan::Temp :c 10 :loc "MCI")
             (:wnan::Cold :c 20)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wnan::line 7 "nest-cold10"
       (:wnan::n-at
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wnan::Wind :kph 10 :loc "MCI")
             (:wnan::Temp :c 10 :loc "MCI")
             (:wnan::Cold :c 10)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     (:wnan::line 8 "nest-issue304"
       (:wnan::n-at
         (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At)))
+          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all nest (:wat::core::PersistentVector (:wnan::q-Hit) (:wnan::q-At))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
             (:wnan::Wind :kph 10 :loc "MCI")
             (:wnan::Temp :c 10 :loc "MCI")
             (:wnan::Cold :c 20)

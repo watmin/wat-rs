@@ -52,7 +52,7 @@ fn flagged_count(fire_fn: &str, gate: &str, readings: &[i64]) -> Result<i64, Str
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
-             session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Flagged)))\n\
+             session (:wat::core::match (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Flagged))) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\n\
              session (:wat::core::match (:wat::rete::insert session (:w::Station :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {{:session __staged}} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {{:limit __ilimit :used __iused :staged __icount}} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\n\
 {reading_inserts}\
              fired   (:wat::core::match (:wat::rete::{fire_fn} session) [:wat::rete::FireOutcome.Fired {{:value __fired}} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {{:limit __limit :used __used :rounds __rounds}} (:wat::kernel::assertion-failed! :message \"fire-rules: session memory ceiling exceeded\")] [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])]\n\
@@ -117,7 +117,8 @@ fn fence_rejects_impure_fold() {
     // The fence rejects by PANICKING (Option/expect → panic_any, same as raise!); catch it.
     // (Before the arc-296 None-fix an illegal `(:wat::core::None)` form threw a *catchable* error
     // here — that form was never legal and is now corrected; the fence's real reject is a panic.)
-    let run = "(:wat::core::let [rules (:wat::rete::collect-rules :w)] (:wat::rete::compile rules))";
+    // rune:lint(no-inlined-edn) — wat compile wrap, CompileOutcome match (not an EDN golden)
+    let run = "(:wat::core::let [rules (:wat::rete::collect-rules :w)] (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")]))";
     let ast = wat::parse_one!(run).expect("parse");
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         eval_in_frozen(&ast, &w, &Environment::new())

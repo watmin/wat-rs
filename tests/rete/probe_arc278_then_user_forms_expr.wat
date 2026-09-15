@@ -17,9 +17,9 @@
 
 
 (:wat::core::defn :test::compile-tf [] -> :wat::rete::Session
-  (:wat::rete::compile-all
+  (:wat::core::match (:wat::rete::compile-all
     (:wat::rete::collect-rules :tf)
-    (:wat::core::PersistentVector (:tf::q-Rate))))
+    (:wat::core::PersistentVector (:tf::q-Rate))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 (:wat::core::defn :test::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s (:tf::In :n 5)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))

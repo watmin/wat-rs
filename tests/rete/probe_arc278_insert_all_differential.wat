@@ -38,7 +38,7 @@
 
 
 (:wat::core::defn :nia::base [] -> :wat::rete::Session
-  (:wat::rete::compile-all (:wat::rete::collect-rules :nia) (:wat::core::PersistentVector (:nia::q-Out))))
+  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :nia) (:wat::core::PersistentVector (:nia::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 ;; The facts under test — N=5, satisfying assertion 3's N > 1 requirement.
 (:wat::core::defn :nia::the-facts [] -> (:wat::core::PersistentVector :- [:nia::Reading])
