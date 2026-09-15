@@ -424,6 +424,20 @@ fn compile_one(
     ops: &mut Vec<Op>,
 ) -> bool {
     match classify_rete_clause(clause) {
+        // A boolean rete expression where a constraint goes. Lowered through the one expression
+        // core and required to be TRUE — which needs no new op: `Op::Eval` materialises the
+        // predicate into a slot and the existing `Op::Cmp` compares it to `true`.
+        ReteClauseShape::Predicate(expr) => {
+            match compile_operand_expr(expr, scope, field_slots, ctx, ops) {
+                OperandLowering::Lowered(e) => {
+                    ops.push(Op::Cmp { op: CmpKind::Eq, lhs: e, rhs: Expr::Lit(Value::bool(true)) });
+                }
+                // Same three-way split the operands use: an unresolvable predicate can never hold
+                // (`Op::Fail`), a refused one is a USER ERROR and refuses the whole condition.
+                OperandLowering::Unresolvable => ops.push(Op::Fail),
+                OperandLowering::Refused => return false,
+            }
+        }
         ReteClauseShape::Bind { var, field } => {
             match ctx.field_names.iter().position(|n| n == field) {
                 // Field not declared on this class: read_fact_field would return None on every

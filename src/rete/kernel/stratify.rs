@@ -78,6 +78,9 @@ pub(crate) fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
 
 pub(crate) fn negate_types(form: &WatAST, out: &mut Vec<String>, under_not: bool) {
     match classify_rete_clause(form) {
+        // A predicate NEGATES no fact type: it is an expression over bindings, never a pattern,
+        // so it can neither be the thing a `not` excludes nor introduce one.
+        ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::Not(inner) => negate_types(inner, out, true),
         ReteClauseShape::And(xs) | ReteClauseShape::Or(xs) => {
             for x in xs {
@@ -156,6 +159,10 @@ pub(crate) fn bag_types(form: &WatAST, out: &mut Vec<String>) {
 
 pub(crate) fn consume_types(form: &WatAST, out: &mut Vec<String>) {
     match classify_rete_clause(form) {
+        // A predicate CONSUMES no fact type: it is an expression over bindings this condition
+        // already made, never a pattern reaching into another rule's derivations. It contributes
+        // nothing to the produces->consumes graph stratification is built from.
+        ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::Exists(inner) => consume_types(inner, out),
         ReteClauseShape::Accumulate { from, .. } => consume_types(from, out),
         ReteClauseShape::And(xs) | ReteClauseShape::Or(xs) => {
@@ -367,7 +374,7 @@ struct RuleEdge {
 /// THE HOLE THIS CLOSES, and it was demonstrated before it was fixed. The item-level check below
 /// inspects the `:then` ITEM only — so `(:my::bump ?n)` reads as "all arguments are bound
 /// variables" and passes, while `:my::bump`'s body does
-/// `(:my::N :k (:wat::rete::core::i64::+ (:my::N/k n) 1 :undefined 0))` and mints a novel fact
+/// `(:my::N :k (:wat::rete::i64::+ (:my::N/k n) 1 :undefined 0))` and mints a novel fact
 /// every round. Measured 2026-08-27: it compiled clean and ran to the round cap.
 ///
 /// The `:then` head must be a RETE fn (`:wat::rete::core::defn`) to be admitted at all — a plain
@@ -433,7 +440,7 @@ fn body_constructs_computed(ast: &WatAST) -> bool {
 /// A `:then` fact-form COMPUTES rather than copies when any argument is itself a call.
 ///
 /// `(:N :k ?k)` copies a bound variable — range-restricted, finite domain, terminates.
-/// `(:N :k (:wat::rete::core::i64::+ ?k 1 :undefined 0))` computes — the domain is now unbounded.
+/// `(:N :k (:wat::rete::i64::+ ?k 1 :undefined 0))` computes — the domain is now unbounded.
 /// A nested CONSTRUCTOR counts too and is not a special case: `(:N :k (:Wrap ?k))` wraps one layer
 /// deeper every round, which is the same unbounded structure by a different route.
 ///
