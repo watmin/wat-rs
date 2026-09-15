@@ -759,12 +759,34 @@ admission path — a population of one, which is why no count would ever have su
      supplied at the call site and the checker rejects it at most of them — a genuine caller bug.
      **Recommendation: convert `new` only, leave `put`/`get`** — a third of the original surface
      churn. Awaiting mandate.
-   - **② `match` map-destructure field index — STILL OPEN, and RE-RANKED UP.** It is refused today
-     (`expr_ir.rs:670` and `:680`, *"match map-destructure is not lowered in v1"*), and those two
-     lines are **the LAST `v1` refusal left in the rete expression core** — grepped, nothing else.
-     Same shape and same words as the denials this arc spent 2026-08-28 removing (`cond`/`let`/
-     `match` inline, keyword operands, `#holon`), every one of which fell to a single probe.
-     *"Not a v1 blocker"* is a priority, not an answer. **This is the live one.**
+   - ✅ **② `match` map-destructure — CLOSED 2026-08-29. `:md::Point{40,2}` -> 42 now works in a
+     rete rule, in BOTH positions.** It was the LAST `v1` refusal in the rete expression core, and
+     it fell to the same move as every other denial this arc removed: *"not lowered in v1"* is a
+     STATUS, not a reason.
+
+     **The design question answered itself once measured.** The settled sibling
+     `(:ns::Type/field ?x)` compiles its index because class AND field are both in the accessor
+     head. For `{vx :x}` the field is in the pattern and the class is the subject's — which looked
+     like the difference. It is not: **core must dispatch on the receiver at runtime because
+     nothing declares it, while a rete `?p` gets its class from the fact pattern's declared field
+     type. Rete has MORE static information here, not less.** The refusal had inherited core's
+     runtime-polymorphism problem into a place that does not have it.
+
+     **⛔ AND MY FIRST CUT MINTED FIX-LIST F's CLASS FRESH.** It returned "arm does not match" for
+     a field the class does not declare. Core RAISES `UnknownField` there — verified, and it
+     raises even with a catch-all arm after it. Silently not-matching would have meant the same
+     expression answering differently in the two engines, and would have turned a typo into a
+     constraint that compiles, fires and matches NOTHING. It raises now, carrying the class and its
+     available fields. **That row is the gate's load-bearing one**; mutated back, the failure prints
+     `PatternMatchFailed: no arm matched`, which teaches nothing about the typo.
+
+     Accepts ONLY the hash-destructure, matching core's own rule: `{:keys […]}` and plain map
+     literals are refused BY NAME so the diagnostic teaches the spelling that works.
+     ⚠ **The field index is resolved at match time, not compiled** — `LowerCx` carries no type for
+     a slot. Stated in `Pat::Fields`'s doc with exactly what compiling it would take (thread
+     `validate.rs`'s `collect_rule_bind_types` into `LowerCx`); a pure win, no semantic change, if
+     it ever shows on a profile.
+     Gate: `a_match_hash_destructure_binds_fields_in_both_positions`, mutation-proven.
    - **the `CLAUDE.md` delivery gap — CLOSED 2026-08-28**, and written as a POINTER rather than
      either proposal on the table. Both proposals (paste the subset / `@` import) create a second
      copy of the doctrine, and this row exists BECAUSE a second copy went stale; a pointer asserts
