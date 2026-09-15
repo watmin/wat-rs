@@ -60,6 +60,26 @@ change under test (`neg-consumer` is stratified, so the new door never runs; `de
 `fanout` are class-scan, so it returns early) — which is how they were caught: a delta on an axis
 the change cannot touch is a statement about the instrument, not the engine.
 
+#### 2026-08-27, a SECOND run of the same experiment — and a sharper test than "spreads overlap"
+
+After a day of engine changes (requery gate, round cap, termination verifier, kwargs-by-name), a
+fresh grid moved SIX cells past 10%: four faster, two slower. Both slower ones were re-measured
+against a pre-session binary, interleaved:
+
+| cell | grid said | interleaved A/B |
+|---|---:|---|
+| node-share `[10 200]` | **+26.21%** | **+0.82%** (n=8) |
+| accum `[50 200]` | **+10.75%** | unresolvable (n=16) |
+
+`accum` is the instructive one. At n=8 the spreads already overlapped; at n=16 the **median said
++3.50% and the mean said −10.18% — opposite signs** — with a tail from 2.263 to 5.990 ms on a
+2.4 ms cell.
+
+> **When a cell's median and mean disagree in SIGN, that cell cannot resolve the question, and more
+> samples will not fix it.** It is a stronger and cheaper tell than eyeballing overlap: one line of
+> arithmetic, and it distinguishes "small real effect" from "tail-contaminated noise" without any
+> judgement about what counts as overlapping.
+
 **The operating rule, then:** a `GRID_RUNS=3` delta is evidence of NOTHING in either direction, at
 any cell size. It is fine for `:accuracy` and rank, which is what the grid is for. Any perf claim —
 win or regression — needs a same-session interleaved A/B at 6+ samples per side, and the spreads
