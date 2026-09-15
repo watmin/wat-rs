@@ -615,7 +615,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // but the checker constrains to exactly two args); `string::*`/`i64::to-f64` verified against
     // `intrinsic/string.rs`'s own doc comments, which match exactly.
     // Arc 255 Stone F, Phase 3 — the four rows below MOVED in place (both `rete_name` and
-    // `core_name` edited from the `:wat::core::String/*` / `:wat::rete::core::String/*`
+    // `core_name` edited from the `:wat::core::String/*` / `:wat::rete::string::*`
     // spelling to their `:wat::string::*` / `:wat::rete::string::*` home; the naming
     // invariant forces the `rete_name` edit the moment `core_name` changes). `empty?` is NOT
     // among them — it never had a row to move; its permanent row was born correctly-spelled
@@ -658,7 +658,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     // Arc 255 Stone F, Phase 1 — `:wat::string::empty?`'s permanent rete mirror, born
     // correctly-spelled (there was no existing lowercase row to move). Its Phase-3 sibling,
-    // the OLD `:wat::rete::core::String/empty?` / `:wat::core::String/empty?` row, is
+    // the OLD `:wat::rete::string::empty?` / `:wat::core::String/empty?` row, is
     // deleted outright rather than edited (nothing to move onto — this row already IS the
     // destination).
     ReteOp {
@@ -933,10 +933,23 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── 2026-08-28: `map`/`filter` -> `mapv`/`filterv`, and the reason is the whole point of the
+    // § 4.1 reachability ledger. Both rows were `:wat::core::map`/`:wat::core::filter`, which
+    // return a LAZY `Stream` (`transform.rs`: `Value::wat__stream__Stream(lazy_map_stream(..))`).
+    // A compiled `where` fence has no stream machinery and nothing in a fence can CONSUME a
+    // Stream, so those rows were unreachable in every position — admitted, total, arity- and
+    // type-checked, and unusable. The ledger drove them and they raised `unbound symbol`.
+    //
+    // The fix is NOT an eager compiled arm for the lazy heads: that would make
+    // `:wat::rete::core::map` mean something different from `:wat::core::map`, silently, when the
+    // `Redispatch` contract is "the same routine as `core_name`". wat already ships the eager
+    // materializers under their clojure names — `wat/seq.wat`: *"mapv / filterv — the eager forms:
+    // force `map`/`filter`'s lazy Stream result to a Vector"* — so rete takes THOSE. No invented
+    // semantics, no divergence, and the naming rule derives both rete names unchanged.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::map",
-        core_name: ":wat::core::map",
+        rete_name: ":wat::rete::core::mapv",
+        core_name: ":wat::core::mapv",
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
@@ -944,8 +957,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::filter",
-        core_name: ":wat::core::filter",
+        rete_name: ":wat::rete::core::filterv",
+        core_name: ":wat::core::filterv",
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
