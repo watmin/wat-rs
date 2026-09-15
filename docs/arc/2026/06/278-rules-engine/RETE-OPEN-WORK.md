@@ -553,12 +553,58 @@ Every GENERABLE row fires in BOTH positions, 79 of 79 counting the four holon ro
 driven by hand. The column went 16 -> 68 -> 71 -> 75 across the day, and the last four came from
 proving the ledger's own exclusion false.**
 
-⛔ **THE LEDGER IS CURRENTLY LYING ABOUT FOUR ROWS.** `NOT_YET_GENERABLE` still reports the four
-`:wat::rete::holon::*` rows as un-drivable, with the reason *"a holon has no literal spelling, so
-the second operand cannot be written as a constant."* Driven 2026-08-28: with a `HolonAST`-typed
-field on BOTH sides, `presence?`, `coincident?`, `cosine` and `dot` all FIRE, inline and in a
-fence. The exclusion's own `REFUTED BY` clause named exactly that case and nobody ran it. **An
-exclusion is a claim; this one is false and must be fixed before any holon row is minted.**
+⛔ **THE LEDGER IS LYING ABOUT FOUR ROWS — AND SO WAS THE ENTRY THAT SAID SO. Re-driven
+2026-08-28 (LATE); the corrected result is below.** `NOT_YET_GENERABLE` reports the four
+`:wat::rete::holon::*` rows un-drivable because *"a holon has no literal spelling, so the second
+operand cannot be written as a constant."* That reason is **true and beside the point**: the
+refutation is not a literal, it is a SECOND FIELD. With `v` and `w` both `:wat::holon::HolonAST` on
+`:probe::In`:
+
+| row | inline | fence |
+|---|---|---|
+| `presence?` | FIRES | FIRES |
+| `cosine` (`f64::>` … `0.9`) | FIRES | FIRES |
+| `dot` (`f64::>` … `1000.0`) | FIRES | FIRES |
+| `coincident?` | **REFUSED** | FIRES |
+
+**Seven of eight, not eight of eight.** The earlier claim on this page and in the breadcrumb —
+*"all four FIRE, inline and fence"* — was WRONG, and it was written from a hand-drive whose exact
+shape was never recorded. Thresholds above are MEASURED, not guessed: `cosine` 1.0 vs −0.018,
+`dot` 4333.0 vs −81.0, `coincident?`/`presence?` return bool directly
+(`wat-scripts/scratch-pad/probe-holon-rete-cell-values.wat`).
+
+⛔⛔ **`coincident?` INLINE IS A LIVE DEFECT, AND IT IS THE FIFTH INSTANCE OF THE DAY'S PATTERN —
+the one the pattern table lists as still OPEN.** It is refused with *"malformed rete clause … not a
+recognized :when shape"*. Cause, driven not read:
+
+- `coincident?` is `OpClass::Redispatch` (it keeps core's `HolonAST | Vector` polymorphism, so its
+  PARAMS cannot be a rank-1 scheme) but its RETURN is always `bool`.
+- `expr_is_provably_boolean` (`clause.rs:266-275`) trusts `row.ret` **only for `Alias`/`Fallback`**,
+  because on `Form`/`Redispatch` rows `ret: Bool` is a documented PLACEHOLDER. So one value means
+  both *"returns bool"* and *"has no scheme at all"*, and the genuinely-boolean row is refused
+  rather than believed.
+- **The one-line widening is UNSOUND and I proved it before proposing it.** Admitting `Redispatch`
+  makes `(:wat::rete::core::Tuple/first (:wat::rete::core::Tuple :v 99))` — an `i64` — a legal
+  inline constraint that compiles, fires and **silently matches nothing**. That is fix-list F's
+  class reopened on a new row. Probe driven and discarded; do not re-propose it.
+- `enum::=` / `enum::not=` are `Form` rows that genuinely return bool and fire inline anyway —
+  they reach `ReteClauseShape::Constraint` by NAME pattern (`classify_constraint_head`), a path
+  that never reads `ret`. **`coincident?` is the only row in the table that genuinely returns bool
+  and is in neither path.**
+
+**THE ROOT, AND WHY IT IS WORTH THE LADDER'S TOP RUNG.** The conflation forces the SAME guard
+clause at three independent sites, each re-deriving "you may not believe `ret` unless the class is
+`Alias`/`Fallback`": `clause.rs:266`, `validate.rs:1337`, `check.rs:17267`. A rule repeated by hand
+at three sites is rung 1 of the extirpare ladder, and it has now produced a live wrong answer.
+The cure is to make the placeholder **unspellable** — `ret: Ret::Is(ParamType) | Ret::NoScheme` —
+after which every guard collapses into reading `ret` honestly, `coincident?` declares `Is(Bool)`
+and is believed, and a `Form`/`Redispatch` row can no longer be mistaken for a boolean.
+Audited: of the 22 `Form`/`Redispatch` rows, **5 genuinely return bool** (`and`, `or`, `enum::=`,
+`enum::not=`, `coincident?`) and 17 are true placeholders.
+
+**Order for this item is therefore:** fix the `ret` conflation FIRST (it is the bug), then generate
+the holon cells — which need `Cell` to carry an optional SECOND field, since one field cannot
+discriminate a self-comparison (`cosine(h,h)` is 1.0 for every `h`).
 
 > ⛔ **NONE OF THIS WAS A VIGILIA ITEM, AND THAT IS THE FINDING UNDER THE FINDING.** The full watch
 > CONVERGED before any of it: recasts 12 and 13 both `0 L1 + 0 L2`, inward 17/17 plus
