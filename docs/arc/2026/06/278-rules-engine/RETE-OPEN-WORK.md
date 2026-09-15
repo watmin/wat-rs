@@ -548,10 +548,17 @@ range-restricted because `z` comes from `edge`.
 
 ## The order, and why
 
-**As of 2026-08-28: 4.1 is COMPLETE — all 77 rows verdicted (74 + the three Tuple accessors it
-forced), and ZERO cannot run. It found SIX rows that passed every static gate and could not
-execute, and all six are FIXED. What remains is one design question and five rulings — none of it
-work, all of it a judgment call.**
+**As of 2026-08-28 (LATE — four commits after the stamp above): the inline position is CLOSED.
+Every GENERABLE row fires in BOTH positions, 79 of 79 counting the four holon rows that were
+driven by hand. The column went 16 -> 68 -> 71 -> 75 across the day, and the last four came from
+proving the ledger's own exclusion false.**
+
+⛔ **THE LEDGER IS CURRENTLY LYING ABOUT FOUR ROWS.** `NOT_YET_GENERABLE` still reports the four
+`:wat::rete::holon::*` rows as un-drivable, with the reason *"a holon has no literal spelling, so
+the second operand cannot be written as a constant."* Driven 2026-08-28: with a `HolonAST`-typed
+field on BOTH sides, `presence?`, `coincident?`, `cosine` and `dot` all FIRE, inline and in a
+fence. The exclusion's own `REFUTED BY` clause named exactly that case and nobody ran it. **An
+exclusion is a claim; this one is false and must be fixed before any holon row is minted.**
 
 > ⛔ **NONE OF THIS WAS A VIGILIA ITEM, AND THAT IS THE FINDING UNDER THE FINDING.** The full watch
 > CONVERGED before any of it: recasts 12 and 13 both `0 L1 + 0 L2`, inward 17/17 plus
@@ -575,8 +582,10 @@ work, all of it a judgment call.**
    declares `total: true`, a wall every row must pass. Surfaced only by being able to RUN the row.
    (Everything else under this number is CLOSED: `map`/`filter` became the eager `mapv`/`filterv`;
    `Tuple` got its three accessors; the coverage GATE is the ledger.)
-3. ~~**The inline-constraint gap**~~ — **CLOSED 2026-08-28 except for a named residue.** The
-   inline column went **16 -> 68 of 79** rows. The wrong-answer half is gone (fix-list F: 39 rows
+3. ~~**The inline-constraint gap**~~ — **FULLY CLOSED 2026-08-28. The residue this entry once named
+   is gone too, and both of its stated reasons were wrong** (struck below). The inline column went
+   **16 -> 68 -> 71 -> 75 of 79**, and the four not counted are the holon rows the LEDGER cannot
+   generate — driven by hand, they fire in both positions. The wrong-answer half is gone (fix-list F: 39 rows
    that compiled, fired and silently matched nothing, in BOTH engines); the keyword half was a real
    BUG (`rete_type_segment_of` mapped only the uninhabitable capital `Keyword`); and the grammar
    half is admitted — an inline constraint is now any PROVABLY boolean rete expression, replacing a
@@ -587,11 +596,23 @@ work, all of it a judgment call.**
    that `< > <= >=` "ride the wildcard edge" — while being admitted inline. Check the premise
    before running the four questions on it.
 
-   **The residue, each with its reason:** `cond`/`let`/`match` stay refused because they are
-   polymorphic in their body's type and the inline position has no type check that could demand
-   bool — admitting them on a placeholder `ret` would re-open F. And a bare keyword literal is a
-   FIELD REFERENCE in operand position (documented, load-bearing), now reachable through
-   `keyword/from-string`.
+   ~~**The residue**~~ — **ALL OF IT CLOSED 2026-08-28, and BOTH stated reasons were wrong.**
+
+   · `cond`/`let`/`match` were refused for being *"polymorphic in their body's type"*. Polymorphic
+     IN THE BODY means the type is a FUNCTION of the body, and the body is in the AST. The head-only
+     test read `row.ret` — a PLACEHOLDER for `Form` rows — and stopped. It is now
+     `expr_is_provably_boolean`, a structural proof needing no env, which keeps
+     `classify_rete_clause`'s "by SHAPE alone" contract intact. Decidable because rete is closed and
+     every row is total. (`ad2286133`)
+   · `cond` was not failing a type test AT ALL — the macro expander descended into `where` bodies
+     only, so an inline `cond` never expanded to nested `if`. Discriminating probe: wrapping it in a
+     provably-bool head SATISFIES the type objection and it was still refused.
+   · The bare-keyword rule was called a syntactic ambiguity. `:probe::E::A` carries `::` and a field
+     name is a bare identifier, so an enum variant could NEVER have been a field reference — there
+     was nothing to disambiguate. And the engine was already deciding it correctly one level down:
+     the same comparison nested inside another call FIRED. `bind_field_refs` and
+     `compile_operand_expr` ran the same `position(...)` lookup ~120 lines apart in one file and
+     disagreed on the `else`. (`b7f54a17f`)
 
 
 4. **`partire` x7** — needs an owner or an affirmative CUT. It has been tracked in no list at all;
@@ -603,6 +624,63 @@ work, all of it a judgment call.**
    on MANDATE, since the LRU is not rete.
 6. **`circumspicere` 1 (grid SPEED half in CI)** — re-decide on the live constraint (runner noise),
    not the dead one (no JDK). A Clara ratio is the noise-tolerant form.
+
+7. **THE HOLON SURFACE IN RETE — measured 2026-08-28, owned here, nothing started.** rete carries
+   **4 of ~40** data-shaped holon ops and all four are from ONE group (similarity). It can COMPARE
+   two holons handed to it as fields and can do nothing else: no constructor, no accessor, no shape
+   predicate. Same shape as `Tuple` (constructible, unreadable) and `keyword` (thinnest surface, no
+   constructor) — the third instance of one pattern.
+
+   **Working already, driven:** a `:wat::holon::defrecord` record IS a rete fact and matches on its
+   scalar fields. The four similarity rows fire field-to-field in both positions.
+
+   **The queue, in order:**
+   1. **Fix the ledger's false `NOT_YET_GENERABLE`** (see the ⛔ at the top of this section). Small,
+      and the instrument is actively wrong until it lands.
+   2. **Verify `is-List?` and `is-Tag?`** — the confusion matrix ran 9 predicates x 8 shapes and
+      those two columns are ALL FALSE because no List or Tag holon was constructed. All-false means
+      "correct" OR "never fires" and the matrix cannot tell them apart. **Unverified, not
+      verified-negative.**
+   3. **Mint the 11 predicates** (`is?` + `is-*?` x10) — driven pure, total, deterministic, no
+      encoding ctx, bool-returning. `Alias` rows, the cleanest on the table.
+      ⚠ **Document that they do NOT partition.** `holon-rs`: `nil()` is `classified("Symbol","nil")`
+      and `is_nil` is `extract_classified(self,"Symbol") == Some("nil")` — so **nil satisfies BOTH
+      `is-Nil?` and `is-Symbol?`, by construction.** Every other shape has exactly one true. A rule
+      keyed on `is-Symbol?` will catch every nil.
+   4. **Accessors** — `Bind/left`/`Bind/right` are total via `Option`; `Bundle/first`/
+      `Bundle/children` RAISE on the wrong variant. Two accessors, one family, two partiality
+      conventions. That inconsistency is CORE's and rete would inherit it — worth a ruling before
+      minting either.
+
+   **⛔ CLARA CANNOT ARBITRATE ANY OF THIS** (builder, 2026-08-28: *"clara has no such holonic
+   tooling… this is a wat only capability"*). That leaves `$native` vs `$oracle`, which is the exact
+   configuration that failed twice this session. The substitute is **known-answer algebraic law** —
+   `cosine(h,h) == 1.0`, `is-Map?` of a lifted map, `Bind/left(Bind(a,b)) == a` — ground truths
+   independent of any engine, the same instrument the ledger's calibration uses.
+
+8. **`Bundle` and the `:panic` capacity mode — A BUILDER RULING, runtime-wide, not a rete change.**
+   `Bundle` is the ONLY holon op that cannot get a `total: true` row. Under the default `:error`
+   mode it returns `(Result :- [HolonAST CapacityExceeded])` and **the type system forces handling**
+   — proven: `is-Map?: parameter #1 expects HolonAST; got (Result :- [...])`. Under `:panic` it
+   aborts instead.
+
+   ⚠ **A CLAIM I MADE AND THE BUILDER CORRECTED — do not repeat it.** I said
+   `set-capacity-mode!` is callable at runtime, so the mode was non-deterministic. **False.** Driven:
+   inside `:user::main` it is `unknown function` — it is a LOAD-TIME DIRECTIVE collected by the
+   entry-file pass, exactly as the builder said. The determinism objection is void.
+
+   **What the correction buys:** because the mode is fixed BEFORE `compile-all` runs, the rete
+   compiler may READ it — so a `Bundle` row can be `Fallback` under `:error` and refused with a
+   located diagnostic under `:panic`. That is a compiler reading a load-time fact, not legality
+   varying by config.
+
+   **The surviving argument for killing `:panic`**, and it stands without rete: `:error` already
+   forces handling at COMPILE time; `:panic` trades that wall for a runtime crash. Blast radius ~6
+   files (`src/config.rs`, `src/process/boot/mod.rs`, `src/runtime.rs`,
+   `tests/collection/bundle_capacity.rs` + 2 fixtures, and
+   `probe_plain_panic_produces_structured_edn.wat`, which uses the panic as a VEHICLE to test
+   structured-EDN panic rendering and would need another trigger). **Not started. Not mine to
+   rule.**
 
 ~~1.1 interleaved retract~~ · ~~1.2 generated rules~~ · ~~1.3 query params~~ ·
 ~~1.4 nested combinators~~ · ~~3.1 fixpoint cap~~ · ~~3.2 CI parity~~ · ~~4.2 termination
