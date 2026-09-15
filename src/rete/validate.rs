@@ -356,7 +356,7 @@ impl fmt::Display for ReteCheckErrorKind {
                  and consumed nowhere — a `:not` binds nothing outward, so a bind under it is \
                  meaningful only where it is written, as a constraint on the negated fact: \
                  `(:wat::rete::not (:{fact_type} ({var} <- :field) \
-                 (:wat::rete::core::i64::< {var} 10)))`. An unused bind changes no answer, but a \
+                 (:wat::rete::i64::< {var} 10)))`. An unused bind changes no answer, but a \
                  reader cannot tell a deliberate one from a leftover edit. Drop it — \
                  `(:{fact_type})` negates the whole class — or consume it"
             ),
@@ -1001,7 +1001,23 @@ fn rete_type_segment_of(field_type: &str, types: &TypeEnv) -> Option<&'static st
         "wat::core::f64" => Some("f64"),
         "wat::core::String" => Some("string"),
         "wat::core::bool" => Some("bool"),
-        "wat::core::Keyword" => Some("keyword"),
+        // ⛔ BOTH SPELLINGS, and the lower-case one is the ONLY inhabitable half.
+        //
+        // This line read `"wat::core::Keyword"` alone until 2026-08-28, and that capital is a type
+        // NO VALUE CAN HAVE: `(:wat::core::defrecord :R [v <- :wat::core::Keyword])` declares
+        // clean and every construction of it is a TypeMismatch (proven in
+        // `docs/arc/2026/04/109-kill-std/NOTE-keyword-is-two-disjoint-type-names-…md`). So the map
+        // recognised the uninhabitable spelling and missed the real one, which fell through to the
+        // enum-registry lookup, missed there too, and returned `None` —
+        // `ConstraintTypeNotComparable`, refusing keyword equality as an inline constraint for
+        // the life of the engine.
+        //
+        // The diagnostic was self-contradicting and said so: it lists `keyword` as part of the
+        // equality surface in the same sentence that refuses a keyword.
+        //
+        // Found by arc 278's § 4.1 reachability ledger, root named by arc 109's NOTE. The capital
+        // stays mapped because removing a dead type NAME is arc 109's ground, not this file's.
+        "wat::core::keyword" | "wat::core::Keyword" => Some("keyword"),
         // An enum is named by a user path; the registry is the only way to know.
         other => match types.get(&format!(":{other}")) {
             Some(TypeDef::Enum(_)) => Some("enum"),
