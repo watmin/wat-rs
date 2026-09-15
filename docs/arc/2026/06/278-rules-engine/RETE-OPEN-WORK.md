@@ -639,7 +639,69 @@ fire inline via `classify_constraint_head`'s NAME-pattern path, which never read
 `coincident?` was the only row in the whole table that genuinely returns bool and sat in neither
 admission path — a population of one, which is why no count would ever have surfaced it.
 
-⏸ **PARKED 2026-08-28 BY BUILDER RULING — the similarity tooling was the goal and it is DELIVERED.**
+1. ~~**4.1 the reachability ledger**~~ — **COMPLETE 2026-08-28**, all 77 rows verdicted, ZERO
+   unrunnable. It found six rows that passed every static gate and could not execute (all fixed),
+   18 refused inline, and 39 accepted inline that silently match nothing.
+2. ~~**One small ruling** — `reduce`'s 2-arity form raises on an empty collection while its row
+   declares `total: true`.~~ **ALREADY CLOSED, and this row was STALE THE DAY IT WAS WRITTEN.**
+   Shipped `97eac5a38` (2026-08-27) — the rete lowerer refuses the 2-arity form outright
+   (`expr_ir.rs:440`) with a located diagnostic naming the totality reason, and it shipped with a
+   119-line gate plus two fixtures. Driven 2026-08-28 to confirm: the refusal fires, and
+   `total: true` is honest because the partial arity cannot be reached.
+   **This is the SIXTH consecutive inherited row in this arc found stale on audit.** The rate is
+   not noise — treat every unstruck row here as a claim about the past, not a statement about the
+   tree, and check it before you work it.
+   (Everything else under this number was already closed: `map`/`filter` became the eager
+   `mapv`/`filterv`; `Tuple` got its three accessors; the coverage GATE is the ledger.)
+3. ~~**The inline-constraint gap**~~ — **FULLY CLOSED 2026-08-28. The residue this entry once named
+   is gone too, and both of its stated reasons were wrong** (struck below). The inline column went
+   **16 -> 68 -> 71 -> 75 of 79**, and the four not counted are the holon rows the LEDGER cannot
+   generate — driven by hand, they fire in both positions. The wrong-answer half is gone (fix-list F: 39 rows
+   that compiled, fired and silently matched nothing, in BOTH engines); the keyword half was a real
+   BUG (`rete_type_segment_of` mapped only the uninhabitable capital `Keyword`); and the grammar
+   half is admitted — an inline constraint is now any PROVABLY boolean rete expression, replacing a
+   shape-set no reader could infer.
+
+   **My stated reason for the grammar split was FALSE and I nearly shipped it as the rationale.** I
+   argued indexability; `alpha_tree.rs` indexes only provable equality discriminators and states
+   that `< > <= >=` "ride the wildcard edge" — while being admitted inline. Check the premise
+   before running the four questions on it.
+
+   ~~**The residue**~~ — **ALL OF IT CLOSED 2026-08-28, and BOTH stated reasons were wrong.**
+
+   · `cond`/`let`/`match` were refused for being *"polymorphic in their body's type"*. Polymorphic
+     IN THE BODY means the type is a FUNCTION of the body, and the body is in the AST. The head-only
+     test read `row.ret` — a PLACEHOLDER for `Form` rows — and stopped. It is now
+     `expr_is_provably_boolean`, a structural proof needing no env, which keeps
+     `classify_rete_clause`'s "by SHAPE alone" contract intact. Decidable because rete is closed and
+     every row is total. (`ad2286133`)
+   · `cond` was not failing a type test AT ALL — the macro expander descended into `where` bodies
+     only, so an inline `cond` never expanded to nested `if`. Discriminating probe: wrapping it in a
+     provably-bool head SATISFIES the type objection and it was still refused.
+   · The bare-keyword rule was called a syntactic ambiguity. `:probe::E::A` carries `::` and a field
+     name is a bare identifier, so an enum variant could NEVER have been a field reference — there
+     was nothing to disambiguate. And the engine was already deciding it correctly one level down:
+     the same comparison nested inside another call FIRED. `bind_field_refs` and
+     `compile_operand_expr` ran the same `position(...)` lookup ~120 lines apart in one file and
+     disagreed on the `else`. (`b7f54a17f`)
+
+
+4. **`partire` x7** — needs an owner or an affirmative CUT. It has been tracked in no list at all;
+   another silent pass is the one outcome that is not allowed.
+5. **TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap** — three builder rulings. All
+   three are blocked on a judgment call, not on work. ① is RULED on the merits as of 2026-08-27
+   (convert: `Lru::new`'s capacity is read from a `:durable` EDN spec at rehydration, so a stored
+   `0` panics the process — that is a fallible runtime input, not a caller bug) and now waits only
+   on MANDATE, since the LRU is not rete.
+6. **`circumspicere` 1 (grid SPEED half in CI)** — re-decide on the live constraint (runner noise),
+   not the dead one (no JDK). A Clara ratio is the noise-tolerant form.
+
+7. **THE HOLON SURFACE IN RETE.** rete carried **4 of ~40** data-shaped holon ops and all four
+   were from ONE group (similarity): it could COMPARE two holons handed to it as fields and do
+   nothing else — no constructor, no accessor, no shape predicate. Same shape as `Tuple`
+   (constructible, unreadable) and `keyword` (thinnest surface) — the third instance of one pattern.
+
+   ⏸ **PARKED 2026-08-28 BY BUILDER RULING — the similarity tooling was the goal and it is DELIVERED.**
 *"I think we park the is verbs … maybe the bulk of the remaining holonic rete items for now.. the
 similarity tooling is supported which I wanted."*
 
