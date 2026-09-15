@@ -1237,6 +1237,53 @@ field. Reachable, but not constructible inside a fence.
    representative ones. What is evaluable is the `:then` EXPRESSION over its input TYPES, which
    needs no user data at all. That distinction is the difference between a fuzzer and a proof.
 
+   ★★★★★★ **A BYTE CEILING, NOT AN ITEM COUNT — measured 2026-08-29.** Builder: *"make this an
+   actual memory limit… not an 'items in memory' limit… but that's determined by the 'fattest'
+   record… or we impose it at run time as we insert?"* Three findings, and they rule out one of the
+   two routes.
+
+   **1. AN ITEM COUNT IS A POOR PROXY, and the number is ~2x before anything unusual happens.**
+   100_000 in + 100_000 derived, peak RSS over a bare-runtime baseline, one process per shape:
+
+   | record | bytes / fact |
+   |---|---|
+   | `[k <- i64]` | **603 B** |
+   | `[k b c d e <- i64]` | **942 B** |
+   | `[k <- i64, s <- String]`, s = a shared 1 KB literal | **1_266 B** |
+
+   So `MAX_PROVABLE_FACT_POPULATION = 1_000_000` is not "600 MB". It is 600 MB for the narrowest
+   record measured and more for anything wider.
+
+   **2. AND THE SAME POPULATION COSTS DIFFERENT AMOUNTS DEPENDING ON THE DATA.** The 1 KB literal
+   adds only ~660 B per fact, not 1024 — because every fact shares one `Arc<str>`. Identical values
+   are paid for ONCE. (Measured. The converse — distinct large payloads costing their full size per
+   fact — follows from the same `Arc` and is inferred, not measured.) **A count cannot see this at
+   all**, which makes it the wrong unit rather than merely an imprecise one.
+
+   **3. ⛔ THE "FATTEST RECORD" ROUTE CANNOT WORK, and the reason is structural.** A static byte
+   bound needs a max size per field. `bool`/`i64`/`f64`/`defenum` have one; **`String`, containers
+   and holons do not** — there is no largest string. So a static bound exists only for all-fixed-
+   width records, which is **NARROWER than what the finite-domain analysis already admits**: it
+   admits a cycle whose COMPUTED fields are finite-typed, and says nothing about COPIED fields,
+   which may be strings. Adopting the static route would mean refusing programs that are admitted
+   today, to gain a bound — the wrong trade.
+
+   **SO IT HAS TO BE RUNTIME. But "how large is this record" is the wrong question to ask there** —
+   `Arc` sharing makes it ambiguous (does a shared string count once, or once per holder?), and a
+   size-walk has to answer that arbitrarily. **"How many bytes have we allocated" is unambiguous**,
+   and the instrument is a COUNTING GLOBAL ALLOCATOR: one atomic add per allocation, exact, no
+   walking, no per-type analysis, no arbitrary sharing rule. That is also the honest analogue of a
+   BPF map — the kernel does not measure your structs, it refuses the allocation.
+
+   ⚠ **AND IT WOULD DELETE `MAX_PROVABLE_FACT_POPULATION`.** That constant exists ONLY because
+   there is no runtime ceiling — it is a proof-time stand-in for a runtime property, priced in the
+   wrong unit. With a byte ceiling the finite-domain analysis needs no cap at all: prove finiteness,
+   admit, and let the real limit be real. **One mechanism instead of two** (FM 30), which is the
+   strongest argument for doing it.
+
+   **Blast radius: substrate-wide** — a `#[global_allocator]` wrapper is not a rete change, and the
+   ceiling would bound every allocation, not just facts. **Not started; the builder's call.**
+
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
    their reason for themselves?"*). An author's string is not a proof. The direction the design
