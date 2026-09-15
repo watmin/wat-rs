@@ -131,6 +131,73 @@ jobs:
   # `check-where-shapes.sh` already fails LOUDLY when java is absent (`exit 1`, not a skip), so
   # this job cannot silently pass by finding no toolchain — which is the failure mode that would
   # otherwise reproduce the exact hole it exists to close.
+  grid-speed:
+    # ── THE GRID'S SPEED HALF, WHICH RAN IN NO JOB UNTIL 2026-08-29 ──────────────────────────
+    #
+    # `circumspicere` found this gap. Its recorded reason — "needs Clara and a JDK the runner
+    # lacks" — EXPIRED the day the `parity` job below installed Temurin 21 and a pinned Clojure
+    # CLI, and nothing noticed. A second reason was offered and never written down: a shared
+    # runner is noisy, so a wall-clock gate would flap.
+    #
+    # That second reason did not survive measurement either. The recorded 33-cell grid has a
+    # TIGHTEST cell of 8.50x (median 22x, widest 59x) — nowhere near parity, so runner noise
+    # cannot flip a verdict. It is also why this job does NOT gate on `:winner`, which at that
+    # margin fires only on catastrophe and would have missed the real 4x regression this arc
+    # already found. It gates on a per-axis RATIO FLOOR at ~50% of the recorded minimum: a ratio
+    # cancels runner speed because both engines run in the same job on the same box, and a 2x
+    # margin cannot flap. Reasoning and floors: `wat-scripts/perf/grid/check-grid-speed.sh`.
+    #
+    # SEPARATE JOB, not a step in `parity`: it costs ~2.5 min, and running it in parallel keeps
+    # wall-clock flat while making a red attributable to the grid rather than to the where-family
+    # diff sharing the job.
+    name: clara grid (speed floors)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wat-rs
+    steps:
+      - name: Checkout wat-rs
+        uses: actions/checkout@v4
+        with:
+          path: wat-rs
+
+      - name: Checkout holon-rs (sibling path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: watmin/holon-rs
+          path: holon-rs
+
+      - name: Install mold (the linker .cargo/config.toml pins)
+        run: sudo apt-get update && sudo apt-get install -y mold && mold --version
+
+      # Temurin via the official action — the same org as `actions/checkout` above.
+      - name: Install JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Clojure CLI from the clojure org's own GitHub release, PINNED by version rather than
+      # tracking `latest`: the parity verdict is a comparison against Clara 0.24.0, so the tool
+      # that resolves that dep is part of the measurement and an unpinned installer would make
+      # this job's answer drift without anyone changing a line here.
+      - name: Install Clojure CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL -o linux-install.sh \
+            https://github.com/clojure/brew-install/releases/download/1.11.3.1463/linux-install.sh
+          chmod +x linux-install.sh
+          sudo ./linux-install.sh
+          clojure --version
+
+      - name: Build wat (the parity script runs the release binary)
+        run: cargo build --release
+
+      # THE VERDICT: every `where-*.wat` against its `.clj` twin, one diff. Clara is the third
+      # reference and the arbiter of what the semantics ARE — the `$oracle` says what we intended.
+      - name: Grid speed floors — every axis x its ladder
+        run: bash wat-scripts/perf/grid/check-grid-speed.sh
+
   parity:
     name: clara parity (where-family)
     runs-on: ubuntu-latest

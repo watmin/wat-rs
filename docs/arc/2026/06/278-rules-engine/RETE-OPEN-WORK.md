@@ -815,8 +815,46 @@ admission path — a population of one, which is why no count would ever have su
      nothing about wat-rs's content and so cannot rot. Full reasoning in
      `NEXT-STRIKES-theater-hunt.md` § "Not perf — a guardrail hole".
      ⚠ **The edit is UNCOMMITTED — holon root git is FROZEN.**
-6. **`circumspicere` 1 (grid SPEED half in CI)** — re-decide on the live constraint (runner noise),
-   not the dead one (no JDK). A Clara ratio is the noise-tolerant form.
+6. ~~**`circumspicere` 1 (grid SPEED half in CI)**~~ — **CLOSED 2026-08-29. It runs, as its own
+   `grid-speed` job, gated on per-axis RATIO FLOORS.**
+
+   **BOTH stated reasons for its absence were dead, and the second one had never been measured.**
+   The first — *"needs Clara and a JDK the runner lacks"* — expired 2026-08-27 when `parity`
+   installed Temurin 21 and a pinned Clojure CLI. The second, offered as the still-good argument,
+   was *"a shared runner is noisy, so a wall-clock gate would flap"*. Measured against the recorded
+   33-cell grid:
+
+   | | |
+   |---|---|
+   | tightest cell | **8.50x** (`fanout [40000]`) |
+   | median | 22.09x |
+   | widest | 59.11x |
+   | verdicts | 33/33 `:us`, 33/33 `:match` |
+
+   **We are nowhere near parity, so runner noise cannot flip a verdict** — and that same margin is
+   why the gate does NOT test `:winner`: at 8.5x it fires only on catastrophe and **would have
+   missed the real 4x regression this arc already found and fixed.** A `:winner` gate would have
+   been the obvious choice and a nearly vacuous one.
+
+   **The shape that earns it: a per-axis ratio FLOOR at ~50% of that axis's recorded minimum.**
+   A ratio cancels runner speed (both engines, same job, same box — which is what the row's own
+   note meant by "a ratio against Clara measured in the same job"), and a 2x trip margin cannot
+   flap. Floors are per-axis because the ratios legitimately span 8.5x–59x; they are the artifact,
+   and the script says to raise one only with a new recorded grid to cite and never to lower one to
+   clear a red.
+
+   `GRID_RUNS=1` in CI is deliberate and stated: the 3-run convention exists so a near-parity
+   `:winner` (a ±5% band) is not read off one sample; a 2x floor is settled by one. Cost **2m24s**
+   as its own job, so wall-clock stays flat and a red is attributable to the grid.
+
+   **Also gated: `:accuracy :MISMATCH`.** The perf corpus is NOT the where-family the `parity` job
+   diffs — a native-vs-Clara disagreement on a perf axis is a wrong answer nothing else here sees.
+
+   **Mutation-proven on three arms** — a floor raised above its cell names the axis, size, ratio and
+   floor; an unfloored axis is refused rather than skipped; a short sweep exits 2 (*"a gate that
+   cannot fail, not a green one"*). The failure path's EXIT CODE was verified to be 1, not just its
+   message — a gate that prints FAILED and exits 0 is the trap this repo's floor discipline exists
+   for.
 
 7. **THE HOLON SURFACE IN RETE.** rete carried **4 of ~40** data-shaped holon ops and all four
    were from ONE group (similarity): it could COMPARE two holons handed to it as fields and do
