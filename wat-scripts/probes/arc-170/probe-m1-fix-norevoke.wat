@@ -1,14 +1,15 @@
-;; probe-m1-cf-norevoke.wat — COUNTERFACTUAL for the M1-teeth test soundness.
+;; probe-m1-fix-norevoke.wat — the FIXED counterfactual for the M1-teeth test soundness: the fix
+;; probe-m1-cf-norevoke.wat's raise asked for.
 ;;
-;; The EXACT committed revoked circuit (probe_arc170_m1_teeth_revoked.wat), with ONE change:
-;; the `echo'/revoke` line is REMOVED. If the revoke is load-bearing, dial #2 (by a still-granted
-;; pid) is ADMITTED, and compute REACHES THE END → prints "NOREVOKE-REACHED-END".
-;; If instead this ALSO raises (the prober's clean exit closing the channel makes recv' EOF), then
-;; the committed test is VACUOUS — its Err doesn't discriminate the bounce from the exit.
+;; probe-m1-cf-norevoke.wat's circuit (no `echo'/revoke`), with ONE change: the prober SENDS dial #2's
+;; reply UP (`_2 (send self …)`), so success is observable. Without the revoke, dial #2 (by a
+;; still-granted pid) is ADMITTED and compute REACHES THE END.
 ;;
-;; EXPECT (if the test is sound): "NOREVOKE-REACHED-END: <r2>"
-;; If it raises with NO print → the committed test is vacuous → the fixture needs the prober to
-;; send dial #2's reply UP so success is observable.
+;; Its twin, probe-m1-fix-revoke.wat, restores the revoke; together they show the fixed circuit
+;; discriminates — the shape the committed test (tests/services/probe_arc170_m1_teeth_revoked.wat,
+;; `Outcome.Bounced` / `Outcome.Served`) now has.
+;;
+;; EXPECT: "NOREVOKE-REACHED-END: echo:hi"
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages
