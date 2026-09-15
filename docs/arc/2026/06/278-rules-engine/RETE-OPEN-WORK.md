@@ -154,10 +154,19 @@ fact is inserted. Gated by `tests/rete/probe_arc278_fixpoint_round_cap.rs`.
 ADMITTED. The first cut refused it and the FLOOR priced that: `:then` fn-heads are a shipped,
 deliberate feature (Stone B) and `probe_arc278_then_user_forms` exercises a cyclic one. Refusing it
 would delete a working capability on a guess, to close a hole nobody has fallen into, while the
-shape actually measured to kill the process is refused either way. Closing it needs analysis of the
-fn's RETURN EXPRESSION — is every field copied from a parameter? — which is its own strike. **Until
-then the round cap (3.1) stands behind it, which is the second honest reason that cap exists,
-alongside Export's missing AST.**
+shape actually measured to kill the process is refused either way.
+
+**⚠ AND ON INVESTIGATION THE HOLE IS NARROWER THAN THAT — corrected within the hour.** To slip past
+the verifier a fn-headed `:then` must MINT a novel fact, and three attempts were each refused by a
+DIFFERENT pre-existing fence: a body computing with `i64::+` → *"is not total"*; computing with the
+total fallback form → *"is not a rete primitive"*; constructing a record at all → *"`kwargs-construct`
+is not pure"* (which `probe_arc278_then_user_forms_userfn.wat`'s own header already records, and is
+why that fixture EXTRACTS rather than builds). An extracting fn returns a fact already in the
+accumulated set and so cannot mint an unbounded stream. `then-item-fence` also already walks the fn
+BODY for admitted ops — most of the analysis this entry proposed writing.
+
+**No exploit found, guarded by adjacent fences — which is NOT "proven impossible", and is not
+recorded as such.** The round cap (3.1) still stands behind this and behind Export's missing AST.
 
 <details><summary>the original entry, kept for the reasoning that produced it</summary>
 
@@ -211,10 +220,11 @@ range-restricted because `z` comes from `edge`.
 1. **4.1 the reachability ledger** — small, converts a proven-live defect class into a standing
    gate, and immediately tells us how much dead surface there is.
 2. **1.1 interleaved retract** — DONE 2026-08-27.
-3. **4.2 the termination verifier** — DONE 2026-08-27, with the fn-headed `:then` hole named
-   rather than papered over. **Closing that hole is now the head of the list**: it needs the fn's
-   return expression analysed, and it is the difference between "one unbounded shape is
-   impossible" and "unbounded derivation is impossible".
+3. **4.2 the termination verifier** — DONE 2026-08-27. The fn-headed `:then` hole was named, then
+   investigated and found to be guarded by three adjacent fences with no exploit constructible. It
+   is NOT the head of the list; **3.2 (no CI job checks the arc's own closing condition) is**,
+   because every Clara agreement this session was established BY HAND and a parity regression
+   still merges fully green.
 4. **3.2 CI parity**, then **1.2 generated rules**, then the PILE 2 tail with `conformare` first.
 
 > ⚠ **A green fuzzer is not an empty list.** 4104 shapes at zero divergences means the engine is
