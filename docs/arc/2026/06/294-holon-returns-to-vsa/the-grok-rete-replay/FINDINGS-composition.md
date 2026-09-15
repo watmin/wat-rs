@@ -564,6 +564,26 @@ Verifying 4b (fold proof reproduced; floor 5495/5495 on `b6ffccbda`, pushed):
   (`ProgramBodyEvalFailed`) though they declare nothing.
 - Routed: `BRIEF-2a4c-the-stdlib-door-replaces-a-divergent-macro.md`.
 
+## Finding 20 — batch 2: two of main's in-crate walls meet grok-rete code; the step gate could not see them
+
+Batch 2 replayed #61–#125 (SCORE-5). Verified by the orchestrator: 65 steps, contiguous, each with its
+`-x` trailer (#63's hand-written, a short hash); the 30 docs-only steps touch only docs; no `wat/`,
+`wat-scripts/fixes/` or main-deleted path; no conflict marker committed; floor 5540/5540 and clippy 0 at
+the tip `07489fc1e` (the orchestrator's own run).
+- **#95** adds `:wat::rete::keyword::{from-string,to-string}` as `RETE_OPS` Alias rows with a `TypeScheme`
+  and no registry row. Main's arc-255 registry ratchet (`registry_membership_gap_a_is_named_and_frozen`)
+  and `every_row_is_admitted` (`RETE_MODULES`) are red from #95 on.
+- **#108** adds a four-space-indented list under `///` in `Ret`'s doc; main's floor runs
+  `cargo test --doc` ("the walls must not be muted"), grok-rete's did not, so rustdoc compiles it.
+- Both repairs are RIGHT — Gap A's own message sanctions adding a NEW name, and its header names `RETE_OPS`
+  Alias rows as its population; a ```` ```text ```` fence for prose — but both were committed AFTER #125
+  (`00cc59ff4`, `1c6d6af3e`), leaving #95–#125 knowingly red. The 4b ruling folds them into #95 and #108.
+- **Why the step gate missed both:** the lint binary, the census and stone 3's gate do not run the
+  library's own unit tests (1471 tests, 16 s warm) or the doctests (2 s warm).
+- #95's "LATENT" label is the ordinary `.rs` re-expression onto main's moved home (`:wat::keyword::*`),
+  not the addendum's never-existed class.
+- Routed: `BRIEF-5b-fold-the-two-late-repairs.md`.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
