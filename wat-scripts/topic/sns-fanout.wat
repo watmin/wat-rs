@@ -174,10 +174,7 @@
              (_ (:wat::kernel::assertion-failed! "topic publish: send not Accepted" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "topic: redial" (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))))
               s' (:demo::topic::State :durable (:demo::topic-inbox-fail (:demo::topic::State/durable s) 1 0 0) :inbox fresh)]
              ;; Do not claim Accepted n — the inbox write is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
@@ -187,10 +184,7 @@
            (:wat::kernel::assertion-failed! "topic publish: send stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "topic: redial" (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))))
               s' (:demo::topic::State :durable (:demo::topic-inbox-fail (:demo::topic::State/durable s) 0 1 0) :inbox fresh)]
              ;; Do not claim Accepted n — the inbox write is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
@@ -198,10 +192,7 @@
                sends none-alarms)))
          (:wat::kernel::RecvOutcome::TimedOut
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "topic: redial" (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))))
               s' (:demo::topic::State :durable (:demo::topic-inbox-fail (:demo::topic::State/durable s) 0 0 1) :inbox fresh)]
              ;; Do not claim Accepted n — the inbox write is unknowable. Accepted 0 is the caller's retry.
              (:wat::service::Outcome::Continue s'
@@ -232,10 +223,7 @@
              (_ (:wat::kernel::assertion-failed! "topic stats: inbox stats not Ok" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "topic: redial" (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))))
               s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
              ;; Conservative: not drained. -1 means unread (ticks-of already uses it).
              ;; Do not invent a depth we did not read.
@@ -246,16 +234,13 @@
            (:wat::kernel::assertion-failed! "topic stats: stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "topic: redial" (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))))
               s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)]
              ;; Conservative: not drained. -1 means unread (ticks-of already uses it).
              ;; Do not invent a depth we did not read.
              (:wat::service::Outcome::Continue s'
                (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1 -1 -1)))
-               sends none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s))) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)] (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1 -1 -1))) sends none-alarms))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))])
+               sends none-alarms))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::service::redial-failed! "topic: redial" (:wat::kernel::connect (:demo::topic::Record/inbox-addr (:demo::topic::State/durable s)))) s' (:demo::topic::State :durable (:demo::topic::State/durable s) :inbox fresh)] (:wat::service::Outcome::Continue s' (:wat::core::Some (:demo::Topic::Reply::Stats (:demo::Topic::StatsResponse::Ok -1 -1 -1 -1 -1 -1 -1))) sends none-alarms))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))])
 
 ;; Rebuild durable with exactly one of the three inbox-send failure counters
 ;; incremented. Called from the arm that already matched Lost/Closed/TimedOut.
@@ -424,9 +409,7 @@
                  (:wat::core::or (:wat::core::= poisoned "closed")
                                 (:wat::core::= poisoned "malformed")))
         inbox' (:wat::core::if tore?
-                 (:wat::core::match (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                   ((:wat::kernel::ConnectOutcome::Connected p) p)
-                   (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                 (:wat::service::redial-failed! "topic-worker: redial inbox" (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec)))
                  old)
         hits' (:wat::core::if tore?
                 (:wat::i64::+ (:demo::topic-worker::Record/disrupt-hits rec) 1)
@@ -543,10 +526,7 @@
                                   ;; to 0 so NOTHING in this tick is acked — visibility
                                   ;; redelivers; Seen absorbs whatever already landed.
                                   (:wat::core::let
-                                    [fresh (:wat::core::match
-                                             (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i))
-                                             ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                             (_ (:wat::kernel::assertion-failed! "topic-worker: redial sub failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                                    [fresh (:wat::service::redial-failed! "topic-worker: redial sub" (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i)))
                                      ss' (:wat::core::foldl
                                            (:wat::core::fn
                                              [bacc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
@@ -564,10 +544,7 @@
                                   ;; to 0 so NOTHING in this tick is acked — visibility
                                   ;; redelivers; Seen absorbs whatever already landed.
                                   (:wat::core::let
-                                    [fresh (:wat::core::match
-                                             (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i))
-                                             ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                             (_ (:wat::kernel::assertion-failed! "topic-worker: redial sub failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                                    [fresh (:wat::service::redial-failed! "topic-worker: redial sub" (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i)))
                                      ss' (:wat::core::foldl
                                            (:wat::core::fn
                                              [bacc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
@@ -577,7 +554,7 @@
                                                (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j))))
                                            (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])])
                                            (:wat::core::range 0 nsubs))]
-                                    (:wat::core::Tuple ss' 0))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic-worker: redial sub failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) ss' (:wat::core::foldl (:wat::core::fn [bacc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) j <- :wat::core::i64] -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::conj bacc (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j)))) (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::range 0 nsubs))] (:wat::core::Tuple ss' 0))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))
+                                    (:wat::core::Tuple ss' 0))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::service::redial-failed! "topic-worker: redial sub" (:wat::kernel::connect (:wat::core::nth (:demo::topic-worker::Record/sub-addrs rec) i))) ss' (:wat::core::foldl (:wat::core::fn [bacc <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) j <- :wat::core::i64] -> (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::conj bacc (:wat::core::if (:wat::core::= j i) fresh (:wat::core::nth ss j)))) (:wat::core::Vector :- [(:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]) (:wat::core::range 0 nsubs))] (:wat::core::Tuple ss' 0))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))
                       ;; ⛔ Seed `ok` with nitems, but 0 when there are NO subscribers:
                       ;; with nowhere to deliver there is nothing to consume, and the
                       ;; inbox entry must survive rather than be silently dropped.
@@ -609,22 +586,13 @@
                              (:queue::Queue::AckRequest :queue "inbox" :ids ack-ids))
                            ((:wat::kernel::RecvOutcome::Message _ar) inbox)
                            ((:wat::kernel::RecvOutcome::Lost _cause)
-                             (:wat::core::match
-                               (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                               ((:wat::kernel::ConnectOutcome::Connected p) p)
-                               (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                             (:wat::service::redial-failed! "topic-worker: redial inbox" (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))))
                            (:wat::kernel::RecvOutcome::Stopped
                              (:wat::kernel::assertion-failed! "topic-worker: ack stopped" :wat::core::None :wat::core::None))
                            (:wat::kernel::RecvOutcome::Closed
-                             (:wat::core::match
-                               (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                               ((:wat::kernel::ConnectOutcome::Connected p) p)
-                               (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                             (:wat::service::redial-failed! "topic-worker: redial inbox" (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))))
                            (:wat::kernel::RecvOutcome::TimedOut
-                             (:wat::core::match
-                               (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                               ((:wat::kernel::ConnectOutcome::Connected p) p)
-                               (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
+                             (:wat::service::redial-failed! "topic-worker: redial inbox" (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec)))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
                   s' (:demo::topic-worker::State
                        :durable rec
                        :inbox inb2
@@ -635,10 +603,7 @@
              (_ (:wat::kernel::assertion-failed! "topic-worker: receive not Ok" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "topic-worker: redial inbox" (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec)))
               s' (:demo::topic-worker::State :durable rec :inbox fresh :subs subs)]
              (:wat::service::SelfOutcome::Continue s'
                none-sends
@@ -647,14 +612,11 @@
            (:wat::kernel::assertion-failed! "topic-worker: receive stopped" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "topic-worker: redial inbox" (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec)))
               s' (:demo::topic-worker::State :durable rec :inbox fresh :subs subs)]
              (:wat::service::SelfOutcome::Continue s'
                none-sends
-               [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "topic-worker: redial inbox failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:demo::topic-worker::State :durable rec :inbox fresh :subs subs)] (:wat::service::SelfOutcome::Continue s' none-sends [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))])
+               [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::service::redial-failed! "topic-worker: redial inbox" (:wat::kernel::connect (:demo::topic-worker::Record/inbox-addr rec))) s' (:demo::topic-worker::State :durable rec :inbox fresh :subs subs)] (:wat::service::SelfOutcome::Continue s' none-sends [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))])
 
 ;; ── parent-side helpers ────────────────────────────────────────────────────────
 (:wat::core::defn :demo::dial-topic

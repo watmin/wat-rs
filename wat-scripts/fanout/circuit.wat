@@ -547,9 +547,7 @@
                  (:wat::core::or (:wat::core::= poisoned "closed")
                                 (:wat::core::= poisoned "malformed")))
         seen' (:wat::core::if tore?
-                (:wat::core::match (:wat::kernel::connect (:fanout::worker::Record/seen-addr rec))
-                  ((:wat::kernel::ConnectOutcome::Connected p) p)
-                  (_ (:wat::kernel::assertion-failed! "fanout worker: redial seen failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                (:wat::service::redial-failed! "fanout worker: redial seen" (:wat::kernel::connect (:fanout::worker::Record/seen-addr rec)))
                 old)
         hits' (:wat::core::if tore?
                 (:wat::i64::+ (:fanout::worker::Record/disrupt-hits rec) 1)
@@ -647,9 +645,7 @@
                                     envs)
                               redial (:wat::core::fn []
                                         -> (:wat::kernel::Peer :- [:fanout::Seen::Op :fanout::Seen::Reply])
-                                        (:wat::core::match (:wat::kernel::connect addr)
-                                          ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                          (_ (:wat::kernel::assertion-failed! "fanout worker: redial seen failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                                        (:wat::service::redial-failed! "fanout worker: redial seen" (:wat::kernel::connect addr)))
                               inert-check (:fanout::Seen::Reply::Check
                                             (:fanout::Seen::CheckResponse::Ok
                                               (:wat::core::Vector :- [:fanout::Seen::Verdict])))
@@ -820,10 +816,7 @@
                                                     nil)
                                             redial-q (:wat::core::fn []
                                                         -> (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
-                                                        (:wat::core::match
-                                                          (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))
-                                                          ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                                          (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                                                        (:wat::service::redial-failed! "fanout worker: redial queue" (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))))
                                             inert-ack (:queue::Queue::Reply::Ack (:queue::Queue::AckResponse::Ok))
                                             ack-op (:queue::Queue::Op::Ack
                                                       (:queue::Queue::AckRequest :queue name :ids ids))
@@ -981,28 +974,19 @@
              (_ (:wat::kernel::assertion-failed! "fanout worker: receive not Ok" :wat::core::None :wat::core::None))))
          ((:wat::service::CallOutcome::Lost _c)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "fanout worker: redial queue" (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec)))
               s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
              (:wat::service::SelfOutcome::Continue s'
                (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
          ((:wat::service::CallOutcome::Closed)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "fanout worker: redial queue" (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec)))
               s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
              (:wat::service::SelfOutcome::Continue s'
                (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
          ((:wat::service::CallOutcome::DeadlineFired)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "fanout worker: redial queue failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "fanout worker: redial queue" (:wat::kernel::connect (:fanout::worker::Record/queue-addr rec)))
               s' (:fanout::worker::State :durable rec :q fresh :seen seen :outcomes outs)]
              (:wat::service::SelfOutcome::Continue s'
                (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
@@ -1089,21 +1073,15 @@
                           ((:wat::kernel::RecvOutcome::Lost _cause)
                             ;; Do not record; do not retry the ack. Vis is the retry.
                             (:wat::core::Tuple
-                              (:wat::core::match
-                                (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))
-                                ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                              (:wat::service::redial-failed! "held-worker: redial" (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)))
                               outs0))
                           (:wat::kernel::RecvOutcome::Stopped
                             (:wat::kernel::assertion-failed! "held-worker: ack stopped" :wat::core::None :wat::core::None))
                           (:wat::kernel::RecvOutcome::Closed
                             ;; Do not record; do not retry the ack. Vis is the retry.
                             (:wat::core::Tuple
-                              (:wat::core::match
-                                (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))
-                                ((:wat::kernel::ConnectOutcome::Connected p) p)
-                                (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
-                              outs0)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) outs0)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
+                              (:wat::service::redial-failed! "held-worker: redial" (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)))
+                              outs0)) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::Tuple (:wat::service::redial-failed! "held-worker: redial" (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))) outs0)) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))
                     (:wat::core::Tuple q outs)
                     held)
             s' (:fanout::held-worker::State :durable rec
@@ -1132,10 +1110,7 @@
                  (_ (:wat::kernel::assertion-failed! "held-worker: receive not Ok" :wat::core::None :wat::core::None))))
              ((:wat::kernel::RecvOutcome::Lost _cause)
                (:wat::core::let
-                 [fresh (:wat::core::match
-                          (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))
-                          ((:wat::kernel::ConnectOutcome::Connected p) p)
-                          (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                 [fresh (:wat::service::redial-failed! "held-worker: redial" (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)))
                   s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)]
                  (:wat::service::SelfOutcome::Continue s'
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])))
@@ -1143,13 +1118,10 @@
                (:wat::kernel::assertion-failed! "held-worker: receive stopped" :wat::core::None :wat::core::None))
              (:wat::kernel::RecvOutcome::Closed
                (:wat::core::let
-                 [fresh (:wat::core::match
-                          (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))
-                          ((:wat::kernel::ConnectOutcome::Connected p) p)
-                          (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+                 [fresh (:wat::service::redial-failed! "held-worker: redial" (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)))
                   s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)]
                  (:wat::service::SelfOutcome::Continue s'
-                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::core::match (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec)) ((:wat::kernel::ConnectOutcome::Connected p) p) (_ (:wat::kernel::assertion-failed! "held-worker: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))) s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)] (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))])
+                   (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) (:wat::kernel::RecvOutcome::TimedOut (:wat::core::let [fresh (:wat::service::redial-failed! "held-worker: redial" (:wat::kernel::connect (:fanout::held-worker::Record/queue-addr rec))) s' (:fanout::held-worker::State :durable rec :q fresh :outcomes outs :held held)] (:wat::service::SelfOutcome::Continue s' (:wat::core::Vector :- [(:wat::service::Directed :- [:fanout::Worker::Reply])]) [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)]))) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None)))))))])
 
 ;; ── parent-side helpers (owner thread; Handles stay in :user::run's let) ────────
 (:wat::core::defn :fanout::qname [i <- :wat::core::i64] -> :wat::core::String

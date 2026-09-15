@@ -245,9 +245,7 @@
           (:wat::core::let
             [store-addr (:queue::queue::Record/store-addr record)
              dial-store (:wat::core::fn [] -> (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])
-                           (:wat::core::match (:wat::kernel::connect store-addr)
-                             ((:wat::kernel::ConnectOutcome::Connected p) p)
-                             (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None))))
+                           (:wat::service::redial-failed! "queue: redial" (:wat::kernel::connect store-addr)))
              store (:wat::core::match (:wat::kernel::connect store-addr)
                      ((:wat::kernel::ConnectOutcome::Connected p) p)
                      ((:wat::kernel::ConnectOutcome::Refused c)
@@ -826,10 +824,7 @@
                (:wat::kernel::assertion-failed! "queue.send: store put RequestMalformed" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "queue: redial" (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
               n-scan (:wat::core::count rows)
               landed (count-landed fresh q rows)
@@ -862,10 +857,7 @@
            (:wat::kernel::assertion-failed! "queue.send: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "queue: redial" (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
               n-scan (:wat::core::count rows)
               landed (count-landed fresh q rows)
@@ -896,10 +888,7 @@
                none-alarms)))
          (:wat::kernel::RecvOutcome::TimedOut
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "queue: redial" (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))))
               none-alarms (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])])
               n-scan (:wat::core::count rows)
               landed (count-landed fresh q rows)
@@ -1292,10 +1281,7 @@
                (:wat::kernel::assertion-failed! "queue.ack: store delete RequestMalformed" :wat::core::None :wat::core::None))))
          ((:wat::kernel::RecvOutcome::Lost _cause)
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "queue: redial" (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))))
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -1325,10 +1311,7 @@
            (:wat::kernel::assertion-failed! "queue.ack: stop requested — the store peer was ALIVE" :wat::core::None :wat::core::None))
          (:wat::kernel::RecvOutcome::Closed
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "queue: redial" (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))))
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh
@@ -1356,10 +1339,7 @@
                (:wat::core::Vector :- [(:wat::service::Alarm :- [:queue::queue::Op])]))))
          (:wat::kernel::RecvOutcome::TimedOut
            (:wat::core::let
-             [fresh (:wat::core::match
-                      (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s)))
-                      ((:wat::kernel::ConnectOutcome::Connected p) p)
-                      (_ (:wat::kernel::assertion-failed! "queue: redial failed — peer is dead, not a broken pipe" :wat::core::None :wat::core::None)))
+             [fresh (:wat::service::redial-failed! "queue: redial" (:wat::kernel::connect (:queue::queue::Record/store-addr (:queue::queue::State/durable s))))
               s' (:queue::queue::State
                     :durable (:queue::queue::State/durable s)
                     :store fresh

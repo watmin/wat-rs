@@ -4184,6 +4184,36 @@
     ((:wat::service::GateOutcome::Gone _) nil)
     ((:wat::service::GateOutcome::GaveUp _ _) nil)))
 
+;; redial-failed! — a dial's three failures are three worlds. require-stopped's
+;; shape: the whole outcome in, the peer out on Connected, a raise that NAMES
+;; the variant and CARRIES the cause on the rest. A `_` wildcard that says
+;; "peer is dead" for all three is the masking wat/service.wat:2549 forbids.
+;; Rejected is a STALE ADDRESS (answering pid ≠ minter pid), not a death.
+(:wat::core::defn :wat::service::redial-failed! :- [I O]
+  [site <- :wat::core::String
+   o    <- (:wat::kernel::ConnectOutcome :- [:I :O])]
+  -> (:wat::kernel::Peer :- [:I :O])
+  (:wat::core::match o
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)
+      (:wat::kernel::assertion-failed!
+        (:wat::string::interpolate
+          "{site}: dial REFUSED (nothing listening): {cause}"
+          :site site :cause (:wat::kernel::Failure/message c))
+        :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c)
+      (:wat::kernel::assertion-failed!
+        (:wat::string::interpolate
+          "{site}: dial REJECTED — a DIFFERENT process holds that address (stale capability, NOT a death): {cause}"
+          :site site :cause (:wat::kernel::Failure/message c))
+        :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)
+      (:wat::kernel::assertion-failed!
+        (:wat::string::interpolate
+          "{site}: dial FAILED (io error reading peer-cred): {cause}"
+          :site site :cause (:wat::kernel::Failure/message c))
+        :wat::core::None :wat::core::None))))
+
 ;; ServiceEvent::Lost carries Failure. RecvOutcome::Lost wants LociDiedError.
 ;; The one Failure class string that must survive as a variant is Severed
 ;; (redial fails identically) — it is LociDiedError/message of Severed, the
