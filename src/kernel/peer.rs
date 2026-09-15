@@ -268,10 +268,14 @@ pub struct Peer {
     /// Receive endpoint (transport-erased; `Send` required; `as_any` for `select'` downcast).
     pub(crate) rx: Box<dyn crate::comms::CommReceiver<crate::value::Value> + Send>,
     /// The address this peer was DIALED FROM, when it was dialed at all.
-    /// `None` for an accepted peer (the remote bound no listener — storing the
-    /// client's autobind name would claim a redial that cannot work), a self-peer,
-    /// a dead sentinel, and every thread-tier peer (no socket address exists).
-    pub(crate) dialed_from: Option<crate::kernel::address::SocketAddress>,
+    /// `None` for an accepted peer (the remote bound no listener), a self-peer,
+    /// and a dead sentinel. A *dialed* thread-tier peer stores `DialedFrom::Thread`
+    /// — ThreadAddress exists; stone 1 was wrong to say none does.
+    pub(crate) dialed_from: Option<crate::kernel::address::DialedFrom>,
+    /// How many times this handle's cell has been re-established after a
+    /// fired deadline. 0 at construction; `replace-peer` increments. The
+    /// observation that makes an in-place swap visible (STOP-1).
+    pub(crate) redials: u64,
 }
 
 /// Reserved sentinel — the wire form of the best-effort, reason-free
@@ -345,13 +349,16 @@ impl Peer {
     pub fn from_thread(
         tx: crate::comms::thread::Sender<crate::value::Value>,
         rx: crate::comms::thread::Receiver<crate::value::Value>,
+        // `Some` only at the dialer (`ThreadAddress::connect`, where `self` IS the
+        // address). Every other site must pass `None` deliberately.
+        dialed_from: Option<crate::kernel::address::ThreadAddress>,
     ) -> Self {
         // Both thread::Sender<Value> and thread::Receiver<Value> are Send.
-        // Thread tier has no socket address — None is the constructor, not a defaulted param.
         Self {
             tx: PeerTx::Thread(Box::new(tx)),
             rx: Box::new(rx),
-            dialed_from: None,
+            dialed_from: dialed_from.map(crate::kernel::address::DialedFrom::Thread),
+            redials: 0,
         }
     }
 
@@ -374,13 +381,14 @@ impl Peer {
         Self {
             tx: PeerTx::Socket(Box::new(tx)),
             rx: Box::new(rx),
-            dialed_from,
+            dialed_from: dialed_from.map(crate::kernel::address::DialedFrom::Socket),
+            redials: 0,
         }
     }
 
     /// The address this peer was dialed from, if it was dialed. A peek: does not
     /// move the field out of the peer.
-    pub(crate) fn dialed_from(&self) -> Option<&crate::kernel::address::SocketAddress> {
+    pub(crate) fn dialed_from(&self) -> Option<&crate::kernel::address::DialedFrom> {
         self.dialed_from.as_ref()
     }
 

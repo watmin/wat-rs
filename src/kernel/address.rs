@@ -94,8 +94,28 @@ pub trait CommAddress: Send + Sync {
 /// the rendezvous `tx` — blocking until the server's `accept'` is ready.
 ///
 /// Verbatim body from the former thread arm of `eval_connect_prime`.
+#[derive(Clone)]
 pub struct ThreadAddress {
     pub(crate) tx: crate::comms::thread::Sender<Value>,
+}
+
+/// The address a `Peer` was dialed from — socket or thread. `None` on the
+/// peer means it was not dialed (accepted / self / timer).
+#[derive(Clone)]
+pub enum DialedFrom {
+    Socket(SocketAddress),
+    Thread(ThreadAddress),
+}
+
+impl DialedFrom {
+    pub(crate) fn to_address(&self) -> Address {
+        match self {
+            DialedFrom::Socket(sa) => {
+                Address::from_socket_name_bytes(sa.name.clone(), sa.minter_pid)
+            }
+            DialedFrom::Thread(ta) => Address::from_thread(ta.tx.clone()),
+        }
+    }
 }
 
 impl CommAddress for ThreadAddress {
@@ -110,8 +130,10 @@ impl CommAddress for ThreadAddress {
         // resp: server sends (R) → client receives
         let (req_tx, req_rx) = crate::comms::thread::pair::<Value>();
         let (resp_tx, resp_rx) = crate::comms::thread::pair::<Value>();
-        // Wrap the client Peer' end on THIS thread (custody holds).
-        let client_peer = Peer::from_thread(req_tx, resp_rx);
+        // ⭐ THE THREAD DIALER — `self` IS the address. Stone 1 stored None here
+        // ("none exists"); ThreadAddress exists. Clone it into the peer so a
+        // fired deadline can redial on this tier too.
+        let client_peer = Peer::from_thread(req_tx, resp_rx, Some(self.clone()));
         // Build the connect-request: the server's raw halves packed as a Value::Tuple.
         let connect_req = Value::Tuple(Arc::new(vec![
             crate::channel::receiver_from_comms(req_rx),

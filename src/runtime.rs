@@ -20481,8 +20481,9 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
     use crate::rust_deps::marshal::make_rust_opaque;
     Ok(make_rust_opaque(
         PEER_TYPE_PATH,
+        // Thread-tier accept wrap — server side, not a dial. None, deliberately.
         Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(
-            resp_tx, req_rx,
+            resp_tx, req_rx, None,
         )))),
     ))
 }
@@ -26382,10 +26383,10 @@ pub(crate) fn eval_peer_wire(
 /// `(:wat::kernel::dialed-from peer)` — a-peer-remembers-its-address.
 ///
 /// Non-consuming peek of the address a unified `Peer` was dialed from.
-/// `Some` only for a process-tier *dialed* peer (`SocketAddress::connect`
-/// stored `self`). `None` for an accepted peer, a self-peer, a timer/dead
-/// sentinel, every thread-tier peer, and the Thread/Process lineage handles
-/// (none of those was a dial). `with_ref`, never `take`.
+/// `Some` for a *dialed* peer on either tier (`SocketAddress::connect` /
+/// `ThreadAddress::connect` stored `self`). `None` for an accepted peer, a
+/// self-peer, a timer/dead sentinel, and the Thread/Process lineage handles.
+/// `with_ref`, never `take`.
 pub(crate) fn eval_dialed_from(
     args: &[WatAST],
     list_span: &Span,
@@ -26416,7 +26417,7 @@ pub(crate) fn eval_dialed_from(
                     list_span.clone(),
                 )?;
             let stored = cell
-                .with_ref(OP, |opt_peer| -> Result<Option<crate::kernel::address::SocketAddress>, EvalBreak> {
+                .with_ref(OP, |opt_peer| -> Result<Option<crate::kernel::address::DialedFrom>, EvalBreak> {
                     match opt_peer {
                         None => Err(RuntimeError::new(
                             list_span.clone(),
@@ -26432,14 +26433,10 @@ pub(crate) fn eval_dialed_from(
                 .map_err(Into::<EvalBreak>::into)??;
             match stored {
                 None => Ok(Value::Option(std::sync::Arc::new(None))),
-                Some(sa) => {
-                    use crate::kernel::address::Address;
+                Some(df) => {
                     use crate::kernel::spawn::ADDRESS_TYPE_PATH;
                     use crate::rust_deps::marshal::make_rust_opaque;
-                    let addr_val = make_rust_opaque(
-                        ADDRESS_TYPE_PATH,
-                        Address::from_socket_name_bytes(sa.name, sa.minter_pid),
-                    );
+                    let addr_val = make_rust_opaque(ADDRESS_TYPE_PATH, df.to_address());
                     Ok(Value::Option(std::sync::Arc::new(Some(addr_val))))
                 }
             }
@@ -26455,6 +26452,171 @@ pub(crate) fn eval_dialed_from(
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "peer ((Peer :- [I O]) | (Thread :- [I O]) | (Process :- [I O]))",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::replace-peer dest src)` — a-fired-deadline-hands-back-a-live-peer.
+///
+/// Move the `Peer` out of `src`'s cell into `dest`'s cell, dropping dest's
+/// previous peer (it holds the stale fd). Increments `redials` on the
+/// replacement. Both cells must be live `PEER_TYPE_PATH` on this thread
+/// (`ThreadOwnedCell` is thread-owned). Returns the new redial count.
+pub(crate) fn eval_replace_peer(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::replace-peer";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let dest_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let src_val = eval_inner(&args[1], env, sym)?.value_owned();
+
+    let dest_cell: &crate::kernel::spawn::PeerCell = match &dest_val {
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
+            crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?
+        }
+        other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "peer (unified (Peer :- [I O]))",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+    let src_cell: &crate::kernel::spawn::PeerCell = match &src_val {
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
+            crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?
+        }
+        other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "peer (unified (Peer :- [I O]))",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+
+    let n = dest_cell
+        .with_mut(OP, list_span.clone(), |opt_dest| -> Result<i64, EvalBreak> {
+            src_cell
+                .with_mut(OP, list_span.clone(), |opt_src| -> Result<i64, EvalBreak> {
+                    let mut fresh = opt_src.take().ok_or_else(|| {
+                        RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "replace-peer: source peer already closed".into(),
+                            },
+                        )
+                    })?;
+                    let n = match opt_dest.take() {
+                        Some(old) => old.redials.saturating_add(1),
+                        None => {
+                            return Err(RuntimeError::new(
+                                list_span.clone(),
+                                RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "replace-peer: dest peer already closed".into(),
+                                },
+                            )
+                            .into());
+                        }
+                    };
+                    fresh.redials = n;
+                    *opt_dest = Some(fresh);
+                    Ok(n as i64)
+                })
+                .map_err(Into::<EvalBreak>::into)?
+        })
+        .map_err(Into::<EvalBreak>::into)??;
+    Ok(Value::i64(n))
+}
+
+/// `(:wat::kernel::redials peer)` — how many times this handle has been
+/// re-established. Peek (`with_ref`). 0 at construction.
+pub(crate) fn eval_redials(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::redials";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    match &peer_val {
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
+            let cell: &crate::kernel::spawn::PeerCell =
+                crate::rust_deps::marshal::downcast_ref_opaque(
+                    inner,
+                    crate::kernel::spawn::PEER_TYPE_PATH,
+                    OP,
+                    list_span.clone(),
+                )?;
+            let n = cell
+                .with_ref(OP, |opt_peer| -> Result<i64, EvalBreak> {
+                    match opt_peer {
+                        None => Err(RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        )
+                        .into()),
+                        Some(peer) => Ok(peer.redials as i64),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(Value::i64(n))
+        }
+        other => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (unified (Peer :- [I O]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -27436,7 +27598,8 @@ pub(crate) fn eval_kernel_after(
         let (dead_tx, dead_rx) = crate::comms::thread::pair::<Value>();
         drop(dead_rx);
 
-        let peer = crate::kernel::peer::Peer::from_thread(dead_tx, output_rx);
+        // Dead sentinel / timer: not a dial. None, deliberately.
+        let peer = crate::kernel::peer::Peer::from_thread(dead_tx, output_rx, None);
         let cell: crate::kernel::spawn::PeerCell =
             std::sync::Arc::new(ThreadOwnedCell::new(Some(peer)));
         Ok(make_rust_opaque(PEER_TYPE_PATH, cell))

@@ -440,3 +440,56 @@ pub(crate) fn eval_dialed_from(
 ) -> Result<Value, EvalBreak> {
     crate::runtime::eval_dialed_from(std::slice::from_ref(peer), list_span, env, sym)
 }
+
+/// `(:wat::kernel::replace-peer dest src)` → `:wat::core::i64`.
+/// Move `src`'s live peer into `dest`'s cell, dropping dest's previous
+/// peer (the stale fd). Returns the new redial count. The observation
+/// that makes an in-place swap visible is `redials`.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Nondeterministic
+/// @Total         Unreviewed
+/// @Category      Resource
+/// @arg     dest ((Peer :- [I O])) the handle whose cell is replaced
+/// @arg     src  ((Peer :- [I O])) the fresh peer, consumed
+/// @ret     :wat::core::i64 the dest handle's redial count after the swap
+/// @example-norun (:wat::kernel::replace-peer dest fresh) #=> 1
+// No TypeScheme — `infer_replace_peer` threads I,O from both peers.
+//
+// Deciding line for `@Category Resource`: mutates a handle's cell, drops
+// the previous peer (an fd). Not a field read.
+//
+// ⛔ The old peer is dropped, not leaked.
+#[wat_intrinsic(":wat::kernel::replace-peer")]
+pub(crate) fn eval_replace_peer(
+    dest: &WatAST,
+    src: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_replace_peer(&[dest.clone(), src.clone()], list_span, env, sym)
+}
+
+/// `(:wat::kernel::redials peer)` → `:wat::core::i64`.
+/// How many times this handle has been re-established. Peek.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Total         Unreviewed
+/// @Category      Projection
+/// @arg     peer ((Peer :- [I O])) the handle to read
+/// @ret     :wat::core::i64 0 at construction; increments on replace-peer
+/// @example-norun (:wat::kernel::redials c) #=> 0
+// No TypeScheme — `infer_redials`. `with_ref`, never `take`.
+#[wat_intrinsic(":wat::kernel::redials")]
+pub(crate) fn eval_redials(
+    peer: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_redials(std::slice::from_ref(peer), list_span, env, sym)
+}

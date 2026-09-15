@@ -221,7 +221,8 @@ impl CommListener for CrossbeamListener {
             }
         };
         // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
-        Ok(Ok(Peer::from_thread(resp_tx, req_rx)))
+        // Accepted — None. The remote bound no listener.
+        Ok(Ok(Peer::from_thread(resp_tx, req_rx, None)))
     }
 }
 

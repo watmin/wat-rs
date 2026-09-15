@@ -18,8 +18,8 @@ fn a_peer_remembers_its_address() {
     };
     assert_eq!(
         s.as_str(),
-        "client-proc=Some;accepted-proc=None;fresh=Some;orig=10;fresh-reply=14;client-thread=None;accepted-thread=None;thread-orig=10;timer=None",
-        "dialed process-tier is Some; accepted/thread/timer are None; both peers still serve after the peek; the remembered address dials a second connection"
+        "client-proc=Some;accepted-proc=None;fresh=Some;orig=10;fresh-reply=14;client-thread=Some;accepted-thread=None;thread-orig=10;timer=None",
+        "dialed process- AND thread-tier are Some; accepted/timer are None; both peers still serve after the peek; the remembered address dials a second connection"
     );
 }
 

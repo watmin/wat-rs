@@ -4719,6 +4719,22 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            ":wat::kernel::replace-peer" => {
+                let (val, mut errs) = infer_replace_peer(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::redials" => {
+                let (val, mut errs) = infer_redials(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
             // — STOP-1: `signal` is `(Process :- [I O])`-ONLY (unlike close', not shared with
             // Thread'/Peer' — a thread peer has no process to signal). See infer_signal.
@@ -12242,6 +12258,109 @@ fn infer_dialed_from(
             let t = fresh.fresh();
             CheckResult::partial_with(t, local_errors)
         }
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_replace_peer` is INTRINSIC (projective).
+/// Type-check `(:wat::kernel::replace-peer dest src)` — both peers share I,O.
+/// Result: `:wat::core::i64` (the dest handle's redial count after the swap).
+fn infer_replace_peer(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::replace-peer";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let ret = || TypeExpr::Path(":wat::core::i64".into());
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(ret(), local_errors);
+    }
+    let dest_io = project_peer_io(&args[0..1], head_span, OP, env, locals, fresh, subst, &mut local_errors);
+    let src_io = project_peer_io(&args[1..2], head_span, OP, env, locals, fresh, subst, &mut local_errors);
+    match (dest_io, src_io) {
+        (Ok((di, do_)), Ok((si, so))) => {
+            if unify(&di, &si, subst, env.types()).is_err() {
+                local_errors.push(CheckError {
+                    span: args[1].span().clone(),
+                    kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "src".into(),
+                        expected: format_type(&apply_subst(&di, subst)),
+                        got: format_type(&apply_subst(&si, subst)),
+                    },
+                });
+            }
+            if unify(&do_, &so, subst, env.types()).is_err() {
+                local_errors.push(CheckError {
+                    span: args[1].span().clone(),
+                    kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "src".into(),
+                        expected: format_type(&apply_subst(&do_, subst)),
+                        got: format_type(&apply_subst(&so, subst)),
+                    },
+                });
+            }
+            if local_errors.is_empty() {
+                CheckResult::ok(ret())
+            } else {
+                CheckResult::partial_with(ret(), local_errors)
+            }
+        }
+        _ => CheckResult::partial_with(ret(), local_errors),
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_redials` is INTRINSIC (∀-parametric).
+/// Type-check `(:wat::kernel::redials peer)` — result `:wat::core::i64`.
+fn infer_redials(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::redials";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let ret = || TypeExpr::Path(":wat::core::i64".into());
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(ret(), local_errors);
+    }
+    match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+        Ok(_) => {
+            if local_errors.is_empty() {
+                CheckResult::ok(ret())
+            } else {
+                CheckResult::partial_with(ret(), local_errors)
+            }
+        }
+        Err(()) => CheckResult::partial_with(ret(), local_errors),
     }
 }
 

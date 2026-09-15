@@ -4197,6 +4197,30 @@
     :wat::kernel::LociDiedError::Severed
     :wat::kernel::LociDiedError::Disconnected))
 
+;; When the timer wins, the in-flight reply is abandoned on the wire. Redial
+;; from `dialed-from` and `replace-peer` so every holder of the handle is
+;; working. `DeadlineFired` now PROMISES a live handle; a failed redial is
+;; `Lost`. `None` (accepted / self / timer — a client never calls through
+;; those) is also `Lost`, not `DeadlineFired`.
+(:wat::core::defn :wat::service::deadline-reestablish :- [I O]
+  [peer <- (:wat::kernel::Peer :- [:I :O])]
+  -> (:wat::service::CallOutcome :- [:O])
+  (:wat::core::match (:wat::kernel::dialed-from peer)
+    ((:wat::core::Some addr)
+      (:wat::core::match (:wat::kernel::connect addr)
+        ((:wat::kernel::ConnectOutcome::Connected fresh)
+          (:wat::core::let
+            [_n (:wat::kernel::replace-peer peer fresh)]
+            (:wat::service::CallOutcome::DeadlineFired)))
+        ((:wat::kernel::ConnectOutcome::Refused _c)
+          (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected))
+        ((:wat::kernel::ConnectOutcome::Rejected _c)
+          (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected))
+        ((:wat::kernel::ConnectOutcome::Failed _c)
+          (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected))))
+    (:wat::core::None
+      (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected))))
+
 ;; call-by-deadline — one client round-trip with a timer. idx 0 is Answered;
 ;; idx 1 is DeadlineFired. Lost keeps its cause; Closed is the clean EOF.
 ;; `inert` is the timer's payload: the type demands a value, and it is never read.
@@ -4230,15 +4254,15 @@
           ((:wat::spawn::ServiceEvent::Message idx m)
             (:wat::core::if (:wat::i64::= idx 0)
               (:wat::service::CallOutcome::Answered m)
-              (:wat::service::CallOutcome::DeadlineFired)))
+              (:wat::service::deadline-reestablish peer)))
           ((:wat::spawn::ServiceEvent::Closed idx)
             (:wat::core::if (:wat::i64::= idx 0)
               (:wat::service::CallOutcome::Closed)
-              (:wat::service::CallOutcome::DeadlineFired)))
+              (:wat::service::deadline-reestablish peer)))
           ((:wat::spawn::ServiceEvent::Lost idx c)
             (:wat::core::if (:wat::i64::= idx 0)
               (:wat::service::CallOutcome::Lost (:wat::service::lost-cause-from-select c))
-              (:wat::service::CallOutcome::DeadlineFired)))
+              (:wat::service::deadline-reestablish peer)))
           (:wat::spawn::ServiceEvent::Shutdown
             (:wat::kernel::assertion-failed! "call-by-deadline: select shutdown" :wat::core::None :wat::core::None))
           ((:wat::spawn::ServiceEvent::Admin _msg)

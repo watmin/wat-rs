@@ -794,8 +794,9 @@ pub fn spawn_thread_peer(
             // Worker is (Peer' :- [O I]): tx=output_tx (worker→parent), rx=input_rx (parent→worker).
             let self_peer = make_rust_opaque(
                 PEER_TYPE_PATH,
+                // Self-peer: not a dial. None, deliberately.
                 Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(
-                    output_tx, input_rx,
+                    output_tx, input_rx, None,
                 )))),
             );
             // Hand the prog its self-peer ONCE — no apply-loop.
