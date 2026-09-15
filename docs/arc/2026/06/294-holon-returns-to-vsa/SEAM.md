@@ -21,8 +21,8 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `cb6437b1f` (= origin). In flight with grok: nothing yet —
-`BRIEF-5-replay-batch-2.md` (+ `EXPECTATIONS-5-replay-batch-2.md`) awaits the builder's pulsare.
+Stamp: written at HEAD `2bbd7ef66` (= origin). In flight with grok: nothing yet —
+`BRIEF-6-replay-batch-3.md` (+ `EXPECTATIONS-6-replay-batch-3.md`) awaits the builder's pulsare.
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
@@ -32,6 +32,7 @@ origin/grok-rete  37528f6e0   FROZEN — read with `git show`, never check it ou
 replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a2/2a4/2a4b/2a4c (tooling, CLOSED)
                               + batch 1 #11–#60 (CLOSED; floor 5495/5495, clippy 0, pushed)
                               + stone 3, the nested-program gate (CLOSED; floor 5502/5502, pushed)
+                              + batch 2 #61–#125 (CLOSED; folded per 5b; floor 5540/5540, pushed)
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -51,8 +52,13 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   recorded `wrap-nested-forms-*` migrations; `arc112_scheme_probe` shipped its worker. Verified by the
   orchestrator (floor 5502/5502), plus two probe headers and a dead parent worker fixed.
   `cf-norevoke`'s raise is HISTORY: the committed revoke test was fixed long ago (`Outcome.Bounced/Served`).
-- **Next: batch 2 #61–#125** (`BRIEF-5-replay-batch-2.md` + `EXPECTATIONS-5-…`): no `wat/` step; STOP-10 —
-  stone 3's gate runs with the census on every step whose binary or any `.wat` changed.
+- **Batch 2 is CLOSED** (SCORE-5, SCORE-5b; findings 20–21). 65 steps; the #125 checkpoint's two reds
+  (#95's keyword rows vs main's registry ratchet + `RETE_MODULES`; #108's doc vs main's doctest floor)
+  were repaired AFTER #125 — FOLDED into #95/#108 by 5b (proof: the rebuilt tip's tree is identical;
+  subjects unchanged). The step gate now also runs the library's unit tests + doctests (STOP-11).
+- **Next: batch 3 #126–#152** (`BRIEF-6-replay-batch-3.md` + `EXPECTATIONS-6-…`), ending before #153.
+  #126 re-expresses two MOVED homes (`src/edn_shim.rs` → `src/edn/render.rs`, `src/string_ops.rs` →
+  `src/string/mod.rs`) under the standing `.rs` rule — not a boundary (finding 21).
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
@@ -65,7 +71,9 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
 - **From #61 the gate adds (BRIEF-4b D):** the fast lint subset on every `.rs` step, and
   `scripts/replay/census.sh` + `--diff` whenever the binary or any `.wat` changed. **STOP-8:** a file
   rc 0 → non-zero that the step did not produce — a wall meeting the other side's content. Found at its
-  step, the repair is part of that step's commit.
+  step, the repair is part of that step's commit. **STOP-10** (stone 3): the nested-program gate runs with
+  the census and must stay green. **STOP-11** (5b, from #126): every `.rs` step also runs the library's
+  unit tests (`kind(lib)`) and the doctests.
 - **LATENT (RULED):** a `:wat::*` call head that exists on neither side is re-expressed with main's
   registered verb of the same meaning at that one site, logged `LATENT (c3fefc5ab)`; STOP-7 if none.
 - **Stdlib steps (2a4):** a step touching `wat/*.wat` converts in two phases (stdlib files with the
@@ -76,10 +84,16 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `stdlib-source-path?`, positional-ctor's `skip-path?` — assume it).
 - **A composition defect found late FOLDS into the step that needs it** (this branch becomes main; no
   knowingly-red REPLAY commit). Rebuild the later steps; prove it with `git diff <old-tip> <new-tip>`.
-- **Batches** (census `bootstrap/era/replay-plan/commits.tsv`): #61–#125 next; later batches END BEFORE
-  each commit needing a new policy — #126 and #278 modify a file main deleted; #153 #155 #157 #159 #278
-  #438 #440 #627 #628 #630 #635 #638 change grok's own codemods (a conversion policy is still owed);
-  #379 changes `wat/service.wat`, which positional-ctor deliberately skips (arc 296 M2 RESIDUE 1).
+- **Batches** (census `bootstrap/era/replay-plan/commits.tsv`): #126–#152 next; later batches END BEFORE
+  each commit needing a new policy —
+  - #153 #155 #157 #159 #278 #438 #440 #627 #628 #630 #635 #638 change grok's own codemods (a
+    conversion policy is still owed);
+  - #212 #278 edit files main DELETED for cause (`absent-on-main.tsv`, finding 21; 4-YES candidate: keep
+    main's deletion, drop grok's edit, log it — the builder's ruling is owed at #212);
+  - #377 #379 touch `wat/core.wat`/`wat/service.wat`, whose era `format`/`defservice` bodies STOP-9
+    will refuse; #379 also changes `wat/service.wat`, which positional-ctor skips (arc 296 M2 RESIDUE 1).
+  A step that edits a file main MOVED (`src/stdlib.rs`, `src/edn_shim.rs`, `src/string_ops.rs`) is the
+  standing `.rs` rule, not a boundary.
 - **End:** cross-check against `merge/grok-rete` (its 8 tree-wide-missing grok tests,
   `bootstrap/merge-audit/`), then floor + clippy, then main. The ignored-test NAMES in grok-rete's
   files must equal grok-rete's own at its tip.
@@ -95,7 +109,6 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
 - **2b's three:** unreachable refusal arms (`match_arm.rs`, `check.rs`); ~21 doc lines teach `::`; c03's
   `variadic-wrap` hardcodes `:wat::core::i64`.
 - `docs/…/278-rules-engine/probes/surface-field-dispatch.wat`: fixed when its grok-rete commit replays.
-- `tests/process/arc112_scheme_probe.wat:12`: unclassified (stone 3's D3).
 - The chain vs main's 28 CHAIN-FAILS: classify with `bootstrap/era/probe-K/classify.sh`.
 
 ## INSTRUMENTS — where they live
@@ -110,7 +123,7 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
 | the #60 probe, sites, old-tip census | `bootstrap/era/probe-T/` |
 | main-binary residual classifier | `bootstrap/era/probe-K/classify.sh` |
 | the door over the corpus / the one-step identity | `bootstrap/era/probe-R/corpus.sh`, `verify-refute2.sh` |
-| the replay census | `bootstrap/era/replay-plan/{commits,flags,stdlib-touch}.tsv`, `main-deleted.txt` |
+| the replay census | `bootstrap/era/replay-plan/{commits,flags,stdlib-touch}.tsv`; **`absent-on-main.tsv`** (the honest modify/delete census — `main-deleted.txt` missed MOVED files, finding 21) |
 | nested-program census | `bootstrap/era/probe-N/extract-forms2.wat` |
 
 A temporary Rust probe goes in `src/check.rs`'s tests module before `    fn decls(src: &str)` by SCRIPT,
@@ -137,6 +150,9 @@ on a stashed tree, then `git checkout -- src/check.rs`.
   batch 1 = #11–#60; the LATENT rule; the `convert.sh` speedup DROPPED (seconds are fine).
 - 2026-09-14: 2a4 (the door's stdlib mode + two-phase stdlib steps); 4b (fold the #60 repairs into
   #50/#60; a wall-driven recorded migration; the per-step census). All four 4-YES.
+- 2026-09-15: **no other branch is approached until grok-rete is proven a success** (the builder: "we are
+  not approaching another branch until we know grok-rete was a success"). "Success" is § THE REPLAY's
+  End. After it lands, the replay recipe becomes ONE playbook so the next branch starts at "batch 1".
 
 ---
 

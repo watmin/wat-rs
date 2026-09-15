@@ -584,6 +584,23 @@ the tip `07489fc1e` (the orchestrator's own run).
   not the addendum's never-existed class.
 - Routed: `BRIEF-5b-fold-the-two-late-repairs.md`.
 
+## Finding 21 — the deleted-file census was a subset: it missed every file main MOVED
+
+Preparing batch 3, `#126`'s biggest edit (`src/edn_shim.rs`, +147/−74) turned out to be to a file main
+deleted — `8ddccaaa3` ("EDN gets a home — five loose root files become src/edn/") — which
+`bootstrap/era/replay-plan/main-deleted.txt` did not list. That census counted a moved-and-reshaped file
+as a RENAME, so it could see only files main removed outright.
+- **The honest census asks no rename heuristic:** a file a step edits (status `M`) that exists at the fork
+  and not at main's tip — `bootstrap/era/replay-plan/absent-on-main.tsv`: 13 rows, 11 steps, 6 files. The
+  old census missed 4 of the 6.
+- **Two classes.** MOVED home — `src/stdlib.rs` (#22 #28 #30 #31 #36 #38 #41, all re-expressed on
+  `src/load/stdlib.rs` by the standing `.rs` rule; and #438), `src/string_ops.rs` and `src/edn_shim.rs`
+  (#126 → `src/string/mod.rs`, `src/edn/render.rs`): the standing rule, NOT a boundary. DELETED for cause
+  — #212's two `docs/arc/2026/05/130-…/complected-2026-05-02/*.wat` (main `c5f1ee487`, "every tracked
+  *.wat must READ") and #278's f64 bogus-head scratch probe (main `a3f24a5c3`, "blanket-dependents are
+  ZERO"); grok only annotates each (11, 10, 4 lines): a policy is owed at #212.
+- The boundary list was wrong in both directions: #126 is not a boundary; #212 is.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
