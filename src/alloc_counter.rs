@@ -45,33 +45,36 @@
 //! globals changed nothing it could measure (mean +5.5% → +5.8% — the same, i.e. noise). Do not
 //! read a green single-threaded grid as licence to reintroduce a hot global.
 //!
-//! ── ⛔⛔ IT IS PROCESS-GLOBAL, AND THAT IS NOT WHAT A SESSION CEILING NEEDS ────────────────────
+//! ── ⛔⛔ WHY THIS IS THREAD-LOCAL AND NOT PROCESS-GLOBAL ──────────────────────────────────────
 //!
-//! Builder, before this was wired to anything: *"this counter… its 'global' per session, right?…
-//! if i had 512 threads running… each with their own session… there's no conflict?"* **There is,
-//! and it is disqualifying for the use this was built for.**
+//! Builder, while this was still unwired: *"this counter… its 'global' per session, right?… if i
+//! had 512 threads running… each with their own session… there's no conflict?"* **There was, and
+//! it was disqualifying for the use this was built for.** The question is kept here because the
+//! answer is the module's shape, not a footnote to it.
 //!
 //! A rete session is THREAD-AFFINE by contract — `arm.rs`'s intern table is a `thread_local!` and
 //! its rune says *"Connection-thread affinity is the ZERO-MUTEX contract"*. So 512 threads means
-//! 512 independent sessions, and this counter reports **their sum**. A fixpoint that read it to
-//! decide "have I used too much" would:
+//! 512 independent sessions, and a process-global counter reports **their sum**. A ceiling reading
+//! that sum would:
 //!
-//!   1. **refuse the innocent** — a session is stopped because a SIBLING on another thread is
-//!      large; and worse,
-//!   2. **answer non-deterministically** — the same program, same input, different verdict
+//!   1. **refuse the innocent** — a session stopped because a SIBLING on another thread is large;
+//!      and worse,
+//!   2. **answer non-deterministically** — the same program, same input, a different verdict
 //!      depending on what other threads were doing and when. Determinism is a property this
 //!      substrate holds by construction, and a check like that would spend it.
 //!
-//! So this module is honest about what it measures: **a process fact, not a session fact.** It is
-//! correct for "how much has this PROCESS taken" and must not be read as "how much has this
-//! SESSION taken". The per-session ceiling needs per-session accounting — thread-local counting
-//! aligned with the affinity contract above, with the one caveat that a cross-thread `Arc` free
-//! decrements the freeing thread rather than the allocating one, so a thread-local net figure
-//! drifts exactly as far as values cross threads.
+//! So there is deliberately **no process-wide figure**. The counters are per-thread, which the
+//! affinity contract makes per-session. The one caveat, stated rather than hidden: a cross-thread
+//! `Arc` free decrements the FREEING thread, so a thread-local net figure drifts exactly as far as
+//! values cross threads — in the SAFE direction (see [`thread_bytes`]).
 //!
-//! ⚠ **NOTHING READS THESE COUNTERS YET.** They are installed and gated and deliberately unwired,
-//! because wiring them to the fixpoint is the mistake described above. See `RETE-OPEN-WORK.md`
-//! § "The order" item 8.
+//! ── WHAT READS THEM ──────────────────────────────────────────────────────────────────────────
+//!
+//! [`session_bytes`] is the session ceiling's one measurement, read at both doors a session grows
+//! through — `insert`/`insert-all` (`rete/kernel/insert.rs`) and the fixpoint's round boundary
+//! (`rete/kernel/fire/delta.rs`) — through the single shared check
+//! `rete::kernel::session::check_session_ceiling`. [`mark_session_origin`] is called at
+//! `arm-session`, which `compile-all` calls for every session it builds.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -105,6 +108,61 @@ thread_local! {
 /// dangerous direction and cannot happen: nothing charges this thread for another's allocation.
 pub fn thread_bytes() -> usize {
     THREAD_LIVE.try_with(|c| c.get()).unwrap_or(0)
+}
+
+thread_local! {
+    /// The reading of [`thread_bytes`] at which this thread's current session began, or `None`
+    /// when no session has begun here yet. `const { }` init for [`THREAD_LIVE`]'s reason exactly:
+    /// this is touched from the ceiling check on the insert hot path, and a lazily initialised
+    /// `thread_local!` allocates on first touch.
+    static SESSION_ORIGIN: Cell<Option<usize>> = const { Cell::new(None) };
+}
+
+/// Mark now as the zero point for the session being built on this thread.
+///
+/// Called from `arm-session`, which `compile-all` calls for every session it builds
+/// (`rete/kernel/arm.rs`; `stratify.rs` calls it *"the one door every rule passes"*).
+///
+/// ⚠ **THE ASSUMPTION, STATED RATHER THAN ASSUMED: one session per thread at a time.** A thread
+/// that builds a SECOND session re-bases, so the first stops being charged from its own start.
+/// This is not a new assumption — it is the same thread-affinity the intern table already runs on
+/// (`arm.rs`, the ZERO-MUTEX rune), and every shape this substrate supports is sequential per
+/// thread. **If that ever stops being true, this is the line that moves to a Session field** — and
+/// note that the move would fix only the re-basing, never the cross-charging: a thread-local
+/// counter cannot separate two sessions sharing a thread, wherever the origin is stored.
+pub fn mark_session_origin() {
+    let now = thread_bytes();
+    let _ = SESSION_ORIGIN.try_with(|c| c.set(Some(now)));
+}
+
+/// Bytes this thread has taken **since its session began** — the session ceiling's one measurement.
+///
+/// ── WHY A SESSION ORIGIN AND NOT A PER-CALL SNAPSHOT ─────────────────────────────────────────
+///
+/// The fixpoint used to snapshot [`thread_bytes`] at fire entry, which bounded ONE FIRE. The
+/// builder's ruling is that the **session** is the boundary: *"the session is the boundary — it may
+/// not consume more than the configured amount of memory, 1G by default… insert affects memory
+/// just as much."* A per-fire snapshot cannot express that, because it forgets everything staged
+/// before it — measured 2026-08-29: **2.5M facts inserted with no fire reached 4.0 GB against a
+/// 1 GiB contract, with no diagnostic at all.** Measuring from the session's own start is what
+/// makes the two doors (`insert` and the fixpoint) enforce ONE contract instead of two.
+///
+/// ⚠ **AN UNMARKED THREAD MARKS ITSELF HERE, and the alternatives are both wrong.** A `Session`
+/// record assembled by hand never passes `arm-session`, so it has no origin. Treating a missing
+/// origin as `0` would charge the session for everything else live on the thread and refuse the
+/// innocent; treating it as "unbounded" would leave a door with no ceiling at all. Marking on
+/// first sight is the honest third answer — *the session began the first time we saw it* — and it
+/// costs one `Cell` write, once.
+pub fn session_bytes() -> usize {
+    SESSION_ORIGIN
+        .try_with(|c| match c.get() {
+            Some(origin) => thread_bytes().saturating_sub(origin),
+            None => {
+                c.set(Some(thread_bytes()));
+                0
+            }
+        })
+        .unwrap_or(0)
 }
 
 /// `System`, plus two counters.

@@ -1354,3 +1354,58 @@ pub(crate) fn pmap_from_span(
             .map(|(k, v)| (k.clone(), v.clone())),
     )
 }
+
+// ── The session memory ceiling — ONE decision, two doors ─────────────────────
+
+/// A breach of `max-session-bytes`, as measured — the DECISION, without the diagnostic.
+///
+/// The two doors a session grows through (`insert`/`insert-all` and the fixpoint's round boundary)
+/// report a breach differently, because what they can honestly say about *how far the session had
+/// got* differs: rounds completed at one, facts staged at the other. What must NOT differ is
+/// whether a breach happened, so that judgement is made once, here, and each door dresses it.
+pub(crate) struct SessionCeilingBreach {
+    pub limit: usize,
+    pub used: usize,
+}
+
+/// Has this session passed its configured byte ceiling?
+///
+/// ⛔ **BOTH DOORS CALL THIS, AND THAT IS THE WHOLE POINT.** The ceiling used to be checked only
+/// inside the fixpoint, which made it a FIRE ceiling wearing a SESSION ceiling's name — measured
+/// 2026-08-29: **2.5M facts inserted with no fire reached 4.0 GB against a 1 GiB contract, with no
+/// diagnostic.** The builder's ruling: *"the session is the boundary — it may not consume more
+/// than the configured amount of memory, 1G by default… insert affects memory just as much."*
+/// Two places holding one truth is the defect this arc pulls out most often; this is the one place.
+///
+/// Reads [`crate::alloc_counter::session_bytes`] — bytes taken on this session's own thread since
+/// the session began, which the thread-affinity contract makes a per-session figure.
+pub(crate) fn session_ceiling_breach(
+    sym: &crate::runtime::SymbolTable,
+) -> Option<SessionCeilingBreach> {
+    let limit: usize = sym
+        .encoding_ctx()
+        .map(|c| c.config.max_session_bytes)
+        .unwrap_or(crate::config::DEFAULT_MAX_SESSION_BYTES);
+    let used = crate::alloc_counter::session_bytes();
+    (used > limit).then_some(SessionCeilingBreach { limit, used })
+}
+
+/// The insert door's dress on [`session_ceiling_breach`].
+///
+/// `staged` is what `insert` can honestly report about how far the session had got — the fixpoint's
+/// `rounds` has no meaning here, and an arm that cannot occur is the two-facts-in-one-value shape
+/// this arc keeps pulling out. Two variants, each true at its own door.
+pub(crate) fn check_insert_ceiling(
+    sym: &crate::runtime::SymbolTable,
+    span: &crate::span::Span,
+    staged: usize,
+) -> Result<(), EvalBreak> {
+    match session_ceiling_breach(sym) {
+        None => Ok(()),
+        Some(SessionCeilingBreach { limit, used }) => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::SessionMemoryCeilingExceededOnInsert { limit, used, staged },
+        )
+        .into()),
+    }
+}
