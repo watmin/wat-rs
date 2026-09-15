@@ -546,6 +546,28 @@ range-restricted because `z` comes from `edge`.
 
 ---
 
+## Inbound notes — the list that did not exist until 2026-08-29
+
+⛔ **THIS SECTION EXISTS BECAUSE TWO REPORTS SAT UNREAD FOR FIVE DAYS.** `~/work/NOTE-*.md` is where
+other agents file findings for this one. Nothing pointed at that directory, so nothing was ever
+read from it unless someone happened to `ls`. One of the two was a **SILENT WRONG ANSWER** — the
+highest-severity class this arc recognises. **When you file or receive a note, add its row here in
+the same motion.** This is the same disease as `partire` x7 (item 4): a real finding, tracked
+nowhere, indistinguishable from a finding that does not exist.
+
+| note | filed | subject | verdict |
+|---|---|---|---|
+| `NOTE-rete-a-where-before-a-fact-condition-silently-matches-nothing.md` | 2026-08-24 | a `where` followed by a fact condition matched NOTHING, silently | ✅ **VERIFIED FIXED 2026-08-29** — re-driven, selects the hit (1, was 0). Probe: `wat-scripts/scratch-pad/probe-where-before-fact-condition.wat` |
+| `NOTE-rete-cond-lowers-on-the-lhs-but-not-the-rhs.md` | 2026-08-24 | `cond` compiled in a `where` and failed at `compile-all` in a `:then` | ✅ **VERIFIED FIXED 2026-08-29** — re-driven, compiles and fires. Probe: `wat-scripts/scratch-pad/probe-cond-in-a-then.wat` |
+| `NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md` | 2026-08-28 | a guarded counter is refused though it terminates | **CONFIRMED**, minimum ask done — item 9 |
+| `NOTE-holon-classifier-contract-is-unenforced-and-the-holon-tag-breaks-it.md` | 2026-08-28 | `#holon` produces holons that cannot round-trip | ⏸ **DEFERRED by builder ruling** — blocks item 7 step 3 |
+| `NOTE-experiri-a-ward-that-executes.md` | 2026-08-27 | (not a rete finding — the ward itself) | — |
+
+⚠ **NEITHER FIX WAS MADE BY ANYONE READING THOSE NOTES.** Both were almost certainly collateral
+from this arc's inline-constraint and expression-lowering work. **A finding that gets fixed by
+accident is not a process that works** — it is the same outcome as luck, and the next one may not
+be adjacent to whatever is being built that week.
+
 ## The order, and why
 
 **As of 2026-08-28 (LATE — four commits after the stamp above): the inline position is CLOSED.
