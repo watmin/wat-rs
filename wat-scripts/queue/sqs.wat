@@ -590,28 +590,53 @@
                       (:wat::core::match sresp
                         ((:wat::query::Store::ScanResponse::Success page _c)
                           (:wat::core::if (:wat::core::empty? page) n (:wat::i64::+ n 1)))
-                        (_ (:wat::kernel::assertion-failed!
-                             "queue: probe scan failed — peer is dead, not a broken pipe"
-                             :wat::core::None :wat::core::None))))
-                    ((:wat::kernel::RecvOutcome::Lost _c)
+                        ((:wat::query::Store::ScanResponse::Transient e)
+                          (:wat::kernel::assertion-failed!
+                            (:wat::string::interpolate
+                              "queue: probe scan: a RETRYABLE store error (transient-means-try-again applies): {e}"
+                              :e (:wat::edn::write e))
+                            :wat::core::None :wat::core::None))
+                        ((:wat::query::Store::ScanResponse::Fatal e)
+                          (:wat::kernel::assertion-failed!
+                            (:wat::string::interpolate
+                              "queue: probe scan: a FATAL store error: {e}"
+                              :e (:wat::edn::write e))
+                            :wat::core::None :wat::core::None))
+                        ((:wat::query::Store::ScanResponse::RequestTooLarge b cap)
+                          (:wat::kernel::assertion-failed!
+                            (:wat::string::interpolate
+                              "queue: probe scan: this caller oversized the request: {b} > {cap}"
+                              :b (:wat::i64::to-string b) :cap (:wat::i64::to-string cap))
+                            :wat::core::None :wat::core::None))
+                        ((:wat::query::Store::ScanResponse::RequestMalformed p e g)
+                          (:wat::kernel::assertion-failed!
+                            (:wat::string::interpolate
+                              "queue: probe scan: this caller sent a frame that did not decode at {p}: expected {e}, got {g}"
+                              :p (:wat::edn::write p) :e e :g g)
+                            :wat::core::None :wat::core::None))))
+                    ((:wat::kernel::RecvOutcome::Lost c)
                       (:wat::kernel::assertion-failed!
-                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        (:wat::string::interpolate
+                          "queue: probe scan: the store peer is GONE: {cause}"
+                          :cause (:wat::kernel::LociDiedError/message c))
                         :wat::core::None :wat::core::None))
                     (:wat::kernel::RecvOutcome::Closed
                       (:wat::kernel::assertion-failed!
-                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        "queue: probe scan: the store connection closed cleanly (no cause available)"
                         :wat::core::None :wat::core::None))
                     (:wat::kernel::RecvOutcome::TimedOut
                       (:wat::kernel::assertion-failed!
-                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        "queue: probe scan: the store is ALIVE AND SLOW — the deadline fired, not a death"
                         :wat::core::None :wat::core::None))
                     (:wat::kernel::RecvOutcome::Stopped
                       (:wat::kernel::assertion-failed!
-                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        "queue: probe scan: the WORLD IS STOPPING — this is a shutdown, not a failure"
                         :wat::core::None :wat::core::None))
-                    ((:wat::kernel::RecvOutcome::Malformed _cause)
+                    ((:wat::kernel::RecvOutcome::Malformed c)
                       (:wat::kernel::assertion-failed!
-                        "queue: probe scan failed — peer is dead, not a broken pipe"
+                        (:wat::string::interpolate
+                          "queue: probe scan: the store could not DECODE our frame (it is alive): {cause}"
+                          :cause (:wat::kernel::Failure/message c))
                         :wat::core::None :wat::core::None)))))
               0
               rs))
