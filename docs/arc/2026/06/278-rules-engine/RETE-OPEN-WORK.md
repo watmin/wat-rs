@@ -1450,7 +1450,50 @@ field. Reachable, but not constructible inside a fence.
    **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
    with our own green floor). That is exactly when this class is cheapest to widen.
 
-9. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
+9. **`fire-rules` IS PARTIAL AND ITS SIGNATURE DOES NOT SAY SO — the outcome wall, not yet applied
+   to rete.** Builder: *"when do these 'raise'?… can we make them total?… the user must deal with
+   their consequences?… how can we force the user's code into totality for handling these?"*
+
+   **MEASURED: a ceiling breach kills the program.** Both ceilings raise inside `fire-rules` at a
+   round boundary; a probe printing before and after gets only the "before". `fire-rules` is
+   declared `Session -> Session` and **cannot always produce a Session** — the signature lies, and
+   this session added a SECOND way for it to lie.
+
+   ⛔ **AND THIS IS THE ARGUMENT'S REAL FORCE: because we CANNOT do what eBPF does, the failure
+   must become a value.** eBPF refuses an unbounded program at LOAD — static, total, no runtime
+   failure to handle. We measured that we cannot: the guarded counter's bound is its SEED, an
+   input. So the failure is irreducibly dynamic — and a dynamic failure in this substrate is a
+   VALUE, not a raise. The two are the same commitment seen from either side.
+
+   **THE ARC ALREADY BUILT THIS, ONE LAYER OVER.** `wat/bracket.wat:36` — *"arc 278 the
+   recv'-outcome wall — recv' returns a matchable `(RecvOutcome :- [I])`"* — and `SendOutcome::Sent`
+   / `::Stopped` are matched in the runner loop. Comms failures became closed matchable enums.
+   Capacity `:error` returns a `Result` the type system forces you to handle. **`fire-rules` is the
+   odd one out**, and it is the one with two ceilings.
+
+   **THE SHAPE, and one thing about it is unusually clean:**
+   `(FireOutcome :- [...])` with `Fired <session>` · `RoundCapExceeded` · `MemoryCeilingExceeded`.
+   **The failure arms need carry NO session** — `Session` is an immutable VALUE, so the caller still
+   holds the pre-fire one. Nothing half-fired escapes, and there is no question of handing back a
+   mid-fixpoint session with inconsistent memories. That is the objection this design would
+   normally founder on, and the value semantics dissolve it.
+
+   **COST, measured: 494 `fire-rules` call sites** across `wat/`, `tests/`, `wat-tests/`,
+   `wat-scripts/` (389 native, 99 `$oracle`, 6 primed). Large — and exactly what `wat-fix` is for
+   (R21: *"we use wat-fix to unfuck the farm — do not fear refactors, they are one-to-three shot"*).
+   The `$oracle` must return the same TYPE by the dual-impl contract, but needs no ceilings of its
+   own: it always answers `Fired`, and the existing accepted asymmetry (*"the `$oracle` is the
+   reference an embedder never runs"*) covers why.
+
+   ⚠ **`insert` IS NOT PART OF THIS, and the reason should be stated rather than assumed.** Grepped:
+   the ceiling is checked ONLY in the fixpoint loop, so `insert` bounds nothing. That is the same
+   ruling as "not cumulative across fires" — **a session grows by insertion one user decision at a
+   time, and by derivation without one.** The ceiling is about the growth the user did not ask
+   for. If that ruling is wrong, `insert` becomes matchable too and the migration doubles.
+
+   **NOT STARTED. The ruling is the builder's** — it changes the type of the engine's main verb.
+
+10. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — FOUR false reds in one day, across TWO source files, none of them
     behaviour.** `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs`'s five goldens
     pin `:location #wat.core/Span {:file "src/runtime.rs" :line N}`. On 2026-08-28 that `N` moved
     **three times** — 25722→25793→25799→25802 — and **every move was a COMMENT**
