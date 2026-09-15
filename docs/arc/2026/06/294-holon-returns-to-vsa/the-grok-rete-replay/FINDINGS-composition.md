@@ -601,6 +601,19 @@ as a RENAME, so it could see only files main removed outright.
   ZERO"); grok only annotates each (11, 10, 4 lines): a policy is owed at #212.
 - The boundary list was wrong in both directions: #126 is not a boundary; #212 is.
 
+> ⚠ **CORRECTED 2026-09-15 — the "DELETED for cause" class above does not exist, and #212 is NOT a
+> boundary.** `git show -M --name-status` on each deleting commit: `src/stdlib.rs` R092 →
+> `src/load/stdlib.rs`; `src/edn_shim.rs` R099 → `src/edn/render.rs`; `src/string_ops.rs` D, its 29 verbs
+> split across five homes; #212's two `130-…/complected-2026-05-02/{substrate,test}.wat` **R100 →
+> `*.wat.bad`** (both sides PRESERVE them as the complectēns calibration set — main by the house's
+> `.wat.bad`, grok by a closed `rune:lint(historical)` foot for its new docs-`.wat` gate, which scans
+> `.wat` only); #278's f64 bogus-head probe R055 → `tests/resolve/probe_arc255_the_blanket_hides_a_phantom_head__bogus_rete_head.wat`.
+> My census used `--no-renames`, which reports a rename as a deletion — the same blind spot this finding
+> names, one level down. **Both are the standing moved-home rule:** #212 — the `.bad` suffix IS the
+> declaration grok's rune makes and its gate cannot see a `.bad`, so drop the rune, merge grok's README
+> prose, log it; #278 — the 4 lines served a `wat-scripts/` lint the moved fixture lies outside of, so drop
+> and log (its edits to three of main's tools are Q1). `absent-on-main.tsv` now carries main's fate per file.
+
 ## Finding 22 — batch 3's per-step record: the census everywhere, the other walls at 3 of 11 steps
 
 Batch 3 replayed #126–#152 (SCORE-6). Verified by the orchestrator: 27 steps, contiguous, each with its
@@ -621,6 +634,30 @@ homes (`src/edn/render.rs`, `src/string/mod.rs`); floor 5546/5546 and clippy 0 a
   floor covers it), and #126 / #151, whose walls ran but are worded freely. A record's FORMAT is pinned, not
   learned: from #153 the recipe prescribes the five lines verbatim, and the first conforming step is the
   gate's passing case.
+
+## Finding 23 — batch 4a: green, and two METHOD flaws — the stdlib door reads one file at a time; an 11-file hand edit to the chain
+
+Batch 4a replayed #153–#159, the first steps under the codemod-source policy (P1 + Q1). Verified by the
+orchestrator: 7 steps contiguous with trailers; `scripts/replay/verify-step-record.sh 18eb21a71 HEAD` →
+`step-record: complete` (the record gate's first PASSING case, after it failed on batch 3); no repair commit
+after #159; `convert.sh` refuses a chain member (derived from `chain-order.sh`) and converts every other
+`wat-scripts/fixes/*.wat`; five ported tools with fixtures; the Q1 tools' fixtures replay; floor 5551/5551
+and clippy 0 at `868377378`; run5 unchanged on every axis (MA 0 losing · PC 2 · VS 0; chain vs main
+identical **1370**, CHAIN-FAILS 28, VS report lines 22) — the 11 hand-edited chain members convert exactly
+as before.
+- **The stdlib door reads one file at a time against HEAD's snapshot.** The three outcome enums are declared
+  in `wat/rete.wat` (`FireOutcome :- [T]` :242, `InsertOutcome` :273, `CompileOutcome` :311) and used in
+  `wat/fmt.wat`, `wat/grep.wat`, `wat/query.wat`, `wat/rete/oracle/{explain,fire}.wat` — changed in the same
+  steps. Phase (a) answered each user file from HEAD's snapshot, match-arm left list-form arms UNRESOLVED,
+  the merged stdlib could not load, and grok KEY-FIRST'd the leftovers by hand (SCORE-7a E9). The
+  STASH-DANCE would not have helped: the previous binary lacks the new enum too. The same shape returns at
+  #221 #377 #379 #398 #438 #440 (≥2 stdlib files in one step); batch 4b touches no stdlib file.
+- **#155 hand-wrapped `(overlay records)` in 11 CHAIN members** (and grep/fmt's overlay sites), 7 identical
+  lines each, so the chain could load after `overlay` began returning `FireOutcome`. Necessary, and disclosed
+  in #155's body — not in SCORE-7a. No existing tool could do it: the ported `wrap-fire-rules-in-fireoutcome`
+  changes nothing on a chain member (probed; `overlay` is not a `fire-rules` call site). An 11-file
+  structural rewrite by hand is exactly what R21 routes to a recorded migration.
+- Routed: `BRIEF-2a4d-the-stdlib-door-reads-a-step-as-one-world.md`.
 
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 

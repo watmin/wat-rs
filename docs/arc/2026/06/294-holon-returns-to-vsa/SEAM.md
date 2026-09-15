@@ -21,8 +21,9 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `9bc99b945` (= origin). In flight with grok: nothing yet —
-`BRIEF-7a-replay-batch-4a-codemod-steps.md` (+ EXPECTATIONS-7a) awaits the builder's pulsare.
+Stamp: written at HEAD `868377378` (= origin). In flight with grok: nothing yet —
+`BRIEF-2a4d-the-stdlib-door-reads-a-step-as-one-world.md` awaits the builder's pulsare; then batch 4b
+(drafts in `bootstrap/pending/`).
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
@@ -61,10 +62,15 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   #139 checkpoint's golden red folded into #126 by grok itself. The record carried the non-census walls at
   only 3 of 11 steps — the orchestrator re-ran them at the 8 unproven commits: all clean.
   `scripts/replay/verify-step-record.sh` now makes the record checkable (five verbatim lines from #153).
-- **The codemod-source policy is RULED (P1 + Q1; `POLICY-codemod-source.md`).** Next: **batch 4a
-  #153–#159** (`BRIEF-7a-…`): the first ports (5 tools), the first Q1 edits, and the rete-totality sweeps
-  (25–205 files a step); `convert.sh` admits a `wat-scripts/fixes/` file unless it is a chain member
-  (derived from `chain-order.sh`). Then 4b #160–#211, ending before #212.
+- **Batch 4a is CLOSED** (SCORE-7a; finding 23). 7 steps, the policy's first use: 5 ported tools with
+  fixtures, the Q1 re-expressions, `convert.sh` refusing a chain member. Verified: floor 5551/5551, clippy 0,
+  run5 unchanged (chain vs main 1370), and the record gate's FIRST PASS. Two METHOD flaws routed to 2a4d —
+  the stdlib door reads one file at a time (4a's enums live in `wat/rete.wat`, their users in fmt/grep/
+  query/oracle: grok KEY-FIRST'd the leftovers BY HAND), and #155 hand-wrapped `(overlay records)` in 11
+  CHAIN members (necessary, no tool could, R21).
+- **Next: 2a4d** (the door asked once per SET; the overlay wrap recorded after the fact; 4a's hand edits
+  proven by re-converting #155), then **batch 4b #160–#211** (drafts in `bootstrap/pending/`; it touches no
+  stdlib file, so the door gap cannot bite there — it returns at #221 #377 #379 #398 #438 #440).
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
@@ -94,8 +100,10 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   each commit needing a new policy —
   - #153 #155 #157 #159 #278 #438 #440 #627 #628 #630 #635 #638 change grok's own codemods (a
     conversion policy is still owed);
-  - #212 #278 edit files main DELETED for cause (`absent-on-main.tsv`, finding 21; 4-YES candidate: keep
-    main's deletion, drop grok's edit, log it — the builder's ruling is owed at #212);
+  - #212 #278 are NOT boundaries (finding 21's correction): with rename detection every "deleted" file was
+    MOVED — #212's two `130-…` `.wat` R100 → `.wat.bad` (both sides preserve them; the suffix IS grok's
+    rune, whose gate scans `.wat` only → drop the rune, merge the README prose, log it), #278's probe R055 →
+    a `tests/resolve/` fixture outside the `wat-scripts/` lint grok's 4 lines served → drop, log;
   - #377 #379 touch `wat/core.wat`/`wat/service.wat`, whose era `format`/`defservice` bodies STOP-9
     will refuse; #379 also changes `wat/service.wat`, which positional-ctor skips (arc 296 M2 RESIDUE 1).
   A step that edits a file main MOVED (`src/stdlib.rs`, `src/edn_shim.rs`, `src/string_ops.rs`) is the
