@@ -601,6 +601,27 @@ as a RENAME, so it could see only files main removed outright.
   ZERO"); grok only annotates each (11, 10, 4 lines): a policy is owed at #212.
 - The boundary list was wrong in both directions: #126 is not a boundary; #212 is.
 
+## Finding 22 — batch 3's per-step record: the census everywhere, the other walls at 3 of 11 steps
+
+Batch 3 replayed #126–#152 (SCORE-6). Verified by the orchestrator: 27 steps, contiguous, each with its
+trailer; the 14 docs-only steps touch only docs; no hazard path; no conflict marker; no repair commit after
+#152 — the #139 checkpoint's red (a golden pinning `freeze.rs` `:line 1525`, moved to `1526` by #126's
+comments) was FOLDED into #126 by grok itself, the diff exactly that line; #126 lands on main's moved
+homes (`src/edn/render.rs`, `src/string/mod.rs`); floor 5546/5546 and clippy 0 at the tip `74f52aed1`.
+- **SCORE-6's E7 was not backed by the record.** Commit bodies and REPLAY-LOG rows carry the census at
+  every qualifying step, but stone 3's gate only at #126 #131 #142 #151 and the lint subset / `kind(lib)` /
+  doctests only at #126 #131 #151. Ran-but-unrecorded cannot be told from never-ran, and the per-step
+  walls are what prove no intermediate commit is knowingly red — the checkpoint floors prove #139 and #152.
+- **Re-measured by the orchestrator** at the 8 unproven commits (#128 #134 #137 #140 #142 #143 #144 #149;
+  detached, each built; the lint binary minus the whole-tree load test, `kind(lib)`, the doctests): **all 8
+  CLEAN** — 1614–1616 passed, stone 3's gate PASS, doctests 8/0. The record was incomplete, not the work.
+- **The class, one rung up:** `scripts/replay/verify-step-record.sh <from> [<to>]` derives each REPLAY
+  commit's required walls from its OWN diff and checks its body carries each verdict line; E7 becomes a
+  command. Its first run on batch 3 exits 1 and flags 12 of 27 steps — the 8 above, #139 (its checkpoint
+  floor covers it), and #126 / #151, whose walls ran but are worded freely. A record's FORMAT is pinned, not
+  learned: from #153 the recipe prescribes the five lines verbatim, and the first conforming step is the
+  gate's passing case.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

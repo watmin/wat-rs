@@ -21,8 +21,8 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `2bbd7ef66` (= origin). In flight with grok: nothing yet —
-`BRIEF-6-replay-batch-3.md` (+ `EXPECTATIONS-6-replay-batch-3.md`) awaits the builder's pulsare.
+Stamp: written at HEAD `74f52aed1` (= origin). In flight with grok: nothing — #153 is a boundary: the
+codemod-source policy (`bootstrap/pending/POLICY-153-codemod-source.md`) awaits the builder's ruling.
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
@@ -33,6 +33,7 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 1 #11–#60 (CLOSED; floor 5495/5495, clippy 0, pushed)
                               + stone 3, the nested-program gate (CLOSED; floor 5502/5502, pushed)
                               + batch 2 #61–#125 (CLOSED; folded per 5b; floor 5540/5540, pushed)
+                              + batch 3 #126–#152 (CLOSED; floor 5546/5546, pushed)
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -56,9 +57,14 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   (#95's keyword rows vs main's registry ratchet + `RETE_MODULES`; #108's doc vs main's doctest floor)
   were repaired AFTER #125 — FOLDED into #95/#108 by 5b (proof: the rebuilt tip's tree is identical;
   subjects unchanged). The step gate now also runs the library's unit tests + doctests (STOP-11).
-- **Next: batch 3 #126–#152** (`BRIEF-6-replay-batch-3.md` + `EXPECTATIONS-6-…`), ending before #153.
-  #126 re-expresses two MOVED homes (`src/edn_shim.rs` → `src/edn/render.rs`, `src/string_ops.rs` →
-  `src/string/mod.rs`) under the standing `.rs` rule — not a boundary (finding 21).
+- **Batch 3 is CLOSED** (SCORE-6; finding 22). 27 steps; #126 re-expressed on main's moved homes; the
+  #139 checkpoint's golden red folded into #126 by grok itself. The record carried the non-census walls at
+  only 3 of 11 steps — the orchestrator re-ran them at the 8 unproven commits: all clean.
+  `scripts/replay/verify-step-record.sh` now makes the record checkable (five verbatim lines from #153).
+- **Next: #153, a BOUNDARY** — the first of 12 steps that change `wat-scripts/fixes/`. The draft policy
+  (`bootstrap/pending/POLICY-153-codemod-source.md`): P1 port grok's 7 new codemods (convert like any
+  `.wat`, a fixture from their own step's converted corpus file); Q1 re-express grok's edits to main's
+  tools on main's version. Awaits the builder's ruling.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
@@ -84,7 +90,7 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `stdlib-source-path?`, positional-ctor's `skip-path?` — assume it).
 - **A composition defect found late FOLDS into the step that needs it** (this branch becomes main; no
   knowingly-red REPLAY commit). Rebuild the later steps; prove it with `git diff <old-tip> <new-tip>`.
-- **Batches** (census `bootstrap/era/replay-plan/commits.tsv`): #126–#152 next; later batches END BEFORE
+- **Batches** (census `bootstrap/era/replay-plan/commits.tsv`): #153 next, after its policy; batches END BEFORE
   each commit needing a new policy —
   - #153 #155 #157 #159 #278 #438 #440 #627 #628 #630 #635 #638 change grok's own codemods (a
     conversion policy is still owed);

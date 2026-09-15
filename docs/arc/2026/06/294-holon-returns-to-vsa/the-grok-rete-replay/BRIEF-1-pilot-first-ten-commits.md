@@ -104,6 +104,13 @@ For grok-rete commit **C**, where #N is its index after `de827fb4c`:
      lint/census/stone-3 gate could not see (BRIEF-5b / finding 20). A red is **STOP-11**.
 4. **Commit:** `REPLAY(grok-rete #N): <C's subject>`, whose body carries C's hash, every conflict,
    and how each was resolved. `-x` adds the trailer.
+   **From #153 on, the body carries each wall's verdict VERBATIM** (finding 22 — a wall's result the
+   record does not carry cannot be told from a wall that never ran):
+   - a step whose build changed the binary or that changed any `.wat`:
+     `census: <.census file>; --diff no STOP-8` and `nested-program-gate: PASS`;
+   - a step with a `.rs` change: `lint-subset: <n> passed`, `kind(lib): <n> passed`,
+     `doctest: <n> passed`.
+   `scripts/replay/verify-step-record.sh <batch-start> HEAD` must exit 0 before the batch yields.
 5. **Log it** in `PILOT-LOG.md` (this directory): N, C, the wall time, the files, the conflicts and
    their resolutions, the hand edits, the tests run and their result, the tricks learned.
 
