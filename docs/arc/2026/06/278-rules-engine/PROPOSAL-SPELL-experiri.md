@@ -48,6 +48,44 @@ proves it: *"a corpus records what COMPILED, so it is structurally blind to what
 written."* Three of the six broken rows appear nowhere in the 1569-file corpus — which read as
 neglect and was actually the symptom.
 
+## What KIND of spell it is — observation vs experiment, not work vs reasoning
+
+It is tempting to say `experiri` is "the one that does the work". That is wrong twice over: the
+reading wards do plenty of work, and this one does plenty of reasoning — the position set, the
+calibration, the finding-vs-driver adjudication are all judgment before a single program runs.
+
+The true line is **what counts as evidence at the moment of the finding.**
+
+> Every other ward's evidence is the **SOURCE**. `experiri`'s evidence is an **EVENT**.
+>
+> The others ask *what does this text say?* — and are right to, because most of the book's
+> questions have no runtime at all. There is no program you can run to learn whether a name lies
+> (`intueri`), whether a document coheres (`cohaerere`), whether prose rings true (`consonare`), or
+> whether a suppression still earns its standing (`excusare`). Those are observational questions
+> and reading is the correct instrument.
+>
+> `experiri` asks *what does this system DO?* — the one question no amount of reading answers.
+
+Two consequences follow, and both are arguments for keeping it rare rather than for promoting it:
+
+- **It is expensive.** The rete precedent is 77 rows × 2 positions = 154 full program loads, ~30s
+  serially — past the runner's deliberate 30s kill, and sharded six ways to fit. Reading is cheap
+  and runs on any file; that is why the book is mostly readers, and that is the right ratio.
+- **It can lie in a way a reading ward cannot.** A broken reader usually finds NOTHING — a
+  filter that matches no pattern reports an empty list, and empty reads as clean. A broken DRIVER
+  finds a JACKPOT: one mis-rendered position reports a whole column of refusals that look exactly
+  like a discovery, and its findings are meant to be believed. That asymmetry is why the
+  calibration, the finding-vs-defect split, and the mutation proof are not ceremony here — they
+  are the price of admission for an instrument whose failure mode is a false triumph.
+
+**A catalog line, for whoever mints it:**
+
+> **`experiri`** — Put the declared surface to the proof. The datamancer experītur — every form the
+> system ADVERTISES is synthesized, driven, and made to answer, in every position it claims to be
+> usable; a surface that cannot be reached, or is reached and does nothing, is a promise the system
+> does not keep. The only ward whose evidence is an event rather than a source — cast it when the
+> spec and the code AGREE and you still do not know whether either is true.
+
 ## What the ward does
 
 > The datamancer **experītur** the declared surface — every form the system ADVERTISES is
