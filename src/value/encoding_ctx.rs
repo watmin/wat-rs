@@ -76,6 +76,7 @@ mod tests {
             global_seed: 42,
             dim_count: DEFAULT_DIM_COUNT,
             max_fire_rounds: crate::config::DEFAULT_MAX_FIRE_ROUNDS,
+            max_session_bytes: crate::config::DEFAULT_MAX_SESSION_BYTES,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
             redef_allowed: false,

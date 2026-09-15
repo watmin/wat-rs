@@ -424,10 +424,20 @@ pub(crate) fn fire_fixpoint_delta_armed(
     // deliberate and bounded: the cap fires only on rule sets that are already broken, the
     // differential fuzzers cannot generate one (the case would hang the suite rather than fail
     // it), and `$oracle` is the slow-but-correct reference an embedder never runs.
+    // The session's OWN thread reading, snapshotted before any work. A session is thread-affine
+    // by contract (`arm.rs`, the ZERO-MUTEX rune), so this is a per-session figure and not the
+    // process's — with 512 sessions on 512 threads each gets its own, which the global counter
+    // could never give. Snapshotting rather than reading an absolute is what makes it a measure of
+    // THIS FIRE: whatever the thread was already holding is not charged to it.
+    let bytes_at_entry = crate::alloc_counter::thread_bytes();
     let max_fire_rounds: usize = sym
         .encoding_ctx()
         .map(|c| c.config.max_fire_rounds)
         .unwrap_or(crate::config::DEFAULT_MAX_FIRE_ROUNDS);
+    let max_session_bytes: usize = sym
+        .encoding_ctx()
+        .map(|c| c.config.max_session_bytes)
+        .unwrap_or(crate::config::DEFAULT_MAX_SESSION_BYTES);
     let mut rounds_run: usize = 0;
 
     phase_end("SETUP: indexes", __setup);
@@ -660,6 +670,28 @@ pub(crate) fn fire_fixpoint_delta_armed(
         // Counted only on rounds that did NOT terminate, so a fire that converges can never trip
         // this no matter how deep it ran.
         rounds_run += 1;
+        // ── THE MEMORY CEILING, CHECKED BEFORE THE ROUND CAP ────────────────────────────────
+        //
+        // Order matters and is not incidental. A FANOUT divergence multiplies within a round, so
+        // it reaches the allocator while `rounds_run` is still in single digits — the round cap
+        // cannot see it and never fires (measured 2026-08-29: allocator abort at 6.2s, no wat
+        // error, no rule named). Checking bytes first is what turns that abort into a diagnostic.
+        // A LINEAR divergence trips the round cap first, as it always did.
+        //
+        // `saturating_sub`: a fire that FREES more than it allocates (a retraction-heavy pass)
+        // legitimately ends below its entry reading, and that is 0 growth, not an underflow.
+        let grown = crate::alloc_counter::thread_bytes().saturating_sub(bytes_at_entry);
+        if grown > max_session_bytes {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::SessionMemoryCeilingExceeded {
+                    limit: max_session_bytes,
+                    used: grown,
+                    rounds: rounds_run,
+                },
+            )
+            .into());
+        }
         if rounds_run >= max_fire_rounds {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
