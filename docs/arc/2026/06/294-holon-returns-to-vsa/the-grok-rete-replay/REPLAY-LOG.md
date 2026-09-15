@@ -66,21 +66,22 @@ convert.sh reports across the batch: era UNREADABLE (expected); UNRESOLVED `:wat
 
 ---
 
-# REPLAY-LOG — grok-rete #61–#125 onto `replay/grok-rete` (BRIEF-5, in flight)
+# REPLAY-LOG — grok-rete #61–#125 onto `replay/grok-rete` (BRIEF-5)
 
 Branch: `replay/grok-rete`. Source: `origin/grok-rete` `37528f6e0` (git show only). Base: `de827fb4c`.
 Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=2054.
-**Not pushed.** Main untouched.
+**Not pushed.** Main untouched. 65 REPLAY commits #61–#125. Two FIX after #125.
 
 ## Checkpoints
 
 | at | floor | clippy |
 |---|---|---|
 | #93 `da5bcb3f0` | `.floor/2026-09-15T05-28-34Z` Summary [225.422s] 5530 tests run: 5530 passed, 22 skipped exit=0 | 0 |
+| #125 + FIX `00cc59ff4` | `.floor/2026-09-15T07-01-22Z` Summary [227.766s] 5540 tests run: 5540 passed, 22 skipped exit=0 | 0 |
 
 ## Recurring re-expression (wat-in-rs-strings; convert.sh does not reach them)
 
-- RETE_OPS homes: `:wat::rete::{i64,f64,string,vector,vec,linkedlist,map}::*`
+- RETE_OPS homes: `:wat::rete::{i64,f64,string,vector,vec,linkedlist,map,keyword}::*`
 - `crate::load::loader::InMemoryLoader`
 - Vector ctor `(:wat::core::Vector :- [T] v)`; List ctor `(:wat::core::List v)` (`List/of` retired)
 - unit-variant KEYWORD `:probe::E.A` (not constructor); match arms `[:probe::E.A {} true]` KEY-FIRST; defenum unit `:A :B` (no `[]` — that makes tagged-empty)
@@ -126,7 +127,28 @@ Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=205
 | 99 | `4c19b9029` → `1e9625225` | shared | computed operand typed. CharLit + diagnostic home. census `.census/2026-09-15T05-59-38Z.txt` |
 | 100 | `ad2286133` → `81a761cd6` | shared | inline cond/let/match/if. Vector match-arms. census `.census/2026-09-15T06-04-37Z.txt` |
 | 101 | `b7f54a17f` → `0fff3a0fa` | shared | ONE rule: keyword operand is field-ref or constant. convert.sh keyword→ctor over-rewrote; unit defenum `:A :B`; `decompose_variant` door. census `.census/2026-09-15T06-26-16Z.txt` files=2065 |
+| 102 | `5f650bb39` → `d47dc3fbc` | docs | cherry-pick -x |
+| 103 | `7f21de15f` → `bd757bef2` | code | stratify third hole. census `.census/2026-09-15T06-29-28Z.txt` files=2065 |
+| 104 | `197093b8d` → `67c0a18a8` | docs | cherry-pick -x |
+| 105 | `85c87314d` → `ca2b73123` | shared | termination diagnostic. convert `--check` 0. 5 named tests. census `.census/2026-09-15T06-32-06Z.txt` files=2066 |
+| 106 | `f4c618d02` → `428b74caa` | code | coincident? fifth. convert `--check` 0. census `.census/2026-09-15T06-33-26Z.txt` files=2067 |
+| 107 | `ef66360d3` → `4944c8daa` | docs | cherry-pick -x |
+| 108 | `3f03b7d33` → `9313bbb83` | shared | Ret::Is/NoScheme. classify_fallback_outcome in `src/holon/outcome.rs`. goldens HEAD. variant-name named in freeze list. census `.census/2026-09-15T06-39-53Z.txt` files=2067 |
+| 109 | `1facc1f94` → `ed972d6a1` | docs | cherry-pick -x |
+| 110 | `2c4c6a163` → `c7f8e3d79` | shared | `#holon` literal fold. eval_quote already pub(crate). to_holon_inner via `crate::holon`. goldens HEAD. census `.census/2026-09-15T06-45-18Z.txt` files=2067 |
+| 111 | `c3caee1c1` → `532a85908` | docs | cherry-pick -x |
+| 112 | `39534d73f` → `b52f9aef4` | code | 7 scratch-pad probes convert `--check` 0. census `.census/2026-09-15T06-46-56Z.txt` files=2074 |
+| 113–121 | `9abad4d73`…`75eea76d5` → `b0df7f0f0`…`05435c39b` | docs | cherry-pick -x |
+| 122 | `31c76474a` → `33c5089af` | shared | hash-destructure. Map arm + HEAD KEY-FIRST Vector nested-variant. convert `--check` 0. census `.census/2026-09-15T06-51-37Z.txt` files=2076 |
+| 123 | `3f2cb8322` → `c8bc749e8` | docs | cherry-pick -x |
+| 124 | `4e2043cc2` → `10a048035` | code | export-roundtrip probe convert `--check` 0. census `.census/2026-09-15T06-53-02Z.txt` files=2077 |
+| 125 | `bff5b2179` → `848a2bf6e` | docs | cherry-pick -x |
+
+FIX after #125 (checkpoint floors captured, not re-run):
+
+- `.floor/2026-09-15T06-54-24Z` doctest RED `Ret` prose compiled as Rust → `1c6d6af3e` fence ` ```text `
+- `.floor/2026-09-15T06-55-06Z` 5538/2 `every_row_is_admitted` + `registry_membership_gap_a` → `00cc59ff4` RETE_MODULES + GAP_A
 
 ## STOP
 
-None. Batch 2 continues at #102.
+None at yield. Two captured red floors at #125 closed by FIX, then green.
