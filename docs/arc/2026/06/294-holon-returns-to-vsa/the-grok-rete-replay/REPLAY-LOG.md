@@ -150,3 +150,65 @@ BRIEF-5b fold: `00cc59ff4` into #95, `1c6d6af3e` into #108. FIX commits dropped.
 ## STOP
 
 None. Fold proof: tip files identical to pre-fold.
+
+---
+
+# REPLAY-LOG — grok-rete #126–#152 onto `replay/grok-rete` (BRIEF-6)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` `37528f6e0` (git show only). Base: `de827fb4c`.
+Start tip: BRIEF-6 `0ae232d3d`. Census start `.census/2026-09-15T06-53-02Z.txt` files=2077.
+**Not pushed.** Main untouched. 27 REPLAY commits #126–#152.
+#126 folded a golden recapture (`:line 1525`→`1526`) so no REPLAY commit is knowingly red.
+
+## Checkpoints
+
+| at | floor | clippy |
+|---|---|---|
+| #139 first floor (captured, not re-run) | `.floor/2026-09-15T19-06-20Z` Summary [223.564s] 5542 tests run: 5541 passed, 1 failed, 22 skipped **exit=100** | not run |
+| #139 fold tip `0de34ca3c` | `.floor/2026-09-15T19-13-39Z` Summary [226.425s] 5542 tests run: 5542 passed, 22 skipped exit=0 | 0 |
+| #152 `55969600a` | `.floor/2026-09-15T19-36-41Z` Summary [228.990s] 5546 tests run: 5546 passed, 22 skipped exit=0 | 0 |
+
+## Recurring re-expression
+
+- #126 trap door: `src/edn_shim.rs` → `src/edn/render.rs`; `src/string_ops.rs` → `src/string/mod.rs`. `value_to_edn_with` / `value_to_json_natural` / `value_to_edn_string_with` return `Result`; named `value_to_edn_string_lossy` for infallible sites; try-send encode hoisted in `src/kernel/message.rs`. HEAD H-2 tagged-map encoding kept.
+- Composition into #126: grok's new test `call -> Result<Value, String>` met main's `no_error_flattening_helper` — rewritten to return `RuntimeError`. freeze.rs lossy-door moved `rust_caller_span!` 1525→1526; golden recaptured.
+
+## Steps
+
+| N | C → replayed | kind | notes |
+|---|---|---|---|
+| 126 | `5696835f1` → `ef8ded525` | shared trap + composition | edn::write reports. **Folded:** golden `:line 1526`. flattening-helper repair. census files=2078 |
+| 127 | `f30d31af8` → `ab2a0c654` | docs | cherry-pick -x REPLAY-prefixed |
+| 128 | `c99202e1a` → `4c10f56c3` | code | 2 scratch-pad probes convert `--check` 0. census files=2080 |
+| 129 | `59feffad3` → `d72f6d89c` | code | ci grid speed script. census files=2080 |
+| 130 | `ec5df8939` → `590d50b15` | docs | |
+| 131 | `142f24b05` → `20afd7776` | shared | HEAD diagnostic comment kept (chase CLOSED). census files=2080 |
+| 132 | `3f4cf13f5` → `9337ddb4b` | docs | |
+| 133 | `4fbdb9901` → `5d5604447` | docs | |
+| 134 | `6fa13308e` → `3de67e0cd` | code | finite-domain-bool probe convert `--check` 0. census files=2081 |
+| 135 | `692af57fd` → `163114662` | docs | |
+| 136 | `36f9f2845` → `3cbee5a91` | docs | |
+| 137 | `48010beaa` → `e63012792` | shared | config.rs auto-merged. kind(lib) 1471. census files=2081 |
+| 138 | `486b46abe` → `ff8f6d575` | docs | |
+| 139 | `56565a78c` → `0de34ca3c` | code | finite-typed computed head. 6 named tests. **checkpoint floor GREEN** after fold |
+| 140 | `e440b1029` → `3692f6c97` | code | finite-domain cap re-derived. convert `--check` 0 |
+| 141 | `5c7e8e66f` → `e47bf2ccd` | docs | |
+| 142 | `1166fc877` → `76e35c655` | shared | counting allocator, unwired |
+| 143 | `3c5ac7bd1` → `b0cb6ce57` | shared | per-session memory ceiling. convert `--check` 0 |
+| 144 | `8c10ee490` → `ce92441dd` | code | kill global counters |
+| 145 | `f8fccd69e` → `8ab3b6dbb` | docs | |
+| 146 | `c0c2745e3` → `cf635a41d` | docs | |
+| 147 | `12cdf4081` → `086a13131` | docs | |
+| 148 | `d93d3e454` → `9eb4735b1` | docs | |
+| 149 | `f006f77d5` → `298988662` | shared | ceiling covers every round. census files=2084 |
+| 150 | `b5240f30b` → `674a21617` | docs | |
+| 151 | `52213d3b0` → `d61a518bc` | shared trap | session is the boundary. merge-file: took converted C. 8 named tests. census files=2086 |
+| 152 | `1a8ad61a0` → `55969600a` | docs | cherry-pick -x. **checkpoint floor GREEN** |
+
+## Captured red (not re-run)
+
+`.floor/2026-09-15T19-06-20Z` ARM: `probe_supervisor_select_lost::select_prime_yields_lost_when_process_child_crashes` at `tests/process/probe_supervisor_select_lost.rs:202` — golden `:line 1525`, actual `1526` (`src/freeze.rs` `rust_caller_span!`). Folded into #126.
+
+## STOP
+
+None remaining. Do not push. Main untouched.
