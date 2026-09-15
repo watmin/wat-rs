@@ -109,10 +109,27 @@ activations, and multiplicity is a shape this arc has been bitten by before.
 
 ## PILE 2 — owned by `NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN". Read it there.
 
-19 L1 ward findings stand, each with `file:line`: **`conformare` x9** (a real wat span discarded
-for `rust_caller_span!()`, so a user's malformed `:then` points at wat-rs's own Rust source rather
-than their file — and `arm.rs:316` already does it correctly in the same file), **`vocare` x6**,
-**`intueri` x3**, **`exigere` x1**.
+**⚠ AUDIT THE LIST BEFORE WORKING IT — 2026-08-27.** Two of these were checked against the tree
+and found STALE, which is a finding about the LIST, not the code:
+
+- **`conformare` x9 — STALE.** Neither cited file (`eval_insert.rs`, `arm.rs`) contains
+  `rust_caller_span!` any more, and the sites it named now use real wat spans
+  (`acc_form.span().clone()`). Verified by BEHAVIOUR, not by grep: a user's malformed `:then`
+  reports `:location` at their own file, at the offending operand's line.
+- **`intueri` x3, the `validate.rs` row — STALE.** That file now renders through `render_form` and
+  says so in its own doc, recording that it *"used to be `{other:?}`"*.
+
+**But probing the stale finding surfaced a LIVE one it did not name**, now fixed: `eval_insert` and
+`compiled_rhs` rendered the offending operand into `:got` with Rust `Debug`, so an unbound `?var`
+in a `:then` showed the user
+`Symbol(Identifier { name: "?nope", scopes: {} }, Span { file: … })` — hygiene scopes and a nested
+span, for a typo. Routed to `validate::render_form` (the printer `write-forms` already uses) rather
+than growing a second renderer; both halves of the compiled/interpreted differential moved together
+because their errors are contracted BYTE-IDENTICAL. Gated by
+`tests/rete/probe_arc278_then_operand_rendered_as_source.rs`.
+
+**Still standing, unverified:** `vocare` x6, the two remaining `intueri` rows, `exigere` x1. Check
+each against the tree before working it — the hit rate on this list is now 2-for-2 stale.
 
 **None of these can produce a wrong answer** — that is why they sit below the piles above, and
 also why they will never be found by a differential. `conformare` x9 is the one with real user
