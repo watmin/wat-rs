@@ -153,6 +153,7 @@ const WHERE_FAMILY: &[&str] = &[
     "where-join-left",
     "where-join-order",
     "where-multivar",
+    "where-nested-combinators",
     "where-nesting",
     "where-not-and",
     "where-not-and-bound",

@@ -25,7 +25,9 @@
 ---
 
 ## PILE 1 — fuzzing gaps (owned here). More wat-gen use; ranked by yield.
-> **1.1 is done** (2026-08-27). 1.2 is now the head of this pile.
+> **ALL FOUR DONE, 2026-08-27** (1.1 interleaved retract · 1.2 generated rules · 1.3 query params ·
+> 1.4 nested combinators). This pile is closed; PILE 2's ward tail is what remains, `conformare` x9
+> first — the only one there with real user impact.
 
 ### ~~1.1 Interleaved insert/retract — true truth maintenance~~ · **DONE 2026-08-27**
 `wat-tests/rete/differential-fuzz-tms.wat`. The design question this entry raised — *what does
@@ -85,9 +87,23 @@ row and agree — so `test-query-params-actually-filter` pins the three readouts
 `:?a 999` row is the load-bearing one: an ignored param returns EVERYTHING, so 0 is the only value
 that proves it was consulted.
 
-### 1.4 Deeper combinator nesting
-The filter families are FLAT — `:not` of a fact, `:or` across conditions, `:not` of a constraint.
-`:not` of `:and` of `:or` and friends are hand-written axes only.
+### ~~1.4 Deeper combinator nesting~~ · **DONE 2026-08-27**
+`wat-tests/rete/differential-fuzz-nesting.wat` — 8 compositions x **all 8 worlds** (a 3-bit
+presence mask over A/B/C), so the space is an exhaustive TRUTH TABLE rather than a sample. The
+existing combinator axes are one level and one world each; three of the new shapes nest a `:not`
+INSIDE another combinator, where its truth is consumed by an enclosing boolean rather than by the
+rule — an arrangement the flat families cannot reach.
+
+**Non-vacuity has a sharp form here:** every shape must CHANGE ITS MIND across the worlds. A
+composition answering the same in all 8 is a tautology, a contradiction, or one the engine
+collapsed — and all three would agree with the oracle for reasons unrelated to nesting.
+
+**And it is checked against CLARA, not just against the oracle** — `where-nested-combinators.{wat,clj}`,
+registered in `WHERE_FAMILY` so the parity job (3.2) runs it. Byte-identical, 24/24 rows. That
+extra step is not ceremony: entry E, the same day, was native and `$oracle` transposing identically
+and agreeing perfectly on the wrong answer. Two engines agreeing proves nothing when they share an
+assumption. Row 12 is the one to watch — an `:or` with both arms satisfiable yields TWO
+activations, and multiplicity is a shape this arc has been bitten by before.
 
 ---
 
