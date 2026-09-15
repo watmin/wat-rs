@@ -63,3 +63,67 @@ convert.sh reports across the batch: era UNREADABLE (expected); UNRESOLVED `:wat
 ## STOP
 
 **STOP-4 at pre-fold #60 closed by BRIEF-4b.** New #60 floor GREEN. Census baseline `.census/2026-09-14T22-02-27Z.txt` (2049 files, 200 failing). STOP-8 is the step gate from #61. Batch 2 is a separate brief.
+
+---
+
+# REPLAY-LOG — grok-rete #61–#125 onto `replay/grok-rete` (BRIEF-5, in flight)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` `37528f6e0` (git show only). Base: `de827fb4c`.
+Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=2054.
+**Not pushed.** Main untouched.
+
+## Checkpoints
+
+| at | floor | clippy |
+|---|---|---|
+| #93 `da5bcb3f0` | `.floor/2026-09-15T05-28-34Z` Summary [225.422s] 5530 tests run: 5530 passed, 22 skipped exit=0 | 0 |
+
+## Recurring re-expression (wat-in-rs-strings; convert.sh does not reach them)
+
+- RETE_OPS homes: `:wat::rete::{i64,f64,string,vector,vec,linkedlist,map}::*`
+- `crate::load::loader::InMemoryLoader`
+- Vector ctor `(:wat::core::Vector :- [T] v)`; List ctor `(:wat::core::List v)` (`List/of` retired)
+- enum values `(:probe::E.A {})`; match arms `[:probe::E.A {} true]` KEY-FIRST; defenum unit `[]`
+- Main-only RETE_OPS row `:wat::rete::core::variant-name` re-injected after each take-theirs
+- LATENT #95: `:wat::core::keyword/{to,from}-string` → `:wat::keyword::{to,from}-string` / `:wat::rete::keyword::*`
+- HEAD `WatAST::CharLit` added to exhaustive rewrite_field_refs / bind_field_refs leaf arms (#98)
+- datamancer.rete.edn ABI regenerated whenever RETE_OPS grows
+- diagnostic goldens kept HEAD (line numbers)
+
+## Steps
+
+| N | C → replayed | kind | notes |
+|---|---|---|---|
+| 61 | `635895348` → `d4a2b1fe7` | docs | cherry-pick -x REPLAY-prefixed |
+| 62–67 | `979607007`…`bbeb1997d` → `dc40ca825`…`dfb7adaf4` | code/docs | batch-2 start; #64/#66 census |
+| 68 | `86091edf7` → `47e632bc8` | shared | LociDiedError map peel |
+| 69–70 | `48e331135`/`5c2c06267` → `ee6479715`/`200e3b0df` | docs | reworded onto REPLAY prefix |
+| 71 | `ac9782e6b` → `2f708986a` | shared | InMemoryLoader + i64 home |
+| 72 | `40b3fc4bd` → `f3654ffe4` | shared | PmContainsKey on `:wat::map::contains-key?` |
+| 73 | `eb5b281c4` → `db92ebf54` | docs | |
+| 74 | `6fad5d237` → `588fe40f2` | code | 55-row ledger; wrap field; Vector/List ctors. census `.census/2026-09-15T04-51-54Z.txt` files=2060 |
+| 75 | `ecedc8f52` → `575f081ff` | docs | |
+| 76 | `d07933919` → `8cd7bebe5` | code | 74 rows; variant-name cell. census `.census/2026-09-15T04-57-43Z.txt` |
+| 77 | `f8dd00573` → `ed3d2a162` | docs | |
+| 78 | `db17511f6` → `f49298403` | shared | reduce=foldl, PmNew. census `.census/2026-09-15T05-02-40Z.txt` |
+| 79 | `c53486fcb` → `0efa3c683` | docs | |
+| 80 | `07073c091` → `c7b830679` | shared | mapv/filterv; purity.rs kept HEAD. ABI `v1:3ca327ca5d648b83` |
+| 81 | `7e90f32bf` → `00cd26a4b` | docs | |
+| 82 | `bf6d86640` → `d9ea53614` | code | probe-tuple-observability.wat convert `--check` 0. census files=2061 |
+| 83 | `365b61884` → `1625cd5ef` | shared | Tuple accessors. goldens HEAD. ABI `v1:196687399f76baa6` |
+| 84–87 | `f961a7754`…`a409d04ab` → `f960d3fac`…`9116148e6` | docs | experiri proposal |
+| 88 | `97eac5a38` → `3025e2daa` | shared | reduce total arity. 2 named tests. census files=2063 |
+| 89 | `851818afa` → `544ea7c3a` | docs | |
+| 90 | `05a1999a5` → `33fb368c7` | shared | inline computes. 18 tests. census `.census/2026-09-15T05-20-25Z.txt` |
+| 91 | `763fed823` → `592ddcc38` | shared | matcher: keep HEAD dispatch; grok inner + Some(sym) in intrinsic/rete.rs. census files=2064 |
+| 92 | `a549fd9b8` → `52484f371` | docs | |
+| 93 | `b7fac5ec7` → `da5bcb3f0` | shared | export Op::Eval. **checkpoint floor GREEN** `.floor/2026-09-15T05-28-34Z` 5530/5530 clippy 0 |
+| 94 | `3fb4aefa3` → `6f4999462` | shared | keyword equality inline. auto-merge |
+| 95 | `7cb9994cb` → `6144dfc09` | shared | keyword converters. LATENT homes. ABI `v1:e423b3522b35d7a7` |
+| 96 | `d4fe222c2` → `7b55480b9` | shared | inline any bool expr. auto-merge |
+| 97 | `5cf17bbe7` → `96ba536d6` | docs | |
+| 98 | `1a97cf12b` → `895f517a9` | shared | vector field-ref. CharLit arms. census `.census/2026-09-15T05-53-37Z.txt` files=2064 |
+
+## STOP
+
+None. Batch 2 continues at #99.
