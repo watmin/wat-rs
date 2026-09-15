@@ -21,8 +21,8 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `74f52aed1` (= origin). In flight with grok: nothing — #153 is a boundary: the
-codemod-source policy (`bootstrap/pending/POLICY-153-codemod-source.md`) awaits the builder's ruling.
+Stamp: written at HEAD `9bc99b945` (= origin). In flight with grok: nothing yet —
+`BRIEF-7a-replay-batch-4a-codemod-steps.md` (+ EXPECTATIONS-7a) awaits the builder's pulsare.
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
@@ -61,10 +61,10 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   #139 checkpoint's golden red folded into #126 by grok itself. The record carried the non-census walls at
   only 3 of 11 steps — the orchestrator re-ran them at the 8 unproven commits: all clean.
   `scripts/replay/verify-step-record.sh` now makes the record checkable (five verbatim lines from #153).
-- **Next: #153, a BOUNDARY** — the first of 12 steps that change `wat-scripts/fixes/`. The draft policy
-  (`bootstrap/pending/POLICY-153-codemod-source.md`): P1 port grok's 7 new codemods (convert like any
-  `.wat`, a fixture from their own step's converted corpus file); Q1 re-express grok's edits to main's
-  tools on main's version. Awaits the builder's ruling.
+- **The codemod-source policy is RULED (P1 + Q1; `POLICY-codemod-source.md`).** Next: **batch 4a
+  #153–#159** (`BRIEF-7a-…`): the first ports (5 tools), the first Q1 edits, and the rete-totality sweeps
+  (25–205 files a step); `convert.sh` admits a `wat-scripts/fixes/` file unless it is a chain member
+  (derived from `chain-order.sh`). Then 4b #160–#211, ending before #212.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
@@ -159,6 +159,10 @@ on a stashed tree, then `git checkout -- src/check.rs`.
 - 2026-09-15: **no other branch is approached until grok-rete is proven a success** (the builder: "we are
   not approaching another branch until we know grok-rete was a success"). "Success" is § THE REPLAY's
   End. After it lands, the replay recipe becomes ONE playbook so the next branch starts at "batch 1".
+- 2026-09-15: **the codemod-source policy — P1 and Q1** (`the-grok-rete-replay/POLICY-codemod-source.md`):
+  grok-rete's own new codemods are PORTED (converted like any `.wat`; a fixture from their own step's
+  converted corpus file); its edits to main's tools are RE-EXPRESSED on main's version (the tool's
+  fixture still replays). A codemod step is no longer a boundary; #278 stays one for a deleted file.
 
 ---
 
