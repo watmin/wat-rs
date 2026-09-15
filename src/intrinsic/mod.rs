@@ -1732,6 +1732,10 @@ mod tests {
         ":wat::rete::i64::rem",
         ":wat::rete::insert$native",
         ":wat::rete::insert-all$native",
+        // #95 LATENT homes — RETE_OPS Alias rows for the keyword converters; check.rs
+        // registers a TypeScheme, registry() has no #[wat_intrinsic] row yet.
+        ":wat::rete::keyword::from-string",
+        ":wat::rete::keyword::to-string",
         ":wat::rete::linkedlist::get",
         // ":wat::rete::string::=" / ":wat::rete::string::not=" REMOVED — see the six-name note
         // beside ":wat::rete::core::bool::=" above; same stone, same mechanism.

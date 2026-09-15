@@ -2,7 +2,7 @@
 ;; Beats in, Datamancer or Hollow out.
 #wat.rete/Export {
   :v 1
-  :abi "v1:196687399f76baa6"
+  :abi "v1:e423b3522b35d7a7"
   :classes ["dm::Beat" "dm::Gap" "dm::ReadAfter" "dm::Artifact" "dm::Primer" "dm::Four" "dm::Hollow" "dm::Datamancer"]
   :fields [
     ["t" "kind"]
