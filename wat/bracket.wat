@@ -560,11 +560,37 @@
                 :user::bracket::work-fn))))]
       (:wat::core::concat forms (:wat::core::Vector :- [:wat::WatAST] main-def)))))
 
+;; holding-set — replace the item-index at one peer-pos. Parallel vector, not
+;; a nested Tuple slot (the-waiter-folds-carry-a-named-aggregate).
+(:wat::core::defn :wat::bracket::holding-set
+  [holding <- (:wat::core::Vector :- [:wat::core::i64])
+   pos     <- :wat::core::i64
+   item    <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::mapv
+    (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+      (:wat::core::if (:wat::core::= i pos)
+        item
+        (:wat::core::nth holding i)))
+    (:wat::core::range 0 (:wat::core::length holding))))
+
+;; -1 means idle (finished last item, or dispatch did not land). Must not print as item 0.
+(:wat::core::defn :wat::bracket::holding-phrase
+  [holding <- (:wat::core::Vector :- [:wat::core::i64])
+   idx     <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::let [item (:wat::core::nth holding idx)]
+    (:wat::core::if (:wat::core::= item -1)
+      "idle (holding no item)"
+      (:wat::string::interpolate "holding item {item}" :item item))))
+
 ;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
 ;;
 ;; State: peers (the live Thread vector), items (the full input vector),
 ;; pairs-acc (accumulator of (idx,result) pairs so far), cursor (next item
-;; to dispatch), collected (how many results have arrived), m (total item count).
+;; to dispatch), collected (how many results have arrived), m (total item count),
+;; holding (peer-pos → in-flight item-index, or -1 idle). peers is never compacted;
+;; peer-pos is stable for the pool's lifetime.
 ;;
 ;; Invariant: cursor ≤ m; collected ≤ m.  When collected == m every result
 ;; has arrived; return pairs-acc (unsorted — the caller sorts).
@@ -597,7 +623,8 @@
    pairs-acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
    cursor    <- :wat::core::i64
    collected <- :wat::core::i64
-   m         <- :wat::core::i64]
+   m         <- :wat::core::i64
+   holding   <- (:wat::core::Vector :- [:wat::core::i64])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
   (:wat::core::if (:wat::core::= collected m)
     pairs-acc
@@ -607,33 +634,38 @@
          
         ((:wat::spawn::ServiceEvent::Message peer-pos pair)
           (:wat::core::let
-            [cursor'  (:wat::core::if (:wat::core::< cursor m)
-                        ;; arc 278 the send'-outcome wall — face all three arms explicitly.
-                        ;; A dead runner here surfaces via THIS loop's own select' arm
-                        ;; (:Closed/:Lost above, which raise) — this dispatch always advances
-                        ;; the cursor regardless of outcome.
-                        (:wat::core::match (:wat::kernel::send
-                                              (:wat::core::nth peers peer-pos)
-                                              (:wat::bracket::PoolMsg::Work
-                                                (:wat::core::Tuple cursor (:wat::core::nth items cursor))))
-                          (:wat::kernel::SendOutcome::Sent   (:wat::core::+ cursor 1))
-                          (:wat::kernel::SendOutcome::Stopped (:wat::core::+ cursor 1))  ;; arc 278 #73 — same: this loop's select' arm faces the stop
-                          (:wat::kernel::SendOutcome::Closed (:wat::core::+ cursor 1))   ;; surfaces via this loop's own select' arm
-                          ((:wat::kernel::SendOutcome::Lost _c) (:wat::core::+ cursor 1)))
-                        cursor)]
+            [dispatched (:wat::core::if (:wat::core::< cursor m)
+                           ;; arc 278 the send'-outcome wall — face all three arms explicitly.
+                           ;; A dead runner here surfaces via THIS loop's own select' arm
+                           ;; (:Closed/:Lost above, which raise) — this dispatch always advances
+                           ;; the cursor regardless of outcome. holding records the item only
+                           ;; on Sent; a failed send leaves the runner idle (it never took it).
+                           (:wat::core::match (:wat::kernel::send
+                                                 (:wat::core::nth peers peer-pos)
+                                                 (:wat::bracket::PoolMsg::Work
+                                                   (:wat::core::Tuple cursor (:wat::core::nth items cursor))))
+                             (:wat::kernel::SendOutcome::Sent   cursor)
+                             (:wat::kernel::SendOutcome::Stopped -1)  ;; arc 278 #73 — same: this loop's select' arm faces the stop
+                             (:wat::kernel::SendOutcome::Closed -1)   ;; surfaces via this loop's own select' arm
+                             ((:wat::kernel::SendOutcome::Lost _c) -1))
+                           -1)
+             cursor'  (:wat::core::if (:wat::core::< cursor m) (:wat::core::+ cursor 1) cursor)
+             holding' (:wat::bracket::holding-set holding peer-pos dispatched)]
             (:wat::bracket::collect-loop peers items
-              (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m)))
+              (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m holding')))
         ((:wat::spawn::ServiceEvent::Closed idx)
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
-              "bracket collect-loop: runner {idx} closed unexpectedly"
-              :idx idx)
+              "bracket collect-loop: runner {idx} closed unexpectedly {held}"
+              :idx idx :held (:wat::bracket::holding-phrase holding idx))
             :wat::core::None :wat::core::None))
         ((:wat::spawn::ServiceEvent::Lost idx cause)
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
-              "bracket collect-loop: runner {idx} crashed: {cause}"
-              :idx idx :cause (:wat::kernel::Failure/message cause))
+              "bracket collect-loop: runner {idx} crashed {held}: {cause}"
+              :idx idx
+              :held (:wat::bracket::holding-phrase holding idx)
+              :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
         ;; arc 278 no-hidden-failures — a pool runner sent an UNDECODABLE result. A bracket
         ;; runner speaks a fixed (i64,O) protocol; garbage on that channel is a should-never-
@@ -642,8 +674,10 @@
         ((:wat::spawn::ServiceEvent::Malformed idx cause)
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
-              "bracket collect-loop: runner {idx} sent an undecodable result: {cause}"
-              :idx idx :cause (:wat::kernel::Failure/message cause))
+              "bracket collect-loop: runner {idx} sent an undecodable result {held}: {cause}"
+              :idx idx
+              :held (:wat::bracket::holding-phrase holding idx)
+              :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
         ;; arc 278 Stone 1a — a pool runner sent an OVER-FOO (over-budget) frame. A bracket
         ;; runner speaks a fixed (i64,O) protocol; an oversized result is a should-never-happen.
@@ -651,8 +685,10 @@
         ((:wat::spawn::ServiceEvent::Rejected idx cause)
           (:wat::kernel::assertion-failed!
             (:wat::string::interpolate
-              "bracket collect-loop: runner {idx} sent an over-budget frame: {cause}"
-              :idx idx :cause (:wat::kernel::Failure/message cause))
+              "bracket collect-loop: runner {idx} sent an over-budget frame {held}: {cause}"
+              :idx idx
+              :held (:wat::bracket::holding-phrase holding idx)
+              :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
         (:wat::spawn::ServiceEvent::Shutdown
           (:wat::kernel::assertion-failed!
@@ -766,7 +802,11 @@
                  p))
              (:wat::core::range 0 n))
      pairs  (:wat::bracket::collect-loop peers items
-              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])]) n 0 m)
+              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])]) n 0 m
+              ;; Primer sent item i to runner i; peer-pos is that runner's stable index.
+              (:wat::core::mapv
+                (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 i)
+                (:wat::core::range 0 n)))
      ;; REVOKE-SHUTDOWN: the drain is complete but the peers are still alive (still in scope,
      ;; still hold their Pidfd → peer-pid still Some). For each process peer, revoke its pid
      ;; (a no-op for a plain pool) — the grant a worker held cannot outlive its reaping. A

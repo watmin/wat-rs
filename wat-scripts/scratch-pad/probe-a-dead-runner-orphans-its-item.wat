@@ -21,8 +21,8 @@
 
 ;; The work fn raises on ONE item. The runner executing it dies holding that item.
 (:wat::core::defn :bp::double-or-die [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::= x 3)
-    (:wat::kernel::assertion-failed! "runner: dying on item 3" :wat::core::None :wat::core::None)
+  (:wat::core::if (:wat::core::= x 13)
+    (:wat::kernel::assertion-failed! "runner: dying on VALUE 13, which is INDEX 3" :wat::core::None :wat::core::None)
     (:wat::i64::* x 2)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -34,6 +34,6 @@
      _  (:wat::kernel::println "subject-starting")
      ;; SUBJECT — item 3 kills its runner. Raise? Hang? Short answer?
      bad (:wat::bracket::map (:wat::spawn::thread/runner-count 2)
-           (:wat::core::range 0 8) :bp::double-or-die)
+           (:wat::core::range 10 18) :bp::double-or-die)
      _  (:wat::kernel::println (:wat::string::concat "doomed=" (:wat::edn::write bad)))]
     nil))
