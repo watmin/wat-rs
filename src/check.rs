@@ -11831,7 +11831,9 @@ fn infer_recv_prime(
 }
 
 /// Type-check `(:wat::kernel::recv-by-deadline peer ms)` — same RecvOutcome as recv,
-/// plus a reachable TimedOut. `ms` is i64 milliseconds.
+/// plus a reachable TimedOut. `ms` is i64 milliseconds. `project_peer_io` already
+/// admits Thread | Process | Peer | ThreadSelfPeer; the runtime Peer arm is the
+/// widening. Same projection as `infer_recv_prime`.
 fn infer_recv_by_deadline(
     args: &[WatAST],
     head_span: &Span,

@@ -22096,6 +22096,17 @@ fn recv_outcome_timedout() -> Value {
     }))
 }
 
+/// `RecvOutcome::Malformed [cause <- Failure]` — the peer could not decode
+/// our message. Mapped from `ServiceEvent::Malformed` on the Peer race.
+fn recv_outcome_malformed(cause: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: RECV_OUTCOME_TYPE.into(),
+        variant_name: "Malformed".into(),
+        names: builtin_enum_variant_names(RECV_OUTCOME_TYPE, "Malformed"),
+        fields: vec![cause],
+    }))
+}
+
 /// `RecvOutcome::Lost[LociDiedError::Severed]` — the service's owner released its
 /// handle, so its serve loop exited.
 ///
@@ -25646,13 +25657,158 @@ pub(crate) fn eval_peer_recv_prime(
     }
 }
 
-/// `(:wat::kernel::recv-by-deadline peer ms)` — owner-wait deadline.
+/// Timer payload for the unified-Peer arm of recv-by-deadline. Discriminated
+/// by **index** (idx 1 → TimedOut), never by value: a peer that sent this
+/// keyword would still be `Message` at idx 0. Reserved `__` namespace, same
+/// family as the crash/sever sentinels, so it is not a protocol Admin/Op/Reply.
+const RECV_BY_DEADLINE_TIMER_SENTINEL: &str = ":wat::kernel::__recv_by_deadline_timer__";
+
+/// Map a `ServiceEvent` from `select [peer tmr]` onto `RecvOutcome`.
+/// idx 0 is the raced peer; idx 1 is the timer. The timer payload is never
+/// returned as `Message`.
+fn recv_outcome_from_peer_select(
+    ev: Value,
+    types: Option<&crate::types::TypeEnv>,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::recv-by-deadline";
+    let Value::Enum(e) = &ev else {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "recv-by-deadline: select returned a non-ServiceEvent: {}",
+                    ValueSnapshot::of(&ev)
+                ),
+            },
+        )
+        .into());
+    };
+    if e.type_path.as_str() != ":wat::spawn::ServiceEvent" {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "recv-by-deadline: select returned {}:{}",
+                    e.type_path, e.variant_name
+                ),
+            },
+        )
+        .into());
+    }
+    let idx = match e.fields.first() {
+        Some(Value::i64(n)) => *n,
+        _ => -1,
+    };
+    match e.variant_name.as_str() {
+        "Message" => match idx {
+            0 => Ok(recv_outcome_from_decoded(e.fields[1].clone(), types)),
+            1 => Ok(recv_outcome_timedout()),
+            _ => Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("recv-by-deadline: select Message at unexpected idx {idx}"),
+                },
+            )
+            .into()),
+        },
+        "Closed" => match idx {
+            0 => Ok(recv_outcome_closed()),
+            1 => Ok(recv_outcome_timedout()),
+            _ => Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("recv-by-deadline: select Closed at unexpected idx {idx}"),
+                },
+            )
+            .into()),
+        },
+        "Lost" => match idx {
+            0 => {
+                let reason = match e.fields.get(1) {
+                    Some(c) => record_field_by_name(c, "error", types)
+                        .and_then(|fault| record_field_by_name(&fault, "message", types))
+                        .and_then(|m| match m {
+                            Value::String(s) => Some((*s).clone()),
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| "select lost".into()),
+                    None => "select lost".into(),
+                };
+                if reason == SELECT_SEVERED_CLASS {
+                    Ok(recv_outcome_lost_severed())
+                } else {
+                    Ok(recv_outcome_lost(reason, types))
+                }
+            }
+            1 => Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "recv-by-deadline: timer Lost (a timer has no crash channel)".into(),
+                },
+            )
+            .into()),
+            _ => Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("recv-by-deadline: select Lost at unexpected idx {idx}"),
+                },
+            )
+            .into()),
+        },
+        "Malformed" => match idx {
+            0 => Ok(recv_outcome_malformed(
+                e.fields.get(1).cloned().unwrap_or_else(|| {
+                    message_only_failure("recv-by-deadline: malformed with no cause".into())
+                }),
+            )),
+            _ => Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("recv-by-deadline: select Malformed at unexpected idx {idx}"),
+                },
+            )
+            .into()),
+        },
+        "Rejected" => match idx {
+            0 => Ok(recv_outcome_lost("select rejected".into(), types)),
+            _ => Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("recv-by-deadline: select Rejected at unexpected idx {idx}"),
+                },
+            )
+            .into()),
+        },
+        "Shutdown" => Ok(recv_outcome_shutdown()),
+        other => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("recv-by-deadline: unexpected select variant {other}"),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::recv-by-deadline peer ms)` — owner-wait deadline, and the
+/// unified-Peer race (`peer-wire?` tier + `select [peer tmr]`).
 ///
 /// Same RecvOutcome as `recv`, plus a reachable `TimedOut` when `ms` elapses
 /// with the peer still silent. A bare `recv` never constructs TimedOut
 /// (NOTE-an-outcome-variant-no-primitive-can-construct). This is the primitive
 /// that does. `select` cannot mix a Process/Thread lineage handle with
-/// `after`'s unified Peer — STOP-1 of the-owner-wait-has-a-deadline.
+/// `after`'s unified Peer — STOP-1 of the-owner-wait-has-a-deadline. The Peer
+/// path is that race, copied from `call-by-deadline`.
 pub(crate) fn eval_peer_recv_by_deadline(
     args: &[WatAST],
     list_span: &Span,
@@ -25781,11 +25937,40 @@ pub(crate) fn eval_peer_recv_by_deadline(
                 .map_err(Into::<EvalBreak>::into)??;
             Ok(result)
         }
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
+            // Unified Peer: the call-by-deadline race. Tier from the PEER
+            // (`is_socket_tier` = `peer-wire?`), never from the env. Timer
+            // payload is a reserved sentinel, discriminated by idx not value.
+            let cell: &crate::kernel::spawn::PeerCell =
+                crate::rust_deps::marshal::downcast_ref_opaque(
+                    inner,
+                    crate::kernel::spawn::PEER_TYPE_PATH,
+                    OP,
+                    list_span.clone(),
+                )?;
+            let is_wire = match cell
+                .with_ref(OP, |opt_peer| {
+                    opt_peer.as_ref().map(|peer| peer.is_socket_tier())
+                })
+                .map_err(Into::<EvalBreak>::into)?
+            {
+                None => return Ok(recv_outcome_closed()),
+                Some(w) => w,
+            };
+            let inert = Value::wat__core__keyword(Arc::new(
+                RECV_BY_DEADLINE_TIMER_SENTINEL.to_string(),
+            ));
+            let tmr = after_timer_peer(!is_wire, dur, inert, list_span, sym)?;
+            let peers = Arc::new(vec![peer_val.clone(), tmr]);
+            let ev = eval_peer_select_values(peers, list_span, sym)?;
+            recv_outcome_from_peer_select(ev, sym.types().map(|a| a.as_ref()), list_span)
+        }
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "owner handle ((Thread :- [I O]) | (Process :- [I O]))",
+                expected:
+                    "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -26756,7 +26941,18 @@ pub(crate) fn eval_peer_select_prime(
             .into())
         }
     };
+    eval_peer_select_values(peers_vec, list_span, sym)
+}
 
+/// Fan-in over an already-evaluated homogeneous peer vector. Shared by
+/// [`eval_peer_select_prime`] and the unified-Peer arm of
+/// [`eval_peer_recv_by_deadline`] (the call-by-deadline race, in-tier).
+fn eval_peer_select_values(
+    peers_vec: Arc<Vec<Value>>,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::select";
     if peers_vec.is_empty() {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -27574,19 +27770,24 @@ pub(crate) fn eval_kernel_after(
     // Build the std::time::Duration from nanos. NonZeroU64 so never zero.
     let std_dur = std::time::Duration::from_nanos(nanos);
 
+    after_timer_peer(is_thread_tier, std_dur, msg, list_span, sym)
+}
+
+/// Build a unified `(Peer :- [nil O])` one-shot timer of `kind` (thread vs
+/// process/socket). Shared by [`eval_kernel_after`] and the Peer arm of
+/// [`eval_peer_recv_by_deadline`]. Tier is the RACED PEER'S (via `peer-wire?` /
+/// `is_socket_tier`), never the env's — `select` refuses a mixed-tier set.
+fn after_timer_peer(
+    is_thread_tier: bool,
+    std_dur: std::time::Duration,
+    msg: Value,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::after";
+    use crate::kernel::spawn::PEER_TYPE_PATH;
     use crate::rust_deps::custodia::ThreadOwnedCell;
     use crate::rust_deps::marshal::make_rust_opaque;
-
-    // arc 278 Stone 1 — the timer is built in the CORRECT location: a UNIFIED
-    // `(Peer' :- [nil O])` (`PEER_TYPE_PATH`), NOT a tier-specific `Thread'`/`Process'`
-    // `(Timer' :- [O])`. A timer is a real peer whose recv fires the `msg` once, then
-    // EOFs — so it drops into `poll'` (and `select'`) BY CONSTRUCTION, exactly
-    // like an accepted connection (`Listener::accept_as_value`). The tier is still
-    // chosen by `peer-kind`, but both tiers now yield the same `PEER_TYPE_PATH`
-    // value; the vestigial tier-open `Timer'` type + its fusion machinery are
-    // retired in check.rs. A timer has NO input, so the peer's send endpoint is a
-    // dead sender (its receiver is dropped immediately; it is never used).
-    use crate::kernel::spawn::PEER_TYPE_PATH;
 
     if is_thread_tier {
         // ── Thread tier ───────────────────────────────────────────────────────

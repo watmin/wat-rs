@@ -175,16 +175,19 @@ pub(crate) fn eval_peer_recv_prime(
 
 /// `(:wat::kernel::recv-by-deadline peer ms)` → `:wat::kernel::RecvOutcome<O>`.
 /// Recv that gives up after `ms` milliseconds. Constructs `TimedOut` when the
-/// peer stays silent — the variant a bare `recv` never mints.
+/// peer stays silent — the variant a bare `recv` never mints. Accepts a
+/// `Thread`/`Process` owner handle **or** a unified `Peer` (the child-main
+/// case). The Peer path races `select [peer tmr]` with the timer's tier from
+/// `peer-wire?`, the shape `call-by-deadline` already proves.
 ///
 /// @added         1.0.0
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
 /// @Category      Message
-/// @arg     peer (:wat::kernel::Peer :- [I O]) the owner lineage handle
+/// @arg     peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O])) owner handle or unified peer
 /// @arg     ms :wat::core::i64 deadline in milliseconds
-/// @ret     (:wat::kernel::RecvOutcome :- [O]) Message(O) / Closed / Lost / Stopped / TimedOut
+/// @ret     (:wat::kernel::RecvOutcome :- [O]) Message(O) / Closed / Lost / Stopped / TimedOut / Malformed
 /// @example-norun (:wat::kernel::recv-by-deadline lineage 500)
 #[wat_intrinsic(":wat::kernel::recv-by-deadline")]
 pub(crate) fn eval_peer_recv_by_deadline(
