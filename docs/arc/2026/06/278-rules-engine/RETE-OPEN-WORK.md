@@ -235,9 +235,9 @@ was added 2026-08-28 for the same reason (below).
 
 | outcome | rows |
 |---|---:|
-| FIRES inline · FIRES fence | 16 |
-| REFUSED inline · FIRES fence | 18 |
-| **MATCHES-NOTHING inline** · FIRES fence | **35** |
+| FIRES inline · FIRES fence | **55** |
+| REFUSED inline · FIRES fence — with a DIAGNOSTIC | 18 |
+| ~~MATCHES-NOTHING inline~~ | **0** (was 39; fix-list F, closed 2026-08-28) |
 | NOT-GENERABLE — every holon row (two `HolonAST` operands, no literal spelling) | 4 |
 | **CANNOT RUN — a DEFECT** | **1** (was 6; five fixed 2026-08-28) |
 
@@ -575,9 +575,12 @@ work, all of it a judgment call.**
    declares `total: true`, a wall every row must pass. Surfaced only by being able to RUN the row.
    (Everything else under this number is CLOSED: `map`/`filter` became the eager `mapv`/`filterv`;
    `Tuple` got its three accessors; the coverage GATE is the ledger.)
-3. **The inline-constraint gap — the largest thing still open, and a DESIGN question.** Only 16 of
-   77 rows work as an inline constraint: 18 are refused and **39 are accepted and silently match
-   nothing**. Arc 109's NOTE frames this as `keyword::=`'s
+3. **The inline-constraint gap — HALVED, and what remains is only a design question.**
+   **The wrong-answer half is CLOSED** (fix-list F): 39 rows that were accepted-and-silently-inert
+   now FIRE, taking the inline column from 16 to **55 of 77**, and `MATCHES-NOTHING` is banned
+   surface-wide. What is left is the 18 rows still REFUSED inline — every unary op, every
+   `Type/method` spelling, and both keyword/enum rows — which refuse WITH A DIAGNOSTIC and so are
+   a question about what the position should ADMIT, never a wrong answer. Arc 109's NOTE frames this as `keyword::=`'s
    type-mapping bug; the ledger shows it is every unary op, every `Type/method` spelling, every
    wrapped value-returning row, and enums as well. Whether that position SHOULD admit them is a
    design question nobody has been asked; what is settled is that the current story is far too
