@@ -2,7 +2,7 @@
 ;; Beats in, Datamancer or Hollow out.
 #wat.rete/Export {
   :v 1
-  :abi "v1:3ca327ca5d648b83"
+  :abi "v1:196687399f76baa6"
   :classes ["dm::Beat" "dm::Gap" "dm::ReadAfter" "dm::Artifact" "dm::Primer" "dm::Four" "dm::Hollow" "dm::Datamancer"]
   :fields [
     ["t" "kind"]
@@ -412,7 +412,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "gap"]
         ]
@@ -430,7 +430,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "read-log"]
         ]
@@ -467,7 +467,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "fetch-primer"]
         ]
@@ -485,7 +485,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "tend-record"]
         ]
@@ -503,7 +503,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "weigh-disk"]
         ]
@@ -521,7 +521,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "root-failure"]
         ]
@@ -539,7 +539,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "recolligere"]
         ]
@@ -557,7 +557,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "curare"]
         ]
@@ -575,7 +575,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "examinare"]
         ]
@@ -593,7 +593,7 @@
         ]
         [
           :call
-          54
+          57
           [:slot 0]
           [:lit "extirpare"]
         ]
