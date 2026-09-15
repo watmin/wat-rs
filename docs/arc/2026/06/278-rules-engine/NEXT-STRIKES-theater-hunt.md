@@ -1236,10 +1236,13 @@ one away) · `excusare` 2 L2 · `perspicere` 2 of 3 L2 · **`solvere` all 7 L2**
 
 **STILL OPEN — nothing here can compute a wrong answer.** Rows marked CLOSED below were driven
 down on 2026-08-25/27. **Re-audited 2026-08-27; this roster is the answer to "what is left":**
-~~`partire` x7~~ (**RESOLVED 2026-08-28** — two closures, two named cuts; see L2 above), `complectens` 1
-(open, deliberately not taken), `circumspicere` 1 (open, and its stated reason has EXPIRED — see
-below), the two TRACKED DECISIONS at the foot of this file, and the `CLAUDE.md` record defect
-that needs the builder. **T7 was named here as open while being marked CLOSED thirty lines
+**✅ EVERY ROW ON THIS ROSTER IS NOW CLOSED (2026-08-28/29).** ~~`partire` x7~~ (RESOLVED — two
+closures, two named cuts), ~~`complectens` 1~~ (CUT affirmatively — audited, all three kinds have
+attributable caller-vantage coverage and a unit test would be worse), ~~`circumspicere` 1~~ (CLOSED
+— runs as its own `grid-speed` CI job on per-axis ratio floors), ~~the two TRACKED DECISIONS~~
+(① moved to arc 109 as a NOTE with a sharpened merits ruling; ② CLOSED — `match` map-destructure
+lowers), ~~the `CLAUDE.md` record defect~~ (CLOSED as a POINTER, not a copy).
+**The vigilia tail is empty — and this time it was audited row by row, not inherited.** **T7 was named here as open while being marked CLOSED thirty lines
 below** — the same two-places-per-row defect this section's L1 header now bans; it is closed.
 - `conferre` 1 L2 — **CLOSED 2026-08-25, and it was worse than "prose drift".** The header said
   "18 axes / 9 sized + 10 where-*"; the disk held 43 / 11 + 32. The floor assertion
@@ -1288,10 +1291,36 @@ below** — the same two-places-per-row defect this section's L1 header now bans
     `pub(crate)` and this is an integration test. The count is removed; the real gate is named
     instead — `every_op_variant_lands_in_core_or_driver`'s `lands()` is an exhaustive match, so
     an eighth variant cannot compile until someone classifies it.
-- `complectens` 1 of 2 — the leading-filter contract has no base-layer unit test.
-  DELIBERATELY not taken: `filter_pass` is unreachable from an integration test, and
-  going in-crate means the empty-`:rhs` implementer vantage just marked as a runed
-  exception.
+- ~~`complectens` 1 of 2 — the leading-filter contract has no base-layer unit test.~~
+  **CUT AFFIRMATIVELY 2026-08-29 — LEAVE. The claim is true and its implication is false.**
+  Audited rather than re-deferred, because "deliberately not taken" is a deferral wearing a
+  ruling's clothes and this arc has been bitten by two of those.
+
+  **TRUE:** `filter_pass` (`fire/pass/filter.rs:22`) has ONE caller (`delta.rs:567`) and ZERO test
+  references. **FALSE:** that it is therefore untested. It dispatches exactly three node kinds and
+  each has ATTRIBUTABLE coverage at the CALLER's vantage — a defect in one fails its own fixture,
+  which is what an isolating unit test would have bought:
+
+  | kind | covered by |
+  |---|---|
+  | `Test` | the where-family (14 refs in `check-where-shapes.sh`, a CI job) |
+  | `Negation` | grid `negation` + `neg-consumer` (mid-chain) |
+  | `Exists` | grid `leading-exists` — **the axis that caught the 2026-08-24 defect** |
+
+  **And the two arms mid-chain fixtures CANNOT reach are covered too** — the empty-`pids` seeds at
+  `:87` (leading `:not`) and `:96` (leading `:exists`). Leading `:exists` has its own named axis.
+  Leading `:not` is carried by `wat-tests/rete/differential-fuzz-tms.wat`, and it was the one thing
+  here worth driving: a leading `:not` answers **1** in the empty world and **0** with a matching
+  fact present — reachable, correct, and covered.
+
+  **The stated REASON also survives, in substance.** `filter_pass` takes SEVEN parameters, six of
+  them internal structures (`FireSession`, `InternedNetwork`, `RoundScratch`, `BetaMemory`,
+  `GatherCache`, `LeadingEmitted`). A unit test would have to fabricate a compiled arm by hand —
+  the implementer vantage `vocare` exists to ban. **A unit test here would be WORSE than what
+  exists, not merely redundant.**
+  ⚠ Its specific citation — *"the empty-`:rhs` implementer vantage just marked as a runed
+  exception"* — greps to nothing and is stale wording; the argument it gestured at is the one
+  restated above.
 - ~~`circumspicere` 1 L2 — the grid's SPEED half runs in no CI job.~~ **CLOSED 2026-08-29 — it runs as its own `grid-speed` job on per-axis ratio floors; the full verdict is `RETE-OPEN-WORK.md` § "The order" item 6, and BOTH stated reasons were dead (the second one was never measured: the tightest cell is 8.5x, nowhere near the parity a noise argument needs).** ⚠ ITS STATED REASON EXPIRED
   ON 2026-08-27 AND NOTHING NOTICED — same shape as TRACKED DECISIONS ①.** The row read
   "correctly scoped: it needs Clara and a JDK the runner lacks." The runner no longer lacks
