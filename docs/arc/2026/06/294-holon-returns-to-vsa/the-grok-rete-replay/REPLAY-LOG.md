@@ -70,14 +70,15 @@ convert.sh reports across the batch: era UNREADABLE (expected); UNRESOLVED `:wat
 
 Branch: `replay/grok-rete`. Source: `origin/grok-rete` `37528f6e0` (git show only). Base: `de827fb4c`.
 Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=2054.
-**Not pushed.** Main untouched. 65 REPLAY commits #61–#125. Two FIX after #125.
+**Not pushed.** Main untouched. 65 REPLAY commits #61–#125.
+BRIEF-5b folded the two late FIX commits into #95 and #108. Tip files unchanged (`git diff` empty).
 
 ## Checkpoints
 
 | at | floor | clippy |
 |---|---|---|
 | #93 `da5bcb3f0` | `.floor/2026-09-15T05-28-34Z` Summary [225.422s] 5530 tests run: 5530 passed, 22 skipped exit=0 | 0 |
-| #125 + FIX `00cc59ff4` | `.floor/2026-09-15T07-01-22Z` Summary [227.766s] 5540 tests run: 5540 passed, 22 skipped exit=0 | 0 |
+| #125 fold tip `f8060baad` | `.floor/2026-09-15T08-11-53Z` Summary [227.439s] 5540 tests run: 5540 passed, 22 skipped exit=0 | 0 |
 
 ## Recurring re-expression (wat-in-rs-strings; convert.sh does not reach them)
 
@@ -120,35 +121,32 @@ Start tip: stone-3. Census baseline `.census/2026-09-15T04-07-25Z.txt` files=205
 | 92 | `a549fd9b8` → `52484f371` | docs | |
 | 93 | `b7fac5ec7` → `da5bcb3f0` | shared | export Op::Eval. **checkpoint floor GREEN** `.floor/2026-09-15T05-28-34Z` 5530/5530 clippy 0 |
 | 94 | `3fb4aefa3` → `6f4999462` | shared | keyword equality inline. auto-merge |
-| 95 | `7cb9994cb` → `6144dfc09` | shared | keyword converters. LATENT homes. ABI `v1:e423b3522b35d7a7` |
-| 96 | `d4fe222c2` → `7b55480b9` | shared | inline any bool expr. auto-merge |
-| 97 | `5cf17bbe7` → `96ba536d6` | docs | |
-| 98 | `1a97cf12b` → `895f517a9` | shared | vector field-ref. CharLit arms. census `.census/2026-09-15T05-53-37Z.txt` files=2064 |
-| 99 | `4c19b9029` → `1e9625225` | shared | computed operand typed. CharLit + diagnostic home. census `.census/2026-09-15T05-59-38Z.txt` |
-| 100 | `ad2286133` → `81a761cd6` | shared | inline cond/let/match/if. Vector match-arms. census `.census/2026-09-15T06-04-37Z.txt` |
-| 101 | `b7f54a17f` → `0fff3a0fa` | shared | ONE rule: keyword operand is field-ref or constant. convert.sh keyword→ctor over-rewrote; unit defenum `:A :B`; `decompose_variant` door. census `.census/2026-09-15T06-26-16Z.txt` files=2065 |
-| 102 | `5f650bb39` → `d47dc3fbc` | docs | cherry-pick -x |
-| 103 | `7f21de15f` → `bd757bef2` | code | stratify third hole. census `.census/2026-09-15T06-29-28Z.txt` files=2065 |
-| 104 | `197093b8d` → `67c0a18a8` | docs | cherry-pick -x |
-| 105 | `85c87314d` → `ca2b73123` | shared | termination diagnostic. convert `--check` 0. 5 named tests. census `.census/2026-09-15T06-32-06Z.txt` files=2066 |
-| 106 | `f4c618d02` → `428b74caa` | code | coincident? fifth. convert `--check` 0. census `.census/2026-09-15T06-33-26Z.txt` files=2067 |
-| 107 | `ef66360d3` → `4944c8daa` | docs | cherry-pick -x |
-| 108 | `3f03b7d33` → `9313bbb83` | shared | Ret::Is/NoScheme. classify_fallback_outcome in `src/holon/outcome.rs`. goldens HEAD. variant-name named in freeze list. census `.census/2026-09-15T06-39-53Z.txt` files=2067 |
-| 109 | `1facc1f94` → `ed972d6a1` | docs | cherry-pick -x |
-| 110 | `2c4c6a163` → `c7f8e3d79` | shared | `#holon` literal fold. eval_quote already pub(crate). to_holon_inner via `crate::holon`. goldens HEAD. census `.census/2026-09-15T06-45-18Z.txt` files=2067 |
-| 111 | `c3caee1c1` → `532a85908` | docs | cherry-pick -x |
-| 112 | `39534d73f` → `b52f9aef4` | code | 7 scratch-pad probes convert `--check` 0. census `.census/2026-09-15T06-46-56Z.txt` files=2074 |
-| 113–121 | `9abad4d73`…`75eea76d5` → `b0df7f0f0`…`05435c39b` | docs | cherry-pick -x |
-| 122 | `31c76474a` → `33c5089af` | shared | hash-destructure. Map arm + HEAD KEY-FIRST Vector nested-variant. convert `--check` 0. census `.census/2026-09-15T06-51-37Z.txt` files=2076 |
-| 123 | `3f2cb8322` → `c8bc749e8` | docs | cherry-pick -x |
-| 124 | `4e2043cc2` → `10a048035` | code | export-roundtrip probe convert `--check` 0. census `.census/2026-09-15T06-53-02Z.txt` files=2077 |
-| 125 | `bff5b2179` → `848a2bf6e` | docs | cherry-pick -x |
+| 95 | `7cb9994cb` → `165e61097` | shared | keyword converters. LATENT homes. **Folded:** RETE_MODULES + GAP_A (was `00cc59ff4`). ABI `v1:e423b3522b35d7a7` |
+| 96 | `d4fe222c2` → `428e8cf22` | shared | inline any bool expr. auto-merge |
+| 97 | `5cf17bbe7` → `f237a2270` | docs | |
+| 98 | `1a97cf12b` → `33d79d58a` | shared | vector field-ref. CharLit arms. census `.census/2026-09-15T05-53-37Z.txt` files=2064 |
+| 99 | `4c19b9029` → `5a37d744c` | shared | computed operand typed. CharLit + diagnostic home. census `.census/2026-09-15T05-59-38Z.txt` |
+| 100 | `ad2286133` → `0e8c1884c` | shared | inline cond/let/match/if. Vector match-arms. census `.census/2026-09-15T06-04-37Z.txt` |
+| 101 | `b7f54a17f` → `8a7c42136` | shared | ONE rule: keyword operand is field-ref or constant. convert.sh keyword→ctor over-rewrote; unit defenum `:A :B`; `decompose_variant` door. census `.census/2026-09-15T06-26-16Z.txt` files=2065 |
+| 102 | `5f650bb39` → `b95514b0f` | docs | cherry-pick -x |
+| 103 | `7f21de15f` → `b7bd31978` | code | stratify third hole. census `.census/2026-09-15T06-29-28Z.txt` files=2065 |
+| 104 | `197093b8d` → `17919d102` | docs | cherry-pick -x |
+| 105 | `85c87314d` → `145ee1dcd` | shared | termination diagnostic. convert `--check` 0. 5 named tests. census `.census/2026-09-15T06-32-06Z.txt` files=2066 |
+| 106 | `f4c618d02` → `11edc321c` | code | coincident? fifth. convert `--check` 0. census `.census/2026-09-15T06-33-26Z.txt` files=2067 |
+| 107 | `ef66360d3` → `d0344f28c` | docs | cherry-pick -x |
+| 108 | `3f03b7d33` → `2ad83eda0` | shared | Ret::Is/NoScheme. classify_fallback_outcome in `src/holon/outcome.rs`. goldens HEAD. **Folded:** Ret doc ` ```text ` fence (was `1c6d6af3e`). census `.census/2026-09-15T06-39-53Z.txt` files=2067 |
+| 109 | `1facc1f94` → `ef87a7e18` | docs | cherry-pick -x |
+| 110 | `2c4c6a163` → `ae021ec88` | shared | `#holon` literal fold. eval_quote already pub(crate). to_holon_inner via `crate::holon`. goldens HEAD. census `.census/2026-09-15T06-45-18Z.txt` files=2067 |
+| 111 | `c3caee1c1` → `ecdb33c67` | docs | cherry-pick -x |
+| 112 | `39534d73f` → `9853fb949` | code | 7 scratch-pad probes convert `--check` 0. census `.census/2026-09-15T06-46-56Z.txt` files=2074 |
+| 113–121 | `9abad4d73`…`75eea76d5` → `5d6b641a4`…`84f15efce` | docs | cherry-pick -x |
+| 122 | `31c76474a` → `d91d945d4` | shared | hash-destructure. Map arm + HEAD KEY-FIRST Vector nested-variant. convert `--check` 0. census `.census/2026-09-15T06-51-37Z.txt` files=2076 |
+| 123 | `3f2cb8322` → `3e9142db2` | docs | cherry-pick -x |
+| 124 | `4e2043cc2` → `616b45d1c` | code | export-roundtrip probe convert `--check` 0. census `.census/2026-09-15T06-53-02Z.txt` files=2077 |
+| 125 | `bff5b2179` → `3ac756c0f` | docs | cherry-pick -x |
 
-FIX after #125 (checkpoint floors captured, not re-run):
-
-- `.floor/2026-09-15T06-54-24Z` doctest RED `Ret` prose compiled as Rust → `1c6d6af3e` fence ` ```text `
-- `.floor/2026-09-15T06-55-06Z` 5538/2 `every_row_is_admitted` + `registry_membership_gap_a` → `00cc59ff4` RETE_MODULES + GAP_A
+BRIEF-5b fold: `00cc59ff4` into #95, `1c6d6af3e` into #108. FIX commits dropped. 65 subjects unchanged.
 
 ## STOP
 
-None at yield. Two captured red floors at #125 closed by FIX, then green.
+None. Fold proof: tip files identical to pre-fold.

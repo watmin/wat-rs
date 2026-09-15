@@ -98,6 +98,10 @@ For grok-rete commit **C**, where #N is its index after `de827fb4c`:
    - **From 2a4c — `convert.sh` reporting `UNREGISTERABLE` for a `wat/…` path is STOP-9.**
      After 2a4c the stdlib door reads every current `wat/` file as it declares itself; a
      refusal is no longer a report line to skip.
+   - **From #126 on — every step with a `.rs` change:**
+     `cargo nextest run --release -E 'kind(lib)'` (1471 tests, ~16 s warm) and
+     `cargo test --doc --release` (~2 s warm). These are the two in-crate walls the
+     lint/census/stone-3 gate could not see (BRIEF-5b / finding 20). A red is **STOP-11**.
 4. **Commit:** `REPLAY(grok-rete #N): <C's subject>`, whose body carries C's hash, every conflict,
    and how each was resolved. `-x` adds the trailer.
 5. **Log it** in `PILOT-LOG.md` (this directory): N, C, the wall time, the files, the conflicts and
@@ -123,6 +127,8 @@ play.
   not produce that file.
 - **STOP-9 (from 2a4c):** `convert.sh` reports `UNREGISTERABLE` for a `wat/…` path. The stdlib
   door refused a stdlib file; name the file, the form, and the cause.
+- **STOP-11 (from #126):** an in-crate wall (`kind(lib)`) or a doctest is red at the `.rs`
+  step that caused it. Paste the whole block; do not re-run.
 
 ## Blast radius
 
