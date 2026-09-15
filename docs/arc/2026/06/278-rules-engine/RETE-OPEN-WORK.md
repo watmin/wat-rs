@@ -149,24 +149,32 @@ rule reaching `compile-all` — declared OR built at runtime, which the freeze-t
 cannot do. A computed head inside a positive produces→consumes cycle is refused, named, before a
 fact is inserted. Gated by `tests/rete/probe_arc278_fixpoint_round_cap.rs`.
 
-**⚠ WHAT IT DOES NOT PROVE, and this is the honest half.** A fn-headed `:then`
-(`(:my::mk-fact ?k)`) is opaque, so a cycle through one is NOT proven terminating — it is
-ADMITTED. The first cut refused it and the FLOOR priced that: `:then` fn-heads are a shipped,
-deliberate feature (Stone B) and `probe_arc278_then_user_forms` exercises a cyclic one. Refusing it
-would delete a working capability on a guess, to close a hole nobody has fallen into, while the
-shape actually measured to kill the process is refused either way.
+**⚠ THE FN-HEADED HOLE — NAMED, THEN MIS-DIAGNOSED, THEN DEMONSTRATED, THEN CLOSED (same day).**
+The verifier inspects the `:then` ITEM, so `(:bump ?n)` reads as "all arguments are bound
+variables" while `bump`'s body mints. The sequence is worth keeping because two of the three steps
+were mine getting it wrong:
 
-**⚠ AND ON INVESTIGATION THE HOLE IS NARROWER THAN THAT — corrected within the hour.** To slip past
-the verifier a fn-headed `:then` must MINT a novel fact, and three attempts were each refused by a
-DIFFERENT pre-existing fence: a body computing with `i64::+` → *"is not total"*; computing with the
-total fallback form → *"is not a rete primitive"*; constructing a record at all → *"`kwargs-construct`
-is not pure"* (which `probe_arc278_then_user_forms_userfn.wat`'s own header already records, and is
-why that fixture EXTRACTS rather than builds). An extracting fn returns a fact already in the
-accumulated set and so cannot mint an unbounded stream. `then-item-fence` also already walks the fn
-BODY for admitted ops — most of the analysis this entry proposed writing.
+1. **Named** as a known limit when 4.2 landed — honest, but untested.
+2. **Mis-diagnosed as already-guarded.** Three attempted exploits were each refused, and I recorded
+   them as three fences closing the hole. They were refused for an UNRELATED reason: a `:then`
+   head must be declared `:wat::rete::core::defn`, and all three used plain `:wat::core::defn`,
+   which `then-item-fence` rejects as "not a rete primitive". **I proved nothing and committed the
+   conclusion anyway** — corrected within the hour when the builder pushed back on the totality
+   claim in that table.
+3. **Demonstrated.** With the right door (`:wat::rete::core::defn`) and the total fallback
+   spelling, the exploit compiled clean and ran to the round cap — the backstop earning its place
+   concretely rather than hypothetically.
+4. **Closed.** `rete_fn_body_mints` looks up the head's fn and walks its BODY for a constructor
+   carrying a computed argument. Gated by `probe_arc278_termination_fn_head.wat`.
 
-**No exploit found, guarded by adjacent fences — which is NOT "proven impossible", and is not
-recorded as such.** The round cap (3.1) still stands behind this and behind Export's missing AST.
+**The one line that decided it:** `(:N :k <expr>)` is kwargs SUGAR and reaches a stored fn body as
+`:wat::core::kwargs-construct` — a `:wat::`-prefixed head, which a "constructors are non-`:wat::`
+heads" heuristic skips. That silently disarmed the entire check; the exploit still passed with
+`computed=None` until the two desugared heads were named explicitly.
+
+**Still not proven, and not claimed:** a body that reaches its computed value through a deeper
+composition than one constructor form. The round cap remains the backstop, alongside Export's
+missing AST.
 
 <details><summary>the original entry, kept for the reasoning that produced it</summary>
 
