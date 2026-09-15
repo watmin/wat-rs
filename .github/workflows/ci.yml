@@ -110,3 +110,78 @@ jobs:
       # split for rustc lints.
       - name: Clippy
         run: cargo clippy --release --workspace --all-targets -- -D warnings
+
+  # ── THE ARC'S OWN CLOSING CONDITION, ARMED ─────────────────────────────────────────────────
+  #
+  # `PERF-ARC` states the bar as "differential-tested bit-for-bit against the wat oracle AND
+  # benched at or past Clara". Half of that has always been gated: `spec_equals_native_on_every_
+  # where_family` (nextest) compares native against the wat `$oracle` and needs no JVM. The CLARA
+  # half needed a JDK the runner did not have, so `check-where-shapes.sh` was invoked by NO job —
+  # and a Clara-parity regression merged fully green. `run-all.sh`'s own header records this
+  # having already happened once, with four axes dead for days.
+  #
+  # It is the same shape of hole this file already documents twice: a gate that only ran `-p wat`
+  # while sibling crates drifted for weeks, and a clippy run that lints lib+bins while exempting
+  # every test. Coverage narrower than the claim made for it.
+  #
+  # A SEPARATE JOB, deliberately, not a step in `test`. A parity failure is a real finding but a
+  # different one from a broken build, and burying it behind the test job's exit code would let
+  # either mask the other. It also means the JVM install never slows the path that gates merges.
+  #
+  # `check-where-shapes.sh` already fails LOUDLY when java is absent (`exit 1`, not a skip), so
+  # this job cannot silently pass by finding no toolchain — which is the failure mode that would
+  # otherwise reproduce the exact hole it exists to close.
+  parity:
+    name: clara parity (where-family)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wat-rs
+    steps:
+      - name: Checkout wat-rs
+        uses: actions/checkout@v4
+        with:
+          path: wat-rs
+
+      - name: Checkout holon-rs (sibling path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: watmin/holon-rs
+          path: holon-rs
+
+      - name: Install mold (the linker .cargo/config.toml pins)
+        run: sudo apt-get update && sudo apt-get install -y mold && mold --version
+
+      # Temurin via the official action — the same org as `actions/checkout` above.
+      - name: Install JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Clojure CLI from the clojure org's own GitHub release, PINNED by version rather than
+      # tracking `latest`: the parity verdict is a comparison against Clara 0.24.0, so the tool
+      # that resolves that dep is part of the measurement and an unpinned installer would make
+      # this job's answer drift without anyone changing a line here.
+      - name: Install Clojure CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL -o linux-install.sh \
+            https://github.com/clojure/brew-install/releases/download/1.11.3.1463/linux-install.sh
+          chmod +x linux-install.sh
+          sudo ./linux-install.sh
+          clojure --version
+
+      - name: Build wat (the parity script runs the release binary)
+        run: cargo build --release
+
+      # THE VERDICT: every `where-*.wat` against its `.clj` twin, one diff. Clara is the third
+      # reference and the arbiter of what the semantics ARE — the `$oracle` says what we intended.
+      - name: Clara parity — where-family
+        run: bash wat-scripts/perf/grid/check-where-shapes.sh
+
+      # THE THREE-WAY MOUTH: Clara == oracle == native on the query families (binding MAPS, not
+      # just row counts). Found unreferenced by ANY file while wiring the job above — a working
+      # 24-row gate that nothing had ever run, which is the same defect one directory over.
+      - name: Clara parity — query mouth (three-way)
+        run: bash wat-scripts/perf/grid/check-query-compat.sh
