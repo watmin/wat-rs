@@ -1284,6 +1284,45 @@ field. Reachable, but not constructible inside a fence.
    **Blast radius: substrate-wide** — a `#[global_allocator]` wrapper is not a rete change, and the
    ceiling would bound every allocation, not just facts. **Not started; the builder's call.**
 
+   ⚠⚠ **THE COUNTING ALLOCATOR IS BUILT AND GATED — AND DELIBERATELY UNWIRED. Two measurements
+   say so, one of them the builder's catch.** `src/alloc_counter.rs`, `#[global_allocator]` in
+   `lib.rs`, exact bytes in `current_bytes()` / `peak_bytes()`, two tests (the counter tracks and
+   releases; a grow counts the DELTA, which is the arm that catches the default `realloc`).
+
+   **① IT IS PROCESS-GLOBAL, AND A SESSION CEILING IS NOT A PROCESS FACT.** Builder, before it was
+   wired: *"if i had 512 threads running… each with their own session… there's no conflict?"* There
+   is. A rete session is THREAD-AFFINE by contract — `arm.rs`'s intern table is `thread_local!` and
+   its rune reads *"Connection-thread affinity is the ZERO-MUTEX contract"* — so 512 threads is 512
+   sessions and this counter reports their SUM. A fixpoint reading it would **refuse the innocent**
+   (stopped because a sibling thread is large) and **answer non-deterministically** (same program,
+   different verdict by scheduling). **Determinism is held by construction here; a check like that
+   spends it.** Caught before a line of it was wired, which is the only reason this is a note and
+   not a defect.
+
+   **② IT COSTS ~5–8% ON THE FIRE PATH.** Measured against the 2026-08-27 grid, `wat-ns`:
+
+   | cell | before | with allocator | Δ |
+   |---|---|---|---|
+   | `fanout [40000]` | 22_221_651 | 23_917_347 | **+7.6%** |
+   | `fanout [10000]` | 3_964_973 | 4_317_620 | **+8.9%** |
+   | `accum [200 200]` | 13_472_006 | 14_796_945 | **+9.8%** |
+   | `negation [1000]` | 1_176_575 | 1_241_969 | +5.6% |
+   | `accum [50 200]` | 2_535_373 | 2_540_301 | +0.2% |
+
+   The grid's own noise floor is ~3%, so the fanout and accum tops are real and the smallest cells
+   are inside it. Two `Relaxed` atomics per allocation is not free on a path this arc has spent
+   weeks shaving.
+
+   **THE FORK, and it is the builder's:**
+   - **Thread-local counting** — matches the affinity contract, so a session ceiling becomes
+     sound. Caveat to state plainly: a cross-thread `Arc` free decrements the FREEING thread, so a
+     thread-local net figure drifts exactly as far as values cross threads.
+   - **Keep it global, as a PROCESS backstop only** — honest, deterministic in a single-threaded
+     program, and it bounds the machine rather than the session. Then the finite-domain proof stays
+     the only per-session bound and `MAX_PROVABLE_FACT_POPULATION` does NOT go away.
+   - **Revert it** — ~6% of fire is a real price for a counter nothing reads, and the OOM it would
+     catch is already refused at compile by the cyclicity check.
+
    ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
    marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
    their reason for themselves?"*). An author's string is not a proof. The direction the design

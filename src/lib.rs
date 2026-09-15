@@ -59,6 +59,14 @@
 
 extern crate self as wat;
 
+pub mod alloc_counter;
+
+/// THE process allocator. Declared here rather than in `main.rs` so tests, examples and any
+/// embedder linking this lib all measure the same way — a counter that only some binaries install
+/// would answer differently depending on who asked, which is worse than not having one.
+#[global_allocator]
+static GLOBAL: alloc_counter::CountingAllocator = alloc_counter::CountingAllocator;
+
 pub mod assertion;
 pub mod ast;
 pub mod check;
