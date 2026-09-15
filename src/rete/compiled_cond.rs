@@ -1232,7 +1232,7 @@ mod tests {
         );
 
         let seed_pairs = vec![(qvar("?c"), Value::i64(10))];
-        let interp = alpha_match_inner_seeded(&ast, "wjl::Wind", &fact, &fields, &seed_pairs);
+        let interp = alpha_match_inner_seeded(Some(test_sym()), &ast, "wjl::Wind", &fact, &fields, &seed_pairs);
         assert_eq!(
             interp.is_some(),
             rematch_ok.is_some(),

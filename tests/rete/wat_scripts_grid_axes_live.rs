@@ -150,6 +150,7 @@ const WHERE_FAMILY: &[&str] = &[
     "where-control",
     "where-exists",
     "where-fact-bind",
+    "where-inline-computed",
     "where-join-left",
     "where-join-order",
     "where-multivar",
