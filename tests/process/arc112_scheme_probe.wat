@@ -10,6 +10,9 @@
 (:wat::core::defn :my::launch [] -> (:wat::kernel::Process :- [:wat::core::i64 :wat::core::i64])
   (:wat::test::spawn-peer (:wat::spawn::process)
     (:wat::core::forms
+      ;; D3: the child is a fresh universe (finding 8). Ship the worker; a
+      ;; parent-only name is unresolved at child startup.
+      (:wat::core::defn :my::worker [] -> :wat::core::nil nil)
       (:wat::core::defn :user::main [] -> :wat::core::nil
         (:my::worker)))))
 

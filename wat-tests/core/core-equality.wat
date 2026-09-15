@@ -116,6 +116,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
+         ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_equality_cross_type_eq_rejected)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [b (:wat::core::= 1 1.5)] b))))]

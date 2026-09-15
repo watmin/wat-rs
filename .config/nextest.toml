@@ -150,6 +150,25 @@ priority = 97                                             # heavy: start it earl
 filter = 'test(every_recorded_migration_replays)'
 slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
 
+# ⏱ nested_program_literals_start_on_the_child_path — BRIEF-3 D1. 123 child
+# startups via startup_from_forms_with_inherit. Isolated 2026-09-15: 29.366s
+# (checked=123 assembled=7 templates=5 data=8 wall_ms=29366). Default 15s/30s
+# kill TIMED OUT at 30.012s under the floor (`.floor/2026-09-15T00-13-39Z`).
+# Same shape as retirement_table / scripts gate: a TIMEOUT, not a hang.
+#
+# ⚠ ORDER IS LOAD-BEARING. This MUST sit ABOVE the `binary_id(wat::lint)`
+# rule below. That test lives inside the lint binary; first-match would
+# swallow this filter, leave only `priority = 99`, and walk the 29s gate
+# back into a 30s SIGTERM.
+#
+# Contention band for the lint binary's early wave is 3.5x–4.4x (rete
+# cohort, 2026-08-17). 29.4s × 4.4 = 129s. Warn 90s / kill 180s is the rete
+# envelope and covers that projection. Durable fix: split the gate
+# per-directory so each piece fits the default budget. Not built.
+[[profile.default.overrides]]
+filter = 'test(nested_program_literals_start_on_the_child_path)'
+slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+priority = 99
 
 # The REST of the lint binary, immediately behind the scripts gate.
 #
@@ -299,6 +318,11 @@ slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100
 
 [[profile.ci.overrides]]
+filter = 'test(nested_program_literals_start_on_the_child_path)'
+slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+priority = 99
+
+[[profile.ci.overrides]]
 filter = 'binary_id(wat::lint)'
 priority = 99
 
@@ -332,6 +356,11 @@ filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 # corpus and the same wall; a deadline that only the dev profile can meet is not a deadline.
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100
+
+[[profile.slow.overrides]]
+filter = 'test(nested_program_literals_start_on_the_child_path)'
+slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
+priority = 99
 
 [[profile.slow.overrides]]
 filter = 'binary_id(wat::lint)'

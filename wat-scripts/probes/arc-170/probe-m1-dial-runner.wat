@@ -36,11 +36,11 @@
                 (:wat::core::defn :user::bracket::work-fn
                   [c <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])  s <- :wat::core::String]
                   -> :wat::core::String
-                  (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
+                  (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
   [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
     (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
   [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")]))
+    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::bracket::process-dial-runner
                     (:wat::program::self-peer

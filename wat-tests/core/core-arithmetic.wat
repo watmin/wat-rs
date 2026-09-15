@@ -262,6 +262,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
+         ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_cross_type_add_rejected)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ 1 2.0)] x))))]
@@ -284,6 +285,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
+         ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_string_add_rejected)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::+ "a" "b")] x))))]
@@ -309,6 +311,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
+         ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_cross_type_lt_rejected)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [b (:wat::core::< 1 2.5)] b))))]
@@ -331,6 +334,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
+         ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_sub_zero_ary_rejected)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::-)] x))))]
@@ -348,6 +352,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
+         ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_arithmetic_div_zero_ary_rejected)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [x (:wat::core::/)] x))))]
