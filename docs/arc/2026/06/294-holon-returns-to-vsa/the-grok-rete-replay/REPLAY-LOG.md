@@ -574,3 +574,66 @@ neither run by this executor.
 
 None. Do not push. Main untouched. `~/work/holon/` untouched. No subagents, no worktrees. Tree
 clean at yield.
+
+# Batch 4d — grok-rete #221–#225
+
+Start `2922feecd` (batch 4c's tip). HEAD `efa6e7035` (#225). Full SCORE:
+`SCORE-7d-replay-batch-4d.md`.
+
+## #221 — the batch's whole risk, driven
+
+First two-stdlib-file step since stone 2a4d (`wat/rete/oracle/fire.wat` + `wat/rete/oracle/stratify.wat`
+in one set). Two-phase convert ran as prescribed: stdlib pair converted (before `93ea0c618`, after
+`16f504e14`), `git merge-file` per file (0 conflicts, grok's split of `fire-fixpoint` into
+`fire-grow-fixpoint` + new `fire-support-fixpoint` + `retain-supported` threaded cleanly into main's
+syntax), merged files installed, `cargo build --release`, THEN the new probe `.wat` converted against
+the rebuilt binary. Per finding 25's method, both stdlib members were also converted SOLO and diffed
+byte-for-byte against the 2-file union (before and after): all four comparisons IDENTICAL — 2a4d's
+per-member-KEPT-rows world held for a real 2-file set, not just in theory.
+
+`--check` on the stdlib pair could not pass and was disproved, not worked around: both files define
+into `:wat::`, which `--check`'s plain-user loader refuses (`ReservedPrefix`) for ANY `wat/` file —
+confirmed identical on main's own unmodified `fire.wat` at the batch's start tip (16 errors there,
+19 after, exactly +3 for the three new/renamed top-level defns). The real gates are the binary's own
+stdlib load (`cargo build --release`, re-embedding `include_str!`'d content — confirmed via a
+binary-sha256 move that a control no-op rebuild proved was real content, not build noise) and any
+test that boots the runtime. Named test 2/2 passed; finding-24 hygiene walls 30/30 passed (the new
+`.rs` was already in the house shape — co-located `.wat` fixture via `call_beside_value`, `assert_eq!`
+throughout, no inlined forms).
+
+**Record repair, not a fold.** `verify-step-record.sh` first reported #221 missing its census verdict
+line — the check had genuinely run and passed, but the body wrapped `census: … --diff no STOP-8`
+across two lines and the verifier's regex is single-line. Repaired with `git rebase -i 2922feecd`
+(reword #221 only, before #222–#225 depended on anything else); `git diff <old-tip> <new-tip>` = 0
+lines, `git replace -l` = 0 entries throughout — no overlay of any kind.
+
+## #222–#225 — docs-only, subject corrected on every one
+
+All four are docs-only (`vigilia`/`curare`/`strike` notes under
+`docs/arc/2026/06/278-rules-engine/`). Per finding 26, a bare `git cherry-pick -x` would have kept
+grok's own subject; used `--no-commit` + a hand-composed `REPLAY(grok-rete #N): <C's subject>` commit
+with the `(cherry picked from commit …)` trailer for all four, matching the minimal format #220
+(also docs-only) already used in this branch. #224 (`85043bbab`) auto-merged with one hunk
+conflict-free against local drift in `CURRENT-STATE-annihilate-interpretation.md`; diff matches
+grok's own (46+/21-) exactly. `absent-on-main.tsv` has no row in this range.
+
+## Steps
+
+| N | C → replayed | kind | notes |
+|---|---|---|---|
+| 221 | `16f504e14` → `a484e2078` (reworded from `2e94beafa`) | shared — the batch's risk | two-stdlib-file convert, see above |
+| 222 | `a49b68608` → `8ffb7c23a` | docs | |
+| 223 | `cd2ab4b37` → `72154d99d` | docs | |
+| 224 | `85043bbab` → `ad532d614` | docs | auto-merge, 0 conflicts |
+| 225 | `c8f1f7839` → `efa6e7035` | docs | |
+
+## Checkpoint
+
+Batch complete at #225. `verify-step-record.sh 2922feecd HEAD 221 225` → both the range check and
+`step-record: complete`. Floor and clippy are reserved for the orchestrator (brief's explicit ⛔);
+neither run by this executor.
+
+## STOP
+
+None. Do not push. Main untouched. `~/work/holon/` untouched. No subagents, no worktrees. Tree
+clean at yield.
