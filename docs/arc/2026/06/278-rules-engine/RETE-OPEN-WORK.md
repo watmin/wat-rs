@@ -993,8 +993,47 @@ it is a finding, not a lack of time:
 ever occurs as `Bind/left` of a uuid holon, so a rule can only hold one if HOST wat put it in a
 field. Reachable, but not constructible inside a fence.
 
-8. **THE TERMINATION VERIFIER — the FINITE-TYPE half is BUILT (2026-08-29); the fence half stays
-   refused.** A computed head whose fields are all finite-typed is now ADMITTED: `bool` and unit
+8. ~~**THE TERMINATION VERIFIER — the fence half**~~ · ✅ **CLOSED 2026-08-29. BOTH HALVES ARE
+   BUILT.** A fence-bounded counter is now ADMITTED, and its one-character twin is still refused.
+
+   ```
+   N(k+1) :- N(k), (where (< ?k 500))    -> ADMITTED, converges at 501
+   N(k+1) :- N(k), (where (> ?k 500))    -> REFUSED, it never stops
+   ```
+
+   **`computed_head_is_monotone_bounded` (`stratify.rs`)**: one computed field, a constant step of
+   known sign, a `where` fence on the SAME field pointing AGAINST the step. That is a well-founded
+   measure. **The fence was always available at the verifier — measured by instrumenting it —
+   nothing read it.**
+
+   ⛔ **THE RECORDED DESIGN WAS WRONG AND WAS REPLACED.** This item said the answer was *"a FORM the
+   verifier can CHECK — eBPF's `bpf_loop()` move, the bound as a verified argument"*. That was
+   written from the IDEA of eBPF. Our own shipped eBPF rete declares NO bound anywhere: every bound
+   is STRUCTURAL. The admission follows that — it reads a shape the program already has and asks
+   the author for nothing.
+
+   ⚠ **WHAT UNBLOCKED IT WAS NOT A CLEVERER PROOF — IT WAS THIS ARC'S OWN CEILING WORK**, exactly as
+   this item predicted: *"raise it once a runtime STATE ceiling exists — exhaustion becomes
+   catchable, so certifying more costs less."* The measure proves TERMINATION, never POPULATION
+   SIZE (the seed is runtime data). Before `max-session-bytes` that meant an allocator abort with no
+   diagnostic. **The verifier proves termination; the ceilings bound cost; neither could admit this
+   class alone.** The precondition was met by the detour that led here.
+
+   **`TerminationProof` replaced `Option<u128>`** — `Some(n)`/`None` could say "finite, size n" and
+   "no proof", but had nowhere for **"terminates, size unknown"**. Two proofs, each named.
+
+   ⚠ **ONE CHECK IS HONEST-BUT-UNPROVEN.** `binds_var_from` (the stepped variable must be bound
+   from the field it feeds) was mutated away and **changed no verdict** — the fence-variable
+   equality already covers the cases tried. It is KEPT because a check that admits on a proof it
+   does not verify is worse than a narrow one, and it is DOCUMENTED as conservative rather than
+   claimed as load-bearing. To widen it, produce the terminating program it refuses.
+
+   **Gated and mutation-proven:** `a_fence_bounded_counter_is_admitted_and_its_wrong_way_twin_is_not`
+   + three fixtures. Ignoring fence DIRECTION goes RED. The old gate predicted its own death —
+   *"if the verifier ever learns to read the fence, this test fails — which is the notification"* —
+   and this is that notification, collected.
+
+   ~~The finite-type half~~ **BUILT 2026-08-29 (below), and unchanged by the above.** A computed head whose fields are all finite-typed is now ADMITTED: `bool` and unit
    `defenum` cycles compile and converge, and the `i64` axis — where the danger was measured — is
    untouched. `stratify.rs`'s `domain_cardinality` + `computed_fields_are_provably_finite`, capped
    at `MAX_PROVABLE_FACT_POPULATION = 1_000_000` so a provably-finite-but-enormous product (twenty

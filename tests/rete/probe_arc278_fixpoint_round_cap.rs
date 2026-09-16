@@ -348,7 +348,11 @@ fn a_finite_typed_computed_head_is_admitted_and_the_i64_axis_is_not() {
     for fixture in [
         "tests/rete/probe_arc278_fixpoint_round_cap.wat",
         "tests/rete/probe_arc278_termination_fn_head.wat",
-        "tests/rete/probe_arc278_termination_guarded_counter.wat",
+        // ⛔ `..._termination_guarded_counter.wat` WAS IN THIS LIST AND IS DELIBERATELY GONE
+        // (item 8, 2026-08-29). It IS a computed `i64` head — but it carries a `where` fence
+        // pointing against its step, so the MEASURE proof admits it now. Leaving it here would
+        // re-assert the narrowing this arc just closed. What remains is the axis that must not
+        // move: a computed `i64` head with NO fence, which nothing can bound.
     ] {
         let (ok, out, err) = run(fixture);
         // Refused means the REFUSING ARM, not a dead process — the verdict is a value (arc 278).
@@ -362,47 +366,70 @@ fn a_finite_typed_computed_head_is_admitted_and_the_i64_axis_is_not() {
     }
 }
 
-/// THE GUARDED COUNTER — refused, and it terminates. Both halves are the assertion.
+/// ★ A FENCE-BOUNDED COUNTER IS ADMITTED — and its one-character twin is not.
 ///
-/// `N(k+1) :- N(k), (where (< ?k 500))` halts at k=500 and is refused anyway, because the
-/// cyclicity test reads the derivation graph and never the fence. Reported 2026-08-28 by
-/// claude-compute; weighed against this tree and confirmed by driving. The refusal is CORRECT by
-/// the verifier's own claim — what was missing was a home for the class that could go red.
+/// ⛔ THIS TEST ASSERTED THE OPPOSITE, AND THAT IS THE POINT. It was
+/// `a_bounded_counter_is_refused_too_…`, gating a KNOWN NARROWING: the cyclicity test is structural
+/// and read no `where` fence, so `N(k+1) :- N(k), (where (< ?k 500))` — which halts at 500 — was
+/// refused. The old gate said, in its own words: *"if the verifier ever learns to read the fence,
+/// this test fails — which is the notification that the narrowing closed, not a regression."*
+/// **It fired. This is that notification, collected.**
 ///
-/// Before this, the only record lived in `probe_arc278_fixpoint_round_cap_deep.wat`'s header,
-/// describing a fixture that had been REWRITTEN around the refusal. Prose in a file nobody greps.
+/// Reported from OUTSIDE this tree (the main × grok-rete integration branch,
+/// `~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`) — which is why it
+/// mattered: someone wrote the first thing anyone writes in recursive Datalog-with-arithmetic and
+/// was refused.
 ///
-/// If the verifier ever learns to read the fence, this test fails — which is the notification that
-/// the narrowing closed, not a regression.
+/// ⚠ WHAT MADE IT ADMISSIBLE WAS NOT A CLEVERER PROOF — IT WAS THE RUNTIME CEILINGS. This class
+/// proves TERMINATION but not POPULATION SIZE: the seed is runtime data, so `k` may start at
+/// -10^18 and the fixpoint, though finite, is enormous. Before `max-session-bytes` existed that
+/// meant an allocator abort with no diagnostic, and "terminates" was not enough to admit on. The
+/// ceiling now catches size as a located, matchable value. **The verifier proves termination; the
+/// ceilings bound cost. Neither could admit this class alone** — exactly the trade item 8 recorded
+/// as its own precondition, and met by this arc's own ceiling work.
 #[test]
-fn a_bounded_counter_is_refused_too_and_the_message_does_not_claim_divergence() {
-    let (ok, stdout, stderr) = run("tests/rete/probe_arc278_termination_guarded_counter.wat");
-    // ⛔ THE VERDICT IS A VALUE NOW, so the program LIVES and reports. Before arc 278 this
-    // asserted `!ok` and read structured EDN off stderr; `compile-all` answers a matchable
-    // `(:wat::rete::CompileOutcome)`, so a refusal exits 0 with the arm on stdout. A gate still
-    // demanding a corpse would be asserting the absence of the feature.
-    assert!(ok, "a refusal is a VALUE now — the program must not die\n{stdout}{stderr}");
-    let a = arm_str(&stdout);
+fn a_fence_bounded_counter_is_admitted_and_its_wrong_way_twin_is_not() {
+    // The terminating shape: `k+1` while `k < 500`. Admitted — AND it converges. A rule set that
+    // compiles and then hangs would satisfy any weaker assertion here.
+    let (ok, out, err) = run("tests/rete/probe_arc278_termination_guarded_counter.wat");
+    assert!(ok, "a fence-bounded counter must compile and run\n{out}{err}");
     assert_eq!(
-        a.0, "ARM MayNotTerminate",
-        "a guarded counter terminates but is not PROVABLY bounded, so it is still refused\n{stdout}"
+        out.trim(),
+        "\"501\"",
+        "and CONVERGE at 501 — the seed plus every step up to the bound. Admitting a rule set that \
+         then hangs would be worse than refusing it\n{err}"
     );
-    assert_eq!(a.1[0], "gc::count-up");
-    assert_eq!(a.1[1], "gc::N");
 
-    // THE RETRACTED CLAIM. The message used to assert "the fixpoint can never converge" — false of
-    // the very program in front of the user, which converges at k=500. R29 `RVINA ERVDIT`: the
-    // ruin must teach, and it may not teach something untrue. The verifier computes a derivation
-    // graph; it does not compute convergence, and the diagnostic may not claim what the analysis
-    // never established. A targeted absence is the honest shape here — the message is long and
-    // will keep being reworded; what may never come back is this sentence.
-    // rune:lint(loose-assert) — targeted absence of one retracted phrase in a long, evolving
-    // diagnostic; an exact `assert_eq!` on the whole message would pin prose that is meant to be
-    // improved, and would go red for rewordings that are not the defect.
-    assert!(
-        !stderr.contains("can never converge"),
-        "the diagnostic must not assert non-convergence — it proves the absence of range \
-         restriction in a cycle, which is a refusal to certify, not a proof of divergence\n{stderr}"
+    // ⛔ THE SOUNDNESS TWINS. One character from the admitted shapes, and they DIVERGE: `k+1` while
+    // `k > 500` produces a value that also satisfies `> 500`, forever. Without these rows the
+    // analysis could accept ANY fence and every other assertion here would still pass.
+    for (fixture, why) in [
+        (
+            "tests/rete/probe_arc278_termination_fence_bad_up.wat",
+            "`k+1` under a LOWER bound steps AWAY from it — the guard is satisfied forever",
+        ),
+        (
+            "tests/rete/probe_arc278_termination_fence_bad_down.wat",
+            "`k-1` under an UPPER bound steps away likewise",
+        ),
+    ] {
+        let (ok_t, out_t, err_t) = run(fixture);
+        assert!(ok_t, "{fixture}: the verdict is a VALUE — it must not die\n{out_t}{err_t}");
+        assert_eq!(
+            arm_str(&out_t).0,
+            "ARM MayNotTerminate",
+            "{fixture} must STAY refused — {why}\n{out_t}"
+        );
+    }
+
+    // The decreasing mirror is admitted too, so the analysis cannot be written for one direction
+    // and quietly refuse the other half of the shape it claims to cover.
+    let (ok_d, out_d, err_d) = run("tests/rete/probe_arc278_termination_fence_ok_down.wat");
+    assert!(ok_d, "the decreasing mirror must compile\n{out_d}{err_d}");
+    assert_eq!(
+        out_d.trim(),
+        "\"ADMITTED\"",
+        "`k-1` while `k > 0` terminates and must be admitted\n{err_d}"
     );
 }
 
