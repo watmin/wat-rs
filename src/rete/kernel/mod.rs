@@ -1,7 +1,7 @@
 //! Arc 278 Stone P1 — native `FireSession` + fire kernel.
 //!
 //! Split: `session` types, `fire` loop, `arm` intern, `stratify` driver,
-//! `census` instrument, `insert` overlay. Tests are `tests.rs`.
+//! `census` instrument, `insert` overlay. Tests are `tests/mod.rs` and its siblings.
 //!
 //! The mutable mirror of a `:wat::rete::Session` that the fire kernel (P2–P5) mutates
 //! during a fire pass. `to_transient` converts a frozen `Session` value into a native

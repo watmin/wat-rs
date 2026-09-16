@@ -92,7 +92,7 @@ fn accum_fire_phase_census() {
     // mark the discrimination-tree walk — the largest unmarked computation inside the phase
     // that dominates our weakest grid axis — the mark fired and the row simply did not appear.
     // A census that lists its rows cannot report a sink nobody thought to list, which is the
-    // whole job of a census. (`feedback_a_gate_that_discovers_beats_one_that_lists`.)
+    // whole job of a census. ([[feedback_a_gate_that_discovers_beats_one_that_lists]])
     //
     // Now: the table DISCOVERS every phase the run actually recorded, in first-fired order,
     // and this array is asserted to be a SUBSET of what was discovered — so a mark that is
@@ -531,7 +531,7 @@ fn accum_leftover_split() {
 
     let cal = calibrate_mark_ns();
 
-    // MINIMUM across runs — every `_raw` slot below is seeded to +∞ and only ever falls.
+    // MINIMUM across runs — every `*_raw` slot below is seeded to +∞ and only ever falls.
     let mut fire = f64::INFINITY;
     let mut alpha_raw = f64::INFINITY;
     let mut kid_raw = [f64::INFINITY; 4];

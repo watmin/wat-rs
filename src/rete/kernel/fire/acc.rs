@@ -325,6 +325,8 @@ pub(super) fn fold_i64s(
 
 /// Fold a keyed bucket with no leftover `SeedCmp`. The bucket IS the gather
 /// (join-key equality ≡ `token_element_compatible`). Count is `len`; value
+/// (rune:lint(cited-name-absent) token_element_compatible — the retired pre-keyed-gather predicate; the equality
+/// that replaced it is `key_of` against `key_of_el`.)
 /// folds read `bindings[slot]`.
 pub(super) fn fold_bucket(
     fold: &AccFold,

@@ -14,9 +14,9 @@
 //! flat tail of child ids as an iterator, not a form): it consumes a structure this process already built and
 //! type-checked, so there is nothing left to refuse. Every `unpack_*` returns
 //! `Result<_, EvalBreak>`: it consumes bytes some *other* process wrote, and every one of them
-//! can be a lie. The asymmetry holds across all ten pairs (`cmp`, `pat`, `expr`, `prog`,
-//! `cond_op`, `compiled_cond`, `driver`, `fold`, `rhs_op`, `rhs`) — and across the two the list
-//! above omits, `node` and `deps`, which are pairs too. Twelve in all. The asymmetry is the
+//! can be a lie. The asymmetry holds across all ten `pack_*`/`unpack_*` pairs, whose stems are
+//! cmp, pat, expr, prog, cond_op, compiled_cond, driver, fold, rhs_op and rhs — and across the
+//! two that list omits, node and deps, which are pairs too. Twelve in all. The asymmetry is the
 //! fastest way to see which side of the trust boundary a function is standing on.
 //!
 //! ⛔ **Round-trip is SEMANTIC, not literal, and FOUR things are dropped — not one.** An earlier

@@ -3,6 +3,8 @@
 //! Alpha already has `alpha_tree.rs` (fact → candidate alphas). This tree
 //! is the filter dual: token bindings → candidate TestNodes. The lab sketch
 //! is `ShadowNode` (ddos tree.rs); live type is `WhereDiscNode`.
+//! rune:lint(cited-name-absent) ShadowNode — a type in the SIBLING holon-lab-ddos repo, cited as the lab sketch.
+//! rune:lint(cited-name-absent) tree.rs — that same sibling repo's file; no file here bears the name.
 //! We use `Arc`, never `Rc`.
 //!
 //! ## Contract

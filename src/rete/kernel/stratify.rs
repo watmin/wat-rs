@@ -647,7 +647,7 @@ fn computed_fields_are_provably_finite(form: &WatAST, sym: &SymbolTable) -> Opti
 
     // ⚠ THE `:then` FORM IS POSITIONAL BY THE TIME IT REACHES HERE, not kwargs.
     // `(:fd::F :flag (not ?b))` in source arrives as `(:fd::F (not ?b))` — `reorder_then_kwargs`
-    // (`validate.rs`) has already normalised the kwargs into DECLARATION order and dropped the
+    // (`validate/mod.rs`) has already normalised the kwargs into DECLARATION order and dropped the
     // keywords. So `items[1..]` maps 1:1 onto `def.fields`, and reading it as `:field value` pairs
     // (which is what the source looks like) finds no keyword and bails. Measured, not assumed: the
     // first cut walked pairs and silently refused everything it was written to admit.

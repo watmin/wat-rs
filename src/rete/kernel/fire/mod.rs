@@ -16,8 +16,8 @@
 //! So a change to `hash_join_pass` HERE changes nothing that ships; the shipping twin is
 //! `fire/pass/hash_join.rs`. The names are near-identical and the compiler will not warn you.
 //!
-//! ⛔ **Do not learn a rule from the `_pass` suffix.** Most shipping passes are named `*_delta`
-//! (`alpha_delta`, `root_join_delta`, `hash_join_delta`, `production_delta`), which makes `_pass`
+//! ⛔ **Do not learn a rule from the `*_pass` suffix.** Most shipping passes are named `*_delta`
+//! (`alpha_delta`, `root_join_delta`, `hash_join_delta`, `production_delta`), which makes `*_pass`
 //! look like it means "test-only". It does not: **`accumulate_pass` and `filter_pass` are
 //! production**, called from `delta.rs`, carrying no `cfg`.
 //!
@@ -1997,7 +1997,7 @@ fn exec_stashed_where(
 }
 
 /// Mut sink for one where-dispatch. Named so the fire loop does not grow
-/// an 8-arg helper (validate.rs `ClauseCtx` — a struct, not an allow).
+/// an 8-arg helper (validate/mod.rs `ClauseCtx` — a struct, not an allow).
 struct WhereSink<'a> {
     where_tree: &'a crate::rete::where_tree::WhereTree,
     compiled_wheres: &'a HashMap<i64, crate::rete::expr_ir::Program>,

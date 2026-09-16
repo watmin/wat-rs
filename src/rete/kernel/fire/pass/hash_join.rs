@@ -18,6 +18,8 @@
 //! parent can simply be READ. The emit that the take was protecting now happens
 //! after the window in any case. The workaround outlived its cause.
 //!
+//! rune:lint(cited-name-absent) restore_parent — never a function: it names the two `wm.beta` re-insert sites that
+//! the borrow-not-take stone removed, so nothing bears the name today.
 //! So there is no invariant to hold: no take, no `restore_parent`, no two
 //! restore sites, and no way for a future `?` in this window to drop a beta
 //! memory — because nothing is removed from the map to begin with.

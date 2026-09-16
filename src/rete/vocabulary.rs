@@ -230,8 +230,8 @@ impl ParamType {
 /// reader had to know the convention. Three of them re-derived the same guard by hand:
 ///
 /// ```text
-/// clause.rs   `expr_is_provably_boolean`  — believe `ret` only for Alias/Fallback
-/// validate.rs `resolve_operand_type`      — believe `ret` only for Alias/Fallback
+/// clause.rs            `expr_is_provably_boolean`  — believe `ret` only for Alias/Fallback
+/// validate/typing.rs   `resolve_operand_type`      — believe `ret` only for Alias/Fallback
 /// check.rs    the `TypeScheme` registration loop — register only Alias/Fallback
 /// ```
 ///
@@ -569,6 +569,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // raises `NoMatchingArm` — genuinely partial". REFUTED TWICE, by run:
     //  1. A non-exhaustive match does not raise, it does not COMPILE — "missing arm(s) for
     //     variant(s): C". The exhaustiveness checker gets there first.
+    //  rune:lint(cited-name-absent) NoMatchingArm — cited to prove it does not exist; the refutation IS its absence, so
+    //  minting the name would destroy the evidence this comment records.
     //  2. `NoMatchingArm` DOES NOT EXIST in this codebase (`grep -rn` returns only this comment
     //     and its sibling). The justification cited an error that was never implemented.
     // Nor can a non-enum match be non-exhaustive: a pattern must be a KEYWORD, SYMBOL or LIST
@@ -1022,6 +1024,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // `reduce` is a wat-level `defclause` (`wat/seq.wat`), NOT a checker special form like
+    // rune:lint(cited-name-absent) infer_reduce — cited to record that it does NOT exist; minting it would falsify the
+    // finding this comment is. Its four real siblings are named just below.
     // its four siblings above — verified: no `infer_reduce` exists anywhere in
     // `collection::infer` (searched; the other four's arms are real fns there). Its
     // `infer_rete_form` arm (`check.rs`) therefore cannot call a matching bespoke inference
@@ -1172,7 +1176,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // ── #57 — enum equality. `Form`, NOT `Alias`, and the reason is the whole point of the row.
     //
     // MEASURED: the where-corpus compares a user enum in 2 places
-    // (`(= (:arena::Route/method ?route) :arena::Method::POST)` — sift-rules-arena.wat:114,
+    // (`(= (:arena::Route/method ?route) :arena::Method::POST)` — probe_arc278_sift_rules_arena.wat:114,
     // probe-arena-rich-graph.wat:54). The ten minted equality rows cover bool/f64/i64/keyword/
     // string; `:arena::Method` is none of them, and a USER enum can never have a pre-minted row —
     // the row table is closed and user enums are not.
@@ -1301,7 +1305,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // case, and the position grammar is left exactly as documented.
     //
     // Found by arc 278's § 4.1 ledger asking why keyword equality was unreachable inline; the
-    // type-map half was fixed the same day (`validate.rs`'s `rete_type_segment_of`).
+    // type-map half was fixed the same day (`validate/typing.rs`'s `rete_type_segment_of`).
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::keyword::to-string",
@@ -1662,6 +1666,8 @@ pub(crate) fn rete_vocabulary_admitted(head: &str) -> bool {
 // guard) is DELETED — moved to a `#[wat_intrinsic]` handler in `src/intrinsic/rete.rs`, taking
 // a typed `head: &WatAST` leading param (arity shim-owned) and calling `rete_vocabulary_admitted`
 // above directly. `rete_vocabulary_admitted` itself is unchanged.
+//
+// rune:lint(cited-name-absent) eval_vocabulary_admitted_predicate — deleted at arc 255 Stone P6-c-W5a; the dispatch now lives as a #[wat_intrinsic] handler in src/intrinsic/rete.rs calling rete_vocabulary_admitted directly.
 
 // ─── Phase 1 (BRIEF-one-naming-rule-then-first-nth-to-string.md) — the naming rule's own ward ──
 //
@@ -1691,12 +1697,14 @@ mod naming_rule_tests {
     /// Ruled by the builder 2026-08-05: *"every rete form MUST be total — that's the entire point
     /// of this endeavor; we're getting all the ground work done such that we can compile a jump
     /// table for rete eval."* A jump table over a partial op is not a thing — there is no opcode
-    /// for "raises". Every non-total row is a hole in `compiled_where`'s specification, and the
+    /// for "raises". Every non-total row is a hole in `exec_where`'s specification, and the
     /// vocabulary IS that specification.
     ///
     /// ⛔ WHY A GATE AND NOT A CONVENTION. Five rows carried `total: false` for three days and
     /// nothing objected. Read, their reasons were not judgements:
     ///   · `match` — "a non-exhaustive match raises `NoMatchingArm`". REFUTED TWICE: such a match
+    ///     rune:lint(cited-name-absent) NoMatchingArm — cited to prove it does not exist; minting it would falsify the
+    ///     refutation this row records.
     ///     does not raise, it fails to COMPILE; and `NoMatchingArm` does not exist in this
     ///     codebase. The justification cited an error that was never implemented.
     ///   · `foldr`/`map`/`filter`/`reduce` — "extremely likely total... but no `where` row in the

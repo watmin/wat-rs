@@ -22,7 +22,7 @@ fn all_facts_of(fired: &Value) -> Vec<Value> {
 /// caller needs to compare the tree's candidate set against the matcher's true set, fact by
 /// fact, without re-firing or diverging from what actually ran.
 ///
-/// Returned as a NAMED struct rather than a 5-tuple: clippy's `type_complexity` flagged the
+/// Returned as a NAMED struct rather than a 5-tuple: `clippy::type_complexity` flagged the
 /// tuple, and an alias would have quieted the signature while leaving both call sites
 /// destructuring by POSITION — one of them underscoring two fields purely to hold their slots.
 /// Cast `perspicere` on it; its verdict was a struct over an alias, on exactly that ground

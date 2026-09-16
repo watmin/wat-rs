@@ -152,7 +152,7 @@ impl Axis {
         }
     }
 
-    /// Every `Axis`. Kept honest by `axis_variant_names_round_trip`, whose `match` is over `Axis`
+    /// Every `Axis`. Kept honest by `axis_variant_names_round_trip_through_one_door`, whose `match` is over `Axis`
     /// itself — so a new variant makes that test non-exhaustive and the compiler names it there,
     /// three lines from this list.
     pub(crate) const ALL: [Axis; 4] =
@@ -350,7 +350,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // like apply") — so this is a RULING of `false`/`false`/`false`, not a placeholder: someone
     // read the body and the answer is "no, on all three axes", which is why it is CLASSIFIED
     // (removed from `KNOWN_UNREVIEWED`) rather than left unreviewed. Independent corroboration:
-    // `src/macros/eval.rs`'s `is_pure_total` expand-time-safe allowlist already listed
+    // `src/macros/eval.rs`'s `is_expand_time_legal` (Stone expand-1 renamed it from the old
+    // is_pure_total spelling) expand-time-safe allowlist already listed
     // `cons`/`empty`/`lazy` and already did NOT list `next`, before this stone touched either
     // file — the same conclusion, reached by an unrelated mechanism built for an unrelated
     // reason.
@@ -1913,6 +1914,12 @@ fn walk_rete_defn_callees(
 // `is_rete_primitive_expr` (below) directly. `eval_axis_predicate` had exactly these four
 // callers (`grep -n "eval_axis_predicate(" src/rete/purity.rs` at pre-image), so nothing
 // else goes dead by its removal.
+//
+// rune:lint(cited-name-absent) eval_pure_predicate — deleted at arc 255 Stone P6-c-W5a; the dispatch now lives as a #[wat_intrinsic] handler in src/intrinsic/rete.rs calling is_pure_expr directly.
+// rune:lint(cited-name-absent) eval_deterministic_predicate — deleted at arc 255 Stone P6-c-W5a; the dispatch now lives as a #[wat_intrinsic] handler in src/intrinsic/rete.rs calling is_deterministic_expr directly.
+// rune:lint(cited-name-absent) eval_total_predicate — deleted at arc 255 Stone P6-c-W5a; the dispatch now lives as a #[wat_intrinsic] handler in src/intrinsic/rete.rs calling is_total_expr directly.
+// rune:lint(cited-name-absent) eval_rete_primitive_predicate — deleted at arc 255 Stone P6-c-W5a; the dispatch now lives as a #[wat_intrinsic] handler in src/intrinsic/rete.rs calling is_rete_primitive_expr directly.
+// rune:lint(cited-name-absent) eval_axis_predicate — deleted at arc 255 Stone P6-c-W5a alongside its four callers; the shared arity-guard helper it named no longer exists as a standalone fn.
 
 ::wat_source_derive::wat_field_names_from!(AXIS_VIOLATION_FIELDS, "wat/rete/compile.wat", ":wat::rete::AxisViolation");
 fn axis_violation_names() -> crate::rete::kernel::FieldNames {
@@ -2051,7 +2058,7 @@ pub(crate) fn eval_axis_violation(
 /// off this list would have left that assertion failing not because the
 /// verbs are mis-declared, but because the fallback oracle hadn't caught up
 /// to a namespace that used to have zero registry presence. Unlike
-/// `string.rs`'s `declare-acronyms` (Stone HOME-4), which had the honest
+/// `src/intrinsic/string.rs`'s `declare-acronyms` (Stone HOME-4), which had the honest
 /// escape hatch of a genuinely side-effect-free body at eval time, these
 /// verbs do not: reclassifying them `Pure` would be the dishonest fix.
 ///
@@ -2334,7 +2341,8 @@ mod completeness_gate {
     // for the first time — registering all five via `#[wat_intrinsic]` makes `dispatch_verbs`'
     // intrinsic-homes scan see them, where before the three producers lived only in
     // `dispatch_keyword_head`'s producer match (a region this scan never reads). Parked here
-    // rather than classified in `intrinsic_meta`: the F5 `is_pure_total` allow-list
+    // rather than classified in `intrinsic_meta`: the F5 `is_expand_time_legal` (Stone expand-1's
+    // rename of the old is_pure_total spelling) allow-list
     // (`macros/eval.rs`) already treats all five as pure/deterministic, but ruling on THIS
     // axis (RETE-fireability) for a verb nothing forces into a `where` is out of this stone's
     // scope — same restraint as E-iii's refused `RETE_MODULES` entry.

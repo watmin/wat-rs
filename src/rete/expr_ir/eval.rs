@@ -1129,7 +1129,8 @@ fn apply_core_kind(
             Ok(Value::bool(pv.iter().any(|y| y == x)))
         }
         // Delegates to the SAME inner the interpreter calls (`runtime.rs`'s
-        // `eval_persistentmap_contains_key_q` routes here too), rather than re-deriving map
+        // `eval_contains` routes here too, via its `MapContainer::PersistentMap` arm), rather
+        // than re-deriving map
         // membership — the sibling `PvGet`/`VecGet` arms below establish that shape. Its two
         // exits are audited in `vocabulary.rs`'s row comment: an unhashable key answers `false`
         // (the predicate ruling, not a sentinel), a wrong receiver raises `TypeMismatch` and is
