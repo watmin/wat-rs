@@ -1,0 +1,139 @@
+//! DISCONFIRMING PROBE — vigilia Class A2: a wire-supplied accumulate fold key reaches a host
+//! `panic!` whose licence is a compile-time proof the import door never runs.
+//!
+//! `acc.rs`'s `acc_var_i64` says it "Panics on an unbound var or a non-i64 value (a
+//! compile-time-impossible shape)", carrying `rune:struere(invariant-coupling) — AccFold compile
+//! proved i64`. That proof is `build_rete_arm`'s. `unpack_fold` (`export.rs`, the `:sum` arm)
+//! takes the key straight off the wire as an arbitrary `Value` and `import_export` interns it,
+//! and the graph wall added for Class A1 validates node EDGES, not side tables — deliberately.
+
+use std::sync::Arc;
+use wat::freeze::{call_beside_value, startup_beside};
+use wat::runtime::{apply_function, Value};
+use wat::value::AggregateValue;
+
+/// Untampered control: the fixture is live and the two paths agree.
+#[test]
+fn fold_key_fixture_native_and_imported_agree() {
+    let world = startup_beside(file!()).expect("freeze");
+    let native = call_beside_value(file!(), ":user::fold-native-fire").expect("native");
+    let exp = call_beside_value(file!(), ":user::fold-export").expect("export");
+    let imported = call_fold_import(&world, exp).expect("untampered import must fire");
+    assert_eq!(native, imported, "native and imported fire must agree");
+    assert_eq!(native, Value::i64(1), "one SumF derived for group 1");
+}
+
+/// ⚠ EXPECTED RED before Class A2 lands.
+///
+/// Replaces the `:sum` fold's key with a keyword no condition binds, then imports and fires.
+/// A wire value must not be able to panic the host: the engine may refuse it, but the refusal
+/// has to arrive as a value the caller can match, the way `driver_of` already does for the same
+/// class of missing-id (`fire/mod.rs`).
+#[test]
+fn import_refuses_a_fold_key_no_condition_binds() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::fold-export").expect("export");
+
+    let folds = seq_values(field_of(&exp, "folds"));
+    assert!(!folds.is_empty(), "fixture must export at least one fold");
+    let (tampered_folds, n_rewritten) = rewrite_sum_keys(&folds);
+    assert_eq!(
+        n_rewritten, 1,
+        "fixture must carry exactly one :sum fold to tamper; got {n_rewritten}"
+    );
+    let tampered = poke(exp, "folds", Value::Vec(Arc::new(tampered_folds)));
+
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        call_fold_import(&world, tampered)
+    }));
+    match outcome {
+        Err(p) => {
+            let msg = p
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| p.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                .unwrap_or_else(|| "<non-string panic payload>".into());
+            panic!(
+                "A WIRE VALUE PANICKED THE HOST. Importing an Export whose :sum fold key is a \
+                 keyword no condition binds, then firing, unwound the process instead of \
+                 refusing: {msg}"
+            );
+        }
+        Ok(Err(_)) => { /* refused as a value — the contract */ }
+        Ok(Ok(v)) => panic!(
+            "import+fire ACCEPTED a fold key no condition binds and returned {v:?} — the fold \
+             read something it should not have been able to name"
+        ),
+    }
+}
+
+fn call_fold_import(
+    world: &wat::freeze::FrozenWorld,
+    exp: Value,
+) -> Result<Value, wat::runtime::RuntimeError> {
+    let f = world
+        .symbols()
+        .get(":user::fold-import-and-fire")
+        .expect("fold-import-and-fire")
+        .clone();
+    apply_function(f, vec![exp], world.symbols(), wat::rust_caller_span!())
+}
+
+/// Rewrite every `[:sum <key>]` entry's key to a keyword nothing binds. Returns the new folds
+/// seq and how many were rewritten, so the probe can refuse to run on a fixture that drifted.
+fn rewrite_sum_keys(folds: &[Value]) -> (Vec<Value>, usize) {
+    let mut n = 0;
+    let out = folds
+        .iter()
+        .map(|pair| {
+            let items = seq_values(pair);
+            if items.len() != 2 {
+                return pair.clone();
+            }
+            let inner = seq_values(&items[1]);
+            let is_sum = matches!(inner.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":sum");
+            if !is_sum || inner.len() < 2 {
+                return pair.clone();
+            }
+            n += 1;
+            let mut fixed = inner.clone();
+            fixed[1] = Value::wat__core__keyword(Arc::new("?no-condition-binds-this".into()));
+            Value::Vec(Arc::new(vec![items[0].clone(), Value::Vec(Arc::new(fixed))]))
+        })
+        .collect();
+    (out, n)
+}
+
+fn field_of<'a>(exp: &'a Value, field: &str) -> &'a Value {
+    match exp {
+        Value::Aggregate(a) => {
+            let i = a.names.iter().position(|n| n == field).expect(field);
+            &a.fields[i]
+        }
+        other => panic!("expected Export, got {other:?}"),
+    }
+}
+
+fn poke(exp: Value, field: &str, v: Value) -> Value {
+    match exp {
+        Value::Aggregate(a) => {
+            let mut fields = a.fields.as_ref().clone();
+            let i = a.names.iter().position(|n| n == field).expect(field);
+            fields[i] = v;
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.to_string(),
+                a.names.clone(),
+                Arc::new(fields),
+            )))
+        }
+        other => panic!("expected Export, got {other:?}"),
+    }
+}
+
+fn seq_values(v: &Value) -> Vec<Value> {
+    match v {
+        Value::Vec(xs) => xs.as_ref().clone(),
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        other => panic!("expected seq, got {other:?}"),
+    }
+}

@@ -1,0 +1,74 @@
+;; DISCONFIRMING PROBE FIXTURE — vigilia Class A2.
+;;
+;; A KEYED accumulate fold (`acc::sum ?v`) inside a rule, with export and import as SEPARATE
+;; entry points so a caller can inspect or tamper with the Export between them. The corpus had
+;; no such fixture: `probe_arc278_derived_exists_acc.wat` pairs an accumulate with an export but
+;; its fold is `acc::count`, which carries NO key and so never reaches `acc_var_i64`; and every
+;; keyed-fold fixture (`probe_arc278_8i_accumulator_folds.wat`, the perf grid) calls the fold
+;; library directly rather than through a rule's `:from`, so it builds no Accumulate NODE.
+;;
+;; The key is what `unpack_fold` reads straight off the wire (`export.rs`, the `:sum` arm) and
+;; hands to `acc_var_i64`, whose doc calls an unbound var "a compile-time-impossible shape".
+;; That proof is `build_rete_arm`'s; `import_export` does not run it.
+;;
+;; Want, untampered: exactly ONE SumF, on both the native and the imported path — and the
+;; rule's `where` fence pins the fold's VALUE at 30 (10 + 20), so that count cannot pass on a
+;; wrong sum. A live equality gate, not only a tamper target.
+
+(:wat::core::defrecord :ifk::Group   [g <- :wat::core::i64])
+(:wat::core::defrecord :ifk::Reading [g <- :wat::core::i64  v <- :wat::core::i64])
+(:wat::core::defrecord :ifk::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])
+
+(:wat::rete::defrule :ifk::sum-rule
+  :when [(:ifk::Group (?g <- :g))
+         (?n <- (:wat::rete::acc::sum ?v) :from (:ifk::Reading (?g <- :g) (?v <- :v)))
+         ;; The fence makes the COUNT see the VALUE: SumF derives only if the fold really
+         ;; summed to 30, so a silently wrong sum changes the count the probe asserts.
+         (:wat::rete::where (:wat::rete::core::i64::= ?n 30))]
+  :then [(:ifk::SumF :g ?g :n ?n)])
+
+(:wat::rete::defquery :ifk::q-Sum :params [] :when [(?f <- :ifk::SumF)])
+
+(:wat::core::defn :ifk::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
+  (:wat::core::PersistentVector (:ifk::sum-rule)))
+
+(:wat::core::defn :ifk::queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
+  (:wat::core::PersistentVector (:ifk::q-Sum)))
+
+(:wat::core::defn :ifk::compile [] -> :wat::rete::Session
+  (:wat::core::match (:wat::rete::compile-all (:ifk::rules) (:ifk::queries))
+    ((:wat::rete::CompileOutcome::Compiled __session) __session)
+    ((:wat::rete::CompileOutcome::MayNotTerminate __rule __fact-type)
+      (:wat::kernel::assertion-failed! "compile: the rule set may not terminate" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :ifk::seed [s <- :wat::rete::Session] -> :wat::rete::Session
+  (:wat::core::match (:wat::rete::insert s
+    (:ifk::Group :g 1)
+    (:ifk::Reading :g 1 :v 10)
+    (:ifk::Reading :g 1 :v 20))
+    ((:wat::rete::InsertOutcome::Inserted __staged) __staged)
+    ((:wat::rete::InsertOutcome::MemoryCeilingExceeded __limit __used __count)
+      (:wat::kernel::assertion-failed! "insert: session memory ceiling exceeded while staging" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :ifk::fired-sum [s <- :wat::rete::Session] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::rete::query
+      (:wat::core::match (:wat::rete::fire-rules (:ifk::seed s))
+        ((:wat::rete::FireOutcome::Fired __fired) __fired)
+        ((:wat::rete::FireOutcome::MemoryCeilingExceeded __limit __used __rounds)
+          (:wat::kernel::assertion-failed! "fire-rules: session memory ceiling exceeded" :wat::core::None :wat::core::None))
+        ((:wat::rete::FireOutcome::RoundCapExceeded __cap __still)
+          (:wat::kernel::assertion-failed! "fire-rules: fixpoint round cap exceeded" :wat::core::None :wat::core::None)))
+      (:ifk::q-Sum))))
+
+;; THE THREE ENTRY POINTS THE PROBE NEEDS — export and import held apart, so the Export is a
+;; value a caller can hold, read and tamper with between them.
+
+(:wat::core::defn :user::fold-export [] -> :wat::rete::Export
+  (:wat::rete::export (:ifk::compile)))
+
+(:wat::core::defn :user::fold-import-and-fire [e <- :wat::rete::Export] -> :wat::core::i64
+  (:ifk::fired-sum (:wat::rete::import e)))
+
+(:wat::core::defn :user::fold-native-fire [] -> :wat::core::i64
+  (:ifk::fired-sum (:ifk::compile)))
