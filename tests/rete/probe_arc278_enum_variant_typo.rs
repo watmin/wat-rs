@@ -130,6 +130,13 @@ fn the_misspelled_variant_refusal_names_the_enum_and_its_real_variants() {
 /// [k, grade]` — which `strike-variant-diagnostic/DESIGN.md` affirmatively cuts from this strike
 /// and which this arm PINS rather than blesses, so the day someone takes that cut, this test is
 /// the one that goes red and names what changed.
+///
+/// ⚠ THE GOLDEN'S SPAN MOVED, 2026-09-01, and the message did not. `strike-field-span` made
+/// `UnknownField` carry the FIELD's span: `:col 31 :end 76` (46 characters — the whole
+/// `(:wat::rete::core::enum::= :grade :tg::P::Hi)`) became `:col 65 :end 75`, which is
+/// `:tg::P::Hi` at its own column, length 10. That is this fixture's own pre-value in that
+/// strike's scorecard, driven here. The remedy this arm pins is still wrong and still uncut —
+/// only the caret is now on the token the author actually mistyped.
 #[test]
 fn the_bare_tagged_variant_keeps_the_unknown_field_route() {
     let (ok, out, err) = run("tests/rete/probe_arc278_enum_variant_typo_tagged.wat");

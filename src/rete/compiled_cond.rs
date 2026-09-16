@@ -458,7 +458,7 @@ fn compile_one(
                 OperandLowering::Refused => return false,
             }
         }
-        ReteClauseShape::Bind { var, field } => {
+        ReteClauseShape::Bind { var, field, .. } => {
             match ctx.field_names.iter().position(|n| n == field) {
                 // Field not declared on this class: read_fact_field would return None on every
                 // fact of this class — a compile-time-provable, permanent failure.
