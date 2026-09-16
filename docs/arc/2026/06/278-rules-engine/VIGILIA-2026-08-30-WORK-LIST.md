@@ -398,8 +398,18 @@ non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch
   `rete_names_in_wat_scripts_resolve.rs` resolves every `:wat::rete::` name in **code**; **prose is
   exempt by design** (`foldr`/`nth` are accurate history) and a deliberately unminted name carries a
   per-name rune. See `strike-phantom-rete-names/`. *(`cernere`)*
-- `remedy/retirement.rs` — zero `:wat::rete::` rows; every rete retirement to date lands as a bare
-  `unbound symbol` instead of the remediation the table exists to give. *(`cernere`)*
+- ~~`remedy/retirement.rs` — zero `:wat::rete::` rows~~ ⛔ **STRUCK 2026-09-01, THE ROW'S PREMISE DOES
+  NOT HOLD.** Builder's ruling: *"the retirement stuff is for in-flight work… it's meant to educate
+  during migrations… there's no migration happening for rete now?"* — correct, and the module's own
+  doc is the authority: entries are appended **by each HARD CUT stone at ship time**, and
+  *"future-vapor entries are forbidden — only shipped retirements appear here… premature entries
+  deceive the substrate."* It is an append-at-ship-time record, **not a completeness surface**.
+  9 entries, all `:wat::core::`, including `foldr` — working as designed. And there is no rete
+  population to serve: the only rete hard cut is `:wat::rete::core::foldr` (`30be59b68`), whose own
+  message says *"the retirement had to BUILD its own refusal"* — it shipped WITH one. `map`/`filter`
+  were never retired at all (`07073c091`: *"the surface takes mapv/filterv … not the lazy heads"*) —
+  a choice at minting. **Adding rows now would be the deception the module forbids.** Kept struck so
+  nobody re-files it. *(`cernere` — the ward saw an empty column and inferred a gap.)*
 
 **F3 — the 70 L2 not itemised here** live in the ward reports. Highest-value clusters:
 `temperare` ×7 (all with measurement plans — `join_extend`'s three per-pair map probes;
