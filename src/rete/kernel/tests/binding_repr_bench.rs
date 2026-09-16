@@ -61,6 +61,26 @@ fn bind_key_construction_vs_map_operation() {
         "microbenchmark recorded nothing"
     );
 
+    // ⛔ `probare` classed this test hollow — the guard above is liveness on two clocks. The
+    // comparison is fresh-`String` construction vs an interned `Arc` bump vs a map operation, and
+    // nothing checked the map operation DID anything. An `insert` that no-ops is faster than one
+    // that inserts, so the arm this test exists to price would look cheapest when it is broken.
+    let probe_empty: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    let probe_after = probe_empty.insert(interned.clone(), val.clone());
+    assert_eq!(
+        probe_empty.size(),
+        0,
+        "the persistent map is not persistent — `insert` mutated the receiver, so arm (c) is \
+         timing a mutation, not the copy-on-write insert it reports"
+    );
+    assert_eq!(
+        probe_after.size(),
+        1,
+        "`insert` produced a map of size {}, not 1 — arm (c) is timing a no-op and would read as \
+         the cheapest option precisely because it does nothing",
+        probe_after.size()
+    );
+
     println!(
             "\nbind cost apportioned — {N} iterations each (RATIOS, not absolutes)\n                 (a) fresh key   Value::String(Arc::new(var.to_string()))  {fresh_ns:>6.1} ns\n                 (b) interned    an Arc refcount bump                      {interned_ns:>6.1} ns\n                 (c) map         get + insert, key supplied                {map_ns:>6.1} ns\n                 ---------------------------------------------------------------\n                 interning would save (a)-(b) = {:>5.1} ns of the ~163 ns in-engine bind\n                 the map itself is {:>5.1} ns and is untouched by interning\n",
             fresh_ns - interned_ns, map_ns
@@ -444,6 +464,19 @@ fn binding_cardinality_distribution() {
         })
         .map(|(_, c)| *c)
         .sum();
+    // ⛔ `probare` classed this test hollow — the guard below is liveness. `counted` is summed
+    // from the engine's own census over the FIXED (60, 60) accum axis, so it is deterministic.
+    // The exact figure is asserted by the sibling check that follows; this one keeps the
+    // original guard because a zero here has its own, clearer message.
+    // ⛔ MEASURED, NOT DERIVED — 16,920 over the fixed (60, 60) accum axis. I did not compute
+    // this from the 7,260 elements the report prints; an earlier assertion in this batch was
+    // reasoned rather than probed and came out 3x wrong, so this one is the number the census
+    // actually produced.
+    assert_eq!(
+        counted, 16_920,
+        "the (60, 60) accum axis counted {counted} binding cells, not 16,920 — the cardinality \
+         distribution below is describing a different population than the stone it tests"
+    );
     assert!(
         counted > 0,
         "the binding census counted NOTHING — the walk never ran, so an all-zero table \

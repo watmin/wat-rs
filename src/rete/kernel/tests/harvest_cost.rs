@@ -73,6 +73,34 @@ fn out_production_cost_split() {
         "production_to_pm recorded 0 ns — the loop never ran"
     );
 
+    // ⛔ THE GUARD ABOVE IS NOT THE CLAIM — `probare` classed this test hollow. The function under
+    // measurement, `production_to_pm`, is a real conversion with a real contract: node id → its
+    // production vector. Nothing checked that it PRESERVES anything, so a conversion that dropped
+    // facts would time faster and read as an improvement.
+    //
+    // Deliberately NOT asserted on `facts.len()` — `facts` is `(0..N)` by construction, so its
+    // length is a tautology. This asserts what the ENGINE produced from it.
+    let mut probe: ProductionMemory = HashMap::new();
+    probe.insert(1, facts.clone());
+    let pm = super::production_to_pm(probe);
+    match &pm {
+        Value::wat__core__PersistentMap(m) => {
+            assert_eq!(m.len(), 1, "one production node in, one key out; got {}", m.len());
+            match m.get(&Value::i64(1)) {
+                Some(Value::wat__core__PersistentVector(pv)) => assert_eq!(
+                    pv.len(),
+                    N,
+                    "production_to_pm returned {} facts for node 1, not the {N} it was given — \
+                     the conversion is dropping facts, and a lossy conversion times FASTER, so \
+                     this test's millisecond figures would read as an improvement",
+                    pv.len()
+                ),
+                other => panic!("node 1 should map to a PersistentVector; got {other:?}"),
+            }
+        }
+        other => panic!("production_to_pm must return a PersistentMap; got {other:?}"),
+    }
+
     println!(
         "\nout:production split — {N} Pair records, mean of {RUNS}\n\
              unscaled (the cell is 40k); C is the Arc-bump clone fire does not pay\n\
@@ -175,6 +203,32 @@ fn out_query_cost_split() {
         h > 0.0,
         "query_memory_to_pm recorded 0 ns — the loop never ran"
     );
+
+    // ⛔ THE GUARD ABOVE IS NOT THE CLAIM — `probare` classed this test hollow. It times
+    // `query_memory_to_pm`, a real conversion with a real contract, and nothing checked it
+    // PRESERVES anything. Same reasoning as `out_production_cost_split`: a conversion that drops
+    // maps converts less, times FASTER, and prints as an improvement.
+    //
+    // Deliberately not asserted on `maps.len()` — `maps` is `(0..N)` by construction, so its
+    // length is a tautology. This asserts what the ENGINE produced from it.
+    let mut probe: QueryMemory = HashMap::new();
+    probe.insert("q-Pair".to_string(), maps.clone());
+    match &super::query_memory_to_pm(probe) {
+        Value::wat__core__PersistentMap(m) => {
+            assert_eq!(m.len(), 1, "one query name in, one key out; got {}", m.len());
+            match m.get(&Value::String(Arc::new("q-Pair".to_string()))) {
+                Some(Value::wat__core__PersistentVector(pv)) => assert_eq!(
+                    pv.len(),
+                    N,
+                    "query_memory_to_pm returned {} binding maps for `q-Pair`, not the {N} it was \
+                     given — a lossy conversion times faster, so these figures would read as a win",
+                    pv.len()
+                ),
+                other => panic!("`q-Pair` should map to a PersistentVector; got {other:?}"),
+            }
+        }
+        other => panic!("query_memory_to_pm must return a PersistentMap; got {other:?}"),
+    }
 
     println!(
         "\nout:query split — {N} one-entry PMaps, mean of {RUNS}\n\

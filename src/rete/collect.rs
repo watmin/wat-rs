@@ -4,7 +4,7 @@
 //!
 //! `defrule` (stone 5a) expands to a zero-arg `defn` returning `:wat::rete::Rule` — the return type is the
 //! discovery marker, exactly as `deftest` marks tests by returning `:wat::test::TestResult` and the test
-//! runner's `discover_tests` (src/test_runner.rs) finds them by reflecting the frozen symbol table. There is
+//! runner's `discover_tests` (src/host/test_runner.rs) finds them by reflecting the frozen symbol table. There is
 //! no wat-level "enumerate the defns in a namespace" primitive and (wat being pure) no mutable global rule
 //! registry — so `collect-rules` does the same reflection at eval time. This is the "wat orchestrates Rust"
 //! pattern: `defrule` plants the discoverable zero-arg `defn`s; `collect-rules` reflects + invokes them.

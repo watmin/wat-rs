@@ -21,6 +21,29 @@ fn a0_depth_cost_split_at_equal_work() {
     // 2*depth*width derived facts: both columns derive 10,000.
     let shallow = depth_split_phases(10, 500); // 10 rounds  · 500 ids per level
     let deep = depth_split_phases(50, 100); // 50 rounds · 100 ids per level  (the :clara cell)
+    // ⛔ THE TEST'S OWN NAME STATES A PREMISE IT NEVER CHECKED. "at equal work" compares
+    // 10 rounds x 500 ids against 50 rounds x 100 ids, and `probare` classed it hollow: the only
+    // assertion was that the census recorded something. If the two cells stopped exercising the
+    // same phases, the depth-cost conclusion would be drawn from an unequal comparison and
+    // nothing would say so. Measured 2026-08-30: both emit 31 phase rows.
+    assert_eq!(
+        shallow.len(),
+        deep.len(),
+        "the two cells no longer emit the same phase set ({} vs {}) — `at equal work` is the \
+         premise of this comparison and it no longer holds",
+        shallow.len(),
+        deep.len()
+    );
+    super::assert_phases_present(
+        shallow.iter().map(|r| r.0),
+        &["alpha", "root-join", "hash-join", "production"],
+        "",
+    );
+    super::assert_phases_present(
+        deep.iter().map(|r| r.0),
+        &["alpha", "root-join", "hash-join", "production"],
+        "",
+    );
 
     let names: std::collections::BTreeSet<&'static str> =
         shallow.iter().chain(deep.iter()).map(|(n, _)| *n).collect();
@@ -331,6 +354,14 @@ fn cascade_setup_leftover_split() {
     for _ in 0..RUNS {
         let before = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
         let rows = cascade_phase_census(50, 100);
+        // ⛔ The liveness guards below the loop are not the claim — `probare` classed this test
+        // hollow. A cascade fire must exercise these phases whatever they cost; a missing row
+        // means marks were lost. Asserted HERE because `rows` is loop-scoped.
+        super::assert_phases_present(
+            rows.iter().map(|r| r.0),
+            &["alpha", "root-join", "hash-join", "production"],
+            "",
+        );
         let after = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
         builds += after.saturating_sub(before);
         let of = |name: &str| -> (u64, u64) {

@@ -457,6 +457,13 @@ fn node_share_fire_phase_census() {
         "ROUND LOOP recorded 0ns at 50/200 — the fire never ran, and a\n\
                                  table of zeroes would still have rendered every row:\n{table}"
     );
+    // ⛔ The guards here are LIVENESS — `probare` classed this test hollow. The node-share axis
+    // is TestNode-heavy, so `filter` must appear alongside the join phases.
+    super::assert_phases_present(
+        rows.iter().map(|r| r.0),
+        &["alpha", "root-join", "hash-join", "production", "filter"],
+        &table,
+    );
     assert!(
         filter > 0,
         "filter recorded 0ns at 50/200 — this axis has TestNodes:\n{table}"

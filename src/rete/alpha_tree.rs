@@ -30,7 +30,10 @@
 //! ## Scope: alpha only, prune only, per type
 //!
 //! Beta (the join network) is untouched — rules derive facts, so the beta network stays
-//! runtime, unlike the kernel's packet tree (`holon-lab-ddos/veth-lab/filter/src/tree.rs`),
+//! runtime, unlike the kernel's packet tree (the veth-lab filter's tree module in the SIBLING
+//! repo `holon-lab-ddos` — deliberately named in prose rather than as a path, because it is
+//! outside this repo and no gate here could ever check it: `wat-rs/CLAUDE.md`, "state only what
+//! this repo can check"),
 //! which bakes the whole rule in because nothing ever derives there. This tree only prunes
 //! which alphas of a fact's own type are worth match-testing; native bindings come from
 //! compiled exec. `dim` indexes the class's own declared field order

@@ -3,7 +3,7 @@
 //! ## ⛔ The four `*_pass` functions are NOT the engine. Read this before changing one.
 //!
 //! `alpha_pass`, `root_join_pass`, `hash_join_pass` and `production_pass` are all
-//! **`#[cfg(test)]`**, and `kernel/tests.rs` is their only caller. They are FULL-RECOMPUTE
+//! **`#[cfg(test)]`**, and `kernel/tests/pass_semantics.rs` is their only caller. They are FULL-RECOMPUTE
 //! reference implementations kept for one reason, stated at their call site: *"run the four
 //! passes (inspect native beta; freeze would drop it)"* — a test that needs to look inside beta
 //! memory cannot go through the normal path, because freezing a session discards it.
@@ -16,17 +16,29 @@
 //! So a change to `hash_join_pass` HERE changes nothing that ships; the shipping twin is
 //! `fire/pass/hash_join.rs`. The names are near-identical and the compiler will not warn you.
 //!
-//! ⛔ **The discriminator is LOCATION, not the `_pass` suffix — do not learn the wrong rule from
-//! the four above.** Most shipping passes are named `*_delta` (`alpha_delta`, `root_join_delta`,
-//! `hash_join_delta`, `production_delta`), which makes `_pass` look like it means "test-only".
-//! It does not: **`accumulate_pass` and `filter_pass` are production**, called from
-//! `delta.rs`, carrying no `cfg`. The reliable rule is where the function lives — everything in
-//! `fire/pass/` ships; only these four `*_pass` in THIS file are `#[cfg(test)]`.
+//! ⛔ **Do not learn a rule from the `_pass` suffix.** Most shipping passes are named `*_delta`
+//! (`alpha_delta`, `root_join_delta`, `hash_join_delta`, `production_delta`), which makes `_pass`
+//! look like it means "test-only". It does not: **`accumulate_pass` and `filter_pass` are
+//! production**, called from `delta.rs`, carrying no `cfg`.
+//!
+//! ⛔ **And do not learn a rule from LOCATION either — an earlier version of this header did, and
+//! it was wrong in both directions.** It said "everything in `fire/pass/` ships; only these four
+//! `*_pass` in THIS file are `#[cfg(test)]`". Both halves are false: `keyed_join` and
+//! `GatherIntern::of` are `#[cfg(test)]` in THIS file and are not `*_pass`, and
+//! `fire/pass/mod.rs` carries `#[cfg(test)]` items of its own. A header written to stop a reader
+//! inventing a false rule installed one.
+//!
+//! **The only reliable discriminator is the attribute itself — grep `#[cfg(test)]`.** The exact
+//! set in this file is pinned by `tests/lint/rete_header_claims_are_asserted.rs`, so this
+//! sentence cannot rot without a red build.
 //!
 //! ## What the rest of this file is: the machinery BOTH families share
 //!
-//! Everything that is not one of those four passes is live in production, reached from
-//! `fire/pass/` and `delta.rs`:
+//! Most of what is not one of those four passes is live in production, reached from `fire/pass/`
+//! and `delta.rs`. The list below is a READING ORDER, not an inventory — it is hand-maintained
+//! and nothing gates its completeness, so do not read a name's absence as meaning anything.
+//! (`keyed_join` is `#[cfg(test)]`; the `:not`/`:exists` driver family and the TestNode
+//! where-dispatch are production and are not listed.)
 //!
 //! - **Join** — `driver_of`, `rematch_compiled`, `join_extend`, `keyed_join_persistent`,
 //!   `extend_token`, `token_assoc`.
@@ -54,7 +66,8 @@ use crate::value::value::AggregateValue;
 
 use super::*;
 
-/// The per-join context: the eleven session fields a join needs, plus the two that vary.
+/// The per-join context: the eleven session fields a join needs, plus the three that vary
+/// (`sym`, `compiled_conds`, `scratch`) — fourteen in all.
 ///
 /// A split borrow of `FireSession`. Token and Element are `Copy`, but we cannot hold
 /// `&mut FireSession` while walking beta or alpha — so a join takes the fields it writes by
@@ -63,9 +76,10 @@ use super::*;
 ///
 /// ⚠ DO NOT REPLACE THE CALL-SITE LITERALS WITH A `from_wm(&mut wm, …)`
 /// CONSTRUCTOR. It was tried on 2026-08-24 and reverted the same hour. Six
-/// identical thirteen-field literals look like pure boilerplate — ~78 lines
-/// saying the same thing — and at three sites in `hash_join_delta` the literal's
-/// braces are what carry the nesting to nine, the deepest point in the engine.
+/// identical fourteen-field literals look like pure boilerplate — and one of
+/// them, in `hash_join_delta`, sits where the braces carry the nesting to nine,
+/// the deepest point in the engine. (Two sibling literals have since been lifted
+/// into `hj_step4_term2` and `hj_step3_term1`.)
 /// So the constructor is the obvious cleanup, and it does not work:
 ///
 /// A constructor must take `&mut wm` **whole**. The literal borrows ELEVEN

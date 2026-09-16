@@ -140,6 +140,38 @@ fn seen_identity_set_split() {
         "Value-set insert recorded 0 ns — the loop never ran"
     );
 
+    // ⛔ THE LIVENESS GUARDS ARE NOT THE CLAIM — `probare` classed this test hollow. This test
+    // compares a `FxHashSet<Value>` against a `FxHashSet<u64>` of identities, and the comparison
+    // is only meaningful if BOTH sets actually distinguish all N facts. That is an ENGINE
+    // property: `identity()` must not collide across 40,200 distinct stamped Records. A colliding
+    // identity would SHRINK the id set and make the u64 side look faster — the same
+    // false-speedup shape `gather_val_id_split` had.
+    //
+    // Not asserted on `facts.len()`, which is `(0..N)` by construction and would be a tautology.
+    let mut value_set: FxHashSet<Value> = FxHashSet::default();
+    let mut id_set: FxHashSet<u64> = FxHashSet::default();
+    for f in &facts {
+        value_set.insert(f.clone());
+        if let Value::Aggregate(a) = f {
+            id_set.insert(a.identity());
+        }
+    }
+    assert_eq!(
+        value_set.len(),
+        N,
+        "the {N} fixture Records are not all distinct as Values ({} unique) — the set timings \
+         above are for a smaller working set than this test claims",
+        value_set.len()
+    );
+    assert_eq!(
+        id_set.len(),
+        N,
+        "`identity()` collided: {} unique ids for {N} distinct Records. The u64-set arm is then \
+         doing LESS work than the Value-set arm, so the split this test reports would read as a \
+         speedup when it is a collision",
+        id_set.len()
+    );
+
     println!(
         "\nseen identity-set split — {N} stamped Records, mean of {RUNS}\n\
              unscaled (accum [200 200] input count)\n\
@@ -525,6 +557,51 @@ fn gather_unary_index_split() {
     assert!(
         b > 0.0,
         "build_gather_index recorded 0 ns — the loop never ran"
+    );
+
+    // ⛔ THE GUARD ABOVE IS NOT THE CLAIM — `probare` classed this test hollow. Like
+    // `gather_val_id_split` and `seen_identity_set_split`, this COMPARES indexes over the same
+    // 40,200 elements: one keyed by `JoinKey`, two by the bound `Value`. The comparison means
+    // nothing unless every arm indexes the SAME elements.
+    //
+    // ⛔ AND THE LOSSY FAILURE IS THE FAST ONE. An arm that silently indexed fewer elements —
+    // `key_of` returning a degenerate key, or `Bindings::get` missing the bind — does less work
+    // and reads as a SPEEDUP. That is the shape a liveness guard cannot see, and it is why
+    // `assert!(x > 0.0)` on a comparison benchmark is worse than no assertion: it looks like
+    // verification while the number lies.
+    let mut by_join_key: FxHashMap<super::JoinKey, Vec<usize>> = FxHashMap::default();
+    let mut by_value: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
+    for (idx_i, el) in els.iter().enumerate() {
+        let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
+        by_join_key
+            .entry(super::key_of(&pairs, &join_keys, &ids))
+            .or_default()
+            .push(idx_i);
+        if let Some(val) = Bindings::get(&pairs, &gkey) {
+            by_value.entry(val.clone()).or_default().push(idx_i);
+        }
+    }
+    assert_eq!(
+        by_join_key.values().map(Vec::len).sum::<usize>(),
+        N,
+        "the JoinKey-keyed arm indexed {} of {N} elements — it is doing less work than the \
+         Value-keyed arm it is timed against, so its advantage in the table is a loss, not a win",
+        by_join_key.values().map(Vec::len).sum::<usize>()
+    );
+    assert_eq!(
+        by_value.values().map(Vec::len).sum::<usize>(),
+        N,
+        "the Value-keyed arm indexed {} of {N} elements — every element binds ?g, so a shortfall \
+         means `Bindings::get` is missing binds and the comparison is between unequal work",
+        by_value.values().map(Vec::len).sum::<usize>()
+    );
+    assert_eq!(
+        by_join_key.len(),
+        by_value.len(),
+        "the two keyings disagree on bucket count ({} vs {}) — they are not partitioning the same \
+         40,200 elements, so the split this test reports compares different problems",
+        by_join_key.len(),
+        by_value.len()
     );
 
     println!(
@@ -1064,6 +1141,42 @@ fn probe_gap_cost_split() {
     // ⛔ WAS ONE liveness check on `j` alone, out of SIX measured components. Same reasoning as
     // `probe_extend_cost_split` above: this test's finding is a ratio, and five of its six terms
     // were unguarded.
+    // ⛔ MY FIRST CONVERSION OF THIS TEST WAS CEREMONIAL AND `probare` SAID SO: it turned ONE
+    // unfalsifiable check into SIX unfalsifiable checks. Broadening a liveness guard is breadth,
+    // not substance — the sibling `probe_extend_cost_split` at least gained an apportionment
+    // bound; this one gained nothing. The loop below stays (a zero component still invalidates
+    // every ratio), but it is no longer the only claim.
+    //
+    // These are the ENGINE contracts the timed arms actually exercise, measured 2026-08-30:
+    {
+        let mut bp2 = bind_pool.clone();
+        let mut mp2 = match_pool.clone();
+        let before = bp2.len();
+        let extended = super::extend_token(&tok, 0, el.binds, 2, &mut bp2, &mut mp2);
+        assert_eq!(
+            extended.binds.len, 3,
+            "`extend_token` produced a {}-binding token, not 3 — the `e` arm below is timing a \
+             different merge than the one this split reports",
+            extended.binds.len
+        );
+        assert_eq!(
+            bp2.len() - before,
+            3,
+            "`extend_token` grew the bind pool by {}, not 3 — a merge that writes fewer pairs \
+             does LESS work and times FASTER, so the gap this test apportions would read as a \
+             win when it is a loss",
+            bp2.len() - before
+        );
+        assert!(
+            !conds.get(&2).expect("cond 2").has_seed_cmp(),
+            "cond 2 now reports a seed-cmp; the `s` arm times `has_seed_cmp()` on the assumption \
+             it is false here, and a true reading means the probe path changed shape"
+        );
+        assert!(
+            super::rematch_compiled(&conds, 2).is_ok(),
+            "alpha 2 has no compiled cond — the `r` arm is timing a lookup that cannot succeed"
+        );
+    }
     for (name, v) in [("r", r), ("s", s), ("p", p), ("e", e), ("j", j), ("g", g)] {
         assert!(
             v > 0.0,
@@ -1201,5 +1314,20 @@ fn dbeta_copy_size() {
         std::mem::size_of::<Token>(),
         (std::mem::size_of::<Token>() * 2000) as f64 / 1024.0
     );
-    assert!(std::mem::size_of::<Token>() > 0);
+    // ⛔ WAS `assert!(size_of::<Token>() > 0)` — a COMPILE-TIME TAUTOLOGY. `Token` has fields, so
+    // that can never be false under any change; `probare` named it the purest hollow form in the
+    // suite. It sat on the release floor as a passing test that could not fail.
+    //
+    // The number IS the finding. This test exists so someone deciding whether to remove a
+    // `d_beta_from_parents` copy knows what the copy costs, and that cost is linear in
+    // `size_of::<Token>()`. Pin it: if `Token` grows a field, every copy this test measures gets
+    // proportionally more expensive and the answer it was consulted for changes.
+    assert_eq!(
+        std::mem::size_of::<Token>(),
+        16,
+        "`Token` is now {} B, not 16 — every `d_beta_from_parents` copy costs proportionally \
+         more, so the sizing this test exists to provide is out of date and the two call sites \
+         that document themselves as a borrow-checker workaround need re-judging",
+        std::mem::size_of::<Token>()
+    );
 }

@@ -378,6 +378,12 @@ fn fanout_fire_phase_census() {
         hash_join > 0,
         "hash-join recorded 0ns at the 40k-pair cell — this axis is a join:\n{table}"
     );
+    // ⛔ The two guards above are LIVENESS — `probare` classed this test hollow.
+    super::assert_phases_present(
+        rows.iter().map(|r| r.0),
+        &["alpha", "root-join", "hash-join", "production"],
+        &table,
+    );
 }
 
 /// Leftover production: remainder_raw vs children's instrument left in the parent.

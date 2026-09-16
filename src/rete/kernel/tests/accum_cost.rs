@@ -42,6 +42,23 @@ fn accum_matcher_op_census() {
         calls > 0,
         "compiled:calls is zero — occupancy fill / skip-span / exec_compiled never counted"
     );
+    // ⛔ `probare` classed this test hollow — the two guards above are liveness. The workload is
+    // FIXED at (200, 200), so the counter is deterministic: measured 80,200 calls, which is one
+    // per (fact, matching alpha) pair — the same 80,200 `accum_alpha_memory_shape` pins as the
+    // alpha-memory size. A drift means the compiled path is being entered a different number of
+    // times for identical input, which is the regression this census exists to reveal.
+    assert_eq!(
+        calls, 80_200,
+        "compiled:calls is {calls}, not 80,200 — the compiled path ran a different number of \
+         times for the same (200, 200) workload"
+    );
+    assert_eq!(
+        rows.len(),
+        10,
+        "the operation census reported {} counters, not 10 — a counter appeared or vanished, so \
+         this census is no longer describing the same set of operations",
+        rows.len()
+    );
 
     let mut out = String::from("\naccum matcher ops — G=200 W=200 (40,200 facts)\n");
     for (name, n) in &rows {
@@ -755,6 +772,18 @@ fn accum_compiled_match_split() {
         !facts.is_empty(),
         "compile+seed produced 0 facts — isolated loops would be vacuous"
     );
+    // ⛔ THE GUARD ABOVE IS NOT THE CLAIM. `probare` classed these tests hollow: fixed workload,
+    // timed arms, printed table, and the only assertion was that the clock moved. MEASURED
+    // 2026-08-30, all three sites: 40,200 facts (200 Groups + 40,000 Readings) from the accum
+    // axis's `[200 200]` seed. Not assumed from the sibling file — probed, because a shared
+    // guard text does not imply a shared workload.
+    assert_eq!(
+        facts.len(),
+        40_200,
+        "workload drifted to {} facts, not the 40,200 the accum axis produces — every timing \
+         below is measuring something other than this test's subject",
+        facts.len()
+    );
 
     let n_fact_bind = arm
         .compiled_conds
@@ -978,6 +1007,18 @@ fn accum_materialize_split() {
     assert!(
         !facts.is_empty(),
         "compile+seed produced 0 facts — isolated loops would be vacuous"
+    );
+    // ⛔ THE GUARD ABOVE IS NOT THE CLAIM. `probare` classed these tests hollow: fixed workload,
+    // timed arms, printed table, and the only assertion was that the clock moved. MEASURED
+    // 2026-08-30, all three sites: 40,200 facts (200 Groups + 40,000 Readings) from the accum
+    // axis's `[200 200]` seed. Not assumed from the sibling file — probed, because a shared
+    // guard text does not imply a shared workload.
+    assert_eq!(
+        facts.len(),
+        40_200,
+        "workload drifted to {} facts, not the 40,200 the accum axis produces — every timing \
+         below is measuring something other than this test's subject",
+        facts.len()
     );
 
     let reset = |wm: &mut super::FireSession| {
@@ -1265,6 +1306,21 @@ fn accum_intern_val_i64_split() {
         !payloads.is_empty(),
         "no interned fillers — intern_val split is vacuous"
     );
+    // ⛔ `probare` classed this test hollow — the guard above is liveness. Unlike a `(0..N)`
+    // fixture, `payloads` is what the ENGINE interned from the fixed (200, 200) axis, so its
+    // size is a real deterministic property rather than a tautology.
+    //
+    // MEASURED 120,200, not derived. My first attempt at this line reasoned "one i64 filler per
+    // Reading" and wrote 40,000; the assertion failed and reported the true figure, which is 3x
+    // that. The count is NOT one-per-fact and I am not going to invent the decomposition here —
+    // what is pinned is the number the engine actually produces for this axis.
+    assert_eq!(
+        payloads.len(),
+        120_200,
+        "the axis interned {} i64 fillers, not 120,200 — the intern_val split below is timing a \
+         different population than the accum axis produces",
+        payloads.len()
+    );
     let mut n_i64 = 0u64;
     let mut n_other = 0u64;
     let mut min_i = i64::MAX;
@@ -1397,6 +1453,18 @@ fn accum_exec_ops_split() {
     assert!(
         !facts.is_empty(),
         "compile+seed produced 0 facts — isolated loops would be vacuous"
+    );
+    // ⛔ THE GUARD ABOVE IS NOT THE CLAIM. `probare` classed these tests hollow: fixed workload,
+    // timed arms, printed table, and the only assertion was that the clock moved. MEASURED
+    // 2026-08-30, all three sites: 40,200 facts (200 Groups + 40,000 Readings) from the accum
+    // axis's `[200 200]` seed. Not assumed from the sibling file — probed, because a shared
+    // guard text does not imply a shared workload.
+    assert_eq!(
+        facts.len(),
+        40_200,
+        "workload drifted to {} facts, not the 40,200 the accum axis produces — every timing \
+         below is measuring something other than this test's subject",
+        facts.len()
     );
 
     let mut t = 0.0;

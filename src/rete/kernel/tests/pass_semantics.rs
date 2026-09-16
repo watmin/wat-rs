@@ -252,9 +252,9 @@ fn guiding_light_matches_carry_support_chain() {
 ///
 /// Mirrors the 3a integration test assertions, relocated into the kernel's #[cfg(test)] module
 /// so they survive P11's `wm.beta.clear()` at freeze. Coverage for:
-///   tests/probe_arc278_3a_root_join.rs::root_join_populates_one_beta_node
-///   tests/probe_arc278_3a_root_join.rs::root_join_seeds_one_token
-///   tests/probe_arc278_3a_root_join.rs::seeded_token_carries_bindings_and_support
+///   the since-deleted 3a root-join probe, root_join_populates_one_beta_node
+///   the since-deleted 3a root-join probe, root_join_seeds_one_token
+///   the since-deleted 3a root-join probe, seeded_token_carries_bindings_and_support
 #[test]
 fn root_join_seeds_one_token_per_element() {
     use super::{alpha_pass, rete_arm_get_or_build, root_join_pass};
@@ -348,8 +348,8 @@ fn root_join_seeds_one_token_per_element() {
 /// at the HashJoinNode. The joined Token unifies all three variables: ?t=15, ?w=45, ?loc="Oslo".
 ///
 /// Mirrors:
-///   tests/probe_arc278_3b_hash_join.rs::join_produces_one_token_on_matching_loc
-///   tests/probe_arc278_3b_hash_join.rs::joined_token_unifies_both_conditions
+///   the since-deleted 3b hash-join probe, join_produces_one_token_on_matching_loc
+///   the since-deleted 3b hash-join probe, joined_token_unifies_both_conditions
 #[test]
 fn hash_join_produces_one_token_on_same_loc() {
     use super::{
@@ -465,7 +465,7 @@ fn hash_join_produces_one_token_on_same_loc() {
 /// (the ?loc join key disagrees: "Oslo" != "Bergen").
 ///
 /// Mirrors:
-///   tests/probe_arc278_3b_hash_join.rs::join_drops_on_mismatched_loc
+///   the since-deleted 3b hash-join probe, join_drops_on_mismatched_loc
 #[test]
 fn hash_join_drops_on_mismatched_loc() {
     use super::{
@@ -541,7 +541,7 @@ fn hash_join_drops_on_mismatched_loc() {
 /// This is the definitive proof that the keyed hash-join has no cross-product leakage.
 ///
 /// Mirrors:
-///   tests/probe_arc278_3b_hash_join.rs::join_no_cross_loc_leakage
+///   the since-deleted 3b hash-join probe, join_no_cross_loc_leakage
 #[test]
 fn hash_join_no_cross_loc_leakage() {
     use super::{

@@ -739,7 +739,8 @@ fn is_declaration_derived_construction(items: &[WatAST], sym: &SymbolTable) -> b
 /// identically for the two sites, so each needed its OWN wall:
 ///
 /// **Aggregate site** — closed by TWO new/widened freeze-time walls, both in
-/// `src/rete/validate.rs`, plus one runtime wiring fix (`src/runtime.rs`):
+/// `src/rete/validate/` (then one file; split three ways 2026-08-30), plus one runtime wiring
+/// fix (`src/runtime.rs`):
 ///   1. (#1, the one WIRED rather than rejected) A nested surface aggregate constructor (an
 ///      operand's VALUE, not the `:then` item's own head — e.g. `:then [(:usr::Outer :inner
 ///      (:usr::Inner :x 1))]`) used to compile clean and die at FIRE time with
@@ -2351,7 +2352,7 @@ mod completeness_gate {
     // from this ledger, not carried forward.
     // Arc 255 Stone P6-c-W5c — the four remaining readers are HOMED (`#[wat_intrinsic]`, in
     // place) and CLASSIFIED — deleted from this ledger, not carried forward: `lower`
-    // (`src/rete/expr_ir.rs`, `Pure`/`Deterministic` — a static compile pass, no `eval_inner` on
+    // (`src/rete/expr_ir/mod.rs`, `Pure`/`Deterministic` — a static compile pass, no `eval_inner` on
     // user code), `step-payload` (`src/rete/step_payload.rs`, `Pure`/`Deterministic` — reads an
     // already-compiled network structurally), `axis-violation` (`src/rete/purity.rs`, same file,
     // `Pure`/`Deterministic` — the same walk `pure?`/`deterministic?`/`total?`/`primitive?` run),
@@ -2468,7 +2469,7 @@ mod completeness_gate {
         // `:wat::rete::import`        (`src/rete/export.rs`)         @Purity Effectful  @Determinism Deterministic — interns the
         //                             reconstructed network into `ARM_TABLE` unconditionally; a session dropped without
         //                             `release-session` leaks until thread end.
-        // `:wat::rete::lower`         (`src/rete/expr_ir.rs`)        @Purity Pure       @Determinism Deterministic — a pure static
+        // `:wat::rete::lower`         (`src/rete/expr_ir/mod.rs`)    @Purity Pure       @Determinism Deterministic — a pure static
         //                             compile pass (`lower()`) that reads the symbol table and never calls `eval_inner`/
         //                             `apply_function`; the built `Program` is discarded, nothing outlives the call.
         // `:wat::rete::step-payload`  (`src/rete/step_payload.rs`)   @Purity Pure       @Determinism Deterministic — a read-only
