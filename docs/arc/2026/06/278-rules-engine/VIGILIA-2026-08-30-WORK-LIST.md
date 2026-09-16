@@ -285,6 +285,40 @@ verb is `index_upto(join_id, &[Element])`, carrying the high-water mark inside, 
 append without advancing it and a fifth writer added later inherits the guarantee.** That is a small
 `extirpare` win with no behaviour change — not an urgent correctness strike.
 
+#### ⛔ AND THE ANSWER TO "IS THERE CODE TO REAP HERE?" IS **NO** — measured, and the reason sharpens D2
+
+The builder asked whether `indexed_n` is dead machinery. **It is not. It is a correctness guard**,
+and reaping it would introduce exactly the defect D2 describes.
+
+`keyed_join_persistent` (`fire/mod.rs:800-816`) does
+`right_idx.entry(join_id).or_default()` — which returns the **EXISTING** bucket map on a second
+call — then `ridx.entry(k).or_default().push(el)`, which **appends without clearing**. `already`
+is the ONLY thing preventing a second call from re-pushing every element it already holds.
+
+**BUT IT GUARDS A CASE NOTHING MEASURED REACHES.** A temporary probe over all four branches
+(`already == 0` non-empty · `0 < already < len` · `already == len` · `already == 0` empty):
+
+| workload | full | **INCREMENTAL** | skip | empty |
+|---|---:|---:|---:|---:|
+| 423 rete tests | **35** | **0** | 0 | 0 |
+| grid `accum [50 200]` | 0 | 0 | 0 | 0 |
+| grid `deep-cascade [10 100]` | 0 | 0 | 0 | 0 |
+| grid `strat-neg [6 500]` | 0 | 0 | 0 | 0 |
+
+**Every call is a first index. `indexed_n` is written every time and its stored value is never read
+back as anything but 0.**
+
+⚠ **THE PROBE'S FIRST VERSION HAD A BLIND SPOT AND REPORTED SILENCE AS A FINDING** — its `if/else`
+chain covered three of the four cases, so `already == 0 && empty` fell through printing nothing,
+making "never called" and "called with nothing to index" indistinguishable. Caught and re-run. Same
+class as the rest of this cast, committed by the hand auditing it.
+
+**SO D2's DISPOSITION IS NOW PRECISE:** `hash_join_delta` writing `right_idx` without advancing the
+mark is a **live hole in a guard that has never yet had a second chance to matter.** It is latent
+because the guarded case does not arise — not because the code is sound. `sequi`'s newtype (one
+insertion verb, mark carried inside) is the right fix precisely because it makes the guard
+unbreakable by a future second call or a fifth writer, and it must NOT be simplified away.
+
 ---
 
 ## CLASS E — error shape and diagnostics
