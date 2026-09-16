@@ -21,9 +21,16 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `c3c824a34` (= origin). In flight: nothing — **batch 4e (#226–#240) is CLOSED and
-PUSHED**; **240 of 651 replayed**. Next is **batch 4f (#241–#260)**: no stdlib-touch, no moved-home, no
-divergent-macro row in range — the next two-phase step is #377.
+Stamp: written at HEAD `400165612` (4f's SCORE commit; the records commit lands on top of it). In flight:
+nothing — **batch 4f (#241–#260) is CLOSED and PUSHED**; **260 of 651 replayed**. Next is **batch 4g
+(#261–#280)**: no stdlib-touch row and no divergent-macro row — the next two-phase step is still #377 —
+but the range carries TWO named hazards, both measured in advance and written into BRIEF-7g:
+⚠ **#274 lands a meta-gate that WILL go RED on our tree.** `every_walking_gate_declares_non_vacuity.rs`
+walks `tests/lint/` at runtime with no allowlist. Grok has 32 gates there; we have 43. The 13 main-owned
+gates it has never seen produce **9 undeclared + 1 hollow** — two independent firing arms. That is a real
+flaw of ours (two gates assert only `violations.is_empty()`, which passes when the walk finds nothing), and
+it repairs **AT #274** per the #184 precedent — never folded backward, never allowlisted.
+⚠ **#278 carries the range's ONE `absent-on-main` row** and is the ONLY step touching `wat-scripts/fixes/`.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -43,7 +50,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4c #212–#220 (CLOSED; floor 5576/5576, clippy 0, pushed)
                               + batch 4d #221–#225 (CLOSED; floor 5578/5578, clippy 0, pushed)
                               + batch 4e #226–#240 (CLOSED; floor 5593/5593, clippy 0, pushed)
-                              ⇒ 240 of 651 replayed. NEXT: batch 4f #241–#260.
+                              + batch 4f #241–#260 (CLOSED; floor 5615/5615, clippy 0, pushed)
+                              ⇒ 260 of 651 replayed. NEXT: batch 4g #261–#280.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -100,6 +108,22 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4f #241–#260 is CLOSED and PUSHED** (steps at `400165612`; SCORE-7f, REPLAY-LOG; finding 34).
+  20 steps, 14 docs-only. Verified by the orchestrator: floor **5615/5615, 24 skipped** — the count
+  PREDICTED from the diff for the **eighth consecutive batch** — clippy 0, and all four walls re-run at
+  HEAD reproducing #258's verdict lines exactly (kind(lib) 1490, lint-subset 155, doctest 8, stone-3 gate
+  3/3, census files=2117). The range gate passes IDENTICALLY with and without `GIT_NO_REPLACE_OBJECTS=1`;
+  0 replace refs. E2 re-checked two-sided, E4's 11 `.wat` re-run (8 rc=0, 3 deliberate rc=1 refusal
+  fixtures whose named tests assert `!ok`), E13's 6 census artifacts all present.
+  **#254's deliberate divergence HELD**: the struck apportionment assertion (finding 32) is absent; the
+  single `grep` hit is the strike's own explanatory comment, and the executor proved it PREDATES #254 by
+  checking the pre-#254 blob rather than by explaining it away.
+  **The executor found two defects in its OWN commit bodies before yielding** and folded both in place,
+  never as a post-batch commit: #242/#254 omitted `census`/`nested-program-gate` (it had misread the
+  record gate's rule as `.wat`-triggered when it is PATH-based — `^src/` also qualifies), and #242
+  overstated a test count. Repaired by detach + re-commit + rebuild; **proven inert independently by the
+  orchestrator** — `git diff 20bf647f3 fcc5febcf` = 0 lines, `git diff 7cfc1d93f fcc5febcf` = 0 lines,
+  260 steps at all three tips. Two rebuilds, not one.
 - **Batch 4e #226–#240 is CLOSED and PUSHED** (`c3c824a34`; SCORE-7e, REPLAY-LOG; findings 32–33). 15 steps.
   Orchestrator-verified: floor **5593/5593, 24 skipped** — the predicted count for the SEVENTH consecutive
   time — clippy 0, E7 reproducing #238's verdict lines exactly (kind(lib) 1482, doctest 8, lint-subset 153,

@@ -1039,6 +1039,71 @@ stdlib door never registers it.
   CONVENTION — and honestly so, since the thing that would catch it (a wat parser pointed at string
   literals inside Rust) does not exist.
 
+## Finding 34 — the counting defect SURVIVES ITS OWN DISCLOSURE; and six of my own instruments carried labels their data contradicted
+
+**1. The class outlives the lesson.** SCORE-7f's E11 states "63 files touched across the batch."
+Measured six ways: **67** (incl. the SCORE commit), **65** (the 20 REPLAY commits — confirmed twice, by
+`git diff --name-only` and by a deduplicated `git log --name-only`), 43 non-docs, 39 adds, 28 modified, 77
+undeduplicated. **63 is not reachable by any definition tried.** E11's SUBSTANCE is true and independently
+verified (0 hazard paths), so the row PASSES and the prose carries a magnitude error.
+
+The miscount is not the finding. **The same document discloses this exact class three sections earlier** —
+#242's Shape B, "6 new rows" where the diff's own `+#[test]` count is 2 — repairs it properly, and
+explains the lesson well. Then commits the class again in its own E11. And I did the same thing on the
+same day: BRIEF-7f shipped "Twelve are docs-only" above a list of fourteen, an hour after I recorded
+finding 27. **A disclosure is not a cure.** The only thing that has ever caught this class is reading the
+number off the data at the moment of writing the sentence.
+
+**2. MY OWN EXPECTATION ROW WAS UNSATISFIABLE BY A CORRECT TREE.** EXPECTATIONS-7f E5 demanded
+`grep -c 'h >= (b + m + e)' src/rete/kernel/tests/gather_probe_cost.rs` return **0**. On a correct tree it
+returns **1**, because `0fa6948da`'s replacement comment block QUOTES the assertion it struck. I wrote the
+row without reading the thing it measures.
+
+The executor handled it better than the row deserved: it reported the literal 1, **refused to edit the
+file to manufacture a 0**, and then FALSIFIED — checking the pre-#254 blob to prove the count predates
+#254, and that #254's only touch to that file is a one-line call-site change inside a different test fn.
+
+⛔ **RULING: the closed contract is NOT amended.** EXPECTATIONS-7f's own header says it is fixed so the
+result cannot move the goalposts; editing it after seeing the outcome is precisely that. Finding 31's
+amend-at-source precedent governs LIVING documents (BRIEF-1, used by every batch), never a discharged
+one-shot contract. **Rule: a `grep -c` row must say whether it counts CODE or PROSE** — a bare count over a
+file that documents its own history cannot tell a live assertion from an epitaph.
+
+**3. I ACCUSED CORRECT WORK TWICE IN TWO DAYS, both by misreading an antecedent.** On 2026-09-15 I flagged
+`rete::core::keyword::=` as stale; it is the live spelling, deliberately never rehomed. On 2026-09-16 I
+flagged #242's *"of which only 2 are NEW"* as contradicting its own diff — but "of which" attaches to
+`rete_header_claims_are_asserted`'s **six**, not to all fourteen. Measured: 8 added in
+`termination_verdict.rs` + 2 in `rete_header_claims_are_asserted.rs` = 10 added, 14 run (10 new + 4
+pre-existing re-verified because the file changed). The body is exactly right. **Before indicting a count,
+identify what the sentence's "of which" attaches to.**
+
+**4. A STALE DIAGNOSTIC IS NOT A FINDING.** An LSP snapshot reported conflict markers in a `mod.rs` at
+lines 1157/1159/1171 — captured while the executor held `validate/mod.rs` mid-resolution, and surfaced to
+me after it was clean. Tree-wide: **zero** markers in any tracked file; `cargo check --release
+--all-targets` exit 0. Escalating was CORRECT — a committed conflict marker would have falsified every
+test verdict in that SCORE, and disproving it cost 8 seconds — but an alarm is not evidence, and the
+record says the alarm was mine and wrong.
+
+**5. SIX INSTRUMENTS OF MINE CARRIED LABELS THEIR OWN OUTPUT CONTRADICTED**, in one session:
+- `(no lines above = this range is clean)` — printed directly under 21 hazard lines, one of them real;
+- a hazard sweep over `replay-plan/*.tsv` that pulled in `flags.tsv`, which has a row for EVERY step,
+  burying the single real signal among twenty decoys;
+- `PRESENT/ABSENT … <-- no landing site` printed on `A`-status rows, where absence is CORRECT because the
+  step CREATES the file — 12 of 13 flagged "hazards" at #262 were adds;
+- a guard classifier blind to NEGATION, unable to separate `violations.is_empty()` (a VERDICT) from
+  `!tracked.is_empty()` (a GUARD) — wrong in BOTH directions, reporting 7/3 where the truth was nearer 5/5;
+- a `grep -o` extraction that ate prose I had written INSIDE my own list's parentheses, reporting `#that`
+  and `#count` as bad step numbers;
+- `must be 1` asserted over a counter that legitimately appears twice (stamp AND WHERE block).
+
+⛔ **A label that states a conclusion must be COMPUTED from the same data it labels.**
+`[ "$n" -eq 0 ] && echo clean` is a check; `echo "(none above = clean)"` is a wish. A census over a GLOB
+must exclude the files that match every key. A census over a STATUS column must branch on the status.
+
+The one that went right: the prose-eating extraction failed **loudly** — `#that` cannot be a step number.
+A checker that fails visibly is recoverable; the `keyword` false positive, which failed quietly and
+accused correct work, was not. Prefer instruments that break conspicuously.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
