@@ -64,7 +64,7 @@ fn strat_neg_query_harvest_split() {
 
         let t0 = Instant::now();
         let (fired, rows) = super::with_phase_census_counted(|| {
-            fire_rules_on_session(&staged, world.symbols(), None).unwrap_or_else(|e| {
+            fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None).unwrap_or_else(|e| {
                 panic!("fire-rules raised with_query={with_query}: {e:?}")
             })
         });
@@ -399,7 +399,7 @@ fn strat_neg_stratum_split() {
 
         let t0 = Instant::now();
         let (_fired, rows) = super::with_phase_census_counted(|| {
-            fire_rules_on_session(&staged, world.symbols(), None)
+            fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None)
                 .unwrap_or_else(|e| panic!("fire-rules raised: {e:?}"))
         });
         wall = wall.min(t0.elapsed().as_nanos() as f64);
@@ -476,7 +476,7 @@ fn strat_merge_pv_owner_count() {
     // sums the owner count; `merge:pv-calls` counts the calls, so the mean is
     // the two divided — one counter cannot carry both.
     let (_fired, counts) = super::with_count_census(|| {
-        fire_rules_on_session(&staged, world.symbols(), None)
+        fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None)
             .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
     });
     let get = |name: &str| -> u64 {

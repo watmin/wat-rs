@@ -31,6 +31,33 @@
 //! have no span param, so they never match. This lint is about the CHOICE between a real location
 //! and a Rust one, never about the absence of a choice.
 //!
+//! ## ⛔ THE PREDICATE IS A PROXY — and this is the population it protects
+//!
+//! "has no `…span: &Span` param" stands in for "no wat span is available". Those are not the
+//! same claim. A fn can have no span param while the caller ONE FRAME UP holds the author's
+//! span and already uses it — so the proxy admits a site the principle above would refuse.
+//!
+//! It was not hypothetical. `refuse_export_without_arm`'s two call sites were exactly that:
+//! `fire_rules_on_session` and `fire_once_session` stamped `rust_caller_span!()` for a
+//! USER-REACHABLE refusal and were invisible here, while all three real entries
+//! (`eval_fire_rules_native`, `eval_fire_once_native`, `eval_fire_rules_explain`) held
+//! `list_span` and already used it.
+//!
+//! **The cure was to make the proxy TRUE, not to widen it.** Both fns now take `span: &Span`,
+//! so they sit inside this lint's view and any future substitution in either body reddens with
+//! no new predicate and no caller analysis
+//! (`docs/arc/2026/06/278-rules-engine/strike-refusal-span/DESIGN.md`).
+//!
+//! Widening was MEASURED before it was rejected. Under `src/`, **494** sites are a span-LESS fn
+//! stamping `rust_caller_span!()`, **69** of them under `src/rete/` — and the visible majority
+//! are test helpers and genuine leaves, precisely the population the exclusion above exists to
+//! protect. The instrument, so those numbers stay recheckable rather than folklore: `violations_in`
+//! with its `carries_span` test inverted to `!carries_span`, walked over the same file set
+//! `span_substitutions_are_justified` walks. Separating real defects from that population needs
+//! analysis ACROSS frames, and this project has a recorded failure mode for exactly that — a
+//! static audit of a call graph is wrong in both directions and looks right each time. A lint
+//! that guessed across frames would be a new source of false findings.
+//!
 //! ## The exemption, and what it may NOT say
 //!
 //! A `// rune:lint(span-substitution) — <reason>` on the `rust_caller_span!()` line, OR anywhere in

@@ -238,6 +238,76 @@ fn empty_deps_import_refuses_fire() {
     );
 }
 
+/// ★ STRIKE `strike-refusal-span` row 1 — the refusal names the `.wat` the AUTHOR wrote.
+///
+/// `empty_deps_import_refuses_fire` above proves the wall FIRES; it cannot see where the
+/// refusal POINTS, because it drives `fire-rules` through `apply_function` from Rust, so the
+/// only span in play is the one this file hands in. This probe drives the same wall from WAT:
+/// `:user::import-and-hits` contains the `(:wat::rete::fire-rules …)` form, so the location a
+/// user would be shown is a line in `probe_arc278_export.wat`.
+///
+/// Before this strike `fire_rules_on_session` had no span param and stamped
+/// `crate::rust_caller_span!()`, so this assertion read `src/rete/kernel/fire/rules.rs` — a
+/// file the author never opened. See
+/// `docs/arc/2026/06/278-rules-engine/strike-refusal-span/DESIGN.md`.
+#[test]
+// rune:vocare(vantage-bypass-test) — empty-deps wall needs a host Aggregate.fields swap; no wat Export setter
+fn export_without_arm_refusal_names_the_wat_line() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let emptied = poke_named(
+        exp,
+        "deps",
+        call_beside_value(file!(), ":user::empty-pv").expect("empty pv"),
+    );
+    let mouth = world
+        .symbols()
+        .get(":user::import-and-hits")
+        .expect("import-and-hits")
+        .clone();
+    let err = apply_function(
+        mouth,
+        vec![emptied],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect_err("empty-deps Export with live productions must refuse fire");
+    // Derive the expected line from the wat SOURCE rather than pinning a literal, so editing
+    // the .wat cannot rot this probe into a false red.
+    let wat_src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/rete/probe_arc278_export.wat"),
+    )
+    .expect("the probe wat beside this file");
+    let defn = wat_src
+        .lines()
+        .position(|l| l.contains(":user::import-and-hits"))
+        .expect("import-and-hits defn");
+    let form = wat_src
+        .lines()
+        .skip(defn)
+        .position(|l| l.contains("(:wat::rete::fire-rules "))
+        .expect("the fire-rules form inside import-and-hits");
+    let expected_line = (defn + form + 1) as i64;
+
+    let span = err.span();
+    let base = std::path::Path::new(span.file.as_str())
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_else(|| span.file.as_str())
+        .to_string();
+    assert_eq!(
+        (base.as_str(), span.line),
+        ("probe_arc278_export.wat", expected_line),
+        "the Export-without-arm refusal must name the (fire-rules …) form the author wrote; \
+         a src/*.rs location here means the span was minted inside the kernel instead of \
+         threaded from the caller (got {}:{}:{})",
+        span.file,
+        span.line,
+        span.col
+    );
+}
+
 #[test]
 fn edn_write_read_import_fires() {
     let v = call_beside_value(file!(), ":user::edn-roundtrip-hits").expect("edn roundtrip");

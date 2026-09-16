@@ -621,13 +621,27 @@ pub(crate) fn eval_fire_rules_native(
     // (`fire/mod.rs`). `fire_rules_on_session` keeps returning `Result<Session>` because rust
     // reads it too; this is the one place `fire-rules` becomes a wat value, so it is the one
     // place the two ceilings become matchable arms instead of a raise. See `rete::kernel::outcome`.
-    crate::rete::kernel::outcome::fire_result_to_outcome(fire_rules_on_session(&session, sym, None))
+    crate::rete::kernel::outcome::fire_result_to_outcome(fire_rules_on_session(
+        &session, list_span, sym, None,
+    ))
 }
 
 /// Native cascade fixpoint on an already-evaluated Session. Shared by
 /// `fire-rules` and `fire-rules-explain` so explain cannot skip stratify.
+///
+/// `span` is the caller's WAT location — the `list_span` of the `(fire-rules …)` /
+/// `(fire-rules-explain …)` form the author actually wrote. It exists because this fn
+/// can REFUSE (`refuse_export_without_arm`), and a refusal a user can reach must name
+/// the line the user wrote, not a line in this file
+/// (`docs/arc/2026/06/278-rules-engine/strike-refusal-span/DESIGN.md`).
+///
+/// It is also the GUARD: with a used `span: &Span` in the signature, any future
+/// `rust_caller_span!()` in this body is caught by `span_substitution_justified`
+/// (`tests/lint/span_substitution_justified.rs`) with no widened predicate. Do not
+/// remove the parameter to "simplify" — the lint goes blind here the moment it goes.
 pub(crate) fn fire_rules_on_session(
     session: &Value,
+    span: &Span,
     sym: &SymbolTable,
     support: Option<&mut ExplainSupport>,
 ) -> Result<Value, EvalBreak> {
@@ -655,7 +669,7 @@ pub(crate) fn fire_rules_on_session(
                 }
             }
             if network_has_production(net) {
-                return Err(refuse_export_without_arm(OP, &crate::rust_caller_span!()));
+                return Err(refuse_export_without_arm(OP, span));
             }
         }
     }

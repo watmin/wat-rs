@@ -542,7 +542,7 @@ fn fanout_three_leftover_split() {
 
         let t0 = Instant::now();
         let (fired, rows) = super::with_phase_census_counted(|| {
-            fire_rules_on_session(&staged, world.symbols(), None).unwrap_or_else(|e| {
+            fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None).unwrap_or_else(|e| {
                 panic!("fire-rules raised with_query={with_query}: {e:?}")
             })
         });
@@ -815,7 +815,7 @@ fn fanout_phase_dump() {
 
         let t0 = Instant::now();
         let (_fired, rows) = super::with_phase_census_counted(|| {
-            fire_rules_on_session(&staged, world.symbols(), None)
+            fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None)
                 .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
         });
         wall = wall.min(t0.elapsed().as_nanos() as f64);

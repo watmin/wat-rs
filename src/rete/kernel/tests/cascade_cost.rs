@@ -241,7 +241,7 @@ fn cascade_query_harvest_split() {
 
         let t0 = Instant::now();
         let (fired, rows) = super::with_phase_census_counted(|| {
-            fire_rules_on_session(&staged, world.symbols(), None).unwrap_or_else(|e| {
+            fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None).unwrap_or_else(|e| {
                 panic!("fire-rules raised with_query={with_query}: {e:?}")
             })
         });
