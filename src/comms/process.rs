@@ -115,6 +115,63 @@ fn ring_census_text(created: i64) -> String {
     )
 }
 
+/// Commit accounting AT THE MOMENT OF REFUSAL, appended to a ring failure.
+///
+/// ⭐ Why this and not "free memory": the observed CI failure refuses a ~kilobyte ring while
+/// `free -m` reports 14 GB available. The classic cause is **strict overcommit**
+/// (`vm.overcommit_memory=2`), where total committed address space is capped at `CommitLimit`
+/// and past it EVERY `mmap` returns ENOMEM regardless of size — so "available" memory is the
+/// wrong number to look at and reporting it would mislead the next reader exactly as it
+/// misled this one. Read at failure time; a snapshot taken by a CI step minutes earlier
+/// cannot see the moment.
+///
+/// Best-effort and silent on error: a diagnostic that can itself fail must never replace the
+/// failure it is describing.
+fn proc_field(path: &str, key: &str) -> String {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with(key))
+                .map(|l| l.split_whitespace().nth(1).unwrap_or("?").to_string())
+        })
+        .unwrap_or_else(|| "?".into())
+}
+
+fn commit_census() -> String {
+    let field = |k: &str| proc_field("/proc/meminfo", k);
+    let vm = |k: &str| proc_field("/proc/self/status", k);
+    commit_census_text(
+        std::fs::read_to_string("/proc/sys/vm/overcommit_memory")
+            .unwrap_or_else(|_| "?".into())
+            .trim(),
+        &field("CommitLimit:"),
+        &field("Committed_AS:"),
+        &vm("VmSize:"),
+        &vm("VmPeak:"),
+        &vm("Threads:"),
+    )
+}
+
+/// The commit-census wording for GIVEN readings. Split from [`commit_census`] for the same
+/// reason [`ring_census_text`] was split from [`ring_census`]: the numbers vary per run, the
+/// WORDING must not, and the tree's `no_loose_string_assert` lint is right that a `contains`
+/// check would pass on a sentence that had silently lost half itself.
+fn commit_census_text(
+    overcommit: &str,
+    limit_kb: &str,
+    committed_kb: &str,
+    vmsize_kb: &str,
+    vmpeak_kb: &str,
+    threads: &str,
+) -> String {
+    format!(
+        " · commit: overcommit_memory={overcommit} CommitLimit={limit_kb}kB \
+         Committed_AS={committed_kb}kB · this process: VmSize={vmsize_kb}kB \
+         VmPeak={vmpeak_kb}kB threads={threads}"
+    )
+}
+
 /// One line of ring census for an error message, naming the hypothesis this stone
 /// already refuted so the next reader does not re-spend three days on it.
 fn ring_census() -> String {
@@ -130,8 +187,9 @@ fn new_ring(entries: u32, site: &'static str) -> std::io::Result<IoUring> {
             Ok(r)
         }
         Err(e) => Err(std::io::Error::other(format!(
-            "IoUring::new({entries}) failed at {site}: {e} — {}",
-            ring_census()
+            "IoUring::new({entries}) failed at {site}: {e} — {}{}",
+            ring_census(),
+            commit_census()
         ))),
     }
 }
@@ -2355,7 +2413,7 @@ mod timer_tests {
     /// tests in this binary create rings too.
     #[test]
     fn ring_census_counts_every_ring_it_hands_out() {
-        use super::{new_ring, ring_census_text, RINGS_CREATED};
+        use super::{commit_census_text, new_ring, proc_field, ring_census_text, RINGS_CREATED};
         use std::sync::atomic::Ordering;
 
         let before = RINGS_CREATED.load(Ordering::Relaxed);
@@ -2379,6 +2437,29 @@ mod timer_tests {
             ring_census_text(7),
             "rings created-so-far=7 in this process (⚠ RLIMIT_MEMLOCK is NOT the governor \
              on kernels ≥5.12 — measured: `ulimit -l 0` passes locally on 6.12)"
+        );
+
+        // The commit census: wording asserted EXACTLY against fixed readings …
+        assert_eq!(
+            commit_census_text("2", "11534336", "11534000", "8392", "9001", "37"),
+            " · commit: overcommit_memory=2 CommitLimit=11534336kB Committed_AS=11534000kB \
+             · this process: VmSize=8392kB VmPeak=9001kB threads=37"
+        );
+        // … and the LIVE read must actually parse /proc on this box. A census whose parsing
+        // silently returned "?" would print a well-formed sentence carrying no information —
+        // the failure mode that made the first three hypotheses cost three days. Asserted on
+        // the PARSER, not on a substring of the sentence: the tree's loose-assert lint caught
+        // the `contains` form of this check too, and the exact form is better anyway because
+        // it names which field failed to parse.
+        assert_ne!(
+            proc_field("/proc/meminfo", "CommitLimit:"),
+            "?",
+            "commit census must parse CommitLimit from /proc/meminfo on this box"
+        );
+        assert_ne!(
+            proc_field("/proc/self/status", "VmSize:"),
+            "?",
+            "commit census must parse VmSize from /proc/self/status on this box"
         );
     }
 }

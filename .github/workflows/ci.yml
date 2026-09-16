@@ -110,6 +110,18 @@ jobs:
           echo "io_uring_disabled: $(cat /proc/sys/kernel/io_uring_disabled 2>/dev/null || echo 'absent')"
           echo "max_map_count:     $(cat /proc/sys/vm/max_map_count 2>/dev/null || echo 'absent')"
           cat /sys/fs/cgroup/memory.max 2>/dev/null | sed 's/^/cgroup memory.max: /' || true
+          # ⭐ COMMIT ACCOUNTING — the one classic cause of a KILOBYTE mmap failing while
+          # gigabytes are "available": strict overcommit (vm.overcommit_memory=2) caps total
+          # committed address space at CommitLimit, and past it EVERY mmap returns ENOMEM
+          # regardless of size. That matches the observed shape exactly (ring #15 refused at
+          # `rings created-so-far=14`, and #245 in another process, with 14 GB available).
+          # This box for contrast: overcommit_memory=0, CommitLimit 42 GB, Committed_AS 1.1 GB.
+          echo "overcommit_memory: $(cat /proc/sys/vm/overcommit_memory)   # 0=heuristic 1=always 2=STRICT"
+          echo "overcommit_ratio:  $(cat /proc/sys/vm/overcommit_ratio)"
+          grep -E 'CommitLimit|Committed_AS' /proc/meminfo || true
+          echo "ulimit -v (address space): $(ulimit -v)"
+          echo "--- /proc/self/limits (the shell's; nextest children may differ) ---"
+          cat /proc/self/limits || true
 
       - name: Test (nextest)
         run: cargo nextest run --profile ci --release
