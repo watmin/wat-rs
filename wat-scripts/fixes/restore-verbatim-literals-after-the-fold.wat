@@ -34,6 +34,21 @@
 ;; THE TABLE — 45 (folded → verbatim) pairs, zipped from `git show 0b5742cc7` on the five
 ;; files (minus=verbatim, plus=folded, keep the pairs that differ). Each folded key occurs
 ;; exactly once in today's file.
+;;
+;; ⛔ THE "verbatim" COLUMN IS FROZEN HISTORICAL DATA, NOT LIVE CODE — every `:wat::rete::core::`
+;; string below is a byte-exact restoration target lifted from `git show 0b5742cc7`, the OTHER
+;; codemods' OWN search targets at the time they were folded. Declaring, not fixing (finding 33 —
+;; a recorded migration is pinned to its fact model):
+;; rune:lint(rete-name-unminted) :wat::rete::core::PersistentVector/length — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::PersistentVector/contains? — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::PersistentVector/get — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::Vector/get — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::List/get — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/concat — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/starts-with? — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/ends-with? — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/contains? — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/empty? — frozen verbatim-restoration data from git show 0b5742cc7, another codemod's own OLD search target.
 (:wat::core::defn :user::pairs []
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]

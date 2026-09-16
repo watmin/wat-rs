@@ -117,6 +117,13 @@
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new" :value ":wat::string::empty?")))])
 
+;; Each :where fence below searches the corpus for its own OLD rete-spelled name — a recorded
+;; codemod's search target, not a call:
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/concat — the exact OLD rete-spelled name :rn::rete-string-concat's fence searches for and rewrites.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/starts-with? — the exact OLD rete-spelled name :rn::rete-string-starts-with's fence searches for and rewrites.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/ends-with? — the exact OLD rete-spelled name :rn::rete-string-ends-with's fence searches for and rewrites.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/contains? — the exact OLD rete-spelled name :rn::rete-string-contains's fence searches for and rewrites.
+;; rune:lint(rete-name-unminted) :wat::rete::core::String/empty? — the exact OLD rete-spelled name :rn::rete-string-empty's fence searches for and rewrites.
 (:wat::rete::defrule :rn::rete-string-concat
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
          (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))

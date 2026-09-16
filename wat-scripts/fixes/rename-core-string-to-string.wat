@@ -70,6 +70,8 @@
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
 
+;; rune:lint(rete-name-unminted) :wat::rete::core::string:: — the OLD rete-prefixed spelling this rule's :where fence searches the corpus for by prefix; a recorded codemod's search target, not a call.
+;; rune:lint(rete-name-unminted) :wat::rete::string:: — a bare namespace-prefix fragment concatenated with a captured suffix to build the NEW spelling; not itself a complete name to resolve.
 (:wat::rete::defrule :rn::rete-core-string
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
          (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))

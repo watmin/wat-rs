@@ -27,13 +27,30 @@ Throwaway / reconnaissance / scratch **`.wat`** programs go in **`wat-scripts/sc
 NOT the ephemeral session scratchpad (`/tmp/.../scratchpad`). This OVERRIDES the default
 "temp files → session scratchpad" for `.wat` specifically.
 
-Rationale: a scratch `.wat` is a durable, loadable reference, and the
-`every_wat_scripts_file_loads` gate (`tests/lint/wat_scripts_fixes_load.rs`) parses +
-type-checks **every** `.wat` under `wat-scripts/` (recursively, incl. `scratch-pad/`) on the
-current runtime — so a scratch program that rots goes RED and cannot become a graveyard that
-reads like live code. All wat stays correct, always. Scratch here therefore obeys the current
-substrate rules (delete it if it's truly dead; otherwise it conforms). Non-`.wat` temp files
-(logs, patches, data) still use the session scratchpad.
+Rationale: a scratch `.wat` is a durable, loadable reference, and two gates read **every** `.wat`
+under `wat-scripts/` (recursively, incl. `scratch-pad/`) on the current runtime:
+
+- **`every_wat_scripts_file_loads`** (`tests/lint/wat_scripts_fixes_load.rs`) — parses and
+  type-checks each file, so a broken declaration form or a dead idiom goes RED.
+- **`every_rete_name_in_wat_scripts_code_resolves`**
+  (`tests/lint/rete_names_in_wat_scripts_resolve.rs`) — every `:wat::rete::` name in a **code**
+  position resolves: to a `RETE_OPS` row, to a known form, or to a name attested in a code
+  position under `src/`/`wat/`. Comments are exempt **by design** — prose may name a retired
+  form, code may not — and a deliberately unminted name (a codemod's old column, a negative
+  control) carries a per-name `;; rune:lint(rete-name-unminted) <name> — <reason>`.
+
+Scratch here therefore obeys the current substrate rules (delete it if it's truly dead; otherwise
+it conforms). Non-`.wat` temp files (logs, patches, data) still use the session scratchpad.
+
+> ⛔ **"All wat stays correct, always" stood here for months and was FALSE.** Type-checking is not
+> resolution. A `def` body nothing forces is never resolved, so a file under `wat-scripts/` could
+> name a head that has never existed anywhere — driven at `51b851c91`:
+> `(:wat::rete::core::THIS-HEAD-NEVER-EXISTED …)` inside a `def` body type-checked, and the program
+> ran. Two phantom rete names lived on that licence, one pair of them inside the very codemod this
+> file mandates for every `.wat` migration. **What is proven today is exactly the two bullets
+> above** — parse + type-check for every file, and name resolution for the `:wat::rete::` family
+> only. Names in every other namespace inside an unforced `def` are still unresolved: a scratch
+> file may still name a `:wat::core::` head that does not exist, and nothing here will notice.
 
 ## The test floor is weighed in RELEASE
 

@@ -109,6 +109,12 @@
                                     :undefined "")))))])
 
 ;; ── the four rete-namespaced EXACT rules — NOT prefix rules, see header ─────────────────
+;; Each :where fence below searches the corpus for its own OLD rete-spelled name — a recorded
+;; codemod's search target, not a call:
+;; rune:lint(rete-name-unminted) :wat::rete::core::PersistentVector/length — the exact OLD rete-spelled name :rn::rete-persistentvector-length's fence searches for and rewrites.
+;; rune:lint(rete-name-unminted) :wat::rete::core::PersistentVector/contains? — the exact OLD rete-spelled name :rn::rete-persistentvector-contains's fence searches for and rewrites.
+;; rune:lint(rete-name-unminted) :wat::rete::core::PersistentVector/get — the exact OLD rete-spelled name :rn::rete-persistentvector-get's fence searches for and rewrites.
+;; rune:lint(rete-name-unminted) :wat::rete::core::Vector/get — the exact OLD rete-spelled name :rn::rete-vector-get's fence searches for and rewrites.
 
 (:wat::rete::defrule :rn::rete-persistentvector-length
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))

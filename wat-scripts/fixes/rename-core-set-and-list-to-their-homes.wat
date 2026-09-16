@@ -125,6 +125,7 @@
                                     :undefined "")))))])
 
 ;; ── the one rete-namespaced EXACT rule — NOT a prefix rule, see header ──────────────────
+;; rune:lint(rete-name-unminted) :wat::rete::core::List/get — the exact OLD rete-spelled name this rule's :where fence searches the corpus for and rewrites; a recorded codemod's search target, not a call.
 
 (:wat::rete::defrule :rn::rete-list-get
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))

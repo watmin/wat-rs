@@ -2,6 +2,15 @@
 ;;
 ;; One correct-arity call per verb, edn-written. Confirmed byte-identical against the pre-image
 ;; (a real `git clone --local` of HEAD, built and run before homing — never a `git stash`).
+;;
+;; The four accessors below are genuinely LIVE, not phantom: `defrecord` (wat/rete.wat:374,388)
+;; auto-generates a `Type/field` accessor per declared field at macro-expansion time, so none of
+;; them is ever hand-typed as literal source text under src/ or wat/ — this gate's attestation
+;; walk cannot see a macro-synthesized name, which is the gap being declared, not a retirement:
+;; rune:lint(rete-name-unminted) :wat::rete::DerivationNode/via — macro-generated defrecord field accessor (wat/rete.wat:377); never appears as literal text, only synthesized at expansion time.
+;; rune:lint(rete-name-unminted) :wat::rete::DerivationStep/pattern — macro-generated defrecord field accessor (wat/rete.wat:390); never appears as literal text, only synthesized at expansion time.
+;; rune:lint(rete-name-unminted) :wat::rete::DerivationStep/bindings — macro-generated defrecord field accessor (wat/rete.wat:391); never appears as literal text, only synthesized at expansion time.
+;; rune:lint(rete-name-unminted) :wat::rete::DerivationStep/constraints — macro-generated defrecord field accessor (wat/rete.wat:392); never appears as literal text, only synthesized at expansion time.
 
 (:wat::core::defrecord :w5cprobe::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])
 (:wat::core::defrecord :w5cprobe::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])

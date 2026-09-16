@@ -58,6 +58,10 @@
 ;; finder matches keyword leaves, and a string literal is not a keyword leaf.
 
 ;; ── the finder — two rules over wat/grep.wat's stdlib fact base ─────────────────────────
+;; rune:lint(rete-name-unminted) :wat::rete::core::i64:: — this IS the rehome codemod's own OLD-spelling prefix search target; the whole file exists to eliminate it, so it cannot itself resolve.
+;; rune:lint(rete-name-unminted) :wat::rete::i64:: — a bare namespace-prefix fragment concatenated with a captured suffix to build the NEW spelling; not itself a complete name to resolve.
+;; rune:lint(rete-name-unminted) :wat::rete::core::f64:: — this IS the rehome codemod's own OLD-spelling prefix search target; the whole file exists to eliminate it, so it cannot itself resolve.
+;; rune:lint(rete-name-unminted) :wat::rete::f64:: — a bare namespace-prefix fragment concatenated with a captured suffix to build the NEW spelling; not itself a complete name to resolve.
 
 (:wat::rete::defrule :rn::rete-i64
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))

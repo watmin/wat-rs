@@ -51,6 +51,17 @@
 ;;     | ./target/release/wat ./wat-scripts/fixes/inline-constraint-per-type-spelling.wat
 ;; Idempotent (re-run = 0 changes): the table's `new` spellings never appear as `old` keys.
 
+;; ⛔ THE TABLE'S TARGET COLUMN PREDATES THE NUMERICS REHOME — PINNED TO ITS FACT MODEL, NOT
+;; STALE. This codemod recorded `:wat::rete::core::i64::{<,>}` / `:wat::rete::core::string::=` as
+;; the correct per-type spelling at the worklist's own authoring time (2026-08-06); a LATER,
+;; UNRELATED codemod rehomed `rete::core::{i64,f64,string}` to `rete::{i64,f64,string}` (dropping
+;; `core::`). Per finding 33's doctrine, a recorded migration is pinned to its fact model and is
+;; not rewritten retroactively when a different, later migration changes what "current" means —
+;; doing so would misrepresent what THIS codemod actually produced when it ran and is idempotent
+;; against. Declared, not corrected:
+;; rune:lint(rete-name-unminted) :wat::rete::core::i64::< — this table's own recorded target at authoring time, superseded by the later i64/f64/string rehome; not re-pointed, see the block above.
+;; rune:lint(rete-name-unminted) :wat::rete::core::i64::> — this table's own recorded target at authoring time, superseded by the later i64/f64/string rehome; not re-pointed, see the block above.
+;; rune:lint(rete-name-unminted) :wat::rete::core::string::= — this table's own recorded target at authoring time, superseded by the later i64/f64/string rehome; not re-pointed, see the block above.
 ;; ── the rename table — checker-derived for THIS worklist (see the warning above) ──────────────
 (:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])]
