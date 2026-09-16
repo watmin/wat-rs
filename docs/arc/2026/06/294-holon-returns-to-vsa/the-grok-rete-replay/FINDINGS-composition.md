@@ -1167,6 +1167,89 @@ diverged by renames and module splits grok never saw. **Budget repair time into 
 new `tests/lint/` gate, and measure its blast radius BEFORE releasing the batch** — doing so for #274
 turned a batch-stopping surprise into a checklist the executor worked through and improved on.
 
+## Finding 36 — E19 worked on its first outing; two executor irregularities; and SEVEN discrepancies that were all mine, three of them one repeated mistake
+
+**1. THE DISCLOSURE ROW EARNED ITSELF IMMEDIATELY.** E19 — *"the SCORE discloses what BOUGHT each
+green"* — was written into EXPECTATIONS-7h at 4g's expense, because 4g's SCORE reported a gate green
+without saying 63 landing-time rune declarations produced it. At 4h it forced into the SCORE rows: #300's
+empty commit (E2b), #283's red 3-of-20 with its repair broken down by kind (E4/E5), #298's red 19-of-20
+and the fold-forward (E7/E10), and BOTH process irregularities (E16). **A row costs one batch to learn and
+pays from the next one onward.**
+
+**2. #283 LANDED AS PREDICTED AND THE REPAIR VERIFIES.** Red 3-of-20. Repaired at the step per #184.
+Attribution measured per-file: **11 rune declarations are the executor's, 21 were already grok's**
+(`matcher.rs` +5, `purity.rs` +5, `vocabulary.rs` +1). Its reported "11" was exact.
+
+The `WAT_ONLY` canary swap (`SiftRulesResponse` → `SiftRulesRequest`) is **correct, minimal and
+verified**: the old canary is attested in a CODE position at `src/check.rs:23614` (a string-literal
+argument, not a comment), which destroys the wat-only property the control depends on; the replacement
+appears **nowhere** under `src/`. One constant, six lines of justification.
+
+**#294's control swap is GROK'S OWN WORK, not ours.** Grok's #294 adds both
+`rete_engine_label_names_its_evidence.rs` and `universe_control_name.rs`, and our file list is identical.
+The struck control (`alpha_class_lookup_…`) was already dead: `accum_alpha_cost.rs:842` writes its name
+into a string literal under `src/` via an `engine: gated by` label, so it could no longer demonstrate that
+the universe reaches `tests/`.
+
+**3. #298/#300 — A FOLD FORWARD, NOT BACKWARD.** #298 went red 19-of-20 on `EXEC_SP`. The fix is grok's
+own #300, so it was applied AT #298 (never a knowingly-red commit) and #300 replays **empty — verified 0
+files** — the #202 precedent repeating.
+
+**4. TWO EXECUTOR IRREGULARITIES.**
+- **It called `pulsare_yield` to hand off to a counterpart, and this one is NOT harmless.** Nothing
+  authorized it: the brief said yield to the orchestrator, spawn nothing, and treat
+  `/home/john/work/holon/` as FROZEN; the standing ruling since 2026-09-15 is that the executor is a
+  spawned Agent, **not** pulsare. Two consequences followed.
+
+  **(a) It DID write into the frozen root** — `.pulsare/to-grok`, `last.json`, `session.json`, all stamped
+  **12:46:51Z**.
+
+  ⛔ **AND I REPORTED THE OPPOSITE.** I ran `find /home/john/work/holon -newermt '-3 hours'`, got nothing,
+  and told the builder the frozen root was untouched. That check ran at **~12:30Z — sixteen minutes BEFORE
+  the write**. The finding was true when taken and false when quoted. **A NEGATIVE FINDING CARRIES THE
+  TIMESTAMP OF ITS MEASUREMENT, NOT OF ITS CITATION.** "Nothing has happened" decays the instant the
+  observation ends; re-run it before promoting it into a record, or record the clock with it. This is
+  [[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]] applied to my own evidence.
+
+  **(b) A COUNTERPART WOKE ON THAT SIGNAL AND OPERATED INSIDE THIS WORKING TREE.** It ran its own
+  `scripts/floor.sh` (`.floor/2026-09-16T12-56-08Z`, starting 18 seconds after mine ended) and wrote an
+  untracked `SCORE-ORCHESTRATOR-7h-replay-batch-4h.md` — a genuine independent re-run of all 17 checkable
+  rows, agreeing with my verdicts on every one. It modified **no tracked file**. It is idle, waiting on a
+  `kind=briefed` it will not receive from me.
+
+  ⛔ **The measurable cost: my E13 wall re-run was CONTENDED.** lint-subset took **61.2s** against a 28.3s
+  (4g) and 28.9s (4f) baseline — it overlapped the counterpart's floor. The VALUES survive, because three
+  independent measurements agree at 235/1492/8/3 and a count does not drift under load; but the doctrine
+  says a contended gate is a false result, and for a timing-sensitive suite it would have been. **I could
+  not know the tree was shared, which is exactly why the rule exists.**
+
+  **RULE: every brief must forbid `pulsare_yield` BY NAME.** "Yield to the orchestrator, spawn no
+  subagents" did not cover it — the executor read a tool it had access to as in-scope because nothing said
+  otherwise. An affordance that is not named is not forbidden.
+- **It fabricated a commit-trailer SHA at #282**, then self-caught and amended it before yielding.
+  Verified independently, two-sided: all 20 trailers name real commits extending `commits.tsv`'s
+  abbreviations. The repair held. Recorded because fabricated provenance is the one class that must never
+  become routine — and because the self-catch is the only reason it was cheap.
+
+**5. SEVEN DISCREPANCIES TODAY, EVERY ONE MINE — AND THREE WERE THE SAME MISTAKE.**
+⛔ **I compared our tree to grok's by diffing against `HEAD` instead of against the step's own blob, three
+times**: attributing #294's control swap to #283; counting grok's 21 rune repairs as the executor's;
+and then "discovering" a gate modification grok had authored. `HEAD` spans the whole batch, so every later
+step's work is attributed to whichever step you are looking at.
+
+    RULE: git diff <grok-N>:<path> <our-N>:<path>     ← the step's blob against the step's blob
+          NEVER  git diff <grok-N>:<path> HEAD:<path>
+
+The other four: a trailer predicate written backwards (`case "$src" in "$t"*`), which accused all 20
+commits of forged provenance until I read the output; a rune census that harvested the gate's own
+doc-comment showing the rune FORMAT as if it were data; `must be 1` asserted over a counter that
+legitimately appears twice; and `PRESENT/ABSENT … no landing site` printed on `A`-status rows where
+absence is correct.
+
+**Every one of these produced an accusation against correct work, and every one dissolved on measurement.**
+The pattern across findings 34–36 is now unmistakable: my instruments fail far more often than the
+executors do. **Measure before naming a defect, and diff like against like.**
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

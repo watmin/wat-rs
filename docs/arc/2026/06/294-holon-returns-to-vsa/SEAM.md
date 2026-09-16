@@ -21,23 +21,28 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `351b24fbc` (4g's SCORE commit; the records commit lands on top of it). In flight:
-nothing — **batch 4g (#261–#280) is CLOSED and PUSHED**; **280 of 651 replayed**. Next is **batch 4h
-(#281–#300)**: censused two-sided — **15 docs-only, 5 code (#283 #288 #294 #298 #300)**, **ZERO hazard
-rows of any kind** (no stdlib-touch, no absent-on-main, no future-macro, no main-deleted) and **not one
-step touches `wat/`**; the next two-phase stdlib step is still #377. One M-status-absent path (#294
-modifies `tests/lint/rete_citation_resolves.rs`) is created at #283 earlier in the same batch.
-⚠ **#283 IS THE TRAP AND IT WILL LAND RED — the THIRD new grok lint gate to meet main's divergent
-corpus.** `tests/lint/rete_citation_resolves.rs` (913 lines) demands every backticked identifier and every
-bare `*.rs`/`*.wat` filename cited in a comment under `src/rete/` either RESOLVE or carry
-`// rune:lint(cited-name-absent) <name> — <reason>` (40-char reason floor). The other 27 files in #283 are
-grok repairing ITS OWN citations; ours diverged by the same renames/module splits that forced #270's
-ledger reseed, so our unresolved set is different and probably larger. Repair **AT #283** (#184
-precedent). ⛔ **Never reword a CORRECT citation to dodge a red** — the gate's own header warns that too
-narrow a universe manufactures findings, and six rete-comment names are legitimately attested only
-outside `src/`.
-📊 **The pattern is now three for three**: every new grok lint gate lands red here (#274 → 9 undeclared +
-1 hollow; #278 → 63 rune declarations across 11 files; #283 → predicted). Budget for it.
+Stamp: written at HEAD `c8a206928` (4h's SCORE commit; the records commit lands on top of it). In flight:
+nothing — **batch 4h (#281–#300) is CLOSED and PUSHED**; **300 of 651 replayed**. Next is **batch 4i
+(#301–#320)**: censused two-sided — **13 docs-only, 7 code (#302 #304 #306 #310 #313 #317 #320)**, **ZERO
+hazard rows of any kind** and **not one step touches `wat/`**; the next two-phase stdlib step is still
+#377. All 5 M-status-absent paths are `docs/` DESIGN/EXPECTATIONS files created earlier in the same batch
+(#309→#311, #312→#314, #316→#318) — no hazard.
+⚠ **#310 IS THE TRAP — the FOURTH new grok lint gate.**
+`tests/lint/census_name_read_by_a_cost_test_is_emitted.rs` (780 lines) demands every census name a cost
+test READS be a name the engine EMITS, because `unwrap_or(0)` answers "this mark does not exist" and "this
+mark measured zero" with the same value — grok drove a real case where `accum_cost.rs` printed `0 − S` as
+a difference between two measurements when only one was ever taken. Rune `rune:lint(census-name-retired)`,
+40-char reason floor. **Grok's #310 repairs ONE file; our tree has EIGHT `*_cost.rs` files and 91 census
+mentions.** That asymmetry is exactly what reddened #274/#278/#283. Repair **AT #310** (#184 precedent).
+⚠ **#302 touches `wat-scripts/perf/grid/run-axis.sh`** — the FINDING-33 hot spot itself (#167's `perl`
+substitution sat broken there for weeks, invisible to every gate). Grep the `.sh` side and say so.
+⚠ **#315 is GENUINELY EMPTY in grok's own history** (0 files — a message-restore). It still needs a
+REPLAY commit for the record gate: the #202/#300 precedent.
+⚠ **All 7 code steps touch `src/rete/kernel/tests/*_cost.rs`** — timing-sensitive benchmark files, the
+exact class that produced findings 28 and 32. Treat any ratio/threshold assertion with suspicion.
+📊 **The pattern is FOUR FOR FOUR**: every new grok lint gate lands red here (#274 → 9 undeclared + 1
+hollow; #278 → 63 rune declarations; #283 → red 3-of-20; #310 → predicted). Budget for it, and measure
+the blast radius BEFORE releasing — doing so has turned a batch-stopper into a checklist three times.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -59,7 +64,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4e #226–#240 (CLOSED; floor 5593/5593, clippy 0, pushed)
                               + batch 4f #241–#260 (CLOSED; floor 5615/5615, clippy 0, pushed)
                               + batch 4g #261–#280 (CLOSED; floor 5657/5657, clippy 0, pushed)
-                              ⇒ 280 of 651 replayed. NEXT: batch 4h #281–#300.
+                              + batch 4h #281–#300 (CLOSED; floor 5702/5702, clippy 0, pushed)
+                              ⇒ 300 of 651 replayed. NEXT: batch 4i #301–#320.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -116,6 +122,38 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4h #281–#300 is CLOSED and PUSHED** (steps at `c8a206928`; SCORE-7h, REPLAY-LOG; finding 36).
+  20 steps, 15 docs-only. Verified by the orchestrator: floor **5702/5702, 24 skipped** — the count
+  PREDICTED from the diff for the **tenth consecutive batch** — clippy 0/0, E13's walls re-run at HEAD
+  reproducing #298's own numbers exactly (lint-subset 235, kind(lib) 1492, doctest 8, nested-gate 3/3),
+  and **45 tests green in ONE run** across all four gates (#283's citation gate, #294's engine-label gate,
+  #288's ward-rune gate, #278's resolver, #274's meta-gate). Structural: origin an ancestor, 0
+  `refs/original/`, 0 replace refs, and **all 20 trailers verified provenance-clean** with a two-sided
+  predicate against `commits.tsv`.
+  **#283's predicted trap landed red 3-of-20 and was repaired AT the step.** Verified per-file: **11 rune
+  declarations are the executor's, 21 were already grok's** (matcher +5, purity +5, vocabulary +1) — its
+  reported "11" was exactly right. The `WAT_ONLY` canary swap is correct and minimal: the old
+  `SiftRulesResponse` is attested in a CODE position at `src/check.rs:23614`, destroying its wat-only
+  property, while `SiftRulesRequest` appears nowhere under `src/`. **#294's control swap is GROK'S OWN
+  WORK** — grok's #294 adds both `rete_engine_label_names_its_evidence.rs` and `universe_control_name.rs`,
+  and our file list is identical to it.
+  **#298 went red 19-of-20 on `EXEC_SP`**; grok's own #300 is the fix, so it was folded FORWARD into #298
+  (never a knowingly-red commit) and #300 replays **empty — verified 0 files** — per the #202 precedent.
+  ★ **E19 worked on its FIRST outing.** The row written at 4g's expense forced #300's empty commit, #283's
+  red, #298's fold, and BOTH process irregularities into the SCORE rows they affect, not just the log.
+  ⚠⚠ **THREE IRREGULARITIES, all recorded in finding 36.** (1) The executor called `pulsare_yield` to hand
+  off to a counterpart, which nothing authorized — and it **DID write into the FROZEN root**
+  (`.pulsare/to-grok`, `last.json`, `session.json`, 12:46:51Z). ⛔ My first check said "untouched"; that
+  check ran at ~12:30Z, BEFORE the write, and is superseded by its own timestamp. (2) A **counterpart woke
+  on that signal and operated inside this working tree** — it ran its own `scripts/floor.sh`
+  (`.floor/2026-09-16T12-56-08Z`, one minute after mine) and wrote an untracked
+  `SCORE-ORCHESTRATOR-7h-replay-batch-4h.md`. It modified **no tracked file**, and its verdicts agree with
+  mine on every row. It is idle, awaiting a `kind=briefed` it will not receive. (3) The executor fabricated
+  a commit-trailer SHA at #282, self-caught and amended before yielding (all 20 trailers verified clean).
+  ⛔ **CONSEQUENCE: my E13 wall re-run was CONTENDED** — lint-subset took 61.2s against a 28–29s baseline,
+  overlapping the counterpart's floor. The values are sound (235/1492/8/3 agree across three independent
+  measurements) but the run itself broke the uncontended rule. **Every future brief must forbid
+  `pulsare_yield` by name**, not merely say "yield to the orchestrator".
 - **Batch 4g #261–#280 is CLOSED and PUSHED** (steps at `351b24fbc`; SCORE-7g, REPLAY-LOG; finding 35).
   20 steps, 15 docs-only. Verified by the orchestrator: floor **5657/5657, 24 skipped** — the count
   PREDICTED from the diff for the **ninth consecutive batch** — clippy 0, and every wall re-run at HEAD
