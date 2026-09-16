@@ -773,7 +773,21 @@ admission path — a population of one, which is why no count would ever have su
      **Two reasons to change**: the reference passes move when the oracle does, the helpers when the
      fused loop does. Real, but small and zero-risk — logged, not scheduled.
 
-   **THE TWO CUTS, named so they are actionable — this is what the tally should have said:**
+   ⛔ **`kernel/tests.rs` — 10_189 LINES, AND partire NEVER ASSESSED IT.** The cast scoped itself to
+   production files, so the largest file in the subsystem was never looked at. Measured 2026-08-30:
+   **89 tests, 47 perf censuses (~6_487 lines) and 42 behaviour gates (~3_644)** — two reasons to
+   change, since a census moves when someone chases a cost and a gate moves when behaviour does.
+
+   ⚠ **ITS SEAMS ARE NOT PRE-DRAWN, contrary to what I claimed before measuring.** The two kinds
+   are INTERLEAVED (`GGGGGGGGGCCCGGGGGCGCGCGG…CCCCCCCCCCCCCCCCCCCCCC…`), and one `// ──` banner
+   claims a topic accounting for 3 of the 40 tests beneath it while spanning 5_500 lines. A
+   scatter-gather of 47 tests out of 10k can silently DROP one, which the two production cuts
+   could not — there the compiler names every crossing.
+
+   **BUILDER'S RULING 2026-08-30: it becomes a `mod` with many files — NOT NOW.** It needs its own
+   `partire` cast, not the classification improvised here.
+
+**THE TWO CUTS, named so they are actionable — this is what the tally should have said:**
    - ✅ **`expr_ir.rs` → split at `// ── exec`. DONE 2026-08-30** — `expr_ir/mod.rs` (1_046 ln,
      the IR types + lowering) and `expr_ir/eval.rs` (1_413 ln, execution). The module is named
      `eval` rather than `exec` because `mod exec` would occupy `expr_ir::exec`, the path every
@@ -784,6 +798,33 @@ admission path — a population of one, which is why no count would ever have su
      it: building the `Expr` DAG (`lower_in_frame`, `lower_list`, `lower_expr`, the `#holon` fold).
      Below it: evaluating one (`exec`, the opcode jump table). **Lowering and execution are two
      reasons to change**, and 2041 lines is the largest production file in `src/rete/`.
+   - ✅ **`validate.rs` → DONE 2026-08-30, and the measurement found a FOURTH concern partire
+     never named — the one that turned out to be the cleanest cut of all.**
+
+     | file | lines | moves when |
+     |---|---:|---|
+     | `validate/mod.rs` | 1_494 | the rule GRAMMAR moves (`:when` / `:then` walkers, wrapper binds) |
+     | `validate/typing.rs` | 549 | the TYPE LANGUAGE moves — partire's *"self-contained one"* |
+     | `validate/error.rs` | 448 | there is a new way for a rule to be WRONG |
+
+     **`error.rs` was not on partire's list.** A cross-reference count over the six candidate
+     blocks put it out first on evidence rather than taste: every other block names the error
+     types and it names none of them back. **Zero inbound dependency is the cut you take first**,
+     and it carried the file's single largest item — a 202-line `ReteCheckErrorKind` — plus all
+     eleven of its `impl` blocks, which sit contiguously with it.
+
+     ⚠ **THE `:when` → `typing` "BACK-EDGE" WAS `ClauseCtx`, NOT A CALL.** The crude reference
+     count showed `typing` naming two `:when` items, which would have meant a cycle and no clean
+     seam. Reading them: both are `ClauseCtx` in a PARAMETER position — a shared context struct,
+     not a call back into the validator. It stays with the walker (the clause being walked is the
+     walker's business) and `typing` takes it as an argument. **A reference count cannot tell a
+     call from a type; look before you believe a cycle.**
+
+     Both extracted spans were verified CONTIGUOUS with zero interlopers before the cut, and the
+     compiler named the entire crossing surface — 7 private fns the parent still calls, made
+     `pub(crate)` and nothing else. Floor 5162/5162, clippy silent.
+
+     ORIGINALLY WRITTEN AS:
    - **`validate.rs` → three concerns, and NO seam is drawn anywhere in 1990 lines.** Reading its 38
      fns they group cleanly: the **`:when` validator** (`validate_query_when`, `validate_when_entry`,
      `validate_plain_condition`, `validate_typed_clauses`, `validate_clause`), the **`:then`
