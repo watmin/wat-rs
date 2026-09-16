@@ -432,7 +432,7 @@ fn fanout_production_leftover_split() {
     let tax_in_parent = (rhs_pairs + dedup_pairs) as f64 * cal;
     let naive = prod_net - rhs_net - dedup_net;
     let table = format!(
-        "\nproduction leftover split — fanout [100 20], mean of {RUNS}\n\
+        "\nproduction leftover split — fanout [100 20], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              \n\
              production            {:>7.2} ms raw  {:>7.2} net  {:>6}x\n\
@@ -635,7 +635,7 @@ fn fanout_three_leftover_split() {
     let a_harvest = with.harvest + with.out_query;
     let delta = with.wall - without.wall;
     let table = format!(
-        "\nfanout three leftover — [100 20], mean of {RUNS}\n\
+        "\nfanout three leftover — [100 20], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              \n\
              without query          wall {:>7.2}  FIRE {:>7.2}  query-maps {}\n\
@@ -755,7 +755,7 @@ fn fanout_honest_fire_rank() {
     let honest_prod = rhs_net + dedup_net;
     let honest_fire = fire - remainder_raw - tax_in_parent;
     let table = format!(
-        "\nhonest FIRE rank — fanout [100 20], mean of {RUNS}\n\
+        "\nhonest FIRE rank — fanout [100 20], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              \n\
              FIRE                    {:>7.2} ms\n\
@@ -885,7 +885,7 @@ fn fanout_phase_dump() {
     let named: f64 = sub.iter().map(|(_, v, _)| *v).sum();
 
     println!(
-        "\nfanout phase dump — [{KEYS} {FANOUT}], no query, mean of {RUNS}\n\
+        "\nfanout phase dump — [{KEYS} {FANOUT}], no query, MINIMUM of {RUNS}\n\
          instrument: {cal:.1} ns per mark pair\n\
          \n\
          wall                       {:>8.3} ms\n\

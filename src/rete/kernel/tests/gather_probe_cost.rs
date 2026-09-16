@@ -106,22 +106,22 @@ fn seen_identity_set_split() {
         black_box(ids.len());
     }
 
-    let mut c = 0.0;
-    let mut s = 0.0;
-    let mut i = 0.0;
+    let mut c = f64::INFINITY;
+    let mut s = f64::INFINITY;
+    let mut i = f64::INFINITY;
     for _ in 0..RUNS {
-        c += elapsed_ns(|| {
+        c = c.min(elapsed_ns(|| {
             black_box(facts.clone());
-        });
-        s += elapsed_ns(|| {
+        }));
+        s = s.min(elapsed_ns(|| {
             let mut set: FxHashSet<Value> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             for f in &facts {
                 set.insert(f.clone());
             }
             black_box(set.len());
-        });
-        i += elapsed_ns(|| {
+        }));
+        i = i.min(elapsed_ns(|| {
             let mut ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             for f in &facts {
@@ -129,12 +129,8 @@ fn seen_identity_set_split() {
                 ids.insert(a.identity());
             }
             black_box(ids.len());
-        });
+        }));
     }
-    let r = RUNS as f64;
-    c /= r;
-    s /= r;
-    i /= r;
     assert!(
         s > 0.0,
         "Value-set insert recorded 0 ns — the loop never ran"
@@ -173,7 +169,7 @@ fn seen_identity_set_split() {
     );
 
     println!(
-        "\nseen identity-set split — {N} stamped Records, mean of {RUNS}\n\
+        "\nseen identity-set split — {N} stamped Records, MINIMUM of {RUNS}\n\
              unscaled (accum [200 200] input count)\n\
              \n\
              C  clone 40,200 Values                {:>7.2} ms\n\
@@ -236,29 +232,29 @@ fn seen_pv_walk_split() {
         black_box(n);
     }
 
-    let mut w = 0.0;
-    let mut i = 0.0;
-    let mut v = 0.0;
-    let mut p = 0.0;
-    let mut d = 0.0;
+    let mut w = f64::INFINITY;
+    let mut i = f64::INFINITY;
+    let mut v = f64::INFINITY;
+    let mut p = f64::INFINITY;
+    let mut d = f64::INFINITY;
     for _ in 0..RUNS {
-        w += elapsed_ns(|| {
+        w = w.min(elapsed_ns(|| {
             let mut n = 0usize;
             for f in pv.iter() {
                 n += 1;
                 black_box(f);
             }
             black_box(n);
-        });
-        i += elapsed_ns(|| {
+        }));
+        i = i.min(elapsed_ns(|| {
             let mut set: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             for id in &ids {
                 set.insert(*id);
             }
             black_box(set.len());
-        });
-        v += elapsed_ns(|| {
+        }));
+        v = v.min(elapsed_ns(|| {
             let mut ids_set: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             let mut rest: FxHashSet<Value> = FxHashSet::default();
@@ -266,8 +262,8 @@ fn seen_pv_walk_split() {
                 super::seen_insert(&mut ids_set, &mut rest, f);
             }
             black_box(ids_set.len() + rest.len());
-        });
-        p += elapsed_ns(|| {
+        }));
+        p = p.min(elapsed_ns(|| {
             let mut ids_set: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             let mut rest: FxHashSet<Value> = FxHashSet::default();
@@ -275,22 +271,16 @@ fn seen_pv_walk_split() {
                 super::seen_insert(&mut ids_set, &mut rest, f);
             }
             black_box(ids_set.len() + rest.len());
-        });
-        d += elapsed_ns(|| {
+        }));
+        d = d.min(elapsed_ns(|| {
             let collected: Vec<Value> = pv.iter().cloned().collect();
             black_box(collected.len());
-        });
+        }));
     }
-    let r = RUNS as f64;
-    w /= r;
-    i /= r;
-    v /= r;
-    p /= r;
-    d /= r;
     assert!(p > 0.0, "PV+insert recorded 0 ns — the loop never ran");
 
     println!(
-        "\nseen PV-walk split — {N} stamped Records, mean of {RUNS}\n\
+        "\nseen PV-walk split — {N} stamped Records, MINIMUM of {RUNS}\n\
              unscaled (accum [200 200] input count)\n\
              \n\
              W  PersistentVector iter only         {:>7.2} ms\n\
@@ -368,37 +358,37 @@ fn drop_memories_cost_split() {
     }
 
 
-    let mut a = 0.0;
-    let mut b = 0.0;
-    let mut m = 0.0;
-    let mut t = 0.0;
-    let mut d = 0.0;
+    let mut a = f64::INFINITY;
+    let mut b = f64::INFINITY;
+    let mut m = f64::INFINITY;
+    let mut t = f64::INFINITY;
+    let mut d = f64::INFINITY;
     for _ in 0..RUNS {
         let (mut alpha, _) = build_alpha(&facts, &gkey, &vkey);
-        a += elapsed_ns(|| {
+        a = a.min(elapsed_ns(|| {
             alpha.clear();
             black_box(alpha.len());
-        });
+        }));
         let (_, mut pool) = build_alpha(&facts, &gkey, &vkey);
-        b += elapsed_ns(|| {
+        b = b.min(elapsed_ns(|| {
             pool.clear();
             black_box(pool.len());
-        });
+        }));
         let mut match_pool: Vec<(u32, i64)> = (0..N).map(|i| (i as u32, 1i64)).collect();
-        m += elapsed_ns(|| {
+        m = m.min(elapsed_ns(|| {
             match_pool.clear();
             black_box(match_pool.len());
-        });
+        }));
         let mut tokens: Vec<super::Token> = (0..N)
             .map(|_| super::Token {
                 matches: super::empty_span(),
                 binds: super::empty_span(),
             })
             .collect();
-        t += elapsed_ns(|| {
+        t = t.min(elapsed_ns(|| {
             tokens.clear();
             black_box(tokens.len());
-        });
+        }));
         let (mut alpha, mut pool) = build_alpha(&facts, &gkey, &vkey);
         let mut match_pool: Vec<(u32, i64)> = (0..N).map(|i| (i as u32, 1i64)).collect();
         let mut tokens: Vec<super::Token> = (0..N)
@@ -407,20 +397,14 @@ fn drop_memories_cost_split() {
                 binds: super::empty_span(),
             })
             .collect();
-        d += elapsed_ns(|| {
+        d = d.min(elapsed_ns(|| {
             alpha.clear();
             tokens.clear();
             pool.clear();
             match_pool.clear();
             black_box(alpha.len() + tokens.len() + pool.len() + match_pool.len());
-        });
+        }));
     }
-    let r = RUNS as f64;
-    a /= r;
-    b /= r;
-    m /= r;
-    t /= r;
-    d /= r;
     // ⛔ WAS `assert!(d > 0.0)` — a LIVENESS check that passes on nanoseconds even when every
     // printed millisecond figure is 0.00, which is exactly what this test reports today.
     //
@@ -441,7 +425,7 @@ fn drop_memories_cost_split() {
     );
 
     println!(
-        "\ndrop-memories split — {N} Elements / pairs / matches, mean of {RUNS}\n\
+        "\ndrop-memories split — {N} Elements / pairs / matches, MINIMUM of {RUNS}\n\
              construction untimed; this times clear() only\n\
              \n\
              A  drop Vec<Element>                  {:>7.2} ms\n\
@@ -496,19 +480,19 @@ fn gather_unary_index_split() {
         super::GatherIntern::of(&keys, &vals, &pool, &ids),
     ));
 
-    let mut k = 0.0;
-    let mut v = 0.0;
-    let mut u = 0.0;
-    let mut b = 0.0;
-    let mut s = 0.0;
+    let mut k = f64::INFINITY;
+    let mut v = f64::INFINITY;
+    let mut u = f64::INFINITY;
+    let mut b = f64::INFINITY;
+    let mut s = f64::INFINITY;
     for _ in 0..RUNS {
-        k += elapsed_ns(|| {
+        k = k.min(elapsed_ns(|| {
             for el in &els {
                 let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
                 black_box(super::key_of(&pairs, &join_keys, &ids));
             }
-        });
-        v += elapsed_ns(|| {
+        }));
+        v = v.min(elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<super::JoinKey, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -517,8 +501,8 @@ fn gather_unary_index_split() {
                 idx.entry(key).or_default().push(i);
             }
             black_box(idx.len());
-        });
-        u += elapsed_ns(|| {
+        }));
+        u = u.min(elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -528,15 +512,15 @@ fn gather_unary_index_split() {
                 }
             }
             black_box(idx.len());
-        });
-        b += elapsed_ns(|| {
+        }));
+        b = b.min(elapsed_ns(|| {
             black_box(super::build_gather_index(
                 &els,
                 &join_keys,
                 super::GatherIntern::of(&keys, &vals, &pool, &ids),
             ));
-        });
-        s += elapsed_ns(|| {
+        }));
+        s = s.min(elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -546,14 +530,8 @@ fn gather_unary_index_split() {
                 }
             }
             black_box(idx.len());
-        });
+        }));
     }
-    let r = RUNS as f64;
-    k /= r;
-    v /= r;
-    u /= r;
-    b /= r;
-    s /= r;
     assert!(
         b > 0.0,
         "build_gather_index recorded 0 ns — the loop never ran"
@@ -605,7 +583,7 @@ fn gather_unary_index_split() {
     );
 
     println!(
-        "\ngather unary-index split — {N} Readings, join_keys=[?g], mean of {RUNS}\n\
+        "\ngather unary-index split — {N} Readings, join_keys=[?g], MINIMUM of {RUNS}\n\
              unscaled (one build; the cell pays two)\n\
              \n\
              K  40k key_of                         {:>7.2} ms\n\
@@ -661,11 +639,11 @@ fn gather_val_id_split() {
     let kid = super::intern_key(&mut keys, &gkey);
 
 
-    let mut u = 0.0;
-    let mut iarm = 0.0;
-    let mut b = 0.0;
+    let mut u = f64::INFINITY;
+    let mut iarm = f64::INFINITY;
+    let mut b = f64::INFINITY;
     for _ in 0..RUNS {
-        u += elapsed_ns(|| {
+        u = u.min(elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -675,8 +653,8 @@ fn gather_val_id_split() {
                 }
             }
             black_box(idx.len());
-        });
-        iarm += elapsed_ns(|| {
+        }));
+        iarm = iarm.min(elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<u32, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -686,19 +664,15 @@ fn gather_val_id_split() {
                 }
             }
             black_box(idx.len());
-        });
-        b += elapsed_ns(|| {
+        }));
+        b = b.min(elapsed_ns(|| {
             black_box(super::build_gather_index(
                 &els,
                 &join_keys,
                 super::GatherIntern::of(&keys, &vals, &pool, &ids),
             ));
-        });
+        }));
     }
-    let r = RUNS as f64;
-    u /= r;
-    iarm /= r;
-    b /= r;
     // ⛔ WAS ONLY `assert!(iarm > 0.0)` — liveness. This test COMPARES two indexes over the same
     // 40,200 elements: one keyed by `Value`, one by interned id. The comparison is only
     // meaningful if both index the SAME THING, and nothing checked that.
@@ -743,7 +717,7 @@ fn gather_val_id_split() {
         "the Value index lost elements: every one of the {N} readings binds ?g"
     );
     println!(
-        "\ngather val-id split — {N} Readings, join_keys=[?g], mean of {RUNS}\n\
+        "\ngather val-id split — {N} Readings, join_keys=[?g], MINIMUM of {RUNS}\n\
              unscaled (one build; the cell pays two)\n\
              \n\
              U  HashMap<Value> clone+insert        {:>7.2} ms\n\
@@ -830,15 +804,15 @@ fn probe_extend_cost_split() {
         black_box(idx.get(&vec![Value::i64(1)]));
     }
 
-    let mut b = 0.0;
-    let mut m = 0.0;
-    let mut e = 0.0;
-    let mut kk = 0.0;
-    let mut h = 0.0;
+    let mut b = f64::INFINITY;
+    let mut m = f64::INFINITY;
+    let mut e = f64::INFINITY;
+    let mut kk = f64::INFINITY;
+    let mut h = f64::INFINITY;
     for _ in 0..RUNS {
         let mut bp = bind_pool.clone();
         bp.reserve(N * 4);
-        b += ns_per_iter(N, || {
+        b = b.min(ns_per_iter(N, || {
             let lo = left_binds.off as usize;
             let ln = left_binds.len as usize;
             let eo = right_binds.off as usize;
@@ -856,11 +830,11 @@ fn probe_extend_cost_split() {
                 }
             }
             black_box(bp.len());
-        });
+        }));
 
         let mut mp = match_pool.clone();
         mp.reserve(N * 2);
-        m += ns_per_iter(N, || {
+        m = m.min(ns_per_iter(N, || {
             let mo = left_matches.off as usize;
             let mn = left_matches.len as usize;
             for i in 0..mn {
@@ -869,13 +843,13 @@ fn probe_extend_cost_split() {
             }
             mp.push((0, 2));
             black_box(mp.len());
-        });
+        }));
 
         let mut bp = bind_pool.clone();
         let mut mp = match_pool.clone();
         bp.reserve(N * 4);
         mp.reserve(N * 2);
-        e += ns_per_iter(N, || {
+        e = e.min(ns_per_iter(N, || {
             black_box(super::extend_token(
                 &tok,
                 0,
@@ -884,26 +858,20 @@ fn probe_extend_cost_split() {
                 &mut bp,
                 &mut mp,
             ));
-        });
+        }));
 
-        kk += ns_per_iter(N, || {
+        kk = kk.min(ns_per_iter(N, || {
             black_box(super::key_of(
                 &super::bind_view(&keys, &vals, &bind_pool, left_binds),
                 &join_keys,
                 &ids,
             ));
-        });
+        }));
 
-        h += ns_per_iter(N, || {
+        h = h.min(ns_per_iter(N, || {
             black_box(idx.get(&vec![Value::i64(1)]));
-        });
+        }));
     }
-    let runs = RUNS as f64;
-    b /= runs;
-    m /= runs;
-    e /= runs;
-    kk /= runs;
-    h /= runs;
     // ⛔ WAS ONE liveness check on `e` alone — so FOUR of the five measured components could
     // read zero and this still passed. The test's own header says "treat the RATIO as the
     // finding", and a ratio against a zero component is not a finding.
@@ -926,7 +894,7 @@ fn probe_extend_cost_split() {
     let scale_e = |ns: f64| ns * EXTENDS / 1e6;
     let scale_l = |ns: f64| ns * LEFTS / 1e6;
     println!(
-        "\nprobe extend split — fanout shape, {N} iters, mean of {RUNS}\n\
+        "\nprobe extend split — fanout shape, {N} iters, MINIMUM of {RUNS}\n\
              treat the RATIO as the finding; scaled ms is a projection, not a fire\n\
              \n\
              B  bind append only                 {b:>7.1} ns/op   {:>6.2} ms @ 40k\n\
@@ -1064,39 +1032,39 @@ fn probe_gap_cost_split() {
         );
     }
 
-    let mut r = 0.0;
-    let mut s = 0.0;
-    let mut p = 0.0;
-    let mut e = 0.0;
-    let mut j = 0.0;
+    let mut r = f64::INFINITY;
+    let mut s = f64::INFINITY;
+    let mut p = f64::INFINITY;
+    let mut e = f64::INFINITY;
+    let mut j = f64::INFINITY;
     let mut g = 0.0;
     for _ in 0..RUNS {
-        r += ns_per_iter(N, || {
+        r = r.min(ns_per_iter(N, || {
             black_box(super::rematch_compiled(&conds, 2).expect("compiled"));
-        });
-        s += ns_per_iter(N, || {
+        }));
+        s = s.min(ns_per_iter(N, || {
             black_box(conds.get(&2).expect("id").has_seed_cmp());
-        });
+        }));
         let mut out: Vec<super::Token> = Vec::with_capacity(N);
-        p += ns_per_iter(N, || {
+        p = p.min(ns_per_iter(N, || {
             out.push(tok);
             black_box(out.len());
-        });
+        }));
 
         let mut bp = bind_pool.clone();
         let mut mp = match_pool.clone();
         bp.reserve(N * 4);
         mp.reserve(N * 2);
-        e += ns_per_iter(N, || {
+        e = e.min(ns_per_iter(N, || {
             black_box(super::extend_token(&tok, 0, el.binds, 2, &mut bp, &mut mp));
-        });
+        }));
 
         let mut bp = bind_pool.clone();
         let mut mp = match_pool.clone();
         bp.reserve(N * 4);
         mp.reserve(N * 2);
         scratch.clear();
-        j += ns_per_iter(N, || {
+        j = j.min(ns_per_iter(N, || {
             black_box(
                 super::join_extend(
                     &tok,
@@ -1121,7 +1089,7 @@ fn probe_gap_cost_split() {
                 )
                 .expect("join"),
             );
-        });
+        }));
 
         let mut bp = bind_pool.clone();
         let mut mp = match_pool.clone();
@@ -1132,11 +1100,6 @@ fn probe_gap_cost_split() {
         g += t0.elapsed().as_nanos() as f64;
     }
     let runs = RUNS as f64;
-    r /= runs;
-    s /= runs;
-    p /= runs;
-    e /= runs;
-    j /= runs;
     g /= runs;
     // ⛔ WAS ONE liveness check on `j` alone, out of SIX measured components. Same reasoning as
     // `probe_extend_cost_split` above: this test's finding is a ratio, and five of its six terms
@@ -1189,7 +1152,7 @@ fn probe_gap_cost_split() {
     let g_ms = g / 1e6;
     let e_ms = scale(e);
     println!(
-        "\nprobe gap split — fanout shape, {N} iters (G is {G_N} unreserved), mean of {RUNS}\n\
+        "\nprobe gap split — fanout shape, {N} iters (G is {G_N} unreserved), MINIMUM of {RUNS}\n\
              treat the RATIO as the finding; scaled ms is a projection, not a fire\n\
              \n\
              R  rematch_compiled                 {r:>7.1} ns/op   {:>6.2} ms @ 40k\n\

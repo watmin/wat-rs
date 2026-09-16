@@ -38,36 +38,31 @@ fn out_production_cost_split() {
         black_box(collected);
     }
 
-    let mut c = 0.0;
-    let mut v = 0.0;
-    let mut h = 0.0;
-    let mut i = 0.0;
+    let mut c = f64::INFINITY;
+    let mut v = f64::INFINITY;
+    let mut h = f64::INFINITY;
+    let mut i = f64::INFINITY;
     for _ in 0..RUNS {
-        c += ns_per_iter(1, || {
+        c = c.min(ns_per_iter(1, || {
             black_box(facts.clone());
-        });
-        v += ns_per_iter(1, || {
+        }));
+        v = v.min(ns_per_iter(1, || {
             let mut pv = rpds::VectorSync::new_sync();
             for val in facts.clone() {
                 pv.push_back_mut(val);
             }
             black_box(pv);
-        });
-        h += ns_per_iter(1, || {
+        }));
+        h = h.min(ns_per_iter(1, || {
             let mut map: ProductionMemory = HashMap::new();
             map.insert(1, facts.clone());
             black_box(super::production_to_pm(map));
-        });
-        i += ns_per_iter(1, || {
+        }));
+        i = i.min(ns_per_iter(1, || {
             let collected: rpds::VectorSync<Value> = facts.clone().into_iter().collect();
             black_box(collected);
-        });
+        }));
     }
-    let runs = RUNS as f64;
-    c /= runs;
-    v /= runs;
-    h /= runs;
-    i /= runs;
     assert!(
         h > 0.0,
         "production_to_pm recorded 0 ns — the loop never ran"
@@ -101,8 +96,15 @@ fn out_production_cost_split() {
         other => panic!("production_to_pm must return a PersistentMap; got {other:?}"),
     }
 
+    // ⛔ `H−V` IS NOT A DECOMPOSITION AND ITS OLD LABEL ("wrap") CLAIMED IT WAS. Measured stable
+    // at −2.8 to −3.4 ms across runs (2026-08-30) — not noise, and not the cold-start artefact
+    // the minimum estimator cured. The arms are ALTERNATIVE ALGORITHMS, not superset and subset:
+    // `V` pushes 40,000 times into an RRB vector; `H` calls `production_to_pm`, which takes the
+    // BULK path — `PVec::from_vec` (`session.rs`, "Bulk Array arm — not N RRB push_back",
+    // `DESIGN-STONE-promoting-vector`). So H does not contain V, and subtracting them yields a
+    // COMPARISON, not a component cost. The number was always right; the label was wrong.
     println!(
-        "\nout:production split — {N} Pair records, mean of {RUNS}\n\
+        "\nout:production split — {N} Pair records, MINIMUM of {RUNS}\n\
              unscaled (the cell is 40k); C is the Arc-bump clone fire does not pay\n\
              \n\
              C  clone 40k Vec                      {:>7.2} ms\n\
@@ -111,7 +113,7 @@ fn out_production_cost_split() {
              I  clone + VectorSync::from_iter      {:>7.2} ms\n\
              \n\
              V−C  node-per-fact                    {:>7.2} ms\n\
-             H−V  wrap (from_trie / 1-key map)     {:>7.2} ms\n\
+             H−V  bulk from_vec MINUS N push_back  {:>7.2} ms  (negative = bulk wins)\n\
              V−I  from_iter drop-in                {:>7.2} ms\n",
         ms(c),
         ms(v),
@@ -165,40 +167,35 @@ fn out_query_cost_split() {
         black_box(collected);
     }
 
-    let mut c = 0.0;
-    let mut v = 0.0;
-    let mut h = 0.0;
-    let mut i = 0.0;
+    let mut c = f64::INFINITY;
+    let mut v = f64::INFINITY;
+    let mut h = f64::INFINITY;
+    let mut i = f64::INFINITY;
     for _ in 0..RUNS {
-        c += ns_per_iter(1, || {
+        c = c.min(ns_per_iter(1, || {
             black_box(maps.clone());
-        });
-        v += ns_per_iter(1, || {
+        }));
+        v = v.min(ns_per_iter(1, || {
             let mut pv = rpds::VectorSync::new_sync();
             for m in maps.clone() {
                 pv.push_back_mut(Value::wat__core__PersistentMap(m));
             }
             black_box(pv);
-        });
-        h += ns_per_iter(1, || {
+        }));
+        h = h.min(ns_per_iter(1, || {
             let mut q: QueryMemory = HashMap::new();
             q.insert("q-Pair".to_string(), maps.clone());
             black_box(super::query_memory_to_pm(q));
-        });
-        i += ns_per_iter(1, || {
+        }));
+        i = i.min(ns_per_iter(1, || {
             let collected: rpds::VectorSync<Value> = maps
                 .clone()
                 .into_iter()
                 .map(Value::wat__core__PersistentMap)
                 .collect();
             black_box(collected);
-        });
+        }));
     }
-    let runs = RUNS as f64;
-    c /= runs;
-    v /= runs;
-    h /= runs;
-    i /= runs;
     assert!(
         h > 0.0,
         "query_memory_to_pm recorded 0 ns — the loop never ran"
@@ -231,7 +228,7 @@ fn out_query_cost_split() {
     }
 
     println!(
-        "\nout:query split — {N} one-entry PMaps, mean of {RUNS}\n\
+        "\nout:query split — {N} one-entry PMaps, MINIMUM of {RUNS}\n\
              unscaled (the cell is 40k); C is the Arc-bump clone fire does not pay\n\
              \n\
              C  clone 40k Vec<PMap>                {:>7.2} ms\n\
@@ -240,7 +237,7 @@ fn out_query_cost_split() {
              I  clone + VectorSync::from_iter      {:>7.2} ms\n\
              \n\
              V−C  node-per-fact                    {:>7.2} ms\n\
-             H−V  wrap (query-name map)            {:>7.2} ms\n\
+             H−V  bulk from_vec MINUS N push_back  {:>7.2} ms  (negative = bulk wins)\n\
              V−I  from_iter drop-in                {:>7.2} ms\n",
         ms(c),
         ms(v),
@@ -292,35 +289,31 @@ fn harvest_wrap_split() {
         black_box(maps);
     }
 
-    let mut s = 0.0;
-    let mut w = 0.0;
-    let mut h = 0.0;
+    let mut s = f64::INFINITY;
+    let mut w = f64::INFINITY;
+    let mut h = f64::INFINITY;
     for _ in 0..RUNS {
-        s += ns_per_iter(1, || {
+        s = s.min(ns_per_iter(1, || {
             let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
             black_box(collected);
-        });
+        }));
         let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
-        w += ns_per_iter(1, || {
+        w = w.min(ns_per_iter(1, || {
             let maps: Vec<crate::value::pmap::PMap> = collected
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
                 .collect();
             black_box(maps);
-        });
-        h += ns_per_iter(1, || {
+        }));
+        h = h.min(ns_per_iter(1, || {
             let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
             let maps: Vec<crate::value::pmap::PMap> = collected
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
                 .collect();
             black_box(maps);
-        });
+        }));
     }
-    let runs = RUNS as f64;
-    s /= runs;
-    w /= runs;
-    h /= runs;
     // ⛔ WAS ONLY `assert!(h > 0.0)` — liveness. The split this test exists to APPORTION is
     // scan (s) vs wrap (w) vs both (h), so the assertable claim is the apportionment itself.
     assert!(h > 0.0, "harvest wrap recorded 0 ns — the loop never ran");
@@ -350,7 +343,7 @@ fn harvest_wrap_split() {
     );
 
     println!(
-        "\nharvest wrap split — {N} one-entry maps, mean of {RUNS}\n\
+        "\nharvest wrap split — {N} one-entry maps, MINIMUM of {RUNS}\n\
              unscaled (the cell is 40k)\n\
              \n\
              S  scan (filter PVec by class)        {:>7.2} ms\n\
@@ -416,47 +409,42 @@ fn harvest_wrap_parts() {
         black_box(maps);
     }
 
-    let mut c = 0.0;
-    let mut r = 0.0;
-    let mut i = 0.0;
-    let mut w = 0.0;
+    let mut c = f64::INFINITY;
+    let mut r = f64::INFINITY;
+    let mut i = f64::INFINITY;
+    let mut w = f64::INFINITY;
     for _ in 0..RUNS {
-        c += ns_per_iter(1, || {
+        c = c.min(ns_per_iter(1, || {
             let cloned: Vec<(Value, Value)> = collected
                 .iter()
                 .map(|f| (var.clone(), (*f).clone()))
                 .collect();
             black_box(cloned);
-        });
-        r += ns_per_iter(1, || {
+        }));
+        r = r.min(ns_per_iter(1, || {
             for p in &pairs {
                 let a: Arc<[(Value, Value)]> = Arc::from([p.clone()]);
                 black_box(a);
             }
-        });
-        i += ns_per_iter(1, || {
+        }));
+        i = i.min(ns_per_iter(1, || {
             let intern = AtomicU64::new(1);
             for _ in 0..N {
                 black_box(intern.fetch_add(1, Ordering::Relaxed));
             }
-        });
-        w += ns_per_iter(1, || {
+        }));
+        w = w.min(ns_per_iter(1, || {
             let maps: Vec<crate::value::pmap::PMap> = collected
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
                 .collect();
             black_box(maps);
-        });
+        }));
     }
-    let runs = RUNS as f64;
-    c /= runs;
-    r /= runs;
-    i /= runs;
-    w /= runs;
     assert!(w > 0.0, "from_pairs wrap recorded 0 ns — the loop never ran");
 
     println!(
-        "\nharvest wrap parts — {N} one-entry maps, mean of {RUNS}\n\
+        "\nharvest wrap parts — {N} one-entry maps, MINIMUM of {RUNS}\n\
              scan paid outside; pairs pre-cloned for R\n\
              \n\
              C  clone (var, fact) × 40k            {:>7.2} ms\n\
@@ -612,7 +600,7 @@ fn harvest_bag_copy_parts() {
     let pmap_bytes = std::mem::size_of::<crate::value::pmap::PMap>();
 
     let table = format!(
-        "\nharvest bag copy — {N} one-entry maps, mean of {RUNS}\n\
+        "\nharvest bag copy — {N} one-entry maps, MINIMUM of {RUNS}\n\
          PMap is {pmap_bytes} B, so the intermediate bag is {:.2} MB\n\
          \n\
          A  BUILD-THEN-EXTEND (today)     {:>7.2} ms\n\

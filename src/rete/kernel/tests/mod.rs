@@ -266,6 +266,31 @@ pub(super) fn assert_phases_present<'a>(
 // `time_ns` definitions with the same ambiguous name and the same elapsed/n contract still live
 // at `src/rete/compiled_rhs.rs:540` and `:720`; the sweep did not reach them.
 
+// ── THE ESTIMATOR IS THE MINIMUM, NOT THE MEAN ───────────────────────────────
+//
+// ⛔ EVERY COST SPLIT IN THIS SUITE USED `mean of RUNS` AND IT WAS WRONG. Measured 2026-08-30 on
+// `accum_alpha_push_split`: the FIRST arm of each round paid a cold start of 287.4 ms against
+// 11.5 and 11.4 ms for the identical work — 25x — and the mean carried that one round into the
+// reported figure. `M` was never slow; `M` goes first.
+//
+// The damage was not subtle. `H−M` read −93.33 ms: arm H, which is arm M PLUS a HashMap entry,
+// measured 9x FASTER than M. Three tests printed subtractions with impossible signs; the rest
+// were silently inflating whichever arm ran first, so "X dominates" conclusions in those tables
+// could be artefacts of ORDERING. With the minimum, `A−M` went −90.76 → +1.6..+2.3 ms across
+// runs, and every impossible sign resolved.
+//
+// ⛔ THE ARGUMENT WAS ALREADY IN THIS FILE, ON `calibrate_mark_ns`: "TAKE THE MINIMUM OF SEVERAL
+// BATCHES, not one … the true cost cannot be lower, and everything above it is interference."
+// The calibration constant used the minimum. The splits it feeds used the mean. One instrument,
+// two estimators, and the wrong one on the larger measurement — which is exactly what
+// `render_phase_table`'s own doc warns about: "two copies is how one of them silently stops
+// subtracting."
+//
+// ⚠ AND THE 90 ms ARTEFACT WAS HIDING A RESOLUTION FLOOR. With it gone, `H−M` measures −0.48,
+// +0.19, +0.24 ms across three runs — IT CHANGES SIGN. A per-fact HashMap entry is below what a
+// 12 ms arm at RUNS=3 can resolve. Sub-millisecond rows in these tables are noise wearing a
+// number; do not read one as a finding without re-measuring at higher RUNS or larger N.
+
 /// Nanoseconds PER ITERATION — runs `body` `n` times and divides by `n`.
 pub(super) fn ns_per_iter(n: usize, mut body: impl FnMut()) -> f64 {
     let t0 = std::time::Instant::now();
@@ -445,7 +470,7 @@ fn render_phase_table(
     const RUNS: usize = 3;
 
     let mut table = format!(
-        "\n{label} — per-phase split (native fire-rules only), mean of {RUNS} runs\n\
+        "\n{label} — per-phase split (native fire-rules only), MINIMUM of {RUNS} runs\n\
              instrument: ~{cal_ns_per_pair:.1} ns per mark pair; `net` = raw MINUS this row's own \
              pairs. PARENT rows still contain their children's share.\n"
     );

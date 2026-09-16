@@ -322,7 +322,7 @@ fn accum_query_harvest_split() {
     with.harvest /= r;
 
     println!(
-        "\naccum query harvest split — [200 200], mean of {RUNS}\n\
+        "\naccum query harvest split — [200 200], MINIMUM of {RUNS}\n\
              \n\
              without queries       wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  alpha {:>7.2}  harvest {:>7.2}  maps {}\n\
              with    five q-*      wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  alpha {:>7.2}  harvest {:>7.2}  maps {}\n\
@@ -474,41 +474,36 @@ fn accum_harvest_index_parts() {
         black_box(maps);
     }
 
-    let mut i = 0.0;
-    let mut w = 0.0;
-    let mut d = 0.0;
-    let mut m = 0.0;
+    let mut i = f64::INFINITY;
+    let mut w = f64::INFINITY;
+    let mut d = f64::INFINITY;
+    let mut m = f64::INFINITY;
     let mut maps_n = 0usize;
     for _ in 0..RUNS {
-        i += ns_per_iter(1, || {
+        i = i.min(ns_per_iter(1, || {
             black_box(index_all());
-        });
-        w += ns_per_iter(1, || {
+        }));
+        w = w.min(ns_per_iter(1, || {
             black_box(index_wanted_both());
-        });
-        d += ns_per_iter(1, || {
+        }));
+        d = d.min(ns_per_iter(1, || {
             black_box(index_wanted_derived());
-        });
+        }));
         let facts: Vec<&Value> = derived.iter().collect();
         maps_n = facts.len();
-        m += ns_per_iter(1, || {
+        m = m.min(ns_per_iter(1, || {
             let maps: Vec<crate::value::pmap::PMap> = facts
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
                 .collect();
             black_box(maps);
-        });
+        }));
     }
-    let runs = RUNS as f64;
-    i /= runs;
-    w /= runs;
-    d /= runs;
-    m /= runs;
     assert!(i > 0.0, "all-class index recorded 0 ns — the loop never ran");
     assert_eq!(maps_n, 1000, "five types × 200 groups = 1000 maps");
 
     println!(
-        "\naccum harvest index parts — [200 200], mean of {RUNS}\n\
+        "\naccum harvest index parts — [200 200], MINIMUM of {RUNS}\n\
              input 200 Group + 40,000 Reading; derived 1,000\n\
              \n\
              I  both bags, every class             {:>7.2} ms\n\
@@ -654,7 +649,7 @@ fn accum_leftover_split() {
     let honest_prod: f64 = pk_net.iter().map(|n| n.max(0.0)).sum();
     let honest_fire = fire - remainder_alpha - tax_alpha - remainder_prod - tax_prod;
     let table = format!(
-        "\naccum leftover split — [200 200], mean of {RUNS}\n\
+        "\naccum leftover split — [200 200], MINIMUM of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
              \n\
              FIRE                      {:>7.2} ms\n\
@@ -829,12 +824,12 @@ fn accum_compiled_match_split() {
         wm.i64_by_fact.clear();
     };
 
-    let mut t = 0.0;
-    let mut o = 0.0;
-    let mut mc = 0.0;
-    let mut mw = 0.0;
+    let mut t = f64::INFINITY;
+    let mut o = f64::INFINITY;
+    let mut mc = f64::INFINITY;
+    let mut mw = f64::INFINITY;
     for _ in 0..RUNS {
-        t += elapsed_ns(|| {
+        t = t.min(elapsed_ns(|| {
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
                 if ag.nature == Nature::Struct {
@@ -845,8 +840,8 @@ fn accum_compiled_match_split() {
                         .candidates(ag.class.as_ref(), ag.fields.as_slice()),
                 );
             }
-        });
-        o += elapsed_ns(|| {
+        }));
+        o = o.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -870,8 +865,8 @@ fn accum_compiled_match_split() {
                     ));
                 }
             }
-        });
-        mc += elapsed_ns(|| {
+        }));
+        mc = mc.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset_pools(&mut wm);
             for f in &facts {
@@ -895,7 +890,7 @@ fn accum_compiled_match_split() {
                     ));
                 }
             }
-        });
+        }));
     }
     {
         let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
@@ -922,7 +917,7 @@ fn accum_compiled_match_split() {
             }
         }
         for _ in 0..RUNS {
-            mw += elapsed_ns(|| {
+            mw = mw.min(elapsed_ns(|| {
                 let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
                 wm.bind_pool.clear();
                 for f in &facts {
@@ -946,17 +941,12 @@ fn accum_compiled_match_split() {
                         ));
                     }
                 }
-            });
+            }));
         }
     }
-    let r = RUNS as f64;
-    t /= r;
-    o /= r;
-    mc /= r;
-    mw /= r;
 
     let table = format!(
-        "\naccum compiled-match split — 40,200 facts, mean of {RUNS}\n\
+        "\naccum compiled-match split — 40,200 facts, MINIMUM of {RUNS}\n\
              fact_bind conds {n_fact_bind}   candidates {n_cands}   ops-true {n_ops_true}\n\
              \n\
              T   candidates                 {:>7.2} ms\n\
@@ -1029,14 +1019,14 @@ fn accum_materialize_split() {
         wm.i64_by_fact.clear();
     };
 
-    let mut o = 0.0;
-    let mut c = 0.0;
-    let mut k = 0.0;
-    let mut v = 0.0;
-    let mut p = 0.0;
-    let mut m = 0.0;
+    let mut o = f64::INFINITY;
+    let mut c = f64::INFINITY;
+    let mut k = f64::INFINITY;
+    let mut v = f64::INFINITY;
+    let mut p = f64::INFINITY;
+    let mut m = f64::INFINITY;
     for _ in 0..RUNS {
-        o += elapsed_ns(|| {
+        o = o.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1060,8 +1050,8 @@ fn accum_materialize_split() {
                     ));
                 }
             }
-        });
-        c += elapsed_ns(|| {
+        }));
+        c = c.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1084,8 +1074,8 @@ fn accum_materialize_split() {
                     }
                 }
             }
-        });
-        k += elapsed_ns(|| {
+        }));
+        k = k.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1112,8 +1102,8 @@ fn accum_materialize_split() {
                     }
                 }
             }
-        });
-        v += elapsed_ns(|| {
+        }));
+        v = v.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1141,8 +1131,8 @@ fn accum_materialize_split() {
                     }
                 }
             }
-        });
-        p += elapsed_ns(|| {
+        }));
+        p = p.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1171,8 +1161,8 @@ fn accum_materialize_split() {
                     }
                 }
             }
-        });
-        m += elapsed_ns(|| {
+        }));
+        m = m.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1205,18 +1195,11 @@ fn accum_materialize_split() {
                     ));
                 }
             }
-        });
+        }));
     }
-    let r = RUNS as f64;
-    o /= r;
-    c /= r;
-    k /= r;
-    v /= r;
-    p /= r;
-    m /= r;
 
     let table = format!(
-        "\naccum materialize split — 40,200 facts, mean of {RUNS}\n\
+        "\naccum materialize split — 40,200 facts, MINIMUM of {RUNS}\n\
              \n\
              O   exec_ops                   {:>7.2} ms\n\
              C   + clone slots              {:>7.2} ms\n\
@@ -1337,11 +1320,11 @@ fn accum_intern_val_i64_split() {
     }
     let table_ok = n_other == 0 && min_i >= 0 && max_i < 4096;
 
-    let mut vns = 0.0;
-    let mut ins = 0.0;
-    let mut ans = 0.0;
+    let mut vns = f64::INFINITY;
+    let mut ins = f64::INFINITY;
+    let mut ans = f64::INFINITY;
     for _ in 0..RUNS {
-        vns += elapsed_ns(|| {
+        vns = vns.min(elapsed_ns(|| {
             let mut vals = Vec::new();
             let mut ids = crate::rete::compiled_cond::ValIntern::default();
             for v in &payloads {
@@ -1351,8 +1334,8 @@ fn accum_intern_val_i64_split() {
                     v.clone(),
                 ));
             }
-        });
-        ins += elapsed_ns(|| {
+        }));
+        ins = ins.min(elapsed_ns(|| {
             let mut vals = Vec::new();
             let mut ids: FxHashMap<i64, u32> = FxHashMap::default();
             for v in &payloads {
@@ -1369,9 +1352,9 @@ fn accum_intern_val_i64_split() {
                 };
                 black_box(id);
             }
-        });
+        }));
         if table_ok {
-            ans += elapsed_ns(|| {
+            ans = ans.min(elapsed_ns(|| {
                 let mut vals = Vec::new();
                 let mut slot = vec![u32::MAX; (max_i as usize) + 1];
                 for v in &payloads {
@@ -1387,20 +1370,14 @@ fn accum_intern_val_i64_split() {
                     };
                     black_box(id);
                 }
-            });
+            }));
         }
-    }
-    let r = RUNS as f64;
-    vns /= r;
-    ins /= r;
-    if table_ok {
-        ans /= r;
     }
     let best = if table_ok { ins.min(ans) } else { ins };
     let winner = if table_ok && ans <= ins { "A" } else { "I" };
 
     let table = format!(
-        "\naccum intern_val i64 split — {} fillers, mean of {RUNS}\n\
+        "\naccum intern_val i64 split — {} fillers, MINIMUM of {RUNS}\n\
              i64 {n_i64}  other {n_other}  min {min_i}  max {max_i}  table_ok {table_ok}\n\
              \n\
              V  FxHashMap<Value> (engine)   {:>7.2} ms\n\
@@ -1467,12 +1444,12 @@ fn accum_exec_ops_split() {
         facts.len()
     );
 
-    let mut t = 0.0;
-    let mut rset = 0.0;
-    let mut f = 0.0;
-    let mut o = 0.0;
+    let mut t = f64::INFINITY;
+    let mut rset = f64::INFINITY;
+    let mut f = f64::INFINITY;
+    let mut o = f64::INFINITY;
     for _ in 0..RUNS {
-        t += elapsed_ns(|| {
+        t = t.min(elapsed_ns(|| {
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
                 if ag.nature == Nature::Struct {
@@ -1483,8 +1460,8 @@ fn accum_exec_ops_split() {
                         .candidates(ag.class.as_ref(), ag.fields.as_slice()),
                 );
             }
-        });
-        rset += elapsed_ns(|| {
+        }));
+        rset = rset.min(elapsed_ns(|| {
             let mut scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1502,8 +1479,8 @@ fn accum_exec_ops_split() {
                     black_box(scratch.len());
                 }
             }
-        });
-        f += elapsed_ns(|| {
+        }));
+        f = f.min(elapsed_ns(|| {
             let mut scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
             for fct in &facts {
                 let Value::Aggregate(ag) = fct else { continue };
@@ -1524,8 +1501,8 @@ fn accum_exec_ops_split() {
                     black_box(scratch.len());
                 }
             }
-        });
-        o += elapsed_ns(|| {
+        }));
+        o = o.min(elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1549,16 +1526,11 @@ fn accum_exec_ops_split() {
                     ));
                 }
             }
-        });
+        }));
     }
-    let runs = RUNS as f64;
-    t /= runs;
-    rset /= runs;
-    f /= runs;
-    o /= runs;
 
     let table = format!(
-        "\naccum exec_ops split — 40,200 facts, mean of {RUNS}\n\
+        "\naccum exec_ops split — 40,200 facts, MINIMUM of {RUNS}\n\
              \n\
              T   candidates                 {:>7.2} ms\n\
              R   + clear/resize             {:>7.2} ms\n\
@@ -1613,16 +1585,16 @@ fn accum_seen_fire_context_split() {
     );
 
 
-    let mut a = 0.0;
-    let mut x = 0.0;
-    let mut s = 0.0;
+    let mut a = f64::INFINITY;
+    let mut x = f64::INFINITY;
+    let mut s = f64::INFINITY;
     for _ in 0..RUNS {
-        a += elapsed_ns(|| {
+        a = a.min(elapsed_ns(|| {
             let ids: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
             let rest: FxHashSet<Value> = FxHashSet::default();
             black_box(ids.len() + rest.len());
-        });
-        x += elapsed_ns(|| {
+        }));
+        x = x.min(elapsed_ns(|| {
             let mut sum = 0u64;
             for f in pv.iter() {
                 if let Value::Aggregate(ag) = f {
@@ -1630,8 +1602,8 @@ fn accum_seen_fire_context_split() {
                 }
             }
             black_box(sum);
-        });
-        s += elapsed_ns(|| {
+        }));
+        s = s.min(elapsed_ns(|| {
             let mut ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n, Default::default());
             let mut rest: FxHashSet<Value> = FxHashSet::default();
@@ -1639,7 +1611,7 @@ fn accum_seen_fire_context_split() {
                 super::seen_insert(&mut ids, &mut rest, f);
             }
             black_box(ids.len() + rest.len());
-        });
+        }));
     }
 
     let mut fire_seen = 0.0;
@@ -1658,14 +1630,11 @@ fn accum_seen_fire_context_split() {
         fire_ins += of("  │  setup:seen:insert") as f64;
     }
     let r = RUNS as f64;
-    a /= r;
-    x /= r;
-    s /= r;
     fire_seen /= r;
     fire_alloc /= r;
     fire_ins /= r;
     let table = format!(
-        "\nseen fire-context split — accum [{G} {W}], {n} facts, mean of {RUNS}\n\
+        "\nseen fire-context split — accum [{G} {W}], {n} facts, MINIMUM of {RUNS}\n\
              \n\
              in-fire\n\
              setup:seen                    {:>7.2} ms\n\
