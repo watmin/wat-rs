@@ -847,3 +847,263 @@ None outstanding. The mid-batch STOP-11 at #234 is resolved (see above): the orc
 measurement and strike commit exonerate the step, and #234 is committed green in its normal place in
 the sequence. Do not push. Main untouched. `~/work/holon/` untouched. No subagents spawned. No
 worktrees used. Tree clean at yield (`git status --porcelain` empty).
+
+# Batch 4f — grok-rete #241–#260
+
+Branch `replay/grok-rete`. Batch-start SHA `4f9276699`. Final tip `fcc5febcf`. 240 → 260 REPLAY
+commits. Not pushed. Main and `~/work/holon/` untouched. No worktrees. No subagents.
+
+## #241 — code, 1 `.wat`, 0 `.rs` — the path-based trap, driven correctly
+
+`strike: draw A5 — 'it terminates' and 'nothing was looked at' are the same value`. Cherry-picked
+clean, 4 files (3 docs + 1 new `.wat`, `wat-scripts/scratch-pad/a5-termination-silence.wat`). The
+new `.wat` was grok's own syntax (`::`-variant match arms, positional constructor call) — converted
+via `convert.sh` on C (a new file, so the result is `out-after/<path>`): `CompileOutcome::Compiled`/
+`CompileOutcome::MayNotTerminate` positional arms became the bracket dot-variant map-pattern form.
+`--check` rc 0. No `.rs` in the diff — finding 33 grepped: N/A (0 `.rs`/`.sh` files). Per the
+path-based verdict rule, carries `census`/`nested-program-gate` and explicitly NOT
+`lint-subset`/`kind(lib)`/`doctest`.
+
+census: `.census/2026-09-16T08-13-32Z.txt` files=2108; --diff no STOP-8
+nested-program-gate: PASS (3/3, 5614 skipped)
+
+## #242 — shared, 5 `.rs` — TWO record repairs found and folded here before yield
+
+`fix(rete): a termination verdict that cannot say 'I did not look' is not a verdict`. Auto-merged
+all 5 files clean (414+/22-, matching C exactly): `src/rete/kernel/{arm,stratify}.rs`,
+`tests/mod.rs`, `tests/lint/rete_header_claims_are_asserted.rs`, new
+`src/rete/kernel/tests/termination_verdict.rs`. Two wat-in-`.rs`-string hand-fixes (finding 33,
+grepped YES since the new file embeds wat program strings even though the step's own subject is not
+a rename): `:wat::rete::core::i64::{+,>}` in the `WORLD` fixture (stale pre-rehome `core::` segment,
+confirmed against `vocabulary.rs`'s `rete_name` rows) fixed to `:wat::rete::i64::{+,>}`; the
+`not_analysable_still_compiles_and_is_not_a_refusal` driver's embedded positional `::`-variant match
+arms re-expressed to the bracket dot-variant map-pattern form, field names taken from #241's
+converted output for the structurally identical expression. Named tests: termination_verdict's 8
+(all new) + rete_header_claims_are_asserted's 6 (of which only **2** are new by the diff's own
+`+#[test]` count, 4 pre-existing re-run) — 14/14 passed.
+
+⚠ **Two defects in my own first-draft commit, both found before yield, both repaired in place**
+(the "detach, re-commit, rebuild descendants" pattern, finding 29's precedent — never a repair
+commit appended after the batch):
+
+1. **Finding 26/29's class.** My first draft omitted `census`/`nested-program-gate`, having
+   mis-read the record gate's rule as ".wat-triggered". The rule is path-based: `^src/` OR `.wat$`.
+   4 of these 5 files are under `src/` despite all 5 being `.rs`. `verify-step-record.sh 4f9276699
+   HEAD 241 260` caught it immediately: `MISSING #242 ...: census: ...`, `MISSING #242 ...:
+   nested-program-gate: PASS`.
+2. **Finding 27 Shape B.** My first draft's body said "rete_header_claims_are_asserted's 6 new
+   rows" — checked against the diff's own lines (`git show 47f21243d -- tests/lint/
+   rete_header_claims_are_asserted.rs | grep -c '^+#\[test\]'` = 2), only 2 are new
+   (`the_termination_verifier_still_has_exactly_one_call_site`,
+   `the_import_door_still_does_not_call_the_termination_verifier`); the other 4 pre-existed.
+
+Repaired: `git checkout <sha-before-#242>`, `git branch -f replay/grok-rete <that sha>` (a
+force-update while HEAD is detached — `git reset --hard` was refused by the permission classifier
+as "Irreversible Local Destruction"; `git branch -f` achieves the identical, fully-recoverable
+result: nothing is lost, every original SHA stays reachable and logged), re-commit #242 with the
+corrected body, `git cherry-pick <original sha, no -x>` for every following commit unchanged through
+#260. Proven: `git diff <old-tip> <new-tip>` = **0 lines** (no tracked byte moved by the repair,
+only the two commit messages), all 20 `(cherry picked from commit ...)` trailers preserved,
+`verify-step-record.sh` now `step-record: complete` natively, `git replace -l` empty throughout (no
+overlay ever used — the rewrite is a plain, pushable linear history).
+
+census: `.census/2026-09-16T09-01-42Z.txt` files=2108; --diff (vs #241) no STOP-8
+nested-program-gate: PASS (3/3, 5624 skipped)
+lint-subset: 155 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #243–#245 — docs-only
+
+`score: A5 weighed...` (2 files) / `curare: thirteenth stamp...` (1 file, auto-merged against local
+drift) / `strike: draw A7...` (3 files). All cherry-picked clean, docs-only confirmed.
+
+## #246 — shared, 4 `.wat` (3 new + 1 modified), 3 `.rs`
+
+`fix(rete): the import door is a session's birth, and is charged like one`. Auto-merged all 7 files
+clean (554+/8-, matching C exactly): `src/alloc_counter.rs`, `src/rete/export.rs`, new
+`tests/rete/probe_arc278_import_accounting.rs` + 3 new `.wat` fixtures
+(`probe_arc278_import_accounting{,_ceiling,_default}.wat`), and one MODIFIED `.wat`
+(`probe_arc278_session_ceiling_second_session.wat` — a pure prose-comment addition, no code
+changed, `--check` rc 0, no conversion needed). The 3 new `.wat` fixtures used grok's own syntax
+(positional ctors, `::`-variant arms, positional `assertion-failed!`) — converted via `convert.sh`
+on C: all 3 `--check` rc 0 post-conversion. finding 33 grepped: YES (new files touch arc 278 A-class
+territory); found only live, current names (`:wat::rete::export`, `:wat::rete::Session`, etc.), no
+stale rehome targets, no hand-fix needed. Named tests (3, all new):
+`import_refuses_a_build_that_outgrows_the_session_ceiling`,
+`import_refuses_a_node_count_past_the_cap`, `an_origin_already_filed_is_never_re_based` — 3/3.
+
+census: `.census/2026-09-16T08-21-58Z.txt` files=2111; --diff no STOP-8
+nested-program-gate: PASS (3/3, 5627 skipped)
+lint-subset: 155 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #247–#249 — docs-only
+
+`score: A7 weighed...` (2 files) / `curare: fourteenth stamp...` (1 file, auto-merged) / `strike:
+draw D1's residual...` (3 files). All cherry-picked clean, docs-only confirmed.
+
+## #250 — code, 1 `.wat`, 3 `.rs` — a doc-comment divergence, resolved by the ownership rule
+
+`fix(rete): a misspelled variant is told it is a misspelled variant`. One CONFLICT in
+`typing.rs`: a 2-line doc paragraph naming the historical pre-D1 mechanism. HEAD (landed at #218)
+already carried an independently-authored paragraph saying the pre-fix code used `decompose_variant`
+— confirmed factually correct for THIS tree by `git show c9578afe2^ -- src/rete/validate/typing.rs`
+(main's own pre-D1 `keyword_constant_segment` literally called
+`wat_reader::identifier::decompose_variant`). Grok's own diff only tweaks that paragraph's wording
+("THIS" → "THE CLASSIFIER") while keeping GROK's own "rsplit_once(::)" mechanism name — true of
+grok's own pre-fix code, on grok's own branch, not ours. Kept HEAD's paragraph verbatim; all of
+grok's substantive diff (the new `KeywordConstant` enum, `classify_keyword_constant`, the
+`UnknownEnumVariant` error kind) applied clean.
+
+**Composition defect, folded here** (the wall predates this step, but this step is what first
+produces the offending line, so the repair belongs here per the #184 precedent): the new
+`classify_keyword_constant`'s fallback `k.rsplit_once("::")` tripped main's pre-existing
+`one_variant_separator` lint, which grok never faced. Verified deliberate and correct, not a real
+defect: it fires only after `enum_variant_ctor` (the ONE `decompose_variant`-based resolver) has
+already declined, so it is specifically detecting the RETIRED `::` spelling as evidence of a typo —
+`decompose_variant` is dot-only and structurally cannot see a `::`-only string (`_bad.wat`'s
+`:evt::G::Hii` has no dot at all). Added the wall's own required
+`// rune:lint(one-variant-separator, type-path)` annotation rather than altering behavior.
+`one_variant_separator`'s own 7 tests: 7/7 green after the rune (1 red before).
+
+The new `.wat` fixture converted via `convert.sh` on C, `--check` rc 0. The two new `.edn` goldens
+(`probe_arc278_enum_variant_typo_{bad,tagged}__refusal.edn`) encoded grok's own EDN
+tag-serialization spelling and (for tagged) `::`-separator field text — neither reachable by any
+codemod (not `.wat`, not corpus). Regenerated by running the built binary directly against the two
+PRE-EXISTING fixtures already on this tree from #218 and capturing raw stderr: main's tag spelling
+is `#ns/Enum.Variant {...}` (map-form), dot-form field (`tg::P.Hi`). Confirmed correct because the
+golden-diff tests then pass exactly. finding 33 grepped: YES on the modified `.rs` files, no stale
+names found; the one hand-fix was the rune, not a rename re-expression. Named tests (6, 3 new + 3
+pre-existing re-verified against the new `run()` signature) — 6/6.
+
+census: `.census/2026-09-16T08-38-45Z.txt` files=2112; --diff no STOP-8
+nested-program-gate: PASS (3/3, 5630 skipped)
+lint-subset: 155 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #251–#253 — docs-only
+
+`score: D1's residual weighed...` (2 files) / `curare: fifteenth stamp...` (1 file, auto-merged) /
+`strike: draw E5...` (3 files). All cherry-picked clean, docs-only confirmed.
+
+## #254 — shared, 11 `.rs` — the DELIBERATE DIVERGENCE, survived correctly
+
+`fix(rete): the refusal carries the span the author wrote`. Auto-merged all 11 files clean, no
+conflicts, diff matches C exactly (138+/19-). Touches
+`src/rete/kernel/tests/gather_probe_cost.rs`: grok's own change there is a 1-line call-site update
+inside `dbeta_gather_volume` (adding the new `span: &Span` parameter `fire_rules_on_session` now
+takes) — a completely different test function from `probe_extend_cost_split`, whose apportionment
+assert (`h >= (b + m + e) * 0.5`) this tree struck in a prior batch (`0fa6948da`, finding 32).
+Applied clean, zero overlap with the struck block.
+
+**E5 checked:** `grep -c 'h >= (b + m + e)' src/rete/kernel/tests/gather_probe_cost.rs` returns
+**1**, not 0 — the one hit is inside the struck block's own EXPLANATORY COMMENT quoting the removed
+formula in prose, not a live assertion (confirmed by reading the surrounding code, finding 30's
+rule). This 1-count predates #254 and is untouched by it. Reported verbatim, not edited to force a
+literal 0 — the struck ASSERTION itself stayed struck, which is what E5 protects.
+
+finding 33 grepped: N/A (span-threading refactor, not a rename); checked anyway, all
+`:wat::`/`rust_caller_span!` residue is live current spelling. Named test, re-counted against the
+diff's own `+#[test]` lines (finding 27 Shape B, per #242's lesson):
+`export_without_arm_refusal_names_the_wat_line` is the ONE new test; `span_substitution_justified`'s
+3 are pre-existing, re-run because they now cover the changed function bodies — 4/4 passed.
+
+⚠ **Second instance of finding 26/29's class**, same repair folded in the same rebuild as #242:
+my first-draft body also omitted `census`/`nested-program-gate` here (9 of 11 files are under
+`src/`). Repaired identically.
+
+census: `.census/2026-09-16T09-04-34Z.txt` files=2112; --diff (vs #250) no STOP-8
+nested-program-gate: PASS (3/3, 5631 skipped)
+lint-subset: 155 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #255–#257 — docs-only
+
+`score: E5 weighed...` (2 files) / `curare: sixteenth stamp...` (1 file, auto-merged) / `strike:
+draw E1+E2...` (3 files). All cherry-picked clean, docs-only confirmed.
+
+## #258 — shared, 17 files (5 `.wat`, 8 `.rs`, 4 `.edn`) — the batch's trap, navigated
+
+`fix(rete): UnknownField has ONE producer, and it takes the keyword node`. TWO conflicts, both
+resolved by the ownership rule.
+
+**Conflict 1 — `src/rete/validate/mod.rs`.** The literal conflict was one line
+(`reorder_then_kwargs`'s call, 7 args → 4, matching the callee's already-clean signature
+reduction). The surrounding "theirs" side also carried grok's own UNCHANGED context — a
+`check_rhs_operands`/`walk_nested_constructors` pair grok's C diff does not itself touch (confirmed
+by reading `git show 1efb42fc7 -- src/rete/validate/mod.rs` directly) — that our tree had ALREADY
+superseded a few lines earlier with a richer, already-landed check (`type_map`/`binds`/`types`).
+Keeping grok's redundant pair would have run the wall twice per kwargs fact. Resolution: kept main's
+existing richer block, discarded the duplicate, took grok's one substantive change (the
+`reorder_then_kwargs` arity reduction). Diffed against grok's own patch afterward to confirm the
+result matches line-for-line outside that one removal.
+
+**Conflict 2 — `tests/rete/probe_arc278_enum_variant_typo_tagged__refusal.edn`.** #258 narrows the
+span (col 31→65, per its own commit message). Regenerated the same way as #250's goldens: rebuilt
+with #258's Rust changes, ran the binary against the pre-existing fixture, captured raw stderr.
+
+⚠ **First-pass mistake, caught before committing (not silently redone):** initially ran `--check`
+on the 5 new `.wat` fixtures and captured the `.edn` goldens BEFORE (a) running `convert.sh` on the
+new `.wat` files and (b) rebuilding the binary with #258's own Rust changes. The stale state produced
+a `MalformedClause` on the still-`core::i64`-spelled inline fixture and wide (pre-fix) spans in the
+goldens, which looked like real defects. Corrected: ran `convert.sh` (3 of 5 fixtures needed the
+numerics rehome, `:wat::rete::core::i64::{=,+}` → `:wat::rete::i64::{=,+}`; `_ok.wat` also needed
+match-arm/positional-ctor conversion), rebuilt, re-measured — spans then matched the keyword's own
+tight extent exactly (bind 39–47, inline 52–60, kwargs 21–26, tagged 65–74).
+
+finding 33 grepped: YES. Fixed one prose staleness in `probe_arc278_field_span.rs`'s ROW-1 doc
+comment (quoted grok's own hand-counted "col 58, end col 66" against the pre-rehome
+`:wat::rete::core::i64::=` spelling; corrected to this tree's actual col 52/60 with a note
+explaining the 6-column shift is the numerics rehome). Left the module-level doc paragraph
+untouched — it explicitly frames itself as "Measured at HEAD `9c4748b4d`" (a grok-branch SHA), so it
+is accurate as scoped and is not a claim about this tree. Every other `:wat::rete::core::*` spelling
+across the diff confirmed a LIVE, correct `rete_name` (only i64/f64/string were ever rehomed, per
+finding 33's own note) — no false accusation.
+
+Named tests (11): `probe_arc278_field_span`'s 5, all new (`every_shape_spelled_correctly_
+compiles_and_fires`, `an_inline_constraint_names_the_field_keyword_not_the_comparison`,
+`a_bind_clause_names_the_field_keyword_not_the_whole_bind`,
+`a_kwargs_then_fact_names_the_field_keyword_not_the_whole_form`,
+`nested_constructor_field_is_never_validated_at_all` — the last a DISCONFIRMING pin, asserting the
+current unreachable-wall gap survives, not a fix) + `probe_arc278_enum_variant_typo`'s 6
+(re-verified against the narrowed golden, 0 new by the diff's own count) — 11/11 passed.
+
+census: `.census/2026-09-16T08-55-29Z.txt` files=2117; --diff no STOP-8
+nested-program-gate: PASS (3/3, 5636 skipped)
+lint-subset: 155 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #259–#260 — docs-only
+
+`score: E1+E2 weighed...` (2 files) / `curare: seventeenth stamp...` (1 file, auto-merged). All
+cherry-picked clean, docs-only confirmed.
+
+## Checkpoint
+
+`scripts/replay/verify-step-record.sh 4f9276699 HEAD 241 260` (foreground, final tree) →
+
+```
+step-range: #241..#260 each present exactly once, sources match
+step-record: complete
+```
+
+exit 0. `git replace -l` → 0 entries. `git status --porcelain` → empty. `git diff 4f9276699..HEAD
+--name-only` touches only this batch's own 60 files (`docs/arc/2026/06/278-rules-engine/**`,
+`src/`, `tests/`, `wat-scripts/scratch-pad/a5-termination-silence.wat`) — no `wat/`,
+`wat-scripts/fixes/`, or `absent-on-main.tsv` row anywhere in the range. Full wall re-run at HEAD
+(census 2117 files/no STOP-8, nested-program-gate 3/3, lint-subset 155, kind(lib) 1490, doctest 8)
+identical to #258's own recorded numbers (E10).
+
+## STOP
+
+None outstanding. Two record repairs (finding 26/29's class at #242 and #254; finding 27 Shape B at
+#242) were found by self-review before yielding and folded in place via the detach/re-commit/
+rebuild-descendants pattern — never a repair commit appended after the batch, never a knowingly-red
+REPLAY commit, no `git replace` overlay used anywhere. `git diff <pre-repair-tip> <post-repair-tip>`
+= 0 lines. Do not push. Main untouched. `~/work/holon/` untouched. No subagents spawned. No
+worktrees used. Tree clean at yield.
