@@ -26,7 +26,7 @@
 //! # Functions
 //!
 //! `defn` (Clojure-aligned; Stone 241.11/241.16 retired the old Scheme-style `define`)
-//! registers at call to [`register_defines`]; the body is
+//! registers at call to [`crate::declare::register::register_defines`]; the body is
 //! stored as an AST and evaluated on each invocation. `fn` at
 //! evaluation time captures the enclosing [`Environment`] and produces
 //! a `Value::Function` that can be passed, stored, and invoked.
@@ -736,7 +736,7 @@ pub use crate::value::{Provenance, TrackedValue, ValueSnapshot};
 pub use crate::value::{EvalBreak, EvalSignal, ReteCeiling, RuntimeError, RuntimeErrorKind};
 
 /// Arc 170 #13 — which of the three `register_defclause` effects a given call
-/// lands. See [`register_defclause`]'s doc comment for the full shape.
+/// lands. See [`crate::declare::register::register_defclause`]'s doc comment for the full shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClauseRegPhase {
     /// Pre-resolve: register the stub `Function` (0-arg, nil body) so the

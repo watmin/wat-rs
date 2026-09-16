@@ -150,7 +150,7 @@ pub fn register_defclause(
 
 /// Walk `forms`, register every `(:wat::core::define ...)` into `sym`,
 /// and return the remaining (non-define) forms in order. Dupe
-/// registration halts with [`RuntimeError::DuplicateDefine`].
+/// registration halts with [`RuntimeErrorKind::DuplicateDefine`].
 ///
 /// Arc 255 Stone 1a-β-ii — this is `:wat::core::def`'s declare-time processor (the fn-shape
 /// `try_parse_fn_shape_def` arm below pre-registers a `def` whose RHS is `(:wat::core::fn

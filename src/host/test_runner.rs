@@ -69,7 +69,7 @@ use crate::load::source::{self, WatSource};
 /// Aggregated result of running every `.wat` file under a path.
 ///
 /// Returned by [`run_tests_from_dir`]; consumers that use the
-/// library directly (not the [`crate::test_suite!`] macro) can
+/// library directly (not the [`crate::test!`] macro) can
 /// inspect fields and decide how to surface the outcome. The macro
 /// route wraps this in [`run_and_assert`] which panics on any
 /// failure.
@@ -369,7 +369,7 @@ pub fn run_tests_from_dir_with_loader(
 /// Run tests via [`run_tests_from_dir`]; panic with the full
 /// failure summary joined if any test failed or no tests were
 /// discovered under the path. This is what
-/// [`crate::test_suite!`] expands to — Cargo's `#[test] fn`
+/// [`crate::test!`] expands to — Cargo's `#[test] fn`
 /// machinery captures the panic and surfaces it as a test
 /// failure, so consumer-authored suites get cargo-test-style
 /// output with zero boilerplate.

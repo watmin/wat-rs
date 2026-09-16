@@ -15,7 +15,7 @@
 //!
 //! # The walker
 //!
-//! [`value_to_edn`] converts a wat `Value` into a `wat_edn::OwnedValue`.
+//! [`value_to_edn_with`] converts a wat `Value` into a `wat_edn::OwnedValue`.
 //! Per-variant mapping lives there; the three eval functions are thin
 //! wrappers that call the writer and return the string.
 //!
@@ -1913,7 +1913,7 @@ impl std::fmt::Display for EdnReadError {
 ///
 /// Pass `Some(registry)` for any EDN containing tagged structs
 /// or enums; pass `None` only for primitive-only documents (the
-/// bridge will return [`EdnReadError::NoTypeRegistry`] on the
+/// bridge will return [`EdnReadErrorKind::NoTypeRegistry`] on the
 /// first tagged value otherwise).
 ///
 /// Public arc-093: arc-093's row-reify path in

@@ -54,7 +54,7 @@
 //!   third-party wat distributions (arc 170, folded in from the
 //!   former `wat-cli` crate). Backs the `wat` / `cargo-wat` binaries
 //!   under `src/bin/`.
-//! - [`stdlib`] — baked-in wat source files (Subtract, Console,
+//! - [`crate::load::stdlib`] — baked-in wat source files (Subtract, Console,
 //!   LocalCache, Cache, …) registered before user code parses.
 
 extern crate self as wat;

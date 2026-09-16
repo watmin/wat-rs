@@ -66,11 +66,11 @@
 //!
 //! - **Loaded files cannot contain `(:wat::config::set-*!)`** — the
 //!   entry-file discipline's second half. A setter at any level inside
-//!   a loaded file halts with [`LoadError::SetterInLoadedFile`].
+//!   a loaded file halts with [`LoadErrorKind::SetterInLoadedFile`].
 //! - **Commit-once.** Per FOUNDATION: loading the same path twice halts
-//!   startup. [`LoadError::DuplicateLoad`] names the path.
+//!   startup. [`LoadErrorKind::DuplicateLoad`] names the path.
 //! - **Cycle detection.** A load path currently on the resolution stack
-//!   is a cycle. [`LoadError::CycleDetected`] names the full chain.
+//!   is a cycle. [`LoadErrorKind::CycleDetected`] names the full chain.
 //!
 //! # Filesystem vs in-memory
 //!
