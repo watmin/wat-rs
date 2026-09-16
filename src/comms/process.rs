@@ -78,8 +78,63 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use io_uring::{opcode, types, IoUring};
+
+// ── excursus 001 `a-deadline-does-not-cost-a-ring`: MAKE THE RED SELF-DESCRIBING ──
+//
+// ⛔ WHY THIS EXISTS, and what it is NOT. CI has been red since 2026-09-13 with
+// `IoUring::new(4) failed …: Cannot allocate memory (os error 12)`, and the red is
+// CI-ONLY: it does not reproduce here. The stone's first hypothesis — RLIMIT_MEMLOCK
+// — was REFUTED by measurement: `ulimit -l 64` AND `ulimit -l 0` both pass on this
+// box (kernel 6.12.63), because io_uring stopped charging the ring to memlock in
+// Linux 5.12, and the runner is ubuntu-24.04, also ≥5.12. A memory-capped run fails
+// with SIGKILL from the cgroup OOM killer — a DIFFERENT arm, so not the repro.
+//
+// So the mechanism must be diagnosed where it happens. These counters exist so the
+// NEXT CI red names its own cause instead of needing another three days: was this the
+// first ring or the ten-thousandth, and how many were live when the kernel refused.
+// ⭑ This is DIAGNOSIS, not the fix. The fix — `after` mints a Receiver, hence a ring,
+// per deadline, on `call-by-deadline`'s hot path — is still unbuilt and its mechanism
+// is still a builder ruling.
+// ⚠ CREATED ONLY, DELIBERATELY. A `live` gauge would need a `Drop` on `Receiver`,
+// which has none today, and a counter that only ever counts up while calling itself
+// "live" is a number that lies — the defect this excursus has been removing all day.
+// `created` is also the datum that actually decides the question: was the refusal the
+// first ring in the process or the ten-thousandth?
+static RINGS_CREATED: AtomicI64 = AtomicI64::new(0);
+
+/// The census text for a GIVEN count. Split from [`ring_census`] so the wording can be
+/// asserted EXACTLY: the only part that varies per run is the number, and with the number
+/// as a parameter there is nothing loose left to match on.
+fn ring_census_text(created: i64) -> String {
+    format!(
+        "rings created-so-far={created} in this process (⚠ RLIMIT_MEMLOCK is NOT the governor \
+         on kernels ≥5.12 — measured: `ulimit -l 0` passes locally on 6.12)"
+    )
+}
+
+/// One line of ring census for an error message, naming the hypothesis this stone
+/// already refuted so the next reader does not re-spend three days on it.
+fn ring_census() -> String {
+    ring_census_text(RINGS_CREATED.load(Ordering::Relaxed))
+}
+
+/// Build a ring, counting it. Every `IoUring::new` in this file goes through here so
+/// the census cannot drift from reality.
+fn new_ring(entries: u32, site: &'static str) -> std::io::Result<IoUring> {
+    match IoUring::new(entries) {
+        Ok(r) => {
+            RINGS_CREATED.fetch_add(1, Ordering::Relaxed);
+            Ok(r)
+        }
+        Err(e) => Err(std::io::Error::other(format!(
+            "IoUring::new({entries}) failed at {site}: {e} — {}",
+            ring_census()
+        ))),
+    }
+}
 
 use crate::comms::{
     CommReceiver, CommSender, EdnRepresentable, ReceiverIndex, RecvError, SelectOutcome,
@@ -1101,8 +1156,11 @@ impl<T: EdnRepresentable> Clone for Receiver<T> {
             accumulator: RefCell::new(Vec::new()),
             max_frame_bytes: self.max_frame_bytes,
             ring: RefCell::new(
-                IoUring::new(4)
-                    .expect("IoUring::new(4) failed — kernel io_uring resource exhausted"),
+                // ⚠ STILL A PANIC, and the DESIGN says it should not be: converting it to an
+                // `io::Error` changes this method's signature and ripples to its callers, which
+                // is a separate change. What it can do today is stop dying anonymously.
+                new_ring(4, "Receiver::clone_for_source")
+                    .unwrap_or_else(|e| panic!("{e}")),
             ),
             _phantom: PhantomData,
         }
@@ -1506,8 +1564,7 @@ pub fn timer<T: EdnRepresentable>(duration: std::time::Duration, msg_frame: Fram
         return Err(std::io::Error::last_os_error());
     }
 
-    let ring = IoUring::new(4)
-        .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at timer(): {}", e)))?;
+    let ring = new_ring(4, "timer()")?;
 
     Ok(Receiver {
         source: Source::Timer {
@@ -1707,7 +1764,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                     Some((_, current_cap)) => *current_cap != needed_capacity,
                 };
                 if needs_rebuild {
-                    *ring_slot = Some((IoUring::new(needed_capacity)?, needed_capacity));
+                    *ring_slot = Some((new_ring(needed_capacity, "select ring rebuild")?, needed_capacity));
                 }
             }
             // Select-ring borrow released; safe to call Receiver methods below
@@ -1929,7 +1986,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                     Some((_, current_cap)) => *current_cap != needed_capacity,
                 };
                 if needs_rebuild {
-                    *ring_slot = Some((IoUring::new(needed_capacity)?, needed_capacity));
+                    *ring_slot = Some((new_ring(needed_capacity, "select ring rebuild")?, needed_capacity));
                 }
             }
 
@@ -2116,8 +2173,7 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes,
         ring: RefCell::new(
-            IoUring::new(4)
-                .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at Receiver construction: {}", e)))?,
+            new_ring(4, "Receiver construction")?,
         ),
         _phantom: PhantomData,
     };
@@ -2125,8 +2181,7 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
         Sender {
             write_fd,
             ring: RefCell::new(
-                IoUring::new(4)
-                    .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at Sender construction: {}", e)))?,
+                new_ring(4, "Sender construction")?,
             ),
             _phantom: PhantomData,
         },
@@ -2174,8 +2229,7 @@ pub fn sender_receiver_from_fd_with_budget<T: EdnRepresentable>(
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes,
         ring: RefCell::new(
-            IoUring::new(4).map_err(|e| std::io::Error::other(
-                format!("IoUring::new(4) failed at sender_receiver_from_fd: {}", e)))?,
+            new_ring(4, "sender_receiver_from_fd")?,
         ),
         _phantom: PhantomData,
     };
@@ -2183,8 +2237,7 @@ pub fn sender_receiver_from_fd_with_budget<T: EdnRepresentable>(
         Sender {
             write_fd: fd,
             ring: RefCell::new(
-                IoUring::new(4).map_err(|e| std::io::Error::other(
-                    format!("IoUring::new(4) failed at sender_receiver_from_fd Sender: {}", e)))?,
+                new_ring(4, "sender_receiver_from_fd Sender")?,
             ),
             _phantom: PhantomData,
         },
@@ -2208,8 +2261,7 @@ pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
         source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
-        ring: RefCell::new(IoUring::new(4).map_err(|e| std::io::Error::other(
-            format!("IoUring::new(4) failed at sender_receiver_from_split_fds: {}", e)))?,
+        ring: RefCell::new(new_ring(4, "sender_receiver_from_split_fds")?,
         ),
         _phantom: PhantomData,
     };
@@ -2217,8 +2269,7 @@ pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
         Sender {
             write_fd,
             ring: RefCell::new(
-                IoUring::new(4).map_err(|e| std::io::Error::other(
-                    format!("IoUring::new(4) failed at sender_receiver_from_split_fds Sender: {}", e)))?,
+                new_ring(4, "sender_receiver_from_split_fds Sender")?,
             ),
             _phantom: PhantomData,
         },
@@ -2292,5 +2343,42 @@ mod timer_tests {
                 );
             }
         }
+    }
+
+    /// excursus 001 `a-deadline-does-not-cost-a-ring` — the ring census must COUNT.
+    ///
+    /// The census exists so the next CI `IoUring::new(4) … ENOMEM` names its own cause:
+    /// was the refusal the first ring in the process or the ten-thousandth? A counter that
+    /// silently stopped incrementing would answer "the first" forever and send the next
+    /// reader down the same three-day path this stone already walked. So the counter is
+    /// itself under test, and the assertion is on the DELTA, never on an absolute — other
+    /// tests in this binary create rings too.
+    #[test]
+    fn ring_census_counts_every_ring_it_hands_out() {
+        use super::{new_ring, ring_census_text, RINGS_CREATED};
+        use std::sync::atomic::Ordering;
+
+        let before = RINGS_CREATED.load(Ordering::Relaxed);
+        let r = new_ring(4, "ring_census_counts_every_ring_it_hands_out");
+        // `IoUring` is not Debug, so report the ERROR side only — the failing world is
+        // the one whose text matters here.
+        if let Err(e) = &r {
+            panic!("a 4-entry ring must be creatable on a healthy box: {e}");
+        }
+        let after = RINGS_CREATED.load(Ordering::Relaxed);
+        assert!(
+            after > before,
+            "creating a ring must advance the census: before={before} after={after}"
+        );
+        // And the census text must carry the refuted hypothesis, so the memlock dead end is
+        // not re-entered by someone reading only the error message. Asserted EXACTLY, against
+        // a fixed count — the tree's `no_loose_string_assert` lint caught the `contains` form
+        // this replaced, and it was right to: a `contains` check passes on a census that has
+        // silently lost half its sentence.
+        assert_eq!(
+            ring_census_text(7),
+            "rings created-so-far=7 in this process (⚠ RLIMIT_MEMLOCK is NOT the governor \
+             on kernels ≥5.12 — measured: `ulimit -l 0` passes locally on 6.12)"
+        );
     }
 }

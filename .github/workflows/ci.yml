@@ -92,6 +92,25 @@ jobs:
       # for weeks, because this gate only ran `-p wat`. Per-test process isolation
       # neutralizes the arc-170 global-state leak; the per-test deadline
       # (.config/nextest.toml) turns a deadlock into a clean timeout instead of a wedge.
+      # excursus 001 `a-deadline-does-not-cost-a-ring` — the runner must describe itself.
+      # CI has been red since 2026-09-13 with `IoUring::new(4) … Cannot allocate memory`,
+      # and the red is CI-ONLY: it does not reproduce on the dev box. The first hypothesis
+      # (RLIMIT_MEMLOCK) was REFUTED by measurement — `ulimit -l 0` passes locally on kernel
+      # 6.12, because io_uring stopped charging the ring to memlock in Linux 5.12, and this
+      # runner is ubuntu-24.04. So the next red must arrive with the runner's own numbers
+      # attached instead of costing another three days of guessing. Cheap, always-on, and it
+      # runs BEFORE the tests so it is captured even when the job fails.
+      - name: Runner facts (io_uring diagnosis — see excursus 001)
+        run: |
+          echo "kernel:      $(uname -r)"
+          echo "nproc:       $(nproc)"
+          echo "memlock KB:  $(ulimit -l)   # NOT the io_uring governor on >=5.12"
+          echo "nofile:      $(ulimit -n)"
+          free -m || true
+          echo "io_uring_disabled: $(cat /proc/sys/kernel/io_uring_disabled 2>/dev/null || echo 'absent')"
+          echo "max_map_count:     $(cat /proc/sys/vm/max_map_count 2>/dev/null || echo 'absent')"
+          cat /sys/fs/cgroup/memory.max 2>/dev/null | sed 's/^/cgroup memory.max: /' || true
+
       - name: Test (nextest)
         run: cargo nextest run --profile ci --release
 

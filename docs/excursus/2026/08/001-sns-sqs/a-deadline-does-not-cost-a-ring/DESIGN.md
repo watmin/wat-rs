@@ -78,6 +78,63 @@ is the thing that let this hide for three days.
 (concurrency, cgroup memory, kernel version, `RLIMIT_MEMLOCK`). An honest ABSENT is the finding
 (`[[feedback_permit_the_null_and_it_gets_used]]`).
 
+## ⛔⛔ STEP 1 RAN, AND IT REFUTED THIS DESIGN'S OWN MECHANISM (2026-09-15)
+
+**The repro is ABSENT and the `ulimit -l` hypothesis above is WRONG.** Measured on this box:
+
+| attempt | result |
+|---|---|
+| `( ulimit -l 64 ; cargo nextest run --release -E 'test(chaos_gate)' )` | **both tests PASS** (9.96 s) |
+| `( ulimit -l 0 ; … )` | **PASSES** — memlock is not the governor at all |
+| `./scripts/capped.sh --limit 300m …` and `--limit 120m` | fails, but with **SIGKILL from the cgroup OOM killer** — a DIFFERENT arm, so by this DESIGN's own gate, **not the repro** |
+
+⭐ **Why the hypothesis was wrong, and it is a fact worth keeping: io_uring stopped charging the ring to
+`RLIMIT_MEMLOCK` in Linux 5.12.** This box is **6.12.63**; the runner is **ubuntu-24.04** (image
+`20260907.300`), also ≥5.12. So memlock governs *neither* box, and the sentence in §The mechanism —
+*"Rings pin locked pages; `ulimit -l` on this box is 8192 KB and CI runners are tighter"* — is **struck**.
+It was a plausible story that survived because nothing tested it; the `ulimit` step existed precisely to
+test it, and it did its job by killing it.
+
+⚠ **This does not weaken the rest of the mechanism**, which was read from the source and stands: every
+`Receiver` owns a ring (`process.rs:315`, `:1104`), `timer()` mints a `Receiver` per call (`:1470`,
+`:1509`), so `after` costs a ring per deadline on `call-by-deadline`'s hot path. What is now unknown is
+**why the kernel refuses** on the runner — not whether the cost is real.
+
+### ⛔ A SECOND HYPOTHESIS, ALSO MEASURED, ALSO DEAD (same session)
+
+After memlock died, the next candidate was **mapping-count exhaustion**: `io_uring_setup` goes through
+`mmap`, and `mmap` returns **ENOMEM** when `vm.max_map_count` is exceeded — the exact errno — and this box
+runs `1048576` against a stock kernel's `65530`, which would have explained "passes here, fails there"
+beautifully.
+
+**Measured during a local chaos-gate run: peak `/proc/<pid>/maps` = 176 lines** (the test binary), with the
+`wat` children at **96–100 each**. Not 65 thousand. ⭑ **Refuted** — and the same number carries a positive
+finding worth keeping: **rings are NOT accumulating in this workload.** ~100 mappings per `wat` process is
+near baseline, so the per-endpoint ring cost is not pathological at this scale; it would only become so if
+something held many concurrently.
+
+⚠ **Three hypotheses, three refutations, one pattern**: memlock, general memory exhaustion, map count.
+Each was reasoned from the errno and each died on contact with a measurement. **Whatever refuses the ring
+on that runner is not a resource this box can run out of**, which is precisely why the next step is
+instrumentation rather than a fourth guess.
+
+### The NEW step 1: make the red self-describing, since it will not come here
+
+Diagnosis, **not the fix** (the fix is still the ruling in §THE RULING OWED):
+
+1. **A ring census.** Every `IoUring::new` in `src/comms/process.rs` — **9 raw sites** — now goes through
+   one counting helper, so the census cannot drift from the code. The failure text carries
+   `rings created-so-far=N` plus the refuted hypothesis by name, so the next reader does not re-enter the
+   memlock dead end. ⭑ **The decisive datum is whether the refusal is the FIRST ring in the process or the
+   ten-thousandth** — that single number separates "the kernel was out of memory" from "we leak rings".
+   ⚠ Counted `created` only, deliberately: a `live` gauge needs a `Drop` on `Receiver`, which has none, and
+   a counter that only counts up while calling itself "live" is a number that lies.
+2. **The census is itself under test** (`ring_census_counts_every_ring_it_hands_out`), asserting on the
+   DELTA, never an absolute — other tests in that binary create rings too. A counter that silently stopped
+   incrementing would answer "the first ring" forever.
+3. **The runner prints its own facts** before the tests run, so they are captured even when the job fails:
+   kernel, nproc, memlock, nofile, `free -m`, `io_uring_disabled`, `max_map_count`, cgroup `memory.max`.
+
 ## The fix, four candidates — not ranked, because the repro decides
 
 | # | shape | cost |
