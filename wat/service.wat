@@ -1654,12 +1654,38 @@
      lu-sym     (:wat::core::symbol-node "lu")
      extract-addr-def `(:wat::core::defn ~extract-addr-name
                                   [lu <- ~status-ty-ann] -> ~addr-ty
-                                  (:wat::core::match lu 
+                                  ;; ⭑ excursus 001, every-status-arm-is-named — all SIX Status
+                                  ;; variants are named; the wildcard is gone. extract-addr is
+                                  ;; only ever handed the launch ack, so every non-Started
+                                  ;; variant here IS a protocol violation — but each one now
+                                  ;; says WHICH arrived, so two worlds cannot print one line.
+                                  (:wat::core::match lu
                                     ((~status-started-kw addr) addr)
-                                    (_ (:wat::kernel::assertion-failed!
-                                         "defservice extract-addr: unexpected Status variant (expected Started)"
-                                         :wat::core::None
-                                         :wat::core::None))))
+                                    ((~status-stopped-kw resp)
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice extract-addr: got Status::Stopped (expected Started)"
+                                        :wat::core::None
+                                        :wat::core::None))
+                                    ((~status-hibernated-kw snapshot)
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice extract-addr: got Status::Hibernated (expected Started)"
+                                        :wat::core::None
+                                        :wat::core::None))
+                                    (~status-peers-allowed-kw
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice extract-addr: got Status::PeersAllowed (expected Started)"
+                                        :wat::core::None
+                                        :wat::core::None))
+                                    (~status-peers-denied-kw
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice extract-addr: got Status::PeersDenied (expected Started)"
+                                        :wat::core::None
+                                        :wat::core::None))
+                                    ((~status-faulted-kw _cause)
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice extract-addr: got Status::Faulted (expected Started)"
+                                        :wat::core::None
+                                        :wat::core::None))))
 
      clauses       (:wat::core::ast->children ops)            ;; list of op-List nodes
      impl-clauses  (:wat::core::if satisfies?
@@ -2765,6 +2791,20 @@
                                                    ;; redial path retries.
                                                    ((~reply-failed-kw cause)
                                                      (:wat::kernel::RecvOutcome::Malformed cause))
+                                                   ;; ⭑ excursus 001, every-status-arm-is-named —
+                                                   ;; THIS WILDCARD IS DELIBERATE. Unlike the nine
+                                                   ;; Status matches (a FIXED six-variant enum, now
+                                                   ;; all named), `Reply`'s variant set is
+                                                   ;; PER-SURFACE and generated: one variant per op
+                                                   ;; plus `Failed`, so "name every variant" has no
+                                                   ;; fixed meaning here. The `_` IS the detector —
+                                                   ;; it catches a reply for a DIFFERENT op (a
+                                                   ;; desync), which is exactly what the message
+                                                   ;; says. The macro does know each surface's ops
+                                                   ;; and COULD splice exhaustive arms; that is a
+                                                   ;; different stone. Marked because an unmarked
+                                                   ;; wildcard and a reasoned one look identical to
+                                                   ;; the next reader — which is how the nine survived.
                                                    (_ (:wat::kernel::assertion-failed!
                                                         "defservice method: misrouted reply variant (protocol violation)"
                                                         :wat::core::None
@@ -2946,6 +2986,17 @@
                                                         (:wat::core::Tuple (:wat::i64::+ ~tot-sym ~k-sym)
                                                           (:wat::kernel::RecvOutcome::Message
                                                             (~accepted-ctor-kw (:wat::i64::+ ~tot-sym ~k-sym)))))))
+                                                  ;; ⭑ excursus 001, every-status-arm-is-named —
+                                                  ;; THIS WILDCARD IS DELIBERATE. `~accepted-ctor-kw`
+                                                  ;; is ONE variant of a PER-SURFACE, generated
+                                                  ;; Reply enum, so there is no fixed variant set to
+                                                  ;; enumerate. Anything else — a Failed, or a reply
+                                                  ;; for a different op — stops the chunk loop and
+                                                  ;; hands the caller back the RecvOutcome it got
+                                                  ;; (`~r-sym`), unaltered, so nothing is collapsed:
+                                                  ;; the caller still learns which outcome arrived.
+                                                  ;; Naming the surface's variants here is the same
+                                                  ;; separate stone as the reply-variant site above.
                                                   (_ (:wat::core::Tuple true (:wat::core::Tuple ~tot-sym ~r-sym)))))
                                               (_ (:wat::core::Tuple true (:wat::core::Tuple ~tot-sym ~r-sym))))))))
                                     (:wat::core::Tuple false
@@ -3057,6 +3108,17 @@
                                                  ~acc-sym))
                                              ~prest-sym
                                              (:wat::core::range 0 ~pn-sym))))
+                                       ;; ⭑ excursus 001, every-status-arm-is-named — THIS
+                                       ;; WILDCARD IS DELIBERATE. `~success-ctor-kw` is ONE
+                                       ;; variant of a PER-SURFACE, generated Reply enum, so
+                                       ;; there is no fixed variant set to enumerate (contrast
+                                       ;; the nine Status sites, a FIXED six-variant enum, now
+                                       ;; all named). A page-all is a LAZY STREAM: it has no
+                                       ;; channel to report a failure on, so any non-success
+                                       ;; reply ends the stream. ⚠ That is a real limitation, not
+                                       ;; a claim of correctness — the stream cannot say WHY it
+                                       ;; ended. Fixing it means changing the element type, a
+                                       ;; different stone from naming variants.
                                        (_ (:wat::stream::empty))))
                                    (_ (:wat::stream::empty)))))
                           page-all-defn   (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
@@ -3176,18 +3238,66 @@
                                                 "defservice stop: owner-wait-gone returned Stopped"
                                                 :wat::core::None
                                                 :wat::core::None))))
-                                        (_ (:wat::kernel::assertion-failed!
-                                             "defservice stop: expected Status::Stopped"
-                                             :wat::core::None
-                                             :wat::core::None))))
+                                        ;; ⭐ excursus 001, every-status-arm-is-named — THE
+                                        ;; behaviour change. This is the SECOND recv, the one
+                                        ;; D1-a's one-level drain added. A second queued
+                                        ;; Status::Faulted used to fall into a `_` that raised
+                                        ;; "expected Status::Stopped" — a LIE (a Faulted did
+                                        ;; arrive) and a crash on a RECOVERABLE error. It now
+                                        ;; returns a faced GaveUp naming what actually happened.
+                                        ;; waited-ms comes from the method's own t0 — no second clock.
+                                        ((~status-faulted-kw _cause)
+                                          (:wat::service::StopOutcome::GaveUp
+                                            (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) ~stop-t0-sym) 1000000)
+                                            "a second Status::Faulted arrived — the fault stream outran the one-level drain"))
+                                        ((~status-started-kw addr)
+                                          (:wat::kernel::assertion-failed!
+                                            "defservice stop: got Status::Started (expected Stopped)"
+                                            :wat::core::None
+                                            :wat::core::None))
+                                        ((~status-hibernated-kw snapshot)
+                                          (:wat::kernel::assertion-failed!
+                                            "defservice stop: got Status::Hibernated (expected Stopped)"
+                                            :wat::core::None
+                                            :wat::core::None))
+                                        (~status-peers-allowed-kw
+                                          (:wat::kernel::assertion-failed!
+                                            "defservice stop: got Status::PeersAllowed (expected Stopped)"
+                                            :wat::core::None
+                                            :wat::core::None))
+                                        (~status-peers-denied-kw
+                                          (:wat::kernel::assertion-failed!
+                                            "defservice stop: got Status::PeersDenied (expected Stopped)"
+                                            :wat::core::None
+                                            :wat::core::None))))
                                     ((:wat::service::StopOutcome::Gone c)
                                       (:wat::service::StopOutcome::Gone c))
                                     ((:wat::service::StopOutcome::GaveUp w l)
                                       (:wat::service::StopOutcome::GaveUp w l))))
-                                (_ (:wat::kernel::assertion-failed!
-                                     "defservice stop: expected Status::Stopped"
-                                     :wat::core::None
-                                     :wat::core::None))))
+                                ;; ⭑ excursus 001, every-status-arm-is-named — the four
+                                ;; variants that used to share one `_`. Each is a genuine
+                                ;; protocol violation at this point and still raises, but
+                                ;; each NAMES what arrived. Faulted is handled above (drain).
+                                ((~status-started-kw addr)
+                                  (:wat::kernel::assertion-failed!
+                                    "defservice stop: got Status::Started (expected Stopped)"
+                                    :wat::core::None
+                                    :wat::core::None))
+                                ((~status-hibernated-kw snapshot)
+                                  (:wat::kernel::assertion-failed!
+                                    "defservice stop: got Status::Hibernated (expected Stopped)"
+                                    :wat::core::None
+                                    :wat::core::None))
+                                (~status-peers-allowed-kw
+                                  (:wat::kernel::assertion-failed!
+                                    "defservice stop: got Status::PeersAllowed (expected Stopped)"
+                                    :wat::core::None
+                                    :wat::core::None))
+                                (~status-peers-denied-kw
+                                  (:wat::kernel::assertion-failed!
+                                    "defservice stop: got Status::PeersDenied (expected Stopped)"
+                                    :wat::core::None
+                                    :wat::core::None))))
                             ((:wat::service::StopOutcome::Gone c)
                               (:wat::service::StopOutcome::Gone c))
                             ((:wat::service::StopOutcome::GaveUp w l)
@@ -3262,18 +3372,63 @@
                                                      "defservice hibernate: owner-wait-gone returned Stopped"
                                                      :wat::core::None
                                                      :wat::core::None))))
-                                             (_ (:wat::kernel::assertion-failed!
-                                                  "defservice hibernate: expected Status::Hibernated"
-                                                  :wat::core::None
-                                                  :wat::core::None))))
+                                             ;; ⭐ excursus 001, every-status-arm-is-named — the
+                                             ;; SECOND recv. A second queued Status::Faulted no
+                                             ;; longer raises "expected Status::Hibernated" (a
+                                             ;; lie, and a crash on a recoverable error); it
+                                             ;; returns a faced GaveUp off the method's own t0.
+                                             ((~status-faulted-kw _cause)
+                                               (:wat::service::StopOutcome::GaveUp
+                                                 (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) ~hib-t0-sym) 1000000)
+                                                 "a second Status::Faulted arrived — the fault stream outran the one-level drain"))
+                                             ((~status-started-kw addr)
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice hibernate: got Status::Started (expected Hibernated)"
+                                                 :wat::core::None
+                                                 :wat::core::None))
+                                             ((~status-stopped-kw resp)
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice hibernate: got Status::Stopped (expected Hibernated)"
+                                                 :wat::core::None
+                                                 :wat::core::None))
+                                             (~status-peers-allowed-kw
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice hibernate: got Status::PeersAllowed (expected Hibernated)"
+                                                 :wat::core::None
+                                                 :wat::core::None))
+                                             (~status-peers-denied-kw
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice hibernate: got Status::PeersDenied (expected Hibernated)"
+                                                 :wat::core::None
+                                                 :wat::core::None))))
                                          ((:wat::service::StopOutcome::Gone c)
                                            (:wat::service::StopOutcome::Gone c))
                                          ((:wat::service::StopOutcome::GaveUp w l)
                                            (:wat::service::StopOutcome::GaveUp w l))))
-                                     (_ (:wat::kernel::assertion-failed!
-                                          "defservice hibernate: expected Status::Hibernated"
-                                          :wat::core::None
-                                          :wat::core::None))))
+                                     ;; ⭑ excursus 001, every-status-arm-is-named — the four
+                                     ;; variants that used to share one `_`; each still raises
+                                     ;; (a genuine protocol violation here) but NAMES what
+                                     ;; arrived. Faulted is handled above (one-level drain).
+                                     ((~status-started-kw addr)
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice hibernate: got Status::Started (expected Hibernated)"
+                                         :wat::core::None
+                                         :wat::core::None))
+                                     ((~status-stopped-kw resp)
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice hibernate: got Status::Stopped (expected Hibernated)"
+                                         :wat::core::None
+                                         :wat::core::None))
+                                     (~status-peers-allowed-kw
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice hibernate: got Status::PeersAllowed (expected Hibernated)"
+                                         :wat::core::None
+                                         :wat::core::None))
+                                     (~status-peers-denied-kw
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice hibernate: got Status::PeersDenied (expected Hibernated)"
+                                         :wat::core::None
+                                         :wat::core::None))))
                                  ((:wat::service::StopOutcome::Gone c)
                                    (:wat::service::StopOutcome::Gone c))
                                  ((:wat::service::StopOutcome::GaveUp w l)
@@ -3328,18 +3483,63 @@
                                         ((:wat::service::StopOutcome::Stopped recvd2)
                                           (:wat::core::match recvd2
                                             (~status-peers-allowed-kw (:wat::service::GateOutcome::Applied))
-                                            (_ (:wat::kernel::assertion-failed!
-                                                 "defservice grant: expected Status::PeersAllowed"
-                                                 :wat::core::None
-                                                 :wat::core::None))))
+                                            ;; ⭐ excursus 001, every-status-arm-is-named — the
+                                            ;; SECOND recv. A second queued Status::Faulted no
+                                            ;; longer raises "expected Status::PeersAllowed" (a
+                                            ;; lie, and a crash on a recoverable error); it
+                                            ;; returns a faced GaveUp off the method's own t0.
+                                            ((~status-faulted-kw _cause)
+                                              (:wat::service::GateOutcome::GaveUp
+                                                (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) ~grant-t0-sym) 1000000)
+                                                "a second Status::Faulted arrived — the fault stream outran the one-level drain"))
+                                            ((~status-started-kw addr)
+                                              (:wat::kernel::assertion-failed!
+                                                "defservice grant: got Status::Started (expected PeersAllowed)"
+                                                :wat::core::None
+                                                :wat::core::None))
+                                            ((~status-stopped-kw resp)
+                                              (:wat::kernel::assertion-failed!
+                                                "defservice grant: got Status::Stopped (expected PeersAllowed)"
+                                                :wat::core::None
+                                                :wat::core::None))
+                                            ((~status-hibernated-kw snapshot)
+                                              (:wat::kernel::assertion-failed!
+                                                "defservice grant: got Status::Hibernated (expected PeersAllowed)"
+                                                :wat::core::None
+                                                :wat::core::None))
+                                            (~status-peers-denied-kw
+                                              (:wat::kernel::assertion-failed!
+                                                "defservice grant: got Status::PeersDenied (expected PeersAllowed)"
+                                                :wat::core::None
+                                                :wat::core::None))))
                                         ((:wat::service::StopOutcome::Gone c)
                                           (:wat::service::GateOutcome::Gone c))
                                         ((:wat::service::StopOutcome::GaveUp w l)
                                           (:wat::service::GateOutcome::GaveUp w l))))
-                                    (_ (:wat::kernel::assertion-failed!
-                                         "defservice grant: expected Status::PeersAllowed"
-                                         :wat::core::None
-                                         :wat::core::None))))
+                                    ;; ⭑ excursus 001, every-status-arm-is-named — the four
+                                    ;; variants that used to share one `_`; each still raises
+                                    ;; (a genuine protocol violation here) but NAMES what
+                                    ;; arrived. Faulted is handled above (one-level drain).
+                                    ((~status-started-kw addr)
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice grant: got Status::Started (expected PeersAllowed)"
+                                        :wat::core::None
+                                        :wat::core::None))
+                                    ((~status-stopped-kw resp)
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice grant: got Status::Stopped (expected PeersAllowed)"
+                                        :wat::core::None
+                                        :wat::core::None))
+                                    ((~status-hibernated-kw snapshot)
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice grant: got Status::Hibernated (expected PeersAllowed)"
+                                        :wat::core::None
+                                        :wat::core::None))
+                                    (~status-peers-denied-kw
+                                      (:wat::kernel::assertion-failed!
+                                        "defservice grant: got Status::PeersDenied (expected PeersAllowed)"
+                                        :wat::core::None
+                                        :wat::core::None))))
                                 ((:wat::service::StopOutcome::Gone c)
                                   (:wat::service::GateOutcome::Gone c))
                                 ((:wat::service::StopOutcome::GaveUp w l)
@@ -3386,18 +3586,63 @@
                                          ((:wat::service::StopOutcome::Stopped recvd2)
                                            (:wat::core::match recvd2
                                              (~status-peers-denied-kw (:wat::service::GateOutcome::Applied))
-                                             (_ (:wat::kernel::assertion-failed!
-                                                  "defservice revoke: expected Status::PeersDenied"
-                                                  :wat::core::None
-                                                  :wat::core::None))))
+                                             ;; ⭐ excursus 001, every-status-arm-is-named — the
+                                             ;; SECOND recv. A second queued Status::Faulted no
+                                             ;; longer raises "expected Status::PeersDenied" (a
+                                             ;; lie, and a crash on a recoverable error); it
+                                             ;; returns a faced GaveUp off the method's own t0.
+                                             ((~status-faulted-kw _cause)
+                                               (:wat::service::GateOutcome::GaveUp
+                                                 (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) ~revoke-t0-sym) 1000000)
+                                                 "a second Status::Faulted arrived — the fault stream outran the one-level drain"))
+                                             ((~status-started-kw addr)
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice revoke: got Status::Started (expected PeersDenied)"
+                                                 :wat::core::None
+                                                 :wat::core::None))
+                                             ((~status-stopped-kw resp)
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice revoke: got Status::Stopped (expected PeersDenied)"
+                                                 :wat::core::None
+                                                 :wat::core::None))
+                                             ((~status-hibernated-kw snapshot)
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice revoke: got Status::Hibernated (expected PeersDenied)"
+                                                 :wat::core::None
+                                                 :wat::core::None))
+                                             (~status-peers-allowed-kw
+                                               (:wat::kernel::assertion-failed!
+                                                 "defservice revoke: got Status::PeersAllowed (expected PeersDenied)"
+                                                 :wat::core::None
+                                                 :wat::core::None))))
                                          ((:wat::service::StopOutcome::Gone c)
                                            (:wat::service::GateOutcome::Gone c))
                                          ((:wat::service::StopOutcome::GaveUp w l)
                                            (:wat::service::GateOutcome::GaveUp w l))))
-                                     (_ (:wat::kernel::assertion-failed!
-                                          "defservice revoke: expected Status::PeersDenied"
-                                          :wat::core::None
-                                          :wat::core::None))))
+                                     ;; ⭑ excursus 001, every-status-arm-is-named — the four
+                                     ;; variants that used to share one `_`; each still raises
+                                     ;; (a genuine protocol violation here) but NAMES what
+                                     ;; arrived. Faulted is handled above (one-level drain).
+                                     ((~status-started-kw addr)
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice revoke: got Status::Started (expected PeersDenied)"
+                                         :wat::core::None
+                                         :wat::core::None))
+                                     ((~status-stopped-kw resp)
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice revoke: got Status::Stopped (expected PeersDenied)"
+                                         :wat::core::None
+                                         :wat::core::None))
+                                     ((~status-hibernated-kw snapshot)
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice revoke: got Status::Hibernated (expected PeersDenied)"
+                                         :wat::core::None
+                                         :wat::core::None))
+                                     (~status-peers-allowed-kw
+                                       (:wat::kernel::assertion-failed!
+                                         "defservice revoke: got Status::PeersAllowed (expected PeersDenied)"
+                                         :wat::core::None
+                                         :wat::core::None))))
                                  ((:wat::service::StopOutcome::Gone c)
                                    (:wat::service::GateOutcome::Gone c))
                                  ((:wat::service::StopOutcome::GaveUp w l)
