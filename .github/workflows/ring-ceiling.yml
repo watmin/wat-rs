@@ -57,6 +57,13 @@ jobs:
           repository: watmin/holon-rs
           path: holon-rs
 
+      # ⛔ REQUIRED, and omitting it is how this workflow failed its first run: the repo's
+      # .cargo/config.toml pins mold as the linker, so without it every build dies at
+      # `collect2: fatal error: cannot find 'ld'` — in a build-script dependency, which
+      # reads like "the probe does not compile" and is nothing of the sort.
+      - name: Install mold (the linker .cargo/config.toml pins)
+        run: sudo apt-get update && sudo apt-get install -y mold && mold --version
+
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
         with:
