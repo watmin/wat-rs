@@ -214,3 +214,15 @@
                          (:wat::core::PersistentVector (:exp::cool))
                          (:wat::core::PersistentVector (:exp::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
     (:wat::edn::write (:wat::rete::export s0))))
+
+;; Arc 278 D3 — fire an Export the CALLER supplies, so a tampered one is observable end-to-end.
+;; `import-hits` builds its own export internally and cannot be handed one; `import-one` stops at
+;; the Session. This is the missing mouth: Export -> hit count, through seed + fire + query.
+(:wat::core::defn :user::import-and-hits [e <- :wat::rete::Export] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::rete::query
+      (:wat::core::match (:wat::rete::fire-rules (:exp::seed (:wat::rete::import e)))
+        [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
+        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
+        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+      (:exp::q-Hit))))
