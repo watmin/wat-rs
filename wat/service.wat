@@ -3507,7 +3507,7 @@
                           [~cm-b-sym    (:wat::kernel::listener :user::spawn::service-locus
                                             ~proto-op-ty-ann ~proto-reply-ty-ann ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty-runtime ~admin-ty-runtime)
-                           ~cm-ship-sym (:wat::core::match (:wat::kernel::recv-by-deadline ~cm-self-sym :wat::service::CHILD-MAIN-STARTUP-DEADLINE-MS) 
+                           ~cm-ship-sym (:wat::core::match (:wat::kernel::recv-by-deadline ~cm-self-sym :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
                                             ((:wat::kernel::RecvOutcome::Message ~cm-shipmsg-sym) ~cm-shipmsg-sym)
                                             ;; arc 278 the recv'-outcome wall — the child lost/closed its
                                             ;; owner link before the startup ship arrived: eprintln is the
@@ -4251,14 +4251,15 @@
     (:wat::core::None
       (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected))))
 
-;; Generated child-main awaits the owner's startup ship with recv-by-deadline.
-;; The owner sends immediately after spawn; a wait of tens of seconds is already
-;; pathological (a blocked bare recv ignored SIGTERM for 125s this session;
-;; `timeout 30` never returned). 30000 ms is ~3 orders of magnitude above a
-;; healthy spawn-and-send, sits inside that timeout-30 window, and is not so
-;; tight that a loaded-CI :init false-fires. Named so it is not the inbox-cap-64
-;; mistake. NOT a :deadline-ms clause (D4 refuses that name).
-(:wat::core::def :wat::service::CHILD-MAIN-STARTUP-DEADLINE-MS 30000)
+;; ⛔ `:wat::service::CHILD-MAIN-STARTUP-DEADLINE-MS` lived HERE and is GONE. The
+;; child end of the spawn handshake was bounded before the parent end had been
+;; examined, so the constant was minted in the only file that then needed it. Both
+;; ends are bounded now, and they name ONE constant —
+;; `:wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS` (wat/spawn.wat, which carries the
+;; justification for the number). Do not re-home a copy here: service.wat is
+;; manifest position 341 and spawn.wat is 171, so a constant here is unnameable
+;; from `launch`, and two constants of one value are exactly the drift removing
+;; this one prevents.
 
 ;; call-by-deadline — one client round-trip with a timer. idx 0 is Answered;
 ;; idx 1 is DeadlineFired. Lost keeps its cause; Closed is the clean EOF.

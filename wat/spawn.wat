@@ -86,6 +86,27 @@
 ;; together.  512 KiB = 524288 bytes.
 (:wat::core::def :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES 524288)
 
+;; ── The startup handshake's deadline — ONE constant, BOTH ends ───────────────
+;; Every "something was just spawned and must announce itself" wait names THIS,
+;; and there is exactly one of them on purpose: the PARENT ends (`launch` on both
+;; tiers below, and the two `:wat::test::spawn-*-program` harness holders) and the
+;; CHILD end (`child-main`'s wait for the owner's startup ship, wat/service.wat)
+;; bound the SAME handshake. Two constants of equal value can drift apart in a
+;; later edit; one cannot — which is why the 3-hour-old child-only predecessor in
+;; wat/service.wat (see the tombstone comment there) is GONE rather than mirrored. ⛔ Homed HERE, not in service.wat, because load order forces it:
+;; spawn.wat is manifest position 171 and service.wat is 341, so a constant in
+;; service.wat is unnameable from `launch`. That is also the correct home — the
+;; number describes the SPAWN HANDSHAKE, not the service macro.
+;;
+;; The justification, carried over verbatim in substance from that predecessor:
+;; the owner sends immediately after spawn, so a wait of tens of seconds is already
+;; pathological (a blocked bare recv ignored SIGTERM for 125 s this session;
+;; `timeout 30` never returned). 30000 ms is ~3 orders of magnitude above a
+;; healthy spawn-and-send, sits inside that timeout-30 window, and is not so
+;; tight that a loaded-CI :init false-fires. Named so it is not the inbox-cap-64
+;; mistake. NOT a :deadline-ms clause (D4 refuses that name).
+(:wat::core::def :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS 30000)
+
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
 ;; (thread)             — default init-fn + no-op post-spawn-fn; runner-count defaults to cpu-count.
 ;; (thread/init f)      — init-fn is f; post-spawn-fn defaults to no-op; runner-count defaults to cpu-count.
@@ -528,7 +549,7 @@
        ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome. ::Message → the
        ;; child reached readiness (discard + proceed); ::Lost (an :init crash) → eprintln the
        ;; cause (loud, terminal); ::Closed (the child exited before Started) → eprintln (terminal).
-       _  (:wat::core::match (:wat::kernel::recv sp)
+       _  (:wat::core::match (:wat::kernel::recv-by-deadline sp :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
             ((:wat::kernel::RecvOutcome::Message _m) nil)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             ;; arc 278 #73 — the substrate began stopping before the child reached
@@ -585,7 +606,7 @@
        ;; the child-minted launch status (extract-addr consumes it); ::Lost (the child crashed
        ;; before Started — the ProcessPanics envelope) → eprintln the cause (loud, terminal);
        ;; ::Closed (the child exited before Started) → eprintln (terminal).
-       lu   (:wat::core::match (:wat::kernel::recv svc)
+       lu   (:wat::core::match (:wat::kernel::recv-by-deadline svc :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
               ((:wat::kernel::RecvOutcome::Message m) m)
               ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
               ;; arc 278 #73 — the process-tier twin of the thread arm above. Note this arm
