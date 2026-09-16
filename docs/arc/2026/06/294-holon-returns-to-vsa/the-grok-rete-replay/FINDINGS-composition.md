@@ -1007,6 +1007,38 @@ a failure changes the counts — but each green was ~87% likely, not certain.
   folding our strike into a replayed commit would stop that step's diff matching grok's (the
   recovery-doc precedent).
 
+## Finding 33 — wat embedded in `.rs`/`.sh` STRINGS is the replay's most persistent defect source, and no codemod will ever reach it
+
+R21's exception — *"wat embedded in `.rs` strings: bring it to main's syntax by hand. The codemods do not
+reach it. Log each edit."* — reads like a footnote. It is not. It is a **recurring defect class** that has
+now bitten at least three separate steps, each time invisible to every instrument we own, because **no
+`.wat` file is involved**: `convert.sh` never sees it, `every_tracked_wat_parses` never parses it, and the
+stdlib door never registers it.
+
+| step | where | what was stale |
+|---|---|---|
+| #162 | `src/rete/kernel/stratify.rs` | `rete::core::i64::*` in match arms + doc comments — **7 sites**, logged as 4 (finding 27) |
+| #167 | `wat-scripts/perf/grid/run-axis.sh` | a `perl` substitution swapping a bare `Session` where the axes expect `(:wat::rete::FireOutcome :- [Session])` — broken since the outcome wall landed |
+| #238 | `src/rete/.../probe_eq_for`'s lookup table | `rete::core::{i64,f64,string}::=` after those three were rehomed |
+
+- **Every instance was found by a human or agent READING THE DIFF**, never by a gate. #167's had been
+  silently broken for weeks and was found only because its sibling copy was on the floor.
+- **The tell**: a `.rs`/`.sh` change that contains wat-shaped text near a step that renames or rehomes wat
+  names. When a step's subject mentions a rename, grep the `.rs` side too.
+- ⚠ **AND A RENAME CENSUS MUST KNOW WHICH NAMES WERE ACTUALLY REHOMED.** Verifying #238 I ran
+  `rete::core::(i64|f64|string|keyword)` and flagged `rete::core::keyword::=` as "STILL STALE". **It is the
+  live, correct spelling** — `vocabulary.rs:1272` carries it as a `rete_name`, `rete_alias.rs:690`
+  registers it as an actual `#[wat_special_form]`, and `rename-keyword-to-its-home.wat:36` explicitly
+  records that those rows are NOT its target. Only the numerics and string were ever rehomed
+  (`rename-rete-numerics-to-their-homes.wat`, `rename-core-string-to-string.wat`). The executor fixed
+  exactly the three that moved and correctly left `keyword` alone. **My pattern lumped two different cases
+  together and nearly produced a false accusation against correct work** — the fifth malformed pattern of
+  that session and the first that could have cost someone credit. A census over a rename must be built from
+  the RECORDED MIGRATIONS, not from the shape of the name.
+- **The standing cure**, now in the SEAM: this is a per-step reading obligation, not a gate. Rung:
+  CONVENTION — and honestly so, since the thing that would catch it (a wat parser pointed at string
+  literals inside Rust) does not exist.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

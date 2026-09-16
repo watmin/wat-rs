@@ -21,9 +21,9 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `b036c5fd8`+. **Batch 4e (#226–#240) is IN FLIGHT and INCOMPLETE** — 8 steps
-committed (#226–#233), **233 of 651 replayed**; the executor is held at **#234** and resumes after the
-finding-32 strike lands. #226 (the divergent stdlib MACRO, G1 class) was driven cleanly.
+Stamp: written at HEAD `c3c824a34` (= origin). In flight: nothing — **batch 4e (#226–#240) is CLOSED and
+PUSHED**; **240 of 651 replayed**. Next is **batch 4f (#241–#260)**: no stdlib-touch, no moved-home, no
+divergent-macro row in range — the next two-phase step is #377.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -42,8 +42,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4b #160–#211 (CLOSED; floor 5569/5569, clippy 0, pushed)
                               + batch 4c #212–#220 (CLOSED; floor 5576/5576, clippy 0, pushed)
                               + batch 4d #221–#225 (CLOSED; floor 5578/5578, clippy 0, pushed)
-                              + batch 4e #226–#233 IN FLIGHT (held at #234; floor 5585/5585, clippy 0)
-                              ⇒ 233 of 651 replayed. NEXT: resume #234 → #240.
+                              + batch 4e #226–#240 (CLOSED; floor 5593/5593, clippy 0, pushed)
+                              ⇒ 240 of 651 replayed. NEXT: batch 4f #241–#260.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -100,6 +100,17 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4e #226–#240 is CLOSED and PUSHED** (`c3c824a34`; SCORE-7e, REPLAY-LOG; findings 32–33). 15 steps.
+  Orchestrator-verified: floor **5593/5593, 24 skipped** — the predicted count for the SEVENTH consecutive
+  time — clippy 0, E7 reproducing #238's verdict lines exactly (kind(lib) 1482, doctest 8, lint-subset 153,
+  stone-3 3, its named test 1/1), and the range gate green **identically with and without
+  `GIT_NO_REPLACE_OBJECTS=1`**. E2/E15/E16 re-checked by me; E16 (finding 31's new row) passed its first
+  real exercise. `--check` on `wat/rete/syntax.wat` DISPROVED with a **delta of 0** — #226 modifies a macro
+  rather than adding top-level `:wat::` defns, where 4d's `fire.wat` gave +3 for three new ones: the count
+  tracks DEFINITIONS, not edit volume, confirmed in both directions.
+  ⛔ **#234 STOPPED on a red that was NOT its own** (finding 32) — the executor refused every barred
+  disposition, and the controlled measurement exonerated it. #238 then caught a SECOND instance of the
+  embedded-wat class (finding 33) before committing.
 - **Batch 4d #221–#225 is CLOSED and PUSHED** (`b036c5fd8`; SCORE-7d, REPLAY-LOG; finding 31). 5 steps.
   Orchestrator-verified: floor **5578/5578, 24 skipped** — the predicted count for the FIFTH consecutive
   time — clippy 0, E7 reproducing #221's verdict lines exactly (kind(lib) 1478, doctest 8, lint-subset 153,
@@ -113,8 +124,14 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `ReservedPrefix`, ours **19** — exactly +3 for the three new top-level defns. Generalises finding 25's
   `wat/fix.wat` precedent to all of `wat/`.
 - **Batch 4c #212–#220 is CLOSED and PUSHED** (steps at `628e26a00`, records at `154672b4a`; SCORE-7c,
-  REPLAY-LOG; findings 29–30). 9 steps. ⚠ *This row sits BELOW 4d's above it — the bullets are not in
-  chronological order. The STAMP and the WHERE block are the authority on what is current.*
+  REPLAY-LOG; findings 29–30). 9 steps.
+
+> ⚠ **THE BATCH BULLETS ARE NOT IN ONE CONSISTENT ORDER.** They run 4a → 4b → **4e → 4d → 4c**: ascending
+> to 4b, then REVERSE-chronological, because each new row was anchored on the previous newest and landed
+> above it. Every row is individually dated with its own SHA, but **do not read position as recency.**
+> **The STAMP (top) and the WHERE block are the authority on what is current.** Left unshuffled
+> deliberately: moving multi-line bullets has mangled a splice in this file before, and the cost of the
+> disorder is legibility, not truth.
   Orchestrator-verified: floor **5576/5576, 24 skipped** — the predicted count for the fourth consecutive
   time — clippy 0, E7 reproducing #218's verdict lines exactly (kind(lib) 1478, doctest 8, lint-subset 153,
   stone-3 3), E3 over all 8 touched `.wat` giving **5 rc=0 / 3 rc=1** exactly as predicted, and
@@ -235,6 +252,13 @@ on a stashed tree, then `git checkout -- src/check.rs`.
 - **Pass `verify-step-record.sh` the batch's STEP RANGE** (`<from> <to> <first-N> <last-N>`), or it cannot
   see a mis-subjected or skipped step — finding 26. Every step, docs-only included, commits as
   `REPLAY(grok-rete #N): <C's subject>` with the `-x` trailer kept in the body.
+- ⛔ **WAT EMBEDDED IN `.rs`/`.sh` STRINGS IS THE REPLAY'S MOST PERSISTENT DEFECT SOURCE** (finding 33) —
+  #162, #167, #238 so far, each invisible to every gate because no `.wat` file is involved. When a step's
+  subject mentions a rename or rehome, **grep the `.rs`/`.sh` side too**. Rung: CONVENTION — the instrument
+  that would catch it (a wat parser aimed at Rust string literals) does not exist.
+- ⛔ **A RENAME CENSUS MUST BE BUILT FROM THE RECORDED MIGRATIONS, NOT THE SHAPE OF THE NAME** (finding 33).
+  `rete::core::{i64,f64,string}` were rehomed; `rete::core::keyword::=` was deliberately NOT (it is a live
+  `#[wat_special_form]`). A pattern lumping them flagged correct work as stale.
 - ⛔ **A WALL-CLOCK RATIO IS NOT A GATE — but measure before striking one** (finding 32). Three such gates
   have now been struck here (two at #190/#202, one at `gather_probe_cost.rs`), each after a CONTROLLED
   measurement, never on resemblance. A census found a FOURTH (`harvest_cost.rs:338`) that **is kept**: it
