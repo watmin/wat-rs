@@ -1,4 +1,43 @@
 //! Fire loop: alpha/root/hash/production passes, leftover rematch, delta fixpoint.
+//!
+//! ## ⛔ The four `*_pass` functions are NOT the engine. Read this before changing one.
+//!
+//! `alpha_pass`, `root_join_pass`, `hash_join_pass` and `production_pass` are all
+//! **`#[cfg(test)]`**, and `kernel/tests.rs` is their only caller. They are FULL-RECOMPUTE
+//! reference implementations kept for one reason, stated at their call site: *"run the four
+//! passes (inspect native beta; freeze would drop it)"* — a test that needs to look inside beta
+//! memory cannot go through the normal path, because freezing a session discards it.
+//!
+//! **Production fires the DELTA path instead**: `fire_once_session` / `eval_fire_once_native`
+//! here route to `delta.rs`'s `fire_fixpoint_delta_armed`, which drives the semi-naive passes in
+//! `fire/pass/*.rs` (`alpha`, `root_join`, `hash_join`, `filter`, `accumulate`, `production`, …).
+//! Both families mirror the same specification, `wat/rete/oracle/pass.wat`.
+//!
+//! So a change to `hash_join_pass` HERE changes nothing that ships; the shipping twin is
+//! `fire/pass/hash_join.rs`. The names are near-identical and the compiler will not warn you.
+//!
+//! ⛔ **The discriminator is LOCATION, not the `_pass` suffix — do not learn the wrong rule from
+//! the four above.** Most shipping passes are named `*_delta` (`alpha_delta`, `root_join_delta`,
+//! `hash_join_delta`, `production_delta`), which makes `_pass` look like it means "test-only".
+//! It does not: **`accumulate_pass` and `filter_pass` are production**, called from
+//! `delta.rs`, carrying no `cfg`. The reliable rule is where the function lives — everything in
+//! `fire/pass/` ships; only these four `*_pass` in THIS file are `#[cfg(test)]`.
+//!
+//! ## What the rest of this file is: the machinery BOTH families share
+//!
+//! Everything that is not one of those four passes is live in production, reached from
+//! `fire/pass/` and `delta.rs`:
+//!
+//! - **Join** — `driver_of`, `rematch_compiled`, `join_extend`, `keyed_join_persistent`,
+//!   `extend_token`, `token_assoc`.
+//! - **Join keys** — `key_of`, `gather_join_keys`, and the gather index (`GatherIntern`,
+//!   `GatherIndex`, `build_gather_index`, `ensure_gather`) that turns a key into a bucket.
+//! - **Query harvest** — `query_class_scans`, `harvest_query_memory`, `harvest_class_scan_*`:
+//!   a query reads the CLOSED BAG (input ∪ derived), never production memory.
+//! - **The alpha delta view** — `AlphaNews` / `AlphaNewsIter`, `append_d_alpha`.
+//! - **`FireCtx`** — the split borrow that lets a join hold eleven session fields while a shared
+//!   borrow of `wm.alpha` or `wm.beta` is still live. Its doc records why a constructor cannot
+//!   replace the call-site literals; read it before you try (it has been tried).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -15,11 +54,12 @@ use crate::value::value::AggregateValue;
 
 use super::*;
 
-/// Split-borrow of `FireSession`. Token/Element are Copy; we cannot
-/// hold `&mut FireSession` while walking beta/alpha. Facts stay out of
-/// the bind intern (`DESIGN-STONE-fact-as-index`).
-/// The per-join context: the eleven session fields a join needs, plus the two
-/// that vary.
+/// The per-join context: the eleven session fields a join needs, plus the two that vary.
+///
+/// A split borrow of `FireSession`. Token and Element are `Copy`, but we cannot hold
+/// `&mut FireSession` while walking beta or alpha — so a join takes the fields it writes by
+/// name and leaves the two it reads alone. Facts stay out of the bind intern
+/// (`DESIGN-STONE-fact-as-index`).
 ///
 /// ⚠ DO NOT REPLACE THE CALL-SITE LITERALS WITH A `from_wm(&mut wm, …)`
 /// CONSTRUCTOR. It was tried on 2026-08-24 and reverted the same hour. Six
@@ -64,6 +104,8 @@ pub(crate) struct FireCtx<'a> {
 /// `exec_compiled_with_key_ids` against that type's alphas. Mirrors
 /// `wat/rete/oracle/pass.wat`. A missing compiled cond refuses — do not walk
 /// `alpha_match_inner`.
+///
+/// ⚠ `#[cfg(test)]` — the shipping twin is `fire/pass/alpha.rs` (module header).
 #[cfg(test)]
 pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
@@ -121,6 +163,8 @@ pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<
 /// `root-join-pass` / `seed-root-join-children` / `seed-token` / `append-token` —
 /// for each AlphaNode with Elements, seed one Token per Element into each RootJoinNode child's beta.
 /// Mirrors `wat/rete/oracle/pass.wat`.
+///
+/// ⚠ `#[cfg(test)]` — the shipping twin is `fire/pass/root_join.rs` (module header).
 #[cfg(test)]
 pub(crate) fn root_join_pass(wm: &mut FireSession) {
     let node_ids = sorted_node_ids(&wm.network);
@@ -166,6 +210,14 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
     }
 }
 
+/// Look up an alpha's compiled `CondDriver`, or raise.
+///
+/// One of three lookups in this file — with `rematch_compiled` and `exec_stashed_where` — whose
+/// miss is a COMPILER bug, never bad input: every alpha is given a driver at setup, so an absent
+/// entry means compilation skipped one. They raise `MalformedForm` naming that invariant rather
+/// than returning `Option`, because there is no sensible fire-time recovery and a silent `None`
+/// would degrade into "this alpha matches nothing" — a wrong answer that looks like an empty
+/// result.
 pub(crate) fn driver_of(
     drivers: &HashMap<i64, CondDriver>,
     alpha_id: i64,
@@ -269,6 +321,9 @@ fn binding_extensions(
     }
 }
 
+/// Look up an alpha's `CompiledCond`, or raise. Twin of `driver_of` — same compile-time
+/// invariant, same reason it is a raise and not an `Option`; the message differs only in naming
+/// FACT-SHAPED alphas, since those are the ones setup compiles a cond for.
 pub(crate) fn rematch_compiled(
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     alpha_id: i64,
@@ -301,6 +356,17 @@ fn fact_holds_under<B: Bindings + ?Sized>(
     crate::rete::compiled_cond::exec_compiled_under_holds(sym, compiled, fact_fields, scratch, seed)
 }
 
+/// Run a compiled cond against one fact under an existing seed, returning the UNIFIED bindings
+/// as a materialised `PMap` — or `None` if the fact does not match.
+///
+/// Two things here are not obvious. First, the unification rule: a `Bind` of `?c` compiles as a
+/// first-write, because the cond in isolation cannot know the left token already bound `?c`. So
+/// this re-checks by hand — an equal value is fine, a CONFLICTING value is no match, and that is
+/// what makes a join agree with `alpha_match_inner_seeded` and with Clara.
+///
+/// Second, the `PMap` is deliberate and confined: the fire path does NOT materialise bindings
+/// (`DESIGN-STONE-token-bind-pool` keeps them in the interned pool). This is the leftover-rematch
+/// path, which needs a real map. Do not reach for it from the hot path.
 fn fact_bindings_under<B: Bindings + ?Sized>(
     sym: &SymbolTable,
     fact: &Value,
@@ -333,6 +399,12 @@ fn fact_bindings_under<B: Bindings + ?Sized>(
     Some(pm)
 }
 
+/// Does anything satisfy `driver`, seeded by this token's bindings? The `:exists` / `:not`
+/// question, asked without building the extensions.
+///
+/// The leaf arm is the hot one and stays on `BindView` — no map is built. Only a COMBINATOR
+/// inner (`and`/`or`/`where`) falls through to `exists_cond_under`, which needs a real `PMap`
+/// seed; that path is rare, and the rune on it records the trade rather than hiding it.
 fn token_exists_under<B: Bindings + ?Sized>(
     driver: &CondDriver,
     tok: &B,
@@ -366,6 +438,19 @@ fn token_exists_under<B: Bindings + ?Sized>(
     }
 }
 
+/// `token_exists_under`'s combinator half — existence under a non-leaf driver.
+///
+/// Each of the six arms answers existence in the cheapest way its shape allows, rather than by a
+/// uniform walk: `And` asks whether `binding_extensions` produced anything at all (it must build
+/// them — an `and` is satisfied only jointly), `Or` short-circuits on the first satisfied
+/// branch, `Where` runs the compiled predicate on the seed, `Not` negates the inner answer,
+/// `Exists` passes straight through (existence of an existence IS that existence), and `Leaf`
+/// probes the keyed index. Recursion is what lets an arbitrarily nested driver be answered
+/// without flattening it first.
+///
+/// `Leaf` appears here as well as in `token_exists_under` because a leaf can sit UNDER a
+/// combinator; the difference is the seed — this one has already been materialised into a
+/// `PMap`, that one is still a `BindView`.
 fn exists_cond_under(
     driver: &CondDriver,
     wm: &FireSession,
@@ -534,6 +619,15 @@ fn element_with_row_span(
     }
 }
 
+/// `assoc` on a token's interned bindings: copy its span to the end of the pool, then overwrite
+/// the matching key's value in place (or push the pair if the key is new). Returns a new `Token`
+/// pointing at the fresh span — the original is untouched.
+///
+/// The copy is `extend_from_within`, not `to_vec()`. That is not a micro-optimisation looking
+/// for a home: the pool is READ while it is being PUSHED TO, which is a borrow conflict, and the
+/// earlier `to_vec()` existed to dodge it at the cost of an allocation per call.
+/// `extend_from_within` is the read-and-append as ONE operation, so there is no borrow to work
+/// around — the allocation goes away because the conflict does.
 fn token_assoc(tok: &Token, k: Value, v: Value, intern: &mut BindIntern<'_>) -> Token {
     let key_id = intern_key(intern.keys, &k);
     let vid = intern_val(intern.vals, intern.ids, v);
@@ -611,6 +705,12 @@ pub(crate) fn join_extend(
 }
 
 #[cfg(test)]
+/// Hash join over a full left/right pair: derive the shared join keys, index the RIGHT side by
+/// key tuple, then probe once per left token.
+///
+/// ⚠ `#[cfg(test)]` — the shipping twin is `keyed_join_persistent` (module header), which keeps
+/// its index across probes instead of rebuilding one per call. This version is the readable
+/// statement of the algorithm; that one is what runs.
 fn keyed_join(
     left_tokens: &[Token],
     right_elements: &[Element],
@@ -722,12 +822,15 @@ fn keyed_join_persistent(
     Ok(out)
 }
 
+// ── Pass 3: Hash-join pass ────────────────────────────────────────────────────
+
 /// `hash-join-pass` / `cross-join-node` — propagate tokens from a left-parent to
 /// its HashJoinNode children, in ascending node-id order (topological).
 /// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
 /// Mirrors `wat/rete/oracle/pass.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
+///
+/// ⚠ `#[cfg(test)]` — the shipping twin is `fire/pass/hash_join.rs` (module header).
 #[cfg(test)]
-// ── Pass 3: Hash-join pass ────────────────────────────────────────────────────
 pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let node_ids = &arm.node_ids;
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
@@ -841,6 +944,8 @@ fn d_beta_from_parents(parents_of: &ParentsOf, d_beta: &BetaMemory, node_id: i64
 /// `production-pass` / `fire-production` — for each ProductionNode, find its parent's beta tokens,
 /// for each token × each compiled `:then` form, `exec_compiled_rhs`, push to `production[prod_id]`.
 /// Mirrors `wat/rete/oracle/pass.wat`.
+///
+/// ⚠ `#[cfg(test)]` — the shipping twin is `fire/pass/production.rs` (module header).
 #[cfg(test)]
 pub(crate) fn production_pass(
     wm: &mut FireSession,
@@ -1057,6 +1162,13 @@ fn compiled_rhs_is_class(arm: &InternedNetwork, class: &str) -> bool {
         })
 }
 
+/// The one-scan harvest path: walk the closed bag and keep the facts of the scan's class.
+///
+/// Three cheap decisions ride on flags rather than on re-testing every fact, and each skips work
+/// the general path would repeat (`DESIGN-STONE-fanout-identity-filter`):
+/// `input_has_scan_class` skips the INPUT facts entirely when compilation packed no fact of this
+/// class; `derived_is_scan` drops the class test on DERIVED facts when the interned RHS can only
+/// produce that one class; and both fall back to the filtering walk when neither holds.
 fn harvest_class_scan_filter(
     wm: &FireSession,
     scan: &QueryClassScan,
@@ -1095,6 +1207,17 @@ fn harvest_class_scan_filter(
     maps
 }
 
+/// Rebuild `wm.query` — for each QueryNode, the bindings its query name resolves to.
+///
+/// A query reads the CLOSED BAG (input ∪ derived), never production memory
+/// (`DESIGN-STONE-query-class-scan-harvest`), so the cost is in how many times that bag is
+/// walked. That is the one decision here: with MORE THAN ONE scan the bag is indexed by class
+/// once up front (`closed_bag_by_class`) and every query reads the index; with exactly one, an
+/// index would cost a walk to save a walk, so the filtering path stays.
+///
+/// The early return matters — a network with no QueryNodes CLEARS `wm.query` rather than leaving
+/// it alone. Stale query memory from a previous round would otherwise answer a question this
+/// network no longer asks.
 pub(crate) fn harvest_query_memory(
     wm: &mut FireSession,
     arm: &InternedNetwork,
@@ -1375,6 +1498,13 @@ impl<'a> GatherIntern<'a> {
         }
     }
 
+    /// A `GatherIntern` with EMPTY side tables — no packed columns, no bind-only fields, no
+    /// cond key ids, and `alpha_id` of `-1`.
+    ///
+    /// ⚠ `#[cfg(test)]`. It exists so a benchmark or unit test can key elements from raw intern
+    /// slices without standing up a `FireSession`. Every lookup that would consult a side table
+    /// misses, so a caller gets the SLOW path by construction — correct for a test, and a silent
+    /// regression if it were ever reached in production. Use `from_wm` / `from_ctx` there.
     #[cfg(test)]
     pub(crate) fn of(
         bind_keys: &'a [Value],
@@ -1416,6 +1546,12 @@ fn col_field_of(intern: &GatherIntern<'_>, join_key: &Value) -> Option<u8> {
     fields.get(pos).copied()
 }
 
+/// The value-id an element carries for a single join key, by the fast route if there is one.
+///
+/// Two routes, tried in order: the PACKED COLUMN (`col_vid`, an indexed read) when this key has
+/// a known field, else a linear scan of the element's interned bind span for the key id. The
+/// fallback is not dead weight — an element whose binding was not packed as a column has no
+/// column to read, and only the scan can find it.
 fn unary_el_vid(
     el: &Element,
     field: Option<u8>,
@@ -1443,6 +1579,17 @@ fn col_vid(intern: &GatherIntern<'_>, el: &Element, field: u8) -> Option<u32> {
         .map(|r| r.vids[field as usize])
 }
 
+/// The join key of one element: `Empty`, `Unary`, or `Nary` over interned value ids.
+///
+/// The shape is chosen by arity so the common cases never allocate — a single key is a bare
+/// `u32`, and only two-or-more boxes a slice. An element that carries its own bindings
+/// (`binds.len > 0`) takes the general `key_of` path instead; the arity split below is for
+/// elements keyed purely by packed columns.
+///
+/// The `panic!`s are deliberate and narrow: reaching them means the gather index was built with
+/// a join key that was never packed as a column, which is a setup-time contradiction rather than
+/// a fire-time condition — the same invariant class as `driver_of`, at a depth where a `Result`
+/// would have to be threaded through every key.
 fn key_of_el(el: &Element, join_keys: &[Value], intern: &GatherIntern<'_>) -> JoinKey {
     if el.binds.len > 0 {
         let el_b = element_fact_bindings(el, intern.bind_keys, intern.vals, intern.pool);
@@ -1622,6 +1769,12 @@ impl Iterator for AlphaNewsIter<'_> {
     }
 }
 
+/// Extend every live gather index with THIS round's new alpha elements, in place.
+///
+/// The point is that an index survives the round: `ensure_gather` builds one per
+/// `(alpha, join_keys)` pair, and this appends the delta rather than rebuilding — which is what
+/// makes a cached index cheaper than no index across a fixpoint. An entry whose alpha produced
+/// nothing new is skipped, so a quiet alpha costs a lookup and not a walk.
 fn append_d_alpha(
     cache: &mut GatherCache,
     d_alpha: &AlphaDelta,
@@ -1794,6 +1947,12 @@ fn seeded_bindings_keyed(
         .collect()
 }
 
+/// Run a TestNode's compiled `where` predicate against these bindings.
+///
+/// Third of the compile-time-invariant lookups (see `driver_of`): a TestNode with no compiled
+/// program means `compile-condition` should have refused the rule and did not, so this raises
+/// naming that rather than treating the node as vacuously true — which is the dangerous
+/// default, since a filter that always passes silently widens every rule it guards.
 fn exec_stashed_where(
     programs: &HashMap<i64, crate::rete::expr_ir::Program>,
     node_id: i64,
