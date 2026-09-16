@@ -245,3 +245,99 @@ clippy cargo clippy --release --all-targets -- -D warnings           CLIPPY_RC=0
 ## STOP
 
 None remaining. Do not push. Main untouched.
+
+---
+
+# REPLAY-LOG — grok-rete #160–#185 onto `replay/grok-rete` (BRIEF-7b, batch 4b first half)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` (git show only). **Not pushed.** Main untouched.
+Start tip `060199f7f` (SEAM, 2a4d closed). Census start `.census/2026-09-16T01-34-57Z.txt` files=2095.
+26 REPLAY commits, #160–#185, contiguous (`verify-step-record.sh 060199f7f HEAD` → `step-record:
+complete`). No `wat/`, `wat-scripts/fixes/`, main-moved, or positional-ctor skip-listed path touched.
+Of BRIEF-7b's 23 docs-only steps, 8 fall in this half (#160 #161 #163 #170 #172 #179 #181 #185),
+each touching only `docs/` (E2, spot-checked). #178 and #180 are the batch's own "code" rows
+(per `commits.tsv`) but touch only one `#[cfg(test)]` test file and one shell script respectively —
+no `.wat`, and #180 no `.rs` either. Two subject-repair fixes by the orchestrator mid-run: #160/#161
+originally landed with grok's own subject (not `REPLAY(grok-rete #N):`-prefixed); replayed as
+`84987d5f3`/`4cfa5a521` with the corrected convention, and #162 rebuilt on top as `b3395b398`.
+
+## Two self-caught staging-omission defects (not composition defects — my own tooling error)
+
+Twice in this batch, a hand-fix made via the Edit tool to a file already staged by
+`git cherry-pick --no-commit` was never re-`git add`-ed before the commit, so the commit's body
+described a fix the tree did not carry:
+- **#167** (`run-axis.sh`'s embedded-wat re-expression) — caught by the orchestrator reading the
+  committed diff after the fact; fixed via `git commit --amend` (`707215a6e` → `518a35a07`).
+- **#168** (`expr_ir/mod.rs`'s `eval_lower` re-export drop) — caught by me, mid-#169, when the same
+  stale text reappeared unexpectedly in a later diff; traced to the same class of mistake, fixed via
+  `git reset --hard` + redo + `git commit --amend` (`b6cddfbf9` → `89bbf5d54`), *before* continuing #169.
+Both are logged here because the lesson generalizes: **after any Edit-tool hand-fix to an
+already-staged file, `git add` it again and verify with `git diff --cached` — not `git diff` —
+before committing.** No replayed content was lost in either case; both fixes were re-applied
+identically and re-verified against the same gates that had already run.
+
+## The three trap doors
+
+- **#176** (19 files): 17 auto-merged clean. Two moved-home conflicts — `matcher.rs`'s doc comment
+  for a function main already deleted (moved to `#[wat_intrinsic]`, already documented there;
+  dropped as a convergent duplicate, 7 lines short of C's stat, confirmed deliberate) and
+  `validate/error.rs`'s doc comment against grok's stale `crate::to_edn::ToEdn` import path (kept
+  HEAD's `crate::edn::contract::ToEdn`, spliced in the doc).
+- **#177** (16 files, `kernel/tests.rs` 10,189 → 13 files): a modify/delete conflict on the whole
+  file. `difflib` confirmed HEAD's copy and grok's C^ are line-for-line aligned (116 scattered
+  single-line substitutions, zero inserts/deletes) — main's `crate::load::loader::` home move plus
+  the outcome-wall syntax already on this tree. Reused grok's own item map (which of the 13 files
+  each test/helper belongs in) and mechanically re-applied the same 116 substitutions across all 14
+  post-split files (verified: exactly 116 landed, zero leftover old spellings, the one unaffected
+  file byte-identical to grok's). `cargo nextest list` confirmed 89 tests, matching C's own count.
+- **#184** (19 files, two new lint gates + hollow-test hardening): one conflict (`ACCUM_GATHER_WORLD`
+  moved from `tests/mod.rs` to `tests/rank_and_instrument.rs`, its one consumer — auto-merged
+  addition carried grok's pre-syntax embedded wat, re-expressed from the exact text the const
+  carried pre-move). The new `no_stale_path_in_doc` gate then went RED (captured verbatim in the
+  commit body) on two paths stale only on THIS tree's composition — `src/rete/expr_ir.rs` (our own
+  #168 split) and `src/test_runner.rs` (main's own pre-existing `src/host/` move, unrelated to any
+  replayed commit). Fixed in the same step that introduces the gate (mirroring C's own body, which
+  fixes the six it found the same way) — not folded into #168, since #168's own required gates at
+  landing time did not include a gate that did not yet exist.
+
+## Steps
+
+| N | C → replayed | kind | notes |
+|---|---|---|---|
+| 160 | `5eb8e776f` → `84987d5f3` | docs | subject corrected by orchestrator (was unprefixed) |
+| 161 | `c79fc5e01` → `4cfa5a521` | docs | subject corrected by orchestrator (was unprefixed) |
+| 162 | `5bfbb2ca2` → `b3395b398` | shared trap | hand-fix: 3 stale `rete::core::i64` op-name string literals in `stratify.rs`'s new termination proof (main's rename dropped `core::`); first test run RED (captured, diagnosed, fixed, re-run green — not blind). census files=2095 |
+| 163 | `175bbe865` → `7a22e4dcb` | docs | |
+| 164 | `66ddac1fb` → `3fe1d4b90` | shared | expr_ir.rs `and`/`or` refactor, no test file touched by C |
+| 165 | `6fee011c0` → `962edb0a6` | shared | comment-only correction |
+| 166 | `c4647f89a` → `ec5fe8840` | shared | `.rs` conflict: placement only — HEAD's `lower_bracket_arm`/`lower_variant_map` (main's syntax) kept, grok's doc comment spliced before `lower_pat` |
+| 167 | `dd65607f0` → `518a35a07` | shared | hand-fix: `run-axis.sh` embedded-wat re-expression (see staging-omission note above); named test `beta_write_read_traffic` PASS |
+| 168 | `67f7d3538` → `89bbf5d54` | code split | expr_ir.rs → mod.rs/eval.rs, reconstructed by hand from HEAD's pre-split content (line-identical to grok's C^ modulo main's syntax additions); hand-fix: dropped stale `eval_lower` re-export (see staging-omission note above) |
+| 169 | `adb420425` → `16afd527b` | code split | validate.rs → mod.rs/typing.rs/error.rs, reconstructed item-by-item (7 HEAD-only kwargs/type-env fns bracketed into mod.rs); hand-fix: 8 items needed `pub(crate)` HEAD's monolithic file never required (build caught all 18 errors at once) |
+| 170 | `9d05bd4b7` → `d61415fcd` | docs | |
+| 171 | `b5db936e5` → `9d2a669a7` | shared | export.rs doc-only, zero deletions per C's own body |
+| 172 | `dc1a2693a` → `2566e9664` | docs | |
+| 173 | `d868b358b` → `f0a5ca90f` | shared | fire/mod.rs doc + 2 structural fixes (banner placement, doc unfusing) |
+| 174 | `785620f1b` → `ece58bae6` | shared | arm.rs doc-only, zero deletions |
+| 175 | `07e282920` → `5988037ea` | shared | compiled_cond.rs + where_tree.rs doc-only |
+| 176 | `38d2b8d67` → `029c5506a` | shared trap | see trap doors above |
+| 177 | `f98226353` → `6ed77ca5a` | code split trap | see trap doors above |
+| 178 | `259c590f5` → `e03cf0794` | shared | `tests/mod.rs` comment fix; `.rs` change is `#[cfg(test)]`-only, binary unaffected |
+| 179 | `b26eb9ab7` → `e44eeeca7` | docs | |
+| 180 | `533887b66` → `c41ef2f82` | code | `doc-coverage.sh` only, no `.rs`/`.wat` — no verdict lines required |
+| 181 | `175a43dc2` → `0bf9ab70d` | docs | |
+| 182 | `d17d1fc23` → `028efe358` | code | `time_ns`/`ms` dedup across 9 test files; kind(lib) & kernel::tests 89/89 unchanged |
+| 183 | `a9b279c7c` → `00e596e85` | code | R59 hollow-test hardening; 2 tests moved to `#[ignore]` (deliberate — kind(lib) 1477→1475, 2→4 skipped) |
+| 184 | `99bf573df` → `16a43dd3d` | shared trap | see trap doors above |
+| 185 | `202b9031f` → `d0d7a3027` | docs | |
+
+## Checkpoint
+
+Batch yields at #185 per BRIEF-7b; the orchestrator runs `scripts/floor.sh` and clippy centrally,
+uncontended, and resumes for #186–#211.
+
+`verify-step-record.sh 060199f7f HEAD` → `step-record: complete`
+
+## STOP
+
+None. Do not push. Main untouched. Tree clean at yield.
