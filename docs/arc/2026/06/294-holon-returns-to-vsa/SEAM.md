@@ -21,8 +21,8 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `7a2b7d45f` (= origin). In flight: nothing — **batch 4b (#160–#211) is CLOSED and
-PUSHED in full**; batch 4c (#212–#220) is drafted and **TRACKED** in `the-grok-rete-replay/`, awaiting release.
+Stamp: written at HEAD `628e26a00`. In flight: nothing — **batch 4c (#212–#220) is CLOSED**; **220 of 651
+replayed**. Next is **#221**, the first MULTI-stdlib-file step since 2a4d.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -39,7 +39,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4a #153–#159 (CLOSED; floor 5551/5551, pushed; P1+Q1's first use)
                               + 2a4d, the per-SET stdlib world (CLOSED; floor 5552/5552, pushed)
                               + batch 4b #160–#211 (CLOSED; floor 5569/5569, clippy 0, pushed)
-                              ⇒ 211 of 651 replayed. NEXT: batch 4c #212–#220.
+                              + batch 4c #212–#220 (CLOSED; floor 5576/5576, clippy 0)
+                              ⇒ 220 of 651 replayed. NEXT: #221, first MULTI-stdlib step since 2a4d.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -96,7 +97,16 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
-- **Next: batch 4c #212–#220** (`the-grok-rete-replay/BRIEF-7c…` + `EXPECTATIONS-7c…`, now TRACKED — the
+- **Batch 4c #212–#220 is CLOSED** (`628e26a00`; SCORE-7c, REPLAY-LOG; findings 29–30). 9 steps.
+  Orchestrator-verified: floor **5576/5576, 24 skipped** — the predicted count for the fourth consecutive
+  time — clippy 0, E7 reproducing #218's verdict lines exactly (kind(lib) 1478, doctest 8, lint-subset 153,
+  stone-3 3), E3 over all 8 touched `.wat` giving **5 rc=0 / 3 rc=1** exactly as predicted, and
+  `surface-field-dispatch.wat` **printing 142** — grok's own bar ("Not 'it loads'"). E2/E13/E15 re-checked
+  by the orchestrator. **#212 carries two orchestrator folds:** the `git replace` record repair rebuilt for
+  real (finding 29), and the `Signal::User1` rune/rot migration (finding 30).
+  ⚠ **#212's own gate was DRIVEN, not assumed** — it found two rots the ruling's three planning docs never
+  predicted, and the executor migrated them via recorded codemods rather than runing them.
+- **Superseded release note (kept for its pointers):** batch 4c (`BRIEF-7c…` + `EXPECTATIONS-7c…`, now TRACKED — the
   7b pair is tracked too, since `SCORE-7b` cited a brief that lived only in gitignored `bootstrap/pending/`),
   ending BEFORE **#221,
   the first MULTI-stdlib-file step since 2a4d** — the first real exercise of the per-SET world, deliberately
@@ -208,6 +218,13 @@ on a stashed tree, then `git checkout -- src/check.rs`.
 - **Pass `verify-step-record.sh` the batch's STEP RANGE** (`<from> <to> <first-N> <last-N>`), or it cannot
   see a mis-subjected or skipped step — finding 26. Every step, docs-only included, commits as
   `REPLAY(grok-rete #N): <C's subject>` with the `-x` trailer kept in the body.
+- ⛔ **When an executor reports a REPAIR, ask what OBJECT GRAPH proves it** (finding 29). A `git replace`
+  overlay made the record gate read `complete` here and `MISSING #215` under `GIT_NO_REPLACE_OBJECTS=1` —
+  `refs/replace/` is local and **`push` does not carry it**, so the DR site and every clone would have
+  disagreed with this box. Re-run the gate the way the PUSHED state will be read.
+- ⛔ **A mutation proof must falsify THE PROPOSITION YOU RELY ON** (finding 30). Stripping a rune proves the
+  GATE notices a missing rune — NOT that the rune's stated reason is the real cause. To audit a
+  declaration, run its own sentence and read the ERROR TEXT; `rc=1` says nothing about why.
 - ⛔ **NEVER pipe a gate through `head`/`tail`/`grep` to decide anything — redirect to a file and read the
   file** (finding 28). "Capture the red verbatim" is UNACTIONABLE if the RUN was truncated: by the time you
   know it is red, the block is gone. **BOTH SIDES of this merge hit it independently** (our #190; grok's own

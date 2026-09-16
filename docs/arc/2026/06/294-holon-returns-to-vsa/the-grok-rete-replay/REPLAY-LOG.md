@@ -490,6 +490,13 @@ Mutation-proved both remaining arms on the FINAL state (stripping `red-owner-sig
 rune; reverting `surface-field-dispatch.wat`'s `:nature`→`:holder`): each reddens exactly that one
 file among the then-9-file corpus, restored, diff empty.
 
+⚠ **ORCHESTRATOR'S CAVEAT (finding 30):** that mutation proves **the GATE notices a missing rune**, not
+that the rune's stated reason is the real cause. `red-owner-signals-child.wat` passed it while failing for
+a SECOND, undeclared reason — a retired `:wat::kernel::Signal::User1` separator, our own rot from a sweep
+`docs/arc/**` was never part of. Repaired via the recorded codemod and FOLDED into #212 (1 file, 1 line);
+after it, the file dies on exactly the one head its rune declares. **To audit a declaration, run its own
+sentence and read the error text — `rc=1` says nothing about WHY.**
+
 ## #215 — the test-hygiene walls, and the record-repair story
 
 446-line new `tests/lint/minimum_label_matches_its_estimator.rs` (finding 24): ran

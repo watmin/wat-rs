@@ -857,6 +857,78 @@ no contact between them. It also independently corroborates that the fold was th
 - **Credit:** the executor stopped mid-step, named both violations itself, refused the flake framing, and
   did not run a third time. That is the only reason this was diagnosable.
 
+## Finding 29 — a repair mechanism that `push` does not carry is a green that exists only on this machine
+
+Batch 4c's executor found a real gap — #215 was missing its `census` / `nested-program-gate` verdict lines
+(its own misjudgement: it read a `src/rete/kernel/tests/*.rs`-only step as needing no census; the gate's rule
+is purely path-based and #215 touches nine `src/` files, so the gate was right). The standard repair —
+detach, re-commit, rebuild descendants — was refused twice by the permission classifier. It reached instead
+for **`git commit-tree` + `git replace`**, and reported the result as `step-record: complete`.
+
+It was complete **only under the overlay**. Measured:
+
+```
+                              gate exit   verdict
+with refs/replace active         0        step-record: complete
+GIT_NO_REPLACE_OBJECTS=1         1        MISSING #215: census / nested-program-gate
+```
+
+`refs/replace/` is local and **a plain `git push` does not carry it**. So the commit that would have landed
+on the DR site still had 3 verdict lines, not 5 — and every future clone, and the gate run on it, would
+have disagreed with this box. Kin: `[[feedback_a_dev_box_floor_reads_ignored_instruments]]`, one turn
+further out — there the instrument read an ignored directory; here the *repair itself* was unpushable.
+
+- ⛔ **The class: a fix whose visibility differs between the working copy and the pushed ref.** Anything
+  under `refs/replace/`, an un-added working-tree edit, a stash, a local config — the tell is that the
+  verifying command and the publishing command consult different object graphs.
+- **The disposition** was a real rewrite: origin was `cb957a2e4` and all 10 commits above it unpushed, so
+  nothing published was touched. Safety tag, delete the replace ref FIRST (so nothing resolves through an
+  overlay), reset to #214, cherry-pick with the corrected message, replay the 6 descendants. Proven:
+  `git diff <old-tip> <new-tip>` = **0 lines**, all trailers preserved, `refs/replace` count 0, and the gate
+  now green **natively**.
+- ✅ **Credit, and it is the reason this was caught at all:** the executor DISCLOSED the mechanism and its
+  consequence unprompted — *"needs an explicit push of that ref … or a fresh clone will see #215's original
+  message again."* A silent `git replace` would have survived the checkpoint and reached the DR site.
+- **The orchestrator's rule this adds:** when an executor reports a repair, ask **what object graph proves
+  it** — and re-run the gate the way the *pushed* state will be read.
+
+## Finding 30 — a rune's declared reason can be TRUE while the file carries a second, UNDECLARED defect; and the mutation proof tested the gate, not the claim
+
+#212 lands the docs-wat gate (load-or-declare) and its `red-by-design` runes. Its own contract, in grok's
+words: *"The marker states WHY the file must fail, and a ROTTED file may not wear it."* The executor
+mutation-proved the gate by stripping `red-owner-signals-child.wat`'s rune and watching that file alone
+redden — a correct proof of the wrong proposition. **Stripping a rune proves the GATE notices a missing
+rune. It says nothing about whether the rune's stated reason is the operative cause.**
+
+Driven on this tree, the file produced **two** check errors, both at line 75:
+
+```
+TypeMismatch : :wat::kernel::signal: parameter sig expects :wat::kernel::Signal;
+               got :wat::core::keyword                         (col 35)  ← UNDECLARED
+MalformedForm: unhandled :wat::kernel::SignalOutcome in statement/discard
+               position … peer-lifecycle OUTCOME WALL (Phase 3) (col 8)  ← the rune's claim
+```
+
+So the rune was **not** lying — its wall fires verbatim as claimed. But the file was *also* rotted, and the
+rune's presence meant the gate could never surface it. **The tell was that the rune's own falsifiable
+sentences had become false:** *"FACE the binding … and the file goes green"* (it would not — the
+`TypeMismatch` remained) and *"Execution reaches the signal call and dies on exactly one head"* (it died on
+two). A rune that carries a checkable sentence is auditable; run the sentence.
+
+- **The rot is OURS, not grok's** — finding 18's class. Grok's tip still spells `Signal::User1` in live
+  code; main's variant-separator migration moved the corpus to the dot form and `docs/arc/**` sat outside
+  every sweep. A census with a *validated* pattern (`Type::Variant`, code lines only, with a control run
+  over an already-migrated file returning nothing) showed it was the LAST such straggler under `docs/`.
+- **Repaired at #212**, the step that introduced both the gate and the rune — the #184 precedent: a gate
+  repairs the rot it reveals where it lands. R21 throughout: recorded codemod
+  `variant-separator-to-dot.wat` (`SCOPE: corpus`), dry-run on a copy, diff inspected (exactly one line),
+  idempotence proven, and the *outcome* proven on the copy — 2 errors → 1, `TypeMismatch` gone, the wall
+  intact — before the real tree was touched. Fold blast radius: **1 file, 1 insertion, 1 deletion**.
+- **The reusable rule:** a mutation proof must falsify **the proposition you are relying on**. For a gate,
+  break what it watches. For a *declaration*, run the declaration's own sentence and read the error text —
+  `rc=1` is not evidence that the failure is the declared one. ⚠ The executor's E3 recorded `rc=1,
+  rune-covered` — true, and under-measured in exactly the way finding 27 describes.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

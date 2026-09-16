@@ -36,7 +36,18 @@ step-record: complete
 |---|---|
 | E1 | **PASS.** `verify-step-record.sh cb957a2e4 HEAD 212 220` → exit 0, `step-range: #212..#220 each present exactly once, sources match`. |
 | E2 | **PASS.** #213 #214 #216 #217 #220 touch only `docs/`/`.md` (`git show --name-only` on each, spot-checked). |
-| E3 | **PASS.** #212's 5 touched `.wat` (2 `.wat.bad` untouched, 2 probes fixed, 1 rune-only): all `--check` rc=0 except the deliberately-red `red-owner-signals-child.wat` (rc=1, rune-covered). #218's 3 new fixtures: control rc=0, `_bad`/`_tagged` rc=1 (deliberate, matches the outer `.rs` test's `!ok` assertion). #219's 1 new `.wat`: rc=0 (loads and runs, rune-covered by design — see E9). |
+| E3 | **PASS — but see the orchestrator's correction below; #212 touches 6 `.wat`, not 5.** #218's 3 new fixtures: control rc=0, `_bad`/`_tagged` rc=1 (deliberate, matches the outer `.rs` test's `!ok` assertion). #219's 1 new `.wat`: rc=0 (loads and runs, rune-covered by design — see E9). Orchestrator's own re-run over all 8 `.wat` added/modified in 4c: **5 rc=0, 3 rc=1**, the three being `red-owner-signals-child.wat` (its declared outcome wall) and `_bad`/`_tagged`. |
+
+> ⛔ **ORCHESTRATOR'S CORRECTION (finding 30).** This row read `rc=1, rune-covered` for
+> `red-owner-signals-child.wat`. That was true and **under-measured**: the file was failing for TWO reasons,
+> only one of them declared. Driven directly, it produced a `TypeMismatch` on a retired
+> `:wat::kernel::Signal::User1` separator (OUR rot — `docs/arc/**` sat outside main's variant-separator
+> sweep) *in addition to* the peer-lifecycle OUTCOME WALL its rune names. The rune's own sentences had gone
+> false with it: "face the binding and the file goes green" (it would not) and "dies on exactly one head"
+> (it died on two). **Repaired and FOLDED into #212** via the recorded codemod `variant-separator-to-dot.wat`
+> — dry-run, diff (exactly one line), idempotence, and the outcome proven on a copy first. After: 1
+> type-check error, `TypeMismatch` gone, the declared wall intact. `rc=1` is not evidence that the failure
+> is the declared one — read the error text.
 | E4 | **PASS.** `docs/arc/2026/05/130-cache-services-pair-by-index/complected-2026-05-02/` holds `substrate.wat.bad` + `test.wat.bad`, no `.wat` twins; scoped `git grep -c 'rune:lint' -- <that dir>` → exit 1 (0 matches). |
 | E5 | **PASS.** `test(every_tracked_wat_parses)` and `test(docs_wat_loads_or_declares_why_not)` both green together at HEAD (3 tests run: 1 + 2, 0 failed). |
 | E6 | **PASS, re-measured, not assumed.** `find docs -name '*.wat' | wc -l` = 8 immediately before #212 lands, matching the ruling's baseline; 9 after #219 lands its one new file; non-vacuity guard never tripped. |
@@ -74,6 +85,11 @@ anticipated, because this tree's own history has diverged from grok's:
    confirmed idempotent, confirmed `--check` clean and correct runtime output, THEN applied to the
    real tree. Mutation-proved both remaining arms (stripping `red-owner-signals-child.wat`'s rune,
    reverting `:nature`→`:holder`): each reddens exactly one file, restored.
+
+   ⚠ **What that mutation proved, precisely (finding 30):** stripping a rune proves **the GATE notices a
+   missing rune** — it does NOT prove the rune's stated reason is the operative cause.
+   `red-owner-signals-child.wat` passed this proof while failing for a SECOND, undeclared reason. To audit
+   a declaration, run its own sentence and read the ERROR TEXT; `rc=1` says nothing about why.
 
 This is the "migrate rot, rune only when the failure is the artifact" contract applied past the
 ruling's own examples, on files the ruling never named — not a deviation from it.
