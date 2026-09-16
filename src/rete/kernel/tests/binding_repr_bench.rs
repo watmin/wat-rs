@@ -7,19 +7,44 @@
 
 use super::*;
 
-// ── Inside the 163 ns bind: key CONSTRUCTION vs the MAP operation ────────────────────────
+// ── Inside one alpha bind: key CONSTRUCTION vs the MAP operation ──────────────────────
+//
+// ⛔ NEITHER ARM BELOW IS THE LIVE REPRESENTATION. The engine's token bindings are two
+// `BindSpan`s into fire-scoped pools — `Token { matches, binds }` at `session.rs:64` — not a
+// `String`-keyed `rpds` trie; and the `eval_clause` whose key construction arm (a) reproduces
+// is off the native hot path entirely — `exec_compiled_with_key_ids` took over as the round
+// loop's step 1 (`compiled_cond.rs:912` says so outright, and `match:calls` reads ZERO on a real
+// fire because of it). It is not dead: `alpha_match_inner{,_local,_seeded}` is still what the
+// `:wat::rete::alpha-match{,-local,-under}` primitives run, which is how the wat oracle matches
+// (`wat/rete/oracle/pass.wat:21-22,193`) — it is the differential's interpreter, not the
+// engine's. What this prices is therefore a live cost on the ORACLE side and EVIDENCE FOR the
+// stone that chose the pooled form — not a measurement of the native path. `fire/delta.rs:725-726`
+// records that stone's one premise — "a binding map holds 1-2 entries, so an rpds trie is paying
+// trie prices for a pair" — and the ratios here are what one bind costs when it is spent the
+// old way.
 //
 // `eval_clause` does `Value::String(Arc::new(var.to_string()))` per bind — a fresh String plus
 // a fresh Arc, to key on a variable name that is a compile-time constant. Interning it would
-// reduce that to an Arc refcount bump. Whether that is worth doing depends on its share of the
-// 163 ns, and the alternative (changing the binding map's representation) is a substrate-wide
+// reduce that to an Arc refcount bump. Whether that is worth doing depends on its share of a
+// bind, and the alternative (changing the binding map's representation) is a substrate-wide
 // change shared by joins, negation, token extension and the oracle differential — so the cheap
 // fix deserves to be priced first.
 //
 // ⚠ HONEST BOUND: this is a tight-loop microbenchmark, not the engine. Allocator state and
 // cache behaviour differ from a real fire, so treat the RATIO between the three as the finding
-// and not the absolute nanoseconds. The 163 ns from `alpha_match_cost_per_binding` is the
-// in-engine number; this only apportions it.
+// and not the absolute nanoseconds.
+//
+// ⛔ AND THERE IS NO IN-ENGINE ANCHOR TO APPORTION. This header, and the table below, used to
+// quote "the ~163 ns in-engine bind" from `alpha_match_cost_per_binding`
+// (`rank_and_instrument.rs:219`) — four times in prose and once in the printed output. That
+// source no longer measures a positive per-binding cost at all. Driven three times at HEAD
+// (2026-09-02) it reports the TWO-bind world FASTER than the one-bind world: −2, −4 and
+// −10 ns/fact, from alpha arms of ~15 ms whose own run-to-run spread (14.48–15.29 ms) is wider
+// than every one of those deltas. A negative cost for strictly more work is an instrument below
+// its resolution, not a finding — that test declines to assert the sign for exactly that reason
+// — so there is no total left to apportion INTO. The absolute is dropped rather than
+// re-measured: a fresh hard-coded nanosecond figure would be the same defect with a newer
+// number. The RATIO between (a), (b) and (c) is the finding, as the bound above already said.
 #[test]
 fn bind_key_construction_vs_map_operation() {
     use std::hint::black_box;
@@ -82,7 +107,7 @@ fn bind_key_construction_vs_map_operation() {
     );
 
     println!(
-            "\nbind cost apportioned — {N} iterations each (RATIOS, not absolutes)\n                 (a) fresh key   Value::String(Arc::new(var.to_string()))  {fresh_ns:>6.1} ns\n                 (b) interned    an Arc refcount bump                      {interned_ns:>6.1} ns\n                 (c) map         get + insert, key supplied                {map_ns:>6.1} ns\n                 ---------------------------------------------------------------\n                 interning would save (a)-(b) = {:>5.1} ns of the ~163 ns in-engine bind\n                 the map itself is {:>5.1} ns and is untouched by interning\n",
+            "\nbind cost apportioned — {N} iterations each (RATIOS, not absolutes)\n                 (a) fresh key   Value::String(Arc::new(var.to_string()))  {fresh_ns:>6.1} ns\n                 (b) interned    an Arc refcount bump                      {interned_ns:>6.1} ns\n                 (c) map         get + insert, key supplied                {map_ns:>6.1} ns\n                 ---------------------------------------------------------------\n                 interning would save (a)-(b) = {:>5.1} ns per bind; the map itself is\n                 {:>5.1} ns and is untouched by interning — the RATIO is the finding.\n                 (No in-engine anchor: `alpha_match_cost_per_binding` now measures a\n                  NEGATIVE per-binding cost, so there is no total to apportion into.)\n",
             fresh_ns - interned_ns, map_ns
         );
 }
@@ -488,6 +513,16 @@ fn binding_cardinality_distribution() {
 
 // ── Token.bindings representation — the DOMINANCE probe ──────────────────────────────
 //
+// ⛔ NEITHER ARM HERE IS THE LIVE REPRESENTATION, and `Token.bindings` no longer exists at
+// all. The engine's token bindings are a `BindSpan` into the fire-scoped bind pool —
+// `Token { matches, binds }` at `session.rs:64` — while this probe compares an `rpds` trie
+// against a persistent array, the two candidates that were on the table when the pooled form
+// was chosen. So this is the EVIDENCE FOR that stone rather than a measurement of it:
+// `fire/delta.rs:725-726` records the single premise the comparison tests — "a binding map
+// holds 1-2 entries, so an rpds trie ... is paying trie prices for a pair" — and the
+// binding-cardinality census that sits beside that stone measures the distribution this probe
+// assumes. Both arms stay for that reason: they are why the pooled form is defensible.
+//
 // 41c59cde made `Element.bindings` an array and left `Token.bindings` a trie, with the
 // reason: *"the trie's sole advantage is extend, which an Element never does."* That is
 // airtight in the direction it was used (an Element never extends → a trie buys it
@@ -556,6 +591,11 @@ fn token_bindings_representation_dominance() {
         );
     let mut extend_array_wins = 0usize;
     let mut get_array_wins = 0usize;
+    // Every row's four timings, kept so the assertions below can name a SPECIFIC cardinality
+    // rather than a counter. A counter says how often the array won; only the row says where
+    // the crossover is, and the crossover is the finding.
+    // (card, extend trie ns, extend array ns, get trie ns, get array ns)
+    let mut rows: Vec<(usize, f64, f64, f64, f64)> = Vec::with_capacity(cards.len());
 
     for &c in &cards {
         // The parent: `c` existing bindings, built once, in both representations.
@@ -638,6 +678,7 @@ fn token_bindings_representation_dominance() {
         if get_arr < get_trie {
             get_array_wins += 1;
         }
+        rows.push((c, ext_trie, ext_arr, get_trie, get_arr));
 
         table.push_str(&format!(
                 "  {c:>4}  {ext_trie:>10.1}ns  {ext_arr:>11.1}ns  {:>6.2}x  {get_trie:>10.1}ns  {get_arr:>10.1}ns  {:>6.2}x\n",
@@ -660,9 +701,76 @@ fn token_bindings_representation_dominance() {
     ));
     println!("{table}");
 
-    // The probe must have measured something; a zero here means it timed nothing.
+    // ── What must hold ──────────────────────────────────────────────────────────────────
+    //
+    // The assertion that stood here was `extend_array_wins + get_array_wins < usize::MAX`,
+    // message `"unreachable"` — true for every pair of `usize`, under a comment declaring the
+    // check it did not make. Below is the check that comment declares, plus the three orderings
+    // the printed verdict rests on. Every failure interpolates the WHOLE table, so a red arrives
+    // carrying the measurement that produced it and nobody has to re-run to see what happened —
+    // a re-run being the one move that destroys the evidence.
+    assert_eq!(
+        rows.len(),
+        cards.len(),
+        "the probe recorded {} rows for {} cardinalities — the table below is not the population \
+         the counters were taken over\n{table}",
+        rows.len(),
+        cards.len()
+    );
+
+    // (1) NON-VACUITY — the check the comment above the old assertion always declared. A zero
+    //     here means the probe timed nothing: on a working clock the array cannot lose EVERY
+    //     cell, because at the smallest cardinality it is one compare against a hash plus a
+    //     trie descent.
     assert!(
-        extend_array_wins + get_array_wins < usize::MAX,
-        "unreachable"
+        extend_array_wins + get_array_wins > 0,
+        "the probe measured NOTHING — across {} cardinalities and both operations the array \
+         representation did not come out ahead in a single cell. That is not a result, it is a \
+         dead clock or a broken twin: a one-entry array beats a HAMT lookup by construction\n{table}",
+        cards.len()
+    );
+
+    // The two ends of the range. The EXTEND column at the small end is measured and printed but
+    // deliberately NOT asserted: over twelve drives (2026-09-02) its ratio ran 1.19-2.02x, and a
+    // 19% margin does not clear the ~16% the absolutes in this family reproduce to. That is the
+    // same reasoning that keeps `binding_key_cost` off the floor two tests above, and this repo
+    // bans known flakes absolutely — a gate inside the noise would manufacture one. The three
+    // orderings below all carry margins measured at 2.6x or better across those same drives.
+    let (lo_c, _lo_ext_trie, _lo_ext_arr, lo_get_trie, lo_get_arr) = rows[0];
+    let (hi_c, hi_ext_trie, hi_ext_arr, hi_get_trie, hi_get_arr) = rows[rows.len() - 1];
+
+    // (2) THE SMALL END, GET — the array must be read faster at the smallest cardinality. This
+    //     is the half of the threshold that makes the stone's premise pay: at 1-2 bindings an
+    //     array read is a scan of one key against a hash plus a trie descent. If the trie ever
+    //     wins HERE, `fire/delta.rs:725-726`'s premise is what broke, and that is the news, not
+    //     this test. (Measured 4.53-10.15x; it is also the row that makes (1) hold, so a red in
+    //     (1) and a red here name the same collapse from two distances.)
+    assert!(
+        lo_get_arr < lo_get_trie,
+        "at the smallest cardinality ({lo_c}) the trie was READ faster than the array \
+         ({lo_get_trie:.1}ns vs {lo_get_arr:.1}ns) — a linear scan of {lo_c} entry/entries lost \
+         to a hash plus a trie descent, which cannot be right\n{table}"
+    );
+
+    // (3)+(4) THE LARGE END — the array must lose both operations at the largest cardinality.
+    //     This is what makes the printed verdict ("DOMINANCE: NO — a threshold, so R60's cut
+    //     stands") a measurement instead of a caption: array wins at the small end and loses at
+    //     the large end IS the threshold, and a threshold is exactly what R60 refuses to tune
+    //     from our own corpus. Were the array to win here too, the verdict would flip to
+    //     dominance and the representation question would be reopened — so these two are the
+    //     load-bearing half of the conclusion, not decoration.
+    assert!(
+        hi_ext_trie < hi_ext_arr,
+        "at the largest cardinality ({hi_c}) the array EXTENDED faster than the trie \
+         ({hi_ext_arr:.1}ns vs {hi_ext_trie:.1}ns) — copying {hi_c} pairs beat structural \
+         sharing. If that reproduces, the array DOMINATES and the verdict printed above is \
+         wrong\n{table}"
+    );
+    assert!(
+        hi_get_trie < hi_get_arr,
+        "at the largest cardinality ({hi_c}) the array was READ faster than the trie \
+         ({hi_get_arr:.1}ns vs {hi_get_trie:.1}ns) — a linear scan over {hi_c} entries beat a \
+         hashed lookup, so either the probe key stopped being the worst-case one or the twins \
+         are no longer the same computation\n{table}"
     );
 }
