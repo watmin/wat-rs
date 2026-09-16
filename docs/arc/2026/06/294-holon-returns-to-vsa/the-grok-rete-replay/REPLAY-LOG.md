@@ -638,7 +638,7 @@ neither run by this executor.
 None. Do not push. Main untouched. `~/work/holon/` untouched. No subagents, no worktrees. Tree
 clean at yield.
 
-# Batch 4e — #226 → #233 committed; STOPPED mid-#234
+# Batch 4e — #226 → #240, complete (one mid-batch STOP at #234, resolved by an orchestrator strike)
 
 ## #226 — the batch's whole risk, driven
 
@@ -715,7 +715,7 @@ UNREGISTERABLE/UNRESOLVED), `git merge-file` (0 conflicts). Result matches C's o
 threaded onto main's syntax; `--check` rc=0. No `.rs` in this diff, so no named test to run (the new
 `:user::import-and-hits` fixture defn is wired up by #234, which follows).
 
-## STOP at #234 — an in-crate wall red, UNRELATED to this step's own diff, not dismissed
+## #234 — STOP, then EXONERATED by an orchestrator strike (resumed after a pause)
 
 `fix(rete): an argument with no parameter is refused, not placed`. `git cherry-pick -x --no-commit`
 auto-merged both files clean (`src/rete/expr_ir/eval.rs`, `tests/rete/probe_arc278_export.rs`; diff
@@ -760,19 +760,90 @@ apportionment check). #234 was **not committed** — the fold rule has nothing t
 in #226–#240 touches `gather_probe_cost.rs`, and the file is outside this batch's blast radius per
 the brief). The cherry-picked, hand-fixed, NOT-yet-committed content for #234 was left staged in the
 working tree exactly as finding 28's own precedent preserved its failing tree, so the failure can be
-reproduced verbatim by re-running the same command.
+reproduced verbatim by re-running the same command. SCORE-7e was written and committed (`42eb76e83`)
+describing the batch as INCOMPLETE, and the executor yielded.
+
+**Resolution.** While paused, the orchestrator landed two commits on top of #233 (`0fa6948da`, the
+strike; `9ef711fbd`, finding 32 + SEAM) and ran the control this executor could not run itself (no
+repeated `kind(lib)` invocations, no floor/clippy/run5, per the brief's own constraints): the SAME
+`kind(lib)` invocation on the clean #233 tree WITHOUT #234's diff failed 1 of 10 (33 ns vs 79 ns, ratio
+0.42); WITH #234's diff, 1 of 5 (35 ns vs 87 ns, ratio 0.40) — indistinguishable populations, combined
+2 of 15 (~13%). **#234 is exonerated**: the red was a ~13% chance of meaningless noise from a
+nanosecond-scale wall-clock ratio gate under nextest's own internal parallelism, present on every
+`kind(lib)` run since the gate landed, not content #234 introduced. `probe_extend_cost_split`'s
+`h >= (b + m + e) * 0.5` was struck in `0fa6948da` — a separate orchestrator commit, deliberately NOT
+folded into #234 or any REPLAY step, because grok's own tree keeps this exact assertion unchanged to
+its tip (same `* 0.5` bound at all seven later revisions touching the file; two of them, #416 and
+#470, remove work from `h`, making the ratio MORE fragile downstream, never less) — folding the strike
+into a replayed step would have stopped that step's diff from matching grok's. Proven: 2-of-15 →
+0-of-15 over 15 further `kind(lib)` runs, floor 5585/5585, clippy 0. A census found a fourth gate of
+the same textual shape (`harvest_cost.rs:338`, millisecond scale, two-sided, non-vacuity-guarded,
+never fired in 15 runs) and it was correctly **kept** — same shape is not the same defect.
+
+**Resumed.** Re-read `HEAD` (moved to `9ef711fbd` while paused); verified the two preserved files
+(`src/rete/expr_ir/eval.rs`, `tests/rete/probe_arc278_export.rs`) were byte-for-byte unchanged
+(`git diff --stat` reproduced the same 321+/8- this executor left, independent of the coordinator's
+own `cmp` claim). Rebuilt (`cargo build --release`), re-ran every wall in the FOREGROUND: 7 named
+tests 7/7, census unchanged (2107 files, `--diff no STOP-8`), nested-program-gate 3/3, lint-subset
+153, `kind(lib)` now **1481/1481** (clean — the strike holds), doctest 8. Committed #234 green
+(`e8eceb7e8`), its body narrating the STOP-then-exoneration rather than silently absorbing it.
+
+## #235–#237, #239–#240 — docs-only, corrected subject every time
+
+Five more docs-only steps (`score`/`curare`/`strike` notes under `docs/arc/2026/06/278-rules-engine/`),
+same treatment as every prior docs-only step: `git cherry-pick -x --no-commit` + hand-composed
+`REPLAY(grok-rete #N): <C's subject>` + trailer, never a bare `-x`. #236 and #240 each auto-merged one
+hunk against local drift in `CURRENT-STATE-annihilate-interpretation.md`, conflict-free.
+
+## #238 — shared, 3 `.rs`, a second wat-in-string re-expression
+
+`fix(rete): the fence and the executor share one head-space`. All 3 files
+(`src/rete/expr_ir/mod.rs`, `src/rete/kernel/arm.rs`, `src/rete/reachability.rs`) auto-merged clean,
+331+/5- matching C's diff exactly. Two hand-fixes in `reachability.rs`'s new code, both R21's
+wat-in-`.rs`-string exception, both logged:
+
+- `probe_eq_for`'s three numeric/string match arms (`I64`, `String`, `F64`) carried the SAME stale
+  `core::` segment class as #234's fix (`:wat::rete::core::{i64,string,f64}::=` instead of
+  `:wat::rete::{i64,string,f64}::=`) — confirmed against `vocabulary.rs`'s `rete_name` rows AND, more
+  directly, against THIS SAME FILE's own pre-existing driver table a few hundred lines above the new
+  code, which already used the correct spellings (`bool`/`keyword` correctly keep `core::` and were
+  left untouched, also matching the pre-existing table). The function's own doc comment explains the
+  stakes: the name is checked against `rete_op_index` by the caller specifically so a rename cannot rot
+  silently — three of five type arms would have hit that designed-in red on every run of the new test.
+- The embedded wat program template inside `synth_acc`'s `format!` carried grok's old positional match
+  arms and positional `assertion-failed!`. Re-expressed to main's bracket dot-variant syntax and kwargs
+  `assertion-failed!`, every field name cross-checked against the pre-existing, already-correct
+  `tests/rete/probe_fence_names_the_head_core_op.wat` (identical `CompileOutcome`/`InsertOutcome`/
+  `FireOutcome` shapes, byte-for-byte matching field names). `:wat::rete::core::defn` for
+  `:probe::wrapped` was confirmed CORRECT as written — a live, current, widely-used rete-DSL `defn`
+  variant required for a fn used as an acc/then head inside a rule, not a rename target.
+
+Named test `every_acc_head_shaped_row_runs_as_an_acc_head` — 1/1, and its pass is the confirmation the
+two hand-fixes are correct, not merely that the file compiles: the test drives EVERY eligible
+`RETE_OPS` row (including the three types the fix touched) through an internal assert that names the
+row and pastes the failing program on any residual mismatch. `kind(lib)` 1482 (was 1481 — the test's
+own +1).
 
 ## Checkpoint
 
-`scripts/replay/verify-step-record.sh 8cd884e9a HEAD 226 233` → `step-range: #226..#233 each present
-exactly once, sources match` and `step-record: complete`, exit 0. #234–#240 NOT reached.
-`git replace -l` → 0 entries. `git diff --name-only 8cd884e9a..HEAD` touches only files the 8
-committed steps' own diffs claim, plus this directory's own docs — no `wat-scripts/fixes/` edit, no
-`absent-on-main.tsv` row in `226..233`.
+`scripts/replay/verify-step-record.sh 8cd884e9a HEAD 226 240` (run in the FOREGROUND on the final
+tree) →
+
+```
+step-range: #226..#240 each present exactly once, sources match
+step-record: complete
+```
+exit 0. `git replace -l` → 0 entries throughout. `git diff --name-only 8cd884e9a..HEAD` touches only
+this batch's own 15 steps' claimed files (`wat/rete/syntax.wat` IS expected — #226), this directory's
+own docs, and the orchestrator's two commits' own files (`src/rete/kernel/tests/gather_probe_cost.rs`,
+`docs/.../SEAM.md`, `FINDINGS-composition.md` — not from any REPLAY step). No `wat-scripts/fixes/`
+edit anywhere. No `absent-on-main.tsv` row in `226..240`. Every `census:`/`nested-program-gate:`/
+`lint-subset:`/`kind(lib):`/`doctest:` line in every code/shared step's body (#226, #230, #233
+partial, #234, #238) matches on ONE line.
 
 ## STOP
 
-**STOP-11 at #234** (in-crate wall red — see above). Do not push. Main untouched.
-`~/work/holon/` untouched. No subagents, no worktrees. Tree is **NOT** clean at yield: #234's
-cherry-picked + hand-fixed changes are staged, uncommitted, preserved as the failing evidence
-(`git status --porcelain`: `M src/rete/expr_ir/eval.rs`, `M tests/rete/probe_arc278_export.rs`).
+None outstanding. The mid-batch STOP-11 at #234 is resolved (see above): the orchestrator's control
+measurement and strike commit exonerate the step, and #234 is committed green in its normal place in
+the sequence. Do not push. Main untouched. `~/work/holon/` untouched. No subagents spawned. No
+worktrees used. Tree clean at yield (`git status --porcelain` empty).
