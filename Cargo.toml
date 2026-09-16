@@ -97,6 +97,13 @@ path = "src/bin/wat.rs"
 name = "cargo-wat"
 path = "src/bin/cargo-wat.rs"
 
+# excursus 001 `a-deadline-does-not-cost-a-ring` — the FAST feedback loop. Asks a box how
+# many io_uring instances it will hand out and prints commit accounting at the refusal.
+# Exists because the question previously cost a ~15-minute CI floor per attempt.
+[[bin]]
+name = "ring-ceiling"
+path = "src/bin/ring-ceiling.rs"
+
 [dependencies]
 # `simd` is NOT holon's default (its `default = []`), so wat ran the scalar
 # `dot_raw` loop for the whole of the substrate's life. Turned on 2026-08-02 —

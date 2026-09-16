@@ -1,0 +1,87 @@
+# ring-ceiling — the FAST feedback loop for excursus 001 `a-deadline-does-not-cost-a-ring`.
+#
+# ⛔ WHY. The CI red (`IoUring::new(4) … Cannot allocate memory`) is CI-only, and the only way
+# to ask about it was the full 5259-test floor: ~15 minutes per question, and it only answers
+# if the chaos gate happens to trip. Builder: "there's gotta be a faster feedback loop here...
+# its like ~15min per run". This job asks the runner the question DIRECTLY — how many io_uring
+# instances will you hand out, and what does commit accounting say when you refuse — and it
+# builds one small binary to do it.
+#
+# DISPATCH ONLY. It is a diagnostic, not a gate: it must never be the thing that says the tree
+# is healthy, and it must not add noise to every push.
+#   gh workflow run ring-ceiling.yml
+#   gh workflow run ring-ceiling.yml -f cap=20000
+#
+# BASELINE, dev box (kernel 6.12.63, 12 cores, memlock 8 MB): NO CEILING at 3000 rings held
+# simultaneously; ~8 KB of VmSize per ring; Committed_AS flat. So a runner that refuses at ~15
+# is not out of address space (that would be ~120 KB) — which is the whole point of measuring
+# it there instead of reasoning about it here.
+name: ring-ceiling (io_uring diagnosis)
+
+on:
+  workflow_dispatch:
+    inputs:
+      cap:
+        description: "Max rings to hold before reporting 'no ceiling'"
+        required: false
+        default: "5000"
+
+jobs:
+  ceiling:
+    name: how many rings will this runner give us
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wat-rs
+    steps:
+      - name: Checkout wat-rs
+        uses: actions/checkout@v4
+        with:
+          path: wat-rs
+
+      # Same sibling path dependency the main gate needs — the `wat` crate depends on
+      # `holon` at ../holon-rs, so even one binary will not build without it.
+      - name: Checkout holon-rs (sibling path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: watmin/holon-rs
+          path: holon-rs
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: wat-rs
+
+      - name: Runner facts
+        run: |
+          echo "kernel:      $(uname -r)"
+          echo "nproc:       $(nproc)"
+          echo "memlock KB:  $(ulimit -l)"
+          echo "nofile:      $(ulimit -n)"
+          echo "ulimit -v:   $(ulimit -v)"
+          free -m || true
+          echo "io_uring_disabled: $(cat /proc/sys/kernel/io_uring_disabled 2>/dev/null || echo absent)"
+          echo "max_map_count:     $(cat /proc/sys/vm/max_map_count 2>/dev/null || echo absent)"
+          echo "overcommit_memory: $(cat /proc/sys/vm/overcommit_memory)"
+          echo "overcommit_ratio:  $(cat /proc/sys/vm/overcommit_ratio)"
+          grep -E 'CommitLimit|Committed_AS' /proc/meminfo || true
+          cat /proc/self/limits || true
+
+      # Only this binary. The floor is not involved; that is the point.
+      - name: Build the probe only
+        run: cargo build --release --bin ring-ceiling
+
+      - name: Ask the runner for its ceiling
+        run: ./target/release/ring-ceiling "${{ github.event.inputs.cap || '5000' }}"
+
+      # ⭑ And the same question under the conditions the floor actually creates: four
+      # concurrent processes, because nextest runs `nproc` tests at once and the failures
+      # move between runs, which points at pressure shared ACROSS processes rather than a
+      # defect inside one.
+      - name: Ask again, four at once
+        run: |
+          for i in 1 2 3 4; do
+            ./target/release/ring-ceiling "${{ github.event.inputs.cap || '5000' }}" 2>&1 \
+              | sed "s/^/[proc $i] /" &
+          done
+          wait
