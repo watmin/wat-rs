@@ -37,6 +37,22 @@
 ;; every arm stayed green. Measured with `or_insert` replaced by `insert`:
 ;;
 ;;   control REFUSED · probe REFUSED · rearm NO-BREACH   ← only this arm can see it
+;;
+;; ⛔⛔ THAT LAST LINE IS FALSE, AND WAS FALSE THE DAY IT SHIPPED. Re-driven 2026-08-31 during
+;; A7: with `or_insert` replaced by `insert`, this whole test goes **GREEN** — the `rearm` arm
+;; sees nothing. The mask is `LAST_ORIGIN`, the one-entry cache in front of `SESSION_ORIGINS`,
+;; which is never invalidated on a write: the first staging round caches `(key, origin0)`, the
+;; re-arm's clobber rewrites the map but not the cache, and every later `session_bytes` takes the
+;; fast path and returns the OLD origin. The code is still correct — the cache is sound GIVEN
+;; `or_insert` — but the cache and this arm landed in the SAME commit (`42704d57b`), so the
+;; measurement above was taken before the cache existed beside it and was never re-taken. A
+;; self-certifying measurement is one nobody re-checks; that is the shape `wat-rs/CLAUDE.md`
+;; opens with, committed here by the hand that wrote the warning.
+;;
+;; ✅ THE LIVE GATE for the non-clobber rule is
+;; `probe_arc278_import_accounting::an_origin_already_filed_is_never_re_based` (arc 278 A7),
+;; which is a unit-level probe and DOES go red under that mutation — driven both ways.
+;; This arm still earns its place for the KEYING half, which is what its `#[test]` doc claims.
 (:wat::config::rete::set-max-session-bytes! 4000000)
 
 (:wat::core::defrecord :sc::Edge [a <- :wat::core::i64  b <- :wat::core::i64])

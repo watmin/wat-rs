@@ -207,9 +207,46 @@ thread_local! {
 /// own growth rather than crediting it — a handful of bytes, in the over-counting direction that
 /// [`thread_bytes`] already rules safe.
 pub fn mark_session_origin(key: SessionOriginKey) {
-    let now = thread_bytes();
+    // The reading is taken HERE, at the call, and handed to the sibling — which is what the
+    // paragraph above is about. Delegating keeps ONE `or_insert` in this module, so the
+    // non-clobber rule has exactly one site that can be got wrong.
+    mark_session_origin_at(key, thread_bytes());
+}
+
+/// File `origin` as the zero point for the session `key` names — [`mark_session_origin`]'s
+/// explicit-origin sibling, for a door that cannot name its key until after it has already spent.
+///
+/// ── WHY A DOOR WOULD NEED THIS ───────────────────────────────────────────────────────────────
+///
+/// [`mark_session_origin`] reads [`thread_bytes`] AT CALL TIME. That is right for `arm-session`,
+/// where the key (`network_identity`) already exists before the session allocates anything, and
+/// **wrong for `import`**, whose key is the identity of a network `PMap` that does not exist until
+/// the entire network has been built from the wire. There the two obvious placements are both
+/// defects: marking BEFORE the build has no key to mark under, and marking AFTER the build reads a
+/// `thread_bytes()` that already contains the build — so the whole import is excluded from the
+/// session it created, and the ceiling begins after the network already exists. That is the
+/// never-marked half of the same defect [`session_bytes`]'s ⚠ describes, and it is not merely
+/// "uncounted": `entry(key).or_insert(now)` there would file the FIRST CHECK's reading as the
+/// origin, retroactively making every byte the import allocated free.
+///
+/// The cure this exists for is to read [`thread_bytes`] before the build, build, and file THAT
+/// captured value here.
+///
+/// ⛔ **IT DOES NOT CLOBBER**, for the reason [`mark_session_origin`]'s ⛔ gives and by the same
+/// `or_insert`: an origin is written once per key and never moved. A door that files an origin it
+/// captured earlier must not be able to re-base a session that has already started spending — and
+/// since a captured origin is by construction OLDER than a live one, clobbering here would move a
+/// session's zero point BACKWARDS and hand it free bytes, which is the mirror of the defect A4
+/// cured.
+///
+/// The map's own growth is charged to whoever calls this, not to the session: `entry` may
+/// allocate, and unlike [`mark_session_origin`] the reading was taken long before that — a handful
+/// of bytes, in the under-counting direction for this one insert. [`thread_bytes`] rules the
+/// over-counting direction safe; this single insert is the one place that leans the other way, and
+/// it is bounded by one map entry.
+pub fn mark_session_origin_at(key: SessionOriginKey, origin: usize) {
     let _ = SESSION_ORIGINS.try_with(|m| {
-        m.borrow_mut().entry(key).or_insert(now);
+        m.borrow_mut().entry(key).or_insert(origin);
     });
 }
 
