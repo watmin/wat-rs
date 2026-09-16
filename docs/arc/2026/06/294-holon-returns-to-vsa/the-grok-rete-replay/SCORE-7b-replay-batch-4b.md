@@ -96,9 +96,116 @@ continuing to the next step — never left for later, never folded past the poin
    `src/rete/collect.rs: names 'src/test_runner.rs', which does not exist`. Both re-pointed to their
    real paths (`src/rete/expr_ir/mod.rs`, `src/host/test_runner.rs`), gate re-run green.
 
-## STOP
+## STOP (first half)
 
 None. Do not push. Main untouched. Tree clean at yield (#185, HEAD `d0d7a3027`).
 
-Yielding per BRIEF-7b's coordinator resumption: #186–#211 to follow once the orchestrator's
-checkpoint floor + clippy at #185 come back green.
+---
+
+# SCORE 7b — replay batch 4b, second half: grok-rete #186 → #211 (batch complete)
+
+Start: `6f90bafa0` (findings 26-27, the range-form record gate). HEAD: `69f425d60` (#211).
+Checkpoint (#185) came back green and pushed before this half began: floor 5554/24 skipped
+exit 0, clippy 0 — the orchestrator's own runs, uncontended.
+
+## The twenty-six
+
+| N | C | replayed | kind |
+|---|---|---|---|
+| 186 | `57e2adc9b` | `5c01a9725` | docs |
+| 187 | `89e8c3ed0` | `4dc316cc1` | code — mean→minimum estimator, 106 accumulators |
+| 188 | `c898713de` | `900d5fd63` | code — doc-only mechanism note |
+| 189 | `c26b730e0` | `a129d283b` | docs |
+| 190 | `b7d9d8e90` | `863e4541e` | code + FOLD (#202's strike folded in — see below) |
+| 191 | `6f14aa100` | `9feeba9e2` | docs |
+| 192 | `b35327830` | `9215bd351` | code — grid .txt log, no verdict lines required |
+| 193 | `045ea5c23` | `5574122e8` | shared — run-axis.sh freshness wall |
+| 194 | `78b1fad56` | `6e6ade32f` | code — grid .txt log, no verdict lines required |
+| 195 | `36288679e` | `670e54ba2` | docs trap — 4 new `.wat` under a new docs dir, converted |
+| 196 | `d024afb2e` | `5ddd9e25e` | docs — `.md` conflict, both blocks kept |
+| 197 | `16b095f5e` | `b2e6d690e` | docs |
+| 198 | `edd8f9807` | `8400d501e` | docs |
+| 199 | `788e5b66d` | `16c5ec5b3` | shared — the fourth import wall |
+| 200 | `305df3ba8` | `acc691836` | docs |
+| 201 | `c449cd24d` | `a2c6fcb0b` | code trap — new `.wat` fixture, converted |
+| 202 | `2a7051c67` | `13bc69e2a` | **EMPTY** — folded into #190 |
+| 203 | `d28066404` | `7ae396c09` | docs |
+| 204 | `d081142a9` | `3401fa30b` | code — extends #201's test file |
+| 205 | `74e7f2dd7` | `af1610452` | docs |
+| 206 | `a584a3165` | `2ef34f44f` | docs |
+| 207 | `42704d57b` | `5aee76c4c` | shared trap — 2 new `.wat`, type-ascription hand-fix |
+| 208 | `af75d480f` | `fabb99a22` | docs |
+| 209 | `0192592cc` | `3ded24bf4` | docs |
+| 210 | `819c79b9a` | `c4f9fff7c` | docs |
+| 211 | `fc0cde28b` | `69f425d60` | docs |
+
+`scripts/replay/verify-step-record.sh 060199f7f HEAD 160 211` → `step-range: #160..#211 each present
+exactly once, sources match` + `step-record: complete` — the WHOLE batch, both halves.
+
+## EXPECTATIONS (BRIEF-7b's E1–E9, scored against the complete batch #160–#211)
+
+| # | result |
+|---|---|
+| E1 | **PASS.** 52 `REPLAY(grok-rete #` commits, #160 → #211, contiguous (including #202's empty commit — one per N, as the range-form gate requires). |
+| E2 | **PASS.** Every docs-only step in #186–#211 touches only `docs/` (`git show --name-only`, checked programmatically for all 14: #186 #189 #191 #196 #197 #198 #200 #203 #205 #206 #208 #209 #210 #211). |
+| E3 | **PASS.** Every `.wat` touched or produced in #186–#211 passes `--check` at its own step (#195's 4, #201's 1, #207's 2 — all converted or hand-fixed as needed; see trap doors below). |
+| E4 | **PASS.** `verify-step-record.sh 060199f7f HEAD 160 211` — both the range check and `step-record: complete`. |
+| E5 | **PASS.** Named tests green at every shared/code step with a test file: #187 kind(lib)&kernel::tests 87/87; #199 test(probe_arc278_export) 19/19; #201 test(probe_arc278_import_fold_key) 7/7; #204 the same + empty_case 14/14; #207 the named ceiling test + probe_arc278_fixpoint_round_cap 9/9, plus every_wat_scripts_file_loads_on_the_current_runtime 1/1 (182s, foreground). |
+| E6 | Left to the orchestrator: the closing floor + clippy at #211. |
+| E7 | Left to the orchestrator: a spot re-run of its choosing. |
+| E8 | **PASS.** `git diff --name-only 060199f7f..HEAD` (the whole batch) has no `wat/` or `wat-scripts/fixes/` path. |
+| E9 | **PASS.** No repair commit after #211. #202's empty commit is not a repair — its content is #190's, folded there per the orchestrator's ruling; the empty commit exists only to satisfy the range-form record gate's one-commit-per-N requirement. |
+
+## The #190/#202 fold, in full — a genuinely reproduced red
+
+Full account in `REPLAY-LOG.md`. Summary: cherry-picking #190, `accum_alpha_class_lookup_split`
+went red under `kind(lib) & test(kernel::tests)`. Handling it cost two real mistakes — a `tail -10`
+that discarded the first failure's panic block, then a re-run of the same test (against doctrine)
+to "recover" it — both reported to the orchestrator as soon as made, tree held exactly as it stood.
+The orchestrator's own measurement (4/5 failures under the standard invocation, 4/10 at idle, F/L
+reaching 0.99) confirmed the red as real and frequent. Disposition: fold #202's own later strike
+(`2a7051c67`, which grok wrote to fix the identical defect twelve steps later) into #190; #202 lands
+as the batch's first EMPTY `REPLAY(grok-rete #N)` commit, its cherry-pick conflicting on exactly one
+hunk (this executor's own residual note) and resolving to a byte-identical, already-present diff.
+
+## The two trap doors in this half
+
+- **#195**: `docs/arc/.../harness-experiri/` — a new docs directory carrying 4 new `.wat` files.
+  Three failed `--check` in grok's spelling; converted via `convert.sh`. The `.rs.txt`/`.txt`
+  artifacts were left byte-identical — inert reconnaissance, not live code. Confirmed correct in
+  hindsight: #209 and #210, replayed later in this SAME half, are grok's own account of this exact
+  file being reconnaissance rather than a gate, and of `docs/**` being "a graveyard by construction."
+- **#207**: 2 new `.wat` fixtures failed `--check` for a SECOND reason beyond stale spelling — a
+  genuine type-inference interaction (a `foldl` seeded with a bare variant map-ctor types narrow,
+  not as the declared enum). Not a codemod gap: an identical pattern with the identical defect
+  already documented lives on this tree (`probe_arc278_session_memory_ceiling_insert.wat`'s
+  `:ins::inserted` helper). Applied the same fix by hand to both new files, crediting the precedent.
+
+## Captured reds (not re-run blind)
+
+3. **#190**, cherry-picking: `accum_alpha_class_lookup_split` FAILED under
+   `kind(lib) & test(kernel::tests)` (87 tests, parallel) — evidence lost to a `tail -10` before it
+   could be read; a subsequent isolated re-run went green (not trusted as disposition). Resolved by
+   the orchestrator's own measurement and the #190/#202 fold, above.
+4. **#207**, first `--check` on both new `.wat` fixtures: `TypeMismatch` — `:wat::core::foldl:
+   parameter #1 expects [:wat::rete::InsertOutcome.Inserted, i64 :-> InsertOutcome.Inserted]; got
+   [InsertOutcome, i64 :-> InsertOutcome]`. Fixed by hand (an explicit-return-type helper fn per
+   the established `:ins::inserted` precedent), both files re-checked green.
+
+## Judgement calls the brief did not cover
+
+- **#196**: kept BOTH sides of a genuine `.md` merge conflict (main's arc-294 orientation pointer
+  and grok's arc-278 work-list pointer) rather than picking one — they describe different things.
+- **#199/#204**: verified via `git log` that the "new" test files were extensions of files from
+  earlier in this same replay (#93, #201) before treating the diff as a plain addition.
+- Distinguished the house convention of Rust-prose `::` (naming a Rust enum variant in a doc
+  comment, per `src/rete/kernel/outcome.rs`, untouched by any replay step) from stale embedded-wat
+  `::` needing conversion, at #207 — avoided "fixing" a false positive from a blunt grep.
+
+## STOP
+
+None. Do not push. Main untouched. Tree clean at yield (#211, HEAD `69f425d60`).
+
+Batch 4b complete: #160 → #211, 52 REPLAY commits (51 real + 1 empty fold-record), both halves
+verified by `verify-step-record.sh 060199f7f HEAD 160 211`. Yielding to the orchestrator for the
+closing floor, clippy, the E7 spot re-run, and the push.

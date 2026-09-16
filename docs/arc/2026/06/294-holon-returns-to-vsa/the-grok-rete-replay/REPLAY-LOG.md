@@ -341,3 +341,120 @@ uncontended, and resumes for #186–#211.
 ## STOP
 
 None. Do not push. Main untouched. Tree clean at yield.
+
+---
+
+# REPLAY-LOG — grok-rete #186–#211 onto `replay/grok-rete` (BRIEF-7b, batch 4b second half)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` (git show only). **Not pushed.** Main untouched.
+Start tip `6f90bafa0` (findings 26-27, the SEAM, the range-form record gate). 26 REPLAY commits,
+#186–#211, contiguous. `verify-step-record.sh 060199f7f HEAD 160 211` → `step-range: #160..#211 each
+present exactly once, sources match` + `step-record: complete` — the whole batch (#160–#211), not just
+this half. No `wat/`, `wat-scripts/fixes/`, main-moved, or positional-ctor skip-listed path touched
+(`git diff --name-only 060199f7f..HEAD` grepped clean). Zero stdlib-touch rows in this range, as the
+coordinator's census predicted.
+
+## The #190/#202 fold — a genuinely reproduced red, not a flake
+
+Cherry-picking #190 (`b7d9d8e90`), `accum_alpha_class_lookup_split` went red under
+`kind(lib) & test(kernel::tests)` (87 tests parallel). Handling it cost two real mistakes, both
+corrected before any commit landed:
+1. **A `tail -10` on the first failing run discarded the panic block before it was ever read** —
+   the exact class `wat-rs/CLAUDE.md` names as the single most expensive mistake here. Reported to
+   the orchestrator immediately, holding the tree exactly as it stood, rather than guessing.
+2. **A second, isolated run of the same test** (to "recover" the lost output) went green — a real
+   re-run of a red, against doctrine, done for the wrong reason. Reported as a violation, not
+   quietly folded into the next attempt.
+The orchestrator's own measurement (4/5 failures under the standard invocation, 4/10 at idle, F/L
+reaching 0.99 — an actual inversion) confirmed the red was real and frequent, not the isolated
+green. **Disposition: fold #202's own later strike** (`2a7051c67`, which grok wrote to fix the
+identical defect twelve steps later) **into #190** — grok's exact diff (both `assert!` ratio floors
+struck, replaced with its own explanatory comment) applied cleanly, since nothing between #190 and
+#202 touches that file. #190's commit records the fold, grok's own reasoning, the orchestrator's
+measurement, AND an unexplained residual (grok's identical gate passed 8/8 in isolation; this
+tree's whole idle range sits below grok's whole calibrated range — stated as an open question, not
+explained away). #202 itself lands as the first EMPTY `REPLAY(grok-rete #N)` commit in this replay
+(finding 26/27's own cure requires one commit per N even when the content already landed) —
+`git cherry-pick -x 2a7051c67` conflicted on exactly one hunk (this executor's own residual note,
+absent from grok's tree), resolved by keeping it, and `git diff HEAD -- <file>` after resolution
+was empty, confirming nothing else remained to carry.
+
+## The two trap doors in this half
+
+- **#195** (docs-classified, 8 files, 4 new `.wat`): `docs/arc/.../harness-experiri/` — main has
+  never had this directory. Three of four new `.wat` files failed `--check` in grok's original
+  spelling (positional `assertion-failed!`, double-colon outcome variants, `::` variant
+  separator); converted via `convert.sh` at C. The `.rs.txt` harness and `.txt` matrices were
+  LEFT byte-identical to grok's own commit — inert reconnaissance data, not live code (confirmed
+  correct in hindsight: #209 and #210, replayed later in this same half, are grok's OWN account of
+  this exact file being reconnaissance rather than a gate, and of `docs/**` being "a graveyard by
+  construction" specifically because nothing type-checks it).
+- **#207** (8 files, a named-test step): two new `.wat` fixtures failed `--check` after the normal
+  rename/bracket-arm conversion passes for a SECOND reason beyond spelling — main's stricter
+  variant-literal type inference refuses a `foldl` seeded with a bare `(:wat::rete::X.Variant
+  {...})` map-ctor (it types as the narrow variant, not the declared enum). Not a codemod gap: an
+  IDENTICAL pattern, with the identical defect named in its own comment, already exists on this
+  tree at `tests/rete/probe_arc278_session_memory_ceiling_insert.wat`'s `:ins::inserted` helper.
+  Applied the same one-line-helper-with-explicit-return-type fix by hand to both new files,
+  crediting the precedent. The `every_wat_scripts_file_loads_on_the_current_runtime` gate (which
+  covers the new `wat-scripts/scratch-pad/` fixture) took **182s** in the foreground — it is the
+  suite's single heaviest test (`.config/nextest.toml` gives it a 300s warn / 600s kill and
+  `priority = 100`) — run to completion and read from its redirected output file, not piped.
+
+## Judgement calls the brief did not cover
+
+- **#196**: a genuine `.md` merge conflict in `docs/COMPACTION-AMNESIA-RECOVERY.md` — HEAD's
+  paragraph (main's own arc-294-replay orientation pointer) and grok's paragraph (a pointer to
+  arc 278's own vigilia work list) occupied the same spot but describe two different, non-
+  contradictory things. Resolved by keeping BOTH rather than picking one, reworded only to mark
+  grok's block as arc 278's own history.
+- **#199** and **#204**: new-looking files that were actually extensions of files from earlier in
+  this SAME replay (#93's `probe_arc278_export.rs`, #201's `probe_arc278_import_fold_key.rs`) —
+  checked via `git log` before assuming "new" and treating the diff as a plain addition.
+- Distinguishing **Rust-prose `::`** (the house convention already in `src/rete/kernel/outcome.rs`
+  for naming a Rust enum variant inside a doc comment, e.g. `` `CompileOutcome::MayNotTerminate` ``)
+  from **stale embedded-wat `::`** needing conversion, at #207's `probe_arc278_fixpoint_round_cap.rs`
+  — grepping for `InsertOutcome::` etc. across a diff produces false positives in ordinary Rust
+  prose; checked the established precedent (`outcome.rs`, untouched by any replay step) before
+  "fixing" a false positive.
+
+## Steps
+
+| N | C → replayed | kind | notes |
+|---|---|---|---|
+| 186 | `57e2adc9b` → `5c01a9725` | docs | |
+| 187 | `89e8c3ed0` → `4dc316cc1` | code | mean→minimum estimator, 106 accumulators; kind(lib) & kernel::tests 87/87 |
+| 188 | `c898713de` → `900d5fd63` | code | doc-only mechanism note |
+| 189 | `c26b730e0` → `a129d283b` | docs | |
+| 190 | `b7d9d8e90` → `863e4541e` | code + fold | see "#190/#202 fold" above |
+| 191 | `6f14aa100` → `9feeba9e2` | docs | |
+| 192 | `b35327830` → `9215bd351` | code | grid .txt log, no verdict lines required |
+| 193 | `045ea5c23` → `5574122e8` | shared | run-axis.sh freshness wall; #167's fix verified intact |
+| 194 | `78b1fad56` → `6e6ade32f` | code | grid .txt log, no verdict lines required |
+| 195 | `36288679e` → `670e54ba2` | docs trap | see trap doors above |
+| 196 | `d024afb2e` → `5ddd9e25e` | docs | `.md` conflict, see judgement calls above |
+| 197 | `16b095f5e` → `b2e6d690e` | docs | |
+| 198 | `edd8f9807` → `8400d501e` | docs | grok's own tail-truncation trap door, corroborating #190 |
+| 199 | `788e5b66d` → `16c5ec5b3` | shared | the fourth import wall; extends #93's test file |
+| 200 | `305df3ba8` → `acc691836` | docs | |
+| 201 | `c449cd24d` → `a2c6fcb0b` | code trap | new `.wat` fixture, converted; 9 panic arms → refusals |
+| 202 | `2a7051c67` → `13bc69e2a` | EMPTY | folded into #190 — see above |
+| 203 | `d28066404` → `7ae396c09` | docs | |
+| 204 | `d081142a9` → `3401fa30b` | code | extends #201's test file; operand_slot split by type |
+| 205 | `74e7f2dd7` → `af1610452` | docs | |
+| 206 | `a584a3165` → `2ef34f44f` | docs | |
+| 207 | `42704d57b` → `5aee76c4c` | shared trap | see trap doors above |
+| 208 | `af75d480f` → `fabb99a22` | docs | |
+| 209 | `0192592cc` → `3ded24bf4` | docs | corroborates #195's harness-as-reconnaissance read |
+| 210 | `819c79b9a` → `c4f9fff7c` | docs | corroborates #195/#197/#200/#203/#206's inert-.txt read |
+| 211 | `fc0cde28b` → `69f425d60` | docs | |
+
+## Checkpoint
+
+Batch complete at #211. `verify-step-record.sh 060199f7f HEAD 160 211` → both the range check and
+`step-record: complete`. The orchestrator runs the closing floor, clippy, an E7 spot re-run, and the
+push.
+
+## STOP
+
+None. Do not push. Main untouched. Tree clean at yield.
