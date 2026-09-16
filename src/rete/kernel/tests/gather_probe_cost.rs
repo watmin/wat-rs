@@ -882,14 +882,41 @@ fn probe_extend_cost_split() {
              reports that involves it is meaningless rather than fast"
         );
     }
-    // APPORTIONMENT: the parts must account for the combined measurement. Loose bounds (0.5x–2x)
-    // because these are wall clocks; what this catches is a component dropping out of `h`.
-    assert!(
-        h >= (b + m + e) * 0.5,
-        "combined ({h:.0} ns) is far below its parts b+m+e ({:.0} ns) — the combined closure is \
-         no longer doing the work the parts describe",
-        b + m + e
-    );
+    // ⛔⛔ THE APPORTIONMENT ASSERT THAT STOOD HERE IS STRUCK, 2026-09-16 (finding 32), AND THE
+    //     MEASUREMENT IS THE REASON. It read `h >= (b + m + e) * 0.5`, with the loose 0.5x bound
+    //     justified in its own comment as "because these are wall clocks".
+    //
+    //     These are NANOSECOND wall clocks. Measured on a quiescent box, same `kind(lib)`
+    //     invocation the floor uses:
+    //
+    //         clean tree            1 of 10 FAILED   33 ns vs 79 ns   ratio 0.42
+    //         + an unrelated diff   1 of  5 FAILED   35 ns vs 87 ns   ratio 0.40
+    //         combined              2 of 15  ≈ 13%
+    //
+    //     Indistinguishable populations, so the failure is noise, not content — the replay step
+    //     that surfaced it was exonerated by that control. `kind(lib)` is part of the floor, so
+    //     this gate gave EVERY floor since it landed a ~13% chance of a meaningless red, and a
+    //     gate that manufactures reds destroys the one rule this repo depends on: a red is a red.
+    //
+    // ⛔ RAISING THE BOUND WOULD BE PATCHING THE STEM — the sibling ruling at
+    //    `accum_alpha_cost.rs` says it in its own words: "THE DEFECT IS NOT THE THRESHOLD". And
+    //    there is no noise headroom left to buy: the estimator is ALREADY minimum-of-3
+    //    (`f64::INFINITY` + `.min()` above), and the measured components are 33–87 ns against a
+    //    307 ns/iteration design unit.
+    //
+    // ⚠ WHAT IS LOST, SAID PLAINLY RATHER THAN GLOSSED: the five `v > 0.0` liveness asserts above
+    //    catch a component dropping out ENTIRELY (it reads 0). They do NOT catch the subtler case
+    //    this assert aimed at — `h` ceasing to do `b+m+e`'s work while every component still reads
+    //    non-zero. That coverage is genuinely gone. It was also unreachable: at 0.40–0.42 against
+    //    a 0.50 floor the instrument cannot separate that case from scheduler noise.
+    //
+    //    The stone this test serves (`BRIEF-probe-extend-split.md`) never asked for it. Its Done
+    //    criteria are exactly "Table printed. E > 0. Largest drawable lump named." — all three
+    //    still hold — and its STOP-3 is literally "gate FIRE on a wall". The assert was added on
+    //    top of that commission by the R59 hollow-test sweep, which was right that a test
+    //    asserting nothing is worthless, and overshot on this one row.
+    //
+    //    The table below still PRINTS every figure. This test reports; it does not claim.
 
     let scale_e = |ns: f64| ns * EXTENDS / 1e6;
     let scale_l = |ns: f64| ns * LEFTS / 1e6;
