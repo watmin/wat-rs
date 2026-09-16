@@ -1586,3 +1586,284 @@ stated in full at #298's own commit body and #300's own empty-commit body, not o
 Never a repair commit appended after the batch, never a knowingly-red REPLAY commit, no `git
 replace` overlay used anywhere, no `git filter-branch` used anywhere. Do not push. Main untouched.
 `~/work/holon/` untouched. No subagents spawned. No worktrees used. Tree clean at yield.
+
+# Batch 4i — grok-rete #301 → #320
+
+Anchor `f0bb300bf` verified (HEAD, tree clean, 300 REPLAY commits) before the first step.
+
+## #301 — docs-only, curare stamp
+
+`curare: twenty-seventh stamp — D4 weighed and closed; probe re-anchored`. Auto-merged clean on
+3 docs files (`CURRENT-STATE-annihilate-interpretation.md`, `VIGILIA-2026-08-30-WORK-LIST.md`,
+new `strike-exec-sp/SCORE.md`).
+
+## #302 — shared (`.sh`), the finding-33 hot spot itself
+
+`perf(grid): the grid could not tell a result from noise — now it can`. Auto-merged clean.
+Touches `wat-scripts/perf/grid/run-axis.sh` — the exact file whose embedded `perl` substitution
+sat silently broken for weeks (#167) — plus new `compare-grids.sh` and three `GRID-*.txt` data
+artifacts. This diff's own hunks (lines 343-379) add `:wat-ns-min`/`:wat-ns-max` fields to the
+`#grid/Verdict` echo; they carry zero `":wat::` tokens. The pre-existing perl substitution at
+lines 196/198 (untouched here) still targets `:wat::rete::fire-rules$oracle` and
+`:wat::rete::FireOutcome.Fired` — both confirmed LIVE via grep across `src/rete/vocabulary.rs`
+and `src/rete/kernel/outcome.rs`, so #167's fix (landed earlier in the replay) still holds. No
+`.wat`, `src/`, or `.rs` touched, so the record gate requires no verdict lines — confirmed against
+`verify-step-record.sh`'s own path-based rule.
+
+## #303 — docs-only, curare stamp
+
+`curare: twenty-eighth stamp — the grid cannot resolve <20%, and never asked the spec`.
+Auto-merged clean on 2 docs files.
+
+## #304 — code, `probe(rete): C4 is real and not cosmetic` — A GENUINE FINDING-33 HIT
+
+Auto-merged clean on `src/rete/kernel/tests/accum_alpha_cost.rs` (one new `#[test]`,
+`c4_probe_bind_only_decides_skip_span_for_the_accum_axis`). Running it as grok wrote it FAILED:
+
+```
+#wat.kernel/AssertionFailure {:message "assertion-failed! takes kwargs :message / :actual /
+:expected; the positional (message actual expected) form is retired" ...}
+```
+
+The new probe's embedded `staged` wat string used a stale, pre-migration form: paren-clause,
+double-colon, positionally-destructured match arms
+(`(:wat::rete::CompileOutcome::Compiled __session)`) and a positional `assertion-failed!` call
+(`"msg" :wat::core::None :wat::core::None`) — arc 109's positional-to-kwargs flip
+(`wat-scripts/fixes/assertion-failed-to-kwargs.wat` is the recorded `.wat`-corpus migration; it
+does not reach this embedded string since no `.wat` file is involved). **This exact file already
+carries FIVE other `let staged = "..."` occurrences (lines 118, 350, 628, 755, 939) using the
+correct live idiom** — the sibling copy was on the floor, per finding 33's own account of #167.
+Hand-converted line 1177 to match those five byte-for-byte:
+`[:wat::rete::CompileOutcome.Compiled {:session __session} __session]
+[:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft}
+(:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]`.
+Re-ran: PASS. This is a STOP-1-shaped surface (a test failed after the step) that resolved to a
+syntax-staleness repair per BRIEF-1's "wat embedded in .rs strings: bring it to main's syntax by
+hand" — not a rete-behaviour divergence, so it was fixed in place rather than treated as a stop.
+
+Named test: `c4_probe_bind_only_decides_skip_span_for_the_accum_axis` — 1/1 PASS after the fix.
+
+census: `.census/2026-09-16T23-12-59Z.txt` files=2122; --diff no STOP-8 vs #300's (byte-identical
+to #298's) `.census/2026-09-16T12-37-37Z.txt`
+nested-program-gate: PASS (3/3, 5724 skipped)
+lint-subset: 235 passed
+kind(lib): 1493 passed
+doctest: 8 passed
+
+## #306 — code, `fix(rete): C4` — each alpha arm declares its skip_span branch
+
+Auto-merged clean on `src/rete/kernel/tests/accum_alpha_cost.rs`. Purely additive benchmark
+instrumentation: a new `a_prod` row in both `accum_alpha_leftover_split` and
+`accum_alpha_push_split` measuring `alpha_activate_fact` with `bind_only` built the way
+`fire/delta.rs:339-346` actually builds it (production's real branch), beside the existing `a`
+row (relabeled "skip_span forced off"). Only two `> 0.0` liveness asserts added — no ratio or
+threshold gate. finding 33: not applicable, zero `":wat::` tokens in the diff.
+
+Named tests: `accum_alpha_leftover_split` + `accum_alpha_push_split` — 2/2 PASS.
+
+census: `.census/2026-09-16T23-16-54Z.txt` files=2122; --diff no STOP-8 vs #304's
+`.census/2026-09-16T23-12-59Z.txt`
+nested-program-gate: PASS (3/3, 5724 skipped)
+lint-subset: 235 passed
+kind(lib): 1493 passed
+doctest: 8 passed
+
+## #307, #308, #309 — docs-only
+
+`curare: twenty-ninth stamp` (#307), `curare: re-anchor the freshness probe to abc9fac7d` (#308),
+`strike: draw C3 — a phase mark nobody emits reads as 0.00 ms and is then subtracted` (#309, the
+DESIGN for #310). All auto-merged clean, docs-only confirmed by `git show --name-only`.
+
+## #310 — code, `fix(rete): C3` — THE FOURTH NEW GROK LINT GATE, PREDICTED RED, MEASURED GREEN
+
+⛔ **The single largest deviation from the brief in this batch.** `EXPECTATIONS-7i` and
+`BRIEF-7i` both predicted this gate would land red — "four for four" after #274/#278/#283,
+because grok's own repair touches only `accum_cost.rs` while this tree carries **8** `*_cost.rs`
+files (confirmed exactly). New file `tests/lint/census_name_read_by_a_cost_test_is_emitted.rs`
+(780 lines) demands every census name a cost test READS resolve to a name the engine EMITS, with
+an earned exemption rune `rune:lint(census-name-retired)` (40-char reason floor) for deliberately
+retired marks.
+
+Auto-merged clean on `src/rete/kernel/tests/accum_cost.rs` (grok's own repair: deletes the false
+`"  │  setup:seen:insert"` read — the row that used to print `0 − S` as a fabricated measurement —
+and adds 4 `rune:lint(census-name-retired)` declarations on the pre-existing `ALPHA_KIDS` array,
+retired by `c9d751049`).
+
+Ran the gate: **all 14 tests PASS**, including both headline arms
+(`every_census_name_a_cost_test_reads_is_emitted`,
+`every_census_name_retired_rune_names_a_name_the_engine_no_longer_emits`). Not trusted on the
+PASS label alone — compiled the gate file standalone via `rustc` (`CARGO_MANIFEST_DIR` set, a
+throwaway `main()` calling its own `emitted()`/`reads()`, no repo file touched) and printed the
+internal counts:
+
+```
+em.from_literals=75  em.from_computed=16  em.names.len()=91
+rd.len()=99  runed=4  unresolved=0
+```
+
+Both non-vacuity floors clear (75>50, 99>40); `em.names.len()=91` matches the brief's own "91
+census mentions" figure exactly; all 4 `runed` reads are grok's own pre-existing declarations
+(reason length 88 chars each, measured, well over the 40-char floor); `unresolved=0` — **this
+tree's 8-file corpus divergence did not surface any additional unresolved name.** No repair was
+needed or made at this step beyond what grok itself carries. This is a direct, non-vacuity-checked
+measurement, not a weakened or allowlisted gate — the corpus simply happens to already be clean
+here, unlike #274/#278/#283.
+
+finding 33 grepped: not applicable, zero `":wat::` tokens in the diff.
+
+Named tests: `accum_leftover_split` + `accum_seen_fire_context_split` — 2/2 PASS. New gate suite:
+`census_name_read_by_a_cost_test_is_emitted` — 14/14 PASS.
+
+census: `.census/2026-09-16T23-23-04Z.txt` files=2122; --diff no STOP-8 vs #306's
+`.census/2026-09-16T23-16-54Z.txt`
+nested-program-gate: PASS (3/3, 5738 skipped)
+lint-subset: 249 passed
+kind(lib): 1493 passed
+doctest: 8 passed
+
+## #311 — docs-only, curare stamp
+
+`curare: thirtieth stamp — C3 closed; my own sweeps were wrong twice in one day`. Auto-merged
+clean on 4 docs files.
+
+## #312 — docs-only, strike design
+
+`strike: draw C6 — a reconstruction checked against a constant nobody re-measured`. Auto-merged
+clean, 3 new docs files (BRIEF/DESIGN/EXPECTATIONS for `strike-stale-reconstruction`).
+
+## #313 — code, `fix(rete): C6` — read the filter phase live; REFUSE to assert a check that fails
+
+Auto-merged clean on `src/rete/kernel/tests/node_share_cost.rs`. Replaces the frozen
+`FILTER_MS_MEASURED_IN_FIRE = 6.83` (2026-08-01, ~49x stale — the compiled-where work drove the
+real phase down) with a live `node_share_phase_census(50, 200)` read, and reconstructs from the
+NATIVE arm (F) instead of the interpreter arm (B, which the fire never calls). Per the design's
+own STOP ("do not choose the band to make it pass"): the declared check is deliberately **NOT**
+asserted as a ratio/band — six of grok's own runs measured 684-734% accounted, a stable
+structural over-count, and asserting a band that admits it would recreate the defect. Only two
+liveness asserts exist (`filter_ms > 0.0`, plus the pre-existing `a>0.0 && ... && b>a && b>e`) —
+no new ratio/threshold gate.
+
+finding 33: not applicable, zero `":wat::` tokens in the diff.
+
+Named test: `node_share_where_cost_decomposition` — 1/1 PASS.
+
+census: `.census/2026-09-16T23-26-43Z.txt` files=2122; --diff no STOP-8 vs #310's
+`.census/2026-09-16T23-23-04Z.txt`
+nested-program-gate: PASS (3/3, 5738 skipped)
+lint-subset: 249 passed
+kind(lib): 1493 passed
+doctest: 8 passed
+
+## #314 — docs-only, curare stamp
+
+`curare: thirty-first stamp — C6 closed by refusing its own check; C12 opened`. Auto-merged
+clean on 5 docs files.
+
+## #315 — GENUINELY EMPTY IN GROK, recorded per the #202/#300 precedent
+
+`curare: restore a phrase the previous commit message lost to the shell`. Grok's own
+`2e98d80069d3f99895f6a24a9890a4f1adab1c78` carries **0 file changes** — confirmed via `git show
+--stat` before landing: it is a pure commit-MESSAGE correction (grok explains a backtick/command-
+substitution mishap in a prior commit message, and records the fix as a new commit rather than
+amending an already-pushed one). Landed as `git commit --allow-empty` with a body stating plainly
+that grok's own commit carries no tree change.
+
+## #316 — docs-only, strike design
+
+`strike: draw C5 — a file whose every "in-engine" claim is about code the engine does not run`.
+Auto-merged clean, 3 new docs files.
+
+## #317 — code, `fix(rete): C5` — the binding-repr file's claims now match what the engine runs
+
+Auto-merged clean on `src/rete/kernel/tests/binding_repr_bench.rs`. Header prose now names the
+live representation (`BindSpan`, `session.rs:64`) and states both benchmarked arms (rpds trie vs
+`Arc<[(Value,Value)]>`) are evidence FOR the stone that chose it, not a measurement of the native
+path; drops the stale "163 ns in-engine bind" anchor (its source now measures NEGATIVE) rather
+than hard-coding a fresh number. Replaces the tautological `< usize::MAX` / "unreachable" assert
+with the non-vacuity check its own comment declared (`> 0`) plus three directional orderings
+(small-cardinality GET array<trie; large-cardinality EXTEND and GET trie<array), each measured at
+2.6x+ margins — the one margin measured comparable to this family's ~16% noise floor
+(small-cardinality EXTEND, 1.19-2.02x) is deliberately left unasserted.
+
+⚠ Treated with suspicion per the brief (findings 28/32's class — timing comparisons, even
+directional rather than ratio-banded): re-ran both named tests by name **5 consecutive times**
+(all 2/2 PASS, ~0.04-0.05s each, no variance) and once more inside the full parallel `kind(lib)`
+run (1493/1493, 0 FAIL) — stable under both idle and contended conditions. No fixed nanosecond or
+ratio threshold is asserted anywhere in this diff.
+
+finding 33: one `":wat::` mention (`:wat::rete::alpha-match{,-local,-under}`) — confirmed prose
+inside a `//` comment, not an embedded executable string; the named primitives confirmed live via
+grep across `src/intrinsic/rete.rs`.
+
+Named tests: `token_bindings_representation_dominance` + `bind_key_construction_vs_map_operation`
+— 2/2 PASS (×5 + once under load).
+
+census: `.census/2026-09-16T23-30-42Z.txt` files=2122; --diff no STOP-8 vs #313's
+`.census/2026-09-16T23-26-43Z.txt`
+nested-program-gate: PASS (3/3, 5738 skipped)
+lint-subset: 249 passed
+kind(lib): 1493 passed
+doctest: 8 passed
+
+## #318, #319 — docs-only
+
+`curare: thirty-second stamp — Class C's original four are closed; C13 withdrawn` (#318),
+`strike: draw C10+C11 — and C10 turns out to be a cross-reference, not a gate` (#319, the BRIEF
+for #320). Both auto-merged clean, docs-only confirmed.
+
+## #320 — code, `fix(rete): C10 name where the arm IS discriminated; C11 stop eating the row indent`
+
+Auto-merged clean on 4 files: `accum_cost.rs`, `accum_alpha_cost.rs`, `cascade_cost.rs`,
+`fanout_cost.rs`. **C10** (accum_cost.rs only): a comment-only cross-reference on the existing
+`assert_eq!(calls, 80_200)` — no new counter, no engine edit, no new assertion — recording that
+`compiled:calls` is a deliberate union of three increment sites and pointing at
+`c4_probe_bind_only_decides_skip_span_for_the_accum_axis` (landed #304) as where the arm IS
+discriminated. Matches its own BRIEF's STOP-1 constraint exactly. **C11** (all 4 files): the
+`\`-newline string-continuation indent bug (a continued line's leading whitespace is stripped),
+fixed with a load-bearing `\x20` escape. Verified the fix moves no number or column (BRIEF's
+STOP-2): rendered `accum_leftover_split` live (`cargo test --release --lib ... -- --nocapture`)
+and confirmed the child rows now print indented 2 spaces under their parent with every `{:>7.2}`
+field unchanged in width/position.
+
+finding 33: not applicable, zero `":wat::` tokens in the diff.
+
+Named tests: `accum_matcher_op_census`, `accum_leftover_split`, `accum_alpha_leftover_split`,
+`cascade_setup_leftover_split`, `fanout_three_leftover_split` — 5/5 PASS.
+
+census: `.census/2026-09-16T23-34-48Z.txt` files=2122; --diff no STOP-8 vs #317's
+`.census/2026-09-16T23-30-42Z.txt`
+nested-program-gate: PASS (3/3, 5738 skipped)
+lint-subset: 249 passed
+kind(lib): 1493 passed
+doctest: 8 passed
+
+## Checkpoint
+
+`scripts/replay/verify-step-record.sh f0bb300bf HEAD 301 320` (foreground, final tree, and again
+under `GIT_NO_REPLACE_OBJECTS=1`) →
+
+```
+step-range: #301..#320 each present exactly once, sources match
+step-record: complete
+```
+
+exit 0 both times. `git replace -l` → empty. `git for-each-ref refs/original/` → empty. `git
+merge-base --is-ancestor origin/replay/grok-rete HEAD` → succeeds. `git status --porcelain` →
+empty. Full wall re-run at HEAD (lint-subset 249, kind(lib) 1493, doctest 8, census 2122
+files/no STOP-8 vs #320's own file — byte-identical, `diff` confirmed — nested-program-gate 3/3,
+5738 skipped) identical to #320's own recorded numbers (E13).
+
+## STOP
+
+None. No process irregularity of any kind this batch: 19 real cherry-picks + 1 disclosed empty
+commit (#315), landed once each, in order, on a clean tree every time — no sequencing slip, no
+fabricated trailer, no history rewrite, no `refs/replace` overlay. One genuine finding-33 defect
+found and repaired at its own step (#304). One gate the brief strongly predicted would land red
+(#310) instead measured green with zero repair needed, on evidence gathered independently of the
+test harness's own PASS label (a standalone-compiled re-derivation of its internal counts). One
+class of new timing assertion (#317's directional orderings) treated with the suspicion the brief
+demanded and verified stable under both idle and loaded conditions before being trusted. Never a
+repair commit appended after the batch, never a knowingly-red REPLAY commit, no `git replace`
+overlay used anywhere, no `git filter-branch` used anywhere. No `pulsare_yield` or any
+`mcp__pulsare__*` tool called. Do not push. Main untouched. `~/work/holon/` (the frozen root)
+untouched. No subagents spawned. No worktrees used. Tree clean at yield.
