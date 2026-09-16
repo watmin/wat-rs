@@ -303,7 +303,34 @@ fn fanout_per_call_alpha_census() {
     ));
     let total = fire;
     println!("{table}");
+    // ⛔ WAS ONLY `assert!(total > 0)` — a liveness check. The sibling above
+    // (`fanout_rhs_key_alloc_census`) already shows the right shape: a NON-VACUITY GUARD on a
+    // deterministic count, so a reading cannot be mistaken for proof when the fire never ran.
+    // The same discipline, applied to what a phase census actually holds — its structure.
     assert!(total > 0, "the phase census recorded nothing.{table}");
+
+    let phase = |want: &str| rows.iter().any(|(n, _)| *n == want);
+    for want in ["production", "hash-join", "alpha", "root-join"] {
+        assert!(
+            phase(want),
+            "phase `{want}` is absent from the census — a 100x20 fan-out MUST exercise it, so \
+             its absence means the workload changed shape, not that it got faster.{table}"
+        );
+    }
+
+    // Structural claim this workload exists to demonstrate: on a rule-light, fact-heavy fan-out
+    // the PRODUCTION phase dominates. Measured 2026-08-30: production 79.5% vs hash-join 8.7%,
+    // a 9x gap — so a 2x floor cannot flake on a loaded runner and still fires if the cost
+    // centre moves somewhere else, which is exactly the regression this census would be read to
+    // detect.
+    let ns_of = |want: &str| rows.iter().find(|(n, _)| *n == want).map_or(0, |(_, ns)| *ns);
+    let (prod, hj) = (ns_of("production"), ns_of("hash-join"));
+    assert!(
+        prod > hj * 2,
+        "production ({prod} ns) no longer dominates hash-join ({hj} ns) by 2x on a fan-out \
+         workload — measured at 9x. The cost centre has moved and this census's reading of \
+         `where the time goes` is describing a different engine.{table}"
+    );
 }
 
 /// Fanout phase table at the GRID ladder. `(keys, fanout)` 25/50/100 × 20
@@ -886,5 +913,27 @@ fn fanout_phase_dump() {
         (94.0 - cal) * 40_000.0 / 1e6,
     );
 
+    // ⛔ WAS ONLY `assert!(wall > 0.0)` — liveness on the harness clock, which says nothing about
+    // whether the DUMP found anything. This test's whole purpose is completeness: its doc says
+    // "the theater hunt kept asking 'what is left?' from a list; this answers it from the
+    // instrument". A dump that enumerated nothing would answer "nothing is left" and pass.
     assert!(wall > 0.0, "harness recorded no time");
+    assert!(
+        !sub.is_empty(),
+        "the phase dump enumerated ZERO named marks — it would report `nothing is left` from an \
+         empty instrument rather than from a complete one, which is the opposite of what this \
+         test exists to establish"
+    );
+    for want in TOP {
+        assert!(
+            acc.contains_key(want),
+            "top-level phase `{want}` is missing from the dump — a fan-out fire must emit it, so \
+             its absence means marks were lost, not that the phase became free"
+        );
+    }
+    assert!(
+        top_sum > 0.0 && named > 0.0,
+        "top-level phases ({top_sum:.0}) or named sub-marks ({named:.0}) summed to zero — the \
+         apportionment printed above is describing an instrument that recorded nothing"
+    );
 }

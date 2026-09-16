@@ -21,8 +21,34 @@ fn accum_alpha_memory_shape() {
             .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
             .value_owned()
     });
+    // ⛔ WAS `assert!(!census.is_empty())` — a LIVENESS check, which fails only if the fire
+    // never ran and says nothing about what it computed. The workload here is FIXED (G=200,
+    // W=200), so every count below is deterministic: measured byte-identical across runs
+    // 2026-08-30. They are the memory SHAPE this test is named for, and a change in any of them
+    // is a real regression or a deliberate change that must update this number.
     assert!(!census.is_empty(), "round census recorded nothing");
+    assert_eq!(census.len(), 2, "fixpoint should close in 2 rounds for this workload");
     let last = census.last().expect("non-empty");
+    assert_eq!(
+        census[0].delta_facts_in, 40_200,
+        "round 0 sees every input fact: 200 Groups + 40,000 Readings"
+    );
+    assert_eq!(
+        last.alpha_nodes, 3,
+        "three alpha nodes: the rule's two fact patterns plus the accumulate's source"
+    );
+    assert_eq!(
+        last.alpha_elements, 80_200,
+        "alpha memory holds one element per (fact, matching alpha) pair"
+    );
+    assert_eq!(
+        last.production_facts, 1_000,
+        "200 groups x 5 productions each"
+    );
+    assert_eq!(
+        last.seen_facts, 41_200,
+        "40,200 input + 1,000 derived, all seen exactly once"
+    );
     println!(
         "\naccum alpha memories — G=200 W=200 (200 Groups + 40,000 Readings)\n\
              rounds {}\n                 last alpha_nodes {}   last alpha_elements {}\n",
