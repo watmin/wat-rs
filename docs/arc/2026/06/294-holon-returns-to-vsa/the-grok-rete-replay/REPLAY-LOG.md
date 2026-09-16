@@ -1107,3 +1107,248 @@ rebuild-descendants pattern — never a repair commit appended after the batch, 
 REPLAY commit, no `git replace` overlay used anywhere. `git diff <pre-repair-tip> <post-repair-tip>`
 = 0 lines. Do not push. Main untouched. `~/work/holon/` untouched. No subagents spawned. No
 worktrees used. Tree clean at yield.
+
+# Batch 4g — #261 → #280
+
+Batch-start SHA `7b58b6cbd`, verified: 260 REPLAY commits, clean tree. 15 docs-only (#261 #263
+#264 #265 #267 #268 #269 #271 #272 #273 #275 #276 #277 #279 #280), all `git show --name-only`
+confirmed touching only `docs/`. 5 code steps: #262, #266, #270, #274, #278.
+
+## #261, #263–265, #267–269, #271–273, #275–277, #279–280 — docs-only
+
+Fifteen `strike`/`score`/`curare` commits, each `git cherry-pick -x --no-commit` then committed as
+`REPLAY(grok-rete #N): <subject>`. All auto-merged clean (three had a one-file auto-merge into
+`CURRENT-STATE-annihilate-interpretation.md`, no conflicts). Each confirmed docs-only before
+committing.
+
+## #262 — shared, 15 files (6 `.wat`, 4 `.rs`, 5 `.edn`) — the #258-dependency tripwire, clear
+
+`fix(rete): the nested-constructor wall reads the form as it exists there`. Tripwire check first:
+`tests/rete/probe_arc278_field_span.rs` and `probe_arc278_field_span_nested.wat` (added at batch
+4f's #258) both present — not a STOP.
+
+**Conflict — `src/rete/validate/mod.rs`, `walk_nested_constructors`'s head-recognition.** Neither
+side alone was correct. HEAD (main's own independent kwargs/type-env work, landed at #169,
+unrelated to grok) already split the kwargs-construct-lowered head from the bare-aggregate head,
+but its `kwargs_construct_head(head)` branch only ran `check_rhs_operands` (the RHS type-fit check)
+and returned — the SAME orphaning grok's commit describes, under different code: the four
+field/arity error kinds lived only in the bare-aggregate branch, unreachable for a lowered head.
+Grok's C fixes the reachability with a unifying `type_idx` (0 or 1) but has no RHS type-fit
+checking at all (that arrives later, at grok's own un-replayed D10/D11) and a flatter enum-arity
+check. Composed both: adopted grok's `type_idx` structure so BOTH heads reach the same
+aggregate-check body, kept main's `check_rhs_operands`/`field_type_map`/`binds`-threading and
+richer `rete_enum_unit_arg_count` enum check inside it. Confirmed against all 4 kind-fixtures via
+`--check` before touching goldens.
+
+**5 `.edn` goldens regenerated via `UPDATE_EDN=1`** — all 5 carried grok's raw
+`#wat.kernel.LociDiedError/StartupError […]` (positional-vector) tag convention; every OTHER
+pre-existing golden in `tests/rete/` already uses this tree's live
+`#wat.kernel/LociDiedError.StartupError {:error …}` (map) convention. Diffed before/after:
+wrapper-only change, every field/span value byte-identical.
+
+finding 33: grepped, one pre-existing (already #258-vetted) staleness confirmed accurate-as-scoped,
+no new staleness introduced.
+
+Named tests (16): `probe_arc278_field_span`'s 5 + `probe_arc278_nested_wall`'s 5 (new) +
+`probe_arc278_enum_variant_typo`'s 6 (control) — 16/16 passed.
+
+census: `.census/2026-09-16T10-00-08Z.txt` files=2122; --diff no STOP-8 (vs #260's
+`2026-09-16T09-04-34Z.txt`)
+nested-program-gate: PASS (3/3, 5641 skipped)
+lint-subset: 155 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #266 — shared, 7 files (7 `.rs`) — the ceiling set becomes a closed type
+
+`fix(rete): the ceiling set is a closed type, matched exhaustively`. **Conflict —
+`src/value/signal.rs`, the `Display` impl's ceiling arms.** HEAD had no independent `ReteCeiling`
+type (unlike #262); grok's structural change (flat `RuntimeErrorKind` variants →
+`RuntimeErrorKind::ReteCeiling(ReteCeiling)`, matched exhaustively) is the step's own work and
+landed as printed.
+
+finding 33 caught one live instance: grok's `FixpointRoundCapExceeded` message still carried the
+PRE-rehome `:wat::rete::core::i64::+` — confirmed via `git show 452953cb9` that the diff moved this
+string verbatim (byte-identical remove/add) from the old location; it was already stale in grok's
+own C^ and untouched by grok's own step. HEAD already carried the corrected `:wat::rete::i64::+`
+at the same string (an earlier replay executor's own finding-33 fix) — re-applied at the new
+nested location.
+
+The other 6 files (`outcome.rs`'s three converters now narrow to `ReteCeiling(c)` and match `c`
+exhaustively, `session.rs`, `stratify.rs`, `runtime.rs`, `value/mod.rs`) auto-merged clean.
+
+Named tests (10): `no_ceiling_raise_in_rete` (construction-wall control) + `probe_arc278_
+fixpoint_round_cap`'s 9 (all three ceiling doors) — 10/10 passed.
+
+census: `.census/2026-09-16T10-11-13Z.txt` files=2122; --diff no STOP-8 (vs #262's
+`2026-09-16T10-00-08Z.txt`)
+nested-program-gate: PASS (3/3, 5641 skipped)
+lint-subset: 155 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #270 — shared, 2 files in grok's own diff, 8 in this commit (repaired at landing) — the new broken-doc-link ledger reseeded to this tree
+
+`fix(rete): each ceiling variant carries its own doc, and a broken link cannot be added`.
+`src/value/signal.rs` auto-merged clean (three stacked doc blocks split onto four `ReteCeiling`
+variants; two `[RuntimeErrorKind::X]` cross-refs corrected to `[ReteCeiling::X]`).
+
+The new gate (`tests/lint/no_new_broken_doc_link.rs`, a shrink-only ratchet freezing broken
+intra-doc links BY NAME) landed with grok's 34-key/41-site ledger and immediately found **10 links
+newly broken, 8 ledgered links "resolved."** Diagnosed: not new rot — this tree independently split
+several modules since grok's tree was last in this shape (`edn_shim.rs`→`edn/render.rs`,
+`load.rs`→`load/loader.rs`, `test_runner.rs`→`host/test_runner.rs`, `register_defines`/
+`register_defclause` moved into `declare/register.rs`), none touched by this replay. Each "resolved"
+entry is the OLD path, gone; the identical broken citation reappears at the item's NEW path.
+
+Fixed all 10 in the doc comments (all genuine miscitations against a real target: `RuntimeError`/
+`EdnReadError`/`LoadError` naming the struct where the Kind enum is meant, `value_to_edn`→
+`value_to_edn_with`, `crate::test_suite!`→`crate::test!` — the macro was renamed at arc 018 and
+`test!` is re-exported at `src/lib.rs:130` — and bare `[`stdlib`]`→`[`crate::load::stdlib`]`,
+`[`register_defines`]`/`[`register_defclause`]`→full `crate::declare::register::` paths). All 10
+resolved on re-measurement — `declare`/`load::stdlib` being `pub(crate)` did not stop
+`broken_intra_doc_links` from resolving to them (only the separate `private_intra_doc_links` lint
+objects, untracked here). Deleted the 8 stale entries; re-seeded the ledger's own header counts
+(41/34 → 31/26) with a dated note explaining the reseed is this tree's own measurement.
+
+Named tests (3, all new): `the_broken_doc_link_ledger_has_no_duplicate_keys`,
+`the_unresolved_link_extractor_still_matches_rustdocs_format`,
+`no_broken_intra_doc_link_outside_the_frozen_ledger` — 3/3 passed (the third failed pre-repair;
+verbatim failure captured before any fix, per finding 27).
+
+census: `.census/2026-09-16T10-23-28Z.txt` files=2122; --diff no STOP-8 (vs #266's
+`2026-09-16T10-11-13Z.txt`)
+nested-program-gate: PASS (3/3, 5644 skipped)
+lint-subset: 158 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #274 — shared, 20 files in grok's own diff, 30 in this commit — THE PREDICTED TRAP, repaired at landing per the #184 precedent
+
+`lint: every walking gate declares how it knows it reached something`. All 20 grok files
+auto-merged clean. The new meta-gate (`every_walking_gate_declares_non_vacuity.rs`) walks
+`tests/lint/` at RUNTIME with no allowlist — grok's tree had 32 gates there, this one has 43.
+Landed red exactly as the brief predicted: **9 undeclared + 1 hollow.**
+
+Repaired all ten, read before touching, verdict mine from reading (not the brief's
+pre-classification):
+
+- `every_ungated_wat_checks.rs` (the HOLLOW one) — its `⛔ NON-VACUITY IS MANDATORY` module prose
+  stands 26 lines above the real guard at `:46`, past the 12-line window. Prose left untouched;
+  added `// NON-VACUITY:` directly above the guard.
+- FIVE had a real guard needing only the marker (`every_tracked_wat_parses.rs`, `holon_is_vsa_
+  only.rs`, `nested_program_starts.rs`, `tracked_wat_dir_is_stdlib_sources.rs`, and
+  `ignore_reason_justified.rs` — reclassified from the brief's "no guard" bucket after reading it).
+- FOUR had no guard at all (`violations.is_empty()` only) — AUTHORED one each, floor measured on
+  this tree: `no_bare_is_err.rs` (`files.len() > 300`, 782 measured), `no_bootstrap_path_in_
+  committed_rust.rs` (`> 900`, 1109 measured), `no_error_flattening_helper.rs` (`> 300` on the
+  SAME walk as `no_bare_is_err.rs` — its own hit-count is meant to stay 0 forever, so the guard
+  floors the WALK), `one_variant_separator.rs` (`> 900`, 1171 measured).
+
+A SEPARATE genuine defect found by re-driving the repaired gates together (not the predicted
+two-arm trap): grok's own new file's `let p = e.path();` (its own `tests/lint/` walk) tripped
+`one_variant_separator.rs` as an ACCESSOR false positive — the exact pattern `holon_is_vsa_only.rs`
+already exempts. Added the identical `// rune:lint(one-variant-separator, not-a-name)` exemption.
+
+finding 33 grepped: YES (not applicable — no `.wat`-embedded rete spellings in this diff).
+
+Named tests (42): the meta-gate's own 15 + 27 across the ten repaired gates — 42/42 passed.
+
+census: `.census/2026-09-16T10-35-08Z.txt` files=2122; --diff no STOP-8 (vs #270's
+`2026-09-16T10-23-28Z.txt`)
+nested-program-gate: PASS (3/3, 5659 skipped)
+lint-subset: 173 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #278 — shared, 7 files in grok's own diff (6 landed + 1 dropped), 14 in this commit — the dead path, three codemod edits, and a 59-name landing-time reseed
+
+`lint: every rete name in wat-scripts CODE resolves — prose may name a retired form`.
+
+**(a) The dead-path hunk — dropped, logged.** grok's C adds a rune to
+`wat-scripts/scratch-pad/probe-f64-comparator-bogus-head.wat`; absent here (main renamed it, R055,
+to `tests/resolve/probe_arc255_the_blanket_hides_a_phantom_head__bogus_rete_head.wat`, present and
+live). Modify/delete conflict; `git rm`'d the conflict's recreated copy. Did NOT add the rune to
+the moved `tests/resolve/` copy — the new gate never walks `tests/`.
+
+**(b) `probe-arc278-57-round1b-parametric-and-hof.wat` conflict** — grok's `:probe-mapv`/
+`:probe-filterv` re-point (Vector literal, `into` dropped) took grok's structure; `convert.sh`
+found the raw cherry-picked body still needed the numerics rehome (`:wat::core::i64::{*,>}` →
+`:wat::i64::{*,>}`) — corrected, diffed byte-identical against `convert.sh`'s own output.
+
+**(c) The three codemod edits** (`rete-oracle-sigil.wat`, `type-query-to-defquery.wat`, the
+map/filter-row deletion in `rete-where-per-type-spelling.wat`) applied clean — the batch's only
+`wat-scripts/fixes/` touch, as expected. `CLAUDE.md` applied byte-identical to grok's parent.
+
+**Landing-time discovery, not part of grok's diff:** the new gate found **59** unresolved
+`:wat::rete::` names across **9** files this tree's `wat-scripts/fixes/` corpus contains that
+grok's tree never did (a much larger version of #270's own class). Read every one; three distinct,
+correct, non-defect reasons: (1) a recorded migration's target column predates a LATER, independent
+rehome (the majority — per-type numerics/string/vector spellings recorded at each codemod's own
+authoring time); (2) a recorded codemod's own OLD-column search target, or frozen historical
+restoration data (`restore-verbatim-literals-after-the-fold.wat`'s table, lifted verbatim from
+`git show 0b5742cc7`); (3) a macro-generated `defrecord` accessor the attestation walk cannot see
+as literal text (`DerivationNode/via`, `DerivationStep/{pattern,bindings,constraints}`). All 59
+declared per-name via `;; rune:lint(rete-name-unminted) <name> — <reason>`, never re-pointed, never
+suppressed as prose.
+
+**A fourth, genuine LATENT defect, driven not assumed:** the gate's own negative control
+(`prose_in_rust_does_not_attest_a_name`) failed — `src/intrinsic/special/rete_alias.rs` still
+carries `#[wat_special_form(":wat::rete::core::map")]`/`"...::filter"`, orphaned relative to
+`src/rete/vocabulary.rs`'s RETE_OPS table (whose own 2026-08-28 comment records the replacement by
+`mapv`/`filterv`, long before this replay, main-only). Checked `vocabulary.rs` directly per the
+control's own instruction: no RETE_OPS row exists for either name, so the codemod's phantom-name
+diagnosis stands. Declared a documented two-name exclusion inside `attested()` (dead code for
+registry-namespace names never reaches the main gate's verdict via `attested()` — the exclusion
+changes zero verdicts elsewhere). Retiring the orphaned struct is filed, not fixed — a separate,
+un-replayed defect outside this step's blast radius.
+
+finding 33 grepped: YES, exhaustively — this step's extra work IS finding 33's class at a scale
+(59 sites, 9 files) not hit before in this replay.
+
+Named tests (24 + siblings): `rete_names_in_wat_scripts_resolve`'s 20 + `no_ceiling_raise_in_rete`
++ `every_wat_scripts_file_loads_on_the_current_runtime` (169s, confirms every rune addition still
+parses+type-checks) — all green.
+
+census: `.census/2026-09-16T10-57-22Z.txt` files=2122; --diff no STOP-8 (vs #274's
+`2026-09-16T10-35-08Z.txt`)
+nested-program-gate: PASS (3/3, 5678 skipped)
+lint-subset: 192 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## Record repair — finding 31's exact trap, self-caught before yielding
+
+First-draft commit bodies for #262/#266/#270/#278 wrote the census verdict as
+`--diff (vs #N's <file>) no STOP-8`, wrapping the required `census: .*--diff no STOP-8` pattern
+across content that broke the single-line match (a parenthetical between `--diff` and `no
+STOP-8`). `verify-step-record.sh` caught it immediately (`MISSING` on all four). Repaired via two
+`git filter-branch --msg-filter` passes over `7b58b6cbd..HEAD` (message-only; `git rev-parse
+HEAD^{tree}` identical before and after both passes — `20201ac368fccab248fd691eaa7b17953b6e6d7d`)
+moving the `(vs #N's …)` detail to AFTER `no STOP-8` rather than between `--diff` and it. Backup
+refs (`refs/original/refs/heads/replay/grok-rete`) deleted after each pass; `git replace -l` empty
+throughout — no replace-ref overlay used. Never a repair commit appended after the batch, never a
+knowingly-red REPLAY commit.
+
+## Checkpoint
+
+`scripts/replay/verify-step-record.sh 7b58b6cbd HEAD 261 280` (foreground, final tree, and again
+under `GIT_NO_REPLACE_OBJECTS=1`) →
+
+```
+step-range: #261..#280 each present exactly once, sources match
+step-record: complete
+```
+
+exit 0 both times. `git replace -l` → empty. `git status --porcelain` → empty. Full wall re-run at
+HEAD (lint-subset 192, kind(lib) 1490, doctest 8, census 2122 files/no STOP-8, nested-program-gate
+3/3) identical to #278's own recorded numbers (E16).
+
+## STOP
+
+None outstanding. One record repair (finding 31's class, the census-line wrap, at #262/#266/#270/
+#278 simultaneously) found by self-review before yielding and folded in place via two
+`git filter-branch --msg-filter` passes — message-only, tree hash unchanged both times, verified
+by `git rev-parse HEAD^{tree}` before/after. Never a repair commit appended after the batch, never
+a knowingly-red REPLAY commit, no `git replace` overlay used anywhere. Do not push. Main untouched.
+`~/work/holon/` untouched. No subagents spawned. No worktrees used. Tree clean at yield.
