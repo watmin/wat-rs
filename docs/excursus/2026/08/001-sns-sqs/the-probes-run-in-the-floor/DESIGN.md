@@ -87,6 +87,13 @@ written from reading the probe is a guess with a test around it.
 
 ## Trap-doors
 
+0. ⛔⛔ **SET `WAT_STARTUP_HANDSHAKE_DEADLINE_MS` PER PROBE INVOCATION — NEVER SUITE-WIDE.** Measured
+   while striking stone 1: `wat/test.wat:335` and `:447` name that deadline but wait for a spawned test
+   child's **COMPLETION**, not its readiness, so there the number is the child's whole runtime budget.
+   **300 ms starves the harness; 500 ms does not.** A runner that exports the var once for the suite
+   reddens every spawned test program. This also corrects `both-ends-bound-the-same-handshake`'s stated
+   reason — three of its five sites bound the handshake; those two bound a budget.
+
 1. ⛔ **Do not assert flaky counts.** `probe_chaos_gate_has_teeth`'s own header is the precedent: *"Do not
    assert `fires > 0` at 200 bp (≈1-in-170 flake)"*, *"Do not assert a draw count"*. Assert the
    **invariant**, never the statistic.

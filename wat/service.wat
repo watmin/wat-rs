@@ -3752,7 +3752,15 @@
                           [~cm-b-sym    (:wat::kernel::listener :user::spawn::service-locus
                                             ~proto-op-ty-ann ~proto-reply-ty-ann ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty-runtime ~admin-ty-runtime)
-                           ~cm-ship-sym (:wat::core::match (:wat::kernel::recv-by-deadline ~cm-self-sym :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
+                           ;; ⭐ excursus 001, the-handshake-deadline-is-injectable — the CHILD end.
+                           ;; The deadline is NOT unquoted: `(:wat::program::startup-handshake-deadline-ms)`
+                           ;; is spliced as GENERATED CODE, so the child evaluates it in ITS OWN process
+                           ;; and reads the `WAT_STARTUP_HANDSHAKE_DEADLINE_MS` it inherited. Unquoting it
+                           ;; (`~`) would freeze the PARENT's macro-expansion-time value into the child
+                           ;; bundle — which for a `wat --check` or a differently-env'd expansion is a
+                           ;; different number than the child's own, i.e. the half-a-fence route (c) the
+                           ;; DESIGN closed. One value, both ends, each end reading it where it runs.
+                           ~cm-ship-sym (:wat::core::match (:wat::kernel::recv-by-deadline ~cm-self-sym (:wat::program::startup-handshake-deadline-ms))
                                             ((:wat::kernel::RecvOutcome::Message ~cm-shipmsg-sym) ~cm-shipmsg-sym)
                                             ;; arc 278 the recv'-outcome wall — the child lost/closed its
                                             ;; owner link before the startup ship arrived: eprintln is the
@@ -4499,12 +4507,17 @@
 ;; ⛔ `:wat::service::CHILD-MAIN-STARTUP-DEADLINE-MS` lived HERE and is GONE. The
 ;; child end of the spawn handshake was bounded before the parent end had been
 ;; examined, so the constant was minted in the only file that then needed it. Both
-;; ends are bounded now, and they name ONE constant —
-;; `:wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS` (wat/spawn.wat, which carries the
-;; justification for the number). Do not re-home a copy here: service.wat is
-;; manifest position 341 and spawn.wat is 171, so a constant here is unnameable
-;; from `launch`, and two constants of one value are exactly the drift removing
-;; this one prevents.
+;; ends are bounded now, and they name ONE value — the nullary
+;; `(:wat::program::startup-handshake-deadline-ms)`, whose single definition of 30000
+;; is `DEFAULT_STARTUP_HANDSHAKE_DEADLINE_MS` in `src/intrinsic/program.rs` and whose
+;; justification prose is in wat/spawn.wat. (Excursus 001,
+;; `the-handshake-deadline-is-injectable`, retired the `wat/spawn.wat` `def`
+;; `:wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS` that stood between them; the env var
+;; `WAT_STARTUP_HANDSHAKE_DEADLINE_MS` now injects it per process.) Do not re-home a
+;; copy here — nor anywhere: exactly one place may hold 30000, and two homes for one
+;; value are exactly the drift removing this one prevents. Load order is no longer the
+;; reason (an intrinsic has no manifest position), but it was: service.wat is manifest
+;; 341 and spawn.wat is 171, so a `def` here is unnameable from `launch`.
 
 ;; race-reply — the reply half of `call-by-deadline`, lifted out of a WILDCARD arm.
 ;;

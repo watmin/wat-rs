@@ -20041,6 +20041,21 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Excursus 001 `the-handshake-deadline-is-injectable` — the startup handshake's deadline.
+    // `(:wat::program::startup-handshake-deadline-ms) → :wat::core::i64`
+    // Replaces the frozen `(:wat::core::def :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS 30000)`
+    // that wat/spawn.wat used to hold. `WAT_STARTUP_HANDSHAKE_DEADLINE_MS` injects it, read once
+    // per process in `src/intrinsic/program.rs` (default 30000). Registered HERE rather than left
+    // to the frozen-checker-debt ledger so the doc `@ret` has something to be checked against.
+    env.register(
+        ":wat::program::startup-handshake-deadline-ms".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1e — ambient runtime values per REALIZATIONS pass 7.
     // `(:wat::runtime::argv) → (:wat::core::Vector :- [wat::core::String])`
     // — process-wide argv handed in by wat-cli (or any embedder)

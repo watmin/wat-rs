@@ -86,26 +86,47 @@
 ;; together.  512 KiB = 524288 bytes.
 (:wat::core::def :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES 524288)
 
-;; ── The startup handshake's deadline — ONE constant, BOTH ends ───────────────
+;; ── The startup handshake's deadline — ONE value, BOTH ends, INJECTABLE ──────
 ;; Every "something was just spawned and must announce itself" wait names THIS,
 ;; and there is exactly one of them on purpose: the PARENT ends (`launch` on both
 ;; tiers below, and the two `:wat::test::spawn-*-program` harness holders) and the
 ;; CHILD end (`child-main`'s wait for the owner's startup ship, wat/service.wat)
 ;; bound the SAME handshake. Two constants of equal value can drift apart in a
 ;; later edit; one cannot — which is why the 3-hour-old child-only predecessor in
-;; wat/service.wat (see the tombstone comment there) is GONE rather than mirrored. ⛔ Homed HERE, not in service.wat, because load order forces it:
-;; spawn.wat is manifest position 171 and service.wat is 341, so a constant in
-;; service.wat is unnameable from `launch`. That is also the correct home — the
-;; number describes the SPAWN HANDSHAKE, not the service macro.
+;; wat/service.wat (see the tombstone comment there) is GONE rather than mirrored.
 ;;
-;; The justification, carried over verbatim in substance from that predecessor:
-;; the owner sends immediately after spawn, so a wait of tens of seconds is already
-;; pathological (a blocked bare recv ignored SIGTERM for 125 s this session;
-;; `timeout 30` never returned). 30000 ms is ~3 orders of magnitude above a
+;; ⛔⛔ THE `def` THAT STOOD HERE IS GONE, AND THIS IS STILL THE NUMBER'S HOME.
+;; `(:wat::core::def :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS 30000)` was a frozen
+;; literal, so driving the `TimedOut` arm it makes reachable cost 30 s per tier and
+;; the probe that drives it could not be afforded in the floor. The five sites now
+;; call `(:wat::program::startup-handshake-deadline-ms)` — a nullary intrinsic whose
+;; ONE definition of the value is `DEFAULT_STARTUP_HANDSHAKE_DEADLINE_MS` in
+;; `src/intrinsic/program.rs`, overridable per process by the env var
+;; `WAT_STARTUP_HANDSHAKE_DEADLINE_MS`, read at most ONCE per process. The value is
+;; NOT re-homed here as a `def` of its own: exactly one place in the tree may hold the
+;; number, and two homes for one value is precisely the drift the predecessor's
+;; removal bought. (The paragraph below argues about the number in prose, which is the
+;; one thing that stays here — an argument is not a second home, but it CAN go stale,
+;; so if the default ever moves, this paragraph moves with it.)
+;; ⛔ The env var is deliberately NOT read inside `recv-by-deadline` — that would
+;; re-time every `recv-by-deadline` in the corpus (`owner-recv-loop`'s 10000 ms
+;; included) from one variable named for the handshake. Invalid / zero / negative →
+;; the default, with one line on stderr; never a failure. That Rust doc carries the
+;; ruling and the reason zero is refused rather than clamped.
+;; ⛔ Homed HERE (the prose, and the manifest reason) rather than in service.wat:
+;; spawn.wat is manifest position 171 and service.wat is 341, so a name minted in
+;; service.wat is unnameable from `launch`. The intrinsic sidesteps manifest position
+;; entirely — which is what made this injectable at all — but the prose still belongs
+;; where the SPAWN HANDSHAKE is described, not in the service macro.
+;;
+;; The justification for the NUMBER, carried over verbatim in substance from that
+;; predecessor: the owner sends immediately after spawn, so a wait of tens of seconds
+;; is already pathological (a blocked bare recv ignored SIGTERM for 125 s this
+;; session; `timeout 30` never returned). 30000 ms is ~3 orders of magnitude above a
 ;; healthy spawn-and-send, sits inside that timeout-30 window, and is not so
 ;; tight that a loaded-CI :init false-fires. Named so it is not the inbox-cap-64
-;; mistake. NOT a :deadline-ms clause (D4 refuses that name).
-(:wat::core::def :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS 30000)
+;; mistake. NOT a :deadline-ms clause (D4 refuses that name). The default is
+;; UNCHANGED by making it injectable — only its injectability is new.
 
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
 ;; (thread)             — default init-fn + no-op post-spawn-fn; runner-count defaults to cpu-count.
@@ -549,7 +570,7 @@
        ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome. ::Message → the
        ;; child reached readiness (discard + proceed); ::Lost (an :init crash) → eprintln the
        ;; cause (loud, terminal); ::Closed (the child exited before Started) → eprintln (terminal).
-       _  (:wat::core::match (:wat::kernel::recv-by-deadline sp :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
+       _  (:wat::core::match (:wat::kernel::recv-by-deadline sp (:wat::program::startup-handshake-deadline-ms))
             ((:wat::kernel::RecvOutcome::Message _m) nil)
             ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             ;; arc 278 #73 — the substrate began stopping before the child reached
@@ -606,7 +627,7 @@
        ;; the child-minted launch status (extract-addr consumes it); ::Lost (the child crashed
        ;; before Started — the ProcessPanics envelope) → eprintln the cause (loud, terminal);
        ;; ::Closed (the child exited before Started) → eprintln (terminal).
-       lu   (:wat::core::match (:wat::kernel::recv-by-deadline svc :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
+       lu   (:wat::core::match (:wat::kernel::recv-by-deadline svc (:wat::program::startup-handshake-deadline-ms))
               ((:wat::kernel::RecvOutcome::Message m) m)
               ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
               ;; arc 278 #73 — the process-tier twin of the thread arm above. Note this arm

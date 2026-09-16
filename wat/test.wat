@@ -326,12 +326,13 @@
   [prog <- [(:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64]) :-> :wat::core::nil]]
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::thread) prog)]
-    ;; The same startup handshake `launch` bounds, so the same constant (defined in
-    ;; wat/spawn.wat, manifest 171 — this file is 268, so it is visible here): a test
-    ;; child that neither crashes nor signals completion must not hang the harness
-    ;; forever (an unbounded recv ignores SIGTERM). The TimedOut arm below is what
-    ;; this deadline makes reachable.
-    (:wat::core::match (:wat::kernel::recv-by-deadline p :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
+    ;; The same startup handshake `launch` bounds, so the same value: a test child that
+    ;; neither crashes nor signals completion must not hang the harness forever (an
+    ;; unbounded recv ignores SIGTERM). The TimedOut arm below is what this deadline
+    ;; makes reachable. The number is no longer a `def` needing a manifest position — it
+    ;; is the nullary `(:wat::program::startup-handshake-deadline-ms)` (default 30000,
+    ;; env `WAT_STARTUP_HANDSHAKE_DEADLINE_MS`), whose prose home is still wat/spawn.wat.
+    (:wat::core::match (:wat::kernel::recv-by-deadline p (:wat::program::startup-handshake-deadline-ms))
       ((:wat::kernel::RecvOutcome::Message _m)
         :wat::kernel::RunResult::Passed)
       ((:wat::kernel::RecvOutcome::Lost cause)
@@ -440,8 +441,10 @@
   [prog <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::process) prog)]
-    ;; Process-tier twin of the thread holder above — same handshake, same constant.
-    (:wat::core::match (:wat::kernel::recv-by-deadline p :wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS)
+    ;; Process-tier twin of the thread holder above — same handshake, same value, same
+    ;; nullary. A hermetic child inherits this process's env, so an injected deadline
+    ;; reaches both ends of the handshake by construction.
+    (:wat::core::match (:wat::kernel::recv-by-deadline p (:wat::program::startup-handshake-deadline-ms))
       ((:wat::kernel::RecvOutcome::Message _m)
         :wat::kernel::RunResult::Passed)
       ((:wat::kernel::RecvOutcome::Lost cause)

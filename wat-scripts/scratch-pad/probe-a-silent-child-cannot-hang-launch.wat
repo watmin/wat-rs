@@ -8,10 +8,25 @@
 ;; (125 s ignored, measured 2026-09-15). The `TimedOut` arm was already written and
 ;; was UNREACHABLE: the code named a failure it could not observe.
 ;;
-;; The fix bounds both waits with `:wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS` (30000).
-;; This probe builds exactly the pathological child — an `:init` that PARKS on a timer
-;; channel for 60 s, twice the deadline — so the launcher must report the timeout
-;; instead of hanging.
+;; The fix bounds both waits with the startup-handshake deadline, which since excursus 001
+;; `the-handshake-deadline-is-injectable` is the nullary
+;; `(:wat::program::startup-handshake-deadline-ms)` (default 30000, one definition in
+;; `src/intrinsic/program.rs`) rather than the retired `def`
+;; `:wat::spawn::STARTUP-HANDSHAKE-DEADLINE-MS`. This probe builds exactly the pathological
+;; child — an `:init` that PARKS on a timer channel for 60 s, twice the default deadline —
+;; so the launcher must report the timeout instead of hanging.
+;;
+;; ⭐ THE DEADLINE IS NOW INJECTABLE, which is why this probe is affordable at all:
+;;   WAT_STARTUP_HANDSHAKE_DEADLINE_MS=200 time timeout -k 2 90 ./target/release/wat \
+;;     wat-scripts/scratch-pad/probe-a-silent-child-cannot-hang-launch.wat
+;; ⚠ Read the ARM's timestamp, not the process's wall-clock — on the THREAD tier the parked
+;; child thread is still joined at teardown, so the process lives out the full 60 s park
+;; regardless of when the arm fired. Prefix each line to see it:
+;;   … 2>&1 | perl -MTime::HiRes=time -ne 'BEGIN{$t0=time} printf "+%07.3f %s", time-$t0, $_'
+;; ⛔ Do NOT set that variable for a whole test suite. Measured: `wat/test.wat`'s two
+;; harness sites wait for the child's COMPLETION signal, not merely its readiness, so the
+;; deadline is a forked test child's entire runtime budget — at 200 ms a hermetic child
+;; starves before it can boot (threshold measured between 300 and 500 ms on this box).
 ;;
 ;; ⛔ HOW TO READ IT: the TimedOut arm in `launch` is `assertion-failed!`, so a
 ;; SUCCESSFUL probe RAISES and exits non-zero with
@@ -26,6 +41,12 @@
 ;;
 ;; ⚠ This file is only PARSED and TYPE-CHECKED by the floor's `every_wat_scripts_file_loads`
 ;; gate; it is never run there, so the 60 s park costs the floor nothing.
+;;
+;; ⭐ MEASURED 2026-09-15, excursus 001 `the-handshake-deadline-is-injectable` (arm timestamps,
+;; relative to the "sht: starting…" println on the line above it — NOT process exit):
+;;   thread,  unset → arm at Δ30.001 s      thread,  =200 → arm at Δ0.201 s
+;;   process, unset → arm at Δ30.008 s      process, =200 → arm at Δ0.207 s
+;; Same arm, same frame, same message in all four; only the deadline moved.
 ;;
 ;; MEASURED 2026-09-15 (both arms, timestamped per output line):
 ;;   thread  — TimedOut raised at +30.005 s, naming frame `:wat::spawn::ThreadOpts/launch`.
