@@ -1750,6 +1750,16 @@ mod tests {
         // what puts it in THIS population: a contract the checker holds and the registry has no
         // row for. That row is the honest close; the scheme is the honest floor under it.
         ":wat::core::List?",
+        // #226 (REPLAY, arc 278 Class B1) NEW — `:wat::rete::adopt-session-lease` mints the
+        // Rust owner of `with-network`'s intern lease (`src/rete/kernel/arm.rs`,
+        // `eval_adopt_session_lease`). `check.rs` registers its `TypeScheme`
+        // (`register_builtins`) but the fn carries `#[restricted_to(…)]`, not
+        // `#[wat_intrinsic]`/`#[wat_special_form]` — deliberately: it is dispatched by the
+        // literal keyword-head match in `dispatch_keyword_head_value` (`src/runtime.rs`), same
+        // as `arm-session`/`release-session` were before THEY moved to `#[wat_intrinsic]`
+        // (P6-c-W5b) and left this list. `registry()` has no row for it, so it belongs here
+        // until (or unless) it earns the same move.
+        ":wat::rete::adopt-session-lease",
 ];
 
     /// ⛔ THE FOLD MUST STAY DERIVED. Arc 255 Stone ③ folds `check_env`'s scheme store into

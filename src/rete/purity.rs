@@ -2363,6 +2363,18 @@ mod completeness_gate {
     // `Effectful` for in W5b). The remaining `:wat::rete::` verbs (the firing family — fire-*,
     // insert-*, the $native twins) are unaffected and remain on this ledger under `RULES`'s
     // `:wat::rete::` Unreviewed disposition.
+    // Arc 278 Class B1. `:wat::rete::adopt-session-lease` mints the Rust owner of the intern
+    // lease `with-network` (`wat/rete/syntax.wat`) already holds. The open question is
+    // `RULES`'s `:wat::rete::` row (above): "a rete verb inside a rete predicate wants a ruling
+    // on recursion before a ruling on purity" — unchanged by this commit. Parking here is safe
+    // in the way the gate's own warning demands be justified: `compile-condition` panics on
+    // `pure? = false`, so an unruled verb cannot appear in a rule condition — and this one
+    // CANNOT reach a condition at all, because `#[restricted_to(…, ":wat::rete::")]` admits
+    // only rete's own wat and the sole call site is `with-network`'s `let`. (grok's own
+    // commit parked it "beside its two siblings, arm-session/release-session" — those two have
+    // since been HOMED and CLASSIFIED `@Purity Effectful` on this tree (W5b, above) and no
+    // longer sit in this ledger; `adopt-session-lease` is unruled on both trees alike.)
+    ":wat::rete::adopt-session-lease",
     ":wat::rete::fire-once",
     ":wat::rete::fire-once$native",
     ":wat::rete::fire-rules",

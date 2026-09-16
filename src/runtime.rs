@@ -2434,6 +2434,14 @@ fn dispatch_keyword_head_value(
         // `#[wat_intrinsic]` handlers (`src/rete/kernel/arm.rs`, in place) with their real (1)
         // arity declared each; the pre-match registry check above (arc 255.1c-guard)
         // intercepts both names before reaching here.
+        // Arc 278 Class B1 — `:wat::rete::adopt-session-lease` is NOT `#[wat_intrinsic]`
+        // (`#[restricted_to]` instead, fencing the mouth to `:wat::rete::` callers), so the
+        // registry-first door above does not intercept it — this arm is the live dispatch.
+        // Mints the OWNER of the lease `compile-all` already took, so a `with-` form needs no
+        // release call and no unwind can skip one. ADOPT, not acquire (`ArmLease`).
+        ":wat::rete::adopt-session-lease" => {
+            crate::rete::kernel::eval_adopt_session_lease(args, list_span, env, sym)
+        }
         // Arc 278 — native `insert-all` (oracle is `insert-all$oracle`).
         // 2-ary `insert` is handled above (`eval_insert_public`).
         ":wat::rete::insert-all$native" | ":wat::rete::insert-all" => {
