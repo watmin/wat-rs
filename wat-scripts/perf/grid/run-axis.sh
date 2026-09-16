@@ -54,11 +54,72 @@ CLARA_DEP='{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}} :paths ["."]}
 # axis, which is reason enough to distrust any number it produced before this line existed.
 # Set WAT_BIN explicitly if you genuinely mean to measure an install.
 REPO_ROOT="$(cd "$GRID_DIR/../../.." && pwd)"
+WAT_BIN_PINNED="${WAT_BIN:+yes}"          # did the CALLER name a binary, or are we defaulting?
 WAT_BIN="${WAT_BIN:-$REPO_ROOT/target/release/wat}"
 [ -x "$WAT_BIN" ] || {
   echo "run-axis: no wat binary at $WAT_BIN — build it first (cargo build --release)" >&2
   exit 1
 }
+
+# ── THE FRESHNESS WALL — the default binary must be NEWER than every input that builds it ──
+#
+# The block above solved HALF of its own stated principle. It stops you measuring the WRONG
+# binary (`cargo wat`), and its argument — "a benchmark that reads one build while you reason
+# about another is an instrument supplying its own result" — applies word for word to a STALE
+# local build, which it did not check. `[ -x ]` asks whether the file exists.
+#
+# THE COST IS ON THE RECORD, and it was read as an engine change. Between the grids of
+# 2026-08-26T23-43-12Z and 2026-08-27T00-04-33Z — 21 minutes apart, `git log` EMPTY between
+# them — `leading-exists` wat-ns fell 3.2x / 4.0x / 3.8x across its three rungs and stayed
+# down in every later run. No code changed; the binary did. Both grids are in this directory
+# and both read as measurements of the engine. (Found 2026-08-30, while building a baseline
+# to read a new grid against.)
+#
+# ⛔ IT REFUSES; IT DOES NOT BUILD. An auto-build here would cure this defect by causing the
+# OTHER one the record already paid for: `run-all.sh` immediately after a compile measures a
+# hot, loaded box, which is exactly how a phantom +46.9% on `deep-cascade [10 100]` was
+# manufactured on 2026-08-24. Building and letting the machine settle are the caller's job and
+# must stay two separate acts.
+#
+# ⛔ IT ASKS CARGO; IT DOES NOT ENUMERATE THE INPUTS. The first version of this wall listed
+# them by hand — src, crates, wat, build.rs, Cargo.{toml,lock} — and was wrong twice within a
+# minute of being written, which is why it is not what shipped:
+#
+#   1. IT OMITTED `tests/`. `build.rs` emits `cargo:rerun-if-changed=tests/<group>` for every
+#      group dir, so cargo considers those inputs and the hand list did not. An input set is a
+#      SECOND copy of cargo's dependency graph, and it rots exactly the way any second copy does.
+#   2. IT WAS UNSATISFIABLE. A `#[cfg(test)]` source can be newer than the binary while being
+#      unable to affect it — cargo rebuilds, correctly relinks nothing, and the mtime does not
+#      move. The wall then refuses, tells you to build, and refuses again forever. A guard whose
+#      instruction cannot clear it is worse than no guard: it teaches you to bypass it.
+#
+# Cargo already owns this question. Run it and watch the ARTIFACT: unchanged means the binary
+# already reflected the tree (a true no-op costs 0.08s, measured); changed means it did not, and
+# every number this run would have printed would have described a build that is not in the tree.
+if [ -z "$WAT_BIN_PINNED" ]; then
+  BIN_BEFORE="$(stat -c '%Y %s' "$WAT_BIN" 2>/dev/null || echo absent)"
+  BUILD_ERR="$(mktemp)"
+  if ! ( cd "$REPO_ROOT" && cargo build --release --bin wat ) >/dev/null 2>"$BUILD_ERR"; then
+    echo "run-axis: REFUSING — \`cargo build --release --bin wat\` failed; cannot vouch for the binary:" >&2
+    sed 's/^/    /' "$BUILD_ERR" >&2
+    rm -f "$BUILD_ERR"
+    exit 1
+  fi
+  rm -f "$BUILD_ERR"
+  BIN_AFTER="$(stat -c '%Y %s' "$WAT_BIN" 2>/dev/null || echo absent)"
+  if [ "$BIN_BEFORE" != "$BIN_AFTER" ]; then
+    {
+      echo "run-axis: REFUSING — $WAT_BIN did not match the tree; it has just been rebuilt."
+      echo "  Artifact (mtime size):  $BIN_BEFORE  ->  $BIN_AFTER"
+      echo "  Nothing was measured. The binary is now current, but this box is now HOT from the"
+      echo "  compile, and a grid started in that window measures the weather — that is how a"
+      echo "  phantom +46.9% on deep-cascade [10 100] was manufactured on 2026-08-24."
+      echo "  Wait for the 1-min load average to settle (uptime), then run the grid again."
+      echo "  To measure a specific build on purpose, name it: WAT_BIN=/path/to/wat $0 ..."
+    } >&2
+    exit 1
+  fi
+fi
 
 # ── THE BLAST DOOR — a benchmark may not be able to take the workstation down ──
 #
