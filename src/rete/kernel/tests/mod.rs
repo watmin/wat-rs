@@ -265,6 +265,20 @@ mod arm_lease;
 mod alpha_discrimination;
 mod binding_repr_bench;
 
+// ⚠ KNOWN WEAVE DEBT, recorded by `complectens` and NOT fixed by the split — read this before
+// reading the nine cost modules as finished:
+//
+//   · `time_ns` carries TWO CONTRACTS under one name — 7 sites are `time_ns(n, body)` returning
+//     elapsed/n (PER ITERATION), 15 are `time_ns(body)` returning elapsed (TOTAL). The two
+//     differ by a factor of n (20k–300k). The arity tells you which, if you look; the NAME and
+//     the printed number do not.
+//   · `let ms = |ns: f64| ns / 1e6;` is written out 37 times across eight of the cost modules.
+//
+// The split SCATTERED both of these rather than curing them, which is exactly why they are named
+// here in the parent instead of in any one child. `render_phase_table` below is the cure that
+// already exists for the second one, and its own doc says why it matters: "two copies is how one
+// of them silently stops subtracting."
+
 // ── The shared fire-cost instrument ───────────────────────────────────────────
 //
 // Hoisted out of `fire_cost_census.rs` when that file was split by subject (2026-08-30). These

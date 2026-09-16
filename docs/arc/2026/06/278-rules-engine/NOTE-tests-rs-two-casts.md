@@ -1,7 +1,25 @@
-# `kernel/tests.rs` — two wards cast, 2026-08-30. Verdicts recorded, work NOT started.
+# `kernel/tests.rs` — two wards cast, 2026-08-30. **DONE the same day (`f98226353`).**
 
-**Builder's ruling stands: it becomes a `mod` with many files, NOT NOW.** This note exists so the
-next hand does not re-cast, and so the corrections below are not lost with the session.
+✅ **THE SPLIT IS SHIPPED: 10,189 lines → 13 files, largest 1,676.** The builder lifted the NOT
+NOW (*"i dislike large files… each test is doing its own thing, yes?"*) and it went in. This note
+is kept as the RECORD OF THE REASONING, not as open work — do not re-cast, and do not re-derive
+the boundaries from the ward ranges below without reading the two corrections marked ⛔.
+
+⛔ **THE SECOND-CUT REFUSAL BELOW IS STRUCK — IT FAILED AGAINST THE DISK.** `partire` refused
+splitting `fire_cost_census` by axis because *"all six axes share ONE secret — the
+instrument-subtraction arithmetic in `render_phase_table`"*. Measured over its 62 tests:
+`render_phase_table` is named by **4**, `calibrate_mark_ns` by **8**, and **34 of 62 use no local
+helper at all**. The coupling the refusal rested on is not there. A shared helper was never an
+argument against splitting: it belongs in the PARENT, which is the rule `tests/mod.rs` already
+used one level up. `fire_cost_census` is now nine subject modules.
+
+★ **AND THE HOIST KILLED FINDING #1 STRUCTURALLY.** `calibrate_mark_ns` / `render_phase_table`
+moved to `tests/mod.rs`, so the 9,089-line forward reference is **unrepresentable** — a parent is
+above every child by construction — rather than merely repaired.
+
+⛔ **THIS WARD IS NOW 3-FOR-3 ON OVERSTATED NUMBERS** (severity "roughly 63" → 5; "invisible at
+the call site" → the arity is visible; this refusal). Its CITATIONS held every time; its
+AGGREGATES did not. Ground the aggregate before you act on it.
 
 The file: **10,189 lines · 89 `#[test]` · 28 module-level helpers · zero `#[ignore]`** — so every
 test in it runs on the release floor.
@@ -28,12 +46,15 @@ set, and the decision procedure is checkable here rather than arguable.
 | `pass_semantics` | `:12–31`, `:48–54`, `:56–659` — 9 tests | the transient shape of a session's memories | **L1** |
 | `arm_lease` | `:2959–3321` + `session_net_id` `:3041`, `SCOPED_WORK_WORLD` `:3175` | the arm intern/lease protocol | L2 |
 | `alpha_discrimination` | `:2933–2938`, `:3323–3330`, `:8850–8890`, `:9037–9065`, `:8892–9286` | the alpha-tree / compiled-cond CONTRACT (modules outside `kernel/`) | L2 |
-| `fire_cost_census` | everything else — 63 tests | **the instrument**: how a phase mark is calibrated and apportioned | L1 (see correction) |
+| `fire_cost_census` | everything else — 63 tests (**counted: 62**) | **the instrument**: how a phase mark is calibrated and apportioned | L1 (see correction) |
 | `binding_repr_bench` | `:1730–1788`, `:1880–2134`, `:8689–8848` | the binding-key / token-bindings REPRESENTATION decision | L2 |
 
-**Refused cuts** (do not re-propose): splitting `fire_cost_census` by grid axis — all six axes share
-one secret, the instrument-subtraction arithmetic in `render_phase_table`; and splitting
-`round_trip_*` from the join tests — same secret, two pieces of one module.
+**Refused cuts, as the ward wrote them — the FIRST IS STRUCK (see the header), the second stands:**
+~~splitting `fire_cost_census` by grid axis — all six axes share one secret, the
+instrument-subtraction arithmetic in `render_phase_table`~~ → **measured false: 4 of 62 tests name
+it. Split, and the shared helpers went to the parent (`f98226353`).** · splitting `round_trip_*`
+from the join tests — same secret, two pieces of one module. **That one holds:** both live in
+`pass_semantics`, which was shipped whole.
 
 ✅ **VERIFIED BY HAND — `binding_repr_bench` is the strongest claim and it holds exactly.** All four
 ranges contain **ZERO** references to `super::`, `FireSession`, `to_transient`, `fire_fixpoint`,
@@ -87,6 +108,14 @@ the `*_split` family, `calibrate_mark_ns`, `render_phase_table`, and the zero-as
 woven. Splitting does not fix the 22 `time_ns` copies; fixing the weave does not stop instruments
 from sitting on the correctness floor. Whoever takes this takes both.
 
-**`partire`'s own practitioner's-call is the cheapest real win and needs no split:** give the
-instruments a run profile (`#[ignore]` or a `census` feature) so the release floor counts GATES.
-Today it counts all 89, and 5 of them cannot fail.
+**⏭ STILL OPEN after the split — `partire`'s own practitioner's-call, and the split did NOT
+address it:** give the instruments a run profile (`#[ignore]` or a `census` feature) so the release
+floor counts GATES. It still counts all 89, and 5 of them cannot fail. Moving a test to a new file
+does not change whether it can fail; that is a separate strike, and it is the one with real value
+left in it.
+
+**⏭ ALSO STILL OPEN — the weave, untouched by the split:** `time_ns` carries two contracts under
+one name (7 sites `elapsed/n`, 15 sites `elapsed`) and `let ms = |ns: f64| ns / 1e6;` is written
+37 times. Both are recorded in `fire_cost_census`'s successor modules' shared parent; splitting
+scattered these across nine files rather than fixing them, which is worth knowing before someone
+reads the new structure as finished.
