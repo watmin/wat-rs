@@ -620,3 +620,231 @@ fn export_field<'a>(exp: &'a Value, field: &str) -> &'a Value {
         other => panic!("expected Export, got {other:?}"),
     }
 }
+
+// ── strike-import-depth (arc 278, class A6) ─────────────────────────────────
+//
+// `import_export` had no depth criterion: what it accepted was whatever the importing
+// THREAD's remaining stack allowed. The same 20,000-deep Export was ACCEPTED on a 256 MiB
+// thread and killed a 2 MiB one with `fatal runtime error: stack overflow, aborting` — an
+// abort, not a panic, so no `catch_unwind` and no wat error. These probes therefore never
+// go near the stack: each sits just past the DECLARED bound, where pre-fix the import
+// accepted the tower without complaint. That acceptance is the RED.
+//
+// `MAX_IMPORT_DEPTH` is 300 (see the constant in `src/rete/export.rs`); the numbers below
+// are derived from it and are stated in each probe.
+
+/// The declared wall, mirrored here because the constant is private to `src/rete/export.rs`.
+const BOUND: usize = 300;
+
+fn kw(name: &str) -> Value {
+    Value::wat__core__keyword(Arc::new(name.to_string()))
+}
+
+fn vec_of(items: Vec<Value>) -> Value {
+    Value::Vec(Arc::new(items))
+}
+
+/// Every packed side table an `Export` carries a `[:prog …]` or a driver inside.
+const SIDE_TABLES: [&str; 5] = ["progs", "conds", "drivers", "folds", "rhs"];
+
+/// Find the first packed `[:prog frame params names reads root]` anywhere inside `v` and
+/// replace its `root` with `f(root)`. The packed forms are `Value::Vec`; the table that holds
+/// them may be either sequence flavour, so both are walked.
+fn poke_first_prog_root(v: &mut Value, f: &mut dyn FnMut(Value) -> Value) -> bool {
+    let mut xs: Vec<Value> = match v {
+        Value::Vec(items) => items.as_ref().clone(),
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        _ => return false,
+    };
+    if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":prog")
+        && xs.len() >= 6
+    {
+        let root = xs[5].clone();
+        xs[5] = f(root);
+        *v = vec_of(xs);
+        return true;
+    }
+    for x in &mut xs {
+        if poke_first_prog_root(x, f) {
+            *v = vec_of(xs);
+            return true;
+        }
+    }
+    false
+}
+
+/// Rewrite the first `[:prog …]` root found in any side table, and return the tampered Export.
+/// Panics if the fixture packs no program at all — that would silently make these probes vacuous.
+fn tamper_first_prog_root(exp: Value, mut f: impl FnMut(Value) -> Value) -> Value {
+    for name in SIDE_TABLES {
+        let mut field = export_field(&exp, name).clone();
+        if poke_first_prog_root(&mut field, &mut f) {
+            return poke_named(exp, name, field);
+        }
+    }
+    panic!("cool-export packs no [:prog …] — these depth probes would be vacuous");
+}
+
+/// ⚠ DISCONFIRMING PROBE — the plain `unpack_expr` descent.
+///
+/// A tower of `:and` nodes, `BOUND + 8` deep, poked into a packed program's root. Pre-fix this
+/// is ACCEPTED (the wall does not exist); post-fix it must be refused as `malformed` naming the
+/// bound. The depth is chosen to clear the bound by 8 and to stay two orders of magnitude below
+/// the 3,000–5,000 window where the stack guard aborts — a probe near THAT would be a flake
+/// generator and could not be caught anyway.
+#[test]
+fn import_refuses_an_and_tower_past_the_depth_bound() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let layers = BOUND + 8;
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        let mut inner = vec_of(vec![kw(":lit"), Value::i64(1)]);
+        for _ in 0..layers {
+            inner = vec_of(vec![kw(":and"), inner]);
+        }
+        inner
+    });
+    match import_one(&world, tampered) {
+        Err(e) => {
+            let msg = format!("{e:?}");
+            assert!(
+                msg.contains("MAX_IMPORT_DEPTH"), // rune:lint(loose-assert) — refuse wraps rust_caller_span; naming the bound is the contract
+                "the refusal must name the depth bound, got {msg}"
+            );
+        }
+        Ok(v) => panic!(
+            "IMPORT ACCEPTED A {layers}-DEEP :and TOWER (bound {BOUND}) and returned {v:?}. \
+             The import door has no depth criterion: what it accepts is a property of the \
+             importing thread's stack, not of the format."
+        ),
+    }
+}
+
+/// ⚠ DISCONFIRMING PROBE — the `:user` ↔ `:prog` CYCLE, which an expr-only counter walks past.
+///
+/// `unpack_expr`'s `:user` arm calls `unpack_prog`, whose root calls `unpack_expr` again, so a
+/// tower of `:user` nodes alternates between the two functions. `layers` is deliberately chosen
+/// so that:
+///
+/// * counting only `unpack_expr` frames gives `layers + 1` = 159, which is UNDER the bound —
+///   a budget threaded through `unpack_expr` alone ACCEPTS this tower and this probe stays red;
+/// * counting every frame gives `2 * layers + 2` = 318, which is OVER the bound — only the
+///   shared budget refuses it.
+///
+/// That is the whole reason this arm exists separately from the `:and` one: the `:and` tower
+/// never alternates, so it cannot see the difference.
+#[test]
+fn import_refuses_a_user_prog_cycle_tower_past_the_depth_bound() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let layers = BOUND / 2 + 8; // 158
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        // Innermost is a literal, and every synthetic inner program declares frame_len 0 —
+        // so nothing here can be refused by the SLOT wall instead of the depth wall.
+        let mut inner = vec_of(vec![kw(":lit"), Value::i64(1)]);
+        for _ in 0..layers {
+            let prog = vec_of(vec![
+                kw(":prog"),
+                Value::i64(0),
+                vec_of(vec![]),
+                vec_of(vec![]),
+                vec_of(vec![]),
+                inner,
+            ]);
+            inner = vec_of(vec![kw(":user"), prog]);
+        }
+        inner
+    });
+    match import_one(&world, tampered) {
+        Err(e) => {
+            let msg = format!("{e:?}");
+            assert!(
+                msg.contains("MAX_IMPORT_DEPTH"), // rune:lint(loose-assert) — refuse wraps rust_caller_span; naming the bound is the contract
+                "the refusal must name the depth bound, got {msg}"
+            );
+        }
+        Ok(v) => panic!(
+            "IMPORT ACCEPTED A {layers}-LAYER :user/:prog TOWER and returned {v:?}. \
+             Only {} expr frames but {} frames in total: a budget counted on unpack_expr \
+             alone is walked past by the cycle.",
+            layers + 1,
+            2 * layers + 2
+        ),
+    }
+}
+
+/// ⚠ DISCONFIRMING PROBE — `unpack_pat`'s OWN recursion, reached through `:match`.
+///
+/// `unpack_expr`'s `:match` arm calls `unpack_pat`, which recurses on `Pat::Variant`. A budget
+/// that stops at the expression tree never enters this arm. Everything here is synthetic and
+/// slot-free (`:wild` binds nothing), so the slot wall cannot answer in the depth wall's place.
+#[test]
+fn import_refuses_a_pattern_tower_past_the_depth_bound() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let layers = BOUND + 8;
+    let tampered = tamper_first_prog_root(exp, |_root| {
+        let mut pat = vec_of(vec![kw(":wild")]);
+        for _ in 0..layers {
+            pat = vec_of(vec![kw(":pvar"), Value::String(Arc::new("V".into())), pat]);
+        }
+        vec_of(vec![
+            kw(":match"),
+            vec_of(vec![kw(":lit"), Value::i64(1)]),
+            vec_of(vec![vec_of(vec![pat, vec_of(vec![kw(":lit"), Value::i64(1)])])]),
+        ])
+    });
+    match import_one(&world, tampered) {
+        Err(e) => {
+            let msg = format!("{e:?}");
+            assert!(
+                msg.contains("MAX_IMPORT_DEPTH"), // rune:lint(loose-assert) — refuse wraps rust_caller_span; naming the bound is the contract
+                "the refusal must name the depth bound, got {msg}"
+            );
+        }
+        Ok(v) => panic!(
+            "IMPORT ACCEPTED A {layers}-DEEP :pvar PATTERN TOWER and returned {v:?}. \
+             unpack_pat recurses on Pat::Variant with no budget of its own."
+        ),
+    }
+}
+
+/// ⚠ DISCONFIRMING PROBE — `unpack_driver`'s OWN recursion.
+///
+/// Not named in the strike brief, and its doc comment states the defect as a feature: *"the
+/// composite arms recurse, so a driver tree of any depth round-trips WITHOUT A DEPTH
+/// PARAMETER — the wire's nesting IS the recursion."* That is a second unbounded tower at the
+/// same door, independent of `unpack_expr`, and it reaches `unpack_prog` through `:where`.
+#[test]
+fn import_refuses_a_driver_tower_past_the_depth_bound() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let layers = BOUND + 8;
+    let drivers = seq_values(export_field(&exp, "drivers"));
+    assert!(
+        !drivers.is_empty(),
+        "cool-export must pack at least one driver or this probe is vacuous"
+    );
+    let mut pairs = drivers;
+    let first = seq_values(&pairs[0]);
+    assert!(first.len() >= 2, "driver table entry is [id driver]");
+    let mut wrapped = first[1].clone();
+    for _ in 0..layers {
+        wrapped = vec_of(vec![kw(":not"), wrapped]);
+    }
+    pairs[0] = vec_of(vec![first[0].clone(), wrapped]);
+    let tampered = poke_named(exp, "drivers", vec_of(pairs));
+    match import_one(&world, tampered) {
+        Err(e) => {
+            let msg = format!("{e:?}");
+            assert!(
+                msg.contains("MAX_IMPORT_DEPTH"), // rune:lint(loose-assert) — refuse wraps rust_caller_span; naming the bound is the contract
+                "the refusal must name the depth bound, got {msg}"
+            );
+        }
+        Ok(v) => panic!(
+            "IMPORT ACCEPTED A {layers}-DEEP :not DRIVER TOWER and returned {v:?}. \
+             unpack_driver recurses on the wire's nesting with no budget."
+        ),
+    }
+}
