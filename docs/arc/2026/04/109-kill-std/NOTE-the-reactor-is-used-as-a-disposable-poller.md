@@ -159,20 +159,86 @@ through one counting helper, the failure text carries `rings created-so-far=N` a
 governor, and CI prints its own kernel/ulimit/cgroup facts before the tests. **The next red diagnoses
 itself.**
 
-## The direction — MAKE THE REACTOR SUPERIOR, not remove it
+## ⛔⛔ THE RULING — EXACTLY ONE RING PER THREAD, LAZILY CREATED. THE WAT SURFACE DOES NOT MOVE.
 
-Builder's ruling. Candidate shapes for whoever takes it, none of them evaluated here:
+**Builder, 2026-09-16, verbatim:**
 
-1. ⭐ **One ring per I/O-executing THREAD** (lazily created, so only threads that do I/O pay), borrowed
-   by Receivers, CQEs demultiplexed by `user_data`. Stone E-1 already established the "borrow the
-   caller's ring" pattern (`process.rs:1201`, `:1410`) — this generalises it from *per-call* to
-   *per-thread*, and it is the shape every thread-per-core io_uring system converges on. It also makes
-   the measured ceiling irrelevant: ring count would track THREADS (bounded, small) instead of WAITERS
-   (unbounded). ⚠ Known obstacle, already documented in the code: the select path keeps its ring in a
-   *different* `RefCell` from the Receiver's precisely so the borrows do not collide (`process.rs:~1714`).
-   Collapse them onto one shared ring and that becomes a live re-entrancy bug on day one — it is the
-   first thing to design around, not to discover.
-2. **Registered files** (`IORING_REGISTER_FILES`) so hot fds stop being re-resolved per submission.
+> *"it is forcefully modifying wat to have precisely one ring per thread, lazily created.. whatever
+> this means for the substrate, i do not care - the wat surface must remain unchanged.. the substrate
+> in rust must satisfy the current contracts under the hood"*
+
+This is no longer a menu. The shape is **decided**:
+
+1. **Exactly one `IoUring` per thread.** Not per Receiver, not per Sender, not per timer, not per
+   call. Ring count tracks **threads** (bounded, small) and never **waiters** (unbounded).
+2. **Lazily created.** A thread that never performs process-tier I/O never allocates one. The thread
+   tier uses crossbeam and must continue to allocate **no ring at all**.
+3. **Every operation goes through that thread's ring**, demultiplexed by `user_data`.
+
+### ⛔ THE INVARIANT THAT GOVERNS THE WHOLE STONE: THE WAT SURFACE IS FROZEN
+
+**No wat program may be able to tell.** Not by behaviour, not by types, not by timing class, not by
+error text. The substrate satisfies the existing contracts underneath or the stone is not done:
+
+- `:wat::kernel::after` keeps returning a **`Peer`** — a timer remains a peer, selectable beside
+  other peers, with the same tier rules (`peer-wire?` chooses process vs thread today).
+- `:wat::kernel::select` keeps its fan-in over N peers, its `ServiceEvent` arms, its index semantics
+  (idx 0 is the peer, idx 1 the timer, as `call-by-deadline` depends on), and its refusal of
+  mixed-tier sets.
+- `recv` / `recv-by-deadline` / `send` / `try-send` keep their outcome enums **unchanged**:
+  `RecvOutcome`, `SendOutcome`, `TrySendOutcome`, `ConnectOutcome`, `CloseOutcome`. No variant added,
+  removed, or re-meaninged by this work.
+- **No new wat verb is required, and none may be introduced** to make the substrate's job easier.
+- Generated `defservice` code is untouched: `child-main`, the serve loop, the client methods,
+  `call-by-deadline`, `race-reply`. If a `wat/` file changes, justify it or you have leaked the
+  substrate into the surface.
+
+⭑ **The one wat-visible thing that MAY change is a failure that currently cannot be faced** —
+`after` raising `MalformedForm` on ring-creation refusal (`runtime.rs:27821`). Making that faceable
+is the third missing-form sibling and is **a separate ruling**; it must not be smuggled in here.
+
+### ⭐ THE ACCEPTANCE TEST, and it is unambiguous
+
+**Delete the `ulimit -l` stopgap from `.github/workflows/ci.yml` and CI must stay green.** That
+stopgap exists only because ring count tracks waiters; when it tracks threads, the 1024-slot per-UID
+budget stops being reachable and the line has no reason to exist. Anything less than removing it is
+headroom, not a fix.
+
+Supporting proof, all already built:
+
+- `src/bin/ring-ceiling.rs` on the runner — and a new probe showing **ring count tracking thread
+  count, not waiter count**, under the same four-concurrent-process shape that produced
+  332+254+254+184.
+- `./scripts/floor.sh` green, and the manifest runner's lifecycle rows
+  (`the-probes-run-in-the-floor`) green — those exist precisely so a substrate change cannot quietly
+  break a lifecycle invariant that was only ever proven once by hand.
+- The circuit happy path byte-identical: `distinct=8000;dup=0`, `timeout=yes;…;retry-on=fresh`.
+
+### The obstacles, named up front so they are designed around and not discovered
+
+1. ⛔ **The select/Receiver borrow collision.** `process.rs:~1714` keeps the select ring in a
+   *different* `RefCell` from the Receiver's **deliberately**, so select can call Receiver methods
+   while holding its own. One shared ring makes that a live re-entrancy bug on day one. This is the
+   first thing to design, not the first thing to hit.
+2. **Blocking `submit_and_wait(1)` is the current model.** A per-thread ring is compatible with it
+   (one wait in flight per thread); a per-PROCESS ring is **not**, which is why this ruling says
+   thread. Do not drift toward process-wide without the poller thread that requires.
+3. **Receivers crossing threads.** Establish whether a `Receiver` created on one thread is ever
+   waited on by another; the ring must be the waiting thread's, not the creating thread's.
+4. **Cancellation.** `AsyncCancel` exists because a submitted `PollAdd` must be withdrawn when
+   another select arm fires. With a shared ring, cancel must target the right `user_data` and must
+   not disturb another waiter's operations on the same ring.
+5. **Fork.** `spawn.rs` forks; a child inherits the parent's thread-local ring state and must not
+   reuse a ring created before the fork. The runtime already rebuilds `signalfd` in a fork child
+   (`runtime.rs` `SHUTDOWN_SIGNAL_FD`) — copy that discipline.
+
+### Shapes to adopt where they fit, once the per-thread invariant holds
+
+None of these are the ruling; they are how the pattern is finished at scale:
+
+1. **Registered files** (`IORING_REGISTER_FILES`) so hot fds stop being re-resolved per submission.
+2. **`IORING_SETUP_ATTACH_WQ`** — many rings, ONE shared kernel worker pool. The idiomatic answer if
+   thread counts ever make per-thread rings expensive on the kernel side.
 3. **Real batching** — today every wait submits one SQE and waits for one CQE, which is the shape that
    makes io_uring indistinguishable from `poll` except in cost.
 4. **Timers stop needing a dedicated reactor.** A timerfd is just another fd in a shared ring's poll set;
