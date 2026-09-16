@@ -278,3 +278,125 @@ fn import_refuses_a_slot_fold_key_bound_to_a_string() {
         ),
     }
 }
+
+/// ⚠ DISCONFIRMING PROBE for the vigilia's Class A2b — the SILENT ZERO.
+///
+/// `c449cd24d` converted nine `panic!` arms to refusals, and this path is the one that never
+/// panicked: `fold_bucket`'s `Sum` arm answers `operand_slot`'s `None` with
+/// `Ok(Some(Value::i64(0)))` (`acc.rs:321-323`). But that `None` carries **two facts** —
+/// `bucket.first()?` (an EMPTY bucket, where sum's identity genuinely is 0) and `.position(…)`
+/// (the var names nothing, which is the same defect the other eight arms now refuse). The
+/// empty-bucket identity is being reused to answer "the var isn't there".
+///
+/// Its own siblings disagree about the same `None`: `Min`/`Max`/`Mean` return `Ok(None)` and drop.
+///
+/// A silent wrong answer is worse than the panic it replaced, so this must refuse.
+#[test]
+fn import_refuses_a_slot_fold_key_no_condition_binds() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::slot-export").expect("export");
+
+    let folds = seq_values(field_of(&exp, "folds"));
+    let (tampered_folds, n_rewritten) = rewrite_sum_keys(&folds, unbound_key());
+    assert_eq!(
+        n_rewritten, 1,
+        "slot fixture must carry exactly one :sum fold to tamper; got {n_rewritten}"
+    );
+    let tampered = poke(exp, "folds", Value::Vec(Arc::new(tampered_folds)));
+
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        call_import(&world, ":user::slot-import-and-fire", tampered)
+    }));
+    match outcome {
+        Err(p) => {
+            let msg = p
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| p.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                .unwrap_or_else(|| "<non-string panic payload>".into());
+            panic!("A WIRE VALUE PANICKED THE HOST on the slot path: {msg}");
+        }
+        Ok(Err(_)) => { /* refused as a value — the contract */ }
+        Ok(Ok(v)) => panic!(
+            "SILENT WRONG ANSWER: import+fire ACCEPTED a :sum fold key no condition binds and \
+             returned {v:?} instead of refusing. `operand_slot` answered `None` because the var \
+             names nothing, and `fold_bucket`'s Sum arm read that as the EMPTY-BUCKET identity \
+             and summed to 0. Min/Max/Mean answer the same `None` by dropping — one `Option`, \
+             two facts, two different wrong answers."
+        ),
+    }
+}
+
+/// ⚠ DISCONFIRMING PROBE — the OTHER consumer of the same conflated `None`.
+///
+/// `fold_bucket`'s `Min`/`Max`/`Mean` arm (`acc.rs:345-347`) answers `operand_slot`'s `None` with
+/// `Ok(None)` — it silently DROPS the derived fact instead of refusing. Same one `Option`, same
+/// two facts, a different wrong answer from the `Sum` arm above.
+///
+/// Reaching it needs no second rule and no fixture change: `unpack_fold` (`export.rs`) takes the
+/// fold TAG off the wire too, so rewriting the slot fixture's `[:sum ?v]` to `[:min <unbound>]`
+/// routes the very same three-var join — the only shape a tampered fold key cannot divert away
+/// from `fold_bucket` — down the `Min` arm.
+#[test]
+fn import_refuses_a_slot_min_fold_key_no_condition_binds() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::slot-export").expect("export");
+
+    let folds = seq_values(field_of(&exp, "folds"));
+    let (tampered_folds, n_rewritten) = rewrite_sum_folds_to(&folds, ":min", unbound_key());
+    assert_eq!(
+        n_rewritten, 1,
+        "slot fixture must carry exactly one :sum fold to retag; got {n_rewritten}"
+    );
+    let tampered = poke(exp, "folds", Value::Vec(Arc::new(tampered_folds)));
+
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        call_import(&world, ":user::slot-import-and-fire", tampered)
+    }));
+    match outcome {
+        Err(p) => {
+            let msg = p
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| p.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                .unwrap_or_else(|| "<non-string panic payload>".into());
+            panic!("A WIRE VALUE PANICKED THE HOST on the slot :min path: {msg}");
+        }
+        Ok(Err(_)) => { /* refused as a value — the contract */ }
+        Ok(Ok(v)) => panic!(
+            "SILENTLY DROPPED FACT: import+fire ACCEPTED a :min fold key no condition binds and \
+             returned {v:?} instead of refusing. `operand_slot` answered `None` because the var \
+             names nothing, and `fold_bucket`'s Min/Max/Mean arm read that as the EMPTY-BUCKET \
+             absence and dropped the derived fact. Sum answers the same `None` with i64(0) — one \
+             `Option`, two facts, two different wrong answers."
+        ),
+    }
+}
+
+/// Rewrite every `[:sum <key>]` fold entry to `[<tag> <key>]`. The wire carries the fold TAG as
+/// well as its key (`unpack_fold`, `export.rs`), so retagging reaches `fold_bucket`'s other arm
+/// on the SAME fixture. Returns the new folds seq and how many were rewritten, so a probe can
+/// refuse to run on a fixture that drifted.
+fn rewrite_sum_folds_to(folds: &[Value], tag: &str, key: Value) -> (Vec<Value>, usize) {
+    let mut n = 0;
+    let out = folds
+        .iter()
+        .map(|pair| {
+            let items = seq_values(pair);
+            if items.len() != 2 {
+                return pair.clone();
+            }
+            let inner = seq_values(&items[1]);
+            let is_sum = matches!(inner.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":sum");
+            if !is_sum || inner.len() < 2 {
+                return pair.clone();
+            }
+            n += 1;
+            let mut fixed = inner.clone();
+            fixed[0] = Value::wat__core__keyword(Arc::new(tag.into()));
+            fixed[1] = key.clone();
+            Value::Vec(Arc::new(vec![items[0].clone(), Value::Vec(Arc::new(fixed))]))
+        })
+        .collect();
+    (out, n)
+}
