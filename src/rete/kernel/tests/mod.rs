@@ -279,6 +279,26 @@ pub(super) fn assert_phases_present<'a>(
 // could be artefacts of ORDERING. With the minimum, `A−M` went −90.76 → +1.6..+2.3 ms across
 // runs, and every impossible sign resolved.
 //
+// ⛔ WHY THE MINIMUM IS HONEST HERE, AND NOT JUST CONVENIENT — because discarding an
+// inconvenient round IS what taking a minimum does, this had to be earned rather than assumed.
+// Two measurements settle it (2026-08-30):
+//
+//   1. THE COST IS ONE-TIME, NOT PER-ROUND. Running the SAME work once, UNTIMED, before the
+//      first timed pass drops round 0 from 286.5 ms to 12.1 ms. It is a first-execution cost.
+//      (It is NOT capacity growth — pre-reserving 300k pool entries changed nothing, 298.7 ms.)
+//   2. IT DOES NOT TRANSFER TO PRODUCTION. Across six rounds the isolated arm warms up 2500%
+//      (286.5 -> 11.6 ms) while `alpha_activate_fact`, THE PRODUCTION PATH DOING MORE WORK,
+//      warms up 20% (16.4 -> 13.7 ms). A real fire does not pay this.
+//
+// So a per-FACT cost estimate must not carry a ONE-TIME cost, and the minimum is the estimator
+// that excludes it. ⚠ What is NOT established is the exact first-execution cost — CPU clock
+// ramp, first-touch page faults, and lazy init are all candidates and none was isolated. The
+// estimator choice does not depend on which, but do not read this note as a diagnosis of it.
+//
+// ⚠ Minimum also discards the production path's genuine ~2.7 ms warm-up. That is deliberate for
+// a per-fact split — you want the marginal cost, not the one-time allocation — but it IS a
+// choice, and a fire on a fresh session does pay something like it.
+//
 // ⛔ THE ARGUMENT WAS ALREADY IN THIS FILE, ON `calibrate_mark_ns`: "TAKE THE MINIMUM OF SEVERAL
 // BATCHES, not one … the true cost cannot be lower, and everything above it is interference."
 // The calibration constant used the minimum. The splits it feeds used the mean. One instrument,
