@@ -11,10 +11,10 @@ Floor ≥ its current value, zero FAIL rows.
 | # | what | state AT HEAD (driven) | required after |
 |---|---|---|---|
 | 1 | ★ the floor assertion can fail | `… < usize::MAX`, message `"unreachable"` | the check its comment declares (`> 0`), message carries the table |
-| 2 | both tests name the live repr | neither mentions `BindSpan` | both do, citing `session.rs:64` |
+| 2 | both named tests name the live repr | neither mentions `BindSpan` | both do, citing `session.rs:64`. ⚠ this row said "both floor tests": there are **three** unignored tests here, not two |
 | 3 | the comparison's purpose is stated | implied only | named as evidence for `fire/delta.rs:725-726` |
 | 4 | the `163 ns` anchor is gone | 4 prose mentions + printed in the table | absent; the reason stated |
-| 5 | the source figure's collapse is recorded | `alpha_match_cost_per_binding` → **−22 ns/fact** | recorded where the anchor used to be |
+| 5 | the source figure's collapse is recorded | `alpha_match_cost_per_binding` → negative. ⚠ this row said **−22**; three drives gave **−2, −4, −10** and the arm itself spans 0.4 ms — only the SIGN reproduces | the sign and the samples recorded, **no number pinned** |
 | 6 | arms survive | trie + array arms, both floor tests | unchanged; nothing deleted |
 | 7 | the retired matcher path untouched | reached only from tests | untouched — C13, not this strike |
 | 8 | radius | — | `binding_repr_bench.rs` only |
