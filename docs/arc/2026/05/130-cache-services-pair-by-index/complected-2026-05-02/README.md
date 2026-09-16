@@ -122,3 +122,14 @@ into entanglement).
   here at the original line 64 of `substrate.wat.bad`.
 - Commit `98fa7c9` — REALIZATIONS + compositional rewrite of the
   live test file.
+
+## `docs_wat_loads_or_declares_why_not` (added 2026-08-30) does not see these files either
+
+`tests/lint/docs_wat_loads_or_declares_why_not.rs` walks every `.wat` under `docs/arc/` and
+requires each to load on the current runtime **or** declare, in a closed rune, why it does not.
+That gate filters on the literal `.wat` extension, so — exactly like `every_tracked_wat_parses`
+above — it never sees `substrate.wat.bad` or `test.wat.bad`. No rune is needed here: the `.wat.bad`
+rename is itself the declaration, already explained in full above, and it satisfies both walls at
+once with nothing to keep in sync.
+
+⛔ Neither file may be migrated. Migrating them destroys the record they exist to be.

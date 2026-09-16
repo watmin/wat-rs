@@ -40,22 +40,22 @@
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::kernel::println "child up"))))]
     (:wat::core::match (:wat::kernel::send peer "ping")
-      [:wat::kernel::SendOutcome::Sent {} nil]
-      [:wat::kernel::SendOutcome::Closed {} nil]
+      [:wat::kernel::SendOutcome.Sent {} nil]
+      [:wat::kernel::SendOutcome.Closed {} nil]
       ;; arc 278 #73 — orthogonal to this probe's gap (its subject is the Lost arm's
       ;; carrier type below, not this enum's exhaustiveness). Added only so the corpus
       ;; sweep doesn't overload this file with a SECOND, unrelated red — the deliberate
       ;; failure stays exactly where it was, in the nested cause match beneath ::Lost.
-      [:wat::kernel::SendOutcome::Stopped {} nil]
+      [:wat::kernel::SendOutcome.Stopped {} nil]
       ;; ⛔ THE GAP. `cause` is a :wat::kernel::Failure today, so matching it against
       ;;    LociDiedError's variants is a type error. AFTER #70 it is a LociDiedError and
       ;;    `Stopped` vs `Disconnected` — the two states the send path currently conflates into
       ;;    one literal string — become distinguishable at the wat surface.
-      [:wat::kernel::SendOutcome::Lost {:cause cause}
+      [:wat::kernel::SendOutcome.Lost {:cause cause}
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError::Stopped {}
+          [:wat::kernel::LociDiedError.Stopped {}
             (:wat::kernel::println "the process is stopping")]
-          [:wat::kernel::LociDiedError::Disconnected {}
+          [:wat::kernel::LociDiedError.Disconnected {}
             (:wat::kernel::println "the peer is gone")]
           [_ (:wat::kernel::println "some other death")])])))
 
@@ -68,18 +68,18 @@
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::kernel::println "child up"))))]
     (:wat::core::match (:wat::kernel::recv peer)
-      [:wat::kernel::RecvOutcome::Message {:msg _m} nil]
-      [:wat::kernel::RecvOutcome::Closed {} nil]
+      [:wat::kernel::RecvOutcome.Message {:msg _m} nil]
+      [:wat::kernel::RecvOutcome.Closed {} nil]
       ;; arc 278 #73 — same orthogonal note as the send-side match above: this control
       ;; MUST stay green (see the header), so it needs this arm to keep type-checking
       ;; now that RecvOutcome gained Stopped; it is not part of what the control proves.
-      [:wat::kernel::RecvOutcome::Stopped {} nil]
+      [:wat::kernel::RecvOutcome.Stopped {} nil]
       ;; The SAME variants, against the SAME enum, on the outcome that was migrated. Green today.
-      [:wat::kernel::RecvOutcome::Lost {:cause cause}
+      [:wat::kernel::RecvOutcome.Lost {:cause cause}
         (:wat::core::match cause
-          [:wat::kernel::LociDiedError::Stopped {}
+          [:wat::kernel::LociDiedError.Stopped {}
             (:wat::kernel::println "the process is stopping")]
-          [:wat::kernel::LociDiedError::Disconnected {}
+          [:wat::kernel::LociDiedError.Disconnected {}
             (:wat::kernel::println "the peer is gone")]
           [_ (:wat::kernel::println "some other death")])])))
 
