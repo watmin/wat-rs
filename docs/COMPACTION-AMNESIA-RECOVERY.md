@@ -133,6 +133,16 @@ plus the newest `SCORE-*.md` / `BRIEF-*.md` in that directory.
 > 2026-08-25) for three weeks after the work moved to arc 294's replay. That file is now PARKED and
 > points here.
 
+Arc 278's own history (replayed here, not this branch's live work) carries a further pointer:
+**the WORK LIST — the live open list within arc 278, and the only place a row's status lived
+there — was `docs/arc/2026/06/278-rules-engine/VIGILIA-2026-08-30-WORK-LIST.md`** (41 L1 + 70 L2
+from the 19-ward cast at HEAD `78b1fad56`). Read its Class A block first: five wards independently
+found five instances of one class, and working the list top-to-bottom as 111 items misses it.
+
+Its predecessor, `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md`, holds the
+theater hunt, the closing tally, and the TRACKED DECISIONS rows — historical reasoning plus two
+rows the vigilia found have EXPIRED PREMISES (work-list F2). Read it for why, not for what is open.
+
 > ⚠ **This block is here because the ledger above used to say `live breadcrumb
 > (CLIFFNOTES "Currently")`, which is arc 170's cliff notes — a different arc,
 > long superseded.** An instance that filled the ledger honestly would read the
