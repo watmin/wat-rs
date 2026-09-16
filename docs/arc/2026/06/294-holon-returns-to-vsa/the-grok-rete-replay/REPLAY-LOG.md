@@ -1352,3 +1352,237 @@ None outstanding. One record repair (finding 31's class, the census-line wrap, a
 by `git rev-parse HEAD^{tree}` before/after. Never a repair commit appended after the batch, never
 a knowingly-red REPLAY commit, no `git replace` overlay used anywhere. Do not push. Main untouched.
 `~/work/holon/` untouched. No subagents spawned. No worktrees used. Tree clean at yield.
+
+# Batch 4h — grok-rete #281 → #300
+
+## #281–#282, #284–#287, #289–#293, #295–#297, #299 — docs-only
+
+Fifteen `strike`/`score`/`curare`/`record` commits: #281 #282 #284 #285 #286 #287 #289 #290 #291
+#292 #293 #295 #296 #297 #299. Each `git cherry-pick -x --no-commit`, verified `git show
+--name-only` was `docs/`/`.md` only, then committed as `REPLAY(grok-rete #N): <subject>`. All
+auto-merged clean — several landed a one-file auto-merge into
+`CURRENT-STATE-annihilate-interpretation.md` or `VIGILIA-2026-08-30-WORK-LIST.md`, none needed a
+manual conflict resolution.
+
+⚠ **Sequencing slip, self-caught before #284 was reached, repaired before continuing.** After
+landing #281 and #282 I skipped #283 and cherry-picked #284 through #293 directly (all docs-only,
+disjoint files from #283's `src/rete/`+`tests/lint/` set). Caught immediately after #293 landed —
+`git log` showed #284 as HEAD's parent with no #283 between #282 and #284. Since origin's tip
+(`b35509d88`) is far below #282's commit and nothing was pushed, repaired with `git reset --hard`
+to the #282 commit (verified `git merge-base --is-ancestor origin/replay/grok-rete <#282-sha>`
+first) and replayed #283 then #284–#293 again, in the correct order this time. `git log --oneline`
+after the repair shows #281..#293 contiguous and in numeric order. No `git replace`, no
+`filter-branch` — a plain reset on an unpushed tip, the cheapest possible repair.
+
+⚠ **A second self-caught error, in #282's own commit trailer.** The first attempt at #282
+transcribed `0d0632427c80e5749fc9e2ba481bd75be7147e71`'s full SHA by hand and got it wrong
+(fabricated, not copied). Caught immediately by re-deriving the SHA with `git rev-parse` and
+diffing against what had been typed; fixed with `git commit --amend` (tip-only, unpushed, no
+descendants yet). Every subsequent step's trailer was built by shell substitution
+(`FULL=$(git rev-parse "$SHA")`) rather than retyped, specifically to prevent a repeat.
+
+## #283 — shared, 28 files in grok's own diff (28 `.rs`), 29 in this commit — THE PREDICTED TRAP,
+repaired at landing per the #184 precedent
+
+`lint: a cited name in a rete comment resolves, or declares why it cannot`. The third new grok
+lint gate (`tests/lint/rete_citation_resolves.rs`, 913 lines, new), predicted to land red — it did,
+3 of 20 tests failing on first run. One git conflict, in `src/rete/vocabulary.rs`: a doc-comment
+table (`clause.rs`/`validate.rs`/`check.rs`) that main fences as ` ```text ` and grok's own commit
+re-pads (unfenced) while updating the middle column `validate.rs` → `validate/typing.rs` (main's
+own prior `partire` split). Resolved per the ownership rule: kept main's fence, applied grok's
+content update. All 27 other files auto-merged clean (comment-only hunks).
+
+**Read every one of the 13 unresolved backticked names before touching anything:**
+
+- **2 genuine stale renames**, unrelated to grok's diff, from main-only refactors grok's tree never
+  saw. Fixed to the name that exists today (THE FIX #1):
+  - `src/rete/expr_ir/eval.rs:1132` `eval_persistentmap_contains_key_q` → `eval_contains` (arc-278
+    strike A consolidated the `PersistentMap`/`HashMap`/`Record` `contains?` arms into one fn in
+    `src/runtime.rs`; confirmed by reading `runtime.rs:9360-9368`'s `MapContainer` match). This is
+    the ONE file this step's own set extends grok's 28 by (`expr_ir/mod.rs` was in grok's diff,
+    the sibling `expr_ir/eval.rs` carrying this citation was not).
+  - `src/rete/purity.rs:353` and `:2338` `is_pure_total` → `is_expand_time_legal` (Stone expand-1's
+    rename in `src/macros/eval.rs`; confirmed via `src/intrinsic/mod.rs:2718`'s own record of the
+    rename). Both occurrences fixed — fixing only one leaves the other as the sole remaining
+    citation, still red.
+- **11 genuine deletions, the absence IS the point** (THE FIX #4) — each site's own comment already
+  says, in words, the named fns "are DELETED — moved to `#[wat_intrinsic]` handlers in
+  `src/intrinsic/rete.rs`" (arc 255 Stone P6-c-W5a, pre-dating this replay, main-only). Declared
+  per name, each reason a single physical line (a reason that wraps across `//` lines under-counts
+  at the first line only — driven directly: my first attempt wrapped 9 of these and
+  `MIN_REASON_CHARS` (40) failed on the truncated first-line text; rewritten as one full line
+  each, all ≥40 chars, confirmed green):
+  `src/rete/matcher.rs`: `eval_alpha_match`, `eval_alpha_match_local`, `eval_alpha_match_kind`,
+  `eval_alpha_match_under`, `eval_cond_has_deferred_constraint` (5); `src/rete/purity.rs`:
+  `eval_pure_predicate`, `eval_deterministic_predicate`, `eval_total_predicate`,
+  `eval_rete_primitive_predicate`, `eval_axis_predicate` (5); `src/rete/vocabulary.rs`:
+  `eval_vocabulary_admitted_predicate` (1).
+
+**The bare-filename arm — 1 stale, and it was NOT reworded to dodge the gate's own heuristic
+error.** `src/rete/purity.rs:2054`'s bare `string.rs` (cited for `declare-acronyms`): the gate's
+`shadowed_by_split` heuristic reported "split into `src/string/`", but that directory holds
+unrelated kebab/pascal-case helpers — `declare-acronyms` genuinely lives in
+`src/intrinsic/string.rs` (confirmed by direct grep), a coincidentally-named sibling the
+ancestor-walking heuristic cannot see. Made precise instead: `src/intrinsic/string.rs`, a slashed
+path now in `no_stale_path_in_doc.rs`'s domain.
+
+**The control-test arm — a broken canary, repaired, not the gate weakened.**
+`each_resolver_half_answers_a_name_no_other_half_can`'s `WAT_ONLY` canary `SiftRulesResponse` no
+longer resolves through the wat half alone: `src/check.rs:23614`'s
+`enum_variant_fields(&sift_env, ":usr::my-sift::SiftRulesResponse")` puts the identifier in a Rust
+CODE position (a string-literal argument, not a comment) that does not exist on grok's own tree.
+Per the gate's own header ("too narrow a universe manufactures findings"), a broken example is
+repaired, never the design. Replaced with `SiftRulesRequest`, the paired name from the SAME
+`wat/query.wat:152` convention, confirmed wat-only by direct grep (not in any Rust code position,
+not a file stem).
+
+⚠ **A fourth, self-inflicted red, found and fixed before commit.** My first-draft doc comment for
+the canary fix named the literal Rust call `enum_variant_fields(...)`; that substring alone (the
+`_variant` boundary, deliberately alphanumeric-only per `one_variant_separator.rs`'s own scope
+rule) pulled the WHOLE FILE into `one_variant_separator`'s scope — a different lint, unrelated to
+this gate — which then flagged the file's own pre-existing, wholly unrelated `let p = e.path();`
+(a `std::fs::DirEntry::path()` call in the `collect()` helper) as a false `[ACCESSOR]` hit. Fixed
+by rewording to cite `src/check.rs:23614` by line instead of by name, avoiding both the false
+trigger and any need to rune-declare innocent code. Verified: `grep -in variant
+tests/lint/rete_citation_resolves.rs` empty, full lint-subset green.
+
+finding 33 grepped: YES — `git diff --cached` on changed lines across all 29 files returns no
+`":wat::` hits; every change (grok's 27 comment-only files, my 5 repair files) is prose/doc/rune
+comment, none touches an embedded wat program string.
+
+Named tests (20, `rete_citation_resolves` — all green, both required arms plus the 3 sibling
+controls and 14 classifier unit tests).
+
+census: `.census/2026-09-16T12-09-53Z.txt` files=2122; --diff no STOP-8 vs #278's
+`2026-09-16T10-57-22Z.txt`
+nested-program-gate: PASS (3/3, 5698 skipped)
+lint-subset: 212 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #288 — code, 2 files (1 `.rs`, 1 `.md`)
+
+`lint: two ward rune vocabularies copied into the repo and gated`. `docs/CONVENTIONS.md` and new
+`tests/lint/no_unknown_ward_rune.rs`, both landed clean (no `mod.rs` registration needed — `tests/
+lint/`'s module list is build.rs-generated from `OUT_DIR`). No `src/`, `crates/`, `Cargo.*`,
+`build.rs` or `.wat` touched — census / nested-program-gate correctly NOT required by the
+path-based rule. finding 33 grepped: not applicable (no rename/rehome, no embedded wat string).
+
+Named tests (9, `no_unknown_ward_rune`): all green.
+
+lint-subset: 221 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #294 — shared, 7 files (7 `.rs`) — the declared dependency on #283, clean
+
+`lint: an (engine) label names the evidence for its claim`. Modifies
+`tests/lint/rete_citation_resolves.rs` (created at #283, present as required — the dependency the
+brief flagged held). All 7 files auto-merged clean, no conflicts. The one hunk touching the shared
+file (`the_universe_reaches_the_test_corpus`'s `IN_TESTS_ONLY` const, swapping
+`alpha_class_lookup_is_still_the_linear_scan_the_benchmark_calls_the_engine` for the new owned
+control `zz_universe_control_never_cite_this`) is disjoint from #283's own repair region (the
+different test `each_resolver_half_answers_a_name_no_other_half_can`) — both verified intact by
+direct read post-merge.
+
+finding 33 grepped: YES — no `":wat::` hits on changed lines across all 7 files.
+
+Named tests (60): `rete_citation_resolves` (20, unchanged green), `accum_alpha_cost` +
+`accum_cost` + `gather_probe_cost` (the four kernel-cost split test modules this step's `src/`
+changes touch — all 40 green, no ns-ratio red), plus the two new lint files' own suite exercised
+via the lint-subset run below.
+
+census: `.census/2026-09-16T12-25-37Z.txt` files=2122; --diff no STOP-8 vs #283's
+`2026-09-16T12-09-53Z.txt`
+nested-program-gate: PASS (3/3, 5721 skipped)
+lint-subset: 235 passed
+kind(lib): 1490 passed
+doctest: 8 passed
+
+## #298 — shared, 2 files in grok's own diff (2 `.rs`), 1 `.md`, 3 total — the SECOND
+fold-forward this batch, disclosed at landing
+
+`curare: twenty-sixth stamp — pruned to a map; D4 IS IN FLIGHT`. ⚠ **NOT docs-only despite the
+`curare:` subject** — confirmed independently before touching it, matching grok's own #299
+correction and the brief. One conflict, in the docs file's opening block: our tree carries a
+main-side 2026-09-13 PARKED annotation grok's own commit does not know about, sitting above a
+paragraph grok's own commit also touches (a pure line-rewrap of byte-identical prose). Resolved
+per the ownership rule: kept the PARKED block, kept the existing wrapping (no content to apply
+from grok's side beyond the rewrap). `eval.rs`/`mod.rs` auto-merged clean against #283's own
+`eval.rs` repair — disjoint regions.
+
+This is grok's real D4 fix: `with_exec_frame`'s `EXEC_SP` thread-local cursor is DELETED (it never
+actually stacked nested calls — the live `RefCell` borrow forces every nested call onto the heap
+`Err` arm regardless, so `start` was always `0` by induction, and an unwind past the restore line
+stranded `len` arena slots per panic, cumulatively). Taken as grok wrote it — genuine rete
+behaviour.
+
+⚠⚠ **A fold-forward, not a corpus-divergence defect — grok's OWN tree shows the identical
+red.** Landing this commit alone reproduces exactly what grok's own history records: the new doc
+prose this diff adds names the now-deleted `EXEC_SP` twice in backticks, and
+`every_backticked_name_in_a_rete_comment_resolves` genuinely fires — 1 unresolved,
+`src/rete/expr_ir/eval.rs:105`. Grok's own very next code step, #300, says so explicitly in its
+own commit body: the cure "landed, mislabelled, in 073546093 (swept into a `curare:` docs commit
+by `git add -A` while the rider was writing)" and "`rete_citation_resolves` then fired for real".
+So on grok's own tree this step was red too, for two commits (#299 docs-only between, #300 the
+actual fix) — not something our corpus caused.
+
+Per this replay's absolute rule (never a knowingly-red REPLAY commit) and the #184 precedent
+(repair a gate's red at the step that reveals it), #300's exact fix — a 5-line
+`rune:lint(cited-name-absent) EXEC_SP` doc comment — was applied HERE instead of deferred,
+verified byte-for-byte against grok's own `b41a63672` diff. Verified load-bearing the same way
+grok verified it: 19/20 without the rune (measured), 20/20 with it. **Consequence, stated here so
+it is not a surprise at #300: that step's cherry-pick will find its content already present and
+will land as an EMPTY commit**, the #202 precedent (`13bc69e2a`).
+
+finding 33 grepped: YES — no `":wat::` hits on changed lines in either `.rs` file; the two new
+`EXEC_SP` citations are doc-comment prose, not embedded wat program strings.
+
+Named tests (2, `exec_frame_unwind` — the D4 probe): both green,
+`three_panics_through_the_frame_body_strand_no_arena_slots` and
+`a_nested_frame_takes_the_heap_arm_and_leaves_the_outer_window_intact`.
+
+census: `.census/2026-09-16T12-33-31Z.txt` files=2122; --diff no STOP-8 vs #294's
+`2026-09-16T12-25-37Z.txt`
+nested-program-gate: PASS (3/3, 5723 skipped)
+lint-subset: 235 passed
+kind(lib): 1492 passed
+doctest: 8 passed
+
+## #300 — empty commit, the disclosed fold-forward's counterpart
+
+`fix(rete): D4 — declare the deleted EXEC_SP so the citation gate can see it`. `git cherry-pick -x
+--no-commit b41a63672` auto-merged clean on `src/rete/expr_ir/eval.rs` with ZERO resulting diff
+(`git status --porcelain` and `git diff --cached --stat` both empty), confirming grok's content
+was byte-for-byte already present from #298's fold. Committed `--allow-empty`, per the #202
+precedent, with the body naming exactly which earlier step carries the content and why. E2b note:
+this is the one code step in the range carrying 0 files total (not even docs) — a direct
+consequence of the disclosed fold, not an oversight.
+
+## Checkpoint
+
+`scripts/replay/verify-step-record.sh b35509d88 HEAD 281 300` (foreground, final tree, and again
+under `GIT_NO_REPLACE_OBJECTS=1`) →
+
+```
+step-range: #281..#300 each present exactly once, sources match
+step-record: complete
+```
+
+exit 0 both times. `git replace -l` → empty. `git for-each-ref refs/original/` → empty. `git
+merge-base --is-ancestor origin/replay/grok-rete HEAD` → succeeds. `git status --porcelain` →
+empty. Full wall re-run at HEAD (lint-subset 235, kind(lib) 1492, doctest 8, census 2122
+files/no STOP-8 vs #298's own file — byte-identical, `diff` confirmed — nested-program-gate 3/3)
+identical to #298's own recorded numbers (E13).
+
+## STOP
+
+None outstanding. Two self-caught, self-repaired process errors this batch (both fixed before
+any further step landed on top of them, both on an unpushed tip): a sequencing slip (#283
+skipped, then landed out of order; repaired by `git reset --hard` to #282 and replaying #283
+onward in order) and a fabricated commit-trailer SHA at #282 (repaired by `git commit --amend`).
+One disclosed fold-forward (#300's content landed at #298, matching the #202 precedent exactly,
+stated in full at #298's own commit body and #300's own empty-commit body, not only in this log).
+Never a repair commit appended after the batch, never a knowingly-red REPLAY commit, no `git
+replace` overlay used anywhere, no `git filter-branch` used anywhere. Do not push. Main untouched.
+`~/work/holon/` untouched. No subagents spawned. No worktrees used. Tree clean at yield.
