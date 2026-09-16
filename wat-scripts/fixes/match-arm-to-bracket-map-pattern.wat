@@ -730,8 +730,9 @@
     vpaths))
 
 (:wat::core::defn :user::fmap-for-src
-  [src  <- :wat::core::String
-   path <- :wat::core::String]
+  [src   <- :wat::core::String
+   path  <- :wat::core::String
+   world <- :wat::fix::StdlibWorld]
   -> :wat::fix::EnumFields
   (:wat::core::let
     [tree (:wat::core::match (:wat::core::read-string src)
@@ -741,11 +742,34 @@
      forms (:wat::core::ast->children tree)
      vpaths (:user::collect-vpaths-node (:wat::core::Vector :- [:wat::core::String]) tree)
      epaths (:user::enum-paths-of vpaths)
-     m (:wat::fix::enum-fields "match-arm" path forms epaths)]
+     m (:wat::fix::enum-fields-in "match-arm" path world forms epaths)]
     m))
 
-(:wat::core::defn :user::rewrite-each
+;; 2a4d — the SET's stdlib files are ONE world. The door is asked ONCE, over the forms
+;; of every `wat/…` member of this set together, and every member is answered from that
+;; one world: a type declared in `wat/rete.wat` resolves for a match arm in `wat/fmt.wat`
+;; when both are in the same step. Membership is the substrate's own
+;; `:wat::fix::stdlib-source-path?` rule — derived from the set, never a hand list. A set
+;; with no `wat/` member is the empty world and every file takes the per-file door.
+(:wat::core::defn :user::stdlib-world-of
   [paths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::StdlibWorld
+  (:wat::core::let
+    [members (:wat::core::into []
+               (:wat::core::filter
+                 (:wat::core::fn [p <- :wat::core::String] -> :wat::core::bool
+                   (:wat::fix::stdlib-source-path? p))
+                 paths))
+     srcs    (:wat::core::into []
+               (:wat::core::map
+                 (:wat::core::fn [p <- :wat::core::String] -> :wat::core::String
+                   (:wat::io::read-file p))
+                 members))]
+    (:wat::fix::stdlib-world "match-arm" members srcs)))
+
+(:wat::core::defn :user::rewrite-each
+  [paths <- (:wat::core::Vector :- [:wat::core::String])
+   world <- :wat::fix::StdlibWorld]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
@@ -753,13 +777,13 @@
       (:wat::core::if (:wat::core::= path "tests/wat_lang/probe_arc109_match_arm__positional_control.wat")
         (:wat::core::do
           (:wat::kernel::println (:wat::string::concat "[match-arm] skip positional-control " path))
-          (:user::rewrite-each (:wat::core::rest paths)))
+          (:user::rewrite-each (:wat::core::rest paths) world))
         (:wat::core::let [src (:wat::io::read-file path)
-                          fmap (:user::fmap-for-src src path)]
+                          fmap (:user::fmap-for-src src path world)]
           (:wat::core::do
             (:wat::io::write-file path (:user::migrate src fmap path))
             (:wat::kernel::println (:wat::string::concat "[match-arm] " path))
-            (:user::rewrite-each (:wat::core::rest paths))))))))
+            (:user::rewrite-each (:wat::core::rest paths) world)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -769,4 +793,4 @@
                (:wat::kernel::assertion-failed! :message "readln: end of input")]
              [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::rewrite-each paths)))
+    (:user::rewrite-each paths (:user::stdlib-world-of paths))))

@@ -159,12 +159,13 @@
 
 (:wat::core::defn :user::pairs-for-forms
   [forms <- (:wat::core::Vector :- [:wat::WatAST])
-   path  <- :wat::core::String]
+   path  <- :wat::core::String
+   world <- :wat::fix::StdlibWorld]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::let
     [kws (:wat::core::foldl :user::collect-keywords
            (:wat::core::Vector :- [:wat::core::String]) forms)
-     fmap (:wat::fix::enum-fields "variant-separator" path forms (:user::parents-of kws))]
+     fmap (:wat::fix::enum-fields-in "variant-separator" path world forms (:user::parents-of kws))]
     (:user::pairs-from-kws kws fmap path)))
 
 (:wat::core::defn :user::nested-pairs
@@ -179,7 +180,10 @@
          n <- :wat::WatAST]
         -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
         (:user::nested-pairs a n path))
-      (:wat::core::concat acc (:user::pairs-for-forms (:wat::fix::forms-children node) path))
+      ;; 2a4d — a `(:wat::core::forms …)` child is its OWN program: it is answered from
+      ;; its own decls (the empty world), never merged with the set's stdlib world.
+      (:wat::core::concat acc
+        (:user::pairs-for-forms (:wat::fix::forms-children node) path (:wat::fix::empty-world)))
       (:wat::core::ast->children node))
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::foldl
@@ -193,7 +197,8 @@
       acc)))
 
 (:wat::core::defn :user::convert-one
-  [path <- :wat::core::String]
+  [path  <- :wat::core::String
+   world <- :wat::fix::StdlibWorld]
   -> :wat::core::nil
   (:wat::core::let
     [src  (:wat::io::read-file path)
@@ -201,7 +206,7 @@
              [:wat::core::ReadOutcome.Forms {:forms f} f]
              [:wat::core::ReadOutcome.Malformed {:cause c}
                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
-     top (:user::pairs-for-forms (:wat::core::ast->children tree) path)
+     top (:user::pairs-for-forms (:wat::core::ast->children tree) path world)
      pairs (:user::nested-pairs top tree path)
      hits  (:user::hits-for pairs src)]
     (:wat::core::if (:wat::core::empty? hits)
@@ -211,13 +216,35 @@
         (:wat::kernel::println (:wat::string::concat "[variant-separator-to-dot] " path))))))
 
 (:wat::core::defn :user::convert-each
-  [paths <- (:wat::core::Vector :- [:wat::core::String])]
+  [paths <- (:wat::core::Vector :- [:wat::core::String])
+   world <- :wat::fix::StdlibWorld]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do
-      (:user::convert-one (:wat::core::first paths))
-      (:user::convert-each (:wat::core::rest paths)))))
+      (:user::convert-one (:wat::core::first paths) world)
+      (:user::convert-each (:wat::core::rest paths) world))))
+
+;; 2a4d — the SET's stdlib files are ONE world. The door is asked ONCE, over the forms
+;; of every `wat/…` member of this set together, and every member is answered from that
+;; one world. Membership is the substrate's own `:wat::fix::stdlib-source-path?` rule —
+;; derived from the set, never a hand list. No `wat/` member → the empty world → exactly
+;; the per-file door.
+(:wat::core::defn :user::stdlib-world-of
+  [paths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::StdlibWorld
+  (:wat::core::let
+    [members (:wat::core::into []
+               (:wat::core::filter
+                 (:wat::core::fn [p <- :wat::core::String] -> :wat::core::bool
+                   (:wat::fix::stdlib-source-path? p))
+                 paths))
+     srcs    (:wat::core::into []
+               (:wat::core::map
+                 (:wat::core::fn [p <- :wat::core::String] -> :wat::core::String
+                   (:wat::io::read-file p))
+                 members))]
+    (:wat::fix::stdlib-world "variant-separator" members srcs)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -227,4 +254,4 @@
                (:wat::kernel::assertion-failed! :message "readln: end of input")]
              [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::convert-each paths)))
+    (:user::convert-each paths (:user::stdlib-world-of paths))))

@@ -252,9 +252,10 @@
                   (:wat::fix::EnumFields/answered file-m)))))
 
 (:wat::core::defn :user::fmap-for-src
-  [src  <- :wat::core::String
-   path <- :wat::core::String
-   base <- :wat::fix::EnumFields]
+  [src   <- :wat::core::String
+   path  <- :wat::core::String
+   base  <- :wat::fix::EnumFields
+   world <- :wat::fix::StdlibWorld]
   -> :wat::fix::EnumFields
   (:wat::core::let
     [tree (:wat::core::match (:wat::core::read-string src)
@@ -264,7 +265,7 @@
      forms (:wat::core::ast->children tree)
      vpaths (:user::collect-keywords (:wat::core::Vector :- [:wat::core::String]) tree)
      epaths (:user::enum-paths-of vpaths)
-     local (:wat::fix::enum-fields "positional-ctor" path forms (:user::local-eps-of epaths))
+     local (:wat::fix::enum-fields-in "positional-ctor" path world forms (:user::local-eps-of epaths))
      merged (:user::merge-fmap base local)
      fields2 (:user::bind-kw-ctors (:wat::fix::EnumFields/fields merged) tree)]
     (:wat::fix::EnumFields
@@ -704,7 +705,8 @@
 
 (:wat::core::defn :user::rewrite-each
   [paths  <- (:wat::core::Vector :- [:wat::core::String])
-   frozen <- :wat::fix::EnumFields]
+   frozen <- :wat::fix::EnumFields
+   world  <- :wat::fix::StdlibWorld]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
@@ -712,13 +714,13 @@
       (:wat::core::if (:user::skip-path? path)
         (:wat::core::do
           (:wat::kernel::println (:wat::string::concat "[positional-ctor] skip positional-control " path))
-          (:user::rewrite-each (:wat::core::rest paths) frozen))
+          (:user::rewrite-each (:wat::core::rest paths) frozen world))
         (:wat::core::let [src (:wat::io::read-file path)
-                          fmap (:user::fmap-for-src src path frozen)]
+                          fmap (:user::fmap-for-src src path frozen world)]
           (:wat::core::do
             (:wat::io::write-file path (:user::migrate src fmap path))
             (:wat::kernel::println (:wat::string::concat "[positional-ctor] " path))
-            (:user::rewrite-each (:wat::core::rest paths) frozen)))))))
+            (:user::rewrite-each (:wat::core::rest paths) frozen world)))))))
 
 ;; PASS 1: unique corpus-invariant epaths, resolved once against stdlib
 ;; (empty decls). PASS 2: kept locals against THIS file's decls (fmap-for-src).
@@ -729,7 +731,8 @@
    kept-n  <- :wat::core::i64
    skip-n  <- :wat::core::i64
    audit   <- :wat::core::bool
-   base    <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
+   base    <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   world   <- :wat::fix::StdlibWorld]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? scan)
     (:wat::core::do
@@ -747,13 +750,14 @@
                   (:wat::string::concat
                     (:wat::i64::to-string kept-n)
                     (:wat::string::concat " skipped-local=" (:wat::i64::to-string skip-n)))))))))
+      ;; 2a4d — PASS 1's corpus-invariant map is answered from the SET's ONE stdlib
+      ;; world (empty world ⇒ the baked snapshot, exactly what `"<stdlib>"` asked).
       (:user::rewrite-each all
-        (:wat::fix::enum-fields "positional-ctor" "<stdlib>"
-          (:wat::core::Vector :- [:wat::WatAST])
-          inv-eps)))
+        (:wat::fix::enum-fields-of-world world inv-eps)
+        world))
     (:wat::core::let [path (:wat::core::first scan)]
       (:wat::core::if (:user::skip-path? path)
-        (:user::collect-pass (:wat::core::rest scan) all inv-eps kept-n skip-n audit base)
+        (:user::collect-pass (:wat::core::rest scan) all inv-eps kept-n skip-n audit base world)
         (:wat::core::let
           [src    (:wat::io::read-file path)
            tree   (:user::src-tree src)
@@ -768,7 +772,30 @@
             (:wat::i64::+ kept-n (:wat::core::length local))
             skip-n
             audit
-            base))))))
+            base
+            world))))))
+
+;; 2a4d — the SET's stdlib files are ONE world. The door is asked ONCE, over the forms
+;; of every `wat/…` member of this set together, and every member is answered from that
+;; one world. Membership is the substrate's own `:wat::fix::stdlib-source-path?` rule —
+;; derived from the set, never a hand list. Built from the paths the CALLER handed over
+;; (`wat/service.wat`, which `ensure-path` appends for the scan, is not read here: it is
+;; not part of the caller's set unless the caller named it).
+(:wat::core::defn :user::stdlib-world-of
+  [paths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::StdlibWorld
+  (:wat::core::let
+    [members (:wat::core::into []
+               (:wat::core::filter
+                 (:wat::core::fn [p <- :wat::core::String] -> :wat::core::bool
+                   (:wat::fix::stdlib-source-path? p))
+                 paths))
+     srcs    (:wat::core::into []
+               (:wat::core::map
+                 (:wat::core::fn [p <- :wat::core::String] -> :wat::core::String
+                   (:wat::io::read-file p))
+                 members))]
+    (:wat::fix::stdlib-world "positional-ctor" members srcs)))
 
 (:wat::core::defn :user::ensure-path
   [paths <- (:wat::core::Vector :- [:wat::core::String])
@@ -807,4 +834,5 @@
       0
       0
       audit
-      base)))
+      base
+      (:user::stdlib-world-of paths1))))

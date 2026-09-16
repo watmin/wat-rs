@@ -1,0 +1,12 @@
+;; 2a4d fixture (INPUT, not corpus — hence `.pre`): the USER half of the two-file stdlib set.
+;;
+;; A list-form match arm on the NEW variant its SIBLING declares. Its field names
+;; (`tag`, `count`) exist in NO other file and in no snapshot, so `match-arm` can only
+;; KEY-FIRST this arm if the door read the whole set as ONE world. Asked per file, the
+;; arm is reported UNRESOLVED and left as it is.
+(:wat::core::defn :wat::probe2a4d::describe
+  [o <- :wat::rete::InsertOutcome]
+  -> :wat::core::String
+  (:wat::core::match o
+    ((:wat::rete::InsertOutcome::Probed t n) t)
+    (_ "other")))

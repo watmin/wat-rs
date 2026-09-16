@@ -1776,18 +1776,180 @@
   -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::fix::nested-decl-names-node (:wat::core::Vector :- [:wat::core::String]) tree))
 
+;; ─── 2a4d — a STEP's stdlib files are ONE world, asked ONCE per SET ──────────
+;;
+;; Finding 23. 4a declared `FireOutcome` / `InsertOutcome` / `CompileOutcome` in
+;; `wat/rete.wat` and USED them in `wat/fmt.wat`, `wat/grep.wat`, `wat/query.wat`,
+;; `wat/rete/oracle/{explain,fire}.wat` — all changed in the SAME step. Asked one
+;; file at a time against the baked snapshot, the door answered every USER file
+;; from the OLD (or absent) enum; `match-arm` left the list-form arms UNRESOLVED,
+;; the merged stdlib could not load, and the leftovers were KEY-FIRST'd BY HAND
+;; (the R21 breach). The STASH-DANCE could not have helped: the previous binary
+;; lacks the new enum too. The step's stdlib must be read as ONE world.
+;;
+;; A codemod already receives the whole set of paths in ONE process.
+;; `stdlib-world` takes that set — paths plus the sources the CALLER already read,
+;; because `wat/fix.wat` loads BEFORE `wat/io.wat` and the door cannot read a file
+;; itself — and keeps exactly the members the EXISTING `stdlib-source-path?` rule
+;; admits (derived, never a hand list). Every file of that set is then answered from
+;; ONE world (`enum-fields-in`); a set with no stdlib member is the empty world
+;; and every file takes exactly today's per-file door. Divergent declarations are
+;; replaced exactly as before — the union IS what the step's stdlib becomes, which
+;; is what the next binary bakes.
+;;
+;; ⚠ The world is the union of the KEPT ROWS, never of the RAW FORMS. Handing every
+;; member's forms to `:wat::runtime::declared-stdlib-types` in ONE call shares the
+;; failure: a body that cannot expand refuses the WHOLE call, the retry drops that
+;; form from the world EVERY member is answered from, and one member's failure can
+;; strip a declaration a SIBLING needs — the latent staleness this door exists to
+;; prevent. Measured on `bootstrap/era/probe-L/pT`: the raw union refuses 17 `wat/`
+;; forms (`wat/core.wat`'s `defalias :wat::core::values` and `defclause :wat::core::+`
+;; among them — both clean when that file is registered alone), one-at-a-time refuses
+;; 1. So each member is registered SEPARATELY through the existing per-file path
+;; (`register-loop`, which already attributes a refusal to its own file and drops only
+;; that file's form), and the kept `TypeInfo` rows are UNIONED (`union-types`): a later
+;; member's declaration replaces an earlier one of the same name, the door's own
+;; divergent-replace applied across the set.
+;;
+;; A `(:wat::core::forms …)` child keeps its OWN program's map
+;; (`enum-fields-for-forms`, unchanged): "parent and child may declare the same name
+;; with different fields" is a standing ruling, and a set world must not merge across
+;; that line.
+;;
+;; ATTRIBUTION is therefore exact: the refusal is raised by the member's OWN
+;; `register-loop` turn, so the printed path IS that member (it starts `wat/`, so
+;; convert.sh's STOP-9 grep still fires) and the dropped form is that member's alone.
+
+(:wat::core::defrecord :wat::fix::StdlibWorld
+  [paths <- (:wat::core::Vector :- [:wat::core::String])
+   types <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])])
+
+(:wat::core::defn :wat::fix::empty-world [] -> :wat::fix::StdlibWorld
+  (:wat::fix::StdlibWorld
+    :paths (:wat::core::Vector :- [:wat::core::String])
+    :types (:wat::core::Vector :- [:wat::runtime::TypeInfo])))
+
+(:wat::core::defn :wat::fix::world-covers?
+  [world <- :wat::fix::StdlibWorld
+   path  <- :wat::core::String]
+  -> :wat::core::bool
+  (:wat::vec::contains? (:wat::fix::StdlibWorld/paths world) path))
+
+(:wat::core::defn :wat::fix::src-forms [src <- :wat::core::String]
+  -> (:wat::core::Vector :- [:wat::WatAST])
+  (:wat::core::ast->children
+    (:wat::core::match (:wat::core::read-string src)
+      [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
+      [:wat::core::ReadOutcome.Malformed {:cause __cause}
+        (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
+
+(:wat::core::defn :wat::fix::type-name-of [info <- :wat::runtime::TypeInfo] -> :wat::core::String
+  (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info)))
+
+;; The set's world grows one MEMBER at a time: a later member's declaration replaces
+;; an earlier member's row of the same name (the door's divergent-replace, across the
+;; set), and every other earlier row survives.
+(:wat::core::defn :wat::fix::union-types
+  [acc  <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+   rows <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])]
+  -> (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+  (:wat::core::let
+    [names (:wat::core::into [] (:wat::core::map :wat::fix::type-name-of rows))]
+    (:wat::core::concat
+      (:wat::core::into []
+        (:wat::core::filter
+          (:wat::core::fn [info <- :wat::runtime::TypeInfo] -> :wat::core::bool
+            (:wat::core::not
+              (:wat::vec::contains? names (:wat::fix::type-name-of info))))
+          acc))
+      rows)))
+
+;; The set's stdlib world. `paths` and `srcs` are parallel; the members are the
+;; entries `stdlib-source-path?` admits (the door re-derives them, so a caller that
+;; hands over its whole set is answered the same as one that pre-filtered).
+(:wat::core::defn :wat::fix::stdlib-world
+  [tag   <- :wat::core::String
+   paths <- (:wat::core::Vector :- [:wat::core::String])
+   srcs  <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::StdlibWorld
+  (:wat::core::let
+    [idx (:wat::core::into []
+           (:wat::core::filter
+             (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::bool
+               (:wat::fix::stdlib-source-path?
+                 (:wat::core::Option/expect (:wat::core::get paths i) "world path")))
+             (:wat::core::range 0 (:wat::core::length paths))))]
+    (:wat::core::if (:wat::core::empty? idx)
+      (:wat::fix::empty-world)
+      (:wat::core::let
+        [mpaths (:wat::core::into []
+                  (:wat::core::map
+                    (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::String
+                      (:wat::core::Option/expect (:wat::core::get paths i) "world path"))
+                    idx))
+         per   (:wat::core::into []
+                 (:wat::core::map
+                   (:wat::core::fn [i <- :wat::core::i64]
+                     -> (:wat::core::Vector :- [:wat::WatAST])
+                     (:wat::fix::src-forms
+                       (:wat::core::Option/expect (:wat::core::get srcs i) "world src")))
+                   idx))
+         types (:wat::core::foldl
+                 (:wat::core::fn
+                   [acc <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+                    i   <- :wat::core::i64]
+                   -> (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+                   (:wat::core::let
+                     [mforms (:wat::core::Option/expect (:wat::core::get per i) "member forms")]
+                     (:wat::fix::union-types acc
+                       (:wat::fix::register-loop tag
+                         (:wat::core::Option/expect (:wat::core::get mpaths i) "member path")
+                         mforms
+                         (:wat::core::length mforms)))))
+                 (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+                 (:wat::core::range 0 (:wat::core::length mpaths)))]
+        (:wat::fix::StdlibWorld :paths mpaths :types types)))))
+
+(:wat::core::defn :wat::fix::enum-fields-of-types
+  [types      <- (:wat::core::Vector :- [:wat::runtime::TypeInfo])
+   candidates <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::EnumFields
+  (:wat::core::let
+    [names (:wat::fix::enum-row-names types)
+     empty (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+     ef    (:wat::fix::fill-enum-rows empty (:wat::core::Vector :- [:wat::core::String]) types names)]
+    (:wat::fix::fill-stdlib ef candidates)))
+
 (:wat::core::defn :wat::fix::enum-fields
   [tag        <- :wat::core::String
    path       <- :wat::core::String
    forms      <- (:wat::core::Vector :- [:wat::WatAST])
    candidates <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::fix::EnumFields
-  (:wat::core::let
-    [types (:wat::fix::register-loop tag path forms (:wat::core::length forms))
-     names (:wat::fix::enum-row-names types)
-     empty (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
-     ef    (:wat::fix::fill-enum-rows empty (:wat::core::Vector :- [:wat::core::String]) types names)]
-    (:wat::fix::fill-stdlib ef candidates)))
+  (:wat::fix::enum-fields-of-types
+    (:wat::fix::register-loop tag path forms (:wat::core::length forms))
+    candidates))
+
+;; A file of the SET, answered from the set's ONE world when the set holds it as a
+;; stdlib member; otherwise exactly today's per-file door.
+(:wat::core::defn :wat::fix::enum-fields-in
+  [tag        <- :wat::core::String
+   path       <- :wat::core::String
+   world      <- :wat::fix::StdlibWorld
+   forms      <- (:wat::core::Vector :- [:wat::WatAST])
+   candidates <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::EnumFields
+  (:wat::core::if (:wat::fix::world-covers? world path)
+    (:wat::fix::enum-fields-of-types (:wat::fix::StdlibWorld/types world) candidates)
+    (:wat::fix::enum-fields tag path forms candidates)))
+
+;; The set's world with no file of its own — a corpus-invariant map (positional-ctor's
+;; PASS 1). An empty world answers from the baked snapshot, as `"<stdlib>"` did.
+(:wat::core::defn :wat::fix::enum-fields-of-world
+  [world      <- :wat::fix::StdlibWorld
+   candidates <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::fix::EnumFields
+  (:wat::fix::enum-fields-of-types (:wat::fix::StdlibWorld/types world) candidates))
 
 (:wat::core::defn :wat::fix::enum-fields-get
   [ef <- :wat::fix::EnumFields

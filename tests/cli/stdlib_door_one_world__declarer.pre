@@ -1,0 +1,13 @@
+;; 2a4d fixture (INPUT, not corpus — hence `.pre`, the recorded-migration convention):
+;; the DECLARER half of a two-file stdlib set.
+;;
+;; A CHANGED enum — `:wat::rete::InsertOutcome` re-declared with one variant the baked
+;; snapshot does not carry (`:Probed`). Copied into a temp set as `wat/probe2a4d-declarer.wat`
+;; by `stdlib_door_reads_a_set_as_one_world.rs`; never loaded as a program.
+(:wat::core::defenum :wat::rete::InsertOutcome :wat::enum::Pure
+  :Inserted              [session <- :wat::rete::Session]
+  :MemoryCeilingExceeded [limit <- :wat::core::i64
+                          used <- :wat::core::i64
+                          staged <- :wat::core::i64]
+  :Probed                [tag <- :wat::core::String
+                          count <- :wat::core::i64])
