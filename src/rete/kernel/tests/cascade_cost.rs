@@ -333,13 +333,17 @@ fn cascade_setup_leftover_split() {
 
     let cal = calibrate_mark_ns();
 
-    let mut setup_raw = 0.0;
-    let mut seen_raw = 0.0;
-    let mut arm_raw = 0.0;
+    // MINIMUM across runs, not mean. `builds` is a COUNT, not a measurement, so its minimum is
+    // taken the same way and reported as-is — the total across runs would have to be divided by
+    // RUNS to mean anything, and a divide by RUNS under a MINIMUM header is the defect this
+    // whole conversion removes.
+    let mut setup_raw = f64::INFINITY;
+    let mut seen_raw = f64::INFINITY;
+    let mut arm_raw = f64::INFINITY;
     let mut setup_pairs = 0u64;
     let mut seen_pairs = 0u64;
     let mut arm_pairs = 0u64;
-    let mut builds = 0usize;
+    let mut builds = usize::MAX;
     for _ in 0..RUNS {
         let before = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
         let rows = cascade_phase_census(50, 100);
@@ -352,7 +356,7 @@ fn cascade_setup_leftover_split() {
             "",
         );
         let after = super::ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
-        builds += after.saturating_sub(before);
+        builds = builds.min(after.saturating_sub(before));
         let of = |name: &str| -> (u64, u64) {
             rows.iter()
                 .find(|(n, _, _)| *n == name)
@@ -362,17 +366,13 @@ fn cascade_setup_leftover_split() {
         let (s_ns, s_k) = of("SETUP: indexes");
         let (seen_ns, seen_k) = of("  ├ setup:seen");
         let (arm_ns, arm_k) = of("  ├ setup:arm");
-        setup_raw += s_ns as f64;
-        seen_raw += seen_ns as f64;
-        arm_raw += arm_ns as f64;
+        setup_raw = setup_raw.min(s_ns as f64);
+        seen_raw = seen_raw.min(seen_ns as f64);
+        arm_raw = arm_raw.min(arm_ns as f64);
         setup_pairs = s_k;
         seen_pairs = seen_k;
         arm_pairs = arm_k;
     }
-    let r = RUNS as f64;
-    setup_raw /= r;
-    seen_raw /= r;
-    arm_raw /= r;
     let remainder_raw = setup_raw - seen_raw - arm_raw;
     let table = format!(
         "\ncascade SETUP leftover split — [50 100], MINIMUM of {RUNS}\n\
@@ -382,7 +382,7 @@ fn cascade_setup_leftover_split() {
                setup:seen              {:>7.2} raw  {:>7.2} net  {:>6}x\n\
                setup:arm               {:>7.2} raw  {:>7.2} net  {:>6}x\n\
              remainder (SETUP−seen−arm){:>7.2} ms\n\
-             ARM_BUILDS                {:>7}  ({:.2} per run)\n",
+             ARM_BUILDS                {:>7}  per run\n",
         ms(setup_raw),
         setup_pairs,
         ms(seen_raw),
@@ -393,7 +393,6 @@ fn cascade_setup_leftover_split() {
         arm_pairs,
         ms(remainder_raw),
         builds,
-        builds as f64 / r,
     );
     println!("{table}");
     assert!(

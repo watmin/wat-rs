@@ -397,9 +397,10 @@ fn fanout_production_leftover_split() {
 
     let cal = calibrate_mark_ns();
 
-    let mut prod_raw = 0.0;
-    let mut rhs_raw = 0.0;
-    let mut dedup_raw = 0.0;
+    // MINIMUM across runs, not mean — the header this test prints has always said so.
+    let mut prod_raw = f64::INFINITY;
+    let mut rhs_raw = f64::INFINITY;
+    let mut dedup_raw = f64::INFINITY;
     let mut rhs_pairs = 0u64;
     let mut dedup_pairs = 0u64;
     let mut prod_pairs = 0u64;
@@ -414,17 +415,13 @@ fn fanout_production_leftover_split() {
         let (p_ns, p_k) = of("production");
         let (r_ns, r_k) = of(RHS);
         let (d_ns, d_k) = of(DEDUP);
-        prod_raw += p_ns as f64;
-        rhs_raw += r_ns as f64;
-        dedup_raw += d_ns as f64;
+        prod_raw = prod_raw.min(p_ns as f64);
+        rhs_raw = rhs_raw.min(r_ns as f64);
+        dedup_raw = dedup_raw.min(d_ns as f64);
         prod_pairs = p_k;
         rhs_pairs = r_k;
         dedup_pairs = d_k;
     }
-    let r = RUNS as f64;
-    prod_raw /= r;
-    rhs_raw /= r;
-    dedup_raw /= r;
     let prod_net = prod_raw - prod_pairs as f64 * cal;
     let rhs_net = rhs_raw - rhs_pairs as f64 * cal;
     let dedup_net = dedup_raw - dedup_pairs as f64 * cal;
@@ -572,65 +569,52 @@ fn fanout_three_leftover_split() {
         }
     };
 
+    // MINIMUM across runs, not mean. `rhs_pairs`/`query_maps` are COUNTS, not measurements, and
+    // are assigned rather than reduced.
     let mut without = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        harvest: 0.0,
-        out_query: 0.0,
-        rhs_raw: 0.0,
-        rhs_net: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        harvest: f64::INFINITY,
+        out_query: f64::INFINITY,
+        rhs_raw: f64::INFINITY,
+        rhs_net: f64::INFINITY,
         rhs_pairs: 0,
-        out_prod: 0.0,
+        out_prod: f64::INFINITY,
         query_maps: 0,
     };
     let mut with = Shot {
-        wall: 0.0,
-        fire: 0.0,
-        harvest: 0.0,
-        out_query: 0.0,
-        rhs_raw: 0.0,
-        rhs_net: 0.0,
+        wall: f64::INFINITY,
+        fire: f64::INFINITY,
+        harvest: f64::INFINITY,
+        out_query: f64::INFINITY,
+        rhs_raw: f64::INFINITY,
+        rhs_net: f64::INFINITY,
         rhs_pairs: 0,
-        out_prod: 0.0,
+        out_prod: f64::INFINITY,
         query_maps: 0,
     };
     for _ in 0..RUNS {
         let a = shot(false);
         let b = shot(true);
-        without.wall += a.wall;
-        without.fire += a.fire;
-        without.harvest += a.harvest;
-        without.out_query += a.out_query;
-        without.rhs_raw += a.rhs_raw;
-        without.rhs_net += a.rhs_net;
+        without.wall = without.wall.min(a.wall);
+        without.fire = without.fire.min(a.fire);
+        without.harvest = without.harvest.min(a.harvest);
+        without.out_query = without.out_query.min(a.out_query);
+        without.rhs_raw = without.rhs_raw.min(a.rhs_raw);
+        without.rhs_net = without.rhs_net.min(a.rhs_net);
         without.rhs_pairs = a.rhs_pairs;
-        without.out_prod += a.out_prod;
+        without.out_prod = without.out_prod.min(a.out_prod);
         without.query_maps = a.query_maps;
-        with.wall += b.wall;
-        with.fire += b.fire;
-        with.harvest += b.harvest;
-        with.out_query += b.out_query;
-        with.rhs_raw += b.rhs_raw;
-        with.rhs_net += b.rhs_net;
+        with.wall = with.wall.min(b.wall);
+        with.fire = with.fire.min(b.fire);
+        with.harvest = with.harvest.min(b.harvest);
+        with.out_query = with.out_query.min(b.out_query);
+        with.rhs_raw = with.rhs_raw.min(b.rhs_raw);
+        with.rhs_net = with.rhs_net.min(b.rhs_net);
         with.rhs_pairs = b.rhs_pairs;
-        with.out_prod += b.out_prod;
+        with.out_prod = with.out_prod.min(b.out_prod);
         with.query_maps = b.query_maps;
     }
-    let r = RUNS as f64;
-    without.wall /= r;
-    without.fire /= r;
-    without.harvest /= r;
-    without.out_query /= r;
-    without.rhs_raw /= r;
-    without.rhs_net /= r;
-    without.out_prod /= r;
-    with.wall /= r;
-    with.fire /= r;
-    with.harvest /= r;
-    with.out_query /= r;
-    with.rhs_raw /= r;
-    with.rhs_net /= r;
-    with.out_prod /= r;
 
     let a_harvest = with.harvest + with.out_query;
     let delta = with.wall - without.wall;
@@ -701,14 +685,15 @@ fn fanout_honest_fire_rank() {
 
     let cal = calibrate_mark_ns();
 
-    let mut fire = 0.0;
-    let mut prod_raw = 0.0;
-    let mut rhs_raw = 0.0;
-    let mut dedup_raw = 0.0;
-    let mut probe_raw = 0.0;
-    let mut hash_raw = 0.0;
-    let mut alpha_raw = 0.0;
-    let mut out_raw = 0.0;
+    // MINIMUM across runs, not mean.
+    let mut fire = f64::INFINITY;
+    let mut prod_raw = f64::INFINITY;
+    let mut rhs_raw = f64::INFINITY;
+    let mut dedup_raw = f64::INFINITY;
+    let mut probe_raw = f64::INFINITY;
+    let mut hash_raw = f64::INFINITY;
+    let mut alpha_raw = f64::INFINITY;
+    let mut out_raw = f64::INFINITY;
     let mut rhs_pairs = 0u64;
     let mut dedup_pairs = 0u64;
     let mut prod_pairs = 0u64;
@@ -721,32 +706,23 @@ fn fanout_honest_fire_rank() {
                 .map(|(_, ns, k)| (*ns, *k))
                 .unwrap_or((0, 0))
         };
-        fire += TOP.iter().map(|n| of(n).0 as f64).sum::<f64>();
+        fire = fire.min(TOP.iter().map(|n| of(n).0 as f64).sum::<f64>());
         let (p_ns, p_k) = of("production");
         let (r_ns, r_k) = of(RHS);
         let (d_ns, d_k) = of(DEDUP);
         let (pr_ns, pr_k) = of(PROBE);
-        prod_raw += p_ns as f64;
-        rhs_raw += r_ns as f64;
-        dedup_raw += d_ns as f64;
-        probe_raw += pr_ns as f64;
-        hash_raw += of("hash-join").0 as f64;
-        alpha_raw += of("alpha").0 as f64;
-        out_raw += of("OUT: to_persistent").0 as f64;
+        prod_raw = prod_raw.min(p_ns as f64);
+        rhs_raw = rhs_raw.min(r_ns as f64);
+        dedup_raw = dedup_raw.min(d_ns as f64);
+        probe_raw = probe_raw.min(pr_ns as f64);
+        hash_raw = hash_raw.min(of("hash-join").0 as f64);
+        alpha_raw = alpha_raw.min(of("alpha").0 as f64);
+        out_raw = out_raw.min(of("OUT: to_persistent").0 as f64);
         prod_pairs = p_k;
         rhs_pairs = r_k;
         dedup_pairs = d_k;
         probe_pairs = pr_k;
     }
-    let r = RUNS as f64;
-    fire /= r;
-    prod_raw /= r;
-    rhs_raw /= r;
-    dedup_raw /= r;
-    probe_raw /= r;
-    hash_raw /= r;
-    alpha_raw /= r;
-    out_raw /= r;
     let rhs_net = rhs_raw - rhs_pairs as f64 * cal;
     let dedup_net = dedup_raw - dedup_pairs as f64 * cal;
     let probe_net = probe_raw - probe_pairs as f64 * cal;
@@ -821,8 +797,9 @@ fn fanout_phase_dump() {
     let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("fanout world should freeze");
 
+    // MINIMUM across runs, not mean — each map slot is seeded to +∞ on first sight of its phase.
     let mut acc: FxHashMap<String, (f64, u64)> = FxHashMap::default();
-    let mut wall = 0.0f64;
+    let mut wall = f64::INFINITY;
 
     for _ in 0..RUNS {
         let seed_src = format!(
@@ -841,15 +818,14 @@ fn fanout_phase_dump() {
             fire_rules_on_session(&staged, world.symbols(), None)
                 .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
         });
-        wall += t0.elapsed().as_nanos() as f64;
+        wall = wall.min(t0.elapsed().as_nanos() as f64);
         for (name, ns, k) in rows {
-            let e = acc.entry(name.to_string()).or_insert((0.0, 0));
-            e.0 += ns as f64 - k as f64 * cal;
+            let e = acc.entry(name.to_string()).or_insert((f64::INFINITY, 0));
+            e.0 = e.0.min(ns as f64 - k as f64 * cal);
             e.1 = k;
         }
     }
 
-    let r = RUNS as f64;
 
     // NESTING TAX. A parent's span CONTAINS its children's mark pairs, and the
     // per-row calibration only removes a row's OWN pairs. `prod:compiled-rhs`
@@ -874,7 +850,7 @@ fn fanout_phase_dump() {
     let mut sub: Vec<(String, f64, u64)> = acc
         .iter()
         .filter(|(n, _)| !TOP.contains(&n.as_str()) && n.as_str() != "cal")
-        .map(|(n, (ns, k))| (n.clone(), *ns / r, *k))
+        .map(|(n, (ns, k))| (n.clone(), *ns, *k))
         .collect();
     sub.sort_by(|a, b| b.1.total_cmp(&a.1));
 
@@ -913,8 +889,8 @@ fn fanout_phase_dump() {
          {:>5.2} ms. That is now a STABLE bias of known sign and size rather\n\
          than run-to-run noise. Before/after deltas from one session are sound;\n\
          absolute parent times from this table are still not.\n",
-        ms(wall / r),
-        ms(top_sum / r),
+        ms(wall),
+        ms(top_sum),
         ms(named),
         (94.0 - cal) * 40_000.0 / 1e6,
     );

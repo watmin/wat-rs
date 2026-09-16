@@ -570,8 +570,9 @@ fn harvest_bag_copy_parts() {
         }
     }
 
-    let mut a = 0.0f64;
-    let mut b = 0.0f64;
+    // MINIMUM across runs, not mean — see the header this test prints.
+    let mut a = f64::INFINITY;
+    let mut b = f64::INFINITY;
     let mut len_a = 0usize;
     let mut len_b = 0usize;
 
@@ -580,7 +581,7 @@ fn harvest_bag_copy_parts() {
         let t0 = Instant::now();
         let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
         maps.extend(scan_returning(&facts, facts.len(), &var));
-        a += t0.elapsed().as_nanos() as f64;
+        a = a.min(t0.elapsed().as_nanos() as f64);
         len_a = maps.len();
         black_box(&maps);
         drop(maps);
@@ -589,14 +590,12 @@ fn harvest_bag_copy_parts() {
         let t0 = Instant::now();
         let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
         scan_into(&mut maps, &facts, &var);
-        b += t0.elapsed().as_nanos() as f64;
+        b = b.min(t0.elapsed().as_nanos() as f64);
         len_b = maps.len();
         black_box(&maps);
         drop(maps);
     }
 
-    let r = RUNS as f64;
-    let (a, b) = (a / r, b / r);
     let pmap_bytes = std::mem::size_of::<crate::value::pmap::PMap>();
 
     let table = format!(

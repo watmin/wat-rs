@@ -78,10 +78,11 @@ fn accum_alpha_leftover_split() {
     const RUNS: usize = 3;
 
 
-    let mut fire = 0.0;
-    let mut alpha = 0.0;
-    let mut seed = 0.0;
-    let mut delta = 0.0;
+    // MINIMUM across runs, not mean — the header below says so and now the arithmetic does too.
+    let mut fire = f64::INFINITY;
+    let mut alpha = f64::INFINITY;
+    let mut seed = f64::INFINITY;
+    let mut delta = f64::INFINITY;
     let mut seed_pairs = 0u64;
     let mut delta_pairs = 0u64;
     for _ in 0..RUNS {
@@ -92,28 +93,25 @@ fn accum_alpha_leftover_split() {
                 .map(|(_, ns, k)| (*ns, *k))
                 .unwrap_or((0, 0))
         };
-        fire += [
-            "IN: to_transient",
-            "SETUP: indexes",
-            "ROUND LOOP",
-            "OUT: to_persistent",
-        ]
-        .iter()
-        .map(|n| of(n).0 as f64)
-        .sum::<f64>();
-        alpha += of("alpha").0 as f64;
+        fire = fire.min(
+            [
+                "IN: to_transient",
+                "SETUP: indexes",
+                "ROUND LOOP",
+                "OUT: to_persistent",
+            ]
+            .iter()
+            .map(|n| of(n).0 as f64)
+            .sum::<f64>(),
+        );
+        alpha = alpha.min(of("alpha").0 as f64);
         let (s_ns, s_k) = of("  ├ alpha:seed");
-        seed += s_ns as f64;
+        seed = seed.min(s_ns as f64);
         seed_pairs = s_k;
         let (d_ns, d_k) = of("  └ alpha:delta");
-        delta += d_ns as f64;
+        delta = delta.min(d_ns as f64);
         delta_pairs = d_k;
     }
-    let r = RUNS as f64;
-    fire /= r;
-    alpha /= r;
-    seed /= r;
-    delta /= r;
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -322,8 +320,9 @@ fn accum_alpha_seed_after_fold_split() {
     const RUNS: usize = 3;
 
 
-    let mut fire = 0.0;
-    let mut seed = 0.0;
+    // MINIMUM across runs, not mean.
+    let mut fire = f64::INFINITY;
+    let mut seed = f64::INFINITY;
     for _ in 0..RUNS {
         let rows = accum_phase_census(200, 200);
         let of = |name: &str| -> u64 {
@@ -332,20 +331,19 @@ fn accum_alpha_seed_after_fold_split() {
                 .map(|(_, ns, _)| *ns)
                 .unwrap_or(0)
         };
-        fire += [
-            "IN: to_transient",
-            "SETUP: indexes",
-            "ROUND LOOP",
-            "OUT: to_persistent",
-        ]
-        .iter()
-        .map(|n| of(n) as f64)
-        .sum::<f64>();
-        seed += of("  ├ alpha:seed") as f64;
+        fire = fire.min(
+            [
+                "IN: to_transient",
+                "SETUP: indexes",
+                "ROUND LOOP",
+                "OUT: to_persistent",
+            ]
+            .iter()
+            .map(|n| of(n) as f64)
+            .sum::<f64>(),
+        );
+        seed = seed.min(of("  ├ alpha:seed") as f64);
     }
-    let r = RUNS as f64;
-    fire /= r;
-    seed /= r;
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
