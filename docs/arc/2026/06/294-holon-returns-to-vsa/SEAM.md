@@ -21,9 +21,9 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `b036c5fd8` (= origin). In flight: nothing — **batch 4d (#221–#225) is CLOSED and
-PUSHED**; **225 of 651 replayed**. Next is **#226**, a divergent stdlib MACRO (`wat/rete/syntax.wat`'s
-`:wat::rete::defquery`) — finding 19's G1 class, closed by 2a4c — plus 5 shared `.rs`.
+Stamp: written at HEAD `b036c5fd8`+. **Batch 4e (#226–#240) is IN FLIGHT and INCOMPLETE** — 8 steps
+committed (#226–#233), **233 of 651 replayed**; the executor is held at **#234** and resumes after the
+finding-32 strike lands. #226 (the divergent stdlib MACRO, G1 class) was driven cleanly.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -42,7 +42,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4b #160–#211 (CLOSED; floor 5569/5569, clippy 0, pushed)
                               + batch 4c #212–#220 (CLOSED; floor 5576/5576, clippy 0, pushed)
                               + batch 4d #221–#225 (CLOSED; floor 5578/5578, clippy 0, pushed)
-                              ⇒ 225 of 651 replayed. NEXT: #226, a divergent stdlib MACRO (G1 class).
+                              + batch 4e #226–#233 IN FLIGHT (held at #234; floor 5585/5585, clippy 0)
+                              ⇒ 233 of 651 replayed. NEXT: resume #234 → #240.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -234,6 +235,12 @@ on a stashed tree, then `git checkout -- src/check.rs`.
 - **Pass `verify-step-record.sh` the batch's STEP RANGE** (`<from> <to> <first-N> <last-N>`), or it cannot
   see a mis-subjected or skipped step — finding 26. Every step, docs-only included, commits as
   `REPLAY(grok-rete #N): <C's subject>` with the `-x` trailer kept in the body.
+- ⛔ **A WALL-CLOCK RATIO IS NOT A GATE — but measure before striking one** (finding 32). Three such gates
+  have now been struck here (two at #190/#202, one at `gather_probe_cost.rs`), each after a CONTROLLED
+  measurement, never on resemblance. A census found a FOURTH (`harvest_cost.rs:338`) that **is kept**: it
+  reports in milliseconds, is two-sided, and never fired in 15 runs. Same shape ≠ same defect.
+  **Before any disposition, check whether the branch fixes it later** — it did at #202, and did not here.
+  And prove the fix: the struck gate went 2-of-15 → **0-of-15**.
 - ⛔ **Each verdict line in a commit body must be ON ONE LINE** (finding 31). `verify-step-record.sh`'s
   patterns match within a single line, so a hand-WRAPPED `census: … --diff no STOP-8` fails a wall that
   genuinely ran, and the gate then looks wrong to an author whose record was true. Do not reword the claim

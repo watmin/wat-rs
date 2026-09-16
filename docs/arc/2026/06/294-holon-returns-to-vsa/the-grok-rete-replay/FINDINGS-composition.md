@@ -958,6 +958,55 @@ missing was the instruction telling an author why their true record was being re
 **Both were repaired at the source rather than in the batch that hit them**, which is the same reasoning as
 the #184 precedent: fix it where the instrument lives, not where the symptom appeared.
 
+## Finding 32 — a NANOSECOND apportionment gate reddened ~13% of floors; the future held no fix, and a census found a fourth gate that is KEPT
+
+Batch 4e stopped at **#234** on a red `kind(lib)` wall. The executor's handling was exemplary: it refused
+every barred disposition, captured the arm verbatim, did **not** re-run, did **not** commit #234, and
+preserved the tree as reproducible evidence.
+
+```
+probe_extend_cost_split — gather_probe_cost.rs:887 — assertion: h >= (b + m + e) * 0.5
+"combined (34 ns) is far below its parts b+m+e (82 ns)"
+```
+
+**The measurement, controlled:**
+
+| tree | failures | numbers |
+|---|---|---|
+| clean #233 (without #234) | **1 of 10** | 33 ns vs 79 ns → 0.42 |
+| with #234's uncommitted diff | **1 of 5** | 35 ns vs 87 ns → 0.40 |
+
+**Combined 2 of 15 ≈ 13%**, indistinguishable populations → **#234 EXONERATED.** It is finding 28's own
+class (a wall-clock ratio as a gate) at NANOSECOND scale. `kind(lib)` is in the floor, so every floor since
+#183 carried ~13% odds of a meaningless red. The five exact count predictions before it were still sound —
+a failure changes the counts — but each green was ~87% likely, not certain.
+
+- ⛔ **THE FUTURE WAS CHECKED FIRST, and it did not help** — the builder's own question from #190, asked
+  before designing anything. grok carries the assertion to its tip: same `* 0.5` at **all seven** later
+  revisions touching the file, same constants, the estimator **already** minimum-of-3, no nextest budget or
+  exclusion, and **no commit message or body ever records hitting it**. Worse, #416 (hoisting
+  `JoinAlpha::resolve` out of the measured closures) and #470 (two `FxHashSet`s → one `SeenSet`) both
+  REMOVE work from `h`, pushing the ratio toward the floor — **it gets more fragile as we replay.** Unlike
+  #202, there was nothing to fold forward, so this is a SUBTRACTION FROM REPLAYED CONTENT, ruled 4-YES
+  (option B) rather than inherited.
+- **PROVEN, not asserted:** 15 `kind(lib)` runs after the strike → **0 failures, 15/15 clean**, against
+  2 of 15 before. The falsification test for my own fix.
+- ⚠ **What is lost, said plainly:** the five `v > 0.0` liveness asserts catch a component dropping out
+  ENTIRELY; they do not catch `h` detaching while all components stay non-zero. That coverage is gone — and
+  was unreachable at 0.40–0.42 against a 0.50 floor. The stone it serves
+  (`BRIEF-probe-extend-split.md`) never asked for it: its Done criteria are *"Table printed. E > 0. Largest
+  drawable lump named."* — all three still hold — and its **STOP-3 is literally "gate FIRE on a wall."**
+  The assert came from the R59 hollow-test sweep, right in general, overshot on this row.
+- ★ **A CENSUS FOUND A FOURTH GATE OF THE SAME SHAPE — AND IT IS KEPT.**
+  `harvest_cost.rs:338`'s `h >= (s + w) * 0.5 && h <= (s + w) * 2.0` reports in **milliseconds**, is
+  two-sided, and sits behind a genuine non-vacuity `assert_eq!`. It never fired across the same 15 runs.
+  **Same shape is not the same defect**; striking it by resemblance would have removed working coverage.
+  The census pattern was validated two-sided first (it found the struck assert in the pre-strike blob and
+  finds nothing after) — four malformed patterns earlier in this session are why.
+- **Landed as a SEPARATE orchestrator commit**, not inside a REPLAY step: grok keeps this assertion, so
+  folding our strike into a replayed commit would stop that step's diff matching grok's (the
+  recovery-doc precedent).
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
