@@ -1,0 +1,110 @@
+# NOTE (arc 109 substrate) — the reactor is used as a DISPOSABLE POLLER; one io_uring per endpoint, and one per DEADLINE
+
+**Filed 2026-09-16, builder-directed** (*"the reactor concern.... make an arc 109 NOTE about it..."*),
+from a three-day CI red whose mechanism is still unknown. **NOT STARTED, and deliberately so** — the
+builder's ruling, verbatim:
+
+> *"we are not undoing anything.. we will make the reactor superior.... but... that doesn't feel like a
+> now thing... but... a mid-term thing... i do not wish to operate on the reactor loop extensively here"*
+
+⛔ **So this note is evidence, not a plan.** It exists so whoever opens that arc starts from measurements
+instead of re-deriving them, and so the three dead hypotheses below are never re-walked.
+
+## Kin, and why this belongs in 109
+
+109 is where the substrate's *shapes* are argued — `NOTE-io-boundary-outcome-enum.md` (every failing IO
+boundary returns a matchable outcome) and `NOTE-an-outcome-variant-no-primitive-can-construct.md` (a
+variant no primitive can construct is a **painted brick**). This note is the same genus one layer down:
+**not the shape of the outcome, but the cost and failure surface of the machinery that produces it.**
+
+It also has a direct tie to that painted-brick note. `:wat::kernel::after` can fail — the kernel can
+refuse a ring — and it reports that by **raising `RuntimeErrorKind::MalformedForm`**
+(`src/runtime.rs:27821`), which **no arm can face**. That is the *third* unfaceable failure found in
+excursus 001 (`a-send-cannot-say-it-is-blocked`: a blocked `send` has no `SendOutcome` variant;
+`a-wait-that-should-be-bounded` §6: `recv-all`'s timeout has no form in `Result :- [(Vector O),
+LociDiedError]`). ⭑ All three are **missing forms**, not painted bricks — the doctrine covers variants
+that exist and cannot be constructed, and is silent on failures that have no variant at all.
+
+## The measurement — what the rings are actually used for
+
+```
+opcodes submitted, whole tree:   9 × PollAdd   ·   2 × Read   ·   1 × Write   ·   1 × AsyncCancel
+every ring:                      IoUring::new(4)          (4 entries)
+every wait:                      submit_and_wait(1)       (submit one, wait for one)
+advanced features in use:        none — no SQPOLL, no register_files, no register_buffers, no fixed I/O
+```
+
+⭐ **That is `poll(2)`.** `PollAdd` + `submit_and_wait(1)` over a handful of fds, with no batching and no
+kernel-side polling, is the semantics of a blocking `poll`, obtained by creating a kernel object with
+mmaps and a setup/teardown syscall pair. The module header even describes the use case in poll's own
+terms — *"fan-in over N receivers (generalizes Stone B's 2-arm POLL_ADD to N)"* — which is one `poll(2)`
+call over an array of `pollfd`.
+
+### Where the cost comes from
+
+| fact | site |
+|---|---|
+| **every `Receiver` owns a ring** (`ring: RefCell<IoUring>`) | `src/comms/process.rs:315` |
+| `timer()` **mints a `Receiver` per call** → **one ring per `after`** | `:1470`, `:1509` |
+| `after` is called by `call-by-deadline` on **every round-trip of every generated client method** | `wat/service.wat` |
+| ring-creation failure has two shapes: a hard `.expect` panic, and an `io::Error` → a **raise** | `:1105` · `:1509` → `runtime.rs:27821` |
+| the **thread tier has no ring at all** (crossbeam, futex-based) | `runtime.rs:27796` |
+
+⛔ **The assumption that hides it is stated in the module header itself**: *"FDs are the persistent state;
+io_urings are [the ephemeral part]."* Treating a ring as disposable scaffolding is exactly what makes a
+per-endpoint — and per-deadline — allocation look free. A ring is not a stack variable; it is a kernel
+object with mappings and a setup cost, and it can be **refused**.
+
+### A doctrinal collision worth naming
+
+`docs/arc/2026/06/253-lock-step-audit/STUB.md`: *"every wait in wat must be lock-step: it arrives via the
+wire (a blocking `poll(2)`/fd-event)"*, and the runtime **already uses `poll(2)` and `signalfd` directly**
+for the shutdown multiplex (arc 170's `DESIGN-FD-MULTIPLEX-SHUTDOWN.md`). So the tree carries **two
+polling mechanisms**, and the doctrine names the other one. ⚠ Recording the collision is not proposing a
+winner — see the ruling above.
+
+## ⭑ THREE HYPOTHESES FOR THE CI RED, ALL MEASURED DEAD — do not re-walk them
+
+CI red since **2026-09-13 04:36** (`bb993ffd5`, the commit that ADDED the chaos-gate tests), 173+
+consecutive failing runs, arm: `IoUring::new(4) failed at timer(): Cannot allocate memory (os error 12)`.
+
+| # | hypothesis | how it died |
+|---|---|---|
+| 1 | `RLIMIT_MEMLOCK` | `ulimit -l 64` **and** `ulimit -l 0` both PASS locally. io_uring stopped charging the ring to memlock in **Linux 5.12**; this box is 6.12.63, the runner ubuntu-24.04. Both past it. |
+| 2 | memory exhaustion | repo is PUBLIC on `ubuntu-latest` → **4 vCPU / 16 GB**. A capped local run (300m/120m) dies by **SIGKILL from the cgroup OOM killer** — a different arm, so not a repro. The cap was ~50× smaller than CI's allocation and proved nothing about it. |
+| 3 | `vm.max_map_count` | plausible (`mmap` returns **ENOMEM** past the limit; this box runs `1048576` vs a stock `65530`). Measured during a chaos-gate run: **peak `/proc/<pid>/maps` = 176 lines**, `wat` children **96–100 each**. Not 65 thousand. |
+
+⭐ **And #3 carries a positive finding: rings are NOT accumulating in this workload.** ~100 mappings per
+`wat` process is near baseline. The per-endpoint ring cost is **real but not yet pathological at this
+scale** — it would become so only under a workload holding many concurrent deadlines. That is the
+condition to watch for, and it is the honest reason this is mid-term rather than urgent.
+
+⛔ **Whatever refuses the ring on that runner is not a resource this box can run out of.** That is why
+`a2154de5f` shipped instrumentation rather than a fourth guess: all nine `IoUring::new` sites now route
+through one counting helper, the failure text carries `rings created-so-far=N` and names the refuted
+governor, and CI prints its own kernel/ulimit/cgroup facts before the tests. **The next red diagnoses
+itself.**
+
+## The direction — MAKE THE REACTOR SUPERIOR, not remove it
+
+Builder's ruling. Candidate shapes for whoever takes it, none of them evaluated here:
+
+1. **One ring per thread**, borrowed by Receivers, CQEs demultiplexed by `user_data`. Stone E-1 already
+   established the "borrow the caller's ring" pattern (`process.rs:1201`, `:1410`) — this generalises it
+   from *per-call* to *per-thread*.
+2. **Registered files** (`IORING_REGISTER_FILES`) so hot fds stop being re-resolved per submission.
+3. **Real batching** — today every wait submits one SQE and waits for one CQE, which is the shape that
+   makes io_uring indistinguishable from `poll` except in cost.
+4. **Timers stop needing a dedicated reactor.** A timerfd is just another fd in a shared ring's poll set;
+   `after` minting a whole `Receiver` is what turns a deadline into a kernel object.
+
+⛔ **NOT on the table**: replacing io_uring with `ppoll`/`epoll`. It was raised, costed, and **ruled out
+by the builder** — *"we are not undoing anything"*. Recorded so it is not re-proposed as a discovery.
+
+## Provenance
+
+- Excursus `docs/excursus/2026/08/001-sns-sqs/a-deadline-does-not-cost-a-ring/DESIGN.md` — the stone this
+  came from, carrying all three refutations with their commands and numbers.
+- `a2154de5f` — the ring census and the CI runner-facts step (diagnosis; CI is still red).
+- The unfaceable-failure siblings: `a-send-cannot-say-it-is-blocked/DESIGN.md`,
+  `a-wait-that-should-be-bounded/FINDING-the-classification.md` §6.
