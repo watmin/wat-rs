@@ -30,7 +30,7 @@
 
 use std::sync::Arc;
 
-use crate::runtime::{EvalBreak, EnumValue, RuntimeErrorKind, Value};
+use crate::runtime::{EvalBreak, EnumValue, ReteCeiling, RuntimeErrorKind, Value};
 
 /// `(:wat::rete::FireOutcome)`, declared in `wat/rete.wat`.
 const FIRE_OUTCOME_TYPE: &str = ":wat::rete::FireOutcome";
@@ -91,15 +91,28 @@ pub(crate) fn fire_result_to_outcome(r: Result<Value, EvalBreak>) -> Result<Valu
     match r {
         Ok(session) => Ok(fired(session)),
         Err(EvalBreak::Diagnostic(e)) => match e.kind() {
-            RuntimeErrorKind::SessionMemoryCeilingExceeded {
-                limit,
-                used,
-                rounds,
-            } => Ok(memory_ceiling_exceeded(*limit, *used, *rounds)),
-            RuntimeErrorKind::FixpointRoundCapExceeded {
-                cap,
-                still_deriving,
-            } => Ok(round_cap_exceeded(*cap, *still_deriving)),
+            // The ceiling set is CLOSED (`ReteCeiling`) and this match has no wildcard, so a
+            // fifth ceiling cannot be added without this converter stating its answer for it.
+            RuntimeErrorKind::ReteCeiling(c) => match c {
+                ReteCeiling::SessionMemoryCeilingExceeded {
+                    limit,
+                    used,
+                    rounds,
+                } => Ok(memory_ceiling_exceeded(*limit, *used, *rounds)),
+                ReteCeiling::FixpointRoundCapExceeded {
+                    cap,
+                    still_deriving,
+                } => Ok(round_cap_exceeded(*cap, *still_deriving)),
+                // NOT THIS DOOR'S CEILINGS — and the refusal is WRITTEN, not defaulted.
+                // `…OnInsert` is raised only by the staging check and `RuleSetMayNotTerminate`
+                // only by the termination verifier; either one arriving here is a bug in
+                // ANOTHER module, and converting it would hand the caller a `FireOutcome` arm
+                // describing a door they did not go through. It raises, deliberately.
+                ReteCeiling::SessionMemoryCeilingExceededOnInsert { .. }
+                | ReteCeiling::RuleSetMayNotTerminate { .. } => Err(EvalBreak::Diagnostic(e)),
+            },
+            // ⚠ The OUTER wildcard stays: `RuntimeErrorKind` has hundreds of non-ceiling
+            // variants, and everything that is not a ceiling propagates unchanged (see above).
             _ => Err(EvalBreak::Diagnostic(e)),
         },
         Err(other) => Err(other),
@@ -153,11 +166,22 @@ pub(crate) fn insert_result_to_outcome(r: Result<Value, EvalBreak>) -> Result<Va
     match r {
         Ok(session) => Ok(inserted(session)),
         Err(EvalBreak::Diagnostic(e)) => match e.kind() {
-            RuntimeErrorKind::SessionMemoryCeilingExceededOnInsert {
-                limit,
-                used,
-                staged,
-            } => Ok(insert_memory_ceiling_exceeded(*limit, *used, *staged)),
+            RuntimeErrorKind::ReteCeiling(c) => match c {
+                ReteCeiling::SessionMemoryCeilingExceededOnInsert {
+                    limit,
+                    used,
+                    staged,
+                } => Ok(insert_memory_ceiling_exceeded(*limit, *used, *staged)),
+                // NOT THIS DOOR'S CEILINGS. `FixpointRoundCapExceeded` and
+                // `SessionMemoryCeilingExceeded` are UNREACHABLE here — `insert` runs no rounds,
+                // so nothing on the staging path can construct either (see the ⛔ above). They are
+                // still NAMED rather than wildcarded: the arm records that this converter
+                // considered them and refused, which is what makes a FIFTH ceiling a build
+                // failure here instead of a silent raise.
+                ReteCeiling::SessionMemoryCeilingExceeded { .. }
+                | ReteCeiling::FixpointRoundCapExceeded { .. }
+                | ReteCeiling::RuleSetMayNotTerminate { .. } => Err(EvalBreak::Diagnostic(e)),
+            },
             _ => Err(EvalBreak::Diagnostic(e)),
         },
         Err(other) => Err(other),
@@ -207,9 +231,19 @@ pub(crate) fn compile_result_to_outcome(r: Result<Value, EvalBreak>) -> Result<V
     match r {
         Ok(session) => Ok(compiled(session)),
         Err(EvalBreak::Diagnostic(e)) => match e.kind() {
-            RuntimeErrorKind::RuleSetMayNotTerminate { rule, fact_type } => {
-                Ok(may_not_terminate(rule, fact_type))
-            }
+            RuntimeErrorKind::ReteCeiling(c) => match c {
+                ReteCeiling::RuleSetMayNotTerminate { rule, fact_type } => {
+                    Ok(may_not_terminate(rule, fact_type))
+                }
+                // NOT THIS DOOR'S CEILINGS. `arm-session` inserts no facts and runs no rounds,
+                // so none of the three memory/round ceilings can be raised beneath it. Written
+                // out rather than wildcarded for the reason on `fire_result_to_outcome`: the
+                // refusal is a decision this converter MADE, and a fifth ceiling must not be
+                // able to inherit it by default.
+                ReteCeiling::SessionMemoryCeilingExceeded { .. }
+                | ReteCeiling::SessionMemoryCeilingExceededOnInsert { .. }
+                | ReteCeiling::FixpointRoundCapExceeded { .. } => Err(EvalBreak::Diagnostic(e)),
+            },
             _ => Err(EvalBreak::Diagnostic(e)),
         },
         Err(other) => Err(other),

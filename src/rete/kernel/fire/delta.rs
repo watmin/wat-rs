@@ -687,11 +687,13 @@ pub(crate) fn fire_fixpoint_delta_armed(
         if let Some(breach) = crate::rete::kernel::session::session_ceiling_breach(sym, origin_key) {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
-                RuntimeErrorKind::SessionMemoryCeilingExceeded {
-                    limit: breach.limit,
-                    used: breach.used,
-                    rounds: rounds_run,
-                },
+                RuntimeErrorKind::ReteCeiling(
+                    crate::runtime::ReteCeiling::SessionMemoryCeilingExceeded {
+                        limit: breach.limit,
+                        used: breach.used,
+                        rounds: rounds_run,
+                    },
+                ),
             )
             .into());
         }
@@ -702,10 +704,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
         if rounds_run >= max_fire_rounds {
             return Err(RuntimeError::new(
                 crate::rust_caller_span!(),
-                RuntimeErrorKind::FixpointRoundCapExceeded {
-                    cap: max_fire_rounds,
-                    still_deriving: __still_deriving,
-                },
+                RuntimeErrorKind::ReteCeiling(
+                    crate::runtime::ReteCeiling::FixpointRoundCapExceeded {
+                        cap: max_fire_rounds,
+                        still_deriving: __still_deriving,
+                    },
+                ),
             )
             .into());
         }

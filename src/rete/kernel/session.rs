@@ -1449,7 +1449,13 @@ pub(crate) fn check_insert_ceiling(
         None => Ok(()),
         Some(SessionCeilingBreach { limit, used }) => Err(RuntimeError::new(
             span.clone(),
-            RuntimeErrorKind::SessionMemoryCeilingExceededOnInsert { limit, used, staged },
+            RuntimeErrorKind::ReteCeiling(
+                crate::runtime::ReteCeiling::SessionMemoryCeilingExceededOnInsert {
+                    limit,
+                    used,
+                    staged,
+                },
+            ),
         )
         .into()),
     }
