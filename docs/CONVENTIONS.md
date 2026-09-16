@@ -1081,6 +1081,78 @@ a fifth category invented at a call site. It cannot tell you that a rune picked 
 the four — only this table can, which is why the discriminating question is written down as a
 question and not as a list of examples to pattern-match.
 
+## The `rune:perspicere` vocabulary — a CLOSED set of three (2026-09-01)
+
+`perspicere` flags a type expression carrying two or more `<` — nesting deep enough that the
+reader must assemble the noun themselves. Its cure is a typealias. A
+`// rune:perspicere(<category>) — <reason>` declares that **no name can fix this depth**, and the
+category says *why not*.
+
+**The three categories are the ward's own**, taken from the `perspicere` spell in the datamancy
+grimoire (fetched 2026-09-01) — they were NOT derived from the categories in use in this tree,
+which is the whole point of writing them down. What this table adds is the **discriminating
+question** the spell leaves to judgment: *what, exactly, would a name cost here?*
+
+| category | a name is refused because | the counterfactual that decides it | example |
+|---|---|---|---|
+| `intentional-structure` | a name would **remove** something the reader needs at this site — the nesting IS the claim | a reader shown only the alias loses a distinction the code depends on | `finish_forked_child`'s `std::thread::Result<Result<Value, RuntimeError>>` — the match reads BOTH arms, and an alias hides the panic boundary |
+| `read-once` | there is **no second reader of the name** — the type occurs at one site and is consumed there, so the alias would be defined once and read once | *if this same type appeared at ten sites, an alias WOULD be minted.* The objection is to the COUNT, not to the name | `pair<T>()`'s `Result<(Sender<T>, Receiver<T>)>` — one construction site, destructured immediately |
+| `mumble-alias` | the **name itself** would be a Level 2 mumble — vaguer than the type it replaces, or restating a noun the type already carries | *if this same type appeared at ten sites, an alias STILL would not be minted.* The objection is to the NAME, not to the count | `SendResult<T>` for `Result<(), SendError<T>>` — `SendError` already carries the noun, so the alias adds a wrapper word and no information |
+
+**Decide `intentional-structure` first** — it is a claim about losing information, and it outranks
+both others. Then the two counterfactuals separate the remaining pair, and they separate it
+cleanly: one asks about the *number of readers*, the other about the *quality of the name*. A site
+that answers "the alias would be forgotten" is `read-once`; a site that answers "the alias would be
+noise" is `mumble-alias`.
+
+**"Level 2 mumble" is `intueri`'s scale, not a figure of speech.** A name that *lies*
+(`refresh_cache` for a function that invalidates and reloads) is Level 1. A name that *mumbles*
+(`process_data` for a function that specifically encodes events as EDN) is Level 2 — it does not
+lie, it under-specifies. So `mumble-alias` is earned by showing the candidate name is VAGUER than
+the type; a candidate that is a specific domain noun is not a mumble, however unwelcome the alias.
+
+⚠ **The reason text is where this vocabulary actually rots, and the rot is invisible to any gate.**
+A trailing clause copied from site to site stops being an argument and becomes decoration: the
+clause *"alias would be a mumble"* appears verbatim at 18 sites across four files (measured
+2026-09-01), attached to runes whose FIRST clause makes the `read-once` argument
+("test-only census TLS", "microbench sink"). `perspicere`'s own reporting format anticipates this
+and asks for a verdict of *clear* or *questionable (reason is vague, copy-paste, or reads like
+"I didn't want to alias this")*. **Write the reason this site actually has.** A borrowed clause
+names the wrong category's argument and no lint can see it.
+
+## The `rune:purgare` vocabulary — a CLOSED set of four (2026-09-01)
+
+`purgare` flags a defined thing with no consumer — a struct never imported, a field written and
+never read, a parameter always passed the same constant, a branch never taken. A
+`// rune:purgare(<category>) — <reason>` declares that the thing is **alive at an end the compiler
+cannot see**, and the category says *which end*.
+
+As with `perspicere` above, the four are the ward's own, from the `purgare` spell in the datamancy
+grimoire (fetched 2026-09-01). The decisive-test column is what this table adds.
+
+| category | the consumer lives | the decisive test — answer it in the reason | example |
+|---|---|---|---|
+| `public-api` | **outside this crate**, by design | is the item reachable from outside the crate, and is there a downstream that would call it? Name the surface | `to_json_string_pretty` in `wat-edn` — the compact twin IS consumed, and the pretty one is the exported bridge surface |
+| `trait-contract` | **in a trait** — the item exists because a trait bound or a trait implementation requires it | **name the trait.** If no trait can be named, this is not the category, and reaching for it because the item is "structurally required" is how the label goes hollow | a manual `Debug` impl standing in for a `derive` that cannot compile |
+| `future-fixture` | **not yet written** — a fixture for a planned test or downstream with a named landing point | cite the document or issue that says when it lands. Per the ward: *the rune retires when the downstream lands* — a rune with no landing point never retires | `write_to` in `wat-edn`, citing `crates/wat-edn/docs/IPC-BRIDGE.md` |
+| `safety-margin` | **on an error path the current production flow does not reach** | name the condition that WOULD reach it, and what a caller should do if it ever does | `Pidfd::poll_exit` — completes the blocking / non-blocking / timeout surface of the pidfd primitive |
+
+**`trait-contract` is the one that drifts, because "required" has two meanings.** A trait bound
+requires an item *mechanically* — remove it and the crate does not compile. A grammar payload, a
+symmetric signature, or a field carried so a classifier is total over its grammar is required
+*structurally* — remove it and the crate compiles fine, but a shape stops being whole. Those are
+different claims with different evidence, and only the first is `trait-contract`. **The
+vocabulary as the ward defines it has no category for the second**, which is exactly the kind of
+gap a written table makes visible and an unwritten one hides.
+
+**What the gate closes, and what it cannot.** `no_unknown_ward_rune` (tests/lint/) refuses a
+category outside these sets — a fifth `perspicere` category or a fifth `purgare` one, invented at a
+call site, is a red build that names its file and its category. **Spelling is machine-checkable;
+fit is not.** No gate here can tell you a rune picked the wrong member of a closed set, and none
+can read a reason and say it argues for a different member than the label it sits under. Only these
+tables can, which is why each carries a discriminating question or a decisive test rather than a
+list of examples to pattern-match.
+
 ## Caller-perspective verification
 
 > **All code is measurable from the caller's perspective. That's
