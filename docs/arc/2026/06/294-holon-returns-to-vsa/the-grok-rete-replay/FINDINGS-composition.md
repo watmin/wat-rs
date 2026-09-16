@@ -1104,6 +1104,69 @@ The one that went right: the prose-eating extraction failed **loudly** — `#tha
 A checker that fails visibly is recoverable; the `keyword` false positive, which failed quietly and
 accused correct work, was not. Prefer instruments that break conspicuously.
 
+## Finding 35 — a whole-history tool aimed at a 280-commit branch; a SCORE whose green did not disclose what bought it; and an exclusion I called rot before I measured it
+
+**1. `git filter-branch` is a WHOLE-HISTORY rewriter, and it was pointed at a 280-commit branch.**
+The executor repaired four wrapped `census:` verdict lines — finding 31's exact trap — with TWO
+`filter-branch --msg-filter` passes over `7b58b6cbd..HEAD`. It was SAFE here, and I verified that rather
+than accepting it: all five landmark SHAs (`7b58b6cbd`, `400165612`, `fcc5febcf`, `4f9276699`,
+`c3c824a34`) still exist AND are ancestors of HEAD; `origin/replay/grok-rete` is still an ancestor with
+exactly 21 commits ahead; `refs/original/` is EMPTY (deleted after each pass); 0 replace refs; tree hash
+`20201ac3…` identical across both passes.
+
+**But the entire margin of safety was one rev-range argument.** Omit or mistype it and 260 PUSHED commits
+are rewritten in place, and the next `git push` publishes a divergent history to the DR site. Batch 4f's
+detach / re-commit / rebuild-descendants pattern **cannot reach below its own start point**; filter-branch
+can reach everything. ⛔ **Prefer the 4f pattern. If filter-branch is used at all, the proof obligation is
+explicit and belongs IN THE SCORE: the pushed tip is still an ancestor of HEAD, and `refs/original/` is
+empty.** A tree-hash comparison does NOT establish this — it speaks to content, not to the commit graph.
+
+**2. A SCORE's green must disclose what BOUGHT it.** SCORE-7g's E8 reports #278's gate green without
+mentioning that the green was produced by **63 rune declarations added at landing**. #270's 8 ledger
+deletions and #278's `attested()` exclusion appear nowhere in the SCORE either. All three ARE disclosed,
+fully and well, in `REPLAY-LOG.md` — so this is disclosure PLACEMENT, not concealment, and materially
+less serious than it first looked. But the SCORE is the document the orchestrator scores. A row whose cost
+lives only in the log is a row the scorer cannot audit without already knowing to go looking; I found
+these only because the hand-off summary happened to mention them. **Rule: any landing-time action that
+changes a gate, its inputs, or its ledger must appear in the SCORE row that gate satisfies.**
+
+**3. The `attested()` exclusion is LEGITIMATE — recorded so a later hand does not "fix" it.**
+At #278 the gate's negative control `prose_in_rust_does_not_attest_a_name` failed, because
+`src/intrinsic/special/rete_alias.rs:840/871` still carry `#[wat_special_form(":wat::rete::core::filter")]`
+and `":wat::rete::core::map"` while `src/rete/vocabulary.rs` has NO `RETE_OPS` row for either (replaced by
+`mapv`/`filterv`, 2026-08-28, because the lazy heads are unreachable from a compiled `:where` fence). The
+executor excluded exactly those two names from `attested()` and FILED, rather than fixed, retiring the
+orphan.
+
+Verified, and it holds up on every axis:
+- **Verdict-neutral.** The gate branches `if in_registry_namespace(&token) { rows || KNOWN_FORMS } else
+  { attested }`. Both names are `:wat::rete::core::…`, so the main gate never consults `attested()` for
+  them. The exclusion touches only the attestation set, whose other consumer is the control itself.
+- **Retiring the orphan would NOT restore the control.** `src/intrinsic/mod.rs` names both at 1444/1446
+  and 1968 — inside LEDGERS of known gaps, with a comment at 2119 recording the removal. A ledger must
+  name what it ledgers, so `attested()` would still harvest both names after the structs were deleted.
+  The control as grok wrote it is simply incompatible with a tree that keeps such ledgers.
+- **Nothing calls the heads.** Outside `src/` they appear only in codemod prose and rune reasons.
+
+**4. A count in the log that no measurement reproduces.** REPLAY-LOG says "**59** unresolved names across
+**9** files". Census at HEAD: **63 rune lines, 44 distinct names, 11 files**, all 63 added at #278, none
+pre-existing. None of the three matches. 59 may be the gate's pre-fix unresolved OCCURRENCE count, which
+cannot be recovered without mutating the tree — so this is recorded as a MISMATCH, not a verdict.
+
+**5. MY OWN MISJUDGMENT — I called it gate-weakening before I measured.** I framed the exclusion to the
+builder as "modifying the instrument to accommodate a known flaw", and named retiring the orphan as the
+cheaper honest option. Measurement inverted it: retiring the orphan fixes nothing, because main's own
+ledgers legitimately name the phantoms. **A carve-out that LOOKS like suppression may be the only honest
+reconciliation available — establish what the alternative actually costs before naming one.** This is the
+fourth time in two days I have indicted correct work ahead of the evidence (see finding 34 §3).
+
+**6. THREE FOR THREE: every new grok lint gate lands RED on our tree.** #274 → 9 undeclared + 1 hollow.
+#278 → 63 rune declarations across 11 files, unpredicted. #283 → predicted, and 4h is briefed for it.
+This is structural, not accidental: grok's gates are written against grok's corpus, and main's corpus
+diverged by renames and module splits grok never saw. **Budget repair time into every batch containing a
+new `tests/lint/` gate, and measure its blast radius BEFORE releasing the batch** — doing so for #274
+turned a batch-stopping surprise into a checklist the executor worked through and improved on.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

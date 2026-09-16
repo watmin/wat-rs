@@ -21,16 +21,23 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `400165612` (4f's SCORE commit; the records commit lands on top of it). In flight:
-nothing — **batch 4f (#241–#260) is CLOSED and PUSHED**; **260 of 651 replayed**. Next is **batch 4g
-(#261–#280)**: no stdlib-touch row and no divergent-macro row — the next two-phase step is still #377 —
-but the range carries TWO named hazards, both measured in advance and written into BRIEF-7g:
-⚠ **#274 lands a meta-gate that WILL go RED on our tree.** `every_walking_gate_declares_non_vacuity.rs`
-walks `tests/lint/` at runtime with no allowlist. Grok has 32 gates there; we have 43. The 13 main-owned
-gates it has never seen produce **9 undeclared + 1 hollow** — two independent firing arms. That is a real
-flaw of ours (two gates assert only `violations.is_empty()`, which passes when the walk finds nothing), and
-it repairs **AT #274** per the #184 precedent — never folded backward, never allowlisted.
-⚠ **#278 carries the range's ONE `absent-on-main` row** and is the ONLY step touching `wat-scripts/fixes/`.
+Stamp: written at HEAD `351b24fbc` (4g's SCORE commit; the records commit lands on top of it). In flight:
+nothing — **batch 4g (#261–#280) is CLOSED and PUSHED**; **280 of 651 replayed**. Next is **batch 4h
+(#281–#300)**: censused two-sided — **15 docs-only, 5 code (#283 #288 #294 #298 #300)**, **ZERO hazard
+rows of any kind** (no stdlib-touch, no absent-on-main, no future-macro, no main-deleted) and **not one
+step touches `wat/`**; the next two-phase stdlib step is still #377. One M-status-absent path (#294
+modifies `tests/lint/rete_citation_resolves.rs`) is created at #283 earlier in the same batch.
+⚠ **#283 IS THE TRAP AND IT WILL LAND RED — the THIRD new grok lint gate to meet main's divergent
+corpus.** `tests/lint/rete_citation_resolves.rs` (913 lines) demands every backticked identifier and every
+bare `*.rs`/`*.wat` filename cited in a comment under `src/rete/` either RESOLVE or carry
+`// rune:lint(cited-name-absent) <name> — <reason>` (40-char reason floor). The other 27 files in #283 are
+grok repairing ITS OWN citations; ours diverged by the same renames/module splits that forced #270's
+ledger reseed, so our unresolved set is different and probably larger. Repair **AT #283** (#184
+precedent). ⛔ **Never reword a CORRECT citation to dodge a red** — the gate's own header warns that too
+narrow a universe manufactures findings, and six rete-comment names are legitimately attested only
+outside `src/`.
+📊 **The pattern is now three for three**: every new grok lint gate lands red here (#274 → 9 undeclared +
+1 hollow; #278 → 63 rune declarations across 11 files; #283 → predicted). Budget for it.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -51,7 +58,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4d #221–#225 (CLOSED; floor 5578/5578, clippy 0, pushed)
                               + batch 4e #226–#240 (CLOSED; floor 5593/5593, clippy 0, pushed)
                               + batch 4f #241–#260 (CLOSED; floor 5615/5615, clippy 0, pushed)
-                              ⇒ 260 of 651 replayed. NEXT: batch 4g #261–#280.
+                              + batch 4g #261–#280 (CLOSED; floor 5657/5657, clippy 0, pushed)
+                              ⇒ 280 of 651 replayed. NEXT: batch 4h #281–#300.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -108,6 +116,26 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4g #261–#280 is CLOSED and PUSHED** (steps at `351b24fbc`; SCORE-7g, REPLAY-LOG; finding 35).
+  20 steps, 15 docs-only. Verified by the orchestrator: floor **5657/5657, 24 skipped** — the count
+  PREDICTED from the diff for the **ninth consecutive batch** — clippy 0, and every wall re-run at HEAD
+  reproducing #278's own numbers (lint-subset 192, kind(lib) 1490, doctest 8, nested-gate 3/3, census 2122
+  files). All five gates green in ONE run: #274's meta-gate, #278's resolver, and its three controls.
+  **Structural integrity after TWO `git filter-branch --msg-filter` passes, verified independently**: all
+  five landmark SHAs (`7b58b6cbd` `400165612` `fcc5febcf` `4f9276699` `c3c824a34`) still exist AND are
+  ancestors of HEAD; origin still an ancestor, exactly 21 commits behind; **0 `refs/original/`**, 0 replace
+  refs. No published history was rewritten — see finding 35 on why the mechanism is still a loaded gun.
+  **#274's predicted trap landed exactly as briefed** — 9 undeclared + 1 hollow — and was repaired AT the
+  step (all 30 `tests/lint/*.rs` ride in #274's own commit), with one gate RECLASSIFIED from my brief's
+  own guess after the executor read it. The brief told it not to trust my split; it didn't, and was right.
+  **#278** dropped the dead-path hunk, added no inert rune under `tests/resolve/`, and then hit an
+  UNPREDICTED landing-time burden: **63 rune declarations across 11 files** (44 distinct names), every one
+  naming a mechanism with a file:line citation. Verified honest: **no rename-table row was re-pointed
+  anywhere** — the only non-rune change under `wat-scripts/fixes/` is grok's own map/filter row deletion.
+  **#270's ledger verified SHRINK-ONLY**: grok's 35 tuples → our 27, 8 removed, **ZERO added**, every
+  removal a stale path main had renamed independently.
+  The `attested()` exclusion at #278 is verified **verdict-neutral and LEGITIMATE** — finding 35 says why.
+  ⛔ **Do not "fix" it**: retiring the orphan would NOT restore the control.
 - **Batch 4f #241–#260 is CLOSED and PUSHED** (steps at `400165612`; SCORE-7f, REPLAY-LOG; finding 34).
   20 steps, 14 docs-only. Verified by the orchestrator: floor **5615/5615, 24 skipped** — the count
   PREDICTED from the diff for the **eighth consecutive batch** — clippy 0, and all four walls re-run at
