@@ -1,5 +1,15 @@
 ;; PROBE — what does brackets/map ACTUALLY do when a runner dies mid-item?
 ;;
+;; ⭐ THIS FILE IS RUN BY THE FLOOR. Row `a_dead_runner_names_the_item_it_orphaned` in
+;; `tests/probes/scratch_pad_manifest.rs` (excursus 001 `the-probes-run-in-the-floor`) runs it
+;; as a subprocess and asserts exit 2, `clean=[0 2 4 6 8 10 12 14]`, and `crashed holding
+;; item 3:`. ⛔ So a change here can redden the floor: run
+;; `cargo nextest run --release -E 'binary_id(wat::probes)'` after editing.
+;; ⚠ The row deliberately does NOT assert the RUNNER index. `a-dead-runner-names-its-orphan`'s
+;; SCORE recorded `runner 0` from five uncontended runs; measured since, 12 concurrent runs
+;; give 6× `runner 0` and 6× `runner 1` (the ITEM is 3 in all of them). Which worker takes the
+;; item is a scheduling statistic; the item is the invariant.
+;;
 ;; THE CLAIM UNDER TEST (a READ of wat/bracket.wat:626/632/642, not a measurement):
 ;;   `collect-loop`'s ServiceEvent::{Closed,Lost,Malformed} arms all `assertion-failed!`, so a
 ;;   dead runner fails the whole map — and the item it held is UNIDENTIFIABLE, because the loop's

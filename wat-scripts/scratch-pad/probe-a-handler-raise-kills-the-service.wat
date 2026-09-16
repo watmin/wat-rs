@@ -1,5 +1,13 @@
 ;; MEASUREMENT for D1-a — does a raise ESCAPING AN OP HANDLER kill the service for everyone?
 ;;
+;; ⭐ THIS FILE IS RUN BY THE FLOOR. Row `a_handler_raise_does_not_kill_the_service_for_everyone`
+;; in `tests/probes/scratch_pad_manifest.rs` (excursus 001 `the-probes-run-in-the-floor`) runs it
+;; as a subprocess and asserts exit 0 plus `a-control=Ok`, `a-boom   =Lost` and `b-after  =Ok` —
+;; the innocent second client being served is the invariant, and the world it fences against
+;; printed `b-dial=connect-REFUSED` from the connect arm below. ⛔ The LABEL TEXT AND ITS PADDING
+;; ARE PART OF THE CONTRACT now (`"a-boom   "`, `"b-after  "`): a change here can redden the
+;; floor. Run `cargo nextest run --release -E 'binary_id(wat::probes)'` after editing.
+;;
 ;; This is the baseline the no-crash wall will flip. The handler here raises the SAME way the 19
 ;; `"redial failed — peer is dead"` arms do (`assertion-failed!` inside an `:impls` body), so what
 ;; this probe prints is what those 19 arms do to a live service today.

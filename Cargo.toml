@@ -237,6 +237,16 @@ path = "tests/wat_lang/mod.rs"
 name = "cli"
 path = "tests/cli/mod.rs"
 
+# Excursus 001 `the-probes-run-in-the-floor` — the scratch-pad probe MANIFEST runner.
+# One test per named probe: it runs the real `wat` binary as a subprocess with per-row
+# env and a SIGKILL timeout, and asserts on markers unique to the passing world. The
+# rows are LIFECYCLE invariants that were each driven once by hand and then went
+# unguarded; 382 of the 416 scratch-pad probes are still parsed-only.
+# ⛔ The manifest is EXPLICIT and must never become a glob — see that file's header.
+[[test]]
+name = "probes"
+path = "tests/probes/mod.rs"
+
 # ─── Benchmarks — 296 Stone K, move 1 ─────────────────────────────────────────
 # `#[ignore]` used to mean two incompatible things: "blocked/broken" (debt) and
 # "deliberately outside the floor" (an instrument). A throughput measurement that

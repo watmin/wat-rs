@@ -1,6 +1,14 @@
 ;; probe-two-faults-before-stop.wat — the DRIVEN witness for excursus 001
 ;; `every-status-arm-is-named`, EXPECTATIONS row 9.
 ;;
+;; ⭐ THIS FILE IS RUN BY THE FLOOR. Row `two_faults_before_stop_are_faced_at_all_four_surfaces`
+;; in `tests/probes/scratch_pad_manifest.rs` (excursus 001 `the-probes-run-in-the-floor`)
+;; runs it as a subprocess and asserts exit 0 plus `=GaveUp` at all four owner surfaces and
+;; the `last=a second Status::Faulted arrived …` mechanism. ⛔ So a change here can redden the
+;; floor: run `cargo nextest run --release -E 'binary_id(wat::probes)'` after editing.
+;; ⚠ The row deliberately does NOT assert `waited-ms=0` — it printed `waited-ms=1` for `stop`
+;; under a full floor, and an integer-millisecond count is a statistic, not an invariant.
+;;
 ;; THE CLAIM UNDER TEST: two queued `Status::Faulted` used to kill the owner.
 ;; D1-a added a ONE-LEVEL drain to `<svc>/stop`: the FIRST recv handles Faulted
 ;; and re-recvs. The SECOND recv did not — its `_` wildcard raised
