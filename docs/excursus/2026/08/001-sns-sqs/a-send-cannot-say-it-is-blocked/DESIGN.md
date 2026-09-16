@@ -93,3 +93,75 @@ Start there.
    by name; re-run it rather than adjusting its numbers (it moved 679 → 681 this session).
 5. **A `send` that blocks is not a crash.** It is the same class as the recv work — unkillable-by-SIGTERM
    hang — and the invariant that covers it is the builder's *"both sides"*, not a crash census.
+
+---
+
+# ⭑ THE FOUR QUESTIONS, RUN 2026-09-15 (builder: *"four-questions"*) — and they MOVED the ruling
+
+Two things changed by running them. Both are corrections to the table above, left in place rather than
+edited away so the reasoning is auditable.
+
+## The measurement the questions needed first: the FOUR BLIND SITES
+
+A paren-balanced reader over all **32** live `send` sites (not a fixed window — the first attempt used
+one and reported 0 wildcards everywhere, repeating §0's own defect in
+`a-wait-that-should-be-bounded/FINDING-the-classification.md`, because `(_` at END OF LINE is the shape
+`call-by-deadline` uses):
+
+```
+exhaustive SendOutcome arms   28   ← a new variant breaks these LOUDLY: the compiler finds them
+wildcard `_` arm              2    wat-scripts/fanout/circuit.wat:3819 · wat/service.wat:4281
+outcome NOT MATCHED at all    2    wat-scripts/queue/sqs.wat:2059, :2064  (park-receive!)
+```
+
+⛔ **`wat/service.wat:4281` is `call-by-deadline`'s own send** — the single most important send site in
+the corpus — and it is one of the two wildcards. `sqs.wat:2059`/`:2064` discard the `SendOutcome`
+entirely, so a blocked send there is invisible **by construction**.
+
+## Q1 Obvious · Q2 Simple · Q3 Honest · Q4 Good UX (in order; UX is the tiebreaker, not load-bearing)
+
+| | (a) try-send retry loop | (b) `send-by-deadline` + `SendOutcome::TimedOut` | (c) separate `SendByDeadlineOutcome` |
+|---|---|---|---|
+| **Obvious** | ✅ with a caveat — a reader must not read ONE `WouldBlock` as "stuck" | ✅✅ the exact mirror of `recv-by-deadline`; anyone who read the last two stones knows it | ⚠ two enums for one operation; a reader must stop and ask why |
+| **Simple** | ✅ three existing atoms, no new form | ✅ two atomic pieces (primitive, then codemod) — and **28 exhaustive sites mean the COMPILER finds them**, the one technique that worked all session; exception NAMED and bounded at 2 | ✅ diff-simple, concept-complex |
+| **Honest** | ✅ **CORRECTED — see below** | ✅✅ repairs the **missing form**; the variant is primitive-reachable → satisfies arc 109's refined doctrine | ⛔ **FAILS** — leaves `SendOutcome` unable to say "blocked" while a sibling can |
+| **Good UX** | one helper-local outcome; does not generalise | ✅ one enum per operation, symmetric with recv | moot (failed Q3) |
+
+⛔ **(c) is OUT on Q3, not on taste.** Obvious + Simple + Honest must hold before UX matters.
+
+### ⚠ THE CORRECTION Q3 FORCED — this DESIGN's own §THE RULING OWED was wrong about (a)
+
+The table above says (a) *"busy-waits; and `WouldBlock` is proven NOT to mean 'not draining', so the
+loop's exit condition is measuring the wrong thing."* **The second half of that is false**, and it
+conflates two claims:
+
+- ONE `WouldBlock` does not mean the receiver stopped draining — that is fixture 1's measured negative,
+  and it stands.
+- *"Still `WouldBlock` after N ms"* **is** precisely the observation wanted. A deadline loop over
+  repeated `WouldBlock` is a sound bound, not a wrong measurement.
+
+⭑ And (a) has a property (b) does **not**: `try-send` guarantees **nothing was sent** on `WouldBlock`, so
+it cannot leave a surplus frame on the wire — the desync hazard that ruled out re-ask in
+`the-gate-methods-face-an-outcome/DESIGN.md`. (a) is honest. It loses to (b) on Q1/Q4, not on Q3.
+
+## ⭐ THE SECOND-LEVEL DECISION: SPLIT. (b) is the mechanism and it must NOT GO FIRST.
+
+1. **Does a stepping stone make the next step more tractable?** YES. The 32-site classification is
+   report-only and tells us how many sites want a bound **at all** — before anyone pays 215 arms for it.
+2. **Is there a dependency that must land first to be ERGONOMIC?** YES, and it is the sharp one: **the 4
+   blind sites must face their `SendOutcome` BEFORE the new variant lands.** Otherwise `TimedOut` arrives
+   into two wildcards and two discards and is **silently ignored at the site that matters most**
+   (`call-by-deadline`). ⭑ That is the painted brick arriving from the OPPOSITE direction — not a variant
+   nothing constructs, but a variant nothing **reads**. Arc 109's doctrine covers the first and is silent
+   on the second; this is the refinement that sweep should have asked for.
+3. **Complexity composition?** Split — each piece verifies on its own.
+
+**Recommended order:** classify the 32 → make the 4 blind sites face the outcome (small, no new form) →
+then (b) with its codemod.
+
+## What the four questions did NOT decide
+
+`recv-all`'s return contract (`a-wait-that-should-be-bounded/FINDING-the-classification.md` §6, amended).
+It needs to carry a **partial `acc`** alongside the timeout, so it is not this variant and not this
+stone — a third outcome shape, or a new `LociDiedError` variant in an enum whose own comment
+(`wat/spawn.wat:651`) admits it has outgrown its name.
