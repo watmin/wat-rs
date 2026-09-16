@@ -19,6 +19,16 @@
 name: ring-ceiling (io_uring diagnosis)
 
 on:
+  # ⚠ `workflow_dispatch` alone is NOT enough: GitHub only offers a dispatch for workflows
+  # present on the DEFAULT branch, and this one lives on `sns-sqs`. Until it lands there,
+  # the trigger is a push that TOUCHES THE PROBE — narrow on purpose, so a diagnostic never
+  # becomes noise on unrelated work. Bump the nonce line in the probe to ask the question
+  # again; that is a ~2 minute answer instead of a ~15 minute floor.
+  push:
+    branches: [sns-sqs]
+    paths:
+      - "src/bin/ring-ceiling.rs"
+      - ".github/workflows/ring-ceiling.yml"
   workflow_dispatch:
     inputs:
       cap:
