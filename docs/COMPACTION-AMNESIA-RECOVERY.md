@@ -143,6 +143,15 @@ Its predecessor, `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md
 theater hunt, the closing tally, and the TRACKED DECISIONS rows — historical reasoning plus two
 rows the vigilia found have EXPIRED PREMISES (work-list F2). Read it for why, not for what is open.
 
+> ⚠ **THE TWO POINTERS ABOVE ARE ARC 278'S OWN HISTORY, REPLAYED — NOT THE LIVE BREADCRUMB.** Neither is a
+> current open list, and "read its Class A block first" applies only once you are deliberately working arc
+> 278's own record. **The live breadcrumb is the ONE named at the top of this section**, and it is the only
+> thing the ledger's breadcrumb line may be filled from. This guard exists because FM 22's real incident was
+> exactly this shape: four files in one arc each presenting as the live current-state, with this document's
+> own ledger pointing at a fifth, wrong file — so an instance filling the ledger honestly read the wrong
+> document and still ticked every box. (Rung: CONVENTION. A lint over markdown prose would be the
+> self-certifying gate FM 29 names, so the material runs out here — said plainly rather than dressed up.)
+
 > ⚠ **This block is here because the ledger above used to say `live breadcrumb
 > (CLIFFNOTES "Currently")`, which is arc 170's cliff notes — a different arc,
 > long superseded.** An instance that filled the ledger honestly would read the
