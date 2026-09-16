@@ -21,9 +21,9 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `868377378` (= origin). In flight with grok: nothing yet —
-`BRIEF-2a4d-the-stdlib-door-reads-a-step-as-one-world.md` awaits the builder's pulsare; then batch 4b
-(drafts in `bootstrap/pending/`).
+Stamp: written at HEAD `b6a8b0f38` (= origin). In flight: nothing — batch 4b (#160–#211) is next.
+⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
+for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
 ## WHERE THE WORK IS (verify each against `git log`)
 
@@ -68,9 +68,13 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   the stdlib door reads one file at a time (4a's enums live in `wat/rete.wat`, their users in fmt/grep/
   query/oracle: grok KEY-FIRST'd the leftovers BY HAND), and #155 hand-wrapped `(overlay records)` in 11
   CHAIN members (necessary, no tool could, R21).
-- **Next: 2a4d** (the door asked once per SET; the overlay wrap recorded after the fact; 4a's hand edits
-  proven by re-converting #155), then **batch 4b #160–#211** (drafts in `bootstrap/pending/`; it touches no
-  stdlib file, so the door gap cannot bite there — it returns at #221 #377 #379 #398 #438 #440).
+- **2a4d is CLOSED** (`816cb99a0` + `b6a8b0f38`; findings 24–25). The door is asked once per SET and unions
+  the KEPT rows per member (the raw-source union stripped the shared world — 17 `wat/` refusals vs 1);
+  `wrap-overlay-in-fireoutcome` records #155's hand wrap (11/11 byte-identical, idempotent); 4a's hand
+  KEY-FIRSTs are proven by re-converting #155 with the fixed door. Verified: floor 5552/5552, clippy 0,
+  run5 identity unchanged (chain vs main 1370, VS report back to 22).
+- **Next: batch 4b #160–#211** (drafts in `bootstrap/pending/`; no stdlib file in range — the door gap
+  returns at #221 #377 #379 #398 #438 #440).
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
@@ -145,7 +149,15 @@ on a stashed tree, then `git checkout -- src/check.rs`.
 
 ## OPERATIONAL RULES — each one was paid for
 
-- **Never commit on a tree grok is working in.** Park tracked edits in `bootstrap/pending/`.
+- **Never commit on a tree the EXECUTOR is working in.** Park tracked edits in `bootstrap/pending/`.
+- **The executor gets the acceptance criteria and CHEAP TARGETED checks** (`cargo build --release`,
+  `-E 'test(<name>)'`, `--check`, a named probe) — never the floor, clippy, run5 or a push; the orchestrator
+  weighs centrally, uncontended. With a spawned agent the prompt must also CARRY the doctrine
+  (`wat-rs/CLAUDE.md` does not reach it): R21 codemods, no known flakes, capture a red verbatim and never
+  re-run, no worktrees, no subagents, the anchor path, and "ending your turn ENDS you — verify in the
+  FOREGROUND" (an agent backgrounded its gate run and lost it).
+- **An acceptance row nothing can satisfy teaches an executor to fake it** (finding 25: `--check` on baked
+  stdlib). Retire the row; never waive it.
 - **A floor runs uncontended, and nothing tracked is edited while it runs** (lint tests read source
   text at runtime).
 - **Never decide on `pgrep -f`.** Wait on a DONE line the job writes.

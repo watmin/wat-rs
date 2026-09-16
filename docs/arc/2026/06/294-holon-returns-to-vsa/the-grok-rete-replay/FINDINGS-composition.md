@@ -659,6 +659,74 @@ as before.
   structural rewrite by hand is exactly what R21 routes to a recorded migration.
 - Routed: `BRIEF-2a4d-the-stdlib-door-reads-a-step-as-one-world.md`.
 
+## Finding 24 — a new TEST FILE meets main's test-hygiene walls, and a targeted set that does not run them cannot see it
+
+Stone 2a4d came back green on its executor's targeted checks — `cargo build --release`, `--check` on the
+threaded codemods, and a 38-test gate set (`every_recorded_migration_replays`,
+`every_wat_scripts_file_loads_on_the_current_runtime`, `every_tracked_wat_parses`, `one_variant_separator`,
+`no_inlined_wat`, the new gate). **The orchestrator's floor was RED**, 5550/5552, on two walls that set did
+not name, both firing on the stone's own NEW test file `tests/cli/stdlib_door_reads_a_set_as_one_world.rs`:
+- `no_inlined_edn` at `:65` — `format!("[\"{DECLARER}\" \"{USER}\"]\n")`, a literal opening `[`. That wall
+  refuses a rune here: *"A literal that merely LOOKS EDN-esque but is genuinely not EDN is NOT a rune
+  candidate — restructure the CODE"*. The house pattern already existed —
+  `every_recorded_migration_replays.rs`'s `default_path_vector` builds the vector from chars.
+- `no_loose_string_assert` at `:85 :90 :94` — three `contains` sites. Its rubric allows a per-site
+  `// rune:lint(loose-assert) — <reason>` for *"a targeted absence over a large output"*, which fits
+  `:85`/`:90` (the report carries temp paths); `:94` was a POSITIVE substring check over a deterministic
+  converted file, so it became an exact `assert_eq!` against a co-located golden captured from the tool's
+  real output — measured, never guessed.
+- **The class:** the executor ran the walls its stone's SUBJECT suggested (`no_inlined_wat`, because it had
+  reasoned about inlining wat) and not the ones the FILE's existence triggers. A step that adds or changes a
+  `.rs` test file must run the test-hygiene walls. (Kin: findings 18, 20, 22.)
+- Repaired and FOLDED into the commit that introduced the file (the 4b rule; nothing was pushed):
+  part 1 `9d26100e4` → `bd8295df1`, part 2 rebuilt `c13e891db` → `102d4c0fc`; subjects unchanged.
+- ⚠ **The orchestrator's own error:** the first fold staged only the golden and amended, leaving the `.rs`
+  half uncommitted — that commit would have failed both walls. The guard caught it (`git status` non-empty
+  after the amend; the tip diff showing one path where two were expected). **A fold's proof must name WHICH
+  paths it is expected to carry**, not merely that a commit was made.
+
+## Finding 25 — the per-SET stdlib world unioned RAW sources, so one member's refusal stripped the world every sibling reads
+
+2a4d made the stdlib door answer a step's files from ONE world (finding 23's fix). Its floor was green
+(5552/5552, clippy 0) and run5's identity axes were unchanged — but the VS report counter moved **22 → 38**,
+back to its pre-2a4c level, and the cause was a defect, not noise. Measured on `bootstrap/era/probe-L/pT`
+(run5's real VS input), same binary:
+
+| how the tool is handed the files | `wat/` refusals |
+|---|---|
+| the full 1489-path corpus (run5's shape) | 17 |
+| the 54 stdlib members alone | 17 |
+| one file at a time | **1** |
+
+Set SIZE is irrelevant; UNIONING is the cause. `wat/core.wat` converts clean alone and refuses inside the
+union (`defalias :wat::core::values` line 43, `defclause :wat::core::+` line 58).
+- **The mechanism.** `stdlib-world` concatenated every member's RAW forms into one `declared-stdlib-types`
+  call; `register-loop-set` dropped each refused form from that SHARED world and retried. In the per-file
+  door a refusal cost that file its own form; in the union it leaves the world every member is answered
+  from — one unexpandable body in `core.wat` can strip declarations a sibling's conversion needs. No output
+  moved only because the dropped declarations happened not to be ones another file wanted: luck, and exactly
+  the stale-answer class 2a4/2a4c exist to close.
+- ⚠ **My first probe said "no difference" because it measured the wrong tree** — the pre-24 era corpus
+  rather than `probe-L/pT`, which run5 actually converts (`cache.wat`, `bracket.wat` differ between them).
+  Union and per-file agreed there (3 and 3) and I nearly wrote the delta off. **A probe must receive the
+  input the stage receives** — 2a4's lesson, one instrument further out.
+- **The refold** (folded into part 1, `bd8295df1` → `816cb99a0`; part 2 replayed `102d4c0fc` → `b6a8b0f38`;
+  nothing was pushed until the orchestrator's own verification): register each member separately and union the
+  KEPT `TypeInfo` rows, so a failure is isolated to its own file while every member still sees one world.
+  Measured after: `wat/` refusals **17 → 1** (the survivor is the same `wat/service.wat … line=2443` the
+  per-file run shows), the whole report **38 → 22**, `diff -rq` of before/after conversions **0 differences**,
+  the gate still RED under the mutation that ignores the world, change confined to `wat/fix.wat` (53+/85−).
+  Verified by the orchestrator: floor 5552/5552, clippy 0, run5 identity unchanged (chain vs main 1370), and
+  `wrap-overlay-in-fireoutcome` reproducing #155 **11/11 byte-identical** and idempotent.
+- ⚠ **My refold brief carried a bar row no artifact could satisfy** — "`--check` clean on `wat/fix.wat`".
+  That file is BAKED STDLIB (`include_str!`), so checking it as a user program is the wrong door: 115
+  pre-existing `ReservedPrefix` errors. The executor DISPROVED the row instead of working around it
+  (`git show HEAD:wat/fix.wat` checked the same way gives rc=1, and its first error names a function the new
+  version deletes — so that output came from the unmodified copy). Its real gates are the binary's own stdlib
+  load and `every_wat_scripts_file_loads_on_the_current_runtime`. **An acceptance row nothing can satisfy
+  teaches an executor to fake it**; this one was retired, not waived. Also recorded: `wat/fix.wat` is baked,
+  so a `cargo build --release` must precede any probe re-run or the OLD world is measured.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
