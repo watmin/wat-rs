@@ -792,6 +792,71 @@ ours is 20 — it extends by exactly **one** (`src/rete/collect.rs`; `purity.rs`
   ignored = #177's 89), and all 17 `.census/` files named in bodies exist on disk. The drift is in narrative
   counts, never in the gate numbers — which is why this is a finding and not a rejection.
 
+## Finding 28 — a WALL-CLOCK RATIO asserted as a gate; and BOTH SIDES of the merge hit the same truncation trap
+
+Batch 4b stopped mid-#190. `accum_alpha_class_lookup_split` went red, and the executor reported two of its
+own violations rather than continue: it piped the gate through `tail -10` (discarding the panicked block
+BEFORE anyone knew there would be a red) and then re-ran the test in isolation, where it passed. It did not
+run a third time, did not call it a flake, and did not commit.
+
+**What #190 introduces.** Two wall-clock floors over a 40,200-iteration microbenchmark of three map lookups
+on TWO string keys: `f >= 1.5 * l` and `s >= 3.0 * l`. Before #190 the test was hollow (`s > 0.0`), so the
+floor had **never exercised these assertions** — their first-ever execution was as test 13 of 87 in
+parallel, and one failed.
+
+**The measurement** (orchestrator, on the preserved failing tree):
+
+| condition | result |
+|---|---|
+| the executor's exact invocation (87 parallel) | **4 of 5 FAILED** |
+| the same test ALONE, idle | **4 of 10 FAILED** |
+| ordering (`L` fastest) at idle | **10 of 10 HELD** |
+| genuine inversion (F faster than L) | once, under load only |
+
+Idle spread S/L **2.00–4.38** (floor 3.0), F/L **1.12–2.31** (floor 1.5), against grok's calibration
+S/L 4.88–5.58, F/L 2.38–2.84 — **populations that do not overlap**. Hardware, toolchain and contention are
+all excluded: same box, `rust-toolchain.toml` pins 1.97.0 and has since 2026-07-30 (grok calibrated after
+the pin), and it fails at idle.
+- ⛔ **No floor can be re-derived.** Under the standard invocation F/L reached **0.99**, so any floor that
+  survives the real test command must sit below 1.0 — asserting nothing.
+- **The stone's premise is NOT refuted.** `L` won 10/10 at idle; only the MAGNITUDE fails. The claim is a
+  property of the binary, not of the engine.
+
+**grok found it first — #202, twelve steps later.** *"strike the two ratio floors — I gated a 0.23 ms arm on
+a parallel runner."* Its mechanism matches ours: `L`, the smallest arm, inflated 0.23 → 1.57 ms (6×) under a
+5,173-test runner, and *"a fixed additive term landing on all three arms hurts the smallest most and drags
+every ratio toward 1."* It refuses to raise the thresholds — *"THE DEFECT IS NOT THE THRESHOLD, SO RAISING
+IT WOULD BE PATCHING THE STEM"* — and names the instrument mismatch: **calibrated over six independent
+process runs, enforced over three in-process samples; the enforcing instrument is the weaker one.**
+
+**Routed by the FOLD RULE (ruled 4-YES 2026-09-14), no new policy.** #202's strike folded into #190;
+#202 landed as this replay's **first EMPTY `REPLAY` commit**. #190 keeps its real content — the label fix
+and `tests/lint/rete_header_claims_are_asserted.rs`, the OFF-THE-CLOCK gate asserting by exact `assert_eq!`
+that `AlphaRoots` is still a `Vec`. `mora`'s principle reaches benchmarks: grok's own line is the rule —
+*"A structure swapped back to a map is a compile-time fact and never needed a stopwatch."*
+
+★ **BOTH SIDES OF THE MERGE HIT THE SAME TRUNCATION TRAP, INDEPENDENTLY.** grok's own #198 is subtitled
+*"and a trap door that is mine"* — its own account of hitting **the same `accum_alpha_class_lookup_split`
+parallel failure AND the same `tail`-truncation mistake**. So this is not one executor's slip; it is what
+the affordance reliably produces in a capable agent working this suite, now recorded on both branches with
+no contact between them. It also independently corroborates that the fold was the right read.
+
+- ⛔ **The truncation rule I gave was HALF a rule, and that half was mine.** The prompt carried *"on a red,
+  capture the block verbatim"* — which is **UNACTIONABLE**, because by the time you know the run is red the
+  block is gone. The rule that works is about how you RUN a gate: **redirect to a file and read the file;
+  never pipe a gate through `head`/`tail`/`grep` to decide anything.** The cost was concrete: grok had built
+  the assert message to carry the whole evidence table *"so a red arrives with its own evidence"*, and the
+  `tail -10` threw away exactly that, forcing a 15-run reproduction to recover it. Rung: CONVENTION — no
+  gate can see how an agent invoked a command.
+- **An isolated re-run is the weakest evidence against a failure seen under load**, and on a timing test it
+  answers a different question entirely.
+- ⚠ **Residual, recorded as OPEN.** grok's identical gate *"passed 8 for 8 with 70% headroom"* in isolation;
+  ours failed 4 of 10 at idle, whole range below grok's whole range, same box and pinned compiler, fixture
+  semantically identical. Why the floors measured worse here is **unexplained** and is not to be recorded as
+  understood.
+- **Credit:** the executor stopped mid-step, named both violations itself, refused the flake framing, and
+  did not run a third time. That is the only reason this was diagnosable.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

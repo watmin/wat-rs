@@ -21,8 +21,8 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `67267bfd7` (= origin). In flight: **batch 4b's SECOND half, #186–#211**, with a
-Sonnet agent; its first half #160–#185 is CLOSED and PUSHED.
+Stamp: written at HEAD `7a2b7d45f` (= origin). In flight: nothing — **batch 4b (#160–#211) is CLOSED and
+PUSHED in full**; batch 4c (#212–#220) is drafted and **TRACKED** in `the-grok-rete-replay/`, awaiting release.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -36,6 +36,10 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + stone 3, the nested-program gate (CLOSED; floor 5502/5502, pushed)
                               + batch 2 #61–#125 (CLOSED; folded per 5b; floor 5540/5540, pushed)
                               + batch 3 #126–#152 (CLOSED; floor 5546/5546, pushed)
+                              + batch 4a #153–#159 (CLOSED; floor 5551/5551, pushed; P1+Q1's first use)
+                              + 2a4d, the per-SET stdlib world (CLOSED; floor 5552/5552, pushed)
+                              + batch 4b #160–#211 (CLOSED; floor 5569/5569, clippy 0, pushed)
+                              ⇒ 211 of 651 replayed. NEXT: batch 4c #212–#220.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -74,8 +78,9 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `wrap-overlay-in-fireoutcome` records #155's hand wrap (11/11 byte-identical, idempotent); 4a's hand
   KEY-FIRSTs are proven by re-converting #155 with the fixed door. Verified: floor 5552/5552, clippy 0,
   run5 identity unchanged (chain vs main 1370, VS report back to 22).
-- **Batch 4b's FIRST HALF #160–#185 is CLOSED and PUSHED** (`67267bfd7`; SCORE-7b, REPLAY-LOG; findings
-  26–27). 26 steps. Orchestrator-verified at the checkpoint: floor **5554/5554, 24 skipped** — which is the
+- **Batch 4b, FIRST HALF #160–#185 — the mid-batch checkpoint only.** ⚠ **SUPERSEDED by the full-batch row
+  directly below; kept for its trap-door detail, NOT a current-state claim** (`67267bfd7`; findings
+  26–27). 26 steps. Verified at the checkpoint: floor **5554/5554, 24 skipped** — which is the
   test-count delta PREDICTED from the diff (+4 = #184's two new gate files, −2 = #183's deliberate
   `#[ignore]`s) — clippy 0, and **E7 re-run at HEAD reproducing #184's verdict lines exactly** (kind(lib)
   1475+4, doctest 8, lint-subset 148, stone-3 gate 3, `kernel::tests` 87+2 = #177's 89). E1/E2/E4/E8/E9
@@ -84,10 +89,22 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   #177 (`kernel/tests.rs` 10,189 → 14 files, landing GROK'S OWN decomposition — file names identical),
   #184 (two new lint gates; its `no_stale_path_in_doc` RED repaired IN #184, not folded into #168, because
   #168 was green under every gate existing when it landed and C's own body fixes its six the same way).
-- **Next: batch 4b #186–#211** (no stdlib file in range — the door gap returns at #221 #377 #379 #398 #438
-  #440; #226 changes a stdlib MACRO, the G1 class 2a4c closed). ⚠ **#221 is the first MULTI-stdlib-file step
-  since 2a4d** — the first real exercise of the per-SET world. Notes parked in
-  `bootstrap/pending/STEP-NOTES-212-and-226.md`.
+- **Batch 4b #160–#211 is CLOSED and PUSHED** (`7a2b7d45f`; SCORE-7b, REPLAY-LOG; findings 26–28). 52 steps
+  (51 real + #202 empty). Orchestrator-verified: floor **5569/5569, 24 skipped** — again the count PREDICTED
+  from the diff before running — clippy 0, E7 reproducing #207's verdict lines exactly (kind(lib) 1478+4,
+  doctest 8, lint-subset 149, stone-3 3), all 7 new `.wat` `--check` rc=0, and
+  `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
+  re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
+  named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Next: batch 4c #212–#220** (`the-grok-rete-replay/BRIEF-7c…` + `EXPECTATIONS-7c…`, now TRACKED — the
+  7b pair is tracked too, since `SCORE-7b` cited a brief that lived only in gitignored `bootstrap/pending/`),
+  ending BEFORE **#221,
+  the first MULTI-stdlib-file step since 2a4d** — the first real exercise of the per-SET world, deliberately
+  isolated (an orchestrator scheduling call inside the batch rule, not a new boundary; the builder may fold
+  it in). #226 changes a stdlib MACRO — the G1 class 2a4c closed. Step notes:
+  `docs/arc/2026/06/294-holon-returns-to-vsa/the-grok-rete-replay/STEP-NOTES-212-and-226.md`. ⚠ #212's gate walks **8** docs `.wat` here, not grok's 10
+  (the arc-130 pair is `.wat.bad`); grok's own DESIGN/EXPECTATIONS for that gate land at #211 and
+  **disagree with the shipped #212** in two places — follow the commit.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
@@ -141,6 +158,11 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `variadic-wrap` hardcodes `:wat::core::i64`.
 - `docs/…/278-rules-engine/probes/surface-field-dispatch.wat`: fixed when its grok-rete commit replays.
 - The chain vs main's 28 CHAIN-FAILS: classify with `bootstrap/era/probe-K/classify.sh`.
+- **#190's struck ratio floors failed HARDER here than on grok's branch, and why is OPEN.** grok's #202
+  records its gate *"passed 8 for 8 with 70% headroom"* in isolation; ours failed **4 of 10 at idle**, whole
+  idle range below grok's whole calibrated range (S/L 2.00–4.38 vs 4.88–5.58; F/L 1.12–2.31 vs 2.38–2.84).
+  Same box, same pinned rustc 1.97.0, fixture semantically identical. Remaining candidate: this binary's
+  codegen around a tight two-element loop. Harmless now the floors are struck — but NOT understood.
 - **ONE TRUTH IN TWO PLACES, and only one copy is on the floor** (found at #167): the oracle-fire rewrite
   lives in BOTH `wat-scripts/perf/grid/run-axis.sh` (a `perl` substitution) and
   `tests/rete/wat_scripts_grid_axes_live.rs`'s `skip_oracle_fire` — and only the latter is gated, which is
@@ -186,6 +208,18 @@ on a stashed tree, then `git checkout -- src/check.rs`.
 - **Pass `verify-step-record.sh` the batch's STEP RANGE** (`<from> <to> <first-N> <last-N>`), or it cannot
   see a mis-subjected or skipped step — finding 26. Every step, docs-only included, commits as
   `REPLAY(grok-rete #N): <C's subject>` with the `-x` trailer kept in the body.
+- ⛔ **NEVER pipe a gate through `head`/`tail`/`grep` to decide anything — redirect to a file and read the
+  file** (finding 28). "Capture the red verbatim" is UNACTIONABLE if the RUN was truncated: by the time you
+  know it is red, the block is gone. **BOTH SIDES of this merge hit it independently** (our #190; grok's own
+  #198, *"a trap door that is mine"*), so it is the affordance, not one agent. Rung: CONVENTION — no gate
+  can see how a command was invoked, so it is re-stated in every executor prompt.
+  `[[feedback_a_truncating_pager_makes_absence_unfalsifiable]]`
+- **An isolated re-run is the WEAKEST evidence against a failure seen under load**, and on a timing test it
+  answers a different question (1 test alone ≠ 13-of-87 under contention).
+- **A FULLY-folded step still gets an EMPTY commit** (`git commit --allow-empty`) carrying its
+  `REPLAY(grok-rete #N)` subject and `-x` trailer, with a body naming where its content went — the range
+  gate requires one commit per N. #202 is the first; a cherry-pick whose changes are already present STOPS
+  rather than committing, so verify the outcome (`git show --stat` = 0 files), not a flag name.
 - **A floor runs uncontended, and nothing tracked is edited while it runs** (lint tests read source
   text at runtime).
 - **Never decide on `pgrep -f`.** Wait on a DONE line the job writes.
