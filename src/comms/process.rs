@@ -84,17 +84,25 @@ use io_uring::{opcode, types, IoUring};
 
 // ── excursus 001 `a-deadline-does-not-cost-a-ring`: MAKE THE RED SELF-DESCRIBING ──
 //
-// ⛔ WHY THIS EXISTS, and what it is NOT. CI has been red since 2026-09-13 with
-// `IoUring::new(4) failed …: Cannot allocate memory (os error 12)`, and the red is
-// CI-ONLY: it does not reproduce here. The stone's first hypothesis — RLIMIT_MEMLOCK
-// — was REFUTED by measurement: `ulimit -l 64` AND `ulimit -l 0` both pass on this
-// box (kernel 6.12.63), because io_uring stopped charging the ring to memlock in
-// Linux 5.12, and the runner is ubuntu-24.04, also ≥5.12. A memory-capped run fails
-// with SIGKILL from the cgroup OOM killer — a DIFFERENT arm, so not the repro.
+// ⭐ SOLVED 2026-09-16 — the budget is RLIMIT_MEMLOCK, in BYTES, and it is PER-UID.
 //
-// So the mechanism must be diagnosed where it happens. These counters exist so the
-// NEXT CI red names its own cause instead of needing another three days: was this the
-// first ring or the ten-thousandth, and how many were live when the kernel refused.
+// CI was red from 2026-09-13 with `IoUring::new(4) …: Cannot allocate memory (os error
+// 12)` and never reproduced on the dev box. Asking the RUNNER directly
+// (`src/bin/ring-ceiling.rs`) settled it: a ring costs ~8 KB of locked memory, the
+// limit there is 8 MB, and 8 MB ÷ 8 KB = **1024 rings — for everything that UID runs**.
+// Measured on ubuntu-24.04 / 6.17-azure: 1024 in one process alone, and
+// 332 + 254 + 254 + 184 = 1024 across four concurrent processes, splitting one budget
+// to the last ring. ⚠ It is NOT a descriptor limit (`nofile` was 65536 and unused) and
+// NOT a ring quota — rings are merely what the byte budget gets spent on.
+//
+// ⛔ AND THE DEV BOX DISAGREES WITH THE RUNNER, which is why this cost four days and
+// four dead hypotheses. Debian 6.12.63 does NOT charge rings to memlock — 3000 held
+// with `ulimit -l 0` — while 6.17-azure does. "Measured locally" was TRUE and did not
+// GENERALISE. The number has to come from the box that refuses, not the box that is
+// convenient, and that is the whole reason `ring-ceiling` exists.
+//
+// These counters stay, because the census is what made the answer readable: they turn
+// a refusal into "the N-th ring, with the commit numbers at that instant".
 // ⭑ This is DIAGNOSIS, not the fix. The fix — `after` mints a Receiver, hence a ring,
 // per deadline, on `call-by-deadline`'s hot path — is still unbuilt and its mechanism
 // is still a builder ruling.
@@ -110,8 +118,10 @@ static RINGS_CREATED: AtomicI64 = AtomicI64::new(0);
 /// as a parameter there is nothing loose left to match on.
 fn ring_census_text(created: i64) -> String {
     format!(
-        "rings created-so-far={created} in this process (⚠ RLIMIT_MEMLOCK is NOT the governor \
-         on kernels ≥5.12 — measured: `ulimit -l 0` passes locally on 6.12)"
+        "rings created-so-far={created} in this process (⛔ budget = RLIMIT_MEMLOCK, ~8 KB per \
+         ring, accounted PER-UID and SHARED ACROSS PROCESSES: 8 MB ⇒ ~1024 rings for everything \
+         this user runs. Measured on 6.17-azure: 1024 alone, 332+254+254+184=1024 across four. \
+         Raise `ulimit -l`, or create fewer rings)"
     )
 }
 
@@ -2435,8 +2445,10 @@ mod timer_tests {
         // silently lost half its sentence.
         assert_eq!(
             ring_census_text(7),
-            "rings created-so-far=7 in this process (⚠ RLIMIT_MEMLOCK is NOT the governor \
-             on kernels ≥5.12 — measured: `ulimit -l 0` passes locally on 6.12)"
+            "rings created-so-far=7 in this process (⛔ budget = RLIMIT_MEMLOCK, ~8 KB per \
+             ring, accounted PER-UID and SHARED ACROSS PROCESSES: 8 MB ⇒ ~1024 rings for \
+             everything this user runs. Measured on 6.17-azure: 1024 alone, \
+             332+254+254+184=1024 across four. Raise `ulimit -l`, or create fewer rings)"
         );
 
         // The commit census: wording asserted EXACTLY against fixed readings …

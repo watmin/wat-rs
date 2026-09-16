@@ -10,6 +10,80 @@ builder's ruling, verbatim:
 ⛔ **So this note is evidence, not a plan.** It exists so whoever opens that arc starts from measurements
 instead of re-deriving them, and so the three dead hypotheses below are never re-walked.
 
+## ⭐⭐ SOLVED 2026-09-16 — the bill is RLIMIT_MEMLOCK, in BYTES, accounted PER-UID
+
+Asked the runner directly (`src/bin/ring-ceiling.rs`, dispatched by
+`.github/workflows/ring-ceiling.yml`) instead of inferring from a floor:
+
+```
+one process alone            CEILING: refused at ring #1025  → 1024 held
+four concurrent processes    332 + 254 + 254 + 184           = 1024   ← one budget, split to the last ring
+memlock 8 MB ÷ ~8 KB/ring    = 1024                                     ← exact
+at refusal: CommitLimit 11.3 GB · Committed_AS 2.08 GB · MemAvailable 15 GB · VmSize 12.5 MB
+```
+
+⭑ **It is a BYTE budget, not a ring quota and not a descriptor limit** (`nofile` was 65536 and
+irrelevant). A ring costs ~8 KB of locked memory; 1024 is arithmetic. A bigger ring costs more —
+which is why **one shared ring with many entries is CHEAPER per waiter, not dearer**, and why this
+finding argues *for* the direction below rather than against io_uring.
+
+⛔ **And it is PER-UID: shared across every process that user runs.** The four-way split is the
+proof. So the floor's four concurrent nextest processes, each spawning `wat` services that mint a
+ring per `after`, drain one budget between them — which is why the failing SET moved between runs
+and why one process reported `created-so-far=14` while another reported 244.
+
+### ⚠ THE DEV BOX AND THE RUNNER DISAGREE, AND THAT COST FOUR DAYS
+
+Debian **6.12.63** does **not** charge rings to memlock — 3000 held with `ulimit -l 0`.
+ubuntu-24.04 / **6.17-azure** does. **Same 8 MB limit on both boxes** — the difference is the
+kernel's accounting, not the limit.
+
+★ So hypothesis #1 was **RIGHT on the runner the whole time**, and the local refutation was sound
+*for the local kernel* and was over-generalised to a kernel nobody had measured. *"Measured
+locally"* was true and did not travel. ⛔ **The number must come from the box that refuses.** That
+is the entire justification for `ring-ceiling` existing, and for it being runnable anywhere in
+seconds rather than costing a ~15-minute floor per question.
+
+⚠ **This is NOT a CI artifact.** 8 MB is the stock `RLIMIT_MEMLOCK` systemd sets on ordinary Linux
+hosts, and the dev box carries the identical limit. A production host on a kernel that charges
+rings hits the same wall at ~1024 concurrent rings per UID. The dev box is the outlier that ages
+out, not the runner. Run `ring-ceiling` on a target host before trusting it.
+
+## ⭐ WHAT "CORRECT" LOOKS LIKE — one ring per I/O-EXECUTING THREAD, share-nothing
+
+The builder's question was whether one ring per *process* is the target. It is not, and the reason
+is structural: the SQ and CQ are **single-producer/single-consumer** ring buffers shared with the
+kernel. That is where io_uring's speed comes from. Submitting from several threads needs a mutex —
+reintroducing the contention the design exists to remove — and because completions land in the ring
+that submitted them, a shared ring needs a broker to route each completion to whoever was waiting,
+i.e. a cross-thread wakeup per operation.
+
+**One ring per process is correct only when the process has ONE I/O thread.** To have it with many
+threads you need a dedicated poller thread owning the ring, with waiters parked and woken by
+`user_data` — a real event loop, and a much larger change than per-thread rings.
+
+The pattern the systems that lean hardest on io_uring converge on (thread-per-core, share-nothing):
+**ScyllaDB/Seastar** (ring per shard), **glommio** (ring per executor, futures deliberately
+`!Send`), **tokio-uring** (ring per worker), **Netty's io_uring transport** (ring per event loop),
+**libuv** (per loop). ⚠ Attribution: this is the orchestrator's knowledge, not a citation check —
+verify against current docs before building on the finer points.
+
+Their refinements are what "correct" means at scale, and each one is absent here:
+
+| refinement | what it buys | our state |
+|---|---|---|
+| `IORING_SETUP_ATTACH_WQ` | many rings, ONE shared kernel worker pool — the idiomatic answer to "too many rings" | unused |
+| registered files / buffers | resolve fds and pin buffers once, not per op | unused |
+| SQPOLL (+ `SQ_AFF`) | kernel-side submission polling, approaching zero syscalls | unused |
+| batching | many SQEs per `submit`, completions harvested in bunches | **`submit_and_wait(1)` everywhere** |
+
+⭑⭑ **So the deeper mismatch is not the ring COUNT — it is that we would collect none of io_uring's
+benefit even if rings were free.** The count is the visible bill; the missing amortization is the
+actual inversion. The module header's principle — *"FDs are the persistent state; io_urings are
+[ephemeral]"* — is backwards from the mechanism's design, where the **ring** is the persistent
+object and the **operations** are ephemeral. Every symptom in this note follows from that one
+inverted lifetime.
+
 ## Kin, and why this belongs in 109
 
 109 is where the substrate's *shapes* are argued — `NOTE-io-boundary-outcome-enum.md` (every failing IO
@@ -89,9 +163,15 @@ itself.**
 
 Builder's ruling. Candidate shapes for whoever takes it, none of them evaluated here:
 
-1. **One ring per thread**, borrowed by Receivers, CQEs demultiplexed by `user_data`. Stone E-1 already
-   established the "borrow the caller's ring" pattern (`process.rs:1201`, `:1410`) — this generalises it
-   from *per-call* to *per-thread*.
+1. ⭐ **One ring per I/O-executing THREAD** (lazily created, so only threads that do I/O pay), borrowed
+   by Receivers, CQEs demultiplexed by `user_data`. Stone E-1 already established the "borrow the
+   caller's ring" pattern (`process.rs:1201`, `:1410`) — this generalises it from *per-call* to
+   *per-thread*, and it is the shape every thread-per-core io_uring system converges on. It also makes
+   the measured ceiling irrelevant: ring count would track THREADS (bounded, small) instead of WAITERS
+   (unbounded). ⚠ Known obstacle, already documented in the code: the select path keeps its ring in a
+   *different* `RefCell` from the Receiver's precisely so the borrows do not collide (`process.rs:~1714`).
+   Collapse them onto one shared ring and that becomes a live re-entrancy bug on day one — it is the
+   first thing to design around, not to discover.
 2. **Registered files** (`IORING_REGISTER_FILES`) so hot fds stop being re-resolved per submission.
 3. **Real batching** — today every wait submits one SQE and waits for one CQE, which is the shape that
    makes io_uring indistinguishable from `poll` except in cost.

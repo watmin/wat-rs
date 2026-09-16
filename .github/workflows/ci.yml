@@ -124,7 +124,25 @@ jobs:
           cat /proc/self/limits || true
 
       - name: Test (nextest)
-        run: cargo nextest run --profile ci --release
+        run: |
+          # ⭐ excursus 001 `a-deadline-does-not-cost-a-ring` — THE INTERIM, and what it buys.
+          # MEASURED (src/bin/ring-ceiling.rs, run on this very runner): an io_uring costs
+          # ~8 KB of LOCKED MEMORY, the limit here is 8 MB, and it is accounted PER-UID and
+          # SHARED ACROSS PROCESSES — so the whole job gets ~1024 rings between it. Proof:
+          # 1024 in one process alone, and 332+254+254+184 = 1024 across four concurrent ones.
+          # nextest runs `nproc` tests at once and every `after` on the process tier mints a
+          # ring, so the floor exhausts one shared budget and the next ring gets ENOMEM. That
+          # is why the failing SET moved between runs and why the dev box never reproduced it
+          # (Debian 6.12.63 does not charge rings to memlock at all; 6.17-azure does).
+          #
+          # ⛔ THIS IS A STOPGAP AND IT HIDES A REAL COST. `after` minting a reactor per
+          # deadline is a hard ceiling on concurrent reactors for the whole UID — raising the
+          # limit buys headroom, it does not reduce the demand. The mid-term fix is
+          # docs/arc/2026/04/109-kill-std/NOTE-the-reactor-is-used-as-a-disposable-poller.md
+          # ("make the reactor superior", builder's ruling). Remove this when that lands.
+          ulimit -l unlimited 2>/dev/null || sudo prlimit --pid $$ --memlock=unlimited || true
+          echo "memlock now: $(ulimit -l)"
+          cargo nextest run --profile ci --release
 
       # ARMED (arc 278 stone E). The floor is zero and this is what keeps it there.
       #

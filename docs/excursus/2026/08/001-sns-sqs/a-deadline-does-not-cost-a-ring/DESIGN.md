@@ -78,6 +78,23 @@ is the thing that let this hide for three days.
 (concurrency, cgroup memory, kernel version, `RLIMIT_MEMLOCK`). An honest ABSENT is the finding
 (`[[feedback_permit_the_null_and_it_gets_used]]`).
 
+## ⭐⭐ SOLVED 2026-09-16 — and hypothesis #1 was right on the runner all along
+
+`src/bin/ring-ceiling.rs` on the runner: **1024 rings alone; 332+254+254+184 = 1024 across four
+concurrent processes.** The budget is `RLIMIT_MEMLOCK` — **8 MB in BYTES**, ~8 KB per ring,
+**accounted PER-UID and shared across processes**. Not descriptors (`nofile` 65536, unused), not
+commit (`Committed_AS` 2.08 GB against an 11.3 GB limit), not map count.
+
+⛔ **The local refutation below is sound for the LOCAL kernel and does not travel.** Debian 6.12.63
+does not charge rings to memlock (3000 held at `ulimit -l 0`); ubuntu-24.04/6.17-azure does, at the
+**same 8 MB limit**. Four days and four "dead" hypotheses came from generalising a measurement
+across kernels. The sections below are kept unedited as the record of that.
+
+**Interim shipped**: the CI test step raises `ulimit -l`, with a comment naming exactly what it
+hides. **The real fix is the mid-term reactor work** —
+`docs/arc/2026/04/109-kill-std/NOTE-the-reactor-is-used-as-a-disposable-poller.md`, now carrying
+the measured ceiling and the one-ring-per-I/O-thread shape.
+
 ## ⛔⛔ STEP 1 RAN, AND IT REFUTED THIS DESIGN'S OWN MECHANISM (2026-09-15)
 
 **The repro is ABSENT and the `ulimit -l` hypothesis above is WRONG.** Measured on this box:
