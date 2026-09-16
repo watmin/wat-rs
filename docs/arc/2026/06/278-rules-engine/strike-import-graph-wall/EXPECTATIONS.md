@@ -52,3 +52,36 @@ perhaps 35 lines including three refusal messages.
 
 The wall repairing instead of refusing — dropping a dangling edge, re-sorting, synthesising a
 node. `DESIGN.md`'s ★ ONE CONTRACT DECISION governs, and a green floor would not redeem it.
+
+---
+
+## ⚠ ADDED 2026-08-30, AFTER STOP-1 RAN — a trap door that is the ORCHESTRATOR'S, not the rider's
+
+**STOP-1 PASSED.** A temporary check at `build_rete_arm` — the chokepoint every locally compiled
+network passes — proved all three rules on the whole rete surface: **593 tests, ZERO violations**
+of `child > parent`, of "every child edge resolves", or of "every ref-alpha id resolves to an
+`Alpha`". The wall's premise is sound and the rule is the right rule. Temp check reverted.
+
+**But that same run had ONE unrelated failure, and it is mine:**
+`rete::kernel::tests::accum_alpha_cost::accum_alpha_class_lookup_split` — the ratio gate added in
+`b7d9d8e90` this morning.
+
+⛔ **THE ARM WAS DESTROYED BY THE ORCHESTRATOR'S OWN PAGER.** The run was piped through
+`| tail -12`, so 1,302 bytes survive and the failure block is gone. That is the first failure
+`wat-rs/CLAUDE.md` names — *"the first look truncated the log"* — committed by the hand that had
+read that rule the same day.
+
+What is known, gathered deliberately afterwards since there was no longer evidence to preserve:
+8 consecutive runs in isolation, **8 PASS**, `F/L` 2.56–2.84 against a 1.5 floor and `S/L`
+5.00–5.58 against 3.0 — margins of 70%+. The failure occurred only under a 593-test parallel run
+carrying extra per-arm instrumentation. **Plausible mechanism: scheduler contention compressing a
+sub-millisecond arm under load. NOT PROVEN — the arm that would have named it is gone.**
+
+**For the rider:** if `./scripts/floor.sh` reddens on `accum_alpha_class_lookup_split`, that is
+NOT this strike. Capture it whole — no pager — and surface it; do not re-run it, and do not adjust
+this strike to accommodate it.
+
+**For the orchestrator:** a timing assertion on a shared parallel runner is a flake risk introduced
+this morning, and it is unresolved. The structural half of that test's claim is already gated off
+the clock in `tests/lint/rete_header_claims_are_asserted.rs`, which is what makes deleting the
+timing half a live option rather than a loss. Builder's call; tracked here until it is made.
