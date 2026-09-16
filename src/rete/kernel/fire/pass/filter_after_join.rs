@@ -11,7 +11,7 @@
 //! still is.
 
 use super::super::*;
-use super::RoundScratch;
+use super::{record_token, record_tokens, RoundScratch};
 
 /// Drain the frontier pass 3.6 produced, dispatching the trailing filters.
 #[allow(clippy::too_many_arguments)]
@@ -140,11 +140,7 @@ while !frontier.is_empty() {
                     )?;
                     let pass = if is_exists { any_compat } else { !any_compat };
                     if pass {
-                        if beta_readers.contains(&filter_id) {
-                            beta_written(filter_id, 1);
-                            wm.beta.entry(filter_id).or_default().push(tok);
-                        }
-                        d_beta.entry(filter_id).or_default().push(tok);
+                        record_token(&mut wm.beta, d_beta, beta_readers, filter_id, tok);
                     }
                 }
             }
@@ -224,14 +220,7 @@ while !frontier.is_empty() {
                         if joined.is_empty() {
                             continue;
                         }
-                        if beta_readers.contains(&gc_id) {
-                            beta_written(gc_id, joined.len() as u64);
-                            wm.beta
-                                .entry(gc_id)
-                                .or_default()
-                                .extend(joined.iter().cloned());
-                        }
-                        d_beta.entry(gc_id).or_default().extend(joined);
+                        record_tokens(&mut wm.beta, d_beta, beta_readers, gc_id, &joined);
                         next_frontier.push(gc_id);
                         continue;
                     }
@@ -260,11 +249,7 @@ while !frontier.is_empty() {
                         )?;
                         let pass = if is_exists { any_compat } else { !any_compat };
                         if pass {
-                            if beta_readers.contains(&gc_id) {
-                                beta_written(gc_id, 1);
-                                wm.beta.entry(gc_id).or_default().push(*tok);
-                            }
-                            d_beta.entry(gc_id).or_default().push(*tok);
+                            record_token(&mut wm.beta, d_beta, beta_readers, gc_id, *tok);
                         }
                     }
                     chain.push(gc_id);

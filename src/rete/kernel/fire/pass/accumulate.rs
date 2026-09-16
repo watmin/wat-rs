@@ -13,7 +13,7 @@
 //! refactor that mis-states what it did is worse than one that stops early.
 
 use super::super::*;
-use super::RoundScratch;
+use super::{record_token, RoundScratch};
 
 /// Dispatch the accumulate nodes over this round's delta.
 pub(crate) fn accumulate_pass(
@@ -225,11 +225,7 @@ for node_id in &kind_ids.acc {
                         pool: &mut wm.bind_pool,
                     },
                 );
-                if beta_readers.contains(node_id) {
-                    beta_written(*node_id, 1);
-                    wm.beta.entry(*node_id).or_default().push(new_tok);
-                }
-                d_beta.entry(*node_id).or_default().push(new_tok);
+                record_token(&mut wm.beta, d_beta, beta_readers, *node_id, new_tok);
             }
             continue;
         }
@@ -317,11 +313,7 @@ for node_id in &kind_ids.acc {
                         new_bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
                     ),
                 };
-                if beta_readers.contains(node_id) {
-                    beta_written(*node_id, 1);
-                    wm.beta.entry(*node_id).or_default().push(new_tok);
-                }
-                d_beta.entry(*node_id).or_default().push(new_tok);
+                record_token(&mut wm.beta, d_beta, beta_readers, *node_id, new_tok);
             }
         }
     }

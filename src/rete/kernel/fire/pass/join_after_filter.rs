@@ -17,6 +17,7 @@
 //! returned; the caller binds it where it was declared.
 
 use super::super::*;
+use super::record_tokens;
 
 /// Push tokens a filter just produced across the next hash join.
 ///
@@ -111,14 +112,7 @@ pub(crate) fn join_after_filter(
             if joined.is_empty() {
                 continue;
             }
-            if arm.beta_readers.contains(child_id) {
-                beta_written(*child_id, joined.len() as u64);
-                wm.beta
-                    .entry(*child_id)
-                    .or_default()
-                    .extend(joined.iter().cloned());
-            }
-            d_beta.entry(*child_id).or_default().extend(joined);
+            record_tokens(&mut wm.beta, d_beta, &arm.beta_readers, *child_id, &joined);
             after_join_frontier.push(*child_id);
         }
     }

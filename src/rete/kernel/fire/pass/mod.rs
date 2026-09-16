@@ -12,6 +12,68 @@
 
 use super::*;
 
+/// Record that ONE token reached `node_id`.
+///
+/// ── THE RULE THIS NAMES ──────────────────────────────────────────────────────────────────────
+///
+/// A token reaching a node is ALWAYS recorded in the round's delta (`d_beta`) — that is what the
+/// next pass reads. It is written to the DURABLE beta (`wm.beta`) only if something downstream
+/// reads that node: `beta_readers` is the set of nodes whose beta is consumed, and a node nobody
+/// reads has no reason to accumulate one. That gate is the whole reason the two memories differ.
+///
+/// ⛔ **AND THE CENSUS MOVES WITH THE DURABLE WRITE, NOT BESIDE IT.** `beta_written` is the
+/// `#[cfg(test)]` traffic counter the round-census tests read. It was previously a SECOND statement
+/// next to the push at each of thirteen sites — two things that must agree, written twice, in
+/// seven files. Here they are one act, so a future site cannot push without counting or count
+/// without pushing.
+///
+/// ── WHY IT TAKES `&mut BetaMemory` AND NOT `&mut FireSession` ────────────────────────────────
+///
+/// Deliberate, and it is the lesson this arc already paid for on `FireCtx`: a helper that took
+/// `wm` whole would borrow the session mutably and lock every caller out of `wm.alpha`, which the
+/// join passes read in the same scope. Taking the ONE field it writes keeps the field-level
+/// disjointness the callers depend on. *"Verbosity that encodes field-level disjointness is data
+/// flow, not repetition."*
+#[inline]
+pub(crate) fn record_token(
+    beta: &mut BetaMemory,
+    d_beta: &mut BetaMemory,
+    beta_readers: &HashSet<i64>,
+    node_id: i64,
+    tok: Token,
+) {
+    if beta_readers.contains(&node_id) {
+        beta_written(node_id, 1);
+        beta.entry(node_id).or_default().push(tok);
+    }
+    d_beta.entry(node_id).or_default().push(tok);
+}
+
+/// Record that `toks` reached `node_id` — the batch form of [`record_token`].
+///
+/// Same rule, same census pairing. Both memories are `reserve`d before the append, which is what
+/// the hand-written sites did: a join can emit a whole bucket at once, and growing a `Vec` one
+/// token at a time inside the fire loop is the cost that reserve exists to avoid. `Token` is
+/// `Copy`, so this is an `extend_from_slice` and not a per-element clone.
+#[inline]
+pub(crate) fn record_tokens(
+    beta: &mut BetaMemory,
+    d_beta: &mut BetaMemory,
+    beta_readers: &HashSet<i64>,
+    node_id: i64,
+    toks: &[Token],
+) {
+    if beta_readers.contains(&node_id) {
+        beta_written(node_id, toks.len() as u64);
+        let b = beta.entry(node_id).or_default();
+        b.reserve(toks.len());
+        b.extend_from_slice(toks);
+    }
+    let d = d_beta.entry(node_id).or_default();
+    d.reserve(toks.len());
+    d.extend_from_slice(toks);
+}
+
 /// The join-index borrows a left-activation needs, grouped so the helper below
 /// takes one parameter for them.
 pub(crate) struct JoinIdx<'a> {

@@ -17,6 +17,7 @@
 //! borrow checker splits them without help. That was STOP-1 for this strike.
 
 use super::super::*;
+use super::record_token;
 use std::collections::HashSet;
 
 /// Seed root-join children from the elements that are NEW this round.
@@ -74,11 +75,7 @@ pub(crate) fn root_join_delta(
                     matches: push_match(&mut wm.match_pool, el.fact, *node_id),
                     binds,
                 };
-                if arm.beta_readers.contains(child_id) {
-                    beta_written(*child_id, 1);
-                    wm.beta.entry(*child_id).or_default().push(tok);
-                }
-                d_beta.entry(*child_id).or_default().push(tok);
+                record_token(&mut wm.beta, d_beta, &arm.beta_readers, *child_id, tok);
             }
         }
     }
