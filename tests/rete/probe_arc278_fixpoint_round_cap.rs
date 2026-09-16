@@ -488,3 +488,69 @@ fn a_deep_but_terminating_rule_set_still_completes() {
         "the deep cascade must derive N(0..500) = 501 facts"
     );
 }
+
+/// ⚠ DISCONFIRMING PROBE — vigilia Class A4, RED until the session origin is keyed per session.
+///
+/// `alloc_counter::SESSION_ORIGIN` is ONE `Cell` per THREAD, set unconditionally by
+/// `mark_session_origin` from `arm-session` — which every `compile-all` reaches. A second session
+/// therefore REBASES the zero point, and everything the first had already staged stops being
+/// charged to it.
+///
+/// Two wards found this independently on 2026-08-30 (`secare` hunting shared state, `sequi`
+/// hunting state threading). The module's own doc states the assumption — *"one session per thread
+/// at a time"* — and `arm_lease.rs` holds two live sessions on one thread in a GREEN test, so the
+/// assumption was already false when it was written.
+///
+/// Both arms stage the SAME 16,000 facts into ONE session. The only difference is one unrelated
+/// `compile-all` between the two staging rounds.
+#[test]
+fn a_second_session_on_the_thread_does_not_forgive_the_first_its_ceiling() {
+    let (ok, out, err) =
+        run("tests/rete/probe_arc278_session_ceiling_second_session.wat");
+    assert!(ok, "a staging breach is a VALUE — the program must live\n{out}{err}");
+
+    let lines: Vec<&str> = out.lines().map(str::trim).collect();
+    let verdict = |tag: &str| -> String {
+        let i = lines
+            .iter()
+            .position(|l| l.trim_matches('"') == tag)
+            .unwrap_or_else(|| panic!("fixture must print `{tag}`\n{out}"));
+        lines[i + 1].trim_matches('"').to_string()
+    };
+
+    // The control pins the ceiling as live at this workload — without it, a green probe arm
+    // would prove nothing, because "nothing breached" is also what an unreachable ceiling looks
+    // like. This is the row that makes the probe's claim falsifiable.
+    assert_eq!(
+        verdict("control"),
+        "REFUSED",
+        "the ceiling must refuse 16,000 staged facts when nothing intervenes — if this says \
+         NO-BREACH the workload no longer crosses 4 MB and the probe below is vacuous\n{out}"
+    );
+    assert_eq!(
+        verdict("probe"),
+        "REFUSED",
+        "THE CEILING STOPPED ENFORCING. The identical 16,000-fact workload was refused above and \
+         admitted here, and the only difference is one unrelated `compile-all` between the two \
+         staging rounds. `mark_session_origin` rebased this thread's single `SESSION_ORIGIN`, so \
+         everything the session had already staged stopped being charged to it — and once \
+         `thread_bytes()` falls below that new origin, `saturating_sub` floors the reading at 0 \
+         and the session has no ceiling at all for the rest of its life\n{out}"
+    );
+    // THE ARM KEYING ALONE CANNOT SEE. `rearm` hands the SAME session back to `arm-session`
+    // mid-life, so the second `mark_session_origin` arrives under the FIRST session's own key —
+    // and a store that keys its origins but still overwrites them is indistinguishable from the
+    // fix at both arms above. Added 2026-08-30 after the strike's prescribed mutation ("make
+    // `mark_session_origin` clobber regardless of id") was measured INERT: with distinct keys,
+    // `insert` and `or_insert` do the same thing and control/probe both stayed green. Under
+    // `or_insert` -> `insert` this row, and only this row, reads NO-BREACH.
+    assert_eq!(
+        verdict("rearm"),
+        "REFUSED",
+        "THE CEILING STOPPED ENFORCING ON RE-ARM. The same session was handed back to \
+         `arm-session` between the two staging rounds, and its origin was overwritten instead of \
+         kept — so everything staged before the re-arm stopped being charged to it. An origin is \
+         written ONCE per session and never moved; `mark_session_origin` must not clobber a key \
+         it already holds\n{out}"
+    );
+}

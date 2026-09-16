@@ -1400,16 +1400,38 @@ pub(crate) struct SessionCeilingBreach {
 /// Two places holding one truth is the defect this arc pulls out most often; this is the one place.
 ///
 /// Reads [`crate::alloc_counter::session_bytes`] — bytes taken on this session's own thread since
-/// the session began, which the thread-affinity contract makes a per-session figure.
+/// THIS session began. `origin` names WHICH session is being judged, and it has to: the zero point
+/// is filed per session (`alloc_counter::SessionOriginKey`, the network's rust identity) rather
+/// than per thread, because a single thread-wide origin let a second `compile-all` re-base the
+/// first session and leave it with no ceiling at all. Threading the key down is what makes each
+/// door ask about the session actually in front of it.
+///
+/// ⚠ The READING is still the whole thread's, so a session sharing a thread with another is
+/// charged for both — it over-counts and refuses EARLY, which `alloc_counter::thread_bytes` rules
+/// the safe direction. **A per-session origin is not a per-session allocator.**
 pub(crate) fn session_ceiling_breach(
     sym: &crate::runtime::SymbolTable,
+    origin: crate::alloc_counter::SessionOriginKey,
 ) -> Option<SessionCeilingBreach> {
     let limit: usize = sym
         .encoding_ctx()
         .map(|c| c.config.max_session_bytes)
         .unwrap_or(crate::config::DEFAULT_MAX_SESSION_BYTES);
-    let used = crate::alloc_counter::session_bytes();
+    let used = crate::alloc_counter::session_bytes(origin);
     (used > limit).then_some(SessionCeilingBreach { limit, used })
+}
+
+/// The origin key for a Session value — its network's rust identity, or `None` for a network that
+/// carries none (a hand-assembled Session, which never passed `arm-session`).
+///
+/// ⛔ **THE KEY MUST BE STABLE ACROSS THE SESSION'S LIFE, and it is for the reason `ARM_TABLE`
+/// already depends on:** `insert` overlays facts and carries the network Value through by clone,
+/// and a `PMap` clone keeps its intern (`pmap.rs`,
+/// `rust_identity_survives_clone_and_empty_extend_not_rewrite`). If it minted, the arm table would
+/// rebuild on every insert — so this key is exactly as stable as the interning the fire path is
+/// already built on, and cannot drift apart from it.
+pub(crate) fn session_origin_key(session: &Value) -> crate::alloc_counter::SessionOriginKey {
+    session_network(session).and_then(crate::rete::kernel::network_identity)
 }
 
 /// The insert door's dress on [`session_ceiling_breach`].
@@ -1421,8 +1443,9 @@ pub(crate) fn check_insert_ceiling(
     sym: &crate::runtime::SymbolTable,
     span: &crate::span::Span,
     staged: usize,
+    origin: crate::alloc_counter::SessionOriginKey,
 ) -> Result<(), EvalBreak> {
-    match session_ceiling_breach(sym) {
+    match session_ceiling_breach(sym, origin) {
         None => Ok(()),
         Some(SessionCeilingBreach { limit, used }) => Err(RuntimeError::new(
             span.clone(),

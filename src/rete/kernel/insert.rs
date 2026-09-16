@@ -191,7 +191,7 @@ fn insert_one_on_session(
     // one place the 2-ary door becomes a wat value — wrapping at the entry points instead would
     // double-wrap, because `eval_insert_public`'s 2-ary arm delegates to `eval_session_insert`.
     super::outcome::insert_result_to_outcome(
-        super::session::check_insert_ceiling(sym, list_span, staged).map(|()| staged_session),
+        super::session::check_insert_ceiling(sym, list_span, staged, super::session::session_origin_key(&session)).map(|()| staged_session),
     )
 }
 
@@ -232,7 +232,7 @@ fn insert_facts_on_session(
     // arities and the fixpoint cannot drift apart on what "over the ceiling" means, and the same
     // single conversion site so they cannot drift on how a breach is REPORTED either.
     super::outcome::insert_result_to_outcome(
-        super::session::check_insert_ceiling(sym, list_span, staged).map(|()| staged_session),
+        super::session::check_insert_ceiling(sym, list_span, staged, super::session::session_origin_key(&session)).map(|()| staged_session),
     )
 }
 

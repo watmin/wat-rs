@@ -75,9 +75,14 @@
 //! (`rete/kernel/fire/delta.rs`) — through the single shared check
 //! `rete::kernel::session::check_session_ceiling`. [`mark_session_origin`] is called at
 //! `arm-session`, which `compile-all` calls for every session it builds.
+//!
+//! Both are keyed by [`SessionOriginKey`] — the session's own network identity — so the zero
+//! point belongs to the SESSION and not to the thread. See [`SESSION_ORIGINS`] for what that fixed
+//! and, just as importantly, for what it did not.
 
+use rustc_hash::FxHashMap;
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 thread_local! {
     /// Bytes live on THIS thread. `const { }` init is load-bearing, not style: a lazily
@@ -110,32 +115,106 @@ pub fn thread_bytes() -> usize {
     THREAD_LIVE.try_with(|c| c.get()).unwrap_or(0)
 }
 
+/// Which session an origin is filed under — the same key `arm.rs`'s `ARM_TABLE` files its
+/// interned arms under (`arm::network_identity`, a `PMap` rust intern).
+///
+/// `Some(id)` is a session compiled through `compile-all`. The intern survives `clone` and
+/// survives `insert` (which overlays facts and carries the network Value through untouched), so a
+/// session keeps ONE key for its whole life — which is what makes the origin below stick to the
+/// session rather than to whatever ran last on the thread.
+///
+/// `None` is a Session whose network carries no rust identity — hand-assembled, never through
+/// `arm-session`. Every such session on a thread shares ONE origin. That is not a new conflation:
+/// it is exactly what EVERY session had before this became per-session, now confined to the one
+/// class that cannot be keyed at all.
+pub type SessionOriginKey = Option<u64>;
+
 thread_local! {
-    /// The reading of [`thread_bytes`] at which this thread's current session began, or `None`
-    /// when no session has begun here yet. `const { }` init for [`THREAD_LIVE`]'s reason exactly:
-    /// this is touched from the ceiling check on the insert hot path, and a lazily initialised
-    /// `thread_local!` allocates on first touch.
-    static SESSION_ORIGIN: Cell<Option<usize>> = const { Cell::new(None) };
+    /// The reading of [`thread_bytes`] at which each session on this thread began.
+    ///
+    /// ⛔ **ONE ORIGIN PER SESSION, NOT PER THREAD — and the difference was a live defect, not a
+    /// tidiness.** This was a single `Cell<Option<usize>>`, set UNCONDITIONALLY by
+    /// [`mark_session_origin`] from `arm-session`, which every `compile-all` reaches. A second
+    /// session therefore RE-BASED the zero point, and everything the first had already staged
+    /// stopped being charged to it; once `thread_bytes()` fell below the new origin,
+    /// `saturating_sub` floored the reading at 0 and the first session had **no ceiling at all**
+    /// for the rest of its life. Measured 2026-08-30: the same 16,000 facts into one session are
+    /// REFUSED with nothing in between and ADMITTED with one unrelated `compile-all` between the
+    /// staging rounds (`tests/rete/probe_arc278_session_ceiling_second_session.wat`).
+    ///
+    /// ⚠ **AND IT STILL DOES NOT SEPARATE TWO SESSIONS SHARING A THREAD.** The sentence this
+    /// replaces said so in advance — *"the move would fix only the re-basing, never the
+    /// cross-charging: a thread-local counter cannot separate two sessions sharing a thread,
+    /// wherever the origin is stored"* — and it is still true. [`thread_bytes`] is one number for
+    /// the whole thread, so session A's reading includes whatever session B allocated beside it.
+    /// A therefore **over-counts and refuses EARLY**, the direction [`thread_bytes`] already rules
+    /// the safe one. What this change bought is precisely that: an unsafe silent failure (a
+    /// session with no ceiling) became a safe conservative one (a session charged for a sibling).
+    /// **A per-session origin is not a per-session allocator, and nothing here should be read as
+    /// claiming otherwise.**
+    ///
+    /// ⚠ **`const { }` init is gone HERE, and the note it replaced was right about the cost** —
+    /// which is why [`LAST_ORIGIN`] sits in front of this map and carries the measurement. The
+    /// `const` init did not disappear; it moved to the slot that is actually read per fact.
+    /// This map is NOT read from inside the allocator — only [`THREAD_LIVE`] is, and that one
+    /// keeps its `const` init — so the recursion that would make a lazy init a stack overflow
+    /// there cannot arise here. Cost was the whole of the objection, and it is answered next door.
+    ///
+    /// ⚠ **Entries are never removed, and that is deliberate.** A session may still be inserted
+    /// into long after `release-session` drops its intern lease, and forgetting its origin would
+    /// make it self-mark afresh — the very re-basing this exists to stop. The map therefore grows
+    /// by one `(u64, usize)` per session compiled on the thread. That growth is strictly dominated
+    /// by `ARM_TABLE`'s, which is keyed identically and holds a whole `InternedNetwork` per entry.
+    static SESSION_ORIGINS: RefCell<FxHashMap<SessionOriginKey, usize>> =
+        RefCell::new(FxHashMap::default());
 }
 
-/// Mark now as the zero point for the session being built on this thread.
+thread_local! {
+    /// The last session [`session_bytes`] was asked about on this thread, and its origin — a
+    /// one-entry cache in front of [`SESSION_ORIGINS`].
+    ///
+    /// ⛔ **THIS IS THE `const { }` INIT THE ORIGIN STORE LOST, PUT BACK WHERE IT MATTERED.** The
+    /// insert door reads an origin once per fact; a `RefCell<FxHashMap>` there is a `thread_local!`
+    /// with a destructor (so an initialisation check per access), a borrow flag, and a hash probe.
+    /// Measured on the door itself
+    /// (`wat-scripts/scratch-pad/bench-arc278-session-origin-insert-door.wat`, two binaries built
+    /// from the same tree and run INTERLEAVED, 6 pairs x 3 blocks of 20,000 single-fact inserts),
+    /// the map alone cost **+51 / +77 / +75 ns per fact — a consistent ~1.5%**, positive in every
+    /// block. With this cache the same measurement reads **-43 / -3 / -86 ns per fact against the
+    /// pre-strike binary** — at or below it, inside the noise. A `Cell` of a `Copy` payload has no
+    /// destructor, so this one is a plain address and a load.
+    ///
+    /// ⚠ **A HIT CANNOT BE STALE, and the reason is a property of the store rather than luck:**
+    /// an origin is written ONCE per key and never moved ([`mark_session_origin`] `or_insert`s and
+    /// [`session_bytes`] only self-marks a key the map does not hold), so a cached
+    /// `(key, origin)` pair can never disagree with the map it was read from. If an origin ever
+    /// becomes mutable, this cache becomes wrong and must be invalidated at the write.
+    static LAST_ORIGIN: Cell<Option<(SessionOriginKey, usize)>> = const { Cell::new(None) };
+}
+
+/// Mark now as the zero point for the session `key` names.
 ///
 /// Called from `arm-session`, which `compile-all` calls for every session it builds
 /// (`rete/kernel/arm.rs`; `stratify.rs` calls it *"the one door every rule passes"*).
 ///
-/// ⚠ **THE ASSUMPTION, STATED RATHER THAN ASSUMED: one session per thread at a time.** A thread
-/// that builds a SECOND session re-bases, so the first stops being charged from its own start.
-/// This is not a new assumption — it is the same thread-affinity the intern table already runs on
-/// (`arm.rs`, the ZERO-MUTEX rune), and every shape this substrate supports is sequential per
-/// thread. **If that ever stops being true, this is the line that moves to a Session field** — and
-/// note that the move would fix only the re-basing, never the cross-charging: a thread-local
-/// counter cannot separate two sessions sharing a thread, wherever the origin is stored.
-pub fn mark_session_origin() {
+/// ⛔ **IT DOES NOT CLOBBER.** An origin is written ONCE per key and never moved, so neither a
+/// second session arriving on the thread nor a second `arm-session` on the same network (the
+/// intern HIT path, which `syntax.wat` reaches) can re-base a session that has already started
+/// spending. Re-basing was the defect; `or_insert` is the fix, and it is the whole of it.
+///
+/// The thread's own byte reading is taken BEFORE the map is touched: `entry` may grow the map,
+/// which allocates, which bumps [`THREAD_LIVE`]. Reading first charges the session for the map's
+/// own growth rather than crediting it — a handful of bytes, in the over-counting direction that
+/// [`thread_bytes`] already rules safe.
+pub fn mark_session_origin(key: SessionOriginKey) {
     let now = thread_bytes();
-    let _ = SESSION_ORIGIN.try_with(|c| c.set(Some(now)));
+    let _ = SESSION_ORIGINS.try_with(|m| {
+        m.borrow_mut().entry(key).or_insert(now);
+    });
 }
 
-/// Bytes this thread has taken **since its session began** — the session ceiling's one measurement.
+/// Bytes this thread has taken **since the session `key` names began** — the session ceiling's one
+/// measurement.
 ///
 /// ── WHY A SESSION ORIGIN AND NOT A PER-CALL SNAPSHOT ─────────────────────────────────────────
 ///
@@ -147,20 +226,27 @@ pub fn mark_session_origin() {
 /// 1 GiB contract, with no diagnostic at all.** Measuring from the session's own start is what
 /// makes the two doors (`insert` and the fixpoint) enforce ONE contract instead of two.
 ///
-/// ⚠ **AN UNMARKED THREAD MARKS ITSELF HERE, and the alternatives are both wrong.** A `Session`
-/// record assembled by hand never passes `arm-session`, so it has no origin. Treating a missing
-/// origin as `0` would charge the session for everything else live on the thread and refuse the
-/// innocent; treating it as "unbounded" would leave a door with no ceiling at all. Marking on
-/// first sight is the honest third answer — *the session began the first time we saw it* — and it
-/// costs one `Cell` write, once.
-pub fn session_bytes() -> usize {
-    SESSION_ORIGIN
-        .try_with(|c| match c.get() {
-            Some(origin) => thread_bytes().saturating_sub(origin),
-            None => {
-                c.set(Some(thread_bytes()));
-                0
-            }
+/// ⚠ **AN UNMARKED SESSION MARKS ITSELF HERE, and the alternatives are both wrong.** A `Session`
+/// record assembled by hand never passes `arm-session`, so it has no origin; so does one that
+/// arrives through `import`, which does not mark either. Treating a missing origin as `0` would
+/// charge the session for everything else live on the thread and refuse the innocent; treating it
+/// as "unbounded" would leave a door with no ceiling at all. Marking on first sight is the honest
+/// third answer — *the session began the first time we saw it* — and it costs one map insert, once.
+pub fn session_bytes(key: SessionOriginKey) -> usize {
+    // FAST PATH — the same session as last time, which is the shape a fact-at-a-time insert loop
+    // has for its whole run. See [`LAST_ORIGIN`] for why a hit cannot be stale.
+    if let Ok(Some((cached, origin))) = LAST_ORIGIN.try_with(Cell::get) {
+        if cached == key {
+            return thread_bytes().saturating_sub(origin);
+        }
+    }
+    SESSION_ORIGINS
+        .try_with(|m| {
+            // BEFORE the borrow, for `mark_session_origin`'s reason: `entry` may allocate.
+            let now = thread_bytes();
+            let origin = *m.borrow_mut().entry(key).or_insert(now);
+            let _ = LAST_ORIGIN.try_with(|c| c.set(Some((key, origin))));
+            now.saturating_sub(origin)
         })
         .unwrap_or(0)
 }
