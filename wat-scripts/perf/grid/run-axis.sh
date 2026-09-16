@@ -343,6 +343,21 @@ for SIZE in "$@"; do
   WAT_MEAN="$(echo "$WAT_NSS"   | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
   CLARA_MEAN="$(echo "$CLARA_NSS" | awk '{ s=0; for(i=1;i<=NF;i++) s+=$i; printf "%d", s/NF }')"
 
+  # ── OUR OWN DISPERSION, because a mean cannot be compared to a mean without one ───────────
+  #
+  # The verdict carried :min/:max for the RATIO from the first day and NOTHING for :wat-ns, so
+  # every "we got N% faster/slower" claim ever read off this grid was un-falsifiable: the reader
+  # had no way to ask whether N exceeded the run-to-run spread. Measured 2026-09-02 on the cell
+  # that looked like the one real signal — fanout [40000], the biggest and steadiest axis, three
+  # consecutive 5-run verdicts on the SAME binary:
+  #
+  #     22,964,924  →  23,695,524  →  25,348,294 ns        a 10.4% spread, nothing changed
+  #
+  # The grid delta being investigated was +11.4%. It was noise, and the artifact could not say so.
+  # These two fields are what let the next hand answer that WITHOUT re-running the sweep.
+  WAT_NS_MIN="$(echo "$WAT_NSS" | awk '{ m=$1; for(i=1;i<=NF;i++) if($i<m) m=$i; printf "%d", m }')"
+  WAT_NS_MAX="$(echo "$WAT_NSS" | awk '{ m=$1; for(i=1;i<=NF;i++) if($i>m) m=$i; printf "%d", m }')"
+
   # ── the WHOLE-PROGRAM verdict, reported beside the fire-only one ───────────
   # :wall-ratio is clara-wall / wat-wall on the SAME convention as :ratio (>1 ⇒ we finish
   # sooner). It is deliberately NOT folded into :winner — :winner remains the ENGINE verdict,
@@ -364,5 +379,5 @@ for SIZE in "$@"; do
   if [ "$HAS_ORACLE" = "1" ]; then
     ORACLE_FIELDS=" :oracle-accuracy $ORACLE_ACCURACY :port-accuracy $PORT_ACCURACY"
   fi
-  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY$ORACLE_FIELDS :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :wat-ns $WAT_MEAN :clara-ns $CLARA_MEAN :winner $WINNER :wat-wall-ms $WAT_WALL :clara-wall-ms $CLARA_WALL :wall-ratio $WALL_RATIO :wall-winner $WALL_WINNER :fire-share-pct $FIRE_SHARE}"
+  echo "#grid/Verdict {:axis \"$AXIS\" :size [$(echo "$SIZE" | tr -s ' ' ' ')] :accuracy $ACCURACY$ORACLE_FIELDS :runs $GRID_RUNS :ratio $MEAN :min $MIN :max $MAX :wat-ns $WAT_MEAN :wat-ns-min $WAT_NS_MIN :wat-ns-max $WAT_NS_MAX :clara-ns $CLARA_MEAN :winner $WINNER :wat-wall-ms $WAT_WALL :clara-wall-ms $CLARA_WALL :wall-ratio $WALL_RATIO :wall-winner $WALL_WINNER :fire-share-pct $FIRE_SHARE}"
 done
