@@ -66,18 +66,33 @@ part of that module by any reading**, and it is `include!`d into `kernel::tests`
 claimed *"roughly 63 are measurement instruments: their assertion is a liveness check on the
 instrument itself."* Measured over all 89:
 
-| | count (2026-08-30, pre-split) | RE-MEASURED post-split |
-|---|---:|---:|
-| assertions ALL liveness (`> 0`, "never ran") | **5** | **8** |
-| no assertion at all | 2 | 2 |
-| at least one SUBSTANTIVE assertion | **82** | 79 |
+| | pre-split | my re-measure | **`probare`, 2026-08-30** |
+|---|---:|---:|---:|
+| assertions ALL liveness (`> 0`, "never ran") | **5** | 8 | **24** |
+| no assertion at all | 2 | 2 | **2** |
+| at least one SUBSTANTIVE assertion | **82** | 79 | **61** |
 
-⛔ **THE 5 WAS ALSO LOW.** Re-measured with a classifier that recognises every liveness SHAPE
-(`x > 0`, `x >= 0`, `!x.is_empty()`, `x != 0`, `is_finite`), the count is **8**, not 5 — so ten
-tests could not fail, not seven. Three hand-verified at their true extents. Two were worse than
-"cannot fail": `probe_gap_cost_split` guarded **1 of its 6** measured components and
-`probe_extend_cost_split` **1 of 5**, while both headers say "treat the RATIO as the finding" —
-a ratio against an unguarded zero term is not a finding.
+⛔ **THE TRUE COUNT WAS 26, AND BOTH MY EARLIER NUMBERS WERE LOW.** `probare` was cast at the
+suite on 2026-08-30 and counted 26 hollow of 89. My classifier said 10 because it could parse
+neither COMPOUND liveness (`a > 0.0 && b > 0.0`) nor COMPLEX-EXPRESSION liveness
+(`size_of::<Token>() > 0` — which `probare` named the purest hollow form in scope: a compile-time
+tautology). All 26 are now converted (`99bf573df`).
+
+⛔ **AND THE REASON THEY MATTERED IS SHARPER THAN "UNTESTED".** These are COMPARISON benchmarks,
+and on a comparison benchmark **every plausible failure makes the measured arm look BETTER**: a
+no-op `insert`, a lossy `production_to_pm`, a colliding `identity()`, a degenerate `key_of`, a
+phase missing from a sum — each does LESS work and prints as a SPEEDUP. `assert!(x > 0.0)` is not
+weak verification there, it is **ANTI-verification**: it stamps a broken arm green while the
+number misreports what happened. That is how 26 tests sat on a release floor looking like coverage.
+
+**Three hollowness SHAPES, not one:**
+1. liveness on a comparison (the lossy arm is the fast arm)
+2. a sum with a silently-missing term — `fire_and_top` ranks a cell CHEAPER when a phase vanishes
+3. an unasserted premise stated in the test's OWN NAME — `a0_depth_cost_split_at_equal_work`
+
+⚠ **`probe_gap_cost_split` was my CEREMONIAL conversion** — I turned one unfalsifiable check into
+six, and `probare` said so. Redone with engine contracts (`extend_token` produces a 3-binding
+token and grows the pool by exactly 3).
 
 **The fair version survives: 14 tests are ≥100 lines with ≤2 assertions**, led by
 `probe_gap_cost_split` at 282 lines / 1 assertion. That is a real assertion-density concern. It is
