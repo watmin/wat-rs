@@ -129,6 +129,51 @@ entirely, so a blocked send there is invisible **by construction**.
 
 ⛔ **(c) is OUT on Q3, not on taste.** Obvious + Simple + Honest must hold before UX matters.
 
+## ⛔⛔ THE TABLE ABOVE IS SUPERSEDED — builder, same day: *"i don't know if i see any of these being 4 YES"*
+
+**He is right, and the grading above is the defect.** (b) is marked ✅✅/✅/✅✅/✅ and (a) *"✅ with a
+caveat"* — **a caveat IS a "medium"**, and the compass says in its own words: *"If you answer 'medium,'
+you have not decomposed enough."* I answered medium four times and then ruled anyway.
+
+⭑ **The mechanical defect: the questions were run on three BUNDLES, not on atoms.** *"How does a send
+become bounded"* packs four separate decisions — (i) should a blocked send be observable at all, (ii)
+should the blind sites face the outcome they ALREADY get, (iii) should a bounded send primitive exist,
+(iv) what the bound's policy is. No bundle can score four YES, because each contains a piece that fails a
+DIFFERENT question. That is what the hedges were: the bundle smuggling its failing piece past the grade.
+
+### Decomposed — and TWO pieces are four YES, neither needing a ruling
+
+| | Obvious | Simple | Honest | UX |
+|---|---|---|---|---|
+| **A. Make the 4 blind live sites face their `SendOutcome`** | **YES** — a site that wildcards or discards an outcome cannot report anything | **YES** — one match per site, existing variants, **no new form** | **YES** — removes four places a failure is invisible; claims nothing else | **YES** — `call-by-deadline` and `park-receive!` callers learn what happened |
+| **B. Classify the 32 live sites (report-only)** | **YES** | **YES** — read and class | **YES** — no `.wat`, no claim beyond what was read | **YES** — it is what makes any mechanism choice cheap |
+
+### And the mechanism halves fail INDIVIDUALLY — which is why the bundles hid it
+
+- **`SendOutcome::TimedOut` alone** → fails **Honest**: a variant nothing constructs is arc 109's painted
+  brick, by name.
+- **`send-by-deadline` alone** → fails **Honest** for the mirror reason: it constructs a variant that does
+  not exist.
+
+They are **inseparable**, and the pair is only *Simple* **after A has landed** — until then its fan-out
+includes sites that cannot read what it adds. ⛔ **So the pair is NOT a four-YES today**; it becomes one
+once A lands. That is not a sequencing preference — it is why the mechanism ruling cannot honestly be
+taken yet, and this DESIGN should not have asked for it.
+
+### The fan-out, measured corpus-wide (the number the Simple answer needs)
+
+Same balanced reader, all **215** send sites in every carrier:
+
+```
+exhaustive SendOutcome arms   203   ← the compiler finds these; the codemod is mechanical
+outcome NOT MATCHED at all      8   (5 tests/probes/docs + wat-scripts/queue/sqs.wat ×2 + wat/service.wat)
+wildcard `_` arm                4
+```
+
+**12 blind, of which only 4 are live** — the ones A fixes. The other 8 are tests, probes and one arc-278
+doc probe. So (b)+(d)'s churn is smaller than *THE RULING OWED* implied (203 loud, 12 named), and that
+still does not make it gradeable before A.
+
 ### ⚠ THE CORRECTION Q3 FORCED — this DESIGN's own §THE RULING OWED was wrong about (a)
 
 The table above says (a) *"busy-waits; and `WouldBlock` is proven NOT to mean 'not draining', so the
