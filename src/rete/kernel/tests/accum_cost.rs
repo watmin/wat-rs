@@ -1351,7 +1351,7 @@ fn accum_intern_val_i64_split() {
         "\naccum intern_val i64 split — {} fillers, MINIMUM of {RUNS}\n\
              i64 {n_i64}  other {n_other}  min {min_i}  max {max_i}  table_ok {table_ok}\n\
              \n\
-             V  FxHashMap<Value> (engine)   {:>7.2} ms\n\
+             V  FxHashMap<Value>            {:>7.2} ms   (engine: compiled_cond::intern_val)\n\
              I  FxHashMap<i64>              {:>7.2} ms\n\
              A  slot table                  {:>7.2} ms\n\
              \n\

@@ -838,7 +838,8 @@ fn accum_alpha_class_lookup_split() {
              \n\
              S  std HashMap                 {:>7.2} ms\n\
              F  FxHashMap                   {:>7.2} ms\n\
-             L  linear Vec (THE ENGINE)     {:>7.2} ms\n\
+             L  linear Vec                  {:>7.2} ms\n\
+             L  (engine: gated by alpha_class_lookup_is_still_the_linear_scan_the_benchmark_calls_the_engine)\n\
              \n\
              S−F                            {:>7.2} ms\n\
              S−L                            {:>7.2} ms\n\

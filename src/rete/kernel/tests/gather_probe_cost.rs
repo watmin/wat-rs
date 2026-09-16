@@ -173,7 +173,7 @@ fn seen_identity_set_split() {
              unscaled (accum [200 200] input count)\n\
              \n\
              C  clone 40,200 Values                {:>7.2} ms\n\
-             S  FxHashSet<Value> insert (engine)   {:>7.2} ms\n\
+             S  FxHashSet<Value> insert            {:>7.2} ms\n\
              I  FxHashSet<u64> insert (identity)   {:>7.2} ms\n\
              \n\
              S−C  HashSet beyond clone             {:>7.2} ms\n\
@@ -286,7 +286,7 @@ fn seen_pv_walk_split() {
              W  PersistentVector iter only         {:>7.2} ms\n\
              I  FxHashSet<u64> from Vec<u64>       {:>7.2} ms\n\
              V  Vec<Value> iter + seen_insert      {:>7.2} ms\n\
-             P  PV iter + seen_insert (engine)     {:>7.2} ms\n\
+             P  PV iter + seen_insert              {:>7.2} ms   (engine: delta::seen_insert)\n\
              D  PV collect into Vec                {:>7.2} ms\n\
              \n\
              P−V  walk                             {:>7.2} ms\n\

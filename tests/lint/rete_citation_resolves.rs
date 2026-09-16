@@ -710,13 +710,35 @@ fn prose_cannot_vouch_for_prose() {
 
 /// The universe must reach OUTSIDE `src/`, or every test-only citation becomes a false finding.
 ///
-/// The two names here are cited in rete comments and attested only under `tests/`. Narrowing the
-/// universe back to `src/` would make this gate demand that two correct sentences be reworded, and
-/// this is what says so.
+/// The two names below are attested only under `tests/`. Narrowing the universe back to `src/`
+/// would make this gate demand that a correct sentence be reworded, and this is what says so. They
+/// are deliberately of DIFFERENT KINDS, and neither replaces the other:
+///
+/// - `spec_equals_native_on_every_where_family` is a REAL test, cited in a rete comment at
+///   `src/rete/compiled_cond.rs:884`. It carries the actual stake: a live sentence that would go
+///   wrong. This is the control that means something.
+/// - `zz_universe_control_never_cite_this` (`tests/lint/universe_control_name.rs`) is OWNED by the
+///   lint suite and describes no behaviour, so nothing can ever cite it. It is the FLOOR — the
+///   guarantee that this gate cannot be left with zero controls.
+///
+/// ⛔ THERE WAS A THIRD, AND A BENCHMARK LABEL ATE IT — 2026-09-01.
+/// `alpha_class_lookup_is_still_the_linear_scan_the_benchmark_calls_the_engine` was struck here
+/// because `accum_alpha_cost.rs`'s `L` row now carries an `engine: gated by <that test>` claim,
+/// which writes the test's name into a string literal UNDER `src/`. The name is therefore attested
+/// in `src/` and proves nothing about the test corpus any more.
+///
+/// That coupling is GENERAL: every `engine: gated by` claim retires its gate's name as a test-only
+/// control anywhere in the tree. A replacement of the same kind was searched for and NONE EXISTS —
+/// the cited name above is the only other test fn both cited in a rete comment and absent from
+/// `src/`. Left alone, the usable population only ever falls, and the LAST one dies silently: this
+/// gate would keep reporting green while proving nothing. The owned floor is what stops that
+/// ratchet, and it is why a second, uncitable control exists at all.
 #[test]
 fn the_universe_reaches_the_test_corpus() {
-    const IN_TESTS_ONLY: &[&str] =
-        &["spec_equals_native_on_every_where_family", "alpha_class_lookup_is_still_the_linear_scan_the_benchmark_calls_the_engine"];
+    const IN_TESTS_ONLY: &[&str] = &[
+        "spec_equals_native_on_every_where_family",
+        "zz_universe_control_never_cite_this",
+    ];
     let universe = Universe::read();
     let mut src_only = BTreeSet::new();
     for p in files_under(&["src"], "rs") {

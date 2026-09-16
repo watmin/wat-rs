@@ -757,7 +757,7 @@ mod tests {
              treat the RATIO as the finding; {CELL:.0}-scaled ms is a projection, not a fire\n\
              \n\
              A0_pmap  3 PMap gets                 {a0_pmap:>7.1} ns/op   {:>6.2} ms @ 40k\n\
-             A0_slice 3 Bindings::get (engine)    {a0_slice:>7.1} ns/op   {:>6.2} ms @ 40k\n\
+             A0_slice 3 Bindings::get             {a0_slice:>7.1} ns/op   {:>6.2} ms @ 40k   (engine: matcher::Bindings::get)\n\
              A0_slot  3 pairs[i].1.clone()        {a0_slot:>7.1} ns/op   {:>6.2} ms @ 40k\n\
              D        exec_compiled_rhs (slice)   {d:>7.1} ns/op   {:>6.2} ms @ 40k\n\
              \n\
