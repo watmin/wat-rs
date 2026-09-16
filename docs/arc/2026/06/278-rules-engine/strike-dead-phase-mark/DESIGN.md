@@ -17,12 +17,19 @@ whole isolated cost, negated, presented as a difference. Driven at HEAD:
 ```
 in-fire
 setup:seen                       0.00 ms
-  alloc                          0.00 ms
-  insert                         0.00 ms
+alloc                          0.00 ms
+insert                         0.00 ms
 S  seen_insert loop              2.55 ms
 in-fire insert − S              -2.55 ms
 in-fire seen − S                -2.54 ms
 ```
+
+⚠ **The rows above are FLUSH-LEFT, and an earlier draft of this file indented them.** The `\`-newline
+continuation in the `format!` eats the leading whitespace (work-list **C11**), so the indent never
+reaches stdout. I re-typed the block with the indent it *should* have had and presented it as driven
+output; a rider nearly chased a regression that never existed. ⚠ `2.55` is box-specific — observed
+1.79–4.28 across runs. The stable claim is the **identity**: `in-fire insert − S` was always exactly
+`−S`.
 
 ## ⛔ THE ROW UNDERSTATES IT: ALL THREE IN-FIRE ROWS ARE ZERO, AND THE OTHER TWO MARKS EXIST
 
@@ -58,8 +65,17 @@ engine-side literals):
 
 > **Exactly ONE** test-side name resolves to nothing: `"  │  setup:seen:insert"`, `accum_cost.rs:1603`.
 
+⛔⛔ **THAT MEASUREMENT WAS FALSE. THE ANSWER IS FIVE** — corrected 2026-09-02 after the strike ran;
+see `SCORE.md` § A. My sweep used a naive `"…"` regex with no notion of comments or char literals,
+so one unbalanced quote inverted the parity and it matched the *gaps between* literals. The four
+`ALPHA_KIDS` entries in `accum_cost.rs` are read through a loop variable and were invisible to it.
+**They are a different disposition** — that reader branches on `kid_pairs == 0` and never lets the
+nanoseconds answer whether the mark exists — so they are justified in place with
+`rune:lint(census-name-retired)`, not deleted. The rung below is unchanged by the correction: five
+instances, one of them a real defect, still does not license a 35-site migration.
+
 That measurement decides the rung. Migrating 35 sites to a helper that cannot return 0 dies at
-**Simple** — 35 sites and 12 files for one live instance. A **construction-time check** survives all
+**Simple** — 35 sites and 12 files for one live defect (see the correction above). A **construction-time check** survives all
 four questions and is the idiom already in this tree (`rete_citation_resolves`,
 `rete_names_in_wat_scripts_resolve`).
 
