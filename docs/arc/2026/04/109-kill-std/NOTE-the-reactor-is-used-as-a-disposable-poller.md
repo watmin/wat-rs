@@ -175,6 +175,40 @@ This is no longer a menu. The shape is **decided**:
    tier uses crossbeam and must continue to allocate **no ring at all**.
 3. **Every operation goes through that thread's ring**, demultiplexed by `user_data`.
 
+### ⭐ HALF OF THIS ALREADY EXISTS — the stone is a RE-SCOPING, not a new reactor
+
+Builder, 2026-09-16: *"we already made wat's io-uring autoscaling .... so its reflexive on demand
+now..."* — **correct, and verified in the source.** Stone E-2 built exactly the mechanism this
+ruling needs:
+
+```rust
+/// Lazy persistent ring + its capacity, as a single noun.
+type RingSlot = Option<(IoUring, u32)>;          // src/comms/process.rs:236
+```
+
+- **lazy**: `None` until first use, built on demand;
+- **persistent**: survives across calls, not rebuilt per operation;
+- **autoscaling**: capacity is `next_power_of_two(arm_count).max(2)`, compared against the stored
+  value at every entry and rebuilt only when the structural need changes — the source calls this
+  *"the reflexive rebuild discipline"* (`:1820`–`:1835`, `:2048`–`:2057`).
+
+⛔ **The gap is SCOPE, not mechanism.** That `RingSlot` is owned by **`Select<'a, T>`** — one per
+select site — while **`Receiver` still EAGERLY owns `ring: RefCell<IoUring>`** at 4 entries apiece
+(`:315`, and the constructor at `:1104`). That is where the per-waiter cost lives and why the
+measured ceiling tracks waiters rather than threads.
+
+★ **So the stone is: move `RingSlot` from `Select` to a THREAD-LOCAL, and make `Receiver` borrow the
+thread's slot instead of owning a ring.** The vocabulary, the lazy init, the capacity computation and
+the rebuild discipline all already exist and are already named — this re-scopes them. Sizing
+generalises the same way: `needed_capacity` must cover the widest submission live on that thread
+(the largest select fan-in plus its timer), not the number of peers in the program.
+
+⚠ **And it makes obstacle 1 below THE design problem rather than a footnote.** The two rings are in
+different `RefCell`s *on purpose* — `"Select-ring borrow released; safe to call Receiver methods
+below (Receiver borrows its own ring; different RefCell)"`. Point both at one thread-local slot and
+that nested borrow collides. It has been reasoned about once already; that comment is the evidence
+and the starting point.
+
 ### ⛔ THE INVARIANT THAT GOVERNS THE WHOLE STONE: THE WAT SURFACE IS FROZEN
 
 **No wat program may be able to tell.** Not by behaviour, not by types, not by timing class, not by
