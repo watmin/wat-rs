@@ -109,6 +109,12 @@ pub(crate) fn eval_insert_public(
     }
 }
 
+/// Borrow the Session aggregate, or raise `TypeMismatch` naming
+/// `:wat::rete::Session (a wat::core::Record)`.
+///
+/// Returns a BORROW rather than a clone: every caller only reads fields off it, and cloning a
+/// session aggregate to check its type would copy the whole fact vector to answer a question
+/// about its tag.
 fn require_session_agg<'a>(
     session: &'a Value,
     op: &'static str,
@@ -132,6 +138,10 @@ fn require_session_agg<'a>(
     }
 }
 
+/// Refuse anything that is not a record fact, naming the OP that was attempted.
+///
+/// Takes `op` rather than hardcoding one so the same check serves `insert` and `insert-all` and
+/// reports the verb the user actually wrote.
 fn require_record_fact(fact: &Value, op: &'static str, list_span: &Span) -> Result<(), EvalBreak> {
     if crate::rete::matcher::is_record_fact(fact) {
         Ok(())
@@ -148,6 +158,17 @@ fn require_record_fact(fact: &Value, op: &'static str, list_span: &Span) -> Resu
     }
 }
 
+/// Stage one fact onto a session and apply the memory ceiling — the single-fact door.
+///
+/// The ceiling is checked AFTER staging on purpose: `used` and `staged` then describe the same
+/// session state the caller would have received, so the two numbers in a breach diagnostic are
+/// about one moment rather than two.
+///
+/// ⛔ And this is where the outcome wall stands for insert. All three wat entry points
+/// (`insert` 2-ary, `insert` 3+-ary, `insert-all`) return this helper's value directly, so it
+/// is the ONE place the 2-ary door becomes a wat value. Wrapping at the entry points instead
+/// would double-wrap, because `eval_insert_public`'s 2-ary arm delegates to
+/// `eval_session_insert`.
 fn insert_one_on_session(
     session: Value,
     fact: Value,
@@ -182,6 +203,13 @@ fn value_len(facts: &Value) -> usize {
     }
 }
 
+/// The same door at batch arity — stage many facts, then one ceiling check.
+///
+/// Every fact is type-checked BEFORE any staging, so a bad fact halfway through a batch cannot
+/// leave a partially-extended session behind. The ceiling check and the outcome conversion are
+/// the SAME shared helpers the single-fact door uses (`check_insert_ceiling`,
+/// `insert_result_to_outcome`), which is what stops the two arities and the fixpoint from
+/// drifting on either what "over the ceiling" means or how a breach is reported.
 fn insert_facts_on_session(
     session: Value,
     new_facts_vec: Value,

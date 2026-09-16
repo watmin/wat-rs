@@ -76,6 +76,12 @@ pub(crate) fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
     out
 }
 
+/// Collect the fact types a condition NEGATES — the types reached inside a `not`.
+///
+/// `under_not` is threaded rather than checked at the top because negation nests: a `FactBind`
+/// contributes only when the walk reached it through a `not`, and an `and` inside that `not`
+/// keeps the flag. `Predicate` contributes nothing by construction — it is an expression over
+/// bindings, never a pattern, so it can neither be excluded nor introduce something excluded.
 pub(crate) fn negate_types(form: &WatAST, out: &mut Vec<String>, under_not: bool) {
     match classify_rete_clause(form) {
         // A predicate NEGATES no fact type: it is an expression over bindings, never a pattern,
@@ -157,6 +163,12 @@ pub(crate) fn bag_types(form: &WatAST, out: &mut Vec<String>) {
     }
 }
 
+/// Collect the fact types a condition CONSUMES — the input side of the produces→consumes graph
+/// that stratification is computed over.
+///
+/// `Accumulate` recurses into its `from` clause, not its fold: an accumulator consumes whatever
+/// it gathers over. `Predicate` again contributes nothing, for the same reason it contributes no
+/// negation — it reaches no other rule's derivations, so it cannot create a stratum edge.
 pub(crate) fn consume_types(form: &WatAST, out: &mut Vec<String>) {
     match classify_rete_clause(form) {
         // A predicate CONSUMES no fact type: it is an expression over bindings this condition

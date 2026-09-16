@@ -336,6 +336,14 @@ pub(crate) fn alpha_match_inner_seeded(
     alpha_match_inner_opts(sym, cond, fact_class, fact_fields, field_names, seed, false)
 }
 
+/// The shared body behind `alpha_match_inner` (empty seed) and `alpha_match_inner_seeded`,
+/// with `defer_unbound` selecting strict-vs-leftover treatment of an unbound `?var`.
+///
+/// The head check runs BEFORE clause evaluation and bumps its own census (`match:head-miss`):
+/// most facts fail on type alone, so testing the cheap discriminator first is what keeps the
+/// common failure off the clause walk entirely. `match:calls` counted here is the counter
+/// `compiled_cond.rs` deliberately parallels — see that module's header on why it reads zero on
+/// a real fire now.
 fn alpha_match_inner_opts(
     sym: Option<&SymbolTable>,
     cond: &WatAST,
@@ -385,6 +393,12 @@ fn collect_bind_vars(clauses: &[WatAST], out: &mut std::collections::HashSet<Str
     }
 }
 
+/// Does any clause reference a `?var` that `bound` does not contain?
+///
+/// Recurses through the combinators (`and`/`or`/`not`) because an unbound variable nested inside
+/// one is just as unbound; only `Constraint` operands are actually tested. Short-circuits on the
+/// first hit — the caller wants the yes/no, and finding a second unbound var would change
+/// nothing.
 fn clause_has_unbound_qvar(clauses: &[WatAST], bound: &std::collections::HashSet<String>) -> bool {
     for clause in clauses {
         match classify_rete_clause(clause) {
@@ -702,6 +716,15 @@ fn rewrite_field_refs(
     }
 }
 
+/// Resolve one operand to a `Value` AT RUNTIME, per fact: a `?var` from the bindings so far, a
+/// `:field` from the fact's declared fields, or a literal.
+///
+/// ⚠ This is the function [`crate::rete::compiled_cond`] exists to stop calling. It re-derives
+/// per fact what is fixed at compile time, and the `match:key-alloc` census here counts the
+/// specific cost that motivated it: rebuilding the constant binding key as a fresh heap
+/// allocation on every call, including the calls that are about to fail — which is most of them.
+/// The compiled path resolves these same three shapes ONCE. Keep both honest about the shapes;
+/// they are a differential pair.
 pub(crate) fn resolve_operand<B: Bindings>(
     operand: &WatAST,
     fact_fields: &[Value],

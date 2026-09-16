@@ -374,6 +374,12 @@ pub(crate) fn exec(
     }
 }
 
+/// Run a `Program` against `args`, optionally over a PARENT frame.
+///
+/// `parent` is what makes a nested program see its enclosing scope's slots — a user fold's body
+/// running inside the condition that gathered for it. Passing `None` runs it in isolation. The
+/// rune above the parameter records why it stays a raw slice rather than a named alias: the slot
+/// LAYOUT is the contract here, and an alias would hide it.
 fn exec_program_on(
     program: &Program,
     args: &[Value],
@@ -752,6 +758,12 @@ enum OpExec {
 }
 
 impl OpExec {
+    /// Map a core comparison FQDN to its fast-path kind.
+    ///
+    /// The generic and `i64`-specialised spellings deliberately fold together for the ordering
+    /// comparisons (`:wat::core::>` and `:wat::core::i64::>` are one `Gt`) but stay SEPARATE for
+    /// equality (`I64Eq` is not `Eq`) — equality on `i64` can take a direct integer compare,
+    /// while the generic form has to go through value equality.
     fn of(core: &str) -> Self {
         // Arc 255 Stone C — `core` arrives as `row.core_name`, which for the per-type
         // numerics reads `:wat::i64::+` (B-i's home), not `:wat::core::i64::+`. Through

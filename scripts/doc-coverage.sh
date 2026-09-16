@@ -21,14 +21,23 @@
 #   scripts/doc-coverage.sh src/rete                # summary + per-file undocumented counts
 #   scripts/doc-coverage.sh src/rete --min 15       # only functions >= 15 lines (default 15)
 #   scripts/doc-coverage.sh src/rete --list         # every undocumented function, file:line
+#   scripts/doc-coverage.sh src/rete --exclude tests.rs   # skip a basename (see NOTE below)
+#
+# NOTE on comparing directories. The summary also reports total lines and comment density, so
+# the whole "is this dir an exemplar" table is derivable from ONE committed instrument. When
+# comparing a dir against a sibling, say what you excluded: `src/rete` carries a 10k-line
+# `kernel/tests.rs` that its siblings have no equivalent of, so an unqualified line count
+# compares test bulk rather than code. An earlier recorded table used that exclusion silently,
+# and the number could not be reproduced until someone guessed it.
 set -euo pipefail
 
 root="${1:?usage: doc-coverage.sh <dir-or-file> [--min N] [--list]}"; shift || true
-min=15; list=0
+min=15; list=0; exclude=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --min) min="$2"; shift 2 ;;
     --list) list=1; shift ;;
+    --exclude) exclude="$2"; shift 2 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
@@ -73,11 +82,17 @@ END {
 }'
 
 tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+files="$(mktemp)"; trap 'rm -f "$tmp" "$files"' EXIT
 if [ -d "$root" ]; then
-  find "$root" -name '*.rs' | sort | while read -r f; do awk -v FILE="$f" "$prog" "$f"; done > "$tmp"
+  if [ -n "$exclude" ]; then
+    find "$root" -name '*.rs' ! -name "$exclude" | sort > "$files"
+  else
+    find "$root" -name '*.rs' | sort > "$files"
+  fi
 else
-  awk -v FILE="$root" "$prog" "$root" > "$tmp"
+  echo "$root" > "$files"
 fi
+while read -r f; do awk -v FILE="$f" "$prog" "$f"; done < "$files" > "$tmp"
 
 if [ "$list" = 1 ]; then
   awk -F'\t' -v m="$min" '$1=="UNDOC" && $4>=m {printf "%s:%s\t%s ln\t%-6s %s\n",$2,$3,$4,$6,$5}' "$tmp"
@@ -93,5 +108,8 @@ echo "$root — non-#[test] functions >= $min lines: $total, undocumented: $undo
 # NOTE the split is exactly "carries #[test]" — a helper living inside `mod tests` counts as FN,
 # because that is what the walk can actually see. Do not read FN as "production".
 echo "  (plus $undoc_t undocumented #[test] fns, excluded from the figure above)"
+lines=$(xargs cat < "$files" | wc -l)
+com=$(xargs cat < "$files" | grep -c '^[[:space:]]*//')
+echo "  lines: $lines, comment lines: $com ($(( lines ? com*100/lines : 0 ))%)${exclude:+  [excluding $exclude]}"
 echo
 awk -F'\t' -v m="$min" '$1=="UNDOC" && $4>=m && $6=="FN" {print $2}' "$tmp" | sort | uniq -c | sort -rn
