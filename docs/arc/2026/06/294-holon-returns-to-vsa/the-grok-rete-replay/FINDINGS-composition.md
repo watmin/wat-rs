@@ -727,6 +727,71 @@ union (`defalias :wat::core::values` line 43, `defclause :wat::core::+` line 58)
   teaches an executor to fake it**; this one was retired, not waived. Also recorded: `wat/fix.wat` is baked,
   so a `cargo build --release` must precede any probe re-run or the OLD world is measured.
 
+## Finding 26 — the step-record gate selects by SUBJECT, so a step committed under another subject is not missing, it is invisible
+
+Batch 4b's executor replayed #160 and #161 — both docs-only — with `git cherry-pick -x C` and nothing more,
+so each landed carrying **grok's original subject** instead of `REPLAY(grok-rete #N): <C's subject>`.
+
+- **The content was perfect.** `commits.tsv` says #160 `files=2`, #161 `files=1`; both landed with file sets
+  IDENTICAL to grok's and kept the `(cherry picked from commit …)` trailer. Only the subject differed.
+- **The brief does say it.** BRIEF-1 § "One step" item 1 governs how docs content is BROUGHT OVER
+  (`git cherry-pick -x C`); item 4 governs the COMMIT and carries no docs-only exemption. Ground truth from
+  batch 4a's #154 (`3f5f8defb`): subject `REPLAY(grok-rete #154): curare: …`, body `(cherry picked from
+  commit 7f5915de9)`. To an executor meeting a docs-only step the two items read as one instruction, and the
+  literal first line is the one it follows.
+- ⛔ **Why this is worse than a red.** `verify-step-record.sh` selected its subjects with
+  `git log --format='%H%x09%s' | grep 'REPLAY(grok-rete #'`. A step committed under another subject was
+  therefore **not reported missing — it did not exist to the gate**. With 23 docs-only steps in #160–#211 it
+  would have printed `step-record: complete` over a batch in which 23 steps were never examined, and E1
+  ("52 REPLAY commits, contiguous") would have failed only at the very end of a 52-step run.
+- **The class:** an instrument that ENUMERATES ITS OWN SUBJECTS can only report on the ones it enumerated,
+  and its silence about the rest is indistinguishable from a pass. Kin: findings 22, 24; FM 29.
+- **Repaired** on a quiescent tree at the executor's yield point: the two subjects rewritten and #162
+  replayed on top (`84987d5f3`, `4cfa5a521`, `b3395b398`), proven by `git diff <old-tip> <new-tip>` = **0
+  lines** — a subject rewrite may move no byte — with all three trailers preserved and the REPLAY count
+  159 → 162. History surgery stayed with the orchestrator on a clean tree; the executor was told explicitly
+  NOT to rewrite it under a dirty tree.
+- **CURED, not merely conventionalised.** `verify-step-record.sh` now takes optional `<first-N> <last-N>`
+  and asserts EXACTLY ONE `REPLAY(grok-rete #N)` per N in that range, cross-checking each commit's cited
+  source SHA against `commits.tsv`, so a mis-subjected step goes **RED BY ABSENCE**. Note a contiguity check
+  would NOT have caught this case: #160/#161 were the range's FIRST steps, so the surviving set 162…185 is
+  perfectly contiguous. The expected range must come from outside the commits.
+- **Caught by the freshness probe**, not by review: the SEAM's stamp disagreed with live HEAD, and the
+  recovery doc's rule — *a mismatch is the alarm; go read the log* — surfaced it.
+- ⚠ **My own error in the same pass:** I wrote "per census #160 docs files=1, #161 files=3" into a shell
+  command — numbers I had never read, wrong in both directions. Reading the real rows took one command.
+
+## Finding 27 — the commit BODY is a claim about the diff, and nothing checks it
+
+Four instances in batch 4b, in two shapes. On a branch that becomes main, and whose step record is the
+evidence a later self must trust (finding 22), the body is not narration — it is the artifact.
+
+**Shape A — the amend that carries LESS than its message.** A hand-fix made with the Edit tool to a file
+`git cherry-pick --no-commit` had ALREADY STAGED is not re-`git add`-ed, so the commit writes the unfixed
+blob while the body describes the fix. #167 (`run-axis.sh`) — caught by the orchestrator reading the
+committed diff; repaired `707215a6e` → `518a35a07`. #168 (`expr_ir/mod.rs`'s stale `eval_lower` re-export)
+— caught by the executor itself mid-#169; repaired `b6cddfbf9` → `89bbf5d54`.
+⚠ **It is the TOOL'S SHAPE, not one agent's habit: the orchestrator made the identical mistake folding
+2a4d** (finding 24's ⚠ clause). **Three occurrences, two different agents, one session.**
+
+**Shape B — the body whose MAGNITUDE does not match the diff.** The work is correct; the sentence measuring
+it is wrong. #162 logged its hand edit as "four sites, one doc comment + three match arms"; measured against
+grok's file it was **seven** (doc comments 453/519/692, match arms 776/777/808/809), all seven fixed. #184
+says it "extends C's own file set by exactly these two files"; measured, grok's `99bf573df` is 19 files and
+ours is 20 — it extends by exactly **one** (`src/rete/collect.rs`; `purity.rs` was already in C's set).
+
+- **Why it matters here more than in ordinary work:** the record gate checks that verdict LINES are present;
+  it cannot check that prose is true of the diff. All four cases pass it. Shape B is invisible to every
+  instrument we own.
+- **The cure, cheap and mechanical:** after any commit or amend, assert `git status --porcelain` is EMPTY
+  and that the commit's own diff names every path its body claims — a dirty tree immediately after a commit
+  IS shape A's signature, and it was sitting there in all three cases. Read every COUNT off `git show
+  --stat`/the diff before writing it down; a count in a commit body is a measurement.
+- **The verdict NUMBERS, by contrast, survived direct re-measurement.** E7 at HEAD reproduced #184's claims
+  exactly (kind(lib) 1475 + 4 skipped, doctest 8, lint-subset 148, stone-3 gate 3, `kernel::tests` 87 + 2
+  ignored = #177's 89), and all 17 `.census/` files named in bodies exist on disk. The drift is in narrative
+  counts, never in the gate numbers — which is why this is a finding and not a rejection.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

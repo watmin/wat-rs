@@ -21,7 +21,8 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `b6a8b0f38` (= origin). In flight: nothing — batch 4b (#160–#211) is next.
+Stamp: written at HEAD `67267bfd7` (= origin). In flight: **batch 4b's SECOND half, #186–#211**, with a
+Sonnet agent; its first half #160–#185 is CLOSED and PUSHED.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -73,8 +74,20 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `wrap-overlay-in-fireoutcome` records #155's hand wrap (11/11 byte-identical, idempotent); 4a's hand
   KEY-FIRSTs are proven by re-converting #155 with the fixed door. Verified: floor 5552/5552, clippy 0,
   run5 identity unchanged (chain vs main 1370, VS report back to 22).
-- **Next: batch 4b #160–#211** (drafts in `bootstrap/pending/`; no stdlib file in range — the door gap
-  returns at #221 #377 #379 #398 #438 #440).
+- **Batch 4b's FIRST HALF #160–#185 is CLOSED and PUSHED** (`67267bfd7`; SCORE-7b, REPLAY-LOG; findings
+  26–27). 26 steps. Orchestrator-verified at the checkpoint: floor **5554/5554, 24 skipped** — which is the
+  test-count delta PREDICTED from the diff (+4 = #184's two new gate files, −2 = #183's deliberate
+  `#[ignore]`s) — clippy 0, and **E7 re-run at HEAD reproducing #184's verdict lines exactly** (kind(lib)
+  1475+4, doctest 8, lint-subset 148, stone-3 gate 3, `kernel::tests` 87+2 = #177's 89). E1/E2/E4/E8/E9
+  re-checked by the orchestrator, not credited; all 17 `.census/` files named in bodies exist. Three trap
+  doors cleared: #176 (19 files; ours is 7 lines short of C's, the deliberate convergent-duplicate drop),
+  #177 (`kernel/tests.rs` 10,189 → 14 files, landing GROK'S OWN decomposition — file names identical),
+  #184 (two new lint gates; its `no_stale_path_in_doc` RED repaired IN #184, not folded into #168, because
+  #168 was green under every gate existing when it landed and C's own body fixes its six the same way).
+- **Next: batch 4b #186–#211** (no stdlib file in range — the door gap returns at #221 #377 #379 #398 #438
+  #440; #226 changes a stdlib MACRO, the G1 class 2a4c closed). ⚠ **#221 is the first MULTI-stdlib-file step
+  since 2a4d** — the first real exercise of the per-SET world. Notes parked in
+  `bootstrap/pending/STEP-NOTES-212-and-226.md`.
 - **The doctrine:** `[[project_merge_doctrine_syntax_vs_subsystems]]`. Main owns syntax; the branch owns
   its subsystem; replay ONE COMMIT AT A TIME; correct over fast; seconds are not worth a stone (RULED).
 
@@ -128,6 +141,12 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `variadic-wrap` hardcodes `:wat::core::i64`.
 - `docs/…/278-rules-engine/probes/surface-field-dispatch.wat`: fixed when its grok-rete commit replays.
 - The chain vs main's 28 CHAIN-FAILS: classify with `bootstrap/era/probe-K/classify.sh`.
+- **ONE TRUTH IN TWO PLACES, and only one copy is on the floor** (found at #167): the oracle-fire rewrite
+  lives in BOTH `wat-scripts/perf/grid/run-axis.sh` (a `perl` substitution) and
+  `tests/rete/wat_scripts_grid_axes_live.rs`'s `skip_oracle_fire` — and only the latter is gated, which is
+  why the script side sat broken from the moment the fire-outcome wall landed (it swapped in a bare
+  `Session` where the axes expect `(:wat::rete::FireOutcome :- [Session])`). One home, or a gate proving the
+  two agree. Kin: "One ruling's table lives in THREE codemods".
 
 ## INSTRUMENTS — where they live
 
@@ -158,6 +177,15 @@ on a stashed tree, then `git checkout -- src/check.rs`.
   FOREGROUND" (an agent backgrounded its gate run and lost it).
 - **An acceptance row nothing can satisfy teaches an executor to fake it** (finding 25: `--check` on baked
   stdlib). Retire the row; never waive it.
+- **After ANY commit or `--amend`: assert `git status --porcelain` is EMPTY and that the commit's own diff
+  names every path its body claims** (finding 27). An Edit-tool fix to a file `cherry-pick --no-commit`
+  already staged is NOT in the commit unless re-`git add`-ed, and a dirty tree right after a commit is that
+  defect's signature. THREE occurrences in one session, across BOTH agents — it is the tool's shape, not a
+  habit. And read every COUNT off `git show --stat`/the diff before writing it into a body: a count in a
+  commit body is a measurement (#162 logged 4 of 7 sites; #184 logged 2 of 1 added files).
+- **Pass `verify-step-record.sh` the batch's STEP RANGE** (`<from> <to> <first-N> <last-N>`), or it cannot
+  see a mis-subjected or skipped step — finding 26. Every step, docs-only included, commits as
+  `REPLAY(grok-rete #N): <C's subject>` with the `-x` trailer kept in the body.
 - **A floor runs uncontended, and nothing tracked is edited while it runs** (lint tests read source
   text at runtime).
 - **Never decide on `pgrep -f`.** Wait on a DONE line the job writes.
