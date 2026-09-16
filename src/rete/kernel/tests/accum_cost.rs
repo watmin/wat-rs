@@ -304,7 +304,6 @@ fn accum_query_harvest_split() {
     with.alpha /= r;
     with.harvest /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\naccum query harvest split — [200 200], mean of {RUNS}\n\
              \n\
@@ -343,7 +342,6 @@ fn accum_query_harvest_split() {
 fn accum_harvest_index_parts() {
     use std::collections::{HashMap, HashSet};
     use std::hint::black_box;
-    use std::time::Instant;
 
     const G: usize = 200;
     const W: usize = 200;
@@ -446,13 +444,6 @@ fn accum_harvest_index_parts() {
         idx
     };
 
-    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        for _ in 0..n {
-            body();
-        }
-        t0.elapsed().as_nanos() as f64 / n as f64
-    }
 
     {
         black_box(index_all());
@@ -472,18 +463,18 @@ fn accum_harvest_index_parts() {
     let mut m = 0.0;
     let mut maps_n = 0usize;
     for _ in 0..RUNS {
-        i += time_ns(1, || {
+        i += ns_per_iter(1, || {
             black_box(index_all());
         });
-        w += time_ns(1, || {
+        w += ns_per_iter(1, || {
             black_box(index_wanted_both());
         });
-        d += time_ns(1, || {
+        d += ns_per_iter(1, || {
             black_box(index_wanted_derived());
         });
         let facts: Vec<&Value> = derived.iter().collect();
         maps_n = facts.len();
-        m += time_ns(1, || {
+        m += ns_per_iter(1, || {
             let maps: Vec<crate::value::pmap::PMap> = facts
                 .iter()
                 .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
@@ -499,7 +490,6 @@ fn accum_harvest_index_parts() {
     assert!(i > 0.0, "all-class index recorded 0 ns — the loop never ran");
     assert_eq!(maps_n, 1000, "five types × 200 groups = 1000 maps");
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\naccum harvest index parts — [200 200], mean of {RUNS}\n\
              input 200 Group + 40,000 Reading; derived 1,000\n\
@@ -646,7 +636,6 @@ fn accum_leftover_split() {
     let tax_prod: f64 = pk_pairs.iter().map(|k| *k as f64 * cal).sum();
     let honest_prod: f64 = pk_net.iter().map(|n| n.max(0.0)).sum();
     let honest_fire = fire - remainder_alpha - tax_alpha - remainder_prod - tax_prod;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum leftover split — [200 200], mean of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
@@ -744,15 +733,9 @@ fn accum_leftover_split() {
 #[test]
 fn accum_compiled_match_split() {
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -822,7 +805,7 @@ fn accum_compiled_match_split() {
     let mut mc = 0.0;
     let mut mw = 0.0;
     for _ in 0..RUNS {
-        t += time_ns(|| {
+        t += elapsed_ns(|| {
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
                 if ag.nature == Nature::Struct {
@@ -834,7 +817,7 @@ fn accum_compiled_match_split() {
                 );
             }
         });
-        o += time_ns(|| {
+        o += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -859,7 +842,7 @@ fn accum_compiled_match_split() {
                 }
             }
         });
-        mc += time_ns(|| {
+        mc += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset_pools(&mut wm);
             for f in &facts {
@@ -910,7 +893,7 @@ fn accum_compiled_match_split() {
             }
         }
         for _ in 0..RUNS {
-            mw += time_ns(|| {
+            mw += elapsed_ns(|| {
                 let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
                 wm.bind_pool.clear();
                 for f in &facts {
@@ -943,7 +926,6 @@ fn accum_compiled_match_split() {
     mc /= r;
     mw /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum compiled-match split — 40,200 facts, mean of {RUNS}\n\
              fact_bind conds {n_fact_bind}   candidates {n_cands}   ops-true {n_ops_true}\n\
@@ -975,15 +957,9 @@ fn accum_compiled_match_split() {
 fn accum_materialize_split() {
     use crate::rete::compiled_cond::{exec_ops, intern_key, intern_val, materialize_into};
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -1019,7 +995,7 @@ fn accum_materialize_split() {
     let mut p = 0.0;
     let mut m = 0.0;
     for _ in 0..RUNS {
-        o += time_ns(|| {
+        o += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1044,7 +1020,7 @@ fn accum_materialize_split() {
                 }
             }
         });
-        c += time_ns(|| {
+        c += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1068,7 +1044,7 @@ fn accum_materialize_split() {
                 }
             }
         });
-        k += time_ns(|| {
+        k += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1096,7 +1072,7 @@ fn accum_materialize_split() {
                 }
             }
         });
-        v += time_ns(|| {
+        v += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1125,7 +1101,7 @@ fn accum_materialize_split() {
                 }
             }
         });
-        p += time_ns(|| {
+        p += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1155,7 +1131,7 @@ fn accum_materialize_split() {
                 }
             }
         });
-        m += time_ns(|| {
+        m += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm);
             for f in &facts {
@@ -1198,7 +1174,6 @@ fn accum_materialize_split() {
     p /= r;
     m /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum materialize split — 40,200 facts, mean of {RUNS}\n\
              \n\
@@ -1240,15 +1215,9 @@ fn accum_intern_val_i64_split() {
     use crate::rete::compiled_cond::exec_ops;
     use rustc_hash::FxHashMap;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -1316,7 +1285,7 @@ fn accum_intern_val_i64_split() {
     let mut ins = 0.0;
     let mut ans = 0.0;
     for _ in 0..RUNS {
-        vns += time_ns(|| {
+        vns += elapsed_ns(|| {
             let mut vals = Vec::new();
             let mut ids = crate::rete::compiled_cond::ValIntern::default();
             for v in &payloads {
@@ -1327,7 +1296,7 @@ fn accum_intern_val_i64_split() {
                 ));
             }
         });
-        ins += time_ns(|| {
+        ins += elapsed_ns(|| {
             let mut vals = Vec::new();
             let mut ids: FxHashMap<i64, u32> = FxHashMap::default();
             for v in &payloads {
@@ -1346,7 +1315,7 @@ fn accum_intern_val_i64_split() {
             }
         });
         if table_ok {
-            ans += time_ns(|| {
+            ans += elapsed_ns(|| {
                 let mut vals = Vec::new();
                 let mut slot = vec![u32::MAX; (max_i as usize) + 1];
                 for v in &payloads {
@@ -1374,7 +1343,6 @@ fn accum_intern_val_i64_split() {
     let best = if table_ok { ins.min(ans) } else { ins };
     let winner = if table_ok && ans <= ins { "A" } else { "I" };
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum intern_val i64 split — {} fillers, mean of {RUNS}\n\
              i64 {n_i64}  other {n_other}  min {min_i}  max {max_i}  table_ok {table_ok}\n\
@@ -1408,15 +1376,9 @@ fn accum_intern_val_i64_split() {
 fn accum_exec_ops_split() {
     use crate::rete::compiled_cond::exec_ops;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -1442,7 +1404,7 @@ fn accum_exec_ops_split() {
     let mut f = 0.0;
     let mut o = 0.0;
     for _ in 0..RUNS {
-        t += time_ns(|| {
+        t += elapsed_ns(|| {
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
                 if ag.nature == Nature::Struct {
@@ -1454,7 +1416,7 @@ fn accum_exec_ops_split() {
                 );
             }
         });
-        rset += time_ns(|| {
+        rset += elapsed_ns(|| {
             let mut scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1473,7 +1435,7 @@ fn accum_exec_ops_split() {
                 }
             }
         });
-        f += time_ns(|| {
+        f += elapsed_ns(|| {
             let mut scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
             for fct in &facts {
                 let Value::Aggregate(ag) = fct else { continue };
@@ -1495,7 +1457,7 @@ fn accum_exec_ops_split() {
                 }
             }
         });
-        o += time_ns(|| {
+        o += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             for f in &facts {
                 let Value::Aggregate(ag) = f else { continue };
@@ -1527,7 +1489,6 @@ fn accum_exec_ops_split() {
     f /= runs;
     o /= runs;
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum exec_ops split — 40,200 facts, mean of {RUNS}\n\
              \n\
@@ -1559,7 +1520,6 @@ fn accum_exec_ops_split() {
 fn accum_seen_fire_context_split() {
     use rustc_hash::FxHashSet;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
     const G: i64 = 200;
@@ -1584,22 +1544,17 @@ fn accum_seen_fire_context_split() {
         "seeded [200 200] must hold ~40,200 facts, got {n}"
     );
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let mut a = 0.0;
     let mut x = 0.0;
     let mut s = 0.0;
     for _ in 0..RUNS {
-        a += time_ns(|| {
+        a += elapsed_ns(|| {
             let ids: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
             let rest: FxHashSet<Value> = FxHashSet::default();
             black_box(ids.len() + rest.len());
         });
-        x += time_ns(|| {
+        x += elapsed_ns(|| {
             let mut sum = 0u64;
             for f in pv.iter() {
                 if let Value::Aggregate(ag) = f {
@@ -1608,7 +1563,7 @@ fn accum_seen_fire_context_split() {
             }
             black_box(sum);
         });
-        s += time_ns(|| {
+        s += elapsed_ns(|| {
             let mut ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n, Default::default());
             let mut rest: FxHashSet<Value> = FxHashSet::default();
@@ -1641,7 +1596,6 @@ fn accum_seen_fire_context_split() {
     fire_seen /= r;
     fire_alloc /= r;
     fire_ins /= r;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\nseen fire-context split — accum [{G} {W}], {n} facts, mean of {RUNS}\n\
              \n\

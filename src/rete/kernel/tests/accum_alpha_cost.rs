@@ -48,15 +48,9 @@ fn accum_alpha_memory_shape() {
 #[test]
 fn accum_alpha_leftover_split() {
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let mut fire = 0.0;
     let mut alpha = 0.0;
@@ -132,17 +126,17 @@ fn accum_alpha_leftover_split() {
     let mut m = 0.0;
     let mut a = 0.0;
     for _ in 0..RUNS {
-        wp += time_ns(|| {
+        wp += elapsed_ns(|| {
             for f in input_pv.iter() {
                 black_box(f);
             }
         });
-        w += time_ns(|| {
+        w += elapsed_ns(|| {
             for f in &facts {
                 black_box(f);
             }
         });
-        c += time_ns(|| {
+        c += elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -152,7 +146,7 @@ fn accum_alpha_leftover_split() {
                 }
             }
         });
-        t += time_ns(|| {
+        t += elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -165,7 +159,7 @@ fn accum_alpha_leftover_split() {
                 }
             }
         });
-        m += time_ns(|| {
+        m += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm, &mut FxHashMap::default());
             for f in &facts {
@@ -190,7 +184,7 @@ fn accum_alpha_leftover_split() {
                 }
             }
         });
-        a += time_ns(|| {
+        a += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut cand = Vec::new();
             let mut d_alpha: AlphaDelta = FxHashMap::default();
@@ -231,7 +225,6 @@ fn accum_alpha_leftover_split() {
     m /= r;
     a /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum alpha leftover split — [200 200], mean of {RUNS}\n\
              in-fire (2 pairs, not per fact)\n\
@@ -297,15 +290,9 @@ fn accum_alpha_leftover_split() {
 fn accum_alpha_seed_after_fold_split() {
     use rustc_hash::FxHashSet;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let mut fire = 0.0;
     let mut seed = 0.0;
@@ -380,12 +367,12 @@ fn accum_alpha_seed_after_fold_split() {
     let mut n = 0.0;
     let mut a = 0.0;
     for _ in 0..RUNS {
-        p += time_ns(|| {
+        p += elapsed_ns(|| {
             for f in input_pv.iter() {
                 black_box(f);
             }
         });
-        s += time_ns(|| {
+        s += elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -395,7 +382,7 @@ fn accum_alpha_seed_after_fold_split() {
             }
             black_box(seen_ids.len() + seen_rest.len());
         });
-        x += time_ns(|| {
+        x += elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -410,7 +397,7 @@ fn accum_alpha_seed_after_fold_split() {
             }
             black_box(seen_ids.len());
         });
-        k += time_ns(|| {
+        k += elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -433,7 +420,7 @@ fn accum_alpha_seed_after_fold_split() {
         let mut d_alpha_e: AlphaDelta = FxHashMap::default();
         reset(&mut wm, &mut d_alpha_e);
         let _cond_key_ids_e = intern_keys(&mut wm);
-        e += time_ns(|| {
+        e += elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -465,7 +452,7 @@ fn accum_alpha_seed_after_fold_split() {
         let mut d_alpha_n: AlphaDelta = FxHashMap::default();
         reset(&mut wm, &mut d_alpha_n);
         let cond_key_ids_n = intern_keys(&mut wm);
-        n += time_ns(|| {
+        n += elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -512,7 +499,7 @@ fn accum_alpha_seed_after_fold_split() {
                 bind_only.insert(id, fields);
             }
         }
-        a += time_ns(|| {
+        a += elapsed_ns(|| {
             let mut seen_ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
             let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
@@ -548,7 +535,6 @@ fn accum_alpha_seed_after_fold_split() {
     n /= r;
     a /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum alpha:seed after fold — [200 200], mean of {RUNS}, {n_facts} facts\n\
              in-fire\n\
@@ -606,15 +592,9 @@ fn accum_alpha_seed_after_fold_split() {
 #[test]
 fn accum_alpha_tree_walk_split() {
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -640,7 +620,7 @@ fn accum_alpha_tree_walk_split() {
     let mut i = 0.0;
     let mut t = 0.0;
     for _ in 0..RUNS {
-        e += time_ns(|| {
+        e += elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -650,7 +630,7 @@ fn accum_alpha_tree_walk_split() {
                 }
             }
         });
-        g += time_ns(|| {
+        g += elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -663,7 +643,7 @@ fn accum_alpha_tree_walk_split() {
                 }
             }
         });
-        i += time_ns(|| {
+        i += elapsed_ns(|| {
             let mut buf = Vec::new();
             for f in &facts {
                 match f {
@@ -679,7 +659,7 @@ fn accum_alpha_tree_walk_split() {
                 }
             }
         });
-        t += time_ns(|| {
+        t += elapsed_ns(|| {
             for f in &facts {
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
@@ -699,7 +679,6 @@ fn accum_alpha_tree_walk_split() {
     i /= r;
     t /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum alpha-tree walk split — 40,200 facts, mean of {RUNS}\n\
              \n\
@@ -730,15 +709,9 @@ fn accum_alpha_class_lookup_split() {
     use rustc_hash::FxHashMap;
     use std::collections::HashMap;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -787,17 +760,17 @@ fn accum_alpha_class_lookup_split() {
     let mut f = 0.0;
     let mut l = 0.0;
     for _ in 0..RUNS {
-        s += time_ns(|| {
+        s += elapsed_ns(|| {
             for c in &classes {
                 black_box(std_map.get(c.as_ref()));
             }
         });
-        f += time_ns(|| {
+        f += elapsed_ns(|| {
             for c in &classes {
                 black_box(fx_map.get(c.as_ref()));
             }
         });
-        l += time_ns(|| {
+        l += elapsed_ns(|| {
             for c in &classes {
                 let cs = c.as_ref();
                 black_box(lin.iter().find(|(k, _)| k == cs).map(|(_, v)| v));
@@ -811,7 +784,6 @@ fn accum_alpha_class_lookup_split() {
     let best = f.min(l);
     let winner = if l <= f { "L" } else { "F" };
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum alpha class-lookup split — {} facts, {n_types} types, mean of {RUNS}\n\
              types: {unique:?}\n\
@@ -845,15 +817,9 @@ fn accum_alpha_class_lookup_split() {
 fn accum_alpha_push_split() {
     use crate::rete::compiled_cond::exec_compiled;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const RUNS: usize = 3;
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let world = startup_from_source(ACCUM_AXIS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("accum-axis world should freeze");
@@ -890,7 +856,7 @@ fn accum_alpha_push_split() {
     let mut d = 0.0;
     let mut a = 0.0;
     for _ in 0..RUNS {
-        m += time_ns(|| {
+        m += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             reset(&mut wm, &mut FxHashMap::default());
             for f in &facts {
@@ -915,7 +881,7 @@ fn accum_alpha_push_split() {
                 }
             }
         });
-        h += time_ns(|| {
+        h += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut d_alpha: AlphaDelta = FxHashMap::default();
             reset(&mut wm, &mut d_alpha);
@@ -945,7 +911,7 @@ fn accum_alpha_push_split() {
                 }
             }
         });
-        v += time_ns(|| {
+        v += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut d_alpha: AlphaDelta = FxHashMap::default();
             reset(&mut wm, &mut d_alpha);
@@ -974,7 +940,7 @@ fn accum_alpha_push_split() {
                 }
             }
         });
-        d += time_ns(|| {
+        d += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut d_alpha: AlphaDelta = FxHashMap::default();
             reset(&mut wm, &mut d_alpha);
@@ -1008,7 +974,7 @@ fn accum_alpha_push_split() {
                 }
             }
         });
-        a += time_ns(|| {
+        a += elapsed_ns(|| {
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut cand = Vec::new();
             let mut d_alpha: AlphaDelta = FxHashMap::default();
@@ -1049,7 +1015,6 @@ fn accum_alpha_push_split() {
     d /= r;
     a /= r;
 
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\naccum alpha push split — 40,200 facts, mean of {RUNS}\n\
              \n\

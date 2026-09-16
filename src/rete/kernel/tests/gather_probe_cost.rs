@@ -66,7 +66,6 @@ fn gather_index_is_built_once_per_alpha_and_keyset() {
 fn seen_identity_set_split() {
     use rustc_hash::FxHashSet;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_200;
     const RUNS: usize = 3;
@@ -91,11 +90,6 @@ fn seen_identity_set_split() {
         }
     }
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     black_box(facts.clone());
     {
@@ -116,10 +110,10 @@ fn seen_identity_set_split() {
     let mut s = 0.0;
     let mut i = 0.0;
     for _ in 0..RUNS {
-        c += time_ns(|| {
+        c += elapsed_ns(|| {
             black_box(facts.clone());
         });
-        s += time_ns(|| {
+        s += elapsed_ns(|| {
             let mut set: FxHashSet<Value> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             for f in &facts {
@@ -127,7 +121,7 @@ fn seen_identity_set_split() {
             }
             black_box(set.len());
         });
-        i += time_ns(|| {
+        i += elapsed_ns(|| {
             let mut ids: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             for f in &facts {
@@ -146,7 +140,6 @@ fn seen_identity_set_split() {
         "Value-set insert recorded 0 ns — the loop never ran"
     );
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\nseen identity-set split — {N} stamped Records, mean of {RUNS}\n\
              unscaled (accum [200 200] input count)\n\
@@ -171,7 +164,6 @@ fn seen_identity_set_split() {
 fn seen_pv_walk_split() {
     use rustc_hash::FxHashSet;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_200;
     const RUNS: usize = 3;
@@ -202,11 +194,6 @@ fn seen_pv_walk_split() {
         "fixture facts must be stamped"
     );
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     {
         let mut n = 0usize;
@@ -223,7 +210,7 @@ fn seen_pv_walk_split() {
     let mut p = 0.0;
     let mut d = 0.0;
     for _ in 0..RUNS {
-        w += time_ns(|| {
+        w += elapsed_ns(|| {
             let mut n = 0usize;
             for f in pv.iter() {
                 n += 1;
@@ -231,7 +218,7 @@ fn seen_pv_walk_split() {
             }
             black_box(n);
         });
-        i += time_ns(|| {
+        i += elapsed_ns(|| {
             let mut set: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             for id in &ids {
@@ -239,7 +226,7 @@ fn seen_pv_walk_split() {
             }
             black_box(set.len());
         });
-        v += time_ns(|| {
+        v += elapsed_ns(|| {
             let mut ids_set: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             let mut rest: FxHashSet<Value> = FxHashSet::default();
@@ -248,7 +235,7 @@ fn seen_pv_walk_split() {
             }
             black_box(ids_set.len() + rest.len());
         });
-        p += time_ns(|| {
+        p += elapsed_ns(|| {
             let mut ids_set: FxHashSet<u64> =
                 FxHashSet::with_capacity_and_hasher(N, Default::default());
             let mut rest: FxHashSet<Value> = FxHashSet::default();
@@ -257,7 +244,7 @@ fn seen_pv_walk_split() {
             }
             black_box(ids_set.len() + rest.len());
         });
-        d += time_ns(|| {
+        d += elapsed_ns(|| {
             let collected: Vec<Value> = pv.iter().cloned().collect();
             black_box(collected.len());
         });
@@ -270,7 +257,6 @@ fn seen_pv_walk_split() {
     d /= r;
     assert!(p > 0.0, "PV+insert recorded 0 ns — the loop never ran");
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\nseen PV-walk split — {N} stamped Records, mean of {RUNS}\n\
              unscaled (accum [200 200] input count)\n\
@@ -299,7 +285,6 @@ fn seen_pv_walk_split() {
 #[test]
 fn drop_memories_cost_split() {
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_200;
     const RUNS: usize = 3;
@@ -350,11 +335,6 @@ fn drop_memories_cost_split() {
         (alpha, pool)
     }
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let mut a = 0.0;
     let mut b = 0.0;
@@ -363,17 +343,17 @@ fn drop_memories_cost_split() {
     let mut d = 0.0;
     for _ in 0..RUNS {
         let (mut alpha, _) = build_alpha(&facts, &gkey, &vkey);
-        a += time_ns(|| {
+        a += elapsed_ns(|| {
             alpha.clear();
             black_box(alpha.len());
         });
         let (_, mut pool) = build_alpha(&facts, &gkey, &vkey);
-        b += time_ns(|| {
+        b += elapsed_ns(|| {
             pool.clear();
             black_box(pool.len());
         });
         let mut match_pool: Vec<(u32, i64)> = (0..N).map(|i| (i as u32, 1i64)).collect();
-        m += time_ns(|| {
+        m += elapsed_ns(|| {
             match_pool.clear();
             black_box(match_pool.len());
         });
@@ -383,7 +363,7 @@ fn drop_memories_cost_split() {
                 binds: super::empty_span(),
             })
             .collect();
-        t += time_ns(|| {
+        t += elapsed_ns(|| {
             tokens.clear();
             black_box(tokens.len());
         });
@@ -395,7 +375,7 @@ fn drop_memories_cost_split() {
                 binds: super::empty_span(),
             })
             .collect();
-        d += time_ns(|| {
+        d += elapsed_ns(|| {
             alpha.clear();
             tokens.clear();
             pool.clear();
@@ -411,7 +391,6 @@ fn drop_memories_cost_split() {
     d /= r;
     assert!(d > 0.0, "drop-all recorded 0 ns — the loop never ran");
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\ndrop-memories split — {N} Elements / pairs / matches, mean of {RUNS}\n\
              construction untimed; this times clear() only\n\
@@ -434,7 +413,6 @@ fn drop_memories_cost_split() {
 fn gather_unary_index_split() {
     use rustc_hash::FxHashMap;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_200;
     const RUNS: usize = 3;
@@ -462,11 +440,6 @@ fn gather_unary_index_split() {
         els.push(super::Element { fact: 0, binds });
     }
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     black_box(super::build_gather_index(
         &els,
@@ -480,13 +453,13 @@ fn gather_unary_index_split() {
     let mut b = 0.0;
     let mut s = 0.0;
     for _ in 0..RUNS {
-        k += time_ns(|| {
+        k += elapsed_ns(|| {
             for el in &els {
                 let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
                 black_box(super::key_of(&pairs, &join_keys, &ids));
             }
         });
-        v += time_ns(|| {
+        v += elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<super::JoinKey, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -496,7 +469,7 @@ fn gather_unary_index_split() {
             }
             black_box(idx.len());
         });
-        u += time_ns(|| {
+        u += elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -507,14 +480,14 @@ fn gather_unary_index_split() {
             }
             black_box(idx.len());
         });
-        b += time_ns(|| {
+        b += elapsed_ns(|| {
             black_box(super::build_gather_index(
                 &els,
                 &join_keys,
                 super::GatherIntern::of(&keys, &vals, &pool, &ids),
             ));
         });
-        s += time_ns(|| {
+        s += elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -537,7 +510,6 @@ fn gather_unary_index_split() {
         "build_gather_index recorded 0 ns — the loop never ran"
     );
 
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\ngather unary-index split — {N} Readings, join_keys=[?g], mean of {RUNS}\n\
              unscaled (one build; the cell pays two)\n\
@@ -566,7 +538,6 @@ fn gather_unary_index_split() {
 fn gather_val_id_split() {
     use rustc_hash::FxHashMap;
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 40_200;
     const RUNS: usize = 3;
@@ -595,17 +566,12 @@ fn gather_val_id_split() {
     }
     let kid = super::intern_key(&mut keys, &gkey);
 
-    fn time_ns(mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        body();
-        t0.elapsed().as_nanos() as f64
-    }
 
     let mut u = 0.0;
     let mut iarm = 0.0;
     let mut b = 0.0;
     for _ in 0..RUNS {
-        u += time_ns(|| {
+        u += elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -616,7 +582,7 @@ fn gather_val_id_split() {
             }
             black_box(idx.len());
         });
-        iarm += time_ns(|| {
+        iarm += elapsed_ns(|| {
             // rune:perspicere(read-once) — gather microbench index; not a domain noun.
             let mut idx: FxHashMap<u32, Vec<usize>> = FxHashMap::default();
             for (i, el) in els.iter().enumerate() {
@@ -627,7 +593,7 @@ fn gather_val_id_split() {
             }
             black_box(idx.len());
         });
-        b += time_ns(|| {
+        b += elapsed_ns(|| {
             black_box(super::build_gather_index(
                 &els,
                 &join_keys,
@@ -640,7 +606,6 @@ fn gather_val_id_split() {
     iarm /= r;
     b /= r;
     assert!(iarm > 0.0, "vid insert recorded 0 ns — the loop never ran");
-    let ms = |ns: f64| ns / 1e6;
     println!(
         "\ngather val-id split — {N} Readings, join_keys=[?g], mean of {RUNS}\n\
              unscaled (one build; the cell pays two)\n\
@@ -664,7 +629,6 @@ fn gather_val_id_split() {
 #[test]
 fn probe_extend_cost_split() {
     use std::hint::black_box;
-    use std::time::Instant;
 
     const N: usize = 300_000;
     const RUNS: usize = 3;
@@ -709,13 +673,6 @@ fn probe_extend_cost_split() {
     let mut idx: HashMap<Vec<Value>, usize> = HashMap::new();
     idx.insert(vec![Value::i64(1)], 20);
 
-    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        for _ in 0..n {
-            body();
-        }
-        t0.elapsed().as_nanos() as f64 / n as f64
-    }
 
     // Warm.
     {
@@ -745,7 +702,7 @@ fn probe_extend_cost_split() {
     for _ in 0..RUNS {
         let mut bp = bind_pool.clone();
         bp.reserve(N * 4);
-        b += time_ns(N, || {
+        b += ns_per_iter(N, || {
             let lo = left_binds.off as usize;
             let ln = left_binds.len as usize;
             let eo = right_binds.off as usize;
@@ -767,7 +724,7 @@ fn probe_extend_cost_split() {
 
         let mut mp = match_pool.clone();
         mp.reserve(N * 2);
-        m += time_ns(N, || {
+        m += ns_per_iter(N, || {
             let mo = left_matches.off as usize;
             let mn = left_matches.len as usize;
             for i in 0..mn {
@@ -782,7 +739,7 @@ fn probe_extend_cost_split() {
         let mut mp = match_pool.clone();
         bp.reserve(N * 4);
         mp.reserve(N * 2);
-        e += time_ns(N, || {
+        e += ns_per_iter(N, || {
             black_box(super::extend_token(
                 &tok,
                 0,
@@ -793,7 +750,7 @@ fn probe_extend_cost_split() {
             ));
         });
 
-        kk += time_ns(N, || {
+        kk += ns_per_iter(N, || {
             black_box(super::key_of(
                 &super::bind_view(&keys, &vals, &bind_pool, left_binds),
                 &join_keys,
@@ -801,7 +758,7 @@ fn probe_extend_cost_split() {
             ));
         });
 
-        h += time_ns(N, || {
+        h += ns_per_iter(N, || {
             black_box(idx.get(&vec![Value::i64(1)]));
         });
     }
@@ -921,13 +878,6 @@ fn probe_gap_cost_split() {
     let cond_key_ids: CondKeyIds = HashMap::new();
     let i64_by_fact: Vec<Option<super::I64Row>> = Vec::new();
 
-    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
-        let t0 = Instant::now();
-        for _ in 0..n {
-            body();
-        }
-        t0.elapsed().as_nanos() as f64 / n as f64
-    }
 
     {
         let mut bp = bind_pool.clone();
@@ -968,14 +918,14 @@ fn probe_gap_cost_split() {
     let mut j = 0.0;
     let mut g = 0.0;
     for _ in 0..RUNS {
-        r += time_ns(N, || {
+        r += ns_per_iter(N, || {
             black_box(super::rematch_compiled(&conds, 2).expect("compiled"));
         });
-        s += time_ns(N, || {
+        s += ns_per_iter(N, || {
             black_box(conds.get(&2).expect("id").has_seed_cmp());
         });
         let mut out: Vec<super::Token> = Vec::with_capacity(N);
-        p += time_ns(N, || {
+        p += ns_per_iter(N, || {
             out.push(tok);
             black_box(out.len());
         });
@@ -984,7 +934,7 @@ fn probe_gap_cost_split() {
         let mut mp = match_pool.clone();
         bp.reserve(N * 4);
         mp.reserve(N * 2);
-        e += time_ns(N, || {
+        e += ns_per_iter(N, || {
             black_box(super::extend_token(&tok, 0, el.binds, 2, &mut bp, &mut mp));
         });
 
@@ -993,7 +943,7 @@ fn probe_gap_cost_split() {
         bp.reserve(N * 4);
         mp.reserve(N * 2);
         scratch.clear();
-        j += time_ns(N, || {
+        j += ns_per_iter(N, || {
             black_box(
                 super::join_extend(
                     &tok,

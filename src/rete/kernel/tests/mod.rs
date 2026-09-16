@@ -265,19 +265,39 @@ mod arm_lease;
 mod alpha_discrimination;
 mod binding_repr_bench;
 
-// ⚠ KNOWN WEAVE DEBT, recorded by `complectens` and NOT fixed by the split — read this before
-// reading the nine cost modules as finished:
+// ── Timing primitives — ONE name per contract ─────────────────────────────────
 //
-//   · `time_ns` carries TWO CONTRACTS under one name — 7 sites are `time_ns(n, body)` returning
-//     elapsed/n (PER ITERATION), 15 are `time_ns(body)` returning elapsed (TOTAL). The two
-//     differ by a factor of n (20k–300k). The arity tells you which, if you look; the NAME and
-//     the printed number do not.
-//   · `let ms = |ns: f64| ns / 1e6;` is written out 37 times across eight of the cost modules.
+// These replace 22 nested copies of a single name, `time_ns`, that carried TWO contracts: a
+// 2-ary form returning elapsed/n (7 copies) and a 1-ary form returning elapsed (15 copies).
+// They differ by a factor of n — 20k to 300k at the call sites that used it. The arity told you
+// which, if you looked; the PRINTED NUMBER did not, so a reader comparing a figure from one
+// test against a figure from another had nothing to warn them.
 //
-// The split SCATTERED both of these rather than curing them, which is exactly why they are named
-// here in the parent instead of in any one child. `render_phase_table` below is the cure that
-// already exists for the second one, and its own doc says why it matters: "two copies is how one
-// of them silently stops subtracting."
+// ⛔ The cure is not this comment. It is that NEITHER NAME CAN BE READ AS THE OTHER, and that
+// there is now one definition of each instead of twenty-two.
+
+/// Nanoseconds PER ITERATION — runs `body` `n` times and divides by `n`.
+pub(super) fn ns_per_iter(n: usize, mut body: impl FnMut()) -> f64 {
+    let t0 = std::time::Instant::now();
+    for _ in 0..n {
+        body();
+    }
+    t0.elapsed().as_nanos() as f64 / n as f64
+}
+
+/// TOTAL nanoseconds for ONE run of `body`. Divided by nothing.
+pub(super) fn elapsed_ns(mut body: impl FnMut()) -> f64 {
+    let t0 = std::time::Instant::now();
+    body();
+    t0.elapsed().as_nanos() as f64
+}
+
+/// Nanoseconds → milliseconds. Was written out as a local closure 37 times across eight
+/// modules. `render_phase_table`'s own doc says why one copy matters: "two copies is how one of
+/// them silently stops subtracting."
+pub(super) fn ms(ns: f64) -> f64 {
+    ns / 1e6
+}
 
 // ── The shared fire-cost instrument ───────────────────────────────────────────
 //

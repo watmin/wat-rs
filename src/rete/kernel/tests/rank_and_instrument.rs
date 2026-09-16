@@ -313,7 +313,6 @@ fn cell_rank_after_fanout() {
     accum.2 /= r;
     share.0 /= r;
     share.2 /= r;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\ncell rank after fanout — mean of {RUNS}\n\
              FIRE is IN+SETUP+ROUND+OUT; top-row is the largest named child\n\
@@ -398,7 +397,6 @@ fn cell_rank_after_grid() {
     cascade.2 /= r;
     accum.0 /= r;
     accum.2 /= r;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\ncell rank after grid — mean of {RUNS}\n\
              FIRE is IN+SETUP+ROUND+OUT; top-row is the largest named child\n\
@@ -510,7 +508,6 @@ fn honest_cell_rank_after_arm() {
     accum.0 /= r;
     accum.2 /= r;
     accum.3 /= r;
-    let ms = |ns: f64| ns / 1e6;
     let table = format!(
         "\nhonest cell rank after arm — mean of {RUNS}\n\
              instrument: {cal:.1} ns per mark pair\n\
