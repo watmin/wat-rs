@@ -1,0 +1,7 @@
+# ORACLE for wrap-overlay-in-fireoutcome — HISTORY or header spec, never the tool.
+#
+# before.pre is `rename-core-string-to-string.wat` as it stood at 18eb21a71 (batch 4a's base,
+# byte-identical to 406a7c340^); after.post is the same file at #155 `406a7c340`, the hand edit
+# this migration records.
+
+history 406a7c340 wat-scripts/fixes/rename-core-string-to-string.wat
