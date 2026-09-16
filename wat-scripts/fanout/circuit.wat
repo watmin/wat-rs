@@ -3833,7 +3833,16 @@
                  ((:wat::spawn::ServiceEvent::Connection _p) "connection")
                  ((:wat::spawn::ServiceEvent::Malformed _i _c) "malformed")
                  ((:wat::spawn::ServiceEvent::Rejected _i _c) "rejected"))))
-           (_ "send-failed")))
+           ;; ⛔ ALL FOUR ARMS NAMED — this was `(_ "send-failed")`, which collapsed
+           ;; three worlds into one label AND would have absorbed a variant added to
+           ;; `SendOutcome` later. The retry send below already names its four; this one
+           ;; did not, and the two are the same proof. The labels are send-side on
+           ;; purpose: the select arms above already return "closed"/"lost", and
+           ;; conflating a send-side failure with a select-side one is what this file
+           ;; exists to keep apart.
+           (:wat::kernel::SendOutcome::Closed "send-closed")
+           (:wat::kernel::SendOutcome::Stopped "send-stopped")
+           ((:wat::kernel::SendOutcome::Lost _c) "send-lost")))
      retry
        (:wat::core::if (:wat::core::= first "timeout")
          ;; p0 from the inner let is gone — discarded. Redial, send the retry

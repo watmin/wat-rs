@@ -2044,11 +2044,23 @@
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
 
+;; ⛔ ALL FOUR ARMS NAMED, AND THREE WORLDS SAY THREE THINGS. This was
+;; `(_ (assertion-failed! "send-ok: not Sent" …))`: one wildcard standing for Closed,
+;; Lost and Stopped, so the message could not tell a caller which had happened — and a
+;; variant ADDED to `SendOutcome` later (the `TimedOut` of
+;; `a-send-cannot-say-it-is-blocked`) would have been absorbed here too, at the only
+;; send-facing helper in this file (both of `park-receive!`'s sends go through it).
+;; `Lost` keeps its cause; the other two name themselves.
 (:wat::core::defn :user::send-ok!
   [st <- :wat::kernel::SendOutcome] -> :wat::core::nil
   (:wat::core::match st
     (:wat::kernel::SendOutcome::Sent nil)
-    (_ (:wat::kernel::assertion-failed! "send-ok: not Sent" :wat::core::None :wat::core::None))))
+    (:wat::kernel::SendOutcome::Closed
+      (:wat::kernel::assertion-failed! "send-ok: the service peer closed — the send never landed" :wat::core::None :wat::core::None))
+    (:wat::kernel::SendOutcome::Stopped
+      (:wat::kernel::assertion-failed! "send-ok: a stop was in force — the send never landed" :wat::core::None :wat::core::None))
+    ((:wat::kernel::SendOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::park-receive!
   [c <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])  name <- :wat::core::String  now-ns <- :wat::core::i64

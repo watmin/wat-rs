@@ -4261,6 +4261,65 @@
 ;; from `launch`, and two constants of one value are exactly the drift removing
 ;; this one prevents.
 
+;; race-reply — the reply half of `call-by-deadline`, lifted out of a WILDCARD arm.
+;;
+;; ⛔ WHY IT EXISTS AS ITS OWN DEFN. `call-by-deadline` used to dispatch its send with
+;; `(:wat::kernel::SendOutcome::Stopped …)` and a bare `(_ …)` holding this whole body.
+;; The wildcard was CORRECT about behaviour and blind as a form: it absorbs every
+;; SendOutcome that is not `Stopped`, so a variant ADDED to `SendOutcome` later — the
+;; `TimedOut` that `a-send-cannot-say-it-is-blocked` proposes — would land here and be
+;; silently raced instead of reported, at the most-used send site in the corpus, with a
+;; green floor the whole way. A variant nothing READS is the painted brick of
+;; `docs/arc/2026/04/109-kill-std/NOTE-an-outcome-variant-no-primitive-can-construct.md`
+;; arriving from the other direction. Naming all four arms makes the next variant a
+;; CHECKER ERROR here ("non-exhaustive: enum … missing arm(s)", src/check.rs:6925).
+;;
+;; Behaviour is UNCHANGED: `Sent`, `Closed` and `Lost` all still race. The reason they
+;; do is the note the wildcard carried, kept verbatim: the death notice (crash/sever
+;; sentinel) rides the RECV channel, so aborting on a send-side failure would flatten a
+;; Severed peer into Disconnected (the send-side EPIPE) without ever reading it.
+(:wat::core::defn :wat::service::race-reply :- [I O]
+  [peer <- (:wat::kernel::Peer :- [:I :O])
+   ms <- :wat::core::i64  inert <- :O]
+  -> (:wat::service::CallOutcome :- [:O])
+  (:wat::core::let
+    [kind (:wat::core::if (:wat::kernel::peer-wire? peer)
+             :wat::program::PeerKind::process
+             :wat::program::PeerKind::thread)
+     tmr (:wat::core::first
+           (:wat::core::conj
+             (:wat::core::Vector :- [(:wat::kernel::Peer :- [:I :O])])
+             (:wat::kernel::after kind (:wat::time::Milliseconds ms) inert)))]
+    (:wat::core::match (:wat::kernel::select [peer tmr])
+      ((:wat::spawn::ServiceEvent::Message idx m)
+        (:wat::core::if (:wat::i64::= idx 0)
+          (:wat::service::CallOutcome::Answered m)
+          (:wat::service::deadline-reestablish peer)))
+      ((:wat::spawn::ServiceEvent::Closed idx)
+        (:wat::core::if (:wat::i64::= idx 0)
+          (:wat::service::CallOutcome::Closed)
+          (:wat::service::deadline-reestablish peer)))
+      ((:wat::spawn::ServiceEvent::Lost idx c)
+        (:wat::core::if (:wat::i64::= idx 0)
+          (:wat::service::CallOutcome::Lost (:wat::service::lost-cause-from-select c))
+          (:wat::service::deadline-reestablish peer)))
+      (:wat::spawn::ServiceEvent::Shutdown
+        (:wat::kernel::assertion-failed! "call-by-deadline: select shutdown" :wat::core::None :wat::core::None))
+      ((:wat::spawn::ServiceEvent::Admin _msg)
+        (:wat::kernel::assertion-failed! "call-by-deadline: select admin" :wat::core::None :wat::core::None))
+      ((:wat::spawn::ServiceEvent::Connection _p)
+        (:wat::kernel::assertion-failed! "call-by-deadline: select connection" :wat::core::None :wat::core::None))
+      ;; ⭑ The cause is KEPT and the outcome is honest. This arm used to bind `_c` and
+      ;; return `Lost Disconnected` — nothing had died, and the reason was thrown away.
+      ((:wat::spawn::ServiceEvent::Malformed idx c)
+        (:wat::core::if (:wat::i64::= idx 0)
+          (:wat::service::CallOutcome::Malformed c)
+          (:wat::kernel::assertion-failed! "call-by-deadline: timer malformed" :wat::core::None :wat::core::None)))
+      ((:wat::spawn::ServiceEvent::Rejected idx _c)
+        (:wat::core::if (:wat::i64::= idx 0)
+          (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected)
+          (:wat::kernel::assertion-failed! "call-by-deadline: timer rejected" :wat::core::None :wat::core::None))))))
+
 ;; call-by-deadline — one client round-trip with a timer. idx 0 is Answered;
 ;; idx 1 is DeadlineFired. Lost keeps its cause; Closed is the clean EOF.
 ;; `inert` is the timer's payload: the type demands a value, and it is never read.
@@ -4275,47 +4334,13 @@
   [peer <- (:wat::kernel::Peer :- [:I :O])  op <- :I
    ms <- :wat::core::i64  inert <- :O]
   -> (:wat::service::CallOutcome :- [:O])
-  ;; Send Closed/Lost still SELECT. The death notice (crash/sever sentinel) rides
-  ;; the recv channel; aborting here would flatten a Severed peer into
-  ;; Disconnected (the send-side EPIPE) without ever reading it.
+  ;; ⛔ ALL FOUR SendOutcome ARMS ARE NAMED — no wildcard. `Sent`/`Closed`/`Lost` all
+  ;; race (see `race-reply`'s header for why, and for what the wildcard here used to
+  ;; hide). Behaviour is identical; what changed is that a FIFTH variant would now be a
+  ;; checker error at this line instead of being raced in silence.
   (:wat::core::match (:wat::kernel::send peer op)
     (:wat::kernel::SendOutcome::Stopped
       (:wat::kernel::assertion-failed! "call-by-deadline: send stopped" :wat::core::None :wat::core::None))
-    (_
-      (:wat::core::let
-        [kind (:wat::core::if (:wat::kernel::peer-wire? peer)
-                 :wat::program::PeerKind::process
-                 :wat::program::PeerKind::thread)
-         tmr (:wat::core::first
-               (:wat::core::conj
-                 (:wat::core::Vector :- [(:wat::kernel::Peer :- [:I :O])])
-                 (:wat::kernel::after kind (:wat::time::Milliseconds ms) inert)))]
-        (:wat::core::match (:wat::kernel::select [peer tmr])
-          ((:wat::spawn::ServiceEvent::Message idx m)
-            (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::Answered m)
-              (:wat::service::deadline-reestablish peer)))
-          ((:wat::spawn::ServiceEvent::Closed idx)
-            (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::Closed)
-              (:wat::service::deadline-reestablish peer)))
-          ((:wat::spawn::ServiceEvent::Lost idx c)
-            (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::Lost (:wat::service::lost-cause-from-select c))
-              (:wat::service::deadline-reestablish peer)))
-          (:wat::spawn::ServiceEvent::Shutdown
-            (:wat::kernel::assertion-failed! "call-by-deadline: select shutdown" :wat::core::None :wat::core::None))
-          ((:wat::spawn::ServiceEvent::Admin _msg)
-            (:wat::kernel::assertion-failed! "call-by-deadline: select admin" :wat::core::None :wat::core::None))
-          ((:wat::spawn::ServiceEvent::Connection _p)
-            (:wat::kernel::assertion-failed! "call-by-deadline: select connection" :wat::core::None :wat::core::None))
-          ;; ⭑ The cause is KEPT and the outcome is honest. This arm used to bind `_c` and
-          ;; return `Lost Disconnected` — nothing had died, and the reason was thrown away.
-          ((:wat::spawn::ServiceEvent::Malformed idx c)
-            (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::Malformed c)
-              (:wat::kernel::assertion-failed! "call-by-deadline: timer malformed" :wat::core::None :wat::core::None)))
-          ((:wat::spawn::ServiceEvent::Rejected idx _c)
-            (:wat::core::if (:wat::i64::= idx 0)
-              (:wat::service::CallOutcome::Lost :wat::kernel::LociDiedError::Disconnected)
-              (:wat::kernel::assertion-failed! "call-by-deadline: timer rejected" :wat::core::None :wat::core::None))))))))
+    (:wat::kernel::SendOutcome::Sent   (:wat::service::race-reply peer ms inert))
+    (:wat::kernel::SendOutcome::Closed (:wat::service::race-reply peer ms inert))
+    ((:wat::kernel::SendOutcome::Lost _cause) (:wat::service::race-reply peer ms inert))))
