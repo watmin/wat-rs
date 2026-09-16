@@ -281,7 +281,7 @@ fn ignore_reasons_are_justified() {
         }
     }
 
-    // Sanity floor: the lint must actually be seeing real attributes, not silently
+    // NON-VACUITY: the lint must actually be seeing real attributes, not silently
     // scanning nothing (NISI FRANGAS, NIHIL PROBAS — a wall that finds zero of
     // everything proves nothing about the population it claims to police).
     assert!(

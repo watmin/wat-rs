@@ -167,6 +167,18 @@ fn tests_carry_no_error_flattening_helper() {
     collect_rs(&Path::new(manifest).join("tests"), &mut files);
     files.sort();
 
+    // NON-VACUITY: the population this lint polices is famously supposed to stay at 0
+    // (`violations.is_empty()` below is a genuine target, not a stand-in for "found nothing to
+    // look at") — so the walk itself, not the hit count, is what must prove it reached the tree.
+    // `tests/` holds well over 300 `.rs` files today (782 measured 2026-09-16, same population
+    // `no_bare_is_err.rs` walks); a count this low means the walk lost the directory.
+    assert!(
+        files.len() > 300,
+        "no_error_flattening_helper's walk of tests/ found only {} .rs files — it is not \
+         reaching the tree, so a clean (0-violation) run below proves nothing",
+        files.len()
+    );
+
     let mut violations = Vec::new();
     for f in &files {
         if f.file_name().and_then(|n| n.to_str()) == Some("no_error_flattening_helper.rs") {

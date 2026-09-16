@@ -38,6 +38,17 @@ fn committed_rust_does_not_literal_bootstrap_paths() {
     }
     files.sort();
 
+    // NON-VACUITY: src/ + tests/ together hold well over 900 `.rs` files today (1109 measured
+    // 2026-09-16); a count this low means one or both roots vanished from under this walk, not
+    // that the tree shrank that far, and `violations.is_empty()` alone would pass silently over a
+    // walk that found nothing.
+    assert!(
+        files.len() > 900,
+        "no_bootstrap_path_in_committed_rust's walk of src/+tests/ found only {} .rs files — it \
+         is not reaching the tree, so a clean run below proves nothing",
+        files.len()
+    );
+
     let mut violations = Vec::new();
     for f in &files {
         if f.file_name().and_then(|n| n.to_str())

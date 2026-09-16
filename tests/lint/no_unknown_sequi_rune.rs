@@ -82,6 +82,9 @@ fn sequi_categories_on(line: &str) -> Vec<&str> {
 fn every_sequi_rune_names_a_known_category() {
     let mut files = Vec::new();
     collect_rs(Path::new("src"), &mut files);
+    // NON-VACUITY: the guard below is this gate's answer. Note the RELATIVE path — this walk
+    // depends on cargo's working directory, which is exactly the kind of assumption that silently
+    // stops holding. 213 .rs files are found today (driven 2026-09-01).
     assert!(
         !files.is_empty(),
         "no .rs files found under src/ — the lint is scanning nothing and would pass vacuously"

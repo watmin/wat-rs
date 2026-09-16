@@ -214,6 +214,19 @@ fn no_diagnostic_string_names_a_wat_type_in_the_retired_angle_spelling() {
     }
     files.sort();
 
+    // NON-VACUITY: a walk that comes back empty asserts nothing over nothing and reports PASS, and
+    // every verdict downstream inherits that silence. The floor sits well under the
+    // 230 .rs file(s) this walk finds today — driven 2026-09-01, and the count comes
+    // from `tests/lint/every_walking_gate_declares_non_vacuity.rs`, never from prose — so it
+    // catches a walk gone blind — a moved root, a renamed directory — without rotting as the
+    // tree grows.
+    assert!(
+        files.len() > 100,
+        "the no-angle-type-in-diagnostic walk found only {} .rs file(s) — it is not \
+         reaching the tree it claims to guard, so its green means nothing",
+        files.len()
+    );
+
     let mut violations = Vec::new();
     for f in &files {
         if f.file_name().and_then(|n| n.to_str()) == Some("no_angle_type_in_diagnostic.rs") {

@@ -175,6 +175,9 @@ fn every_grid_axis_on_disk_has_a_size_rung_and_is_swept_by_default() {
     let ladder = ladder_keys(&src);
     let order = order_entries(&src);
     let axes = discovered_axes();
+    // NON-VACUITY: the axes are DISCOVERED from disk by the `.wat` + `gen-*.sh` pairing, so a
+    // moved grid dir or a broken pairing rule would leave this gate sweeping an empty list and
+    // reporting every ladder rung consistent. 11 axes are found today (driven 2026-09-01).
     assert!(!axes.is_empty(), "no perf axes discovered — the pairing rule or the dir moved");
 
     for axis in &axes {

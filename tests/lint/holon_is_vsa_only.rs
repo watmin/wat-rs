@@ -350,8 +350,8 @@ fn holon_ast_confined_to_vsa_homes_and_the_one_carrier() {
     }
     files.sort();
 
-    // A discovering walk must prove it discovered something, or an empty sweep reads as clean
-    // (same doctrine as `no_rc_use.rs`).
+    // NON-VACUITY: a discovering walk must prove it discovered something, or an empty sweep
+    // reads as clean (same doctrine as `no_rc_use.rs`).
     assert!(
         files.len() > 50,
         "the holon-is-vsa-only walk found only {} .rs files — it is not reaching the tree, so \

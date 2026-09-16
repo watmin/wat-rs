@@ -43,6 +43,9 @@ fn every_ungated_wat_file_checks() {
         .filter(|rel| !GATED_PREFIXES.iter().any(|p| rel.starts_with(p)))
         .collect();
 
+    // NON-VACUITY: the module doc above already states why an empty walk here would be a lie
+    // (deleted or re-gated corpus, or a widened exclusion prefix swallowing it); this is that
+    // guard, made real rather than left as prose 26 lines up with nothing under it.
     assert!(
         !paths.is_empty(),
         "derived scope (tracked *.wat outside {:?}) is EMPTY — this wall is vacuous. Either the \

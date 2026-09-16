@@ -36,6 +36,19 @@ fn every_wat_scripts_file_loads_on_the_current_runtime() {
     collect_wat(Path::new("wat-scripts"), &mut entries);
     entries.sort();
 
+    // NON-VACUITY: a walk that comes back empty asserts nothing over nothing and reports PASS, and
+    // every verdict downstream inherits that silence. The floor sits well under the
+    // 445 .wat file(s) this walk finds today — driven 2026-09-01, and the count comes
+    // from `tests/lint/every_walking_gate_declares_non_vacuity.rs`, never from prose — so it
+    // catches a walk gone blind — a moved root, a renamed directory — without rotting as the
+    // tree grows.
+    assert!(
+        entries.len() > 200,
+        "the wat-scripts load walk found only {} .wat file(s) — it is not \
+         reaching the tree it claims to guard, so its green means nothing",
+        entries.len()
+    );
+
     let mut failures = Vec::new();
     for path in &entries {
         let rel = path.to_str().expect("utf8 path");
@@ -48,7 +61,6 @@ fn every_wat_scripts_file_loads_on_the_current_runtime() {
         }
     }
 
-    assert!(!entries.is_empty(), "no .wat found under wat-scripts/ — the gate is measuring nothing");
     assert!(
         failures.is_empty(),
         "{} of {} wat-scripts/ files do not load on the current runtime (rotted):\n{}",

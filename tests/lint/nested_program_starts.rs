@@ -562,6 +562,9 @@ fn nested_program_literals_start_on_the_child_path() {
         failures.join("\n")
     );
     let total = checked + assembled + templates + data;
+    // NON-VACUITY: the census this floor is measured against found 141 nested-program literals;
+    // a total below that means this walk stopped reaching most of them, not that the corpus shrank
+    // that far.
     assert!(
         total >= 141,
         "census was 141 literals; got checked={checked} assembled={assembled} templates={templates} data={data} total={total}"

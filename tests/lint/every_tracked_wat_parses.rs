@@ -32,6 +32,9 @@ fn every_tracked_wat_file_parses() {
         .lines()
         .map(str::to_string)
         .collect();
+    // NON-VACUITY: this repo's tracked .wat corpus is in the low thousands (2100+ measured
+    // 2026-09-16); a count this low means `git ls-files` itself broke, or the corpus was
+    // deleted out from under this wall.
     assert!(paths.len() > 1000, "expected the whole .wat corpus; got {}", paths.len());
 
     let mut unreadable: Vec<String> = Vec::new();

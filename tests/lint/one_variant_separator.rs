@@ -203,6 +203,17 @@ fn only_identifier_rs_spells_the_variant_separator() {
     }
     files.sort();
 
+    // NON-VACUITY: src/ + crates/ + tests/ together hold well over 900 `.rs` files today (1171
+    // measured 2026-09-16, before the per-file `in_scope` filter below narrows it further); a
+    // count this low means one of the three roots vanished from under this walk, not that the
+    // tree shrank that far.
+    assert!(
+        files.len() > 900,
+        "one_variant_separator's walk of src/+crates/+tests/ found only {} .rs files — it is not \
+         reaching the tree, so a clean run below proves nothing",
+        files.len()
+    );
+
     let mut violations = Vec::new();
     for f in &files {
         // This file names every forbidden shape in its own detector — skip self.

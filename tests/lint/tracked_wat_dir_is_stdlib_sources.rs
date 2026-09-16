@@ -50,6 +50,8 @@ fn stdlib_paths() -> Vec<String> {
 fn tracked_wat_dir_is_exactly_stdlib_sources() {
     let tracked = tracked_wat_paths();
     let loaded = stdlib_paths();
+    // NON-VACUITY: both sides of the set-equality below must independently prove they found
+    // something, or an empty tracked set and an empty loaded set would compare equal and pass.
     assert!(
         !tracked.is_empty(),
         "git ls-files wat/ returned nothing — this gate is measuring nothing"

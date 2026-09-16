@@ -86,6 +86,19 @@ fn only_types_rs_peels_a_param_spec() {
     }
     files.sort();
 
+    // NON-VACUITY: a walk that comes back empty asserts nothing over nothing and reports PASS, and
+    // every verdict downstream inherits that silence. The floor sits well under the
+    // 998 .rs file(s) this walk finds today — driven 2026-09-01, and the count comes
+    // from `tests/lint/every_walking_gate_declares_non_vacuity.rs`, never from prose — so it
+    // catches a walk gone blind — a moved root, a renamed directory — without rotting as the
+    // tree grows.
+    assert!(
+        files.len() > 500,
+        "the one-param-spec walk found only {} .rs file(s) — it is not \
+         reaching the tree it claims to guard, so its green means nothing",
+        files.len()
+    );
+
     let mut violations = Vec::new();
     for f in &files {
         // This file names the forbidden patterns in its own detector — skip self.

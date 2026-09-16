@@ -113,6 +113,9 @@ fn invocation_surface() -> String {
 #[test]
 fn every_parity_script_is_invoked_by_ci_or_a_test() {
     let scripts = parity_scripts();
+    // NON-VACUITY: the guard below is this gate's answer to it. The glob discovers its subject,
+    // so an empty result would make every orphan check pass over nothing; 4 scripts are found today
+    // (driven 2026-09-01) and the floor of 3 catches a blind glob without pinning the corpus.
     assert!(
         scripts.len() >= 3,
         "found only {} parity script(s) under wat-scripts/perf/grid — the glob went blind, which \
