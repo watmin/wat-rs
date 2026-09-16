@@ -637,3 +637,142 @@ neither run by this executor.
 
 None. Do not push. Main untouched. `~/work/holon/` untouched. No subagents, no worktrees. Tree
 clean at yield.
+
+# Batch 4e — #226 → #233 committed; STOPPED mid-#234
+
+## #226 — the batch's whole risk, driven
+
+TWO-PHASE stdlib convert on `wat/rete/syntax.wat` (the only `.wat` this step touches): `convert.sh`
+on `C^`/`C`, `git merge-file` (0 conflicts — grok's Drop-guard change threaded onto main's
+kwargs/dot-variant syntax, diff matches grok's own hunk exactly), merged content installed,
+`cargo build --release` (binary sha256 `8f917acde…`→`74c86db96…`, confirmed a genuine recompile by
+an immediate zero-op control rebuild reproducing the same hash). No `UNREGISTERABLE` — no STOP-9.
+`--check` on the stdlib file disproved, not worked around: pre- and post-step content refuse with
+the SAME 5 `ReservedPrefix` names, delta 0 (this step edits an existing defn's body, adds no new
+top-level `:wat::` defn — unlike #221's +3).
+
+`src/rete/purity.rs` and `src/runtime.rs` were main's most-diverged files, exactly as the brief
+warned: main had already HOMED/CLASSIFIED `arm-session`/`release-session` (stone P6-c-W5b) and
+deleted the whole `:wat::rete::` Unreviewed-ledger block grok's diff context assumed still existed,
+so the naive 3-way conflict spanned a large main-only rationale comment unrelated to grok's actual
+one-line change. Re-expressed by hand (a `.rs` conflict, not R21 territory): grok's one new ledger
+entry and one new dispatch arm inserted at the equivalent live location; grok's own comment ("beside
+its two siblings") was adapted rather than copied verbatim, since it is no longer true on this tree
+(the siblings are already classified) — an instance of finding 30's class caught before it shipped,
+not after. Grok's own re-addition of a `release-session` match arm in `runtime.rs` was dropped
+(that name is already intercepted by main's pre-match registry-first door; re-adding it would be a
+dead arm, not merely redundant).
+
+Two wat-in-`.rs`-string hand-fixes, both logged in the commit body: `assertion-failed!`'s old
+positional form → main's kwargs form (`assertion-failed-to-kwargs.wat` is the corpus codemod for
+this exact shape but cannot reach a `.rs` string literal), and `:wat::core::i64::/` → `:wat::i64::/`
+(a HARD CUT retirement, `src/remedy/retirement.rs` — not merely deprecated).
+
+**One additional fix, outside grok's diff, required to land the step green.** `kind(lib)` first ran
+RED: `intrinsic::tests::registry_membership_gap_a_is_named_and_frozen` — "NEW — check_env has a
+TypeScheme for these but registry() has no row… add each to REGISTRY_MEMBERSHIP_GAP_A…
+[\":wat::rete::adopt-session-lease\"]". This is finding 20's exact class (#95 hit the same gate for
+`RETE_OPS` Alias rows), and its own ruling applies verbatim: the gate's message sanctions adding a
+NEW name. `check.rs`'s `TypeScheme` for `adopt-session-lease` (cherry-picked clean) has no
+`registry()` row because the fn is `#[restricted_to]`, not `#[wat_intrinsic]` — deliberate, per
+grok's own doc comment. Added the name to `REGISTRY_MEMBERSHIP_GAP_A` (`src/intrinsic/mod.rs`)
+**inside this same step**, not folded in later — finding 20's own lesson was that #95/#108's
+identical repairs were right but landed AFTER the batch, leaving intervening steps knowingly red.
+Re-ran `kind(lib)`: 1481 passed (was 1480 passed + 1 failed).
+
+Named tests (3, all new in C): `scoped_work_with_network_releases_the_lease_when_the_body_raises`,
+`…_when_the_body_panics`, `scoped_work_with_overlay_releases_the_lease_when_the_body_raises` — 3/3.
+
+## #227–#229, #231–#232 — docs-only, corrected subject every time
+
+Five docs-only steps (`score`/`curare`/`strike` notes under `docs/arc/2026/06/278-rules-engine/`).
+Per finding 26/31, every one used `git cherry-pick -x --no-commit` + a hand-composed
+`REPLAY(grok-rete #N): <C's subject>` commit carrying the `(cherry picked from commit …)` trailer —
+never a bare `-x`. #228 and #232 auto-merged one hunk each against local drift in
+`CURRENT-STATE-annihilate-interpretation.md`, conflict-free. `absent-on-main.tsv` has no row in
+this range.
+
+## #230 — shared, 2 `.rs`, 0 `.wat`
+
+`fix(rete): wall 5 — the import door bounds its own recursion`. Both files auto-merged clean
+(0 conflicts): `src/rete/export.rs` (162+/47-, matches C's diff exactly) and
+`tests/rete/probe_arc278_export.rs` (a file pre-existing on this branch since #93/#153/#155/#157/#159,
+not new — C's diff is a pure 228-line append, applied cleanly). No wat-in-`.rs`-string literals in
+this diff (pure Rust recursion-depth logic) — no hand-fixes needed. Named tests (4, all new):
+`import_refuses_{an_and,a_user_prog_cycle,a_pattern,a_driver}_tower_past_the_depth_bound` — 4/4.
+`kind(lib)` unchanged at 1481 (the new tests are an integration binary, not `kind(lib)`).
+
+## #233 — the path-based trap, driven correctly
+
+`strike: draw D3`. Carries a `.wat` and 0 `.rs` (3 docs + `tests/rete/probe_arc278_export.wat`) — the
+record gate requires `census`/`nested-program-gate` and explicitly NOT `lint-subset`/`kind(lib)`/
+`doctest`, per the brief's own warning (the inverse misjudgement cost a repair at #215). The 3 docs
+files auto-merged clean. The `.wat` file is itself pre-existing (not new, per #93/#153/#155/#157/#159
+again) — cherry-pick auto-merged it too, but using grok's OWN syntax (bracket-free positional match
+arms, positional `assertion-failed!`), so that merge was discarded and redone by the prescribed
+modified-`.wat` recipe: reset to HEAD, `convert.sh` on `C^`/`C` (both rc=0, no
+UNREGISTERABLE/UNRESOLVED), `git merge-file` (0 conflicts). Result matches C's one-defn diff exactly,
+threaded onto main's syntax; `--check` rc=0. No `.rs` in this diff, so no named test to run (the new
+`:user::import-and-hits` fixture defn is wired up by #234, which follows).
+
+## STOP at #234 — an in-crate wall red, UNRELATED to this step's own diff, not dismissed
+
+`fix(rete): an argument with no parameter is refused, not placed`. `git cherry-pick -x --no-commit`
+auto-merged both files clean (`src/rete/expr_ir/eval.rs`, `tests/rete/probe_arc278_export.rs`; diff
+matches C exactly). One wat-in-`.rs`-string hand-fix, logged: the new `synthetic_user_fence` helper
+looked up `":wat::rete::core::i64::<"` in the `RETE_OPS` vocabulary by name — the corpus was already
+renamed to `":wat::rete::i64::<"` (the numerics-to-their-homes codemod family; the string is a Rust
+lookup key parsed from `vocabulary.rs`, not wat source, so no codemod reaches it) — fixed at
+`tests/rete/probe_arc278_export.rs:910`, confirmed correct because all 7 named tests then passed
+(a wrong name would have panicked the helper itself, not merely mis-asserted). Named tests (7, all
+new): `untampered_export_answers_one_hit`, `a_well_formed_user_call_still_runs`,
+`arity_refuses_a_surplus_that_collides_with_a_declared_slot`,
+`arity_refuses_a_surplus_that_falls_past_the_frame`,
+`arity_refuses_arguments_to_a_zero_parameter_callee`,
+`arity_refuses_a_call_with_no_arguments_at_all`,
+`arity_refuses_too_few_arguments_on_the_evaluating_path` — 7/7 passed. census/nested-program-gate
+also clean (2107 files, unchanged; `--diff no STOP-8`; nested-program-gate 3/3).
+
+`cargo nextest run --release -E 'kind(lib)'` then went RED — **not on anything #234 touches**:
+
+```
+FAIL [ 0.171s] ( 636/1481) wat rete::kernel::tests::gather_probe_cost::probe_extend_cost_split
+thread 'rete::kernel::tests::gather_probe_cost::probe_extend_cost_split' (500797) panicked at
+src/rete/kernel/tests/gather_probe_cost.rs:887:5:
+combined (34 ns) is far below its parts b+m+e (82 ns) — the combined closure is no longer doing
+the work the parts describe
+```
+
+This is finding 28's exact CLASS (a nanosecond wall-clock apportionment gate — "loose bounds
+0.5x–2x because these are wall clocks", `h >= (b+m+e)*0.5`) in a DIFFERENT test
+(`gather_probe_cost::probe_extend_cost_split`, not `accum_cost::accum_alpha_class_lookup_split`,
+which #202/#190 already struck two batches ago). `gather_probe_cost.rs` predates this entire batch
+(introduced by grok, replayed at #183/#184, untouched by #226–#240) and is not in this batch's blast
+radius. The SAME 1481-test `kind(lib)` invocation passed clean (1481/1481) twice already in this
+session, at #226 (after the registry-gap fix) and at #230 — strong circumstantial evidence this is
+contention-sensitive under nextest's own parallelism, not a defect #234 introduced.
+
+Per doctrine — "THERE IS NO SUCH THING AS A KNOWN FLAKE… `pre-existing`/`unrelated to my change` are
+NOT dispositions" — this was **not** waved through on that basis. Per STOP-11 and the anti-re-run
+rule: the test was NOT re-run; the whole stdout+stderr block was captured verbatim (above, in full);
+the exact failing assertion is named (`gather_probe_cost.rs:887:5`, the `h >= (b+m+e)*0.5`
+apportionment check). #234 was **not committed** — the fold rule has nothing to fold into (no step
+in #226–#240 touches `gather_probe_cost.rs`, and the file is outside this batch's blast radius per
+the brief). The cherry-picked, hand-fixed, NOT-yet-committed content for #234 was left staged in the
+working tree exactly as finding 28's own precedent preserved its failing tree, so the failure can be
+reproduced verbatim by re-running the same command.
+
+## Checkpoint
+
+`scripts/replay/verify-step-record.sh 8cd884e9a HEAD 226 233` → `step-range: #226..#233 each present
+exactly once, sources match` and `step-record: complete`, exit 0. #234–#240 NOT reached.
+`git replace -l` → 0 entries. `git diff --name-only 8cd884e9a..HEAD` touches only files the 8
+committed steps' own diffs claim, plus this directory's own docs — no `wat-scripts/fixes/` edit, no
+`absent-on-main.tsv` row in `226..233`.
+
+## STOP
+
+**STOP-11 at #234** (in-crate wall red — see above). Do not push. Main untouched.
+`~/work/holon/` untouched. No subagents, no worktrees. Tree is **NOT** clean at yield: #234's
+cherry-picked + hand-fixed changes are staged, uncommitted, preserved as the failing evidence
+(`git status --porcelain`: `M src/rete/expr_ir/eval.rs`, `M tests/rete/probe_arc278_export.rs`).
