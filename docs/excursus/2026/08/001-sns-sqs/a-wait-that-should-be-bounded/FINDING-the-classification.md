@@ -179,10 +179,32 @@ What defeated the classifier, specifically:
 1. **It is neither of the two PARK shapes and neither of the two BOUND shapes.** Not a long-poll; not a
    service main loop awaiting its next request; not a handshake; not a request/reply. It is a
    *drain-to-EOF* — a fifth shape the four classes do not name.
-2. **No live caller reveals intent.** `grep -rn 'kernel::recv-all\b'` over `wat/` + `wat-scripts/`
-   returns only the rename records in `wat-scripts/fixes/reclaim-ipc-prime-names.wat:51-52`. Its
-   documented purpose (spawn.wat:600–614) is to replace a retired *test* drain, and the only readings
-   of intent available are from its own header prose.
+2. ~~**No live caller reveals intent.**~~ ⛔ **AMENDED 2026-09-15 by the orchestrator — the grep was
+   scoped too narrowly and the amendment points the OTHER WAY.** The original read: *"`grep -rn
+   'kernel::recv-all\b'` over `wat/` + `wat-scripts/` returns only the rename records in
+   `wat-scripts/fixes/reclaim-ipc-prime-names.wat:51-52`."* True, and `wat/` + `wat-scripts/` is the
+   wrong universe for a **stdlib** function — its callers are tests. Widened to every carrier
+   (`--include=*.wat --include=*.rs --include=*.jsonl`, whole tree): **8 live call sites in 6 files** —
+   `tests/program/wat_arc170_program_contracts.rs:333`, `:374`, `:420`; its three `.wat` fixtures there
+   (`…t18b_recv_assert_fail.wat:41`, `…t18c_recv_all_multi.wat:34`, `…t18_echo_doubled.wat:42`);
+   `wat-tests/counter-actor-proof-process.wat:243`; `wat-tests/kernel/services/ambient-stdio.wat:129`,
+   `:158`.
+
+   ⭑ **The class stays UNKNOWN; the intent reading now leans BOUND.** Every live caller is a test
+   draining a child **expected to exit** after printing a finite output list — `ambient-stdio:129`
+   drains a child whose `main` prints `"first"`/`"second"` and asserts exactly that vector
+   (`:130`–`:131`). A wedged child there hangs the suite with no arm to report it, which is
+   character-for-character the defect `ab419aaa3` closed in `wat/test.wat`'s two spawn holders. What
+   keeps it out of BOUND is §6.4, not §6.2: those two holders could name a constant and change nothing
+   else; this one **cannot report a timeout without a new form** — `Result :- [(Vector O),
+   LociDiedError]` has nowhere to put *"timed out holding a partial `acc`"*, `LociDiedError` is
+   `BadReturn · Disconnected · EntryFormFailure · MainSignature · Panic · RuntimeError · Severed ·
+   StartupError · Stopped` with **no timeout variant**, and this fn's own comment (`spawn.wat:645`)
+   bans `Ok`-over-partial. Same species as the `send` ruling: a **missing form**, not a usage gap
+   (`a-send-cannot-say-it-is-blocked/DESIGN.md`).
+
+   ⚠ The instrument lesson, again: **a stdlib symbol's callers are not in the stdlib's own directory.**
+   Scope a caller census to every carrier or it reports zero and licenses the wrong conclusion.
 3. **Its contract is compatible with both readings.** *"Reads until the peer signals a terminal
    RecvOutcome"* (604–605) is a PARK reading — the producer's termination is the signal, as in
    `runner-loop`. But a peer that is **alive and silent** hangs the drain forever, which is the BOUND
