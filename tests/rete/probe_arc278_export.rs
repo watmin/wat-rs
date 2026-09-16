@@ -566,3 +566,57 @@ fn an_op_eval_survives_export_and_import() {
          pack, unpack, the slot bounds check, and exec"
     );
 }
+
+/// ⚠ DISCONFIRMING PROBE for the vigilia's Class A1 — written BEFORE the strike, expected RED.
+///
+/// `circumspicere` found that `import_export`'s header counts THREE walls (range refusal at the
+/// read, slot bounds as a post-pass, three compat gates) and that **none of them is a GRAPH
+/// wall**: nothing proves a child id names a node, that a Negation/Exists/Accumulate `aid` names
+/// an Alpha, or that `child > parent` — while `kernel/node.rs:193` and `kernel/arm.rs:592` both
+/// state the passes REQUIRE ascending id order as the topological order.
+///
+/// This truncates the node list, leaving every surviving parent's downstream child id dangling,
+/// and imports. A network the engine cannot legally walk must be REFUSED at the door.
+#[test]
+fn import_refuses_a_node_graph_with_dangling_child_edges() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+
+    let all = seq_values(export_field(&exp, "nodes"));
+    assert!(
+        all.len() >= 4,
+        "fixture must have enough nodes for a truncation to dangle an edge; got {}",
+        all.len()
+    );
+    let kept: Vec<Value> = all.iter().take(all.len() / 2).cloned().collect();
+    let n_kept = kept.len();
+    let tampered = poke_named(exp, "nodes", Value::Vec(Arc::new(kept)));
+
+    let out = import_one(&world, tampered);
+    match out {
+        Err(e) => {
+            let msg = format!("{e:?}");
+            assert!(
+                msg.contains("malformed") || msg.contains("Malformed"), // rune:lint(loose-assert) — the refusal's KIND is the contract; its wording is not pinned yet
+                "import refused, but not as a malformed-form refusal: {msg}"
+            );
+        }
+        Ok(v) => panic!(
+            "IMPORT ACCEPTED A BROKEN GRAPH: kept {n_kept} of {} nodes, so every surviving \
+             parent's downstream child id names nothing, and import returned {v:?}. \
+             There is no graph wall.",
+            all.len()
+        ),
+    }
+}
+
+/// Read a named field out of an `Export` aggregate — the read half of [`poke_named`].
+fn export_field<'a>(exp: &'a Value, field: &str) -> &'a Value {
+    match exp {
+        Value::Aggregate(a) => {
+            let i = a.names.iter().position(|n| n == field).expect(field);
+            &a.fields[i]
+        }
+        other => panic!("expected Export, got {other:?}"),
+    }
+}
