@@ -929,6 +929,35 @@ two). A rune that carries a checkable sentence is auditable; run the sentence.
   `rc=1` is not evidence that the failure is the declared one. ⚠ The executor's E3 recorded `rc=1,
   rune-covered` — true, and under-measured in exactly the way finding 27 describes.
 
+## Finding 31 — the canonical procedure's own wording trapped three executors; and a verdict line that WRAPS fails a check that genuinely ran
+
+Two defects in instruments **I own**, both surfaced by batch 4d, neither the executor's fault.
+
+**(a) BRIEF-1 item 1 reads as a complete instruction and contradicts item 4.** It said, in full:
+`1. **Docs-only:** git cherry-pick -x C.` — a closed sentence, 36 lines above item 4's
+`Commit: REPLAY(grok-rete #N): <C's subject>`. A bare `-x` keeps grok's own subject, which makes the step
+invisible to `verify-step-record.sh`. **Three executors in a row read it literally**: #160/#161 landed that
+way (finding 26); 4c's and 4d's executors each caught it only because *their* briefs patched over the
+wording — and 4d's said so explicitly, calling the literal reading "finding 26's exact trap". Patching each
+brief while the source keeps mis-teaching is fixing the case and leaving the class. **Item 1 now says
+`-x --no-commit` and points at item 4**, which governs the commit for every step, docs-only included.
+- The general shape: **a numbered step that is a complete sentence will be read as complete.** If a later
+  item governs it, the earlier one must say so where it is read, not rely on the reader reaching item 4.
+
+**(b) `verify-step-record.sh`'s patterns match within a single line, so a WRAPPED verdict line fails a wall
+that genuinely ran.** #221's census check ran and passed — census diff clean, `no STOP-8`, both files on
+disk — but the body's line had been hand-wrapped, so `--diff no STOP-8` never joined `census:` and the gate
+reported `MISSING #221`. The gate was right to refuse (the record must be machine-readable) and the
+executor's repair was correct, but **nothing anywhere said the lines must be single-line.** Now stated in
+the SEAM's operational rules. Rung: CONVENTION — the gate already enforces it mechanically; what was
+missing was the instruction telling an author why their true record was being rejected.
+- ⚠ Note the failure mode this produces: a gate rejecting a *true* record teaches an author that the gate
+  is wrong. 4d's executor correctly diagnosed it as formatting rather than assuming the check had failed —
+  but the next one might reword the claim instead of the layout.
+
+**Both were repaired at the source rather than in the batch that hit them**, which is the same reasoning as
+the #184 precedent: fix it where the instrument lives, not where the symptom appeared.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

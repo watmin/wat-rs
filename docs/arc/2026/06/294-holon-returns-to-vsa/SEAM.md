@@ -21,8 +21,9 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `628e26a00`. In flight: nothing — **batch 4c (#212–#220) is CLOSED**; **220 of 651
-replayed**. Next is **#221**, the first MULTI-stdlib-file step since 2a4d.
+Stamp: written at HEAD `b036c5fd8` (= origin). In flight: nothing — **batch 4d (#221–#225) is CLOSED and
+PUSHED**; **225 of 651 replayed**. Next is **#226**, a divergent stdlib MACRO (`wat/rete/syntax.wat`'s
+`:wat::rete::defquery`) — finding 19's G1 class, closed by 2a4c — plus 5 shared `.rs`.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -39,8 +40,9 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4a #153–#159 (CLOSED; floor 5551/5551, pushed; P1+Q1's first use)
                               + 2a4d, the per-SET stdlib world (CLOSED; floor 5552/5552, pushed)
                               + batch 4b #160–#211 (CLOSED; floor 5569/5569, clippy 0, pushed)
-                              + batch 4c #212–#220 (CLOSED; floor 5576/5576, clippy 0)
-                              ⇒ 220 of 651 replayed. NEXT: #221, first MULTI-stdlib step since 2a4d.
+                              + batch 4c #212–#220 (CLOSED; floor 5576/5576, clippy 0, pushed)
+                              + batch 4d #221–#225 (CLOSED; floor 5578/5578, clippy 0, pushed)
+                              ⇒ 225 of 651 replayed. NEXT: #226, a divergent stdlib MACRO (G1 class).
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -97,7 +99,21 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
-- **Batch 4c #212–#220 is CLOSED** (`628e26a00`; SCORE-7c, REPLAY-LOG; findings 29–30). 9 steps.
+- **Batch 4d #221–#225 is CLOSED and PUSHED** (`b036c5fd8`; SCORE-7d, REPLAY-LOG; finding 31). 5 steps.
+  Orchestrator-verified: floor **5578/5578, 24 skipped** — the predicted count for the FIFTH consecutive
+  time — clippy 0, E7 reproducing #221's verdict lines exactly (kind(lib) 1478, doctest 8, lint-subset 153,
+  stone-3 3, its named test 2/2), and the range gate green **identically with and without
+  `GIT_NO_REPLACE_OBJECTS=1`** (finding 29's rule: zero `refs/replace/`). E2/E11/E13 re-checked by me.
+  ★ **2a4d IS PROVEN FOR A REAL 2-FILE STDLIB SET** — the reason this boundary existed. Each member was
+  converted SOLO and diffed byte-for-byte against the 2-file union output, both revisions: **all four
+  comparisons identical**. No sibling converts differently inside the union than alone.
+  ⚠ **`--check` on a `wat/` stdlib file is UNSATISFIABLE by construction** and was DISPROVED, not skipped —
+  I re-derived it myself from identical path shapes: main's own untouched `fire.wat` gives **16**
+  `ReservedPrefix`, ours **19** — exactly +3 for the three new top-level defns. Generalises finding 25's
+  `wat/fix.wat` precedent to all of `wat/`.
+- **Batch 4c #212–#220 is CLOSED and PUSHED** (steps at `628e26a00`, records at `154672b4a`; SCORE-7c,
+  REPLAY-LOG; findings 29–30). 9 steps. ⚠ *This row sits BELOW 4d's above it — the bullets are not in
+  chronological order. The STAMP and the WHERE block are the authority on what is current.*
   Orchestrator-verified: floor **5576/5576, 24 skipped** — the predicted count for the fourth consecutive
   time — clippy 0, E7 reproducing #218's verdict lines exactly (kind(lib) 1478, doctest 8, lint-subset 153,
   stone-3 3), E3 over all 8 touched `.wat` giving **5 rc=0 / 3 rc=1** exactly as predicted, and
@@ -218,6 +234,15 @@ on a stashed tree, then `git checkout -- src/check.rs`.
 - **Pass `verify-step-record.sh` the batch's STEP RANGE** (`<from> <to> <first-N> <last-N>`), or it cannot
   see a mis-subjected or skipped step — finding 26. Every step, docs-only included, commits as
   `REPLAY(grok-rete #N): <C's subject>` with the `-x` trailer kept in the body.
+- ⛔ **Each verdict line in a commit body must be ON ONE LINE** (finding 31). `verify-step-record.sh`'s
+  patterns match within a single line, so a hand-WRAPPED `census: … --diff no STOP-8` fails a wall that
+  genuinely ran, and the gate then looks wrong to an author whose record was true. Do not reword the claim
+  to satisfy it — unwrap the line.
+- ⛔ **Fix a mis-teaching instrument AT THE SOURCE, not in the brief that hit it** (finding 31). BRIEF-1's
+  item 1 (`Docs-only: git cherry-pick -x C.`) read as a complete instruction and contradicted item 4; it
+  misled THREE executors in a row, the last two escaping only because their briefs patched over it. Item 1
+  is now amended. Patching each brief while the source keeps mis-teaching fixes the case and leaves the
+  class.
 - ⛔ **When an executor reports a REPAIR, ask what OBJECT GRAPH proves it** (finding 29). A `git replace`
   overlay made the record gate read `complete` here and `MISSING #215` under `GIT_NO_REPLACE_OBJECTS=1` —
   `refs/replace/` is local and **`push` does not carry it**, so the DR site and every clone would have

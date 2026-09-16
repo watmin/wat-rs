@@ -66,7 +66,12 @@ remaining 641 (and the next branch) will reuse.
 
 For grok-rete commit **C**, where #N is its index after `de827fb4c`:
 
-1. **Docs-only:** `git cherry-pick -x C`.
+1. **Docs-only:** `git cherry-pick -x --no-commit C`, then commit per item 4 like every other step.
+   ⛔ **NOT a bare `git cherry-pick -x C`** — that keeps GROK'S OWN SUBJECT, which makes the step
+   INVISIBLE to `verify-step-record.sh` (it selects by grepping `REPLAY(grok-rete #`). **This wording has
+   misled three executors in a row** (finding 26 at #160/#161; caught pre-commit at 4c and 4d only because
+   their briefs patched over it). Item 4 governs the COMMIT for EVERY step, docs-only included; this item
+   governs only how the content is brought over.
 2. **Otherwise:** `git cherry-pick -x --no-commit C`, then collect the `.wat` paths C adds or
    modifies. Call convert.sh twice per commit — once for the C^ set, once for the C set:
    `convert.sh C^ <out-before> <path>…` and `convert.sh C <out-after> <path>…`. Then per file:
