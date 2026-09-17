@@ -21,15 +21,24 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `da28895d8` (= origin). **323 of 651 replayed and PUSHED.**
+Stamp: written at HEAD `24ca5ef5c` (AHEAD of origin — see below). **340 replayed locally, 323 pushed.**
 
-⚠ **BATCH 4j IS IN FLIGHT AND PART-LANDED — RESUME AT #324, DO NOT RESTART IT.**
-Three steps landed (#321 #322 #323, all docs-only), plus the SCORE/LOG commit and the #324 addendum —
-all **PUSHED**. Batch-start for the record gate is still **`665b17b60`**; the remaining range is
-**#324 → #340**. Verified green before pushing: floor **5717/5717, 24 skipped** (the count predicted
-before running, thirteenth consecutive), clippy 0/0, walls unchanged (lint-subset 249, kind(lib) 1493,
-doctest 8, nested-gate 3/3), 0 replace refs, 0 `refs/original`, and the stopped executor's
-`git reset --hard` left **zero** #324 artifacts on disk.
+⚠⚠ **BATCH 4j: ALL 20 STEPS LANDED — BUT THE FLOOR IS RED AND A FOLD IS PENDING. DO NOT PUSH.**
+340 REPLAY steps at `24ca5ef5c` locally; **origin is still `e77ef977c`** (only #321–#323 are published).
+Batch-start for the record gate is **`665b17b60`**. The range gate exits 0 both ways, all 20 trailers are
+provenance-clean, clippy 0/0, lint-subset 249, kind(lib) 1496, and #324's suite is 5/5.
+
+⛔ **THE FLOOR IS 5733/5735 — TWO STALE GOLDENS, ONE CAUSE.** #328 (D6) rewrote the `step-payload` doc
+comment; two **main-only** goldens pin its rendered text and were never regenerated:
+`tests/cli/pprintln_doc_row__step_payload.edn` (byte golden, **no bless path** — capture the binary's
+stdout) and `tests/reflection/probe_stone_metadata_of_whole_row__step_payload_row.edn`
+(`UPDATE_EDN=1`). ⚠ The two mechanisms differ; a blanket `UPDATE_EDN=1` leaves the first untouched while
+its test still fails. Both regenerations measured PROSE-ONLY (only `:doc` moves) — but that must be
+re-proven by whoever lands it, because #328 changed code as well as prose.
+
+★ **This FOLDS into #328** (the #270 ledger-reseed class: a main-only artifact pinned to text a replayed
+step legitimately rewrote), with **#329 → #340 rebuilt on top**. Never a repair commit after the batch.
+⛔ **Instructions: `BRIEF-7j-ADDENDUM-328-two-stale-goldens.md`.** After the fold, re-run the floor.
 
 ★ **#324 WAS A DESIGN COLLISION, NOT A LANDING DEFECT — RULED 2026-09-16, OPTION A, FOUR YES.**
 Rewrite the two colliding tests to assert refusal, land grok's walker fix unchanged, regenerate the EDN
@@ -105,10 +114,11 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4h #281–#300 (CLOSED; floor 5702/5702, clippy 0, pushed)
                               + batch 4i #301–#320 (CLOSED; floor 5717/5717, clippy 0, pushed)
                               + the binding-repr STRIKE (4d5287a53; two timing asserts, 4-YES)
-                              + batch 4j #321–#323 (PART-LANDED and pushed; batch IN FLIGHT)
-                              ⇒ 323 of 651 replayed and PUSHED (origin da28895d8).
-                                ⚠ 4j is NOT closed — it resumes at #324 and runs to #340. The record
-                                  gate's batch-start for it is still 665b17b60.
+                              + batch 4j #321–#340 (all 20 LANDED locally at 24ca5ef5c; NOT closed)
+                              ⇒ 320 of 651 PUSHED, plus #321–#323 = 323 published (origin e77ef977c).
+                                ⚠ 340 replayed in the working branch; #324–#340 are UNPUSHED because
+                                  the floor is RED on #328's two stale goldens — see the stamp. The
+                                  record gate's batch-start for 4j is 665b17b60.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
