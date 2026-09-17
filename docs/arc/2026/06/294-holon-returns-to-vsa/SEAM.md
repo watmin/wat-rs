@@ -21,16 +21,25 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `141da831e`. **323 of 651 replayed.**
+Stamp: written at HEAD `da28895d8` (= origin). **323 of 651 replayed and PUSHED.**
 
-⛔⛔ **BATCH 4j IS STOPPED AT #324 AND HELD — DO NOT ASSUME IT CLOSED, AND DO NOT PUSH.**
-Three steps landed (#321 #322 #323, all docs-only) at `1245b02df`, plus the SCORE/LOG commit
-`141da831e`. **UNPUSHED; origin is still `6a681c63c`.** Verified green by the orchestrator anyway: floor
-**5717/5717, 24 skipped** (the count predicted before running, thirteenth consecutive), clippy 0/0, walls
-unchanged (lint-subset 249, kind(lib) 1493, doctest 8, nested-gate 3/3), 0 replace refs, 0
-`refs/original`, and the executor's `git reset --hard` left **zero** #324 artifacts on disk.
+⚠ **BATCH 4j IS IN FLIGHT AND PART-LANDED — RESUME AT #324, DO NOT RESTART IT.**
+Three steps landed (#321 #322 #323, all docs-only), plus the SCORE/LOG commit and the #324 addendum —
+all **PUSHED**. Batch-start for the record gate is still **`665b17b60`**; the remaining range is
+**#324 → #340**. Verified green before pushing: floor **5717/5717, 24 skipped** (the count predicted
+before running, thirteenth consecutive), clippy 0/0, walls unchanged (lint-subset 249, kind(lib) 1493,
+doctest 8, nested-gate 3/3), 0 replace refs, 0 `refs/original`, and the stopped executor's
+`git reset --hard` left **zero** #324 artifacts on disk.
 
-⛔ **#324 NEEDS A BUILDER RULING — IT IS A DESIGN COLLISION, NOT A LANDING DEFECT.** grok's D5 fix is
+★ **#324 WAS A DESIGN COLLISION, NOT A LANDING DEFECT — RULED 2026-09-16, OPTION A, FOUR YES.**
+Rewrite the two colliding tests to assert refusal, land grok's walker fix unchanged, regenerate the EDN
+golden. ⛔ **The full instructions are `BRIEF-7j-ADDENDUM-324-the-then-match-collision.md` — an executor
+resuming this batch reads BRIEF-7j AND that addendum.** Options B (reopen `250162a0e` and narrow the
+fence, 2 YES), C (`#[ignore]` the three, 1 YES) and D (skip #324 and bank the rest, 1 YES) were weighed
+flat and refused; **B is not ruled out for the future** but is a `wat/` change needing its own stone.
+⛔ **Do not touch `wat/rete/compile.wat` in this batch.**
+
+The collision, kept here because it is the reasoning a future hand will need: grok's D5 fix is
 sound and its two merge conflicts were resolved correctly, but 3 of its own 5 named tests fail here. One
 is a routine `UPDATE_EDN=1` golden regeneration. **Two are permanent**: main's `250162a0e SCORE(277)`
 (arc 277, ACCEPTED after one reland, an ANCESTOR of this batch's start, **absent from grok's branch**,
@@ -96,11 +105,10 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4h #281–#300 (CLOSED; floor 5702/5702, clippy 0, pushed)
                               + batch 4i #301–#320 (CLOSED; floor 5717/5717, clippy 0, pushed)
                               + the binding-repr STRIKE (4d5287a53; two timing asserts, 4-YES)
-                              ⇒ 320 of 651 PUSHED (origin 6a681c63c).
-                              ⚠ +3 MORE LANDED BUT HELD, UNPUSHED: batch 4j's #321–#323 at 1245b02df.
-                              ⇒ 323 of 651 replayed in the working branch. 4j STOPPED at #324 —
-                                see the stamp. This ledger counts PUSHED batches, which is why the
-                                two numbers differ; neither is stale.
+                              + batch 4j #321–#323 (PART-LANDED and pushed; batch IN FLIGHT)
+                              ⇒ 323 of 651 replayed and PUSHED (origin da28895d8).
+                                ⚠ 4j is NOT closed — it resumes at #324 and runs to #340. The record
+                                  gate's batch-start for it is still 665b17b60.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
