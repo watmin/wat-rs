@@ -575,3 +575,24 @@ Check-elision soundness (the spike, 126 ms) · the rest of the payload's size ·
 0 of 3,260 fn params carry hygiene scopes after a bare boot — surprising and unexplained** · cache
 keying/invalidation (untried; `src/hash.rs` looks right) · whether 15.67 ms survives building the real
 spine.
+
+
+---
+
+## ⛔⛔ RULED 2026-09-17 — TIER A, THEN TIER B
+
+**Builder:** *"let's do tier A, ten B -- make sure we've got these noted in our docs and we roll"*.
+
+This FINDING's recommendation is now a **decision**, and it is recorded here so no later reader mistakes
+it for an open question:
+
+1. **Tier A is BUILT** — cache the expanded + registered state, eliding parse + expand + registration.
+   **265.96 ms**, no soundness argument required. Stone:
+   `the-boot-cache-elides-what-it-already-knows/`.
+2. **Tier B FOLLOWS** — elide the four `ALL fns` check sweeps for a further **126 ms**, and it is gated
+   on the spike this FINDING named: *can a user definition change a **stdlib** body's verdict?*
+   (`env.defined_values` mutated from user top-level `def`s at `src/check.rs:817`, before body-infer at
+   `:844`; `redef_allowed` exists.) **The spike runs before Tier B is drawn**, not during it.
+
+⭑ The order is the builder's and it matches the measurement: Tier A is the larger phase *and* the one
+with no open question. Tier B is smaller *and* carries the only soundness risk in the whole finding.
