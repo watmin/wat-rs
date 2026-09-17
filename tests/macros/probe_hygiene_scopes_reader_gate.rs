@@ -82,6 +82,24 @@ const SANCTIONED_SCOPES_READERS: &[(&str, &str)] = &[
          survive, C03 shared-stays-shared + distinct-stays-distinct + the two \
          structures do not collapse, C04 imported ids are fresh, C05 the wire form).",
     ),
+    (
+        "freeze/boot_cache.rs",
+        "the boot cache's payload — cross-BOOT transport of hygiene (excursus 001 Tier A). \
+         The THIRD member of the transport family beside hash.rs and edn/bridge.rs, and it \
+         obeys the same law: it reads scopes ONLY to write them as DENSE FIRST-ENCOUNTER \
+         INDICES, and NEVER keys or identifies by them. On load each distinct index is \
+         re-minted through `fresh_scope()`, so a restored scope can never collide with one \
+         this process mints — resolution stays env_key's alone. env_key is NOT usable here \
+         and that is the whole point: it flattens a scope id INTO a name string \
+         (\"kwargs\\u{1}952\"), and `Function::params`' own doc says why that is wrong across \
+         a boundary — \"an exec'd child restarts fresh_scope() at 1, so imported scopes must \
+         be REMAPPED\", and a scope inside a string cannot be. \
+         BACKED BY: tests/diagnostics/boot_cache_fixpoint.rs \
+         (the_variants_the_stdlib_never_exercises_round_trip_and_scopes_come_back_shared — \
+         the shared scope stays shared, the bare identifier stays bare, and the restored id \
+         is asserted NOT EQUAL to the one that was written; plus a byte-exact fixpoint over \
+         the real 2.85 MB payload).",
+    ),
 ];
 
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {

@@ -65,12 +65,63 @@ impl MacroRegistry {
         Self::default()
     }
 
+    /// ⛔ THE ONE DOOR every macro-head probe goes through — and therefore the one place the
+    /// boot cache can WITNESS which names the stdlib expansion actually consulted. See
+    /// `crate::freeze::boot_cache`'s header: a cached expansion is only reusable if no USER
+    /// macro could have been consulted while it ran, and this is where that is measured rather
+    /// than argued. The witness is `None` on every boot but the one that builds the snapshot,
+    /// so the cost here is one thread-local read.
     pub fn contains(&self, name: &str) -> bool {
+        crate::freeze::boot_cache::note_probe(name);
         self.macros.contains_key(name)
     }
 
     pub fn get(&self, name: &str) -> Option<&MacroDef> {
+        crate::freeze::boot_cache::note_probe(name);
         self.macros.get(name)
+    }
+
+    /// Boot-cache door — the raw tables, for serialisation. `pub(crate)` and named for its one
+    /// consumer so it cannot quietly become a general-purpose back door around `register`.
+    pub(crate) fn cache_parts(&self) -> (&HashMap<String, MacroDef>, &HashMap<String, WatAST>) {
+        (&self.macros, &self.surface_forms)
+    }
+
+    /// Boot-cache door — every registered name. Used to take the exact BEFORE/AFTER difference
+    /// across user `defmacro` registration, so the names subtracted from the cached payload are
+    /// the ones the user actually added and not an over-approximation of them.
+    pub(crate) fn name_set(&self) -> std::collections::HashSet<String> {
+        self.macros.keys().cloned().collect()
+    }
+
+    /// Boot-cache door — this registry minus `names` (and minus any `surface_forms` they keyed).
+    /// The payload must hold the STDLIB world alone; the user's step-4 registrations are peeled
+    /// back off here.
+    pub(crate) fn without_names(&self, keep_out: &std::collections::HashSet<String>) -> Self {
+        MacroRegistry {
+            macros: self
+                .macros
+                .iter()
+                .filter(|(k, _)| !keep_out.contains(*k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            surface_forms: self
+                .surface_forms
+                .iter()
+                .filter(|(k, _)| !keep_out.contains(*k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        }
+    }
+
+    /// Boot-cache door — rebuild from a decoded payload. Bypasses `register`'s gates on purpose:
+    /// every entry here ALREADY passed them when the snapshot was derived, and the payload is
+    /// keyed on the exact build that derived it.
+    pub(crate) fn from_cache_parts(
+        macros: HashMap<String, MacroDef>,
+        surface_forms: HashMap<String, WatAST>,
+    ) -> Self {
+        MacroRegistry { macros, surface_forms }
     }
 
     /// Register a macro through the ONE gate (resolve::registration). `privilege` is

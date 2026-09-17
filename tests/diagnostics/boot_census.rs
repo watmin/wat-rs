@@ -31,6 +31,16 @@ fn an_armed_boot_census_names_the_manifest_entries_it_spent_time_in() {
          shared-process runner it cannot be trusted and must not be read as a pass."
     );
 
+    // ⛔ THE CACHE MUST BE OFF HERE, AND THAT IS THE POINT OF THIS LINE, NOT A WORKAROUND.
+    // This test's claim is about the DERIVATION — "arming `files` names which of the 55 baked
+    // manifest entries boot spends its time in". `file_guard` opens inside `stdlib_forms()`, and
+    // excursus 001 Tier A's boot cache elides `stdlib_forms()` entirely, so a cached boot has no
+    // stdlib manifest entry to attribute and this test would measure one file: the user's own.
+    // Measuring a cached boot and calling it a derivation census would be measuring A and
+    // claiming B. The report itself now SAYS SO when the cache answers (see `report_text`'s
+    // "THE BOOT CACHE ANSWERED" arm) rather than printing a short table in silence.
+    std::env::set_var("WAT_BOOT_CACHE", "off");
+
     // A real freeze of a real program: the one-line probe the excursus measured by hand.
     let world = wat::freeze::startup_from_file("wat-scripts/probes/arc-170/probe-trivial.wat")
         .expect("the trivial probe must freeze");

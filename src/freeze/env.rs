@@ -34,6 +34,7 @@ use crate::runtime::{
     register_stdlib_runtime_defs, register_struct_methods, register_type_predicates, Environment,
     EvalBreak, SymbolTable,
 };
+use crate::freeze::boot_cache;
 use crate::freeze::census;
 use crate::load::stdlib::stdlib_forms;
 use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
@@ -104,7 +105,22 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //     `(:wat::holon::Subtract …)` / `(:wat::holon::Amplify …)` call
     //     in user source resolves during step 4's macro expansion
     //     without an explicit `load!`.
-    let stdlib = census::phase(census::P_STDLIB_PARSE, stdlib_forms)?;
+    // ⭐ EXCURSUS 001 TIER A — THE BOOT CACHE, and it is decided HERE, before the first stdlib
+    // phase, because every phase from 3a to 6b is a pure function of the BAKED stdlib and this
+    // is the read-back of a previous boot's answer. `snapshot.is_none()` ⇒ every phase below
+    // runs exactly as it always did; there is no second pipeline. See `crate::freeze::boot_cache`
+    // for the key, the ⛔ gate, and why absent / stale / corrupt all mean "derive".
+    let snapshot = census::phase(census::P_CACHE_LOAD, || boot_cache::consider(&user_forms));
+    let want_store = snapshot.is_none() && boot_cache::should_store();
+
+    // Parsed ONLY when the cache did not answer. `stdlib_forms()` is the last place in the whole
+    // boot that knows which manifest entry a form came from, which is why the census's per-file
+    // seam lives inside it.
+    let stdlib = if snapshot.is_some() {
+        None
+    } else {
+        Some(census::phase(census::P_STDLIB_PARSE, stdlib_forms)?)
+    };
 
     // 3b. Arc 278 #88 — pull the `(:wat::rete::core::defn …)` declarations out of the RAW,
     //     pre-macro-expansion user forms, and rewrite each head to plain `:wat::core::defn` so
@@ -123,11 +139,33 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // 4. Macro registration + expansion. Stdlib defmacros register
     //    first; user defmacros layer on top and can shadow (subject
     //    to the reserved-prefix gate) or reference stdlib forms.
-    let mut macros = MacroRegistry::new();
-    let stdlib_post_macros =
-        census::phase(census::P_STDLIB_DEFMACRO, || register_stdlib_defmacros(stdlib, &mut macros))?;
+    let (mut macros, cached_types, cached_symbols, cached_runtime_def_forms) = match snapshot {
+        Some(s) => (s.macros, Some(s.types), Some(s.symbols), Some(s.runtime_def_forms)),
+        None => (MacroRegistry::new(), None, None, None),
+    };
+    let stdlib_post_macros = match stdlib {
+        Some(stdlib) => Some(census::phase(census::P_STDLIB_DEFMACRO, || {
+            register_stdlib_defmacros(stdlib, &mut macros)
+        })?),
+        None => None,
+    };
+    // The EXACT set of names the user's own `defmacro` forms added, by BEFORE/AFTER difference.
+    // Exact, not the over-approximating pre-scan the gate uses: these names are SUBTRACTED from
+    // the registry before it is cached, and an over-approximation here would silently drop
+    // STDLIB macros from the payload — which is not a slow boot, it is a wrong one.
+    let pre_user_macro_names: std::collections::HashSet<String> =
+        if want_store { macros.name_set() } else { std::collections::HashSet::new() };
     let post_macro_reg =
         census::phase(census::P_USER_DEFMACRO, || register_defmacros(user_forms, &mut macros))?;
+    let user_added_macro_names: std::collections::HashSet<String> = if want_store {
+        macros
+            .name_set()
+            .into_iter()
+            .filter(|n| !pre_user_macro_names.contains(n))
+            .collect()
+    } else {
+        std::collections::HashSet::new()
+    };
 
     // Arc 294 item 9a — class closure: an aggregate registered directly in Rust
     // (`TypeEnv::with_builtins()` — `register_builtin_types` + the `inventory`
@@ -141,9 +179,14 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // `kwargs-lower` forward. `TypeEnv::with_builtins()` is self-contained (no
     // stdlib/user forms needed) so it's safe to construct this early, ahead of
     // step 5's real `types` build.
-    census::phase(census::P_KWARGS_COMPANIONS, || {
-        register_aggregate_kwargs_companions(&crate::types::TypeEnv::with_builtins(), &mut macros)
-    })?;
+    // Cached worlds already carry these (the snapshot is taken AFTER this pass), and they are a
+    // pure function of `with_builtins()` — no user input reaches them, so re-minting them would
+    // be re-deriving a byte-identical answer.
+    if stdlib_post_macros.is_some() {
+        census::phase(census::P_KWARGS_COMPANIONS, || {
+            register_aggregate_kwargs_companions(&crate::types::TypeEnv::with_builtins(), &mut macros)
+        })?;
+    }
 
     // ORDER LOAD-BEARING: macro_eval purity (src/macros/eval.rs) depends on
     // expand_all preceding register_defines. See freeze.rs header comment.
@@ -166,15 +209,40 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // EXPLICIT `Privilege::Stdlib` (threaded, no ambient flag) — the stdlib bypass. The
     // user pass below uses plain `expand_all` (Privilege::User), so a mis-namespaced
     // user macro still halts.
-    let expanded_stdlib = census::phase(census::P_STDLIB_EXPAND, || {
-        crate::macros::expand::expand_all_with(
-            stdlib_post_macros,
-            &mut macros,
-            &Environment::default(),
-            &macro_sym,
-            crate::resolve::Privilege::Stdlib,
-        )
-    })?;
+    // ⛔ THE WITNESS. When this expansion is going to be CACHED, every macro-head probe it makes
+    // is recorded (non-reserved names only — a user macro can carry no other kind). That witness
+    // is what lets a later boot CHECK, rather than argue, that its own user macros could not have
+    // changed this expansion. See `boot_cache::gate_holds`.
+    let mut probe_witness: Vec<String> = Vec::new();
+    let expanded_stdlib = match stdlib_post_macros {
+        Some(stdlib_post_macros) => Some(census::phase(census::P_STDLIB_EXPAND, || {
+            let run = || {
+                crate::macros::expand::expand_all_with(
+                    stdlib_post_macros,
+                    &mut macros,
+                    &Environment::default(),
+                    &macro_sym,
+                    crate::resolve::Privilege::Stdlib,
+                )
+            };
+            if want_store {
+                let (out, w) = boot_cache::with_witness(run);
+                probe_witness = w;
+                out
+            } else {
+                run()
+            }
+        })?),
+        None => None,
+    };
+    // ⭐ THE SNAPSHOT POINT FOR `macros`: after stdlib expansion (which registers its own
+    // expansion-born stdlib defmacros) and BEFORE user expansion. The only user contamination
+    // here is step 4's registrations, and those are subtracted by name.
+    let cache_macros = if want_store {
+        Some(macros.without_names(&user_added_macro_names))
+    } else {
+        None
+    };
     let expanded_user = census::phase(census::P_USER_EXPAND, || {
         expand_all(
             post_macro_reg,
@@ -206,9 +274,18 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
 
     // 5. Type declarations. Seeded with built-in types before stdlib
     //    and user source land.
-    let mut types = census::phase(census::P_TYPEENV_BUILTINS, TypeEnv::with_builtins);
-    let stdlib_post_types =
-        census::phase(census::P_STDLIB_TYPES, || register_stdlib_types(expanded_stdlib, &mut types))?;
+    let mut types = match cached_types {
+        Some(t) => t,
+        None => census::phase(census::P_TYPEENV_BUILTINS, TypeEnv::with_builtins),
+    };
+    let stdlib_post_types = match expanded_stdlib {
+        Some(expanded_stdlib) => Some(census::phase(census::P_STDLIB_TYPES, || {
+            register_stdlib_types(expanded_stdlib, &mut types)
+        })?),
+        None => None,
+    };
+    // ⭐ THE SNAPSHOT POINT FOR `types`: stdlib + builtins, before user types land below.
+    let cache_types = if want_store { Some(types.clone()) } else { None };
     // Thread the namespace-scoped acronym registry (populated by `preregister_acronyms`
     // above, BEFORE macro expansion) into type registration so a `:satisfies` surface's
     // S1 protocol synthesis restores acronym casing on its `::Op`/`::Reply` variants
@@ -224,23 +301,30 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     census::phase(census::P_CONTAINMENT, || validate_aggregate_containment(&types))?;
 
     // 6. Function definitions.
-    let mut symbols = SymbolTable::new();
+    let mut symbols = cached_symbols.unwrap_or_else(SymbolTable::new);
     // Stone 237.8b — capture stdlib residue so defclause forms reach
     // register_runtime_defs.
-    let stdlib_residue = census::phase(census::P_STDLIB_DEFINES, || {
-        register_stdlib_defines(stdlib_post_types, &mut symbols)
-    })?;
+    let stdlib_residue = match stdlib_post_types {
+        Some(stdlib_post_types) => Some(census::phase(census::P_STDLIB_DEFINES, || {
+            register_stdlib_defines(stdlib_post_types, &mut symbols)
+        })?),
+        None => None,
+    };
     // (a) Pre-register defclause stubs into sym.functions so the checker
     //     sees them as callable names (e.g. :wat::kernel::spawn-program).
-    census::phase(census::P_DEFCLAUSE_STUBS, || {
-        for form in &stdlib_residue {
-            preregister_stdlib_defclause_stub(form, &mut symbols);
-        }
-    });
+    if let Some(stdlib_residue) = &stdlib_residue {
+        census::phase(census::P_DEFCLAUSE_STUBS, || {
+            for form in stdlib_residue {
+                preregister_stdlib_defclause_stub(form, &mut symbols);
+            }
+        });
+    }
     // (b) Extract stdlib forms that need RUNTIME registration via
     //     runtime_defs: defclause, extend-type, def.
     //     Arc 209 host-parity-4a broadened from defclause-only.
-    let stdlib_runtime_def_forms: Vec<WatAST> = census::phase(census::P_RUNTIME_DEF_FILTER, || {
+    let stdlib_runtime_def_forms: Vec<WatAST> = match stdlib_residue {
+        None => cached_runtime_def_forms.unwrap_or_default(),
+        Some(stdlib_residue) => census::phase(census::P_RUNTIME_DEF_FILTER, || {
         stdlib_residue
         .into_iter()
         .filter(|form| {
@@ -262,7 +346,25 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             }
         })
         .collect()
-    });
+        }),
+    };
+
+    // ⭐ THE STORE. Everything above this line that came from the stdlib is now in hand, and
+    // nothing below it is. `symbols` is cloned (its functions are `Arc`s, so this is a map copy)
+    // BEFORE `register_defines` lands the user's own definitions on the next line.
+    if want_store {
+        if let (Some(macros), Some(types)) = (cache_macros, cache_types) {
+            let snap = boot_cache::StdlibSnapshot {
+                macros,
+                types,
+                symbols: symbols.clone(),
+                runtime_def_forms: stdlib_runtime_def_forms.clone(),
+                probe_witness,
+            };
+            census::phase(census::P_CACHE_STORE, || boot_cache::store(&snap));
+        }
+    }
+
     let mut residue =
         census::phase(census::P_USER_DEFINES, || register_defines(post_types, &mut symbols))?;
 

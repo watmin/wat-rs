@@ -610,6 +610,33 @@ impl TypeEnv {
         self.types.contains_key(name) || self.builtin_names.contains(name)
     }
 
+    /// Boot-cache door — the four raw tables, for serialisation (`crate::freeze::boot_cache`).
+    /// `pub(crate)` and named for its one consumer so it cannot quietly become a general-purpose
+    /// back door around `register` / `register_stdlib`.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn cache_parts(
+        &self,
+    ) -> (
+        &HashMap<String, TypeDef>,
+        &std::collections::HashSet<String>,
+        &HashMap<String, Vec<String>>,
+        &HashMap<String, WatAST>,
+    ) {
+        (&self.types, &self.builtin_names, &self.subtype_edges, &self.source_forms)
+    }
+
+    /// Boot-cache door — rebuild from a decoded payload. Bypasses the registration gates on
+    /// purpose: every entry here ALREADY passed them when the snapshot was derived, and the
+    /// payload is keyed on the exact build that derived it.
+    pub(crate) fn from_cache_parts(
+        types: HashMap<String, TypeDef>,
+        builtin_names: std::collections::HashSet<String>,
+        subtype_edges: HashMap<String, Vec<String>>,
+        source_forms: HashMap<String, WatAST>,
+    ) -> Self {
+        TypeEnv { types, builtin_names, subtype_edges, source_forms }
+    }
+
     /// Answers STRUCTURE. Deliberately unchanged by the builtin-leaf population
     /// (stone 255-builtin-registry) — a primitive/container/opaque type has
     /// membership (`contains` → true) but no `TypeDef` to return, so this stays

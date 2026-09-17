@@ -167,6 +167,14 @@ pub(crate) const P_RESOLVE_LOADS: &str = "3    resolve-loads";
 /// Step 3a — `stdlib_forms()`: parse all 55 baked manifest entries. **The last seam that knows
 /// which file a form came from.**
 pub(crate) const P_STDLIB_PARSE: &str = "3a   stdlib-parse";
+/// Excursus 001 Tier A — the boot cache's READ path: the whole stdlib derivation (`3a` parse,
+/// `4` stdlib-defmacro/kwargs-companions/stdlib-expand, `5` typeenv-with-builtins/
+/// stdlib-types-register, `6` stdlib-defines-register, `6a` defclause-stub-preregister,
+/// `6b` stdlib-runtime-def-filter) replaced by one file read + decode. When this leaf has a
+/// reading, every one of those has none — that is what "elided" looks like in the report.
+pub(crate) const P_CACHE_LOAD: &str = "3a-6b boot-cache-load";
+/// The WRITE path — first boot after a rebuild only, and the bill row 12 asks for.
+pub(crate) const P_CACHE_STORE: &str = "7.9  boot-cache-store";
 /// Step 3b — `extract_rete_defn_names` + `rewrite_rete_defn_heads` (user forms only).
 pub(crate) const P_RETE_DEFN_SCAN: &str = "3b   rete-defn-scan";
 /// Step 4 — `register_stdlib_defmacros`.
@@ -257,6 +265,7 @@ pub(crate) const PHASE_ORDER: &[&str] = &[
     P_ENTRY_PARSE,
     P_CONFIG,
     P_RESOLVE_LOADS,
+    P_CACHE_LOAD,
     P_STDLIB_PARSE,
     P_RETE_DEFN_SCAN,
     P_STDLIB_DEFMACRO,
@@ -283,6 +292,7 @@ pub(crate) const PHASE_ORDER: &[&str] = &[
     P_STDLIB_RUNTIME_DEFS,
     P_EXTEND_TYPE_PREREG,
     P_FREEZE_VALIDATORS,
+    P_CACHE_STORE,
     P_CHECK_ENV,
     P_CHECK_LEGACY_SWEEP,
     P_CHECK_RESTRICTED,
@@ -673,6 +683,17 @@ pub(crate) fn report_text(
             rows.len(),
             ms(files_total)
         ));
+        // ⛔ THE INSTRUMENT CAN BE BLINDED, AND IT MUST SAY SO. `file_guard` opens inside
+        // `stdlib_forms()` — the last place in the boot that knows which manifest entry a form
+        // came from. When the boot cache answers, that function never runs, so the per-entry
+        // table below covers ONLY what was derived, which on a warm cache is the user's own
+        // entry file and nothing else. A near-empty table with no explanation is the shape that
+        // gets read as "the stdlib is free". It is not free; it was elided.
+        if phases.get(P_CACHE_LOAD).is_some_and(|r| r.hits > 0) {
+            out.push_str(
+                "\n     ⛔ THE BOOT CACHE ANSWERED, so `stdlib-parse` never ran and NO stdlib\n                 \x20       manifest entry could be attributed. The table above covers only what\n                 \x20       this boot DERIVED. Re-run with WAT_BOOT_CACHE=off to measure the\n                 \x20       derivation this mode exists to measure.\n",
+            );
+        }
     }
     out.push_str("──────────────────────────────────────────────────────────────────────────\n");
     out
@@ -843,6 +864,7 @@ mod tests {
      1    entry-parse                       0.00    0.00      0
      2    config-pass                       0.00    0.00      0
      3    resolve-loads                     0.00    0.00      0
+     3a-6b boot-cache-load                  0.00    0.00      0
      3a   stdlib-parse                     60.00   16.62      1
      3b   rete-defn-scan                    0.00    0.00      0
      4    stdlib-defmacro-register          0.00    0.00      0
@@ -869,6 +891,7 @@ mod tests {
      7.6  stdlib-runtime-defs-register      0.00    0.00      0
      7.7  extend-type-preregister(user)     0.00    0.00      0
      7.8  freeze-validator-drain            0.00    0.00      0
+     7.9  boot-cache-store                  0.00    0.00      0
      8a   check:env-from-symbols            0.00    0.00      0
      8b   check:retired-syntax(ALL fns)     0.00    0.00      0
      8c   check:restricted-call(ALL fns)     0.00    0.00      0
@@ -896,6 +919,7 @@ mod tests {
      1    entry-parse                       0.00    0.00      0
      2    config-pass                       0.00    0.00      0
      3    resolve-loads                     0.00    0.00      0
+     3a-6b boot-cache-load                  0.00    0.00      0
      3a   stdlib-parse                      0.00    0.00      0
      3b   rete-defn-scan                    0.00    0.00      0
      4    stdlib-defmacro-register          0.00    0.00      0
@@ -922,6 +946,7 @@ mod tests {
      7.6  stdlib-runtime-defs-register      0.00    0.00      0
      7.7  extend-type-preregister(user)     0.00    0.00      0
      7.8  freeze-validator-drain            0.00    0.00      0
+     7.9  boot-cache-store                  0.00    0.00      0
      8a   check:env-from-symbols            0.00    0.00      0
      8b   check:retired-syntax(ALL fns)     0.00    0.00      0
      8c   check:restricted-call(ALL fns)     0.00    0.00      0
@@ -949,6 +974,7 @@ mod tests {
      1    entry-parse                       0.00    0.00      0
      2    config-pass                       0.00    0.00      0
      3    resolve-loads                     0.00    0.00      0
+     3a-6b boot-cache-load                  0.00    0.00      0
      3a   stdlib-parse                      0.00    0.00      0
      3b   rete-defn-scan                    0.00    0.00      0
      4    stdlib-defmacro-register          0.00    0.00      0
@@ -975,6 +1001,7 @@ mod tests {
      7.6  stdlib-runtime-defs-register      0.00    0.00      0
      7.7  extend-type-preregister(user)     0.00    0.00      0
      7.8  freeze-validator-drain            0.00    0.00      0
+     7.9  boot-cache-store                  0.00    0.00      0
      8a   check:env-from-symbols            0.00    0.00      0
      8b   check:retired-syntax(ALL fns)     0.00    0.00      0
      8c   check:restricted-call(ALL fns)     0.00    0.00      0

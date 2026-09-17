@@ -35,6 +35,8 @@ fn main() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR");
     let tests_dir = Path::new(&manifest).join("tests");
 
+    boot_cache_fingerprint(&manifest);
+
     // Re-run if this script changes.
     println!("cargo:rerun-if-changed=build.rs");
 
@@ -108,5 +110,79 @@ fn main() {
                 dir.join("wat").display()
             );
         }
+    }
+}
+
+// ─── Boot cache fingerprint ──────────────────────────────────────────────────
+//
+// Excursus 001 `the-boot-cache-elides-what-it-already-knows` (Tier A). The boot
+// cache stores the *derived* stdlib world (expanded macros + registered types +
+// registered functions). Two INDEPENDENT things can invalidate it:
+//
+//   1. the stdlib SOURCE changed  (`wat/**/*.wat` — baked via `include_str!`)
+//   2. the RUST that derives from it changed (the expander, the registrars, the
+//      AST, the cache format itself)
+//
+// (2) is the one a source-only hash misses, and missing it is the dangerous
+// direction: a stale cache that is USED. So the fingerprint below covers every
+// input that can change either — the wat corpus, this crate's `src/`, every
+// workspace crate's `src/`, `Cargo.lock`, and this script — and a
+// `cargo:rerun-if-changed` line is emitted per FILE (a directory-level line only
+// catches add/delete on Linux, never an edit to an existing file).
+//
+// Hash: two FNV-1a-64 passes with different offset bases, concatenated to 128
+// bits. Hand-rolled because a build script may not use the crate's own
+// dependencies and this needs no crate of its own — the same reasoning that kept
+// the payload format dependency-free.
+fn boot_cache_fingerprint(manifest: &str) {
+    const ROOTS: &[&str] = &["wat", "src", "crates", "Cargo.lock", "Cargo.toml", "build.rs"];
+    let root = Path::new(manifest);
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    for r in ROOTS {
+        collect(&root.join(r), &mut files);
+    }
+    files.sort();
+
+    // Two independent 64-bit mixes (FNV-1a, and a rotate+odd-multiply) → 128 bits.
+    let (mut a, mut b) = (0xcbf2_9ce4_8422_2325u64, 0x9ae1_6a3b_2f90_404fu64);
+    let mut feed = |bytes: &[u8]| {
+        for &x in bytes {
+            a = (a ^ u64::from(x)).wrapping_mul(0x0000_0100_0000_01b3);
+            b = (b ^ u64::from(x)).rotate_left(27).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        }
+    };
+    for f in &files {
+        let rel = f.strip_prefix(root).unwrap_or(f);
+        println!("cargo:rerun-if-changed={}", f.display());
+        feed(rel.to_string_lossy().as_bytes());
+        feed(b"\0");
+        match fs::read(f) {
+            Ok(bytes) => feed(&bytes),
+            Err(_) => feed(b"<unreadable>"),
+        }
+        feed(b"\0");
+    }
+    println!("cargo:rustc-env=WAT_BUILD_FINGERPRINT={a:016x}{b:016x}");
+}
+
+/// Every regular file under `p` (recursively), or `p` itself when it is a file.
+/// `target/` and dot-directories are skipped — neither feeds the derivation.
+fn collect(p: &Path, out: &mut Vec<std::path::PathBuf>) {
+    let Ok(md) = fs::metadata(p) else { return };
+    if md.is_file() {
+        out.push(p.to_path_buf());
+        return;
+    }
+    if !md.is_dir() {
+        return;
+    }
+    let Ok(rd) = fs::read_dir(p) else { return };
+    for e in rd.flatten() {
+        let child = e.path();
+        let name = child.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if name.starts_with('.') || name == "target" {
+            continue;
+        }
+        collect(&child, out);
     }
 }

@@ -49,6 +49,12 @@
 //!   into their vectors (`:wat::holon::cosine`,
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
+// `pub`, not `pub(crate)` — the boot cache's byte-exact fixpoint can only be asserted from a
+// test that boots a REAL world, and integration tests are a separate crate. The `probe` submodule
+// inside it is that door and nothing else: no boot path calls it. ⛔ `Span::eq` returns `true`
+// unconditionally, so `assert_eq!(original, decoded)` would pass on a decoder that dropped every
+// span — the fixpoint is the only assertion that proves anything here.
+pub mod boot_cache;
 pub(crate) mod env;
 // `pub`, not `pub(crate)` — the boot census's `mode`/`force_mode`/`Mode` are the ONLY door an
 // integration test (a separate crate) has to arm the instrument and prove it attributes real boot
