@@ -20,7 +20,7 @@
 //! - `TypeExpr::Fn { args, ret }` →
 //!   `HolonAST::Bundle [Symbol(":Fn"), ...recurse(args), Symbol("->"),
 //!                      recurse(ret)]`
-//! - `TypeExpr::Var(id)` → `HolonAST::Symbol(":?{id}")` (atomic)
+//! - `TypeExpr::Var(id)` → `HolonAST::Symbol("t{id}")` (atomic; `src/reflect/render.rs`'s Var arm)
 //!
 //! NOTE (arc 221 Stone 221.4): `value_to_atom` now maps keywords to
 //! `HolonAST::Keyword` (proper primitive leaf per Stone 221.3 doctrine).

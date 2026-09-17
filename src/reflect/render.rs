@@ -116,8 +116,12 @@ pub(crate) fn eval_struct_to_form(
 ///                   recurse(ret) ]` — `->` is a Symbol (not a Keyword)
 ///   so it round-trips through the same shape the existing
 ///   `extract-arg-names` walker recognises (`HolonAST::Symbol("->")`).
-/// - `TypeExpr::Var(id)` → `WatAST::Keyword(":?{id}")` — mirrors
-///   `format_type`'s Var spelling; type variables stay atomic.
+/// - `TypeExpr::Var(id)` → `WatAST::Symbol("t{id}")` — a bare-symbol
+///   type-var, atomic (see the arm below). This is NOT `format_type`'s
+///   spelling: the checker's diagnostics render an unresolved var as `_`
+///   (C19, grok-rete #352). No Var arm in `src/` renders `:?{id}` any more:
+///   `check.rs` and `freeze.rs` render `_`; `closure_extract.rs` and this
+///   file render `t{id}`.
 ///
 /// Downstream `watast_to_holon` lowers `WatAST::List` → `HolonAST::Bundle`
 /// and `WatAST::Keyword(":Foo")` → `HolonAST::Keyword("Foo")` uniformly

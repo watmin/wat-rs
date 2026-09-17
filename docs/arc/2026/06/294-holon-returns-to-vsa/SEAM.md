@@ -21,57 +21,35 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `82367d8b8`. **340 of 651 replayed.** In flight: nothing.
+Stamp: written on top of `d940cf3ab` (batch 4k's records, pushed). **360 of 651 replayed.** In flight: nothing.
 
-**Batch 4j (#321–#340) is CLOSED.** Floor **5735/5735, 24 skipped** — the count predicted from the diff
-before running, **fourteenth consecutive exact match** — clippy 0/0, lint-subset 249, kind(lib) 1496,
-range gate exit 0 both ways, all 20 trailers provenance-clean, 0 replace refs, 0 `refs/original`.
+**Batch 4k (#341–#360) is CLOSED and PUSHED.** Floor **5792/5792, 24 skipped** — the count predicted from
+the diff before running, **fifteenth consecutive exact match** — clippy 0, lint-subset 293, kind(lib) 1496,
+doctest 8, range gate exit 0, origin an ancestor, 0 `refs/original`, 0 replace refs. Detail in the ledger
+row below and `SCORE-7k-replay-batch-4k.md`.
 
-Next is **batch 4k (#341–#360)**: censused — **13 docs-only, 7 code (#342 #344 #349 #352 #355 #357 #360)**,
-**ZERO hazard rows**, **no step touches `wat/`**, and all 8 M-status-absent paths are created earlier in
-the same range. 23 `.wat` (so `--check`/`convert.sh` work, **not** R21's codemod path). #377 is the next
-two-phase stdlib step — the batch after this one.
+Next is **batch 4l (#361–#380)**: censused — **10 docs-only, 10 code (#362 #363 #365 #367 #369 #371 #373
+#375 #377 #379)**, **ZERO hazard rows**, **no new `tests/lint/` gate file**, no `wat-scripts/fixes/` edit.
+⚠ Three trap doors, named in advance:
+- **#362 and #375 are grok's C20 cure** ("hash order is now unrepresentable"; grok's tip ends with
+  `QUARANTINE_LEN = 0`). ⛔ **Our quarantine is 7, not grok's 3** — four shared `arc170` fixtures grok's
+  two-run measurement missed were added at #352. **At #375 the list must drain to 0 INCLUDING our four**;
+  a survivor is a FINDING (C20's cure did not reach it), never a row kept to stay green. #362 touches
+  `src/freeze.rs` and #375 `src/check.rs` — the only 4l overlap with 4k's src files.
+- **#377 (9 files, 3 under `wat/`) and #379 (28 files, 25 `.wat`, 10 under `wat/`) are STDLIB steps**
+  (`stdlib-touch.tsv`): the two-phase / R21 path, not `--check`/`convert.sh`. Measure which before release.
+- **D10/D11 landed as narrow FALLBACKS here** (`then_operand_declared_type(...).is_none()`), not grok's
+  shape — main's `RhsOperandTypeMismatch` already covered them. Measured: no 4l step touches
+  `src/rete/validate/`.
 
-⚠⚠ **4k LANDS TWO NEW LINT GATES, AND BOTH WALK OUR WHOLE CORPUS.**
-- **#360 `every_wat_bad_fixture_actually_fails.rs`** (433 lines, 32 files / 14 `.wat` / 9 `.rs` — the
-  batch's largest step): every `*.wat.bad` must return `Err` from `startup_from_file`. `CORPUS_FLOOR`
-  200; we carry **290 `.wat.bad`, ~32 of them MAIN-ONLY** and never subjected to this check — grok found
-  16 of its own 281 were lies and renamed 13. ⛔ **`./target/release/wat` and `startup_from_file` give
-  OPPOSITE verdicts on these files** — grok withdrew its own first draft for measuring with the binary.
-  Measure with the driver, not the binary.
-- **#352 `diagnostic_output_is_deterministic.rs`** (351 lines): runs every `.wat.bad` **twice in fresh
-  processes** and demands byte-identical stdout/stderr/exit. Carries a hard-coded 3-entry `QUARANTINE`
-  and a named driver fixture, both keyed to grok's corpus, not ours.
-
-📊 Three of the last four new grok lint gates landed red here (#274, #278, #283 red; #310 green).
-**Measure the blast radius BEFORE releasing** — it has turned a batch-stopper into a checklist every time.
-
-★ **#324 WAS A DESIGN COLLISION, NOT A LANDING DEFECT — RULED 2026-09-16, OPTION A, FOUR YES.**
-Rewrite the two colliding tests to assert refusal, land grok's walker fix unchanged, regenerate the EDN
-golden. ⛔ **The full instructions are `BRIEF-7j-ADDENDUM-324-the-then-match-collision.md` — an executor
-resuming this batch reads BRIEF-7j AND that addendum.** Options B (reopen `250162a0e` and narrow the
-fence, 2 YES), C (`#[ignore]` the three, 1 YES) and D (skip #324 and bank the rest, 1 YES) were weighed
-flat and refused; **B is not ruled out for the future** but is a `wat/` change needing its own stone.
-⛔ **Do not touch `wat/rete/compile.wat` in this batch.**
-
-The collision, kept here because it is the reasoning a future hand will need: grok's D5 fix is
-sound and its two merge conflicts were resolved correctly, but 3 of its own 5 named tests fail here. One
-is a routine `UPDATE_EDN=1` golden regeneration. **Two are permanent**: main's `250162a0e SCORE(277)`
-(arc 277, ACCEPTED after one reland, an ANCESTOR of this batch's start, **absent from grok's branch**,
-never revisited by grok's remaining ~300 commits) refuses `:wat::rete::core::match` inside a `:then`
-outright — its totality axis is head-level and cannot see arms, so it cannot tell an exhaustive match
-from a partial one and refuses both. Our ruling is LIVE as `tests/rete/probe_then_match_is_refused.wat`
-(referenced at `probe_then_fence_and_enum_name.rs:54`); grok's opposing probes survive to ITS tip.
-⚠ **grok AGREES about the `:wat::core::` spelling** — its own `the_core_spelling_is_refused_by_the_fence…`
-PASSES here. The collision is only the `:wat::rete::core::` spelling. The fold rule does NOT reach this:
-nothing downstream revisits it. Three options, weighed 4-YES / 2-YES / 1-2-YES, are in
-`SCORE-7j-replay-batch-4j.md` § "For whoever resumes"; the orchestrator's recommendation is option 1
-(rewrite the two tests to assert refusal, land the walker fix, regenerate the golden regardless).
-
-When the ruling lands, resume at **#324** and carry on to #340 — the rest of the batch's shape is below
-and still holds: **14 docs-only, 6 code (#324 #327 #328 #332 #336 #337)**, **ZERO hazard rows**, **no step
-touches `wat/`**, and **NO new `tests/lint/` gate in the range**. The next two-phase stdlib step is #377.
-⚠ **#329 and #332 are still un-adjudicated traps** — see their warnings below.
+📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
+time** at 4k, and there its CURE tripped finding 33's gate: making a non-deterministic prefix pin exact
+closed its brackets into a parseable form. **After any fold that edits a `.rs` string literal, re-run the
+lint subset before the floor.**
+★ **#324 (batch 4j) was ruled option A, 4-YES** — the reasoning and the still-open option B live in the
+4j ledger row below and `BRIEF-7j-ADDENDUM-324-the-then-match-collision.md`. ⛔ Still: no replay step
+touches `wat/rete/compile.wat`; grok's `okF` row (a `match` in a `:then` arm body) was dropped at #349 for
+the same fence and returns only with option B.
 ⚠ **`.wat` FILES RETURN: 13 across the range** (#324's 5, #328's 3, #332's 2, #336's 2, #327's 1) after
 two batches with none — so **`--check` and `convert.sh` conversion work reappears**.
 ⛔ **CORRECTION, 2026-09-16:** an earlier version of this line said "R21 is live again — corpus rewrites
@@ -121,7 +99,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4i #301–#320 (CLOSED; floor 5717/5717, clippy 0, pushed)
                               + the binding-repr STRIKE (4d5287a53; two timing asserts, 4-YES)
                               + batch 4j #321–#340 (CLOSED; floor 5735/5735, clippy 0, pushed)
-                              ⇒ 340 of 651 replayed. NEXT: batch 4k #341–#360.
+                              + batch 4k #341–#360 (CLOSED; floor 5792/5792, clippy 0, pushed)
+                              ⇒ 360 of 651 replayed. NEXT: batch 4l #361–#380.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -178,6 +157,26 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4k #341–#360 is CLOSED and PUSHED** (records at `d940cf3ab`; SCORE-7k, ADDENDUM-352,
+  REPLAY-LOG; finding 38's fourth instance). 20 steps, 13 docs-only. Floor **5792/5792, 24 skipped** — the
+  count PREDICTED from the diff (+44 lint from #352/#360's 16-shard gates, +13 rete probes) for the
+  **fifteenth consecutive batch** — clippy 0, lint-subset 293, kind(lib) 1496, doctest 8.
+  ⚠ **CONTAMINATED ONCE AND RESUMED**: at a session restart a 19-day-old arc-255 subagent auto-resumed and
+  planted a THROWAWAY in `src/intrinsic/program.rs`; the executor discarded it and stopped after #341. The
+  agent (and an accidental forked session) were stopped; the tree was verified clean before #342.
+  ★ **Measured deviations, all verified by the orchestrator:** `QUARANTINE_LEN` 3 → **7** (four SHARED
+  fixtures, 15-run full-corpus sweep; grok's own C20 cure at #362/#375 must drain them); **D10/D11 as
+  narrow fallbacks** (main's `RhsOperandTypeMismatch` + #262's nested unification already covered them);
+  grok's **nk5** dropped (main refuses a bare keyword as a `:then` value at EVERY depth — re-measured
+  top-level and nested) and **okF** dropped (#324's fence); 2 of grok's 16 renames and all 3 banking runes
+  REJECTED on measurement; **0 of 288 `.wat.bad` start clean** under `startup_from_file`.
+  ⛔ **TWO VERIFICATION REDS, ONE FOLD INTO #352, TWO PARTS.** (1) main-only
+  `probe_arc214_stone46b_select_prime` pinned the `:?NNNN` prefix #352 rendered `_` → exact equality;
+  (2) that exact string was a parseable form → `no_inlined_wat_in_tests` red → the house
+  `rune:lint(no-inlined-wat)` golden-COMPARISON rune (9 precedents). Both rebuilds proven inert per step
+  (only #352's delta differs; only the probe differs in any tree), #352's record lines re-measured.
+  Separately struck: two doc comments claiming a `:?{id}` Var spelling no renderer emits
+  (`src/reflect/render.rs`, `tests/reflection/wat_arc201_…`).
 - **Batch 4j #321–#340 is CLOSED and PUSHED** (steps at `e7bcb65fc`, records at `82367d8b8`; SCORE-7j,
   two ADDENDA, REPLAY-LOG; finding 38). 20 steps, 13 docs-only. Floor **5735/5735, 24 skipped** — the
   count PREDICTED from the diff for the **fourteenth consecutive batch** — clippy 0/0, lint-subset 249,
