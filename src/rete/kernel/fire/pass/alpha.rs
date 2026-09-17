@@ -176,11 +176,14 @@ pub(crate) fn alpha_seed(
         // names as fatal. `tests/rete/probe_arc278_d7_parametric_erasure_differential.rs` cannot
         // see it; `seed_batches_uniform_classes_and_defers_mixed_ones` can.
         //
-        // ⚠ `record_seed_leaf_vs_alpha` (the test-only `LeafOccDiff` instrument) does NOT model this
-        // decision: it predicts occupancy from packability alone, so on a MIXED class it now
-        // under-predicts and would report a spurious `missing`. That instrument's own defect is a
-        // separate row (C16) and is deliberately not touched here; no test drives a mixed class
-        // through it today.
+        // `record_seed_leaf_vs_alpha` (the test-only `LeafOccDiff` instrument) models this decision
+        // correctly as of the C16 fix: it predicts `facts x leaves` for a batchable class rather
+        // than filtering by packability, so a MIXED class predicts every fact and matches what the
+        // deferred activate produces. ⚠ Before that fix it filtered by the SAME predicate that
+        // decides batch membership, which made it agree with the corruption by construction —
+        // measured at `523152b31`, defect live: `predicted=2 actual=2 extra=[] missing=[]`. With
+        // the filter gone and the same defect live it reports `predicted=3 actual=2 extra=1`.
+        // Gated by `seed_leaf_occupancy_differential_predicts_a_mixed_class`.
         if !*uniform {
             census_count("seed:batch-class-mixed");
             continue;
