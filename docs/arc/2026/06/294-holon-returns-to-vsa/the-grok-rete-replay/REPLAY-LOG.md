@@ -2069,3 +2069,255 @@ curare/strike prose that itself narrates the D5/D6/D7 story this STOP interrupts
 of #324's own resolution risks committing docs that reference a fix not actually present in the tree
 the way they describe it.
 
+## RESUMED — the builder ruled OPTION A (4-YES), 2026-09-16. #324 landed, #325 → #340 followed.
+
+Anchor unchanged (`665b17b60`; the STOP left the tree clean at `1245b02df`, #323). Read
+`BRIEF-7j-ADDENDUM-324-the-then-match-collision.md` in full before touching #324; its own text is
+the ruling and the landing instructions, not repeated here — this section is the EXECUTION record.
+
+## #324 — LANDED. `fix(rete): D5` walker fix unchanged; two of five tests INVERTED under the ruling
+
+`git cherry-pick -x --no-commit ab606b671` (10 files: 5 `.wat`, 2 `.rs` — exact match, no
+discrepancy). Two conflicts, both matching the STOP's own prior analysis exactly (reproduced, not
+re-derived from scratch):
+
+1. `experiri-then-match.wat`'s header conflict — resolved by keeping our header-less version (0 net
+   change; `git show HEAD:<path>` identical to the resolved content), per the #184/#212 precedent
+   the STOP already identified.
+2. `src/rete/validate/mod.rs`'s `binds` parameter — grok's two new recursive calls
+   (`walk_nested_constructors(scrutinee, …)`, `walk_nested_constructors(body_form, …)`) were written
+   against grok's own 4-arg signature; main's tree carries a 5th `binds: &HashMap<String,String>`
+   parameter every other call site threads. Re-expressed both new sites with `binds` threaded
+   through, identical to the other 6 sites. `cargo build --release` succeeded clean. **The walker
+   fix's own logic is untouched by this — it is a mechanical signature-threading fix.**
+
+**THE INVERSION, done exactly per the addendum:**
+
+- `the_bare_and_wrapped_then_spellings_compile_and_agree` and
+  `a_correct_constructor_in_a_match_arm_body_still_fires` REWRITTEN to assert REFUSAL. Measured,
+  not assumed, before writing a single assertion: ran the actual binary against all 4 converted
+  fixtures. `then_core_bare.wat` (already passing, unmodified) refuses with *"is not a rete
+  primitive; a then admits only :wat::rete:: ops"* (Law A — the head isn't even a rete op). The
+  other three (`then_rete_bare.wat`, `then_wrapped.wat`, `body_ok.wat`) ALL refuse with the SAME
+  message: *"a :then admits only what the fence can prove TOTAL. \`match\` is total as a HEAD,
+  but a match's exhaustiveness is a property of ITS ARMS — form-level, which a head-level axis
+  cannot see."* — the true Stone-C axis text, never `RhsArityMismatch`. `body_ok.wat`'s match sits
+  as a constructor FIELD's value, not the `:then` item's own top-level call — `then-item-contains-
+  match?` (compile.wat:737) walks the whole subtree, so nesting one level down inside an otherwise-
+  correct constructor does not escape the fence. Confirmed `--check` rc 0 on all four (freeze
+  succeeds — the walker fix holds; the refusal is purely a RUNTIME fence hit via `compile-all`).
+  After `convert.sh`'s `match-arm-to-bracket-map-pattern`, grok's "bare" and "wrapped" spellings
+  become BYTE-IDENTICAL past the header comment (main's syntax has exactly one match-arm-pattern
+  form) — confirmed by diff — so the rewritten test's `assert_eq!` compares the two faces with each
+  fixture's own path normalised out, proving agreement survives the inversion.
+- Each rewritten assertion checks the DIAGNOSTIC'S CONTENT (absence of `RhsArityMismatch`, presence
+  of "form-level"/"head-level"), never a bare `!ok` — a bare `!ok` would pass with or without the
+  D5 walker fix, since both the pre-fix walker (freeze-time refusal) and the post-fix fence
+  (runtime refusal) produce `!ok`.
+- `a_misspelled_constructor_in_a_match_arm_body_is_still_refused` (UNCHANGED assertion) needed only
+  `UPDATE_EDN=1` regeneration — PROVED convention-only: diffed before/after, every field name and
+  span value (`:line 23 :col 54`/`:col 59`) byte-identical; only the tag-dot-vs-slash /
+  vector-vs-map wrapper convention differs (`#wat.kernel.LociDiedError/StartupError […]` vs
+  `#wat.kernel/LociDiedError.StartupError {:error …}`).
+- `the_core_spelling_is_refused_by_the_fence_not_by_a_phantom_arity_error` and
+  `the_banked_d5_repro_pair_both_load` — UNCHANGED, both already passed on this tree.
+
+**Fixture disposition, by measurement:** `then_rete_bare.wat` and `then_wrapped.wat` STAY `.wat`
+(not `.wat.bad`) — `every_tracked_wat_file_parses` checks PARSE only (both parse clean) and
+`every_ungated_wat_file_checks` excludes the whole `tests/` prefix by design. Both pass `--check`
+and only fail at RUNTIME — the exact shape `tests/rete/probe_then_match_is_refused.wat` (main's own
+standing negative control for the SAME `250162a0e` ruling, batch 4f) already uses.
+
+finding 33 grepped: YES — every `:wat::` in the `.rs` diff is doc-comment prose or a Rust string
+COMPARISON against a parsed keyword (`resolve_core_name(head) == ":wat::core::match"`, the walker's
+own subject matter), never embedded executable wat.
+
+**One self-inflicted regression found and fixed before commit:** the two rewritten tests'
+`.contains(...)` assertions tripped `tests/lint/no_loose_string_assert.rs` (249→248). Added matching
+`// rune:lint(loose-assert)` runes (targeted absence on a large output; non-deterministic frame
+paths/line numbers rule out an exact golden) — same exemption shape `the_core_spelling_is_refused_
+by_the_fence_not_by_a_phantom_arity_error` already used. Re-verified 249/249 before commit.
+
+Named tests: 5/5 PASS. census: `.census/2026-09-17T01-39-09Z.txt` files=2126, no STOP-8 vs #323's
+`.census/2026-09-16T23-39-02Z.txt`. nested-program-gate PASS (3/3, 5743 skipped). lint-subset 249,
+kind(lib) 1493, doctest 8. Committed as `066105160` (later `080d3f66d2` after the #327 rebuild, see
+below — content and message identical, only ancestry changed).
+
+## #325 — docs-only, curare stamp. Clean auto-merge, 3 files (D5 closed, the enumeration point).
+
+## #326 — docs-only, curare stamp (withdraw D9). Clean auto-merge, 2 files, no conflict with #324's
+own edit to the SAME README (different section).
+
+## #327 — LANDED (draws D6). Clean cherry-pick, 4 files (3 docs, 1 new scratch-pad recon `.wat`).
+
+Converted (grok's `::` separator, positional forms) via `convert.sh`. One rename beyond respelling:
+`:wat::rete::core::i64::>` → `:wat::rete::i64::>` (the `rename-math-stat-seq-to-their-homes` chain
+member) — confirmed the CURRENT corpus spelling elsewhere (`probe_arc278_5a_defrule_query_with_
+rule.wat` etc.), not a codemod miss. `:wat::rete::core::enum::=` stays unrenamed, also confirmed
+live elsewhere. Driven post-conversion: prints `#wat.core/PersistentVector [(:wat.rete.i64/> 9 5)]`
+— ONE constraint, reproducing D6 exactly as grok's own body describes. finding 33: N/A, no `.rs`.
+census/nested-program-gate PASS.
+
+⛔ **A REAL E18 DEFECT WAS FOUND HERE LATER, DURING SCORE PREPARATION, AND REPAIRED — see the
+"#327 VERDICT-LINE REBUILD" section below.** The commit's original `census:` line wrapped onto a
+second physical line. Content was correct throughout; only the line-wrapping was wrong.
+
+## #328 — LANDED (D6's fix, the batch's largest step). Clean cherry-pick, 12 files (matches the
+brief exactly; `commits.tsv`'s `files=13` double-counts the file's R080 rename as delete+add).
+
+Two conflicts in `step_payload.rs`'s DOC COMMENTS only (`clause.rs`/`matcher.rs` auto-merged
+clean): the `constraints` field bullet (took C's updated, accurate text, re-spelled its example op
+to this tree's `:wat::rete::i64::<` convention) and the doc block after "Faithfulness by
+construction" (kept main's own arc-255 arity note, appended C's new "unrenderable constraint"
+section and Arguments list after it — both survive).
+
+**A REAL BUG FOUND AND FIXED, beyond the cherry-pick itself:** `matcher.rs`'s `value_to_ast_literal`
+built a unit-variant's round-trip keyword with `format!("{}::{}", ev.type_path, ev.variant_name)`.
+`sym.unit_variant(k)`'s registry key is built by `declare/register.rs:1341` via `wat_reader::
+identifier::compose_variant`, which joins with `.` before the leaf, NOT `::`
+(`crates/wat-reader/src/identifier.rs:362-364`, its own `compose_variant_joins_with_double_colon_
+verbatim` test confirms the namespace keeps its `::` but the FINAL join is always `.`). grok's
+hand-rolled `::`-only join therefore built a keyword `decompose_variant` cannot even split (no `.`
+anywhere in it) — the arm's own doc claim that `expr_ir::keyword_value` "reads that keyword
+straight back to this same `Value::Enum`" was FALSE on this tree, silently, because no existing
+test ever re-parsed the printed keyword. Re-expressed via `wat_reader::identifier::compose_variant`
+— the established idiom at 12+ other call sites (`src/value/observe.rs:363`,
+`src/closure_extract.rs:2263`, `src/rete/expr_ir/eval.rs:728`, others). This moved the rendered EDN
+for `a_unit_enum_constraint_reaches_the_explain_payload`'s golden (`:d6u.Grade/Hi` →
+`:d6u/Grade.Hi`) — verified as the CORRECT split (the old keyword has no `.` at all, so
+`decompose_variant` on it returns `None`; the new one decomposes correctly).
+
+**A mechanical hand-fix, measured not assumed:** `probe_arc278_D6_constraint_omission_nonenum.
+wat.bad` — `convert.sh`'s own `in_scope()` structurally excludes any path not ending `.wat` from
+every codemod, so a `.wat.bad` never converts. Measured that leaving it unconverted does NOT reach
+the intended check: it died on the retired positional `assertion-failed!` form (macro expansion of
+`:user::main` happens at freeze, unconditionally, before the rule's own `:when` validation
+surfaces) — an incidental, unrelated defect. Hand-fixed the 4 `assertion-failed!` calls to kwargs
+form (matching the sibling fixtures' converted output byte-for-byte), which then surfaced TWO MORE
+unrelated errors (`MalformedClause` on the un-renamed `core::i64::>`, `UnknownEnumVariant` on the
+`::`-separated `:d6x::Tag::A`) alongside the intended
+`ConstraintTypeNotComparable`. Hand-fixed those two spellings as well (matching the sibling
+fixtures), confirmed the golden's pinned `:line 30 :col 19` was UNCHANGED (start column, unaffected
+by edits before/after it on the line) while `:end :col 65 → :col 64` shifted by exactly the
+predicted 1 character (the `::`→`.` shrink). Driven after: EXACTLY ONE rete rule validation error,
+matching grok's own intent.
+
+**ALSO FOUND: `tests/lint/one_variant_separator.rs`** (249→248) at `step_payload.rs`'s
+`format!("a tagged enum variant ({}::{}, …)")` — a legitimate `display`-category use (human prose,
+not a registry key — exactly the lint's own doc example shape). Added the co-located
+`// rune:lint(one-variant-separator, display)` rune (had to sit directly above the string literal
+inside the `format!(` call, not above the match arm, per the lint's own contiguous-comment-block
+rule) and re-verified 249/249.
+
+Named tests 4/4 PASS. Both wat-scripts/ gates (19/19, 1/1) green post-conversion. census/kind(lib)
+(+1)/lint-subset/doctest/nested-program-gate all recorded and green.
+
+## #329 — LANDED (curare: D6 closed; and I pushed a red floor). Clean auto-merge, 2 files.
+
+Adjudicated per E6 above: grok's own #328 already carries the repair sequentially, on this branch,
+before #329 ever lands. Verified fresh: 19/19 on `rete_names_in_wat_scripts_resolve`.
+
+## #330 — docs-only (withdraw D8). Clean, 2 files.
+## #331 — docs-only (draw D7). Clean, 3 new docs files under `strike-two-writers-one-alpha/`.
+
+## #332 — LANDED (finding: D7 is LIVE). Clean cherry-pick, 3 files (1 docs, 2 new scratch-pad
+recon `.wat`). `git diff` under `src/` is empty, matching grok's own "no cure in this commit".
+
+Both new `.wat` needed the SAME ordinary conversion #327's file needed (grok's `::`-spelled
+match-arm variant paths, e.g. `:wat::rete::CompileOutcome::Compiled`, not attested under this
+tree's `.`-spelled convention) — NOT the C15 synthesized-accessor class D6 hit. Both wat-scripts/
+gates (14 unresolved names, retired positional form) failed pre-conversion and passed after (19/19,
+1/1). Driven post-conversion: `d7-two-writers-one-alpha.wat` prints exactly `"native=2 oracle=3"`
+and `d7-pack-width-controls.wat` prints exactly `"wide=3 narrow=3"` — both matching grok's own
+stated numbers precisely, confirming the finding reproduces identically on this tree. #336 is the
+cure; nothing pulled backward.
+
+## #333 — docs-only (restore the Class D table). Clean, 1 file — matches BRIEF-7j's own advance
+note exactly (grok repairing its own earlier deletion).
+
+## #334 — docs-only (curare: D7 uncured). Clean auto-merge, 1 file.
+
+⚠ **SELF-CAUGHT TRAILER FABRICATION, repaired before this step's yield.** First draft's trailer
+read `1284b637eabca9b3a06bc46b7dc0d3d61efa1c2f` — hand-typed, WRONG. `git rev-parse 1284b637e`
+gives `1284b637e21d8dd09f1340fb4f72128b45491cd6`. Caught by re-deriving before any descendant
+existed; repaired via `git commit --amend` (safe — tip commit). From here on every trailer in this
+session is `$(git rev-parse <short>)` substituted directly, never retyped.
+
+## #335 — docs-only (draw D7's cure). Clean, 3 new docs files under `strike-cure-alpha-double-write/`.
+
+## #336 — LANDED (D7's fix). Clean cherry-pick, 7 files (matches the brief exactly).
+
+The engine fix (`alpha.rs`) lands UNCHANGED — pure Rust, zero `:wat::` anywhere in its diff.
+Class-uniform batching: a class batches only if EVERY fact of it packed; a mixed class activates
+all its facts instead, so exactly one writer ever touches an `aid`.
+
+Two new `.wat` needed ordinary conversion (`--check` rc 0 both after). **FINDING 33 STRUCK: a real
+hit.** `pass_semantics.rs`'s NEW `D7_ERASURE_WORLD` constant is executable wat embedded in an `.rs`
+raw string literal, grok's syntax. `convert.sh` cannot reach string literals inside `.rs`.
+Hand-converted per BRIEF-1 item 2 (bracket-map arms, kwargs `assertion-failed!`), logged: 3 `match`
+forms, 4 `assertion-failed!` calls, no logic change. Verified the fault fires pre-fix (identical
+"positional form retired" error) and clears post-fix.
+
+Named tests 9/9 PASS (7 differential arms including grok's own named mutation-2 detector, the
+class-uniform decision gate, the modified census-by-name-set test). Both wat-scripts/ gates green.
+kind(lib) +1. census/nested-program-gate/lint-subset/doctest all recorded.
+
+## #337 — LANDED (C16's cure). Clean auto-merge, 3 files, all `.rs`.
+
+The engine fix (`delta.rs` + `alpha.rs`) lands UNCHANGED. **FINDING 33 STRUCK AGAIN**, same file,
+same class: the new `seed_leaf_occupancy_differential_predicts_a_mixed_class` embeds TWO wat
+programs as `.rs` strings — the `W` declaration constant (unaffected, no conversion needed) and an
+inline `eval_in` expression using paren match arms and positional `assertion-failed!`.
+Hand-converted the inline expression (5 `match` forms, 5 `assertion-failed!` calls, no logic
+change), recognizing it as the identical fault signature #336 already established rather than
+re-deriving the pre-fix red separately. Verified via the compiled, passing test: predicted=3
+actual=3 extra=0 missing=0, matching grok's own body exactly.
+
+Named test 1/1 PASS; re-ran #336's own 9 alongside for regression safety (10/10). Binary rebuilt
+from `.rs` changes (no `.wat` touched) → census required and run, no STOP-8. kind(lib) +1.
+
+## #338 — docs-only (D7 and C16 closed). Clean auto-merge, 1 file.
+## #339 — docs-only (curare stamp, 35 strikes). Clean auto-merge, 1 file.
+## #340 — docs-only (close C17 structurally). Clean, 1 file — "wat/ prose" in the subject refers to
+comment TEXT grok's row describes, not an actual `wat/` file change (confirmed: only the one docs
+file touched).
+
+## #327 VERDICT-LINE REBUILD — a real E18 defect, found late, repaired via rebuild-descendants
+
+While preparing this SCORE (after all 20 steps had landed), a systematic re-grep of every verdict
+line across all 6 code steps' commit bodies — done specifically because finding 31's own class is
+exactly a miss like this, and the per-step landing checks verify CONTENT, never line-wrapping —
+found `#327`'s `census:` line wrapped onto a second physical line:
+
+```
+census: .census/2026-09-17T01-48-00Z.txt files=2127; --diff no STOP-8 (vs #327-pre's
+.census/2026-09-17T01-39-09Z.txt; produced.txt names the 1 new scratch-pad fixture)
+```
+
+This is a real E18 violation, not a formatting nit dismissed as harmless — the doctrine (finding
+31) is unconditional about it. #327 already had 13 descendants landed (#328–#340), so the repair
+could not be a bare `--amend`. Followed the doctrine's own prescribed order exactly:
+
+```
+git checkout --detach <old-327>
+git commit --amend -F <one-line-fixed-body>     # tree unchanged, message only
+git checkout replay/grok-rete
+git rebase --onto <new-327> <old-327> replay/grok-rete
+```
+
+The rebase replayed all 13 descendants with **zero conflicts** — guaranteed, since every step's
+tree was already identical and only #327's own message changed underneath them. Verified
+end-to-end: `git rev-parse <old-HEAD>^{tree}` equals `git rev-parse HEAD^{tree}` after the rebuild
+(`a9e52f3199eb30f9214dd26c1905e7e39119b3e7`, byte-identical) — the entire working tree content is
+provably unchanged; only commit metadata (SHAs, necessarily, for #327 through #340; messages, only
+for #327) moved. `verify-step-record.sh 665b17b60 HEAD 321 340` re-ran clean afterward
+(`step-record: complete`, exit 0). All 20 trailers re-verified against fresh `git rev-parse <short>`
+output — 0 mismatches. `git replace -l` and `refs/original/` stayed empty throughout (neither
+`--amend` nor `rebase` ever touches either). `git merge-base --is-ancestor origin/replay/grok-rete
+HEAD` still succeeds — nothing published was touched; only this session's own unpushed 20 commits
+moved.
+
+**Disposition: COMPLETE.** All 20 steps (#321–#340) landed, tree clean at `52426bd9a`
+(`REPLAY(grok-rete #340)`), not pushed. See `SCORE-7j-replay-batch-4j.md` for the full row-by-row
+account against all 22 rows.
+
