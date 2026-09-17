@@ -93,18 +93,22 @@ jobs:
       # neutralizes the arc-170 global-state leak; the per-test deadline
       # (.config/nextest.toml) turns a deadlock into a clean timeout instead of a wedge.
       # excursus 001 `a-deadline-does-not-cost-a-ring` — the runner must describe itself.
-      # CI has been red since 2026-09-13 with `IoUring::new(4) … Cannot allocate memory`,
-      # and the red is CI-ONLY: it does not reproduce on the dev box. The first hypothesis
-      # (RLIMIT_MEMLOCK) was REFUTED by measurement — `ulimit -l 0` passes locally on kernel
-      # 6.12, because io_uring stopped charging the ring to memlock in Linux 5.12, and this
-      # runner is ubuntu-24.04. So the next red must arrive with the runner's own numbers
-      # attached instead of costing another three days of guessing. Cheap, always-on, and it
-      # runs BEFORE the tests so it is captured even when the job fails.
+      # ⭐ SOLVED 2026-09-16: the budget IS `RLIMIT_MEMLOCK` — ~8 KB per io_uring, accounted
+      # PER-UID and SHARED ACROSS PROCESSES, so 8 MB ⇒ ~1024 rings for everything this user
+      # runs. Measured ON THIS RUNNER by `src/bin/ring-ceiling.rs`: 1024 in one process alone,
+      # and 332+254+254+184 = 1024 across four concurrent ones.
+      # ⛔ An earlier version of this comment said memlock was REFUTED and "NOT the governor on
+      # ≥5.12". That was WRONG, and wrong in an instructive way: `ulimit -l 0` genuinely does
+      # pass on the dev box (Debian 6.12.63 does not charge rings to memlock) and that
+      # measurement was generalised to a kernel nobody had measured. 6.17-azure DOES charge it,
+      # at the identical 8 MB limit. The number has to come from the box that refuses.
+      # These facts stay because they are cheap and because the next surprise here will be
+      # somebody else's; they run BEFORE the tests so they survive a failing job.
       - name: Runner facts (io_uring diagnosis — see excursus 001)
         run: |
           echo "kernel:      $(uname -r)"
           echo "nproc:       $(nproc)"
-          echo "memlock KB:  $(ulimit -l)   # NOT the io_uring governor on >=5.12"
+          echo "memlock KB:  $(ulimit -l)   # THE io_uring budget here: ~8 KB/ring, PER-UID"
           echo "nofile:      $(ulimit -n)"
           free -m || true
           echo "io_uring_disabled: $(cat /proc/sys/kernel/io_uring_disabled 2>/dev/null || echo 'absent')"
@@ -123,26 +127,16 @@ jobs:
           echo "--- /proc/self/limits (the shell's; nextest children may differ) ---"
           cat /proc/self/limits || true
 
+      # excursus 001 / arc 109 — the `ulimit -l` stopgap that used to live here is GONE, and its
+      # removal is the ACCEPTANCE TEST for `DESIGN-one-ring-per-thread.md`. It raised RLIMIT_MEMLOCK
+      # because ring count tracked WAITERS: a circuit run held up to 500 io_uring instances and four
+      # concurrent nextest processes wanted ~2000 against this runner's ~1024 per-UID budget (8 MB ÷
+      # ~8 KB per ring — measured here by src/bin/ring-ceiling.rs: 1024 alone, 332+254+254+184=1024
+      # across four). Ring count now tracks THREADS: measured 500 → 29 per run, ~116 across four.
+      # ⛔ If this job goes red on `IoUring::new … Cannot allocate memory` again, the stone did NOT
+      # land and the honest response is to reopen it — not to put this line back.
       - name: Test (nextest)
-        run: |
-          # ⭐ excursus 001 `a-deadline-does-not-cost-a-ring` — THE INTERIM, and what it buys.
-          # MEASURED (src/bin/ring-ceiling.rs, run on this very runner): an io_uring costs
-          # ~8 KB of LOCKED MEMORY, the limit here is 8 MB, and it is accounted PER-UID and
-          # SHARED ACROSS PROCESSES — so the whole job gets ~1024 rings between it. Proof:
-          # 1024 in one process alone, and 332+254+254+184 = 1024 across four concurrent ones.
-          # nextest runs `nproc` tests at once and every `after` on the process tier mints a
-          # ring, so the floor exhausts one shared budget and the next ring gets ENOMEM. That
-          # is why the failing SET moved between runs and why the dev box never reproduced it
-          # (Debian 6.12.63 does not charge rings to memlock at all; 6.17-azure does).
-          #
-          # ⛔ THIS IS A STOPGAP AND IT HIDES A REAL COST. `after` minting a reactor per
-          # deadline is a hard ceiling on concurrent reactors for the whole UID — raising the
-          # limit buys headroom, it does not reduce the demand. The mid-term fix is
-          # docs/arc/2026/04/109-kill-std/NOTE-the-reactor-is-used-as-a-disposable-poller.md
-          # ("make the reactor superior", builder's ruling). Remove this when that lands.
-          ulimit -l unlimited 2>/dev/null || sudo prlimit --pid $$ --memlock=unlimited || true
-          echo "memlock now: $(ulimit -l)"
-          cargo nextest run --profile ci --release
+        run: cargo nextest run --profile ci --release
 
       # ARMED (arc 278 stone E). The floor is zero and this is what keeps it there.
       #
