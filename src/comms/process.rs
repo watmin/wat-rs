@@ -30,15 +30,34 @@
 //! methods so Select composes via Receiver's surface instead of reaching
 //! into its fields. Stone 4.5-fix: `Sender::raw_fds` + `Receiver::raw_fds`
 //! — the intentional, portable surface for preserving ALL owned fds
-//! across a fork `close_inherited_fds_above_stdio` sweep (each endpoint
-//! owns its data fd AND its io_uring ring fd; both must survive).
+//! across a fork sweep.
 //!
-//! The underlying principle (FDs are the persistent state; io_urings are
-//! ephemeral frames sized to the current operation set; substrate maintains
-//! the invariant `cap == next_power_of_two(arm_count).max(2)` reflexively
-//! at every operation entry) is detailed in
-//! `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md` §
-//! "Stone E forward-correction (2026-05-19) — TCO discipline + reflexive rebuild".
+//! ## ⭐⭐ arc 109 `one-ring-per-thread` — WHAT THE TWO PARAGRAPHS ABOVE NOW MEAN
+//!
+//! **E-1's and E-2's rings are GONE from the endpoints.** Exactly one `IoUring`
+//! exists per THREAD, created lazily at that thread's first process-tier operation
+//! and shared by every `Sender`, `Receiver`, timer and `Select` on it. Ring count
+//! tracks THREADS (bounded, small), never WAITERS (unbounded). The mechanism is
+//! E-2's `RingSlot` — lazy, persistent, capacity-autoscaling — with its OWNER moved
+//! from one-per-`Select`-site to one-per-thread; see [`with_thread_ring`].
+//!
+//! ⛔ **AND THE PRINCIPLE THIS HEADER USED TO STATE WAS BACKWARDS.** It read: *"FDs
+//! are the persistent state; io_urings are ephemeral frames sized to the current
+//! operation set."* In io_uring's own design the **ring is the persistent object**
+//! (a kernel object with mmaps, a setup syscall pair, and a `RLIMIT_MEMLOCK` bill
+//! that is accounted PER-UID) and the **operations are the ephemeral ones**. Treating
+//! a ring as disposable scaffolding is precisely what made a per-endpoint — and then
+//! a per-DEADLINE — allocation look free, and it is why CI met a ~1024-ring per-UID
+//! ceiling. The corrected principle: **fds and the thread's ring are both persistent;
+//! the SQEs are the ephemeral part.** The capacity invariant survives, generalised —
+//! the thread's ring is grown (never shrunk) to cover the widest submission live on
+//! that thread. `docs/arc/2026/04/109-kill-std/NOTE-the-reactor-is-used-as-a-disposable-poller.md`
+//! carries the measurement; `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md` §
+//! "Stone E forward-correction (2026-05-19)" carries the discipline it re-scopes.
+//!
+//! ⚠ Still true and still NOT collected: no `ATTACH_WQ`, no registered files, no
+//! SQPOLL, and every wait is still `submit_and_wait(1)`. Each is its own stone; the
+//! ruling this file implements is the ring COUNT, not the amortization.
 //!
 //! ## Framing
 //!
@@ -78,131 +97,8 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::sync::atomic::{AtomicI64, Ordering};
 
 use io_uring::{opcode, types, IoUring};
-
-// ── excursus 001 `a-deadline-does-not-cost-a-ring`: MAKE THE RED SELF-DESCRIBING ──
-//
-// ⭐ SOLVED 2026-09-16 — the budget is RLIMIT_MEMLOCK, in BYTES, and it is PER-UID.
-//
-// CI was red from 2026-09-13 with `IoUring::new(4) …: Cannot allocate memory (os error
-// 12)` and never reproduced on the dev box. Asking the RUNNER directly
-// (`src/bin/ring-ceiling.rs`) settled it: a ring costs ~8 KB of locked memory, the
-// limit there is 8 MB, and 8 MB ÷ 8 KB = **1024 rings — for everything that UID runs**.
-// Measured on ubuntu-24.04 / 6.17-azure: 1024 in one process alone, and
-// 332 + 254 + 254 + 184 = 1024 across four concurrent processes, splitting one budget
-// to the last ring. ⚠ It is NOT a descriptor limit (`nofile` was 65536 and unused) and
-// NOT a ring quota — rings are merely what the byte budget gets spent on.
-//
-// ⛔ AND THE DEV BOX DISAGREES WITH THE RUNNER, which is why this cost four days and
-// four dead hypotheses. Debian 6.12.63 does NOT charge rings to memlock — 3000 held
-// with `ulimit -l 0` — while 6.17-azure does. "Measured locally" was TRUE and did not
-// GENERALISE. The number has to come from the box that refuses, not the box that is
-// convenient, and that is the whole reason `ring-ceiling` exists.
-//
-// These counters stay, because the census is what made the answer readable: they turn
-// a refusal into "the N-th ring, with the commit numbers at that instant".
-// ⭑ This is DIAGNOSIS, not the fix. The fix — `after` mints a Receiver, hence a ring,
-// per deadline, on `call-by-deadline`'s hot path — is still unbuilt and its mechanism
-// is still a builder ruling.
-// ⚠ CREATED ONLY, DELIBERATELY. A `live` gauge would need a `Drop` on `Receiver`,
-// which has none today, and a counter that only ever counts up while calling itself
-// "live" is a number that lies — the defect this excursus has been removing all day.
-// `created` is also the datum that actually decides the question: was the refusal the
-// first ring in the process or the ten-thousandth?
-static RINGS_CREATED: AtomicI64 = AtomicI64::new(0);
-
-/// The census text for a GIVEN count. Split from [`ring_census`] so the wording can be
-/// asserted EXACTLY: the only part that varies per run is the number, and with the number
-/// as a parameter there is nothing loose left to match on.
-fn ring_census_text(created: i64) -> String {
-    format!(
-        "rings created-so-far={created} in this process (⛔ budget = RLIMIT_MEMLOCK, ~8 KB per \
-         ring, accounted PER-UID and SHARED ACROSS PROCESSES: 8 MB ⇒ ~1024 rings for everything \
-         this user runs. Measured on 6.17-azure: 1024 alone, 332+254+254+184=1024 across four. \
-         Raise `ulimit -l`, or create fewer rings)"
-    )
-}
-
-/// Commit accounting AT THE MOMENT OF REFUSAL, appended to a ring failure.
-///
-/// ⭐ Why this and not "free memory": the observed CI failure refuses a ~kilobyte ring while
-/// `free -m` reports 14 GB available. The classic cause is **strict overcommit**
-/// (`vm.overcommit_memory=2`), where total committed address space is capped at `CommitLimit`
-/// and past it EVERY `mmap` returns ENOMEM regardless of size — so "available" memory is the
-/// wrong number to look at and reporting it would mislead the next reader exactly as it
-/// misled this one. Read at failure time; a snapshot taken by a CI step minutes earlier
-/// cannot see the moment.
-///
-/// Best-effort and silent on error: a diagnostic that can itself fail must never replace the
-/// failure it is describing.
-fn proc_field(path: &str, key: &str) -> String {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|s| {
-            s.lines()
-                .find(|l| l.starts_with(key))
-                .map(|l| l.split_whitespace().nth(1).unwrap_or("?").to_string())
-        })
-        .unwrap_or_else(|| "?".into())
-}
-
-fn commit_census() -> String {
-    let field = |k: &str| proc_field("/proc/meminfo", k);
-    let vm = |k: &str| proc_field("/proc/self/status", k);
-    commit_census_text(
-        std::fs::read_to_string("/proc/sys/vm/overcommit_memory")
-            .unwrap_or_else(|_| "?".into())
-            .trim(),
-        &field("CommitLimit:"),
-        &field("Committed_AS:"),
-        &vm("VmSize:"),
-        &vm("VmPeak:"),
-        &vm("Threads:"),
-    )
-}
-
-/// The commit-census wording for GIVEN readings. Split from [`commit_census`] for the same
-/// reason [`ring_census_text`] was split from [`ring_census`]: the numbers vary per run, the
-/// WORDING must not, and the tree's `no_loose_string_assert` lint is right that a `contains`
-/// check would pass on a sentence that had silently lost half itself.
-fn commit_census_text(
-    overcommit: &str,
-    limit_kb: &str,
-    committed_kb: &str,
-    vmsize_kb: &str,
-    vmpeak_kb: &str,
-    threads: &str,
-) -> String {
-    format!(
-        " · commit: overcommit_memory={overcommit} CommitLimit={limit_kb}kB \
-         Committed_AS={committed_kb}kB · this process: VmSize={vmsize_kb}kB \
-         VmPeak={vmpeak_kb}kB threads={threads}"
-    )
-}
-
-/// One line of ring census for an error message, naming the hypothesis this stone
-/// already refuted so the next reader does not re-spend three days on it.
-fn ring_census() -> String {
-    ring_census_text(RINGS_CREATED.load(Ordering::Relaxed))
-}
-
-/// Build a ring, counting it. Every `IoUring::new` in this file goes through here so
-/// the census cannot drift from reality.
-fn new_ring(entries: u32, site: &'static str) -> std::io::Result<IoUring> {
-    match IoUring::new(entries) {
-        Ok(r) => {
-            RINGS_CREATED.fetch_add(1, Ordering::Relaxed);
-            Ok(r)
-        }
-        Err(e) => Err(std::io::Error::other(format!(
-            "IoUring::new({entries}) failed at {site}: {e} — {}{}",
-            ring_census(),
-            commit_census()
-        ))),
-    }
-}
 
 use crate::comms::{
     CommReceiver, CommSender, EdnRepresentable, ReceiverIndex, RecvError, SelectOutcome,
@@ -219,21 +115,615 @@ use crate::edn::render::{next_complete_frame, FrameScan, DEFAULT_MAX_FRAME_BYTES
 /// it under 2 layers of generics.
 type Accumulator = RefCell<Vec<u8>>;
 
-/// Lazy persistent ring + its capacity, as a single noun.
+/// ⭐⭐ THE ONE DOOR TO AN `io_uring` — and PRIVACY is the gate, not a convention.
 ///
-/// `Select<'a, T>` stores `RefCell<RingSlot>` rather than the bare
-/// `RefCell<Option<(IoUring, u32)>>`; the alias surfaces the noun
-/// the substrate's vocabulary already uses (the borrow variable in
-/// `Select::select` is `ring_slot`) at the type level. Per
-/// `perspicere` (Stone E-2 ward pass 2026-05-19).
+/// `new_ring` is module-private to this module, so **rustc refuses any ring
+/// construction outside it**. That is what makes arc 109's ruling — *exactly one ring
+/// per thread* — a property of the code rather than a claim in a comment: a future
+/// `Receiver` that tried to regain a ring of its own would not compile, and no census
+/// would have to notice it climbing afterwards.
 ///
-/// `None` = ring not yet constructed (lazy init); `Some((ring, cap))`
-/// = ring exists at the recorded capacity. The capacity is stored
-/// alongside to avoid re-introspecting the io-uring crate's internal
-/// state on every `select()` call — the reflexive rebuild discipline
-/// compares the stored value against the structural need at every
-/// entry.
-type RingSlot = Option<(IoUring, u32)>;
+/// Everything the rest of the tier may touch leaves by name:
+/// [`with_thread_ring`] (the borrow), [`RingGen`] (the `user_data` demultiplexer),
+/// [`rings_created`] and [`thread_ring_raw_fd`] (the instruments).
+mod ring_door {
+    use std::cell::RefCell;
+    use std::os::fd::AsRawFd;
+    use std::sync::atomic::{AtomicI64, Ordering};
+
+    use io_uring::{opcode, IoUring};
+
+    // ── excursus 001 `a-deadline-does-not-cost-a-ring`: MAKE THE RED SELF-DESCRIBING ──
+    //
+    // ⭐ SOLVED 2026-09-16 — the budget is RLIMIT_MEMLOCK, in BYTES, and it is PER-UID.
+    //
+    // CI was red from 2026-09-13 with `IoUring::new(4) …: Cannot allocate memory (os error
+    // 12)` and never reproduced on the dev box. Asking the RUNNER directly
+    // (`src/bin/ring-ceiling.rs`) settled it: a ring costs ~8 KB of locked memory, the
+    // limit there is 8 MB, and 8 MB ÷ 8 KB = **1024 rings — for everything that UID runs**.
+    // Measured on ubuntu-24.04 / 6.17-azure: 1024 in one process alone, and
+    // 332 + 254 + 254 + 184 = 1024 across four concurrent processes, splitting one budget
+    // to the last ring. ⚠ It is NOT a descriptor limit (`nofile` was 65536 and unused) and
+    // NOT a ring quota — rings are merely what the byte budget gets spent on.
+    //
+    // ⛔ AND THE DEV BOX DISAGREES WITH THE RUNNER, which is why this cost four days and
+    // four dead hypotheses. Debian 6.12.63 does NOT charge rings to memlock — 3000 held
+    // with `ulimit -l 0` — while 6.17-azure does. "Measured locally" was TRUE and did not
+    // GENERALISE. The number has to come from the box that refuses, not the box that is
+    // convenient, and that is the whole reason `ring-ceiling` exists.
+    //
+    // These counters stay, because the census is what made the answer readable: they turn
+    // a refusal into "the N-th ring, with the commit numbers at that instant".
+    // ⭑ This is DIAGNOSIS, not the fix. The fix — `after` mints a Receiver, hence a ring,
+    // per deadline, on `call-by-deadline`'s hot path — is still unbuilt and its mechanism
+    // is still a builder ruling.
+    // ⚠ CREATED ONLY, DELIBERATELY. A `live` gauge would need a `Drop` on `Receiver`,
+    // which has none today, and a counter that only ever counts up while calling itself
+    // "live" is a number that lies — the defect this excursus has been removing all day.
+    // `created` is also the datum that actually decides the question: was the refusal the
+    // first ring in the process or the ten-thousandth?
+    static RINGS_CREATED: AtomicI64 = AtomicI64::new(0);
+
+    // ⭐ arc 109 `one-ring-per-thread` — THE SAME CENSUS, PER THREAD. The stone's claim
+    // is that ring count tracks THREADS, not waiters, and the process-wide counter
+    // above cannot witness it: it moves when any other thread creates a ring, and under
+    // `cargo test` when any sibling test does. A per-thread count can be asserted FLAT
+    // while waiters multiply, which is what EXPECTATIONS row 1 is judged on. It also
+    // makes the failure text say whether the refusing thread is the one that leaked.
+    thread_local! {
+        static RINGS_CREATED_THIS_THREAD: std::cell::Cell<i64> = const { std::cell::Cell::new(0) };
+    }
+
+    /// The census text for a GIVEN count. Split from [`ring_census`] so the wording can be
+    /// asserted EXACTLY: the only part that varies per run is the number, and with the number
+    /// as a parameter there is nothing loose left to match on.
+    fn ring_census_text(created: i64, on_this_thread: i64) -> String {
+        format!(
+            "rings created-so-far={created} in this process, {on_this_thread} on this thread \
+             (⛔ budget = RLIMIT_MEMLOCK, ~8 KB per \
+             ring, accounted PER-UID and SHARED ACROSS PROCESSES: 8 MB ⇒ ~1024 rings for everything \
+             this user runs. Measured on 6.17-azure: 1024 alone, 332+254+254+184=1024 across four. \
+             Raise `ulimit -l`, or create fewer rings)"
+        )
+    }
+
+    /// Commit accounting AT THE MOMENT OF REFUSAL, appended to a ring failure.
+    ///
+    /// ⭐ Why this and not "free memory": the observed CI failure refuses a ~kilobyte ring while
+    /// `free -m` reports 14 GB available. The classic cause is **strict overcommit**
+    /// (`vm.overcommit_memory=2`), where total committed address space is capped at `CommitLimit`
+    /// and past it EVERY `mmap` returns ENOMEM regardless of size — so "available" memory is the
+    /// wrong number to look at and reporting it would mislead the next reader exactly as it
+    /// misled this one. Read at failure time; a snapshot taken by a CI step minutes earlier
+    /// cannot see the moment.
+    ///
+    /// Best-effort and silent on error: a diagnostic that can itself fail must never replace the
+    /// failure it is describing.
+    fn proc_field(path: &str, key: &str) -> String {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| {
+                s.lines()
+                    .find(|l| l.starts_with(key))
+                    .map(|l| l.split_whitespace().nth(1).unwrap_or("?").to_string())
+            })
+            .unwrap_or_else(|| "?".into())
+    }
+
+    fn commit_census() -> String {
+        let field = |k: &str| proc_field("/proc/meminfo", k);
+        let vm = |k: &str| proc_field("/proc/self/status", k);
+        commit_census_text(
+            std::fs::read_to_string("/proc/sys/vm/overcommit_memory")
+                .unwrap_or_else(|_| "?".into())
+                .trim(),
+            &field("CommitLimit:"),
+            &field("Committed_AS:"),
+            &vm("VmSize:"),
+            &vm("VmPeak:"),
+            &vm("Threads:"),
+        )
+    }
+
+    /// The commit-census wording for GIVEN readings. Split from [`commit_census`] for the same
+    /// reason [`ring_census_text`] was split from [`ring_census`]: the numbers vary per run, the
+    /// WORDING must not, and the tree's `no_loose_string_assert` lint is right that a `contains`
+    /// check would pass on a sentence that had silently lost half itself.
+    fn commit_census_text(
+        overcommit: &str,
+        limit_kb: &str,
+        committed_kb: &str,
+        vmsize_kb: &str,
+        vmpeak_kb: &str,
+        threads: &str,
+    ) -> String {
+        format!(
+            " · commit: overcommit_memory={overcommit} CommitLimit={limit_kb}kB \
+             Committed_AS={committed_kb}kB · this process: VmSize={vmsize_kb}kB \
+             VmPeak={vmpeak_kb}kB threads={threads}"
+        )
+    }
+
+    /// One line of ring census for an error message, naming the hypothesis this stone
+    /// already refuted so the next reader does not re-spend three days on it.
+    fn ring_census() -> String {
+        ring_census_text(
+            RINGS_CREATED.load(Ordering::Relaxed),
+            RINGS_CREATED_THIS_THREAD.with(|c| c.get()),
+        )
+    }
+
+    /// Build a ring, counting it. Every `IoUring::new` in this file goes through here so
+    /// the census cannot drift from reality.
+    fn new_ring(entries: u32, site: &'static str) -> std::io::Result<IoUring> {
+        match IoUring::new(entries) {
+            Ok(r) => {
+                RINGS_CREATED.fetch_add(1, Ordering::Relaxed);
+                RINGS_CREATED_THIS_THREAD.with(|c| c.set(c.get() + 1));
+                Ok(r)
+            }
+            Err(e) => Err(std::io::Error::other(format!(
+                "IoUring::new({entries}) failed at {site}: {e} — {}{}",
+                ring_census(),
+                commit_census()
+            ))),
+        }
+    }
+
+    // ── ⭐⭐ arc 109 `one-ring-per-thread` — EXACTLY ONE IoUring PER THREAD ─────────────
+    //
+    // THE RULING (builder, 2026-09-16, verbatim): *"it is forcefully modifying wat to
+    // have precisely one ring per thread, lazily created.. whatever this means for the
+    // substrate, i do not care - the wat surface must remain unchanged.. the substrate
+    // in rust must satisfy the current contracts under the hood"*.
+    //
+    // ⭐ RING COUNT MUST TRACK **THREADS** (bounded, small), NEVER **WAITERS**
+    // (unbounded). Before this stone every `Receiver`, every `Sender`, every `timer()`
+    // and every `Select` site owned a ring of its own: `:wat::kernel::after` alone cost
+    // THREE (the timerfd `Receiver`, plus the dead `pair()`'s `Sender` AND `Receiver`),
+    // on `call-by-deadline`'s hot path, against the ~1024-ring PER-UID
+    // `RLIMIT_MEMLOCK` budget the census above describes. Now a thread owns one slot,
+    // `None` until its first process-tier IO, and the thread tier (crossbeam,
+    // `runtime.rs:27796`) still owns none at all because it never reaches this module.
+    //
+    // ⛔ THE BORROW DISCIPLINE IS **RELEASE-BEFORE-CALL**, and the shape was already
+    // here. `Select::select` scoped its ring borrow to a block and called `Receiver`
+    // methods only OUTSIDE it — *"Select-ring borrow released; safe to call Receiver
+    // methods below (Receiver borrows its own ring; different RefCell)"*. The
+    // parenthetical credited the safety to the two borrows being in DIFFERENT
+    // `RefCell`s; the CODE was already correct without that, so only the
+    // parenthetical had to go. [`with_thread_ring`] makes the discipline structural:
+    // the `&mut IoUring` lives only inside a closure, so re-entrancy would have to be
+    // written as a visible nesting of closures, and if one ever is it panics naming
+    // the defect ([`RING_REENTRANCY`]) rather than dressing a substrate bug as a comms
+    // failure.
+
+    /// The thread's lazily-created ring, with the two facts that decide when it must be
+    /// REBUILT rather than reused.
+    struct ThreadRing {
+        ring: IoUring,
+        /// Entries it was created with. **GROW-ONLY** — see [`with_thread_ring`].
+        cap: u32,
+        /// The pid that created it. ⛔ A `clone3` child inherits this thread-local's
+        /// BYTES but not the ring's kernel mappings (io_uring marks them
+        /// `MADV_DONTFORK`), so a child reusing it would submit into nothing. Mirrors
+        /// `runtime.rs`'s `SHUTDOWN_SIGNAL_FD` fork-rebirth guard: compare against
+        /// `getpid()` at every entry and REBUILD when it differs, never reuse.
+        pid: libc::pid_t,
+    }
+
+    /// Lazy persistent ring + its capacity, as a single noun — Stone E-2's vocabulary,
+    /// re-scoped by arc 109 from one-per-`Select` to one-per-THREAD.
+    ///
+    /// `None` = this thread has never performed process-tier IO and owns **no ring**.
+    /// That is the lazy half of the ruling, not an optimisation.
+    type RingSlot = Option<ThreadRing>;
+
+    thread_local! {
+        /// ⭐ THE one ring this thread may own.
+        static THREAD_RING: RefCell<RingSlot> = const { RefCell::new(None) };
+        /// Operation generation, for `user_data` demultiplexing. The first operation
+        /// gets 1; generation **0 is never handed out** and is what the withdrawal
+        /// SQEs carry, so every drain's generation check discards those with no
+        /// special case.
+        static RING_GEN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+        /// `user_data`s this thread has armed and not yet seen complete. An entry leaves
+        /// the moment its CQE is drained ([`RingGen::tag`]); whatever is still here when
+        /// an operation ENDS is an arm the kernel is still holding, and moves to
+        /// [`RING_WITHDRAW`].
+        static RING_LIVE: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+        /// Arms a finished operation left behind, awaiting an `AsyncCancel`.
+        ///
+        /// ⛔ Why withdraw at all, when the per-Receiver ring never had to: that ring DIED
+        /// WITH ITS RECEIVER, which cancelled everything still armed on it. A per-thread
+        /// ring outlives every operation on it, so an arm left behind pins its fd's
+        /// `struct file` — a pipe read-end whose last fd is closed would not let its
+        /// writer see EOF.
+        ///
+        /// ⛔⛔ AND WHY IT IS BATCHED AT A WATERMARK RATHER THAN EAGER — the eager version
+        /// cost a MEASURED 3× on the fanout circuit and the failure is worth recording.
+        /// It flushed the cancels onto the NEXT operation's submission, "free" because
+        /// they rode an existing `submit`. They were not free: the cancels' own CQEs, plus
+        /// the `-ECANCELED` of what they cancelled, made the following
+        /// `submit_and_wait(1)` return IMMEDIATELY with nothing of the caller's generation
+        /// in it. In `select` that fell into the re-poll path, which armed the fds again —
+        /// and recorded them for withdrawal again — so `select` became an arm/cancel storm
+        /// that ended only when data happened to arrive. Measured, same
+        /// `distinct=8000;dup=0` both ways: **wall 23.8 s → 70.3 s, sys 0.215 s → 28.2 s**.
+        /// Two things fix it: the wait loops never treat a straggler as "nothing fired",
+        /// and withdrawal waits for a BACKLOG so the common operation submits no cancel.
+        static RING_WITHDRAW: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// `user_data` layout: `generation << RING_TAG_BITS | tag`.
+    const RING_TAG_BITS: u32 = 16;
+    const RING_TAG_MASK: u64 = (1u64 << RING_TAG_BITS) - 1;
+    /// Generations occupy the remaining 48 bits.
+    const RING_GEN_MASK: u64 = u64::MAX >> RING_TAG_BITS;
+    /// The tag on withdrawal `AsyncCancel` SQEs — always in generation 0.
+    const RING_WITHDRAW_TAG: u64 = RING_TAG_MASK;
+    /// Arms a thread may leave armed before a withdrawal pass runs.
+    ///
+    /// ⭑ The trade this number IS: the kernel holds at most this many stale `PollAdd`s
+    /// (and their `struct file` references) per thread, and a pass's syscalls are
+    /// amortized over roughly `WITHDRAW_WATERMARK / leaked-per-operation` operations —
+    /// so an ordinary `recv`/`select` submits no cancel SQE and pays no extra
+    /// `io_uring_enter`. Eager withdrawal is what cost the circuit 3× (see
+    /// [`RING_WITHDRAW`]).
+    ///
+    /// ⚠ For comparison the PRE-stone code had no bound at all: `Select`'s persistent
+    /// ring (Stone E-2) never withdrew a non-firing arm either, and a serve loop's
+    /// `Select` lives as long as the program. This is a bound where there was none.
+    const WITHDRAW_WATERMARK: usize = 512;
+
+    /// The widest tag an operation may use (`RING_TAG_MASK` is reserved above). A
+    /// `select` over this many arms would need a ring the kernel refuses anyway
+    /// (`IORING_MAX_ENTRIES` is 32768), so the ceiling is unreachable in practice —
+    /// which is why it is CHECKED at the one site that can approach it
+    /// (`Select::select`) instead of assumed everywhere.
+    pub(super) const RING_TAG_MAX: u64 = RING_TAG_MASK - 1;
+
+    /// What a nested ring borrow says. A substrate invariant violation reported AS
+    /// ITSELF: mapping it into `RecvError`/`SendError` would dress a re-entrancy bug as
+    /// a peer failure, which is the collapse this tree keeps removing.
+    pub(super) const RING_REENTRANCY: &str =
+        "process-tier ring re-entrancy: this thread's io_uring is already borrowed by an \
+         enclosing operation. The discipline is RELEASE-BEFORE-CALL — close the ring block \
+         before calling a Receiver/Sender method that needs the ring (arc 109, one ring per \
+         thread)";
+
+    /// Entries to create the thread's ring with, for an operation submitting `arms`
+    /// SQEs.
+    ///
+    /// **Doubled**, for headroom: a withdrawal pass batches `AsyncCancel`s through the
+    /// same queue, the completion queue is sized off this, and a per-thread ring is ONE
+    /// object for the whole thread — so entries are the cheap axis to spend on (the
+    /// NOTE: *"one shared ring with many entries is CHEAPER per waiter, not dearer"*).
+    /// ⚠ It is NOT doubled so cancels can ride on the caller's submission; that was the
+    /// first design and it cost 3× (see [`RING_WITHDRAW`]).
+    ///
+    /// Clamped so a nonsense `arms` cannot panic `next_power_of_two`; the kernel refuses
+    /// the oversized ring and the census says so.
+    fn ring_capacity_for(arms: u32) -> u32 {
+        arms.min(1 << 15).saturating_mul(2).next_power_of_two().max(4)
+    }
+
+    fn ring_user_data(generation: u64, tag: u64) -> u64 {
+        (generation << RING_TAG_BITS) | (tag & RING_TAG_MASK)
+    }
+
+    /// One operation's slice of the thread ring's `user_data` space.
+    ///
+    /// ⭐ THIS IS THE DEMULTIPLEXER, and it is the half a private ring never needed. On
+    /// a shared ring a completion from an earlier, already-returned operation can land
+    /// in this one's drain — an arm that never fired, or the `-ECANCELED` of one that
+    /// was withdrawn. It must be DISCARDED, never read as an arm of this operation.
+    /// Before this stone `wait_for_data_or_cascade` mapped an unknown `user_data` to
+    /// `RecvError::Disconnected` under the comment *"Unreachable: we only push two SQEs
+    /// with these two tokens"* — true of a private ring, false of a shared one, and a
+    /// SILENT channel death if it had been left standing.
+    ///
+    /// ⭑ Discarding loses nothing, and the reason is `POLLIN|POLLHUP`: every arm is a
+    /// LEVEL-TRIGGERED poll, so a readiness that was true is still true and this
+    /// generation's own arm on the same fd reports it. That property is what makes a
+    /// shared ring safe without a broker.
+    #[derive(Copy, Clone)]
+    pub(super) struct RingGen(u64);
+
+    impl RingGen {
+        /// A fresh generation for one submission batch. ⛔ One per BATCH, not one per
+        /// operation-call: `Sender::send`'s resume loop submits a new `Write` per
+        /// iteration, and reusing the generation would let iteration 1's queued
+        /// withdrawal cancel iteration 2's live `Write`.
+        pub(super) fn fresh() -> Self {
+            RingGen(RING_GEN.with(|g| {
+                let next = g.get().wrapping_add(1) & RING_GEN_MASK;
+                // Generation 0 belongs to the withdrawal SQEs; never hand it out.
+                let next = if next == 0 { 1 } else { next };
+                g.set(next);
+                next
+            }))
+        }
+
+        /// `user_data` for an SQE that MAY still be armed when the operation returns —
+        /// every `PollAdd`, and the `Write` the broadcast can beat. Records it as LIVE at
+        /// the same moment, so no exit path (an early `?` included) can lose track of it;
+        /// [`RingGen::tag`] un-records it when its CQE arrives, and whatever is still live
+        /// when the operation ends is queued for withdrawal by [`with_thread_ring`].
+        pub(super) fn arm(self, tag: u64) -> u64 {
+            let ud = self.sole(tag);
+            RING_LIVE.with(|live| live.borrow_mut().push(ud));
+            ud
+        }
+
+        /// `user_data` for the SOLE SQE of an operation that waits for its own
+        /// completion (the bare `Read`s). Nothing can be left armed on the success
+        /// path, so nothing is recorded; the error paths call [`RingGen::withdraw`]
+        /// explicitly, which is what keeps a bailed-out `Read` from writing into a
+        /// stack buffer that has gone away.
+        pub(super) fn sole(self, tag: u64) -> u64 {
+            debug_assert!(tag <= RING_TAG_MAX, "ring tag {tag} exceeds RING_TAG_MAX");
+            ring_user_data(self.0, tag)
+        }
+
+        /// Queue `user_data` for withdrawal directly. Used by the bare `Read`s, whose SQE
+        /// is `sole` (never tracked as live) but which MUST be withdrawn on an error path:
+        /// a shared ring outlives the call, so an abandoned `Read` would keep writing into
+        /// a stack buffer that has gone away.
+        pub(super) fn withdraw(self, user_data: u64) {
+            RING_WITHDRAW.with(|w| w.borrow_mut().push(user_data));
+        }
+
+        /// The tag if this CQE belongs to THIS operation; `None` = a straggler from an
+        /// earlier one (or a withdrawal's own completion, generation 0) — discard it.
+        pub(super) fn tag(self, user_data: u64) -> Option<u64> {
+            if user_data >> RING_TAG_BITS != self.0 {
+                return None;
+            }
+            // It completed, so it is no longer armed: drop it from the live set before
+            // anything can decide it needs withdrawing.
+            RING_LIVE.with(|live| {
+                let mut live = live.borrow_mut();
+                if let Some(i) = live.iter().position(|&held| held == user_data) {
+                    live.swap_remove(i);
+                }
+            });
+            Some(user_data & RING_TAG_MASK)
+        }
+    }
+
+    /// Withdraw the arms finished operations left behind — but only once
+    /// [`WITHDRAW_WATERMARK`] of them have accumulated, and in its OWN batched
+    /// submission rather than riding on the caller's.
+    ///
+    /// ⛔ Both of those are the fix for a measured 3× regression; [`RING_WITHDRAW`]
+    /// carries the numbers. Riding on the caller's submission made every subsequent
+    /// `submit_and_wait(1)` return on the cancels' own completions instead of on the
+    /// caller's arms, which turned `select` into an arm/cancel storm. Waiting for a
+    /// backlog means the common operation submits no cancel at all.
+    ///
+    /// `-ENOENT` (the arm had already completed) is not an error; the CQEs this
+    /// generates carry generation 0 and are discarded by every drain.
+    fn withdraw_leaked_arms(ring: &mut IoUring) {
+        let pending: Vec<u64> = RING_WITHDRAW.with(|w| {
+            let mut w = w.borrow_mut();
+            if w.len() < WITHDRAW_WATERMARK {
+                return Vec::new();
+            }
+            std::mem::take(&mut *w)
+        });
+        if pending.is_empty() {
+            return;
+        }
+        let mut queued = 0usize;
+        let mut unplaced: Vec<u64> = Vec::new();
+        for (i, target) in pending.iter().enumerate() {
+            let cancel = opcode::AsyncCancel::new(*target)
+                .build()
+                .user_data(ring_user_data(0, RING_WITHDRAW_TAG));
+            // SAFETY: AsyncCancel names a `user_data` and dereferences no memory of
+            // ours — there is no buffer whose lifetime the kernel must respect.
+            let placed = unsafe { ring.submission().push(&cancel).is_ok() };
+            if placed {
+                queued += 1;
+                continue;
+            }
+            // SQ full: hand what is queued to the kernel, then retry on an empty queue.
+            let _ = ring.submit();
+            queued = 0;
+            // SAFETY: as above.
+            if unsafe { ring.submission().push(&cancel).is_err() } {
+                // Cannot place it even on an empty queue. Stop rather than spin — and
+                // hand the REST BACK, or this pass would silently forget arms the
+                // kernel is still holding. (The first draft dropped them and said the
+                // next pass would find them; `mem::take` above means it would not.)
+                unplaced.extend_from_slice(&pending[i..]);
+                break;
+            }
+            queued = 1;
+        }
+        if queued > 0 {
+            let _ = ring.submit();
+        }
+        if !unplaced.is_empty() {
+            RING_WITHDRAW.with(|w| w.borrow_mut().append(&mut unplaced));
+        }
+        // Clear what has already come back, so the caller's wait is not woken by it.
+        // Non-blocking; whatever has not landed yet is discarded by a later drain.
+        while ring.completion().next().is_some() {}
+    }
+
+    /// Run `f` with the calling thread's ring, creating it on first use and growing it
+    /// to hold `arms` SQEs.
+    ///
+    /// ⭐ THE SINGLE DOOR to an `IoUring` in this module. Every ring the process tier
+    /// touches is reached through here (gated by
+    /// `only_with_thread_ring_reaches_the_ring`), which is what makes "one per thread"
+    /// checkable rather than hoped for.
+    ///
+    /// ⛔ GROW-ONLY, deliberately. `Select`'s per-site ring shrank back down too —
+    /// Stone E-2's *"reflexive rebuild discipline"*, grow OR shrink — because it served
+    /// ONE fan-in. A per-THREAD ring serves every operation on the thread, so it must
+    /// be as wide as the WIDEST live submission, and a shrink is a ring CREATION, i.e.
+    /// exactly the cost this stone removes. Growth is bounded by log2(widest fan-in): a
+    /// handful of rings per thread over a whole program, never one per waiter.
+    ///
+    /// ⭑ The ring is the WAITING thread's, by lookup rather than by an owner field, so
+    /// an endpoint created on one thread and waited on by another submits on the right
+    /// ring with nothing to migrate (DESIGN trap-door 4).
+    ///
+    /// Returns the ring-creation `io::Error` (already carrying the census) when the
+    /// kernel refuses; otherwise `Ok(f(..))`.
+    pub(super) fn with_thread_ring<R>(
+        arms: u32,
+        site: &'static str,
+        f: impl FnOnce(&mut IoUring) -> R,
+    ) -> std::io::Result<R> {
+        let needed = ring_capacity_for(arms);
+        THREAD_RING.with(|cell| {
+            let Ok(mut slot) = cell.try_borrow_mut() else {
+                panic!("{RING_REENTRANCY} (site: {site})");
+            };
+            // SAFETY: getpid(2) reads the caller's own pid. It cannot fail and touches
+            // no memory of ours.
+            let me = unsafe { libc::getpid() };
+            let rebuild = match slot.as_ref() {
+                None => true,
+                Some(held) => held.pid != me || held.cap < needed,
+            };
+            if rebuild {
+                // Drop the old ring BEFORE asking for the new one: on a kernel that
+                // charges rings to RLIMIT_MEMLOCK its ~8 KB must be back in the per-UID
+                // budget before the replacement asks for more.
+                *slot = None;
+                // Arms submitted to a ring that no longer exists cannot be withdrawn
+                // from the one replacing it — and in a fork child they were never ours.
+                // Dropping the old ring already released every one of them.
+                RING_WITHDRAW.with(|w| w.borrow_mut().clear());
+                RING_LIVE.with(|live| live.borrow_mut().clear());
+                *slot = Some(ThreadRing {
+                    ring: new_ring(needed, site)?,
+                    cap: needed,
+                    pid: me,
+                });
+            }
+            let held = slot
+                .as_mut()
+                .expect("the rebuild above leaves this thread's ring slot populated");
+            withdraw_leaked_arms(&mut held.ring);
+            let out = f(&mut held.ring);
+            // Whatever this operation armed and never saw complete is still held by the
+            // kernel. Queue it; a pass runs when the backlog reaches the watermark.
+            RING_LIVE.with(|live| {
+                let mut live = live.borrow_mut();
+                if !live.is_empty() {
+                    RING_WITHDRAW.with(|w| w.borrow_mut().append(&mut live));
+                }
+            });
+            Ok(out)
+        })
+    }
+
+    /// The raw fd of this thread's io_uring, or `None` when the thread has not
+    /// performed process-tier IO and therefore owns no ring.
+    ///
+    /// ⛔ This replaces the ring fd that used to ride in `Sender::raw_fds` /
+    /// `Receiver::raw_fds`. The ring is no longer part of an ENDPOINT's identity — it
+    /// belongs to the thread — so an endpoint cannot honestly name it, and a list
+    /// captured before the thread's first IO could not name it at all. See the
+    /// `raw_fds` docs for why nothing in the tree depended on that element.
+    pub fn thread_ring_raw_fd() -> Option<std::os::fd::RawFd> {
+        THREAD_RING.with(|cell| {
+            cell.try_borrow()
+                .ok()
+                .and_then(|slot| slot.as_ref().map(|held| held.ring.as_raw_fd()))
+        })
+    }
+
+    /// Rings this PROCESS has created, and rings THIS THREAD has created.
+    ///
+    /// ⭐ The instrument EXPECTATIONS row 1 is judged on: the stone's claim is that the
+    /// SECOND number stays FLAT while waiters multiply. A per-thread count is the only
+    /// form of that claim a probe can assert — the process-wide counter moves when any
+    /// other thread creates a ring, and under `cargo test` when any sibling test does.
+    pub fn rings_created() -> (i64, i64) {
+        (
+            RINGS_CREATED.load(Ordering::Relaxed),
+            RINGS_CREATED_THIS_THREAD.with(|c| c.get()),
+        )
+    }
+
+    #[cfg(test)]
+    mod census_tests {
+        /// excursus 001 `a-deadline-does-not-cost-a-ring` — the ring census must COUNT.
+        ///
+        /// The census exists so the next CI `IoUring::new(4) … ENOMEM` names its own cause:
+        /// was the refusal the first ring in the process or the ten-thousandth? A counter that
+        /// silently stopped incrementing would answer "the first" forever and send the next
+        /// reader down the same three-day path this stone already walked. So the counter is
+        /// itself under test, and the assertion is on the DELTA, never on an absolute — other
+        /// tests in this binary create rings too.
+        #[test]
+        fn ring_census_counts_every_ring_it_hands_out() {
+            use super::{commit_census_text, new_ring, proc_field, ring_census_text, RINGS_CREATED};
+            use std::sync::atomic::Ordering;
+
+            let before = RINGS_CREATED.load(Ordering::Relaxed);
+            let r = new_ring(4, "ring_census_counts_every_ring_it_hands_out");
+            // `IoUring` is not Debug, so report the ERROR side only — the failing world is
+            // the one whose text matters here.
+            if let Err(e) = &r {
+                panic!("a 4-entry ring must be creatable on a healthy box: {e}");
+            }
+            let after = RINGS_CREATED.load(Ordering::Relaxed);
+            assert!(
+                after > before,
+                "creating a ring must advance the census: before={before} after={after}"
+            );
+            // And the census text must carry the refuted hypothesis, so the memlock dead end is
+            // not re-entered by someone reading only the error message. Asserted EXACTLY, against
+            // a fixed count — the tree's `no_loose_string_assert` lint caught the `contains` form
+            // this replaced, and it was right to: a `contains` check passes on a census that has
+            // silently lost half its sentence.
+            assert_eq!(
+                ring_census_text(7, 3),
+                "rings created-so-far=7 in this process, 3 on this thread \
+                 (⛔ budget = RLIMIT_MEMLOCK, ~8 KB per \
+                 ring, accounted PER-UID and SHARED ACROSS PROCESSES: 8 MB ⇒ ~1024 rings for \
+                 everything this user runs. Measured on 6.17-azure: 1024 alone, \
+                 332+254+254+184=1024 across four. Raise `ulimit -l`, or create fewer rings)"
+            );
+
+            // The commit census: wording asserted EXACTLY against fixed readings …
+            assert_eq!(
+                commit_census_text("2", "11534336", "11534000", "8392", "9001", "37"),
+                " · commit: overcommit_memory=2 CommitLimit=11534336kB Committed_AS=11534000kB \
+                 · this process: VmSize=8392kB VmPeak=9001kB threads=37"
+            );
+            // … and the LIVE read must actually parse /proc on this box. A census whose parsing
+            // silently returned "?" would print a well-formed sentence carrying no information —
+            // the failure mode that made the first three hypotheses cost three days. Asserted on
+            // the PARSER, not on a substring of the sentence: the tree's loose-assert lint caught
+            // the `contains` form of this check too, and the exact form is better anyway because
+            // it names which field failed to parse.
+            assert_ne!(
+                proc_field("/proc/meminfo", "CommitLimit:"),
+                "?",
+                "commit census must parse CommitLimit from /proc/meminfo on this box"
+            );
+            assert_ne!(
+                proc_field("/proc/self/status", "VmSize:"),
+                "?",
+                "commit census must parse VmSize from /proc/self/status on this box"
+            );
+        }
+    }
+}
+
+// The door's exports. `new_ring` is deliberately NOT among them.
+use ring_door::{with_thread_ring, RingGen, RING_TAG_MAX};
+pub use ring_door::{rings_created, thread_ring_raw_fd};
+
 
 /// A complete newline-stripped payload extracted from a Receiver's
 /// accumulator. The substrate's vocabulary calls these "frames"
@@ -429,36 +919,57 @@ mod autobind_tests {
 /// `close(self)` consumes the endpoint and drops the fd via OwnedFd Drop;
 /// the peer sees EOF when the sole Sender closes.
 pub struct Sender<T: EdnRepresentable> {
+    /// ⭐ arc 109 — THE RING IS GONE FROM THIS STRUCT. A `Sender` used to own an
+    /// `IoUring` (capacity 4: Write 1 + PollAdd 1 + AsyncCancel headroom), so every
+    /// endpoint in the program was a ring. `send` now borrows the WAITING thread's
+    /// ring via [`with_thread_ring`], which is where a blocking submission belongs:
+    /// the SQ/CQ are single-producer/single-consumer, so the submitter and the
+    /// waiter must be the same thread, and that is the thread, not the endpoint.
+    ///
+    /// The send fd stays blocking: an io_uring Write on a full blocking pipe parks
+    /// (the measured behaviour); `O_NONBLOCK` would complete with `-EAGAIN`
+    /// instead and none of that transfers.
     write_fd: OwnedFd,
-    /// Persistent io_uring (capacity 4) — Write 1 + PollAdd 1, with
-    /// headroom for AsyncCancel. `RefCell` so `send(&self)` can submit.
-    /// The send fd stays blocking: an io_uring Write on a full blocking
-    /// pipe parks (the measured behaviour); `O_NONBLOCK` would complete
-    /// with `-EAGAIN` instead and none of that transfers.
-    ring: RefCell<IoUring>,
     /// Type marker — `T` doesn't appear in any field but constrains
     /// what `send` accepts. `PhantomData<T>` makes `Sender<T>` invariant
     /// in T which is correct for this use case.
     _phantom: PhantomData<T>,
 }
 
-// rune:purgare(public-api) — Debug impl mirrors Receiver<T>'s manual Debug:
-// IoUring is !Debug, so #[derive(Debug)] cannot survive the ring field.
+// rune:purgare(public-api) — Debug impl mirrors Receiver<T>'s manual Debug, which
+// is still hand-written because `Source` is !Debug. Arc 109 removed the `ring` field
+// (and with it the original reason: `IoUring` is !Debug); the impl is kept rather
+// than derived so the two endpoint types keep the same shape at the same place.
 impl<T: EdnRepresentable> std::fmt::Debug for Sender<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Sender")
             .field("write_fd", &self.write_fd)
-            .field("ring", &"IoUring")
             .field("_phantom", &self._phantom)
             .finish()
     }
 }
 
-/// Tokens on the Sender ring. Two ops per attempt, plus AsyncCancel of
-/// whichever did not complete. Never assume completion order — tag only.
-const SEND_WRITE_TOKEN: u64 = 1;
-const SEND_BROADCAST_TOKEN: u64 = 2;
-const SEND_CANCEL_TOKEN: u64 = 3;
+/// Tags on the send submission. Two ops per attempt, plus AsyncCancel of whichever
+/// did not complete. Never assume completion order — tag only.
+///
+/// Arc 109: these are TAGS now, not whole `user_data`s — [`RingGen`] prefixes each
+/// with the operation's generation, because the ring they ride on is shared with
+/// every other operation this thread performs. The number of arms the thread's ring
+/// must hold for one send attempt:
+const SEND_ARMS: u32 = 2;
+const SEND_WRITE_TAG: u64 = 1;
+const SEND_BROADCAST_TAG: u64 = 2;
+const SEND_CANCEL_TAG: u64 = 3;
+
+/// A send failure WITHOUT the value. `Sender::send` must hand the original `T` back
+/// in every error arm, and the value cannot travel into the ring closure and come
+/// back out of it, so the closure names the failure and the caller re-attaches the
+/// value. No `SendError` variant is added, removed or re-meaninged by this.
+enum SendFail {
+    Disconnected,
+    Shutdown,
+    Failed(String),
+}
 
 enum WriteWait {
     /// Write CQE with n > 0. Resume loop adds `n.get()` to `written`.
@@ -488,24 +999,31 @@ fn submit_and_wait_eintr(ring: &mut IoUring) -> std::io::Result<()> {
     }
 }
 
-fn drain_cqes(ring: &mut IoUring) -> Vec<(u64, i32)> {
+/// Drain every ready CQE, keeping only THIS operation's (as `(tag, result)`).
+/// Stragglers from earlier operations on the shared per-thread ring are discarded —
+/// see [`RingGen`] for why that is lossless.
+fn drain_cqes(ring: &mut IoUring, generation: RingGen) -> Vec<(u64, i32)> {
     let mut out = Vec::new();
     while let Some(cqe) = ring.completion().next() {
-        out.push((cqe.user_data(), cqe.result()));
+        if let Some(tag) = generation.tag(cqe.user_data()) {
+            out.push((tag, cqe.result()));
+        }
     }
     out
 }
 
-/// AsyncCancel `target` and drain. ENOENT (already complete) is not an error.
-fn cancel_ud(ring: &mut IoUring, target: u64) -> Vec<(u64, i32)> {
-    let cancel_e = opcode::AsyncCancel::new(target)
+/// AsyncCancel this generation's `tag` and drain. ENOENT (already complete) is not
+/// an error. Unlike the queued withdrawals in [`flush_ring_withdrawals`] this one
+/// WAITS, because the caller needs the cancelled op's own CQE to break a tie.
+fn cancel_tag(ring: &mut IoUring, generation: RingGen, tag: u64) -> Vec<(u64, i32)> {
+    let cancel_e = opcode::AsyncCancel::new(generation.sole(tag))
         .build()
-        .user_data(SEND_CANCEL_TOKEN);
+        .user_data(generation.sole(SEND_CANCEL_TAG));
     unsafe {
         let _ = ring.submission().push(&cancel_e);
     }
     let _ = submit_and_wait_eintr(ring);
-    drain_cqes(ring)
+    drain_cqes(ring, generation)
 }
 
 /// One Write attempt on the Sender's ring. `buf` is `framed[written..]` —
@@ -517,6 +1035,7 @@ fn cancel_ud(ring: &mut IoUring, target: u64) -> Vec<(u64, i32)> {
 /// submits the Write alone.
 fn write_once(
     ring: &mut IoUring,
+    generation: RingGen,
     fd: std::os::fd::RawFd,
     buf: &[u8],
     broadcast_fd: i32,
@@ -524,7 +1043,7 @@ fn write_once(
     let write_e = opcode::Write::new(types::Fd(fd), buf.as_ptr(), buf.len() as u32)
         .offset(0)
         .build()
-        .user_data(SEND_WRITE_TOKEN);
+        .user_data(generation.arm(SEND_WRITE_TAG));
     // SAFETY: `buf` is a borrow of `framed[written..]` on send()'s stack
     // and outlives every submit_and_wait below (same discipline as
     // uring_read_into_acc's 4096-byte buf).
@@ -540,7 +1059,7 @@ fn write_once(
             (libc::POLLIN | libc::POLLHUP) as u32,
         )
         .build()
-        .user_data(SEND_BROADCAST_TOKEN);
+        .user_data(generation.arm(SEND_BROADCAST_TAG));
         unsafe {
             ring.submission()
                 .push(&poll_e)
@@ -551,14 +1070,14 @@ fn write_once(
     let mut got_broadcast = false;
     loop {
         submit_and_wait_eintr(ring).map_err(|e| e.to_string())?;
-        let cqes = drain_cqes(ring);
+        let cqes = drain_cqes(ring, generation);
         if cqes.is_empty() {
             continue;
         }
-        for (ud, result) in cqes {
-            match ud {
-                SEND_WRITE_TOKEN => write_result = Some(result),
-                SEND_BROADCAST_TOKEN => {
+        for (tag, result) in cqes {
+            match tag {
+                SEND_WRITE_TAG => write_result = Some(result),
+                SEND_BROADCAST_TAG => {
                     if result < 0 {
                         return Err(format!(
                             "io_uring poll failed: {}",
@@ -579,7 +1098,7 @@ fn write_once(
 
     if let Some(n) = write_result {
         if have_broadcast && !got_broadcast {
-            let _ = cancel_ud(ring, SEND_BROADCAST_TOKEN);
+            let _ = cancel_tag(ring, generation, SEND_BROADCAST_TAG);
         }
         if n > 0 {
             if let Some(nz) = std::num::NonZeroUsize::new(n as usize) {
@@ -598,9 +1117,9 @@ fn write_once(
     }
 
     if got_broadcast {
-        let leftover = cancel_ud(ring, SEND_WRITE_TOKEN);
-        for (ud, result) in leftover {
-            if ud != SEND_WRITE_TOKEN {
+        let leftover = cancel_tag(ring, generation, SEND_WRITE_TAG);
+        for (tag, result) in leftover {
+            if tag != SEND_WRITE_TAG {
                 continue;
             }
             if result > 0 {
@@ -652,29 +1171,48 @@ impl<T: EdnRepresentable> Sender<T> {
         let fd = self.write_fd.as_raw_fd();
         let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD
             .load(std::sync::atomic::Ordering::SeqCst);
-        let mut ring = self.ring.borrow_mut();
-        let mut written = 0usize;
-        while written < framed.len() {
-            match write_once(&mut ring, fd, &framed[written..], broadcast_fd) {
-                Ok(WriteWait::Wrote(n)) => written += n.get(),
-                Ok(WriteWait::Errno(errno)) => {
-                    let err = std::io::Error::from_raw_os_error(errno);
-                    if err.kind() == std::io::ErrorKind::Interrupted {
-                        continue;
+        // ⭐ arc 109 — the WAITING thread's ring, held for the whole resume loop.
+        // One borrow, no nesting: `write_once` touches nothing but the ring it is
+        // handed, so the release-before-call discipline has nothing to release.
+        let attempt = with_thread_ring(SEND_ARMS, "Sender::send", |ring| {
+            let mut written = 0usize;
+            while written < framed.len() {
+                // A FRESH generation per attempt: iteration 1's queued withdrawal
+                // must not be able to cancel iteration 2's live Write.
+                let generation = RingGen::fresh();
+                match write_once(ring, generation, fd, &framed[written..], broadcast_fd) {
+                    Ok(WriteWait::Wrote(n)) => written += n.get(),
+                    Ok(WriteWait::Errno(errno)) => {
+                        let err = std::io::Error::from_raw_os_error(errno);
+                        if err.kind() == std::io::ErrorKind::Interrupted {
+                            continue;
+                        }
+                        if err.kind() == std::io::ErrorKind::WouldBlock {
+                            continue;
+                        }
+                        if err.kind() == std::io::ErrorKind::BrokenPipe {
+                            return Err(SendFail::Disconnected);
+                        }
+                        return Err(SendFail::Failed(err.to_string()));
                     }
-                    if err.kind() == std::io::ErrorKind::WouldBlock {
-                        continue;
-                    }
-                    if err.kind() == std::io::ErrorKind::BrokenPipe {
-                        return Err(SendError::Disconnected(value));
-                    }
-                    return Err(SendError::Failed(value, err.to_string()));
+                    Ok(WriteWait::Shutdown) => return Err(SendFail::Shutdown),
+                    Err(reason) => return Err(SendFail::Failed(reason)),
                 }
-                Ok(WriteWait::Shutdown) => return Err(SendError::Shutdown(value)),
-                Err(reason) => return Err(SendError::Failed(value, reason)),
             }
+            Ok(())
+        });
+        // The value re-attaches here. ⚠ A ring the kernel REFUSES now surfaces as
+        // `SendError::Failed` at send time instead of an `io::Error` out of `pair()`
+        // at construction time — the same existing variant, carrying the same census
+        // text. It is the one place where a refusal's report site moves, and it moves
+        // only in the world this stone exists to make unreachable.
+        match attempt {
+            Err(ring_err) => Err(SendError::Failed(value, ring_err.to_string())),
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(SendFail::Disconnected)) => Err(SendError::Disconnected(value)),
+            Ok(Err(SendFail::Shutdown)) => Err(SendError::Shutdown(value)),
+            Ok(Err(SendFail::Failed(reason))) => Err(SendError::Failed(value, reason)),
         }
-        Ok(())
     }
 
     /// Genuinely non-blocking send. Toggles `O_NONBLOCK` on the write fd
@@ -776,16 +1314,27 @@ impl<T: EdnRepresentable> Sender<T> {
 impl<T: EdnRepresentable> Sender<T> {
     /// Return every raw file descriptor this `Sender` owns.
     ///
-    /// Currently: `[write_fd, ring_fd]`. Callers that fork and need to
-    /// preserve this endpoint's fds across a `close_inherited_fds_above_stdio`
-    /// sweep should pass the result of this method into the skip-list (via
-    /// `crate::process::child_post_fork_init_preserving`).
+    /// Currently: `[write_fd]`.
+    ///
+    /// ⛔ **Arc 109 removed the ring fd from this list, and that is DESIGN trap-door
+    /// 2 discharged rather than waved past.** The second element was the endpoint's
+    /// own `IoUring` fd; the ring now belongs to the THREAD, so an endpoint cannot
+    /// honestly name it and a list captured before the thread's first IO could not
+    /// name it at all. [`thread_ring_raw_fd`] is where the thread's ring fd is asked
+    /// for, at the moment a caller needs it.
+    ///
+    /// ⭑ Measured before changing it: the sweep the second element existed for,
+    /// `close_inherited_fds_above_stdio` / `child_post_fork_init_preserving`, no
+    /// longer exists in `src/` at all (arc 170's child EXECs, so it inherits 0/1/2
+    /// and the lifeline and nothing else), and every caller of `raw_fds` in the tree
+    /// — `spawn.rs:1015,1016,1042-1044` and four probes — indexes `[0]`. Nothing
+    /// read element 1.
     ///
     /// Stone 4.5-fix: added as the intentional, portable preservation surface
     /// so fork children can enumerate "every fd I must keep alive across the
     /// sweep" without reaching past the public API into OwnedFd fields.
     pub fn raw_fds(&self) -> Vec<std::os::fd::RawFd> {
-        vec![self.write_fd.as_raw_fd(), self.ring.borrow().as_raw_fd()]
+        vec![self.write_fd.as_raw_fd()]
     }
 
     /// Reinterpret this sender's wire type as `U` without touching the
@@ -805,7 +1354,6 @@ impl<T: EdnRepresentable> Sender<T> {
     pub fn reinterpret<U: EdnRepresentable>(self) -> Sender<U> {
         Sender {
             write_fd: self.write_fd,
-            ring: self.ring,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -883,15 +1431,19 @@ impl std::panic::RefUnwindSafe for Source {}
 /// (`Source::Pipe`) or a one-shot timerfd (`Source::Timer`); decodes
 /// newline-framed EDN payloads to `T`.
 /// `Clone` competes for frames via `try_clone` (Stone D1);
-/// each clone gets a FRESH empty accumulator AND a fresh ring
-/// (rings are `Send` but `!Sync`; never share across clones).
-/// Stone E-1: ring is persistent for the Receiver's lifetime;
-/// capacity 4 covers Read (1 SQE) and POLL_ADD pair (2 SQEs)
-/// operations with headroom.
+/// each clone gets a FRESH empty accumulator.
 ///
-/// `Debug` is implemented manually because `IoUring` does not
-/// implement `Debug`; the ring field is shown as an opaque
-/// `"IoUring"` placeholder.
+/// ⭐ Arc 109 (`one-ring-per-thread`): a `Receiver` no longer owns an `IoUring`.
+/// Stone E-1 gave it one for its lifetime (capacity 4) so a recv did not pay ring
+/// setup; the cost of that was one ring per WAITER, and `after` minting a Receiver
+/// per deadline turned it into one ring per deadline. Every wait now borrows the
+/// WAITING thread's single ring via [`with_thread_ring`]. Clones no longer need a
+/// ring of their own either — the rule *"rings are `Send` but `!Sync`, never share
+/// across clones"* is satisfied by the ring being per-thread, which is a stronger
+/// guarantee than per-clone (two clones on ONE thread used to hold two rings; now
+/// two clones on two threads hold one each and cannot alias).
+///
+/// `Debug` is implemented manually because `Source` does not implement `Debug`.
 pub struct Receiver<T: EdnRepresentable> {
     source: Source,
     /// Bytes read from the pipe but not yet returned to a caller.
@@ -908,13 +1460,6 @@ pub struct Receiver<T: EdnRepresentable> {
     /// peer construction to lower (or raise) the limit for this receiver.
     /// Carried through `Clone` so a cloned endpoint honors the same budget.
     max_frame_bytes: usize,
-    /// Persistent io_uring (Stone E-1) — capacity 4 covers Read
-    /// (1 SQE) and POLL_ADD pair (2 SQEs) operations with headroom.
-    /// `RefCell` for the same `&self` interior-mutability reason as
-    /// the accumulator. Constructed at `pair()` and at `Clone`; dropped
-    /// at Receiver Drop (kernel resource cleaned up via IoUring's own
-    /// Drop impl).
-    ring: RefCell<IoUring>,
     /// Type marker — `T` doesn't appear in any field but constrains
     /// what `recv` produces. `PhantomData<T>` makes `Receiver<T>`
     /// invariant in T which is correct for this use case.
@@ -926,9 +1471,10 @@ pub struct Receiver<T: EdnRepresentable> {
 // pairs; IoUring is !Debug so manual impl is load-bearing even though no current
 // codebase struct exercises it. Per purgare ward (Stone E-1 ward pass 2026-05-19).
 impl<T: EdnRepresentable> std::fmt::Debug for Receiver<T> {
-    /// Manual Debug impl — `IoUring` does not implement `Debug`;
-    /// the ring field is shown as an opaque placeholder. All other
-    /// fields are shown via their own Debug impls.
+    /// Manual Debug impl — `Source` does not implement `Debug`, so it is rendered
+    /// by hand. All other fields are shown via their own Debug impls. (Before arc
+    /// 109 the reason given was the `ring` field: `IoUring` is !Debug. The ring is
+    /// gone; `Source` is why the impl stays.)
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let source_display = match &self.source {
             Source::Pipe { read_fd } => format!("Pipe {{ read_fd: {:?} }}", read_fd),
@@ -938,7 +1484,6 @@ impl<T: EdnRepresentable> std::fmt::Debug for Receiver<T> {
             .field("source", &source_display)
             .field("accumulator", &self.accumulator)
             .field("max_frame_bytes", &self.max_frame_bytes)
-            .field("ring", &"IoUring")
             .field("_phantom", &self._phantom)
             .finish()
     }
@@ -977,7 +1522,7 @@ impl<T: EdnRepresentable> Receiver<T> {
             // test bypass), skip the poll and fall through to bare Read
             // (Stone A behavior; no cascade available).
             if let Some(broadcast_fd) = broadcast_opt {
-                match wait_for_data_or_cascade(read_fd, broadcast_fd, &self.ring)? {
+                match wait_for_data_or_cascade(read_fd, broadcast_fd)? {
                     PollOutcome::Shutdown => return Err(RecvError::Shutdown),
                     PollOutcome::DataReady => {
                         // Data is ready; fall through to Read step.
@@ -1009,13 +1554,13 @@ impl<T: EdnRepresentable> Receiver<T> {
 }
 
 impl<T: EdnRepresentable> Receiver<T> {
-    /// Issue one io_uring Read on `self.read_fd` into `self.accumulator`
-    /// using `self.ring`. Returns `Ok(n)` where `n` is bytes appended
+    /// Issue one io_uring Read on `self.read_fd` into `self.accumulator` using the
+    /// CALLING THREAD's ring. Returns `Ok(n)` where `n` is bytes appended
     /// (0 means EOF / peer closed write end), or `Err(())` on io_uring
     /// SQE submission, submit_and_wait, or CQE error.
     ///
     /// Encapsulates the field access pattern `(self.read_fd.as_raw_fd(),
-    /// &self.accumulator, &self.ring)` so callers — including
+    /// &self.accumulator)` so callers — including
     /// `Select::select`'s Read step — compose via this surface instead of
     /// reaching into the Receiver's private fields. Closes the Solvere
     /// ward finding from E-1 ward pass 2026-05-19 (Select was braiding
@@ -1024,13 +1569,13 @@ impl<T: EdnRepresentable> Receiver<T> {
     pub(crate) fn read_into_acc(&self) -> Result<usize, ()> {
         match &self.source {
             Source::Pipe { read_fd } => {
-                uring_read_into_acc(read_fd.as_raw_fd(), &self.accumulator, &self.ring)
+                uring_read_into_acc(read_fd.as_raw_fd(), &self.accumulator)
             }
             Source::Timer { timer_fd, msg } => {
                 // Drain the 8-byte expiration count from the timerfd via io_uring Read
                 // into a scratch buffer (NOT the accumulator) — same SQE shape as
                 // uring_read_into_acc but reads into [u8;8], discards the count.
-                let n = uring_read_n_into_scratch(timer_fd.as_raw_fd(), &self.ring, 8)?;
+                let n = uring_read_n_into_scratch(timer_fd.as_raw_fd(), 8)?;
                 if n == 0 {
                     // EOF — timer fd closed / spent without firing.
                     return Ok(0);
@@ -1081,13 +1626,21 @@ impl<T: EdnRepresentable> Receiver<T> {
 
     /// Return every raw file descriptor this `Receiver` owns.
     ///
-    /// Currently: `[read_fd, ring_fd]`. Both must survive a
-    /// `close_inherited_fds_above_stdio` sweep for `recv` to work in a
-    /// fork child: `read_fd` is the pipe read-end; `ring_fd` is the
-    /// persistent io_uring (Stone E-1) whose kernel resource backs every
-    /// blocking `recv`. Preserving only `read_fd` but closing the ring
-    /// fd would leave the ring defunct and cause `recv` to return
-    /// `Err(RecvError)` immediately.
+    /// Currently: `[data_fd]` — the pipe/socket read-end, or the timerfd.
+    ///
+    /// ⛔ **Arc 109 removed the ring fd, and this is DESIGN trap-door 2 discharged.**
+    /// The module header said each endpoint *"owns its data fd AND its io_uring ring
+    /// fd; both must survive"*. The ring is now the THREAD's: it is not this
+    /// endpoint's to name, it may not exist yet when a caller asks, and a raw fd
+    /// captured from one thread would be the wrong ring on another. The thread's
+    /// ring fd is asked for at the moment it is needed, via [`thread_ring_raw_fd`].
+    ///
+    /// ⭑ Measured before changing it: the sweep that clause existed for
+    /// (`close_inherited_fds_above_stdio` / `child_post_fork_init_preserving`) is no
+    /// longer in `src/` at all — arc 170's child EXECs, inheriting 0/1/2 plus the
+    /// lifeline and nothing else — and every `raw_fds` caller in the tree indexes
+    /// `[0]` (`spawn.rs:1015,1016,1042-1044`, plus four probes). Element 1 was read
+    /// by nothing.
     ///
     /// Stone 4.5-fix: added as the intentional, portable preservation surface
     /// so fork children can enumerate "every fd I must keep alive across the
@@ -1097,7 +1650,7 @@ impl<T: EdnRepresentable> Receiver<T> {
             Source::Pipe { read_fd } => read_fd.as_raw_fd(),
             Source::Timer { timer_fd, .. } => timer_fd.as_raw_fd(),
         };
-        vec![data_fd, self.ring.borrow().as_raw_fd()]
+        vec![data_fd]
     }
 
     /// Count of locally-buffered complete frames in the accumulator.
@@ -1165,7 +1718,7 @@ impl<T: EdnRepresentable> Receiver<T> {
 
         loop {
             if let Some(broadcast_fd) = broadcast_opt {
-                match wait_for_data_or_cascade(read_fd, broadcast_fd, &self.ring)? {
+                match wait_for_data_or_cascade(read_fd, broadcast_fd)? {
                     PollOutcome::Shutdown => return Err(RecvError::Shutdown),
                     PollOutcome::DataReady => {}
                 }
@@ -1198,13 +1751,19 @@ impl<T: EdnRepresentable> Clone for Receiver<T> {
     /// is per-endpoint; sharing it would create confusing partial-frame
     /// behavior across clones.
     ///
-    /// Stone E-1: the cloned receiver also gets a FRESH IoUring
-    /// (capacity 4) — rings are `Send` but `!Sync`; each clone owns
-    /// its own ring so clones operating on different threads do not
-    /// race on the ring's submission/completion queues.
+    /// ⭐ Arc 109: the clone gets NO ring. Stone E-1 gave it a fresh `IoUring(4)`
+    /// so that *"clones operating on different threads do not race on the ring's
+    /// submission/completion queues"* — a per-THREAD ring satisfies that by
+    /// construction and more strictly: two clones on two threads get one ring each,
+    /// and two clones on ONE thread now share the one ring that thread is allowed to
+    /// have instead of holding two.
     ///
-    /// Panics on `libc::dup` failure (EMFILE/ENFILE; fd table exhausted)
-    /// or `IoUring::new(4)` failure (kernel resource exhaustion; rare).
+    /// ⭑ And one panic is GONE with it: `Receiver::clone` could die on
+    /// `IoUring::new(4)` failure (the in-source comment said *"⚠ STILL A PANIC, and
+    /// the DESIGN says it should not be"*). Clone no longer creates a ring, so it no
+    /// longer has that failure to mishandle.
+    ///
+    /// Panics on `libc::dup` failure (EMFILE/ENFILE; fd table exhausted).
     fn clone(&self) -> Self {
         let source = match &self.source {
             Source::Pipe { read_fd } => Source::Pipe {
@@ -1223,13 +1782,6 @@ impl<T: EdnRepresentable> Clone for Receiver<T> {
             source,
             accumulator: RefCell::new(Vec::new()),
             max_frame_bytes: self.max_frame_bytes,
-            ring: RefCell::new(
-                // ⚠ STILL A PANIC, and the DESIGN says it should not be: converting it to an
-                // `io::Error` changes this method's signature and ripples to its callers, which
-                // is a separate change. What it can do today is stop dying anonymously.
-                new_ring(4, "Receiver::clone_for_source")
-                    .unwrap_or_else(|e| panic!("{e}")),
-            ),
             _phantom: PhantomData,
         }
     }
@@ -1271,8 +1823,10 @@ enum PollOutcome {
 /// arms may fire simultaneously, in which case broadcast wins
 /// (substrate-shutdown takes precedence over pending data).
 ///
-/// Stone E-1: ring is now a persistent kernel resource borrowed from
-/// the calling Receiver. Per-call `IoUring::new(4)` is retired.
+/// Stone E-1 made the ring a persistent kernel resource borrowed from the calling
+/// Receiver. ⭐ Arc 109 re-scopes that: the ring is the CALLING THREAD's, looked up
+/// through [`with_thread_ring`], so the Receiver no longer has to own one and the
+/// wait happens on the ring belonging to the thread that is actually blocking.
 ///
 /// Event masks:
 ///   - data fd: POLLIN | POLLHUP (data ready OR peer-closed)
@@ -1284,84 +1838,97 @@ enum PollOutcome {
 fn wait_for_data_or_cascade(
     read_fd: std::os::fd::RawFd,
     broadcast_fd: std::os::fd::RawFd,
-    ring: &RefCell<IoUring>,
 ) -> Result<PollOutcome, RecvError> {
-    const DATA_TOKEN: u64 = 1;
-    const BROADCAST_TOKEN: u64 = 2;
+    const DATA_TAG: u64 = 1;
+    const BROADCAST_TAG: u64 = 2;
+    /// Data arm + broadcast arm.
+    const CASCADE_ARMS: u32 = 2;
 
-    let mut ring = ring.borrow_mut();
+    with_thread_ring(CASCADE_ARMS, "Receiver cascade wait", |ring| {
+        let generation = RingGen::fresh();
 
-    let poll_data = opcode::PollAdd::new(
-        types::Fd(read_fd),
-        (libc::POLLIN | libc::POLLHUP) as u32,
-    )
-    .build()
-    .user_data(DATA_TOKEN);
+        let poll_data = opcode::PollAdd::new(
+            types::Fd(read_fd),
+            (libc::POLLIN | libc::POLLHUP) as u32,
+        )
+        .build()
+        .user_data(generation.arm(DATA_TAG));
 
-    let poll_broadcast = opcode::PollAdd::new(
-        types::Fd(broadcast_fd),
-        // Arc 170 Phase 1 — broadcast means WAKE (POLLIN, a written byte) as
-        // well as SEVER (POLLHUP, the drop that still immediately follows
-        // the write today).
-        (libc::POLLIN | libc::POLLHUP) as u32,
-    )
-    .build()
-    .user_data(BROADCAST_TOKEN);
+        let poll_broadcast = opcode::PollAdd::new(
+            types::Fd(broadcast_fd),
+            // Arc 170 Phase 1 — broadcast means WAKE (POLLIN, a written byte) as
+            // well as SEVER (POLLHUP, the drop that still immediately follows
+            // the write today).
+            (libc::POLLIN | libc::POLLHUP) as u32,
+        )
+        .build()
+        .user_data(generation.arm(BROADCAST_TAG));
 
-    // SAFETY: both SQEs reference fds owned elsewhere
-    // (read_fd by the Receiver; broadcast_fd by the substrate worker).
-    // Both remain valid for the lifetime of this submit_and_wait call.
-    unsafe {
-        // arc 278 no-hidden-failures — an SQE push failure (queue full) is a
-        // genuine io_uring error, not a clean close; carry the reason via
-        // Failed instead of muting into Disconnected.
-        ring.submission()
-            .push(&poll_data)
-            .map_err(|e| RecvError::Failed(format!("io_uring poll SQE submission failed: {e}")))?;
-        ring.submission()
-            .push(&poll_broadcast)
-            .map_err(|e| RecvError::Failed(format!("io_uring poll SQE submission failed: {e}")))?;
-    }
-
-    // EINTR retry: a signal arriving during wait returns EINTR; resume waiting.
-    // Without retry, EINTR silently maps to RecvError (channel death) when the
-    // channel is healthy. Mirrors the proven template at process.rs:712-718.
-    loop {
-        match ring.submit_and_wait(1) {
-            Ok(_) => break,
-            Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
-            Err(_) => return Err(RecvError::Disconnected),
+        // SAFETY: both SQEs reference fds owned elsewhere
+        // (read_fd by the Receiver; broadcast_fd by the substrate worker).
+        // Both remain valid for the lifetime of this submit_and_wait call.
+        unsafe {
+            // arc 278 no-hidden-failures — an SQE push failure (queue full) is a
+            // genuine io_uring error, not a clean close; carry the reason via
+            // Failed instead of muting into Disconnected.
+            ring.submission()
+                .push(&poll_data)
+                .map_err(|e| RecvError::Failed(format!("io_uring poll SQE submission failed: {e}")))?;
+            ring.submission()
+                .push(&poll_broadcast)
+                .map_err(|e| RecvError::Failed(format!("io_uring poll SQE submission failed: {e}")))?;
         }
-    }
 
-    // Drain ALL ready CQEs — both arms may fire simultaneously.
-    let mut got_data = false;
-    let mut got_broadcast = false;
-    while let Some(cqe) = ring.completion().next() {
-        if cqe.result() < 0 {
-            return Err(RecvError::Disconnected);
+        // Drain ALL ready CQEs of THIS generation — both arms may fire simultaneously.
+        //
+        // ⛔ The wait is now a LOOP, and that is the shared ring's doing. Before arc
+        // 109, `submit_and_wait(1)` returning meant one of OUR two arms had completed,
+        // so a single drain sufficed and an unknown `user_data` was "unreachable". On a
+        // per-thread ring the CQE that woke us can be a straggler from an earlier
+        // operation; the drain discards it (see [`RingGen`]) and the wait RESUMES,
+        // instead of falling out of the bottom as a `Disconnected` on a healthy channel.
+        let mut got_data = false;
+        let mut got_broadcast = false;
+        loop {
+            // EINTR retry: a signal arriving during wait returns EINTR; resume waiting.
+            // Without retry, EINTR silently maps to RecvError (channel death) when the
+            // channel is healthy. Mirrors the proven template at process.rs:712-718.
+            match ring.submit_and_wait(1) {
+                Ok(_) => {}
+                Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
+                Err(_) => return Err(RecvError::Disconnected),
+            }
+            while let Some(cqe) = ring.completion().next() {
+                let Some(tag) = generation.tag(cqe.user_data()) else {
+                    // A straggler from an earlier operation on this thread's ring.
+                    continue;
+                };
+                if cqe.result() < 0 {
+                    return Err(RecvError::Disconnected);
+                }
+                match tag {
+                    DATA_TAG => got_data = true,
+                    BROADCAST_TAG => got_broadcast = true,
+                    // Unreachable: this generation pushed only these two tags.
+                    _ => return Err(RecvError::Disconnected),
+                }
+            }
+            if got_data || got_broadcast {
+                break;
+            }
         }
-        match cqe.user_data() {
-            DATA_TOKEN => got_data = true,
-            BROADCAST_TOKEN => got_broadcast = true,
-            // Unreachable: we only push two SQEs with these two tokens.
-            _ => return Err(RecvError::Disconnected),
-        }
-    }
 
-    // Broadcast wins ties — substrate is going down; honest reporting
-    // (mirrors typed_channel.rs:360-364 discipline).
-    if got_broadcast {
-        Ok(PollOutcome::Shutdown)
-    } else if got_data {
-        Ok(PollOutcome::DataReady)
-    } else {
-        // Unreachable with min_complete=1: submit_and_wait(1) success
-        // guarantees ≥1 CQE, so at least one arm fires. If this branch
-        // ever fires it is a substrate defect — propagate as Err(RecvError::Disconnected)
-        // (fatal; the caller's `?` surfaces it).
-        Err(RecvError::Disconnected)
-    }
+        // Broadcast wins ties — substrate is going down; honest reporting
+        // (mirrors typed_channel.rs:360-364 discipline).
+        if got_broadcast {
+            Ok(PollOutcome::Shutdown)
+        } else {
+            Ok(PollOutcome::DataReady)
+        }
+    })
+    // A ring the kernel refuses is a transport failure carrying its own census,
+    // never a clean close (arc 278 no-hidden-failures).
+    .map_err(|e| RecvError::Failed(e.to_string()))?
 }
 
 /// Decode a newline-framed payload to `T` via the wire chain:
@@ -1479,50 +2046,71 @@ fn current_broadcast_fd() -> Option<std::os::fd::RawFd> {
 /// of bytes appended (0 means EOF / peer closed write end), or
 /// `Err(())` on SQE submission, submit_and_wait, or CQE error.
 ///
-/// Stone E-1: ring is now a persistent kernel resource borrowed from
-/// the calling Receiver (or, in Select's Read-step, from the fired
-/// Receiver). Per-call `IoUring::new(2)` is retired.
+/// Arc 109: the ring is the CALLING THREAD's, via [`with_thread_ring`]. (Stone E-1
+/// had borrowed it from the calling Receiver, or in Select's Read-step from the
+/// fired Receiver; per-call `IoUring::new(2)` was already retired then.)
 ///
 /// Callers map `Err(())` to their domain outcome (RecvError) at the call site.
 fn uring_read_into_acc(
     fd: std::os::fd::RawFd,
     acc: &Accumulator,
-    ring: &RefCell<IoUring>,
 ) -> Result<usize, ()> {
-    let mut ring = ring.borrow_mut();
+    const READ_TAG: u64 = 1;
     let mut buf = [0u8; 4096];
-    let read_e = opcode::Read::new(
-        types::Fd(fd),
-        buf.as_mut_ptr(),
-        buf.len() as _,
-    )
-    .build()
-    .user_data(1);
+    let inner = with_thread_ring(1, "process-tier read", |ring| {
+        let generation = RingGen::fresh();
+        let read_ud = generation.sole(READ_TAG);
+        let read_e = opcode::Read::new(
+            types::Fd(fd),
+            buf.as_mut_ptr(),
+            buf.len() as _,
+        )
+        .build()
+        .user_data(read_ud);
 
-    // SAFETY: read_e's buf pointer (buf) outlives submit_and_wait because
-    // buf is on this function's stack and is not freed until after the wait
-    // completes.
-    unsafe {
-        ring.submission().push(&read_e).map_err(|_| ())?;
-    }
-
-    // Retry submit_and_wait on EINTR (signal interrupted wait) — mirrors
-    // send()'s EINTR retry loop (process.rs send() fn). Without retry, a
-    // signal during wait silently maps to RecvError (channel death), when
-    // it should just resume waiting. All other errors are fatal.
-    loop {
-        match ring.submit_and_wait(1) {
-            Ok(_) => break,
-            Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
-            Err(_) => return Err(()),
+        // SAFETY: read_e's buf pointer (buf) outlives submit_and_wait because
+        // buf is on the CALLER's stack and this closure runs to completion inside
+        // that frame. ⛔ On every error path below the Read is WITHDRAWN before the
+        // frame can go away — a shared ring outlives this call, so an in-flight Read
+        // is the one op that must never be abandoned pointing at a dead stack.
+        unsafe {
+            if ring.submission().push(&read_e).is_err() {
+                return Err(());
+            }
         }
-    }
-    let cqe = ring.completion().next().ok_or(())?;
-    let result = cqe.result();
-    if result < 0 {
-        return Err(());
-    }
-    let n = result as usize;
+
+        // Retry submit_and_wait on EINTR (signal interrupted wait) — mirrors
+        // send()'s EINTR retry loop (process.rs send() fn). Without retry, a
+        // signal during wait silently maps to RecvError (channel death), when
+        // it should just resume waiting. All other errors are fatal.
+        loop {
+            match ring.submit_and_wait(1) {
+                Ok(_) => {}
+                Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
+                Err(_) => {
+                    generation.withdraw(read_ud);
+                    return Err(());
+                }
+            }
+            // Only THIS generation's Read counts; a straggler from an earlier
+            // operation on the shared ring is discarded and the wait resumes.
+            let mut result: Option<i32> = None;
+            while let Some(cqe) = ring.completion().next() {
+                if generation.tag(cqe.user_data()).is_some() {
+                    result = Some(cqe.result());
+                }
+            }
+            match result {
+                None => continue,
+                Some(r) if r < 0 => return Err(()),
+                Some(r) => return Ok(r as usize),
+            }
+        }
+    });
+    let n = match inner {
+        Err(_) => return Err(()),
+        Ok(inner) => inner?,
+    };
     acc.borrow_mut().extend_from_slice(&buf[..n]);
     Ok(n)
 }
@@ -1539,39 +2127,58 @@ fn uring_read_into_acc(
 /// Retry-on-EINTR mirrors `uring_read_into_acc` (process.rs:~1030).
 fn uring_read_n_into_scratch(
     fd: std::os::fd::RawFd,
-    ring: &RefCell<IoUring>,
     capacity: usize,
 ) -> Result<usize, ()> {
-    let mut ring = ring.borrow_mut();
+    const READ_TAG: u64 = 1;
     // Stack-allocated scratch; capacity is always 8 (timerfd expiry count).
     let mut buf = [0u8; 8];
     let read_len = capacity.min(buf.len());
-    let read_e = opcode::Read::new(
-        types::Fd(fd),
-        buf.as_mut_ptr(),
-        read_len as u32,
-    )
-    .build()
-    .user_data(1);
+    let inner = with_thread_ring(1, "process-tier timerfd drain", |ring| {
+        let generation = RingGen::fresh();
+        let read_ud = generation.sole(READ_TAG);
+        let read_e = opcode::Read::new(
+            types::Fd(fd),
+            buf.as_mut_ptr(),
+            read_len as u32,
+        )
+        .build()
+        .user_data(read_ud);
 
-    // SAFETY: buf is on this function's stack and outlives submit_and_wait.
-    unsafe {
-        ring.submission().push(&read_e).map_err(|_| ())?;
-    }
-
-    loop {
-        match ring.submit_and_wait(1) {
-            Ok(_) => break,
-            Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
-            Err(_) => return Err(()),
+        // SAFETY: buf is on the caller's stack and this closure runs to completion
+        // inside that frame; the error paths withdraw the Read first (see
+        // uring_read_into_acc's matching note).
+        unsafe {
+            if ring.submission().push(&read_e).is_err() {
+                return Err(());
+            }
         }
+
+        loop {
+            match ring.submit_and_wait(1) {
+                Ok(_) => {}
+                Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
+                Err(_) => {
+                    generation.withdraw(read_ud);
+                    return Err(());
+                }
+            }
+            let mut result: Option<i32> = None;
+            while let Some(cqe) = ring.completion().next() {
+                if generation.tag(cqe.user_data()).is_some() {
+                    result = Some(cqe.result());
+                }
+            }
+            match result {
+                None => continue,
+                Some(r) if r < 0 => return Err(()),
+                Some(r) => return Ok(r as usize),
+            }
+        }
+    });
+    match inner {
+        Err(_) => Err(()),
+        Ok(inner) => inner,
     }
-    let cqe = ring.completion().next().ok_or(())?;
-    let result = cqe.result();
-    if result < 0 {
-        return Err(());
-    }
-    Ok(result as usize)
 }
 
 // ─── Timer constructor ────────────────────────────────────────────────────────
@@ -1632,8 +2239,10 @@ pub fn timer<T: EdnRepresentable>(duration: std::time::Duration, msg_frame: Fram
         return Err(std::io::Error::last_os_error());
     }
 
-    let ring = new_ring(4, "timer()")?;
-
+    // ⭐⭐ arc 109 — NO RING IS CREATED HERE, and this line is the stone. `timer()`
+    // used to mint an `IoUring(4)`, and `:wat::kernel::after` calls it on
+    // `call-by-deadline`'s hot path, so ring count tracked DEADLINES. The timerfd is
+    // just another pollable fd; the thread's ring polls it when someone waits.
     Ok(Receiver {
         source: Source::Timer {
             timer_fd,
@@ -1641,7 +2250,6 @@ pub fn timer<T: EdnRepresentable>(duration: std::time::Duration, msg_frame: Fram
         },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
-        ring: RefCell::new(ring),
         _phantom: PhantomData,
     })
 }
@@ -1667,26 +2275,24 @@ pub fn timer<T: EdnRepresentable>(duration: std::time::Duration, msg_frame: Fram
 ///     is decoded → `SelectOutcome::Recv { index, result }`; if partial
 ///     → loop and re-poll all arms (broadcast can fire mid-drain).
 ///
-/// Stone E-2: Select owns a persistent IoUring with reflexive
-/// rebuild-on-capacity-mismatch (grow OR shrink). Invariant:
-/// `cap == next_power_of_two(arm_count).max(2)` at every `select()`
-/// entry, where `arm_count = receivers.len() + (broadcast ? 1 : 0)`
-/// — i.e., arm_count already includes the broadcast slot when active.
+/// Stone E-2 gave `Select` a persistent `IoUring` with reflexive
+/// rebuild-on-capacity-mismatch (grow OR shrink). ⭐ Arc 109 re-scoped that ring
+/// from one-per-`Select`-site to one-per-THREAD: `select()` submits on
+/// [`with_thread_ring`], which keeps the lazy init and the capacity discipline and
+/// makes them GROW-ONLY (a shrink would be a ring creation, which is the cost the
+/// stone removes). The sizing invariant generalises rather than disappearing — the
+/// thread's ring must cover the WIDEST submission live on that thread, and
+/// `arm_count = receivers.len() + (broadcast ? 1 : 0) + (listener ? 1 : 0)` is what
+/// this site contributes to that.
 pub struct Select<'a, T: EdnRepresentable> {
     /// User-registered receivers in registration order. The index
     /// into this Vec is the user-facing `ReceiverIndex`.
     receivers: Vec<&'a Receiver<T>>,
-    /// Persistent io_uring (Stone E-2) — lazy-initialized on first
-    /// `select()` call; reflexively rebuilt on capacity mismatch
-    /// (grow OR shrink) when the registered receiver set's structural
-    /// need changes. Stored alongside its capacity as a tuple to
-    /// avoid crate-internal introspection per call.
-    ///
-    /// The invariant `cap == next_power_of_two(arm_count).max(2)` holds
-    /// at every `select()` entry, where `arm_count` already includes
-    /// the broadcast slot when active. See DESIGN.md § "Stone E forward-
-    /// correction (2026-05-19) — TCO discipline + reflexive rebuild".
-    ring: RefCell<RingSlot>,
+    /// ⭐ arc 109 — THE RING IS GONE FROM THIS STRUCT. Stone E-2's `RefCell<RingSlot>`
+    /// lived here, one per `Select` site, lazily built and reflexively rebuilt. The
+    /// mechanism survives; only its OWNER moved, to the thread (see
+    /// [`with_thread_ring`]). That is the whole stone: `RingSlot` was already lazy,
+    /// persistent and capacity-autoscaling — it was scoped to a waiter.
     /// Arc 209 C0b.3a-i — optional listen fd for the reactor listener arm.
     /// When `Some(fd)`, `select()` pushes a `PollAdd POLLIN` with
     /// `LISTENER_TOKEN` so the caller can accept without blocking.
@@ -1697,33 +2303,65 @@ pub struct Select<'a, T: EdnRepresentable> {
     _phantom: PhantomData<T>,
 }
 
-// rune:purgare(public-api) — Debug impl symmetric with Receiver<T>'s manual
-// Debug (line ~251); Stone E-2 adds an IoUring inside Select.ring, so
-// #[derive(Debug)] would fail to compile (IoUring is !Debug). The ring slot
-// renders as an opaque placeholder showing whether the slot is initialized
-// and its capacity; the underlying IoUring is hidden. Required by structural
-// symmetry — any downstream struct that derives Debug over a Select<'a, T>
-// field needs this impl. Per the user's red flag during E-2 ward pass
-// 2026-05-19 — known defect closed inline rather than deferred to a future
-// purgare pass.
+// rune:purgare(public-api) — Debug impl symmetric with Receiver<T>'s manual Debug.
+// Arc 109 removed the `ring` field (and with it the original reason this impl could
+// not be derived: `IoUring` is !Debug), but `Receiver<T>` still hand-writes its own,
+// so the symmetry this was minted for is why it stays. Any downstream struct that
+// derives Debug over a `Select<'a, T>` field needs it. Per the user's red flag during
+// E-2 ward pass 2026-05-19.
 impl<'a, T: EdnRepresentable> std::fmt::Debug for Select<'a, T> {
-    /// Manual Debug impl — `IoUring` does not implement `Debug`; the ring
-    /// slot is rendered as `None` or `Some(IoUring, cap)` showing only the
-    /// recorded capacity. All other fields are shown via their own Debug
-    /// impls.
+    /// Manual Debug impl, kept for symmetry with `Receiver<T>`'s. All fields are
+    /// shown via their own Debug impls. The thread's ring is deliberately NOT shown:
+    /// it is not this `Select`'s state — [`thread_ring_raw_fd`] is where it is asked
+    /// about — and printing it here would re-assert the ownership the stone removed.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ring_display: String = match self.ring.borrow().as_ref() {
-            None => "None".to_string(),
-            Some((_, cap)) => format!("Some(IoUring, cap={})", cap),
-        };
         f.debug_struct("Select")
             .field("receivers", &self.receivers)
-            .field("ring", &ring_display)
             .field("listener_fd", &self.listener_fd)
             .field("_phantom", &self._phantom)
             .finish()
     }
 }
+
+/// What one pass of `select`'s ring block decided. Arc 109 made this explicit: the
+/// ring block is now a CLOSURE (it borrows the thread's ring, so it must give it back
+/// before any `Receiver` method is called), and a closure cannot `return` out of
+/// `select` the way the old inline block did. Each variant is one of the old block's
+/// exits, unchanged in meaning.
+enum SelectStep {
+    /// Broadcast arm fired — the substrate is going down. Broadcast wins ties.
+    Shutdown,
+    /// Only the listener arm fired.
+    Listener,
+    /// This data arm fired; read from it (OUTSIDE the ring borrow).
+    Data(usize),
+    /// `submit_and_wait` returned with nothing of ours drained. Defensive; re-poll.
+    Restart,
+}
+
+/// Refuse a fan-in so wide that a data arm's tag would collide with a reserved one.
+///
+/// ⭑ Unreachable in practice and CHECKED anyway: `RING_TAG_MAX` is 65534, and a ring
+/// with that many entries exceeds `IORING_MAX_ENTRIES` (32768), so the kernel would
+/// refuse the ring first and say so with the census. The check exists because the
+/// alternative is a SILENT mis-demux — a data arm answering as the listener — and
+/// "the ring would have failed first" is a claim about another subsystem's limit.
+fn select_arm_ceiling(arm_count: usize) -> Result<(), std::io::Error> {
+    if arm_count as u64 >= SELECT_LISTENER_TAG {
+        return Err(std::io::Error::other(format!(
+            "process::Select: {arm_count} arms exceeds the {} the per-thread ring's \
+             user_data tag space can demultiplex",
+            SELECT_LISTENER_TAG - 1
+        )));
+    }
+    Ok(())
+}
+
+/// Tags inside one `select` submission. Data arms take `1..=N`, so the reserved tags
+/// sit at the TOP of the space where no arm index can reach them (the old code used
+/// `u64::MAX` for the listener, which is now the withdrawal tag's neighbour).
+const SELECT_BROADCAST_TAG: u64 = 0;
+const SELECT_LISTENER_TAG: u64 = RING_TAG_MAX;
 
 impl<'a, T: EdnRepresentable> Select<'a, T> {
     /// Construct a new cascade-aware Select. Empty until receivers
@@ -1736,7 +2374,6 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
     pub fn new() -> Self {
         Self {
             receivers: Vec::new(),
-            ring: RefCell::new(None),
             listener_fd: None,
             _phantom: PhantomData,
         }
@@ -1817,36 +2454,18 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
             let arm_count = self.receivers.len()
                 + if broadcast_opt.is_some() { 1 } else { 0 }
                 + if self.listener_fd.is_some() { 1 } else { 0 };
-            let needed_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
+            select_arm_ceiling(arm_count)?;
 
-            // Reflexive rebuild discipline (Stone E-2) — at every loop entry,
-            // ensure cap == needed_capacity. Lazy init on first call; rebuild
-            // on capacity mismatch (grow OR shrink). The replacement IS the
-            // tail call: old ring drops; new ring constructs; receivers + FDs
-            // untouched. Substrate maintains the invariant reflexively; users
-            // never see the io_uring entry count.
-            {
-                let mut ring_slot = self.ring.borrow_mut();
-                let needs_rebuild = match ring_slot.as_ref() {
-                    None => true,
-                    Some((_, current_cap)) => *current_cap != needed_capacity,
-                };
-                if needs_rebuild {
-                    *ring_slot = Some((new_ring(needed_capacity, "select ring rebuild")?, needed_capacity));
-                }
-            }
-            // Select-ring borrow released; safe to call Receiver methods below
-            // (Receiver borrows its own ring; different RefCell).
-
-            const BROADCAST_TOKEN: u64 = 0;
-
-            // Scope-bounded borrow for SQE pushes + submit_and_wait + CQE drain.
-            // arm_idx_opt is determined inside this scope; the Read step happens
-            // AFTER the borrow releases.
-            let arm_idx_opt: Option<usize> = {
-                let mut ring_slot = self.ring.borrow_mut();
-                // SAFETY of unwrap: reflexive rebuild above guarantees Some(_).
-                let ring = &mut ring_slot.as_mut().unwrap().0;
+            // ⛔ THE RING BORROW IS A CLOSURE, and it ends before any `Receiver`
+            // method is called. That discipline is not new — the old inline block did
+            // exactly this ("Select-ring borrow released; safe to call Receiver
+            // methods below") and only CREDITED it to the two borrows being in
+            // different `RefCell`s. With one thread-local slot the credit is wrong
+            // and the shape is what saves it; `with_thread_ring` makes the shape
+            // mandatory instead of conventional. Lazy init + capacity growth happen
+            // inside it (Stone E-2's reflexive rebuild, re-scoped and grow-only).
+            let step: SelectStep = with_thread_ring(arm_count as u32, "process::Select::select", |ring| {
+                let generation = RingGen::fresh();
 
                 if let Some(broadcast_fd) = broadcast_opt {
                     let poll_broadcast = opcode::PollAdd::new(
@@ -1857,7 +2476,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                         (libc::POLLIN | libc::POLLHUP) as u32,
                     )
                     .build()
-                    .user_data(BROADCAST_TOKEN);
+                    .user_data(generation.arm(SELECT_BROADCAST_TAG));
                     // SAFETY: broadcast_fd is owned by the substrate worker
                     // and remains valid for the lifetime of submit_and_wait.
                     unsafe {
@@ -1875,7 +2494,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                         (libc::POLLIN | libc::POLLHUP) as u32,
                     )
                     .build()
-                    .user_data((i + 1) as u64);
+                    .user_data(generation.arm((i + 1) as u64));
                     // SAFETY: rx.read_fd is owned by the Receiver pointed to
                     // by 'a; remains valid for the lifetime of submit_and_wait.
                     unsafe {
@@ -1888,17 +2507,18 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                 }
 
                 // Arc 209 C0b.3a-i — listener arm: PollAdd POLLIN on the listen fd.
-                // LISTENER_TOKEN is outside the broadcast(0)/data(1..=N) range so it
-                // never collides. The listen fd MUST be non-blocking (set at listener'
-                // bind time) so a spurious POLLIN → EWOULDBLOCK is safe to re-poll.
-                const LISTENER_TOKEN: u64 = u64::MAX;
+                // SELECT_LISTENER_TAG is outside the broadcast(0)/data(1..=N) range so
+                // it never collides (`select_arm_ceiling` is what proves the data arms
+                // cannot reach it). The listen fd MUST be non-blocking (set at
+                // listener' bind time) so a spurious POLLIN → EWOULDBLOCK is safe to
+                // re-poll.
                 if let Some(lfd) = self.listener_fd {
                     let poll_listener = opcode::PollAdd::new(
                         types::Fd(lfd),
                         libc::POLLIN as u32,
                     )
                     .build()
-                    .user_data(LISTENER_TOKEN);
+                    .user_data(generation.arm(SELECT_LISTENER_TAG));
                     // SAFETY: lfd is the listen fd registered by the caller; remains
                     // valid for the lifetime of submit_and_wait (caller keeps it alive).
                     unsafe {
@@ -1910,55 +2530,83 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                     }
                 }
 
-                ring.submit_and_wait(1)?;
-
-                // Drain ALL ready CQEs — broadcast, data, and listener arms may
-                // fire simultaneously. Priority: broadcast > data > listener.
+                // Drain ALL ready CQEs OF THIS GENERATION — broadcast, data, and
+                // listener arms may fire simultaneously. Priority: broadcast > data >
+                // listener. A CQE from an earlier operation on this thread's ring is
+                // DISCARDED, not classified: before arc 109 an unexpected `user_data`
+                // was arithmetically turned into a data arm (`token - 1`), which on a
+                // shared ring would have fired the wrong arm or panicked on underflow.
+                //
+                // ⛔⛔ AND THE WAIT IS A LOOP. `submit_and_wait(1)` returns as soon as
+                // ANY completion is ready, including a straggler from an earlier
+                // operation on this shared ring. Treating that as "nothing fired" sent
+                // `select` back round the outer loop to RE-ARM every fd, which produced
+                // more stragglers, which returned immediately again: a measured
+                // arm/cancel storm (circuit wall 23.8 s → 70.3 s, sys 0.2 s → 28.2 s).
+                // Waiting HERE for an arm of this generation is the fix; the arms
+                // already submitted stay armed across the extra wait, so nothing is
+                // re-submitted and nothing spins.
                 let mut fired_broadcast = false;
                 let mut first_data_arm: Option<usize> = None;
                 let mut fired_listener = false;
-                while let Some(cqe) = ring.completion().next() {
-                    if cqe.result() < 0 {
-                        return Err(std::io::Error::from_raw_os_error(-cqe.result()));
-                    }
-                    let token = cqe.user_data();
-                    if token == BROADCAST_TOKEN {
-                        fired_broadcast = true;
-                    } else if token == LISTENER_TOKEN {
-                        fired_listener = true;
-                    } else {
-                        let arm = (token - 1) as usize;
-                        if first_data_arm.is_none() {
-                            first_data_arm = Some(arm);
+                loop {
+                    ring.submit_and_wait(1)?;
+                    let mut fired_anything = false;
+                    while let Some(cqe) = ring.completion().next() {
+                        let Some(tag) = generation.tag(cqe.user_data()) else {
+                            continue;
+                        };
+                        if cqe.result() < 0 {
+                            return Err(std::io::Error::from_raw_os_error(-cqe.result()));
                         }
+                        fired_anything = true;
+                        if tag == SELECT_BROADCAST_TAG {
+                            fired_broadcast = true;
+                        } else if tag == SELECT_LISTENER_TAG {
+                            fired_listener = true;
+                        } else {
+                            let arm = (tag - 1) as usize;
+                            if first_data_arm.is_none() {
+                                first_data_arm = Some(arm);
+                            }
+                        }
+                    }
+                    if fired_anything {
+                        break;
                     }
                 }
 
                 // Broadcast wins ties — substrate going down.
                 if fired_broadcast {
-                    return Ok(SelectOutcome::Shutdown);
+                    return Ok(SelectStep::Shutdown);
                 }
                 // Data arm wins over listener — serve existing clients before accepting new.
                 if first_data_arm.is_none() && fired_listener {
-                    return Ok(SelectOutcome::Listener);
+                    return Ok(SelectStep::Listener);
                 }
-                first_data_arm
-            };
-            // Select-ring borrow released here.
+                match first_data_arm {
+                    Some(i) => Ok(SelectStep::Data(i)),
+                    // Defensive. The loop above cannot leave here without an arm of
+                    // this generation, and broadcast/listener have already returned —
+                    // so this is a substrate defect, not a straggler. Re-poll.
+                    None => Ok(SelectStep::Restart),
+                }
+            })??;
+            // The thread-ring borrow is released here, by the closure ending.
 
-            let arm_idx = match arm_idx_opt {
-                Some(i) => i,
-                None => {
-                    // Defensive — submit_and_wait(1) returned but no
-                    // CQE drained. Should not happen; retry.
-                    continue;
-                }
+            let arm_idx = match step {
+                SelectStep::Shutdown => return Ok(SelectOutcome::Shutdown),
+                SelectStep::Listener => return Ok(SelectOutcome::Listener),
+                SelectStep::Restart => continue,
+                SelectStep::Data(i) => i,
             };
 
             // Read from the fired arm via Receiver's surface method —
-            // Stone E-2 + Solvere finding closure. The Receiver borrows
-            // ITS OWN ring (different RefCell from Select's); no conflict
-            // with the Select-ring borrow released above.
+            // Stone E-2 + Solvere finding closure. Arc 109: the Receiver reaches for
+            // the SAME thread-local ring this select just used, and that is safe for
+            // one reason only — the borrow above is RELEASED (the closure ended). If
+            // this call were moved inside it, `with_thread_ring` would panic with
+            // [`RING_REENTRANCY`] rather than corrupt a wait.
             let rx = self.receivers[arm_idx];
             match rx.read_into_acc() {
                 Err(_) => {
@@ -2045,24 +2693,11 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
             let arm_count = self.receivers.len()
                 + if broadcast_opt.is_some() { 1 } else { 0 }
                 + if self.listener_fd.is_some() { 1 } else { 0 };
-            let needed_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
+            select_arm_ceiling(arm_count)?;
 
-            {
-                let mut ring_slot = self.ring.borrow_mut();
-                let needs_rebuild = match ring_slot.as_ref() {
-                    None => true,
-                    Some((_, current_cap)) => *current_cap != needed_capacity,
-                };
-                if needs_rebuild {
-                    *ring_slot = Some((new_ring(needed_capacity, "select ring rebuild")?, needed_capacity));
-                }
-            }
-
-            const BROADCAST_TOKEN: u64 = 0;
-
-            let arm_idx_opt: Option<usize> = {
-                let mut ring_slot = self.ring.borrow_mut();
-                let ring = &mut ring_slot.as_mut().unwrap().0;
+            // Same closure-scoped thread-ring borrow as `select()`; see its comment.
+            let step: SelectStep = with_thread_ring(arm_count as u32, "process::Select::select_raw", |ring| {
+                let generation = RingGen::fresh();
 
                 if let Some(broadcast_fd) = broadcast_opt {
                     let poll_broadcast = opcode::PollAdd::new(
@@ -2073,7 +2708,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                         (libc::POLLIN | libc::POLLHUP) as u32,
                     )
                     .build()
-                    .user_data(BROADCAST_TOKEN);
+                    .user_data(generation.arm(SELECT_BROADCAST_TAG));
                     unsafe {
                         if ring.submission().push(&poll_broadcast).is_err() {
                             return Err(std::io::Error::other(
@@ -2089,7 +2724,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                         (libc::POLLIN | libc::POLLHUP) as u32,
                     )
                     .build()
-                    .user_data((i + 1) as u64);
+                    .user_data(generation.arm((i + 1) as u64));
                     unsafe {
                         if ring.submission().push(&poll_data).is_err() {
                             return Err(std::io::Error::other(
@@ -2099,14 +2734,13 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                     }
                 }
 
-                const LISTENER_TOKEN: u64 = u64::MAX;
                 if let Some(lfd) = self.listener_fd {
                     let poll_listener = opcode::PollAdd::new(
                         types::Fd(lfd),
                         libc::POLLIN as u32,
                     )
                     .build()
-                    .user_data(LISTENER_TOKEN);
+                    .user_data(generation.arm(SELECT_LISTENER_TAG));
                     unsafe {
                         if ring.submission().push(&poll_listener).is_err() {
                             return Err(std::io::Error::other(
@@ -2116,40 +2750,55 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                     }
                 }
 
-                ring.submit_and_wait(1)?;
-
+                // The same generation-checked WAIT LOOP as `select()`; see its comment
+                // for the storm this shape prevents.
                 let mut fired_broadcast = false;
                 let mut first_data_arm: Option<usize> = None;
                 let mut fired_listener = false;
-                while let Some(cqe) = ring.completion().next() {
-                    if cqe.result() < 0 {
-                        return Err(std::io::Error::from_raw_os_error(-cqe.result()));
-                    }
-                    let token = cqe.user_data();
-                    if token == BROADCAST_TOKEN {
-                        fired_broadcast = true;
-                    } else if token == LISTENER_TOKEN {
-                        fired_listener = true;
-                    } else {
-                        let arm = (token - 1) as usize;
-                        if first_data_arm.is_none() {
-                            first_data_arm = Some(arm);
+                loop {
+                    ring.submit_and_wait(1)?;
+                    let mut fired_anything = false;
+                    while let Some(cqe) = ring.completion().next() {
+                        let Some(tag) = generation.tag(cqe.user_data()) else {
+                            continue;
+                        };
+                        if cqe.result() < 0 {
+                            return Err(std::io::Error::from_raw_os_error(-cqe.result()));
                         }
+                        fired_anything = true;
+                        if tag == SELECT_BROADCAST_TAG {
+                            fired_broadcast = true;
+                        } else if tag == SELECT_LISTENER_TAG {
+                            fired_listener = true;
+                        } else {
+                            let arm = (tag - 1) as usize;
+                            if first_data_arm.is_none() {
+                                first_data_arm = Some(arm);
+                            }
+                        }
+                    }
+                    if fired_anything {
+                        break;
                     }
                 }
 
                 if fired_broadcast {
-                    return Ok(crate::comms::SelectOutcome::Shutdown);
+                    return Ok(SelectStep::Shutdown);
                 }
                 if first_data_arm.is_none() && fired_listener {
-                    return Ok(crate::comms::SelectOutcome::Listener);
+                    return Ok(SelectStep::Listener);
                 }
-                first_data_arm
-            };
+                match first_data_arm {
+                    Some(i) => Ok(SelectStep::Data(i)),
+                    None => Ok(SelectStep::Restart),
+                }
+            })??;
 
-            let arm_idx = match arm_idx_opt {
-                Some(i) => i,
-                None => continue,
+            let arm_idx = match step {
+                SelectStep::Shutdown => return Ok(crate::comms::SelectOutcome::Shutdown),
+                SelectStep::Listener => return Ok(crate::comms::SelectOutcome::Listener),
+                SelectStep::Restart => continue,
+                SelectStep::Data(i) => i,
             };
 
             let rx = self.receivers[arm_idx];
@@ -2236,21 +2885,19 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
     // fd twice (would double-close).
     let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
     let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    // ⭐⭐ arc 109 — A PAIR COSTS ZERO RINGS. This is where `pair()` used to create
+    // TWO (`Receiver construction` + `Sender construction`), which is why the ceiling
+    // tracked endpoints. Neither endpoint owns a ring now; the first blocking
+    // operation borrows the thread's.
     let receiver = Receiver {
         source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes,
-        ring: RefCell::new(
-            new_ring(4, "Receiver construction")?,
-        ),
         _phantom: PhantomData,
     };
     Ok((
         Sender {
             write_fd,
-            ring: RefCell::new(
-                new_ring(4, "Sender construction")?,
-            ),
             _phantom: PhantomData,
         },
         receiver,
@@ -2266,8 +2913,8 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
 ///
 /// `write_fd` = the fd for the Sender; `read_fd` = a `dup` of `write_fd`, so
 /// Sender and Receiver own independent `OwnedFd` lifetimes — Drop closes each
-/// independently without affecting the peer.  Per-Receiver `IoUring::new(4)` (same
-/// reactor as `pair()`).
+/// independently without affecting the peer. No ring is created (arc 109: the ring
+/// is per-THREAD, borrowed at the first blocking operation).
 pub fn sender_receiver_from_fd<T: EdnRepresentable>(
     fd: OwnedFd,
 ) -> std::io::Result<(Sender<T>, Receiver<T>)> {
@@ -2296,17 +2943,11 @@ pub fn sender_receiver_from_fd_with_budget<T: EdnRepresentable>(
         source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes,
-        ring: RefCell::new(
-            new_ring(4, "sender_receiver_from_fd")?,
-        ),
         _phantom: PhantomData,
     };
     Ok((
         Sender {
             write_fd: fd,
-            ring: RefCell::new(
-                new_ring(4, "sender_receiver_from_fd Sender")?,
-            ),
             _phantom: PhantomData,
         },
         receiver,
@@ -2319,8 +2960,7 @@ pub fn sender_receiver_from_fd_with_budget<T: EdnRepresentable>(
 /// Used for a peer over a pipe PAIR (e.g. a process child's fd0 read /
 /// fd1 write owner-link), not a single bidirectional socket fd. Unlike
 /// `sender_receiver_from_fd`, there is no `try_clone`: the two fds are
-/// already distinct `OwnedFd`s. Per-Receiver `IoUring::new(4)` (same
-/// reactor as `sender_receiver_from_fd`).
+/// already distinct `OwnedFd`s. No ring is created (arc 109).
 pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
     read_fd: OwnedFd,
     write_fd: OwnedFd,
@@ -2329,16 +2969,11 @@ pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
         source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
-        ring: RefCell::new(new_ring(4, "sender_receiver_from_split_fds")?,
-        ),
         _phantom: PhantomData,
     };
     Ok((
         Sender {
             write_fd,
-            ring: RefCell::new(
-                new_ring(4, "sender_receiver_from_split_fds Sender")?,
-            ),
             _phantom: PhantomData,
         },
         receiver,
@@ -2413,65 +3048,195 @@ mod timer_tests {
         }
     }
 
-    /// excursus 001 `a-deadline-does-not-cost-a-ring` — the ring census must COUNT.
+}
+
+// ─── arc 109 one-ring-per-thread — the stone under test ──────────────────────
+
+#[cfg(test)]
+mod one_ring_per_thread_tests {
+    use super::ring_door::RING_REENTRANCY;
+    use super::{pair, rings_created, timer, with_thread_ring, Select};
+
+    /// ⭐⭐ THE STONE, DRIVEN. Ring count must track THREADS, not WAITERS: create many
+    /// process-tier endpoints and timers on ONE thread, drive real IO through every
+    /// one, and the per-thread census must stay FLAT.
     ///
-    /// The census exists so the next CI `IoUring::new(4) … ENOMEM` names its own cause:
-    /// was the refusal the first ring in the process or the ten-thousandth? A counter that
-    /// silently stopped incrementing would answer "the first" forever and send the next
-    /// reader down the same three-day path this stone already walked. So the counter is
-    /// itself under test, and the assertion is on the DELTA, never on an absolute — other
-    /// tests in this binary create rings too.
+    /// ⛔ Asserted on the PER-THREAD count, not the process-wide one, and that is the
+    /// only honest form: the process counter moves when any other thread creates a
+    /// ring, and under `cargo test` (threads, not nextest's process-per-test) when any
+    /// sibling test does. The pre-stone world fails this by construction — 200 pairs
+    /// cost 400 rings and 200 timers cost 200 more.
     #[test]
-    fn ring_census_counts_every_ring_it_hands_out() {
-        use super::{commit_census_text, new_ring, proc_field, ring_census_text, RINGS_CREATED};
-        use std::sync::atomic::Ordering;
+    fn ring_count_tracks_threads_not_waiters() {
+        const WAITERS: usize = 200;
 
-        let before = RINGS_CREATED.load(Ordering::Relaxed);
-        let r = new_ring(4, "ring_census_counts_every_ring_it_hands_out");
-        // `IoUring` is not Debug, so report the ERROR side only — the failing world is
-        // the one whose text matters here.
-        if let Err(e) = &r {
-            panic!("a 4-entry ring must be creatable on a healthy box: {e}");
+        // One round-trip first, so the thread's ring exists and the baseline is taken
+        // AFTER the lazy creation rather than straddling it.
+        let (warm_tx, warm_rx) = pair::<String>().expect("warm pair");
+        warm_tx.send("warm".to_string()).expect("warm send");
+        assert_eq!(warm_rx.recv().expect("warm recv"), "warm");
+
+        let (_, before) = rings_created();
+
+        let mut held = Vec::with_capacity(WAITERS);
+        for i in 0..WAITERS {
+            let (tx, rx) = pair::<String>().expect("pair");
+            // Real IO on every endpoint: a ring per waiter would be created HERE if
+            // the endpoints still owned one, and creation is what the census counts.
+            tx.send(format!("m{i}")).expect("send");
+            assert_eq!(rx.recv().expect("recv"), format!("m{i}"));
+            held.push((tx, rx));
         }
-        let after = RINGS_CREATED.load(Ordering::Relaxed);
-        assert!(
-            after > before,
-            "creating a ring must advance the census: before={before} after={after}"
-        );
-        // And the census text must carry the refuted hypothesis, so the memlock dead end is
-        // not re-entered by someone reading only the error message. Asserted EXACTLY, against
-        // a fixed count — the tree's `no_loose_string_assert` lint caught the `contains` form
-        // this replaced, and it was right to: a `contains` check passes on a census that has
-        // silently lost half its sentence.
-        assert_eq!(
-            ring_census_text(7),
-            "rings created-so-far=7 in this process (⛔ budget = RLIMIT_MEMLOCK, ~8 KB per \
-             ring, accounted PER-UID and SHARED ACROSS PROCESSES: 8 MB ⇒ ~1024 rings for \
-             everything this user runs. Measured on 6.17-azure: 1024 alone, \
-             332+254+254+184=1024 across four. Raise `ulimit -l`, or create fewer rings)"
-        );
 
-        // The commit census: wording asserted EXACTLY against fixed readings …
+        // Timers are the sharp half: `:wat::kernel::after` mints one per deadline on
+        // `call-by-deadline`'s hot path, and each used to cost a ring of its own.
+        let mut timers = Vec::with_capacity(WAITERS);
+        for _ in 0..WAITERS {
+            timers.push(
+                timer::<String>(
+                    std::time::Duration::from_millis(50),
+                    b"tick\n".to_vec(),
+                )
+                .expect("timer"),
+            );
+        }
+        // And fire one through a Select, so a timer's whole path (PollAdd + timerfd
+        // drain, both on the thread's ring) is exercised, not just its construction.
+        let mut sel = Select::<String>::new();
+        let idx = sel.recv(&timers[0]);
+        match sel.select().expect("select on a timer") {
+            crate::comms::SelectOutcome::Recv { index, result } => {
+                assert_eq!(index, idx);
+                assert_eq!(result.expect("timer frame decodes"), "tick");
+            }
+            other => panic!("expected the timer arm to fire, got {other:?}"),
+        }
+
+        let (process_wide, after) = rings_created();
+        // ⭐ PRINTED ON PURPOSE. The SCORE quotes this pair as row 1's evidence, and a
+        // number quoted from a passing assertion is a number nobody read. `--nocapture`
+        // re-reads it on demand; nextest hides it on a pass.
+        eprintln!(
+            "[arc109 row 1] waiters={WAITERS} pairs + {WAITERS} timers + 1 select — \
+             rings on this thread: before={before} after={after} (process-wide={process_wide})"
+        );
         assert_eq!(
-            commit_census_text("2", "11534336", "11534000", "8392", "9001", "37"),
-            " · commit: overcommit_memory=2 CommitLimit=11534336kB Committed_AS=11534000kB \
-             · this process: VmSize=8392kB VmPeak=9001kB threads=37"
+            after, before,
+            "{WAITERS} pairs + {WAITERS} timers + a select must create ZERO further \
+             rings on this thread (before={before} after={after}); ring count tracks \
+             threads, never waiters"
         );
-        // … and the LIVE read must actually parse /proc on this box. A census whose parsing
-        // silently returned "?" would print a well-formed sentence carrying no information —
-        // the failure mode that made the first three hypotheses cost three days. Asserted on
-        // the PARSER, not on a substring of the sentence: the tree's loose-assert lint caught
-        // the `contains` form of this check too, and the exact form is better anyway because
-        // it names which field failed to parse.
-        assert_ne!(
-            proc_field("/proc/meminfo", "CommitLimit:"),
-            "?",
-            "commit census must parse CommitLimit from /proc/meminfo on this box"
+        assert!(
+            before >= 1,
+            "the warm-up round-trip must have created this thread's one ring \
+             (before={before})"
         );
-        assert_ne!(
-            proc_field("/proc/self/status", "VmSize:"),
-            "?",
-            "commit census must parse VmSize from /proc/self/status on this box"
+    }
+
+    /// ⭑⭑ LAZY. A thread that performs no process-tier IO creates NO ring — even one
+    /// that constructs endpoints and a `Select`. Construction is not IO.
+    #[test]
+    fn a_thread_doing_no_process_tier_io_creates_no_ring() {
+        let handle = std::thread::spawn(|| {
+            let (_tx, rx) = pair::<String>().expect("pair on a fresh thread");
+            let _timer = timer::<String>(
+                std::time::Duration::from_millis(10),
+                b"tick\n".to_vec(),
+            )
+            .expect("timer on a fresh thread");
+            let mut sel = Select::<String>::new();
+            let _ = sel.recv(&rx);
+            // Nothing above blocks, so nothing above needs a ring.
+            rings_created().1
+        });
+        assert_eq!(
+            handle.join().expect("the probe thread does not panic"),
+            0,
+            "a thread that constructs endpoints, a timer and a Select but performs no \
+             blocking operation must own NO ring"
+        );
+    }
+
+    /// ⛔ TRAP-DOOR 1, DRIVEN FROM THE OTHER SIDE. The borrow discipline is
+    /// RELEASE-BEFORE-CALL; this asserts that violating it is LOUD. It is the negative
+    /// control for `select`'s shape: `select` calls `Receiver::read_into_acc` *after*
+    /// its ring closure ends, and this test shows what would happen if it did not.
+    #[test]
+    #[should_panic(expected = "process-tier ring re-entrancy")]
+    fn a_nested_ring_borrow_names_the_reentrancy() {
+        let _ = with_thread_ring(2, "outer", |_ring| {
+            // The inner borrow is the bug this message exists to name.
+            let _ = with_thread_ring(2, "inner", |_ring| ());
+        });
+    }
+
+    /// The re-entrancy message must say what to DO, not merely that something failed.
+    /// Asserted exactly, per the tree's `no_loose_string_assert` discipline.
+    #[test]
+    fn the_reentrancy_message_names_the_discipline() {
+        assert_eq!(
+            RING_REENTRANCY,
+            "process-tier ring re-entrancy: this thread's io_uring is already borrowed by an \
+             enclosing operation. The discipline is RELEASE-BEFORE-CALL — close the ring block \
+             before calling a Receiver/Sender method that needs the ring (arc 109, one ring per \
+             thread)"
+        );
+    }
+
+    /// ⛔ THE INVARIANT IS GATED BY **rustc**, NOT BY THIS TEST — and saying so is the
+    /// point of the test.
+    ///
+    /// `new_ring` is module-private to `mod ring_door`, so a ring cannot be
+    /// constructed anywhere else in the tier: a future `Receiver` that tried to regain
+    /// one would fail to COMPILE. This test only records the two things privacy cannot
+    /// say out loud — that the door's exports are the ones intended, and that the
+    /// census instrument the stone is judged on is reachable from outside.
+    ///
+    /// ⚠ What this cannot see: a ring created in another MODULE (`src/bin/ring-ceiling.rs`
+    /// creates its own, deliberately — it exists to ask a box for its ceiling). The gate
+    /// is over `comms::process`, which is the tier the wat surface runs on.
+    #[test]
+    fn the_door_is_the_only_way_in() {
+        // Reachable from outside the door: the instruments.
+        let (process_wide, this_thread) = rings_created();
+        assert!(
+            process_wide >= this_thread,
+            "the process-wide census can never be below this thread's share \
+             (process={process_wide} thread={this_thread})"
+        );
+        // And the borrow itself, which is the only way to reach an IoUring.
+        let ok = with_thread_ring(2, "the_door_is_the_only_way_in", |_ring| 7)
+            .expect("a 2-arm ring must be creatable on a healthy box");
+        assert_eq!(ok, 7, "with_thread_ring returns the closure's value");
+    }
+
+    /// The thread's ring fd is reported when — and only when — the thread has one.
+    /// This is the surface that replaced the ring fd inside
+    /// `Sender::raw_fds`/`Receiver::raw_fds`, so it has to be true at both ends.
+    #[test]
+    fn the_thread_ring_fd_appears_only_after_the_first_io() {
+        let handle = std::thread::spawn(|| {
+            let before = super::thread_ring_raw_fd();
+            let (tx, rx) = pair::<String>().expect("pair");
+            let still_none = super::thread_ring_raw_fd();
+            tx.send("x".to_string()).expect("send");
+            assert_eq!(rx.recv().expect("recv"), "x");
+            let after = super::thread_ring_raw_fd();
+            // The endpoints no longer name the ring at all.
+            assert_eq!(tx.raw_fds().len(), 1, "a Sender owns exactly its write fd");
+            assert_eq!(rx.raw_fds().len(), 1, "a Receiver owns exactly its data fd");
+            (before, still_none, after)
+        });
+        let (before, still_none, after) = handle.join().expect("probe thread");
+        assert_eq!(before, None, "a fresh thread owns no ring");
+        assert_eq!(
+            still_none, None,
+            "constructing a pair must not create the thread's ring"
+        );
+        assert!(
+            after.is_some_and(|fd| fd >= 0),
+            "after one round-trip the thread owns a ring with a real fd, got {after:?}"
         );
     }
 }
+

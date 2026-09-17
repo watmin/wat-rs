@@ -441,20 +441,20 @@ impl ProcessPeerBundle {
 pub enum ProcessSelectable {
     /// A spawned child process and its channels.
     ///
-    /// **Boxed** (arc 109, the clippy campaign). `ProcessPeerBundle` is 696 bytes
-    /// because it holds TWO `Receiver`s and each embeds a persistent
-    /// `RefCell<IoUring>` by value (Stone E-1 — the ring is kept alive so a `recv`
-    /// does not pay setup). An enum is as wide as its widest variant, so unboxed
-    /// this made every `Timer` — which needs 336 — cost 696, and these are held one
-    /// per entry in the set `poll'` watches.
+    /// **Boxed** (arc 109, the clippy campaign). When this was written
+    /// `ProcessPeerBundle` was 696 bytes because it held TWO `Receiver`s and each
+    /// embedded a persistent `RefCell<IoUring>` by value (Stone E-1 — the ring was
+    /// kept alive so a `recv` did not pay setup), against a `Timer` arm of 336. An
+    /// enum is as wide as its widest variant, and these are held one per entry in the
+    /// set `poll'` watches.
     ///
-    /// Boxing moves the bundle behind a pointer: the enum drops to the `Timer`
-    /// arm's width and each variant pays only what it carries. The cost is one hop
-    /// to reach a bundle that is already making syscalls.
-    ///
-    /// Deliberately NOT boxed: the `IoUring` inside `Receiver`. That would add an
-    /// indirection to every read on the hot path to save memory on a handle —
-    /// the wrong trade, and not what the lint is asking for.
+    /// ⭐ **Arc 109's `one-ring-per-thread` stone removed those rings**: the ring is
+    /// now per-THREAD, so (measured 2026-09-16) `Receiver<String>` is **56** bytes,
+    /// `ProcessPeerBundle` **136**, and the whole enum **16**. The boxes are no longer
+    /// load-bearing for `large_enum_variant` — the difference between the arms is now
+    /// a few words — and they are KEPT anyway: unboxing `Spawned` moves fields whose
+    /// DECLARATION ORDER is a drop-order invariant (see below), which is a separate
+    /// change with its own risk and no benefit the measurement asks for.
     ///
     /// `ProcessPeerBundle`'s field declaration order is load-bearing (drop order:
     /// `peer` before `_lifeline_w`, or the child is signalled to exit before its
@@ -466,11 +466,13 @@ pub enum ProcessSelectable {
     /// encoded msg frame. Only valid in `select'`; send'/recv'/close' reject it.
     ///
     /// **Boxed for the same reason as `Spawned`, and boxing only one was not
-    /// enough**: `large_enum_variant` fires on the DIFFERENCE between variants, and
-    /// a lone `Receiver` is itself 336 bytes (one embedded `RefCell<IoUring>`). With
-    /// only `Spawned` boxed the enum still cost 336 — the lint simply named the
-    /// other side. Boxed on both, each variant is a pointer and the enum is the
-    /// tag plus one word.
+    /// enough**: `large_enum_variant` fires on the DIFFERENCE between variants, and a
+    /// lone `Receiver` was itself 336 bytes (one embedded `RefCell<IoUring>`). With
+    /// only `Spawned` boxed the enum still cost 336 — the lint simply named the other
+    /// side. Boxed on both, each variant is a pointer and the enum is the tag plus one
+    /// word. ⭐ Post arc 109 a `Receiver<String>` is **56** bytes (no ring), so this
+    /// box too is now headroom rather than a lint fix; kept for symmetry with
+    /// `Spawned`.
     Timer(Box<crate::comms::process::Receiver<String>>),
 }
 
