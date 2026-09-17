@@ -28,8 +28,14 @@ hazard rows of any kind**, **no step touches `wat/`**, and — for the first tim
 `tests/lint/` gate in the range**, so the gate-lands-red class does not arise. The next two-phase stdlib
 step is still #377.
 ⚠ **`.wat` FILES RETURN: 13 across the range** (#324's 5, #328's 3, #332's 2, #336's 2, #327's 1) after
-two batches with none. **R21 is live again** — corpus rewrites go through a recorded wat-fix codemod,
-never hand edits or sed, and `--check` work reappears.
+two batches with none — so **`--check` and `convert.sh` conversion work reappears**.
+⛔ **CORRECTION, 2026-09-16:** an earlier version of this line said "R21 is live again — corpus rewrites
+go through a recorded wat-fix codemod". **That overstated it and the pre-flight disproved it.** All 13 are
+NEW files under `tests/rete/`, `wat-scripts/scratch-pad/` and `docs/arc/**`; **not one lives under `wat/`**
+and no `wat-scripts/fixes/` file is touched. Adding fixtures is not a structural corpus rewrite, so R21's
+codemod path is NOT triggered here — reach for a codemod only if a conversion proves structural across
+many files. Recorded rather than quietly edited, per finding 37: I propagated an unverified claim into a
+pushed record one commit after writing the finding against doing exactly that.
 ⚠ **#332 is a FINDING, not a fix** — *"D7 is LIVE — native drops a derived fact"*. Expect a step that
 records a live bug rather than curing one; #336 is its cure.
 ⚠ **#329's own subject says grok PUSHED A RED** (*"D6 closed; and I pushed a red f…"*). Read that body
