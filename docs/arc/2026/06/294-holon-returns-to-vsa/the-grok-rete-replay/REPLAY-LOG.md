@@ -2393,3 +2393,141 @@ test(from_metadata_of_the_lookup_equals_the_entry_doc)'` — 2 tests run: 2 pass
 required disclosure (the SCORE must state what bought #328's green) is recorded in the #328 row of
 `SCORE-7j-replay-batch-4j.md`.
 
+## Batch 4k — #341 resumption, #342→#360 (SCORE-7k-replay-batch-4k.md)
+
+Resumed after a foreign-agent incident on the FIRST executor (a 19-day-old auto-resumed subagent
+from an unrelated arc planted a `// THROWAWAY` comment; discarded via `git reset --hard HEAD`,
+#342 started clean). No further foreign activity this run.
+
+## #342 — LANDED (finding — D10). Clean cherry-pick, 2 files, 1 `.wat`.
+
+⛔ **MEASURED, NOT ASSUMED: D10 is NOT live on this tree.** The brief's own framing ("#342 is a
+FINDING, not a fix — D10 is live") did not hold. `wat --check` on the converted repro returns
+`RhsOperandTypeMismatch` — main's own arc-277 work (`6df9ba1ab`, an ancestor of this replay's base
+`a3218644d`) already closed this exact gap before grok found it. Banked the scratch-pad repro as
+`.wat.bad` (renamed from `.wat`) with a header note recording the measurement, rather than landing
+a "finding" that doesn't reproduce. See finding-class parallel to #258's own convergence story.
+
+## #343 — docs-only. Clean cherry-pick, 3 files.
+
+## #344 — LANDED (D10's cure). THREE conflicts in `src/rete/validate/mod.rs`, same area as #262.
+
+Kept main's existing `RhsOperandTypeMismatch`/`then_operand_declared_type` (finer-grained on the
+enum axis — distinguishes Alpha from Beta, which grok's own `RhsFieldTypeMismatch` cannot, by its
+own doc comment). Wired grok's `check_then_field_type`/`RhsFieldTypeMismatch` as a FALLBACK, gated
+on `then_operand_declared_type(...).is_none()` — fires only for a computed operand with a declared
+`RETE_OPS` return type (verified empirically: `rc=0` pre-fix, refused post-fix). A second, smaller
+merge artifact (duplicate `binds` hoist, main's own `let binds = if…else` idiom colliding with
+grok's fresh `mut binds` declaration) cleaned up (`unused_assignments` warning gone). Test file
+adapted: 3 of 4 arms now assert `RhsOperandTypeMismatch` (main's pre-existing mechanism classifies
+them); only the computed arm reaches `RhsFieldTypeMismatch`. All 4 goldens regenerated
+(`UPDATE_EDN=1`), re-verified clean. A THIRD defect (caught only by running the full lint-subset):
+a MERGE-NOTE comment's backticked `` `unused_assignments` `` tripped
+`rete_citation_resolves::every_backticked_name_in_a_rete_comment_resolves` — fixed to
+`` `#[warn(unused_assignments)]` `` per the gate's own option 3.
+
+## #345 — docs-only. ⛔ TRAILER FABRICATED AND SELF-REPAIRED (see SCORE's own incident section).
+
+## #346 — docs-only, auto-merged clean.
+
+## #347 — docs-only, 3 files (D11 strike docs).
+
+## #348 — docs-only, 1 file (C19 finding).
+
+## #349 — LANDED (D11's cure). THREE conflicts in `src/rete/validate/mod.rs`, same convergence class.
+
+`walk_nested_constructors` ALREADY threads `binds` and ALREADY calls `check_rhs_operands` at nested
+depth on this tree (a pre-existing #262 merge note, landed a full batch before this one). Same
+fallback composition as #344, one level down: verified empirically (nested literal already refused
+pre-#349 via `RhsOperandTypeMismatch`; nested computed operand NOT refused pre-#349, `rc=0`, fixed
+post-#349 via the fallback). TWO of grok's own D11 fixtures dropped, not adapted, each for a reason
+ORTHOGONAL to D10/D11: `_ok.wat`'s `okF` (a match-in-`:then` construction `wat/rete/compile.wat`'s
+`then-item-fence` refuses outright, unrelated to typing — traced to `250162a0e`, also an ancestor
+of the replay base) and `_notknowable.wat`'s `nk5` (a bare enum-variant keyword nested value, which
+the SAME #262 convergence now structurally refuses via `RhsUnresolvableOperand`, independent of
+typing). Neither drop was routed around with a rephrasing. Test file adapted: all 4 refusal arms
+assert `RhsOperandTypeMismatch`, since none of grok's 4 fixtures happens to exercise the residual
+computed-operand gap. All 4 goldens regenerated and re-verified.
+
+## #350 — docs-only, 1 file (D11 closed; C19 sharpened).
+
+## #351 — docs-only, 3 files (C19 strike docs).
+
+## #352 — LANDED (the new determinism gate). ONE conflict in `.config/nextest.toml` (ADD-ADD).
+
+⛔⛔ **THE GATE FOUND WORSE THAN GROK'S OWN 3, TWICE OVER.** Pre-flighted per the brief (3
+QUARANTINE paths present). First run: 2 shards red, TWO files beyond grok's 3 (`c2_d_bodiless_edge`,
+`parametric_surface_param_wrong_param`) — same order-only-variance class, present on grok's own
+tip, simply missed by grok's own measurement (matches the gate's own "two runs under-detect by
+half" warning). A THIRD ad-hoc re-run surfaced TWO MORE (`wrong_service_compile_error`,
+`wrong_service_colocation`), confirming the defect is genuinely probabilistic per-process, not a
+small fixed set reachable by ad-hoc sampling. Ran a DELIBERATE 15-run sweep of the FULL 296-file
+corpus rather than keep chasing one file per re-run: exactly 7 vary (grok's 3 + these 4), none
+else. `QUARANTINE_LEN` moved 3 → 7, reported per the brief's own instruction, not slipped in. A
+SECOND, unrelated, deterministic (non-probabilistic) divergence: the `INNER_RENDERER_DRIVER`
+fixture's own expected value needed updating — `(:wat::core::List)` infers as
+`(wat::core::List :- [_])` on this tree, not a bare `_` as grok's tree gave it; mutation-proof
+purpose unaffected (both tuple elements still reach `format_type_inner` via their own nested
+Parametric). Verified green 6+ consecutive full runs post-fix.
+
+## #353 — docs-only, 1 file (C19 closed; C20 rowed — matches #352's own finding).
+
+## #354 — docs-only, 1 file (stamp prune), auto-merged clean.
+
+## #355 — LANDED (C9's port-half gate). Auto-merged clean, 9 files, 1 `.wat`.
+
+`convert.sh` ran clean on the new perf-grid fixture (numerics/vector/map rehomes, bracket-map match
+arms, kwargs `assertion-failed!`); the `fire-rules$oracle` test-harness literal correctly left
+untouched. New port-check gate and the corrected `grid_axes_run_and_derive_nonvacuously` (no longer
+comparing `X == X`) both pass.
+
+## #356 — docs-only, 4 files (C9's third pairing strike + a saved bash probe, no wat literals).
+
+## #357 — LANDED (C9 CLOSED). Auto-merged clean, 8 files, zero Rust changed (matches the commit's
+own claim). One `.wat` comment-only correction (struck a false "Clara has no parametric records"
+header line) verified via diff to be prose-only.
+
+## #358 — docs-only, 4 files (C18 strike + a saved Python probe, superseded by #359).
+
+## #359 — docs-only, 5 files (C18 REDRAW — "the first draft measured the wrong driver", the exact
+lesson this batch's own #360 brief warns about).
+
+## #360 — LANDED (C18 CLOSED, the batch finale). THREE conflicts, same convergence class throughout.
+
+⛔⛔ **TWO OF GROK'S 16 RENAMES REJECTED, ALL THREE BANKINGS REJECTED — EACH MEASURED, NOT ASSUMED,
+WITH THE CORRECT DRIVER (`startup_from_file`, never the binary, never `--check`).**
+
+- **`probe_arc241_stone10_remedy_c04/c08`**: grok renamed these to `.wat` because on grok's tree
+  `:wat::*` names under a reserved prefix type-checked clean (a since-deleted blanket). On this
+  tree that blanket is ALREADY gone (an independent, earlier arc-255 fix) — both files measured
+  `rc=1`, `UnresolvedReferences`, matching HEAD's own pre-existing test comments exactly. Kept as
+  `.wat.bad`, kept HEAD's own test bodies, MERGE NOTE added recording the measurement.
+- **3 banking candidates** (`probe_diag_typealias_leniency_check`,
+  `probe_undefined_builtin_resolves_{bogus,wrong_leaf}`): each carries a pre-existing `#[ignore]`d
+  owner test whose ignore-reason (dated 2026-08-28) claims the underlying gap is still open. Ran
+  all three directly (`--run-ignored ignored-only`): **all three PASS** — `startup_from_file`
+  already returns `Err` on this tree. The ignore-reasons are themselves stale. Reverted all three
+  files to byte-identical with HEAD; did not add a rune stating something false; did NOT un-ignore
+  the owner tests (an arc-255/109 unlock decision outside this step's scope — reported, not taken).
+- **`probe_diagnostic_non_vector.wat.bad`** (modify/delete conflict): grok's rename target used a
+  stale keyword spelling (`:wat::core::keyword/from-string`); HEAD had independently rehomed it
+  (`:wat::keyword::from-string`, unrelated "STONE E-iv(255)" work). Verified the construct starts
+  up clean on this tree too (same disposition as grok); landed with HEAD's spelling + grok's
+  updated header.
+- **The `probe_5_unknown_field_errors.edn` golden**: a real line-number difference tangled with a
+  STALE EDN RENDERING FORMAT difference (grok's array-style `Option/Some [...]` vs this tree's
+  current map-style `Option.Some {:value ...}` — same class already fixed in this batch's own #344
+  goldens). Regenerated fresh via `UPDATE_EDN=1` rather than hand-merged; re-verified clean,
+  including the file's 3 pre-existing, untouched sibling tests.
+
+**E4, measured with the right driver over the WHOLE corpus this step's own gate walks:** 288
+`.wat.bad` (not 290 — corpus shifted since the brief), 18 main-only (not 31 — measured via full
+`git log origin/grok-rete` history per path, not tip existence), **0 of 288 start up clean**
+(not ~11 — the brief's `--check` proxy was the wrong driver). Full detail, both numbers and the
+methodology, is in `SCORE-7k-replay-batch-4k.md`'s E4 row.
+
+**Disposition: COMPLETE.** All 20 steps (#341–#360) landed, tree clean at `a1a4d8f58`
+(`REPLAY(grok-rete #360)`), not pushed. `origin/replay/grok-rete` (`28dae3a32`) remains the
+published tip, an ancestor of HEAD throughout. See `SCORE-7k-replay-batch-4k.md` for the full
+row-by-row account against all 23 rows.
+
