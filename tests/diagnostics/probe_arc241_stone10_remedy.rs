@@ -125,6 +125,13 @@ fn contract_04_no_remedy_for_distant_unknown() {
     // "no remedy" story ever tested. The contract's claim survives unweakened — a
     // distant unknown still produces NO "did you mean" — it is just now proven
     // against a real `UnresolvedReferences` error instead of a no-op success.
+    //
+    // MERGE NOTE (replay #360): grok's own #360 renamed this fixture's twin to `.wat`,
+    // having measured (on grok's tree, which lacks arc 255's blanket-deletion) that it
+    // started up clean. On THIS tree it does not — confirmed by re-running
+    // `wat --check` on it directly: `#wat.resolve/UnresolvedReferences`, rc=1, the exact
+    // error this contract's own comment describes. So the file legitimately fails to
+    // start here and `.wat.bad` is the correct, honest extension — kept, not renamed.
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04.wat.bad");
     // rune:lint(loose-assert) — a TARGETED ABSENCE over a large output, the rubric's own
     // exemption. The `assert_edn_matches_file!` below pins the whole value exactly, so this is
@@ -211,6 +218,11 @@ fn contract_08_threshold_filters_far_typos() {
     // meant a no-op success. It is now refused by resolve outright, one pass
     // earlier; the contract's claim (no remedy above threshold) still holds, now
     // proven against a real `UnresolvedReferences` error.
+    //
+    // MERGE NOTE (replay #360): same disposition as C04 above — grok's own #360 renamed
+    // this fixture's twin to `.wat` (measured clean on grok's tree); on this tree
+    // `wat --check` on it still returns `#wat.resolve/UnresolvedReferences`, rc=1. Kept
+    // as `.wat.bad`, not renamed.
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08.wat.bad");
     // rune:lint(loose-assert) — targeted absence, same ground as c04 above: the golden pins the
     // value, this line pins the CLAIM, and it is what fails if a recapture ever blesses a remedy

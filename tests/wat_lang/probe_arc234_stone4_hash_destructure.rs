@@ -61,7 +61,7 @@ fn probe_4_hashmap_destructure_none() {
 fn probe_5_unknown_field_errors() {
     // The unknown-field error fires at eval time (checker permits the form, runtime rejects).
     let world =
-        startup_from_file("tests/wat_lang/probe_arc234_stone4_hash_destructure.wat.bad")
+        startup_from_file("tests/wat_lang/probe_arc234_stone4_hash_destructure_unknown_field.wat")
             .expect("startup should succeed; error fires at eval time");
     let func = world
         .symbols()

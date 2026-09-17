@@ -1,9 +1,0 @@
-;; tests/wat_lang/probe_arc234_stone4_hash_destructure.wat.bad
-;; Probe 5: unknown field on hash-destructure → startup must fail (UnknownField error).
-
-(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
-
-(:wat::core::defn :user::compute [] -> :wat::core::f64
-  (:wat::core::let
-      [{x :nonexistent} (:myapp::Voltage 5.0)]
-      x))

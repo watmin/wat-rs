@@ -1,5 +1,6 @@
-;; tests/function/probe_arc241_stone5_c05.wat.bad — NEGATIVE contract 5: rest element type mismatch.
-;; Passing "three" (String) where (Vector :- [i64]) element is expected. startup MUST fail.
+;; tests/function/probe_arc241_stone5_c05.wat — NEGATIVE contract 5: rest element type mismatch.
+;; Passing "three" (String) where (Vector :- [i64]) element is expected. Startup SUCCEEDS —
+;; rest element types are checked at dispatch, so the error arrives at EVAL (contract_05 invokes).
 
 (:wat::core::defclause :my::sum-all
   ([first <- :wat::core::i64
