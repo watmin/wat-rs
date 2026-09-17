@@ -43,7 +43,17 @@
 ;; NO `gen-parametric-erasure.sh` TWIN, DELIBERATELY. `run-all.sh:81` treats a `.wat` without a
 ;; `gen-` twin as "not a perf axis" and skips it; this axis is a CORRECTNESS axis for the port
 ;; pairing, not a rung on the perf ladder, and the ladder's sizes are a published artifact that
-;; must not drift. Clara has no parametric records either, so there is no `.clj` twin to author.
+;; must not drift.
+;;
+;; ⛔ THE CLARA TWIN IS A **STATIC** `parametric-erasure.clj`, AND THIS HEADER USED TO DENY IT.
+;; It said: *"Clara has no parametric records either, so there is no `.clj` twin to author."*
+;; STRUCK 2026-09-03. Clara referees RULE SEMANTICS, not wat's type system: the erasure is what wat
+;; does to the DECLARATION, and what reaches the network is a bag of ordinary facts of ONE class
+;; whose `v` fields hold different runtime types — which dynamically-typed Clojure expresses as its
+;; NATIVE case. Leaving the one axis that carries D7's shape unrefereed by the reference engine is
+;; a hole in the differential corpus exactly where the known bug lives. The twin reproduces the
+;; DERIVED SET (not the declaration) and is STATIC precisely so it stays off the perf ladder —
+;; see its own header, and `wat-scripts/perf/grid/check-grid-three-way.sh`, which drives it.
 ;;
 ;; Usage (stdin = an i64 vector [items]; stdout = one #grid/Result EDN line):
 ;;   echo '[200]' | cargo wat ./wat-scripts/perf/grid/parametric-erasure.wat
