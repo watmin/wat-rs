@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# DISCONFIRMING PROBE for the C9 Clara half: can all 11 perf axes run the THREE-WAY
+# (clara | oracle | native) at the port gate's LOW-VOLUME sizes, and do they agree?
+# Fails loudly per axis. parametric-erasure has no gen- twin and is expected absent.
+export JAVA_HOME=/home/john/opt/jdk-21; export PATH="$JAVA_HOME/bin:$PATH"
+CLARA_DEP='{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}} :paths ["."]}'
+G=wat-scripts/perf/grid
+declare -A SZ=( [min-finding]="100 3" [negation]="50" [leading-exists]="20" [neg-consumer]="50"
+  [asym-join]="100" [strat-neg]="3 50" [user-reduce]="5 20" [node-share]="10 20"
+  [accum]="10 20" [deep-cascade]="5 20" [fanout]="500" [parametric-erasure]="200" )
+ORDER=(min-finding negation leading-exists neg-consumer asym-join strat-neg user-reduce node-share accum deep-cascade fanout parametric-erasure)
+vec(){ grep -o " $1 [^]]*\]" <<<"$2" | head -1 | sed 's/.*\[//;s/\]//'; }
+t0=$(date +%s)
+for ax in "${ORDER[@]}"; do
+  sz="${SZ[$ax]}"
+  if [ ! -f "$G/gen-$ax.sh" ]; then printf '%-20s NO-CLARA-TWIN (no gen-%s.sh)\n' "$ax" "$ax"; continue; fi
+  WA=$(printf '[%s]\n' "$sz" | ./target/release/wat "$G/$ax.wat" 2>/dev/null)
+  n=$(vec ':derived' "$WA"); o=$(vec ':oracle-derived' "$WA")
+  T=$(mktemp -d); f=$(tr '-' '_' <<<"$ax")
+  if ! bash "$G/gen-$ax.sh" $sz > "$T/$f.clj" 2>"$T/gen.err"; then
+    printf '%-20s ⛔ GEN FAILED: %s\n' "$ax" "$(head -1 "$T/gen.err")"; rm -rf "$T"; continue; fi
+  CL=$(cd "$T" && clojure -Sdeps "$CLARA_DEP" -M -m "$ax" 2>"$T/clj.err")
+  c=$(vec ':derived' "$CL")
+  if [ -z "$CL" ]; then printf '%-20s ⛔ CLARA FAILED: %s\n' "$ax" "$(head -1 "$T/clj.err")"; rm -rf "$T"; continue; fi
+  st=""
+  [ -z "$c" ] || [ -z "$n" ] && st="$st VACUOUS"
+  [ "$o" = "$c" ] || st="$st oracle!=clara(SPEC)"
+  [ "$n" = "$c" ] || st="$st native!=clara(FASTPATH)"
+  [ "$o" = "$n" ] || st="$st oracle!=native(PORT)"
+  printf '%-20s clara=%-4s native=%-4s oracle=%-4s %s\n' "$ax" "$(wc -w <<<"$c")" "$(wc -w <<<"$n")" "$(wc -w <<<"$o")" "${st:-ALL THREE MATCH}"
+  rm -rf "$T"
+done
+echo "--- total $(( $(date +%s) - t0 ))s ---"
