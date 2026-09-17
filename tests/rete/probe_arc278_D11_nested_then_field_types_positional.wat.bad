@@ -1,0 +1,22 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D11, arm 2/4: the NESTED POSITIONAL producer.
+;;
+;; A different call site in `walk_nested_constructors` from the kwargs arm — a cure wired only
+;; into the kwargs branch leaves this half of the wall dark, exactly as D10's positional fixture
+;; exists for the same split one level up.
+;;
+;; ⚠ THE SHAPE IS NARROW BY CONSTRUCTION, and that is why the record has exactly ONE field. The
+;; walker's positional arm is only reached for `args.len() <= 1` — `eval_kwargs_construct`
+;; retires every wider positional call unconditionally at fire time, and the walker refuses it
+;; above as `RhsPositionalConstructionRetired`. So a one-field record given one positional arg is
+;; the ONLY nested positional shape there is left to type, and this is it.
+(:wat::core::defrecord :d11p::Box   [k <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :d11p::One   [n <- :wat::core::i64])
+(:wat::core::defrecord :d11p::Outer [o <- :d11p::One])
+
+(:wat::rete::defrule :d11p::bad
+  :when [(:d11p::Box (?k <- :k) (?s <- :s))]
+  :then [(:d11p::Outer :o (:d11p::One ?s))])
+
+;; ⛔ A REAL `main` (arc 278 C18) — see the sibling fixture's note.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

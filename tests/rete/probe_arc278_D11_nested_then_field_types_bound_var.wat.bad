@@ -1,0 +1,31 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D11, arm 1/4: THE ORIGINAL REPRO, reduced.
+;;
+;; A `?var` whose declared type is String, written into an i64 field of a NESTED constructor.
+;; Driven at HEAD `f87bb070b` — one commit AFTER D10 closed the identical hole at the top level —
+;; this compiled, fired, and put
+;;
+;;     #nh/Outer {:i #nh/Inner {:n "nested-string"}}
+;;
+;; into the FACT SET. D10's wall stood at the top level only: `walk_nested_constructors` had no
+;; `binds`, so it could check a nested constructor's field NAMES, its arity and its missing
+;; fields, and could not type a single value.
+;;
+;; ONE finding, on purpose: `:d11b::Outer` is well formed and fully supplied, `:d11b::Inner` is
+;; well formed and fully supplied, and the OUTER field's own value is a nested constructor —
+;; `ComputedNotDerivableHere`, correctly passed by D10's top-level check. So the nested
+;; `RhsFieldTypeMismatch` stands alone, and the `.edn` golden asserts that.
+(:wat::core::defrecord :d11b::Box   [k <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :d11b::Inner [n <- :wat::core::i64])
+(:wat::core::defrecord :d11b::Outer [i <- :d11b::Inner])
+
+(:wat::rete::defrule :d11b::bad
+  :when [(:d11b::Box (?k <- :k) (?s <- :s))]
+  :then [(:d11b::Outer :i (:d11b::Inner :n ?s))])
+
+;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate (arc 278 C18).
+;; The legacy idiom `(:user::main [] -> :wat::core::nil nil)` is ITSELF a startup failure
+;; (`#wat.macro/MainSignatureError`, UselessMain), so `assert!(!ok)` over such a fixture cannot go
+;; red under the mutation it exists to detect. A main that DOES something makes the rete refusal
+;; the only reason this file can fail.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

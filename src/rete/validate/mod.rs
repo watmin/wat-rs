@@ -930,10 +930,39 @@ fn type_env_name(kw: &str) -> String {
 /// No AST rewrite here (unlike the top-level kwargs branch): a nested operand's kwargs are
 /// reordered again at FIRE time by `eval_kwargs_construct` regardless of what freeze validated
 /// (arc 278 #1), so this pass only has to prove the shape is constructible, never to reorder it.
+///
+/// ## ★ D11 — and it TYPES the values now, not only the shape
+///
+/// Everything above is STRUCTURAL: a field name, an arity, a missing field, a retired spelling.
+/// None of it typed a single value, because the walker had no `binds` and `resolve_operand_type`
+/// cannot answer for a `?var` without one. D10 closed exactly this hole at the top level and the
+/// nested one survived it by one commit: at `f87bb070b`, `:then [(:nh::Outer :i (:nh::Inner :n
+/// ?s))]` with `?s : String` into an `i64` field compiled, fired, and put
+/// `#nh/Outer {:i #nh/Inner {:n "nested-string"}}` into the FACT SET — where joins, queries, the
+/// oracle and `explain` all trust the declared schema.
+///
+/// The aggregate branch now pairs each nested field with its DECLARED type
+/// (`lookup_field_types`, the sibling of the `lookup_fields` it already called) and hands the pair
+/// to D10's own producer, `check_then_field_type` — unchanged, and reusing `RhsFieldTypeMismatch`
+/// unchanged, because a nested occurrence is the same claim at a different position. The
+/// invariant is therefore **at ANY depth**, which is what the recursion above was always for:
+/// `tests/rete/probe_arc278_D11_nested_then_field_types.rs` drives it at depth 2 and inside a
+/// `match` arm BODY, alongside the five constructed not-knowable operands that say the wall still
+/// stands down where the type is merely unknown.
+///
+/// ⛔ The ENUM-VARIANT branch below is NOT typed, deliberately. `enum_variant_ctor` answers with
+/// an arity and nothing else; getting a variant's per-field declared types is a different registry
+/// read and its own ruling. That branch keeps the arity diagnostic it had.
 fn walk_nested_constructors(
     operand: &WatAST,
     rule_name: &str,
     types: &TypeEnv,
+    // MERGE NOTE (replay #349): this parameter already existed on this tree (main's own #262
+    // convergence had already threaded `binds` here, for `check_rhs_operands`'s declared-path
+    // resolver — see the header note on this function's D11 doc block above, and this commit's
+    // own body, for what that means for the two D11 blocks below). Kept grok's doc sentence: it
+    // states the SAME need (source 2, a bound `?var`) that main's own `check_rhs_operands` uses
+    // this parameter for, whichever resolver ends up answering.
     binds: &std::collections::HashMap<String, String>,
     errors: &mut Vec<ReteCheckError>,
 ) {
@@ -1031,6 +1060,12 @@ fn walk_nested_constructors(
         if lookup_fields(types, &type_env_name(head)).is_some() {
             let nested_type = type_env_name(head);
             let field_names = lookup_fields(types, &nested_type).unwrap_or_default();
+            // D11 — the DECLARED type of each nested field, index-aligned with `field_names`, the
+            // same pairing `validate_then_form` makes at the top level. Both accessors read the
+            // same `TypeDef::Aggregate`, so a `lookup_fields` hit implies a `lookup_field_types`
+            // hit; the `unwrap_or_default` is the belt, and an empty vector makes every `get(i)`
+            // miss and every per-field type check SKIP rather than mis-index.
+            let field_types = lookup_field_types(types, &nested_type).unwrap_or_default();
             let is_kwargs = crate::rete::eval_insert::rete_is_kwargs(args);
             if is_kwargs {
                 let mut supplied: Vec<String> = Vec::with_capacity(args.len() / 2);
@@ -1044,6 +1079,49 @@ fn walk_nested_constructors(
                     // form — which is how a promise made in three docs was broken at three
                     // sites: an inline `ReteCheckError { span, .. }` accepts any span in scope.
                     check_field_kw(&pair[0], rule_name, &nested_type, &field_names, errors);
+                    // D11 (grok-rete #349) — the computed-operand fallback, kwargs side, at
+                    // DEPTH. Same composition as #344's top-level fallback and this walker's own
+                    // positional arm below: `check_rhs_operands` (called after this loop, on the
+                    // same `pairs`) already types every field this walker's caller can classify
+                    // via the declared-path resolver `then_operand_declared_type` — including,
+                    // unlike grok's own tree at this commit, ALREADY reaching this nested depth
+                    // (main's #262 convergence wired `check_rhs_operands` into this exact walker
+                    // before D10/D11 ever landed here). So this runs ONLY where that resolver
+                    // finds nothing to compare (a computed operand with a declared `RETE_OPS`
+                    // return type), never on a field it already classifies — `then_operand_declared_type`
+                    // is a pure query, so calling it here ahead of `check_rhs_operands`'s own later
+                    // call is safe; it does not depend on that call having run.
+                    //
+                    // An unknown field name needs no guard of its own: `position` misses, the
+                    // `and_then` yields `None`, and the pair is skipped — so `check_field_kw`'s
+                    // `UnknownField` stands alone, exactly as the top level's early return
+                    // arranges. What is DELIBERATELY not mirrored is that return's OTHER half:
+                    // a `RhsMissingFields` on a SIBLING field does not suppress a type finding
+                    // here. The top level returns there to avoid `reorder_then_kwargs` rewriting
+                    // a form already flagged invalid; this walker performs no rewrite (a nested
+                    // operand's kwargs are reordered at FIRE time regardless — see this
+                    // function's header), so the only effect of copying the return would be to
+                    // drop a real, separate finding about a DIFFERENT field.
+                    if !rhs_operand_can_never_resolve(&pair[1])
+                        && then_operand_declared_type(&pair[1], binds, types).is_none()
+                    {
+                        if let Some(declared) = field_names
+                            .iter()
+                            .position(|f| *f == field)
+                            .and_then(|i| field_types.get(i))
+                        {
+                            check_then_field_type(
+                                &field,
+                                declared,
+                                &pair[1],
+                                rule_name,
+                                &nested_type,
+                                binds,
+                                types,
+                                errors,
+                            );
+                        }
+                    }
                     supplied.push(field);
                 }
                 let missing: Vec<String> =
@@ -1083,6 +1161,42 @@ fn walk_nested_constructors(
                     .zip(args.iter())
                     .collect();
                 check_rhs_operands(&pairs, &type_map, binds, types, rule_name, &nested_type, errors);
+                // D11 (grok-rete #349) — the computed-operand fallback, positional side at DEPTH.
+                // Same composition as #344's top-level fallback (see `validate_then_form`): main's
+                // `check_rhs_operands` (just above) already types every field `check_then_field_type`
+                // would also classify (literal, bound `?var`, nested constructor, and now — via
+                // this same walker's recursion — arbitrarily deep), via the declared-path resolver
+                // `then_operand_declared_type`. This runs ONLY where that resolver found nothing to
+                // compare (a computed operand with a declared `RETE_OPS` return type; measured
+                // empirically pre-#349 on this tree: `rc=0` on a nested computed i64 written into a
+                // nested String field), so it never double-reports an operand already classified.
+                // Guarded the same way the top level is: only when the counts agree (this whole arm
+                // is `args.len() <= 1`, so an equal count is the only defensible pairing).
+                if args.len() == field_names.len() {
+                    for (i, arg) in args.iter().enumerate() {
+                        if rhs_operand_can_never_resolve(arg) {
+                            continue;
+                        }
+                        let (Some(field), Some(declared)) =
+                            (field_names.get(i), field_types.get(i))
+                        else {
+                            continue;
+                        };
+                        if then_operand_declared_type(arg, binds, types).is_some() {
+                            continue;
+                        }
+                        check_then_field_type(
+                            field,
+                            declared,
+                            arg,
+                            rule_name,
+                            &nested_type,
+                            binds,
+                            types,
+                            errors,
+                        );
+                    }
+                }
             } else {
                 // Multi-arg, not kwargs — `eval_kwargs_construct` retires this shape
                 // unconditionally at fire time; wall it here with its own message.
@@ -1104,6 +1218,12 @@ fn walk_nested_constructors(
         // `matcher::enum_variant_ctor`. What to DO with the answer stays here:
         // the validator's job is the arity diagnostic (HEAD's unit-arg count).
         {
+            // MERGE NOTE (replay #349): main's arity computation here is already ahead of grok's
+            // at this commit — `rete_enum_unit_arg_count` for the `expected == 0` case is an
+            // independently-landed fix for unit-variant arity that grok's own diff (a one-line
+            // `binds` threading addition, per its own patch context) does not touch and does not
+            // need to. Kept main's version whole; `binds` was already threaded into the recursive
+            // calls below on this tree, same as everywhere else in this function.
             let expected =
                 crate::rete::matcher::enum_variant_ctor(types, head).map(|(_, _, n)| n);
             if let Some(expected) = expected {
@@ -1257,6 +1377,13 @@ fn validate_then_form(
             if rhs_operand_can_never_resolve(value) {
                 continue;
             }
+            // MERGE NOTE (replay #349): #349's own diff touches this region only to add `binds`
+            // to a recursive call over a grok-side kwargs-values variable that does not exist on
+            // this tree — #344's own merge here (see above) already discarded that variable as
+            // redundant with `kv_pairs`'s own nested-constructor recursion just above this loop.
+            // Kept this tree's #344 fallback unchanged; there is nothing else in #349's diff for
+            // this specific loop to contribute (D11's real, new content is inside
+            // `walk_nested_constructors` itself, resolved separately below).
             let Some(declared) = type_map.get(field.as_str()) else { continue };
             if then_operand_declared_type(value, binds, types).is_some() {
                 continue; // already classified (and compared, if comparable) above

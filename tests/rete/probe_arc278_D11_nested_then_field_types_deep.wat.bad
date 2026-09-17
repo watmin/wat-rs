@@ -1,0 +1,22 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D11, arm 3/4: DEPTH 2, and it is not decoration.
+;;
+;; The claim D11 pins is "at ANY nesting depth", not "one level down". `walk_nested_constructors`
+;; recurses through every argument of every constructor it recognises, mirroring the runtime's own
+;; `eval_kwargs_construct` -> `eval_inner` descent — so a cure that peeked exactly one level would
+;; pass the sibling fixtures and leave this one compiling, with
+;; `#d11d/Outer {:m #d11d/Mid {:i #d11d/Inner {:n "…"}}}` in the fact set.
+;;
+;; TWO wrongly-typed values at TWO depths, so the golden also proves the walk does not stop at the
+;; first finding — batching every finding is this validator's contract.
+(:wat::core::defrecord :d11d::Box   [k <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :d11d::Inner [n <- :wat::core::i64  t <- :wat::core::String])
+(:wat::core::defrecord :d11d::Mid   [i <- :d11d::Inner])
+(:wat::core::defrecord :d11d::Outer [m <- :d11d::Mid])
+
+(:wat::rete::defrule :d11d::bad
+  :when [(:d11d::Box (?k <- :k) (?s <- :s))]
+  :then [(:d11d::Outer :m (:d11d::Mid :i (:d11d::Inner :n ?s :t ?k)))])
+
+;; ⛔ A REAL `main` (arc 278 C18) — see `..._bound_var.wat.bad`'s note.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))
