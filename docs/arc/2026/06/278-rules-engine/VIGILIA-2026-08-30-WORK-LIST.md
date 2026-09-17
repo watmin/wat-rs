@@ -238,6 +238,43 @@ three (`x /= r;`, `let (a,b) = (a / r, b / r);`, and `*x /= r;` inside a loop).
 
 ## CLASS D — engine behaviour
 
+### ⛔⛔ D10 — THE RETE `:then` RHS DOES NOT TYPE-CHECK ITS FIELD VALUES
+
+**Driven 2026-09-02.** The same record construction is type-checked everywhere in the language
+**except** inside a rule's `:then`:
+
+```
+ordinary   (:td::Bad :n "x")   ->  #wat.check/TypeMismatch
+                                   ":td::Bad: parameter #1 expects :wat::core::i64; got :wat::core::String"
+in :then   (:tr::Bad :n ?s)    ->  compiles, fires, derived fact = #tr/Bad {:n "not-an-i64"}
+in :then   (:tl::Bad :n "…")   ->  compiles, fires, derived fact = #tl/Bad {:n "LITERAL-STRING"}
+```
+
+Driven for **both** a bound `?var` and a **literal**, each beside a well-typed control that derives
+(`Good count: 1`) — so the probe is live, not vacuous.
+
+**The RHS walls that exist are all structural**: `RhsArityMismatch`, `RhsMissingFields`,
+`RhsPositionalConstructionRetired`, `RhsUnresolvableOperand`. **None types a value.**
+
+⚠ **NOT a parametric-record problem, and not D7's.** `:tr::Box.s` is concretely
+`:wat::core::String`. And the `:when` side *does* reason about types — a comparison against an
+erased `:T` is refused with `ConstraintTypeNotComparable` (driven). The gap is the `:then` surface
+specifically: a wrong-typed value enters the **fact set**, where every downstream consumer trusts
+the declared schema.
+
+Repro: `wat-scripts/scratch-pad/d10-then-rhs-is-not-type-checked.wat`.
+
+⚠ **Found by answering the builder's question "you found an issue with our type checking?" about D7
+— and the honest first answer was NO.** D7's parametric erasure is an engine bug; the checker
+correctly refuses the unsound comparison. This is a different, broader gap that the question
+uncovered.
+
+⛔ **Three probes before this one were VACUOUS and I read them as findings.** A `sed` rename left
+`collect-rules :t2` pointing at an emptied namespace, so zero rules compiled — and
+`FireOutcome::Fired` still reports Fired, because it means *the fire completed*, not *a rule
+produced a fact*. The well-typed control is what makes this row evidence rather than another
+plausible number.
+
 | id | site | what | found by |
 |---|---|---|---|
 | ~~**D1**~~ ✅ `2733b9bd9` + residual `f22704f1f` | `validate/typing.rs:231` | D1 made the misspelled variant REFUSE; the refusal then **named the wrong thing** — `UnknownField`, *"has no field `:evt::G::Hii`; available fields: [k, grade]"*, pointing the author at FIELDS for a VARIANT typo. Driven: core has the same blind spot (*"expects keyword; got `:evt::G`"*, `remedies []`), so **agreement with core was the wrong target** — naming the mistake is. | ✅ `#wat.rete/UnknownEnumVariant` — *"`:evt::G` has no variant `Hii`; available variants: [Hi, Lo]"*. `keyword_constant_segment`'s `_ => "keyword"` was the **fifth catch-all** in this arc; now a named three-state `KeywordConstant`. ⛔ **My own sketch would have shipped a false message** — the guard sat after the arity-0 arm and inherited the TAGGED case, emitting *"has no variant `Hi`; available: [Hi]"*. Split on the discriminator, not a symptom. ⚠ **Bare tagged variant used as a value keeps the wrong remedy** — a third mistake, cut and PINNED with a golden. See `strike-variant-diagnostic/`. |
