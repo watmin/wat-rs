@@ -21,12 +21,33 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `4d5287a53` (the binding-repr STRIKE commit; the records commit lands on top of
-it). In flight: nothing — **batch 4i (#301–#320) is CLOSED**; **320 of 651 replayed**. Next is **batch 4j
-(#321–#340)**: censused two-sided — **14 docs-only, 6 code (#324 #327 #328 #332 #336 #337)**, **ZERO
-hazard rows of any kind**, **no step touches `wat/`**, and — for the first time in four batches — **NO new
-`tests/lint/` gate in the range**, so the gate-lands-red class does not arise. The next two-phase stdlib
-step is still #377.
+Stamp: written at HEAD `141da831e`. **323 of 651 replayed.**
+
+⛔⛔ **BATCH 4j IS STOPPED AT #324 AND HELD — DO NOT ASSUME IT CLOSED, AND DO NOT PUSH.**
+Three steps landed (#321 #322 #323, all docs-only) at `1245b02df`, plus the SCORE/LOG commit
+`141da831e`. **UNPUSHED; origin is still `6a681c63c`.** Verified green by the orchestrator anyway: floor
+**5717/5717, 24 skipped** (the count predicted before running, thirteenth consecutive), clippy 0/0, walls
+unchanged (lint-subset 249, kind(lib) 1493, doctest 8, nested-gate 3/3), 0 replace refs, 0
+`refs/original`, and the executor's `git reset --hard` left **zero** #324 artifacts on disk.
+
+⛔ **#324 NEEDS A BUILDER RULING — IT IS A DESIGN COLLISION, NOT A LANDING DEFECT.** grok's D5 fix is
+sound and its two merge conflicts were resolved correctly, but 3 of its own 5 named tests fail here. One
+is a routine `UPDATE_EDN=1` golden regeneration. **Two are permanent**: main's `250162a0e SCORE(277)`
+(arc 277, ACCEPTED after one reland, an ANCESTOR of this batch's start, **absent from grok's branch**,
+never revisited by grok's remaining ~300 commits) refuses `:wat::rete::core::match` inside a `:then`
+outright — its totality axis is head-level and cannot see arms, so it cannot tell an exhaustive match
+from a partial one and refuses both. Our ruling is LIVE as `tests/rete/probe_then_match_is_refused.wat`
+(referenced at `probe_then_fence_and_enum_name.rs:54`); grok's opposing probes survive to ITS tip.
+⚠ **grok AGREES about the `:wat::core::` spelling** — its own `the_core_spelling_is_refused_by_the_fence…`
+PASSES here. The collision is only the `:wat::rete::core::` spelling. The fold rule does NOT reach this:
+nothing downstream revisits it. Three options, weighed 4-YES / 2-YES / 1-2-YES, are in
+`SCORE-7j-replay-batch-4j.md` § "For whoever resumes"; the orchestrator's recommendation is option 1
+(rewrite the two tests to assert refusal, land the walker fix, regenerate the golden regardless).
+
+When the ruling lands, resume at **#324** and carry on to #340 — the rest of the batch's shape is below
+and still holds: **14 docs-only, 6 code (#324 #327 #328 #332 #336 #337)**, **ZERO hazard rows**, **no step
+touches `wat/`**, and **NO new `tests/lint/` gate in the range**. The next two-phase stdlib step is #377.
+⚠ **#329 and #332 are still un-adjudicated traps** — see their warnings below.
 ⚠ **`.wat` FILES RETURN: 13 across the range** (#324's 5, #328's 3, #332's 2, #336's 2, #327's 1) after
 two batches with none — so **`--check` and `convert.sh` conversion work reappears**.
 ⛔ **CORRECTION, 2026-09-16:** an earlier version of this line said "R21 is live again — corpus rewrites
@@ -75,7 +96,11 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4h #281–#300 (CLOSED; floor 5702/5702, clippy 0, pushed)
                               + batch 4i #301–#320 (CLOSED; floor 5717/5717, clippy 0, pushed)
                               + the binding-repr STRIKE (4d5287a53; two timing asserts, 4-YES)
-                              ⇒ 320 of 651 replayed. NEXT: batch 4j #321–#340.
+                              ⇒ 320 of 651 PUSHED (origin 6a681c63c).
+                              ⚠ +3 MORE LANDED BUT HELD, UNPUSHED: batch 4j's #321–#323 at 1245b02df.
+                              ⇒ 323 of 651 replayed in the working branch. 4j STOPPED at #324 —
+                                see the stamp. This ledger counts PUSHED batches, which is why the
+                                two numbers differ; neither is stale.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
