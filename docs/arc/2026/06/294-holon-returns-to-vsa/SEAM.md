@@ -21,28 +21,30 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `c8a206928` (4h's SCORE commit; the records commit lands on top of it). In flight:
-nothing — **batch 4h (#281–#300) is CLOSED and PUSHED**; **300 of 651 replayed**. Next is **batch 4i
-(#301–#320)**: censused two-sided — **13 docs-only, 7 code (#302 #304 #306 #310 #313 #317 #320)**, **ZERO
-hazard rows of any kind** and **not one step touches `wat/`**; the next two-phase stdlib step is still
-#377. All 5 M-status-absent paths are `docs/` DESIGN/EXPECTATIONS files created earlier in the same batch
-(#309→#311, #312→#314, #316→#318) — no hazard.
-⚠ **#310 IS THE TRAP — the FOURTH new grok lint gate.**
-`tests/lint/census_name_read_by_a_cost_test_is_emitted.rs` (780 lines) demands every census name a cost
-test READS be a name the engine EMITS, because `unwrap_or(0)` answers "this mark does not exist" and "this
-mark measured zero" with the same value — grok drove a real case where `accum_cost.rs` printed `0 − S` as
-a difference between two measurements when only one was ever taken. Rune `rune:lint(census-name-retired)`,
-40-char reason floor. **Grok's #310 repairs ONE file; our tree has EIGHT `*_cost.rs` files and 91 census
-mentions.** That asymmetry is exactly what reddened #274/#278/#283. Repair **AT #310** (#184 precedent).
-⚠ **#302 touches `wat-scripts/perf/grid/run-axis.sh`** — the FINDING-33 hot spot itself (#167's `perl`
-substitution sat broken there for weeks, invisible to every gate). Grep the `.sh` side and say so.
-⚠ **#315 is GENUINELY EMPTY in grok's own history** (0 files — a message-restore). It still needs a
-REPLAY commit for the record gate: the #202/#300 precedent.
-⚠ **All 7 code steps touch `src/rete/kernel/tests/*_cost.rs`** — timing-sensitive benchmark files, the
-exact class that produced findings 28 and 32. Treat any ratio/threshold assertion with suspicion.
-📊 **The pattern is FOUR FOR FOUR**: every new grok lint gate lands red here (#274 → 9 undeclared + 1
-hollow; #278 → 63 rune declarations; #283 → red 3-of-20; #310 → predicted). Budget for it, and measure
-the blast radius BEFORE releasing — doing so has turned a batch-stopper into a checklist three times.
+Stamp: written at HEAD `4d5287a53` (the binding-repr STRIKE commit; the records commit lands on top of
+it). In flight: nothing — **batch 4i (#301–#320) is CLOSED**; **320 of 651 replayed**. Next is **batch 4j
+(#321–#340)**: censused two-sided — **14 docs-only, 6 code (#324 #327 #328 #332 #336 #337)**, **ZERO
+hazard rows of any kind**, **no step touches `wat/`**, and — for the first time in four batches — **NO new
+`tests/lint/` gate in the range**, so the gate-lands-red class does not arise. The next two-phase stdlib
+step is still #377.
+⚠ **`.wat` FILES RETURN: 13 across the range** (#324's 5, #328's 3, #332's 2, #336's 2, #327's 1) after
+two batches with none. **R21 is live again** — corpus rewrites go through a recorded wat-fix codemod,
+never hand edits or sed, and `--check` work reappears.
+⚠ **#332 is a FINDING, not a fix** — *"D7 is LIVE — native drops a derived fact"*. Expect a step that
+records a live bug rather than curing one; #336 is its cure.
+⚠ **#329's own subject says grok PUSHED A RED** (*"D6 closed; and I pushed a red f…"*). Read that body
+before landing it — our rule is no knowingly-red REPLAY commit, and grok's own account of a red it
+shipped is exactly the kind of history that needs the fold rule considered at the step.
+⚠ **#333 is grok repairing its own deleted table** (*"restore the Class D table my own edit deleted"*).
+📊 **THREE FOR FOUR — and the fourth is the important one.** #274 → 9 undeclared + 1 hollow. #278 → 63
+rune declarations. #283 → red 3-of-20. **#310 → GREEN, zero repair needed.** I wrote "it WILL land red"
+into BRIEF-7i as near-certainty and propagated "four for four" into three permanent records before it was
+tested. The executor measured instead of complying — it compiled the 780-line gate standalone and read
+`unresolved=0` off its internals — and reported the contradiction. Had it complied we would have
+"repaired" a gate that needed nothing. ⛔ **A PREDICTION WRITTEN AS CERTAINTY IS AN INSTRUCTION TO FIND IT
+TRUE.** State predictions as predictions; say in the brief that disproving one is a RESULT, not a failure.
+Measuring a new gate's blast radius before release is still right — it turned a batch-stopper into a
+checklist three times — but the measurement is the finding, never the forecast.
 ⛔ **The executor is a spawned AGENT, not pulsare** (2026-09-15: the builder's grok credits are exhausted
 for ~2 days): Opus for substrate/judgment stones, Sonnet for mechanical replay batches.
 
@@ -65,7 +67,9 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4f #241–#260 (CLOSED; floor 5615/5615, clippy 0, pushed)
                               + batch 4g #261–#280 (CLOSED; floor 5657/5657, clippy 0, pushed)
                               + batch 4h #281–#300 (CLOSED; floor 5702/5702, clippy 0, pushed)
-                              ⇒ 300 of 651 replayed. NEXT: batch 4i #301–#320.
+                              + batch 4i #301–#320 (CLOSED; floor 5717/5717, clippy 0, pushed)
+                              + the binding-repr STRIKE (4d5287a53; two timing asserts, 4-YES)
+                              ⇒ 320 of 651 replayed. NEXT: batch 4j #321–#340.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -122,6 +126,24 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4i #301–#320 is CLOSED and PUSHED** (steps at `4cb246f06`, strike at `4d5287a53`; SCORE-7i,
+  REPLAY-LOG; finding 37). 20 steps, 13 docs-only. Verified by the orchestrator: floor **5717/5717, 24
+  skipped** — the count PREDICTED from the diff for the **twelfth consecutive batch** — clippy 0/0, walls
+  reproducing #320's own numbers (lint-subset 249, kind(lib) 1493, doctest 8, nested-gate 3/3, census
+  2122), 45 gate tests green in one run, all 20 trailers provenance-clean under a two-sided predicate,
+  origin an ancestor, 0 `refs/original/`, 0 replace refs.
+  ★ **#310 LANDED GREEN AGAINST MY PREDICTION.** BRIEF-7i said it "WILL land red" — the executor measured
+  instead of complying, compiled the 780-line gate standalone, read `em.from_literals=75, rd.len()=99,
+  runed=4, **unresolved=0**`, and reported the deviation. Its file list is byte-identical to grok's and it
+  added ZERO runes. Verified independently. **The pattern is three for four, not four for four.**
+  ★ **#304 was a genuine finding-33 hit** — a new probe's embedded wat string used the retired positional
+  `assertion-failed!` form; repaired at the step against the file's own five correct sibling copies.
+  **#315 landed as a real empty `--allow-empty` REPLAY commit** (grok's own 0-file message restore).
+  ⛔ **A RED WAS FOUND AT VERIFICATION AND STRUCK, 4-YES.** `token_bindings_representation_dominance`
+  failed 1-of-6 under `kind(lib)` (0-of-15 alone, passing in the floor): its two large-end directional
+  timing asserts were gating the SCHEDULER — at card 64 the trie's GET spiked ~17x against its own ~30ns
+  baseline while the array's growth was ordinary. Struck as a SEPARATE orchestrator commit, never folded
+  into #317 (grok keeps them to #472). Proven 1-of-6 → **0-of-6**. Findings 28/32's class, third instance.
 - **Batch 4h #281–#300 is CLOSED and PUSHED** (steps at `c8a206928`; SCORE-7h, REPLAY-LOG; finding 36).
   20 steps, 15 docs-only. Verified by the orchestrator: floor **5702/5702, 24 skipped** — the count
   PREDICTED from the diff for the **tenth consecutive batch** — clippy 0/0, E13's walls re-run at HEAD

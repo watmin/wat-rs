@@ -1160,7 +1160,11 @@ ledgers legitimately name the phantoms. **A carve-out that LOOKS like suppressio
 reconciliation available — establish what the alternative actually costs before naming one.** This is the
 fourth time in two days I have indicted correct work ahead of the evidence (see finding 34 §3).
 
-**6. THREE FOR THREE: every new grok lint gate lands RED on our tree.** #274 → 9 undeclared + 1 hollow.
+**6. THREE FOR THREE — ⛔ AND THE FORECAST IN THIS SECTION WAS WRONG. SEE FINDING 37.** The three below
+did land red. The fourth, **#310, landed GREEN with zero repair needed** — and I had already written "it
+WILL land red" into BRIEF-7i and propagated "four for four" into the SEAM and project memory before it was
+tested. A prediction written as certainty is an instruction to find it true; the executor measured instead
+and reported the contradiction. **The record is three for four.** Original text follows:** #274 → 9 undeclared + 1 hollow.
 #278 → 63 rune declarations across 11 files, unpredicted. #283 → predicted, and 4h is briefed for it.
 This is structural, not accidental: grok's gates are written against grok's corpus, and main's corpus
 diverged by renames and module splits grok never saw. **Budget repair time into every batch containing a
@@ -1249,6 +1253,56 @@ absence is correct.
 **Every one of these produced an accusation against correct work, and every one dissolved on measurement.**
 The pattern across findings 34–36 is now unmistakable: my instruments fail far more often than the
 executors do. **Measure before naming a defect, and diff like against like.**
+
+## Finding 37 — a prediction written as certainty is an instruction to find it true; a real red struck 4-YES; and a strike that reddened the floor on its own citation
+
+**1. #310 LANDED GREEN, AND MY BRIEF SAID IT WOULD NOT.** BRIEF-7i told the executor the gate "WILL land
+red" and called the pattern "four for four" — and I propagated that into the SEAM stamp, finding 36 §6 and
+project memory **before the batch ran**. The executor did not comply. It compiled the 780-line gate
+standalone under `rustc` with a throwaway `main()` and printed its internals —
+`em.from_literals=75, em.from_computed=16, em.names.len()=91, rd.len()=99, runed=4, **unresolved=0**` —
+then labelled the outcome *"DEVIATION FROM THE BRIEF, reported as instructed."* Verified independently:
+our #310's file list is byte-identical to grok's, we added **zero** runes, and the subject corpus carries
+exactly 4, all grok's own pre-existing declarations. `em.names.len()=91` even reproduces the "91 census
+mentions" figure I had measured from the other direction.
+
+⛔ **RULE: state a prediction AS a prediction, and say in the brief that disproving it is a RESULT, not a
+failure.** Measuring a new gate's blast radius before release remains right — it turned a batch-stopper
+into a checklist three times — but **the measurement is the finding, never the forecast**. Had the
+executor obeyed my wording, it would have "repaired" a gate that needed nothing and I would have committed
+a fabricated pattern to three permanent records. **The record is three for four.**
+
+**2. A REAL RED, FOUND AT VERIFICATION, STRUCK 4-YES.**
+`token_bindings_representation_dominance` failed **1 of 6** `kind(lib)` runs, **0 of 15** alone, and
+passed inside the full floor. The mechanism came from the failing table, not from a theory: at card 64 it
+read trie 535.8ns vs array 355.6ns — but this trie's GET is 28.7 / 32.9 / 29.9 / 29.4 / 29.5 / 30.2 /
+30.3 ns at **every other cardinality**, and the array's 355.6ns is ordinary growth from 169.2ns at card
+32. The array did not get faster; **the trie measurement spiked ~17× against its own baseline.** A
+preempted thread under parallel load, not a performance inversion — the assertion was gating the
+scheduler. Findings 28 and 32's class, third instance.
+
+The future was checked BEFORE striking, per the builder's standing steer: `ac07be72b` (#472) `#[ignore]`s
+the test, `bb306bd3c` (#498) moves it out of the test binary, and at grok's tip the function does not
+exist. So the strike reaches the branch's own conclusion 152 steps early rather than diverging from it.
+Landed as a **separate orchestrator commit** (`4d5287a53`), never folded into #317 — grok keeps those
+assertions until #472, and folding would break that step's diff-match. Proven **1-of-6 → 0-of-6**, floor
+5717/5717 green with the count unchanged exactly as predicted.
+
+**3. AND MY STRIKE REDDENED THE FLOOR ON ITS OWN CITATION.** The first version of the record block cited
+grok's destination file *by path*. That file does not exist here until #498, and `no_stale_path_in_doc`
+reddened the floor for precisely that — 5716/5717, this file the only offender. **I struck an assertion
+for being unreliable and in the same breath wrote a citation to a file that is not here.** Repaired by
+naming the destination by COMMIT instead, with the reason recorded in place so the next hand does not
+restore the path.
+
+**4. THE INSTRUMENT TALLY, because it is this session's real signal.** Fourteen of my own checks were
+mislabelled or mis-scoped in one session, and **seven produced accusations against correct work that
+dissolved on measurement**. Among them: a `grep -c` that cannot tell code from prose, written INTO the
+commit that strikes an assertion, quoting that assertion — finding 34 §2's exact defect; a `||` fallback
+made unreachable because a trailing `sed` in the pipeline always exits 0; a path-scanner that read the
+fraction `5716/5717` as a filesystem path. **Across five batches the executors' error rate is materially
+lower than mine.** What works, and is now habit: defer to the gate over my own regex, and validate every
+census two-sided with a control that must come back negative.
 
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
