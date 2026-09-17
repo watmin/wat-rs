@@ -1867,3 +1867,205 @@ repair commit appended after the batch, never a knowingly-red REPLAY commit, no 
 overlay used anywhere, no `git filter-branch` used anywhere. No `pulsare_yield` or any
 `mcp__pulsare__*` tool called. Do not push. Main untouched. `~/work/holon/` (the frozen root)
 untouched. No subagents spawned. No worktrees used. Tree clean at yield.
+
+## Batch 4j — grok-rete #321 → STOP at #324 (3 of 20 landed)
+
+Anchor: `665b17b60` (320 REPLAY steps, tree clean). Baseline re-measured before any step: lint-subset
+249 passed, `kind(lib)` 1493 passed, doctest 8 passed, `nested-program-gate` (`test(nested_program_starts)`)
+3/3 (5738 skipped), `.census/latest` 2122 files. All four identical to #320's own recorded numbers.
+
+## #321 — docs-only, curare stamp
+
+`curare: thirty-third stamp — C10+C11 closed; compiled:calls is not a call count`. `git cherry-pick -x
+--no-commit 2af6a2a4e`, auto-merged clean on 3 docs files (2 modified, 1 added under
+`strike-blind-count-and-indent/`). No conflicts.
+
+## #322 — docs-only, curare stamp
+
+`curare: strike "correctness is done" from the breadcrumb; row the unrowed L1 as D8`. `git cherry-pick
+-x --no-commit 7fe03ebb6`, auto-merged clean on 2 docs files.
+
+⚠ **SELF-CAUGHT TRAILER FABRICATION, repaired before this step's yield.** The first draft of this
+commit's `(cherry picked from commit …)` trailer was hand-typed and read
+`7fe03ebb61b1e2b09e5f2ca5ba50d9236eeff21a` — **not** a real object. `git rev-parse 7fe03ebb6` gives
+`7fe03ebb622a5824cfb714a2c02cc57245b8cf78`. Caught immediately by re-deriving the SHA from `git
+rev-parse` rather than trusting what had just been typed, before any descendant commit existed;
+repaired with `git commit --amend` (safe here — the commit was the tip, nothing built on it yet) to
+carry the verified SHA. Verified after repair: `git show -s --format=%B HEAD | tail -1` names
+`7fe03ebb622a5824cfb714a2c02cc57245b8cf78`, byte-identical to `git rev-parse 7fe03ebb6`'s output.
+From #323 on, every trailer in this batch was written by copying `git rev-parse <short>`'s own output
+directly, never retyped by hand.
+
+## #323 — docs-only, strike design
+
+`strike: draw D5 — a `:then` walker that reads a match ARM as a constructor CALL`. `git cherry-pick -x
+--no-commit d10ae67c4`, auto-merged clean, 3 new docs files under `strike-match-arm-is-not-a-call/`
+(BRIEF/DESIGN/EXPECTATIONS — the design doc for #324's fix).
+
+## #324 — STOP. `fix(rete): D5` lands the walker fix cleanly, but two of grok's own 5 named tests fail
+##        for a reason that is neither syntax nor a landing defect: main's own arc-277 ruling.
+
+`git cherry-pick -x --no-commit ab606b671` (10 files: 5 `.wat`, 2 `.rs`, matching the brief's count
+exactly — no discrepancy here, unlike #328's tsv/brief mismatch noted below).
+
+**Conflicts, both resolved before any test was run:**
+
+1. **`docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-then-match.wat`** (modified in C) —
+   3-way conflict on the HEADER COMMENT only; the body auto-merged clean (identical after conversion).
+   Base (`ab606b671^`) carries the ORIGINAL `rune:lint(red-by-design)` header; C replaces it with a
+   "declaration retired" header; **our tree carries NEITHER** — the rune was already dropped at #212
+   (`98f14a144`), whose own body records that on this tree the file *already* loaded clean by the time
+   #212 landed (an earlier `convert.sh` pass had already moved the corpus to the dot-variant form), so
+   #212 dropped the rune outright rather than rewording it, leaving the file byte-identical to pre-rune
+   HEAD. Grok's C is performing, in its own timeline, the exact retirement #212 already performed in
+   ours — landing C's "retired" text now would narrate a rune-retirement event that never happened on
+   THIS tree in that form. **Resolved by keeping our header-less version (0 net change to this file)** —
+   confirmed by `git show HEAD:<path>` vs. the resolved content: identical, so the file does not even
+   appear as modified in `git status` after resolution. This matches the #184/#212 precedent: a
+   disposition already made where a gate/rune landed is not re-litigated at a later step that merely
+   revisits the same file.
+2. **`src/rete/validate/mod.rs`** — auto-merged with NO conflict markers, but did not compile:
+   `walk_nested_constructors` on this tree carries a `binds: &HashMap<String,String>` parameter (added
+   by main-side content between #159 and now, unrelated to D5) that every one of its other 6 call sites
+   threads (lines 1083, 1111, 1120, 1220, 1238 — confirmed by `grep -n walk_nested_constructors(`)
+   — but grok's own two NEW recursive calls (the match-arm scrutinee/body walk this very step adds, at
+   what became lines 957 and 965) were written against grok's own signature (4 args, no `binds`) and
+   auto-merged verbatim, so the build failed with `E0061 argument #4 ... is missing`. **Ownership rule
+   applied**: main's signature stands, grok's two new call sites re-expressed with `binds` threaded
+   through, identical to the other 6 sites. `cargo build --release` then succeeded clean.
+
+**The four new `.wat` fixtures needed conversion** (`probe_arc278_match_arm_body_ok.wat`,
+`_then_core_bare.wat`, `_then_rete_bare.wat`, `_then_wrapped.wat`) — grok wrote them in grok's own
+syntax (`::` variant separator, positional `(:Variant args)` constructor calls, `String/concat`,
+`core::i64::to-string`, paren match arms). Ran `scripts/replay/convert.sh ab606b671 <out> <paths>`
+(the chain applied `match-arm-to-bracket-map-pattern`, `bare-variant-to-qualified`,
+`positional-ctor-to-map`, `variant-separator-to-dot`, among others) and replaced the staged content
+with the converted output — confirmed by diff that only spelling/form changed, not the tests' logic
+(same fact counts, same field names). The fifth new file, `probe_arc278_match_arm_body_bad.wat.bad`,
+is DELIBERATELY LEFT IN GROK'S SYNTAX (not run through `convert.sh`) — see below, its golden `.edn`
+pins exact `:line`/`:col` positions that a syntax conversion would move, and (measured, not assumed)
+this file never reaches a code path where the old syntax matters: it dies at FREEZE-TIME validation
+before `:user::main` ever runs, so the old-syntax arm pattern is read by the (now-fixed) D5 walker
+exactly the same as bracket-form would be.
+
+**finding 33 grepped:** YES, extensively — this whole step is about `:wat::` rete-vocabulary spellings
+in newly-added `.wat`, all handled via `convert.sh` above (not the finding-33 class, which is about
+STALE spellings surviving unconverted inside `.rs`/`.sh` string literals; `git grep -n ':wat::' src/
+rete/validate/mod.rs`'s own diff carries no string-embedded wat, only AST-walker Rust code referencing
+`:wat::core::match` etc. as plain string comparisons against parsed keywords, which is the walker's
+actual subject matter, not embedded source).
+
+**Test run, foreground, `cargo nextest run --release -E 'test(probe_arc278_match_arm)'`:**
+
+```
+Summary [   0.562s] 5 tests run: 2 passed, 3 failed, 5741 skipped
+    FAIL (1/5) probe_arc278_match_arm_is_not_a_call::a_misspelled_constructor_in_a_match_arm_body_is_still_refused
+    FAIL (2/5) probe_arc278_match_arm_is_not_a_call::the_bare_and_wrapped_then_spellings_compile_and_agree
+    FAIL (3/5) probe_arc278_match_arm_is_not_a_call::a_correct_constructor_in_a_match_arm_body_still_fires
+    PASS (4/5) probe_arc278_match_arm_is_not_a_call::the_core_spelling_is_refused_by_the_fence_not_by_a_phantom_arity_error
+    PASS (5/5) probe_arc278_match_arm_is_not_a_call::the_banked_d5_repro_pair_both_load
+```
+
+**Failure 1 (EDN-format only, not a behavior bug):**
+`a_misspelled_constructor_in_a_match_arm_body_is_still_refused` drives `probe_arc278_match_arm_body_bad.wat.bad`
+and gets the CORRECT `UnknownField` at the CORRECT `:line 23 :col 54`/`:col 59` — verified by direct
+binary run (`./target/release/wat tests/rete/probe_arc278_match_arm_body_bad.wat.bad`, rc=3, the exact
+expected diagnostic). It fails only because grok's committed golden `.edn` was captured against grok's
+OWN EDN writer convention (`#wat.kernel.LociDiedError/StartupError [ … ]`, `#wat.core.Option/Some [ …
+]` — tag-dot-then-slash, vector payload) while this tree's writer emits `#wat.kernel/LociDiedError.StartupError
+{ … }` / `#wat.core/Option.Some { :value … }` (tag-slash-then-dot, map payload) — the SAME data,
+different surface form. `assert_edn_matches_file!` parses both sides and compares `OwnedValue`
+structurally (`src/lib.rs:380`, "data-equality is strictly stronger than string-eq… key-order/
+whitespace drift never false-fails, but a malformed or wrong-shaped face cannot pass") — a `Map` and a
+`Vector` are NOT the same `OwnedValue` shape no matter what data they carry, so this is a real
+structural mismatch, not a whitespace one. Per the macro's own doc: *"generated by CAPTURE — never
+hand-authored"* — this is exactly the re-expression class the brief anticipated for the batch's 13 new
+`.wat` (§ "13 new `.wat` return… `--check` and `convert.sh` conversion work reappears"), extended to
+its golden `.edn` sibling: **this file needs `UPDATE_EDN=1` regeneration against THIS tree's own writer,
+not a hand edit and not a codemod** (there is no `.edn`-rewriting chain member; `.edn` goldens are
+never `.wat` corpus, so R21 does not apply either way).
+
+**Failures 2 and 3 (a genuine, pre-existing, RULED main-side wall — not a landing defect):**
+Both die with the SAME fault, at RUNTIME (not freeze time — the frame trace shows
+`then-item-fence <- compile-rule <- compile-all <- :user::main`, i.e. it fires only when the fixture's
+own code calls `:wat::rete::compile-all`, which every real rule-firing fixture here does):
+
+```
+#wat.kernel/AssertionFailure {:thread "main" :message "a :then admits only what the fence can prove
+TOTAL. `match` is total as a HEAD, but a match's exhaustiveness is a property of ITS ARMS — form-level,
+which a head-level axis cannot see. Use :wat::rete::core::variant-name for a variant's name, or bind
+the value in :when." :location #wat.kernel/Location {:file "wat/rete/compile.wat" :line 809 :col 33}
+...frames... :symbol ":wat::rete::then-item-fence"} ...:symbol ":wat::rete::compile-rule"}...}
+```
+
+Traced to source: `wat/rete/compile.wat:797-802`'s `then-item-fence` runs a `_no-match` check —
+*"C — match is total as a HEAD; exhaustiveness is a property of ITS ARMS (form-level). A head-level
+axis cannot tell exhaustive from partial, so the fence admits neither."* — implemented by
+`:wat::rete::then-item-contains-match?` (`compile.wat:737`), which **recursively walks every list/
+vector inside a `:then` item looking for a `:wat::rete::core::match` head anywhere in the subtree** —
+not just at the item's own top level. Both failing fixtures put `(:wat::rete::core::match …)` as the
+VALUE of a field inside an outer record-constructor `:then` item (`(:mac::Out :k ?k :ok (match …))`,
+`(:macb::Out :k ?k :inner (match …))`) — the deep scan finds it regardless, and the fence refuses
+unconditionally, for every spelling, everywhere in the item's subtree, exhaustive or not, by design.
+
+**This is not new, not introduced by this step, and not something any later grok commit touches.**
+Traced with `git log --oneline -S"then-item-contains-match?" --all`: the ONLY commit anywhere in this
+repository's full history that ever introduces this text is `250162a0e SCORE(277): the fence refuses
+what it cannot prove, and variant-name gives the enum a road` — on `main`/`merge/grok-rete`/
+`replay/grok-rete`, **NOT on `origin/grok-rete`** (grok's own branch never carries this function or
+this restriction at all). `250162a0e`'s own body: *"C — then-item-fence no longer admits
+`:wat::rete::core::match`. The refusal is derived from what the axis IS rather than from the incident
+[...] It refuses both [exhaustive and partial], and the diagnostic says exactly that."* Status:
+**"ACCEPTED after one reland."** `git merge-base --is-ancestor 250162a0e 665b17b60` succeeds — this
+ruling was already ancestor of this batch's own start point, landed on the main-side lineage AFTER the
+original one-shot `de827fb4c` merge and BEFORE any of this incremental replay's 320 prior steps.
+Checked whether grok's own later commits ever revisit this (finding-32/37's "check the future first"
+method): `git log --oneline ab606b671..origin/grok-rete -- wat/rete/compile.wat` shows exactly ONE
+later touch, `09e3d912c` (`FactBag` ownership refactor) — its diff (read in full) never touches
+`then-item-fence` or `then-item-contains-match?`. **Grok's own branch never revisits this tension,
+because grok's own branch never has this restriction in the first place** — it is main's own,
+independently-evolved, separately-RULED rete engine design, asserting a permanent, deliberate
+capability boundary (`match` is categorically unusable inside `:then`, at any depth, regardless of
+exhaustiveness) that predates and is orthogonal to this whole commit-by-commit replay project.
+
+**Why this is a STOP and not a fold, a re-expression, or a silent accommodation:**
+- **Not foldable**: the fold rule folds a defect into the EARLIER STEP THAT INTRODUCED IT, within this
+  replay. `250162a0e` is not a replay step at all — it is a main-side ruling that predates `665b17b60`,
+  the batch's own anchor. There is no earlier REPLAY(grok-rete #N) to fold into.
+- **Not a landing defect**: `git diff <before-conversion> <after-conversion>` on every touched `.wat`
+  shows only spelling changes; the `.rs` conflict fix (`binds` threading) is mechanical and verified by
+  a clean build; nothing this executor did introduced the refusal — it is reproduced identically by
+  running the converted fixtures exactly as grok wrote their logic.
+- **Not a simple re-expression**: three of grok's five named tests exist SPECIFICALLY to prove that
+  `match` compiles and fires correctly inside `:then` (`the_bare_and_wrapped_then_spellings_compile_and_agree`,
+  `a_correct_constructor_in_a_match_arm_body_still_fires`, and transitively
+  `a_misspelled_constructor_in_a_match_arm_body_is_still_refused`'s own premise, whose header says a
+  wrong cure "makes THIS file load" — i.e. it too assumes the surrounding rule compiles). Rewriting
+  those assertions to "expect refusal instead of firing" would not be re-expressing grok's content in
+  main's syntax (the R21/ownership-rule pattern used everywhere else in this replay) — it would be
+  substituting a materially DIFFERENT, lesser claim for the one grok's own commit message describes
+  ("the enumeration disconfirmed the wider class… Mutation 2… is the only row that catches it") while
+  still attributing it to grok's commit and trailer. That is a builder-level call (whether to accept
+  that D5's own probes can never pass on this tree given `250162a0e`'s ruling, and how much of grok's
+  test intent survives), not one an executor should make unilaterally under a brief that named neither
+  this file nor this tension as anticipated.
+- **What DOES survive intact and is NOT in question**: the walker fix itself
+  (`src/rete/validate/mod.rs`'s D5 change) is real, necessary, and correctly landed as far as it was
+  tested — `the_core_spelling_is_refused_by_the_fence_not_by_a_phantom_arity_error` (proving the
+  phantom `RhsArityMismatch` is gone and the refusal now names the true cause) and
+  `the_banked_d5_repro_pair_both_load` (the docs harness pair, which never calls `compile-all` and so
+  never reaches `then-item-fence` at all) both PASS unmodified. The bug D5 set out to fix — a legal
+  program refused with a fabricated diagnostic about an insert that does not exist — is fixed. What is
+  in question is only the SCOPE grok's own test suite assumed that fix would unlock.
+
+**Disposition: STOPPED at #324, before any commit.** Working tree fully reset
+(`git reset --hard HEAD`, `git status --porcelain` empty) to #323's own commit; nothing from #324's
+attempted cherry-pick was committed, `git replace -l` and `refs/original/` are empty (no history
+surgery of any kind was needed or used), `origin/replay/grok-rete` remains an ancestor of HEAD.
+**Steps #325–#340 were not attempted** — per the brief's own instruction, a STOP reported early is
+worth more than continued momentum past an unresolved judgment call, and several of the remaining
+docs-only steps (#325, #326, #329's own red-floor question, #330, #331, #333–#335, #338–#340) are
+curare/strike prose that itself narrates the D5/D6/D7 story this STOP interrupts — landing them ahead
+of #324's own resolution risks committing docs that reference a fix not actually present in the tree
+the way they describe it.
+
