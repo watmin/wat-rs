@@ -7,8 +7,12 @@
         - **pattern**: the matched condition's fact-type FQDN (AlphaNode tests[0] head keyword).
         - **bindings** (per-step): the binder-clause vars that THIS condition bound, projected
           from the token's accumulated bindings.
-        - **constraints**: the rule's satisfied predicates with bound values substituted:
-          `(:wat::rete::i64::< -5 0)` from `(:wat::rete::i64::< ?c 0)` with `?c=-5`.
+        - **constraints**: the condition's satisfied INLINE constraint clauses — the per-type
+          comparisons `classify_constraint_head` admits (`i64::<`, `enum::=`, …) — with bound values
+          substituted: `(:wat::rete::i64::< -5 0)` from `(:wat::rete::i64::< ?c 0)` with
+          `?c=-5`. **Exactly one entry per inline constraint clause, always** — see below.
+          `:where` fences, `not`/`exists` sub-conditions and predicate clauses are NOT in this field
+          and never were; they are separate `ReteClauseShape`s, not inline constraints.
 
         **Faithfulness by construction**: `classify_rete_clause` + `resolve_operand` reconstruct
         the matched clause for the payload. Native fire matches via `exec_compiled_with_key_ids`
@@ -17,6 +21,28 @@
 
         Arc 255 Stone P6-c-W5c — moved verbatim into `#[wat_intrinsic]` with its real (5) arity
         declared; the hand-rolled `args.len() != 5` guard this wave retires lived right here.
+
+        **⛔ An unrenderable constraint is NAMED, never dropped** (D6). Until this strike, a
+        constraint whose operand did not resolve, or whose resolved value had no literal spelling,
+        was skipped by a bare `continue` — and a caller cannot tell a shortened vector from a rule
+        that genuinely had fewer constraints. It now keeps its position as
+
+        ```text
+        (:wat::rete::explain::constraint-not-rendered <op-keyword> <operand-index> \"<why>\")
+        ```
+
+        so `constraints.length` still equals the condition's inline-constraint count. The head is
+        deliberately not a callable rete op: nothing can consume the marker as a satisfied predicate
+        and get a wrong answer — evaluating it fails by name. See
+        [`crate::rete::matcher::value_to_ast_literal`] for what is spellable today (a tagged enum
+        variant is the one live residue).
+
+        Arguments:
+          - `session`    — `:wat::rete::Session` (network via `session_network`)
+          - `alpha-id`   — `:wat::core::i64` (the AlphaNode id for this condition)
+          - `bindings`   — `:wat::core::PersistentMap` (the token's accumulated bindings)
+          - `sfact`      — `:wat::core::Record` (the supporting fact for this edge)
+          - `supporting` — `:wat::rete::DerivationNode` (the pre-computed recursive node)
 
         **Purity ground:** all five args are evaluated by ordinary call-by-value (not itself an
         effect — the same shape `alpha-match`'s wrapper is Pure for). Past that, the body only reads
