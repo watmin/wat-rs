@@ -51,6 +51,10 @@ pub use env::CheckEnv;
 pub mod error;
 pub use error::{CheckError, CheckErrorKind, CheckErrors, EnsureFnInvalidReason};
 pub mod error_edn;
+// Excursus 001 item 3 — the outcome-wildcard CENSUS (phase 1, report-only). A side-channel
+// off `infer_match`'s exhaustiveness decision; collects nothing unless a reporting test
+// enables it, and changes no diagnostic either way.
+pub mod outcome_wildcard_census;
 
 use crate::ast::WatAST;
 use crate::runtime::{Function, FunctionBody, SymbolTable};
@@ -6726,6 +6730,10 @@ fn infer_match(
     let mut covers_result_ok = false;
     let mut covers_result_err = false;
     let mut wildcard_seen = false;
+    // Excursus 001 item 3 (census, report-only) — the span of the `_` arm itself, so the
+    // report points at the wildcard rather than at the `match` head. `None` when coverage
+    // came from a hash-destructure arm (Open shape, never Enum shape).
+    let mut wildcard_span: Option<Span> = None;
     // Arc 111 — when the Result's Ok-inner type is (Option :- [T]), the
     // caller may write two partial Ok arms — `(Ok (Some v))` and
     // `(Ok :None)` — that together cover all Ok cases. Track them
@@ -6834,6 +6842,11 @@ fn infer_match(
             Some(Coverage::EnumVariant { full: false, .. }) => {}
             Some(Coverage::Wildcard) => {
                 wildcard_seen = true;
+                // Excursus 001 item 3 (census) — first `_` arm wins; a match with two is
+                // already an error elsewhere.
+                if wildcard_span.is_none() {
+                    wildcard_span = Some(pattern.span().clone());
+                }
                 covers_option_none = true;
                 covers_option_some = true;
                 covers_result_ok = true;
@@ -6881,6 +6894,20 @@ fn infer_match(
         MatchShape::Result(_, _) => covers_result_ok && covers_result_err,
         MatchShape::Enum(enum_path, _) => {
             if wildcard_seen {
+                // ⭐ Excursus 001 item 3, PHASE 1 CENSUS — THIS is the point that blesses a
+                // missing arm, and the only point that knows both the real enum path and that
+                // a `_` was used. It sees MACRO-EXPANDED forms, which is why the instrument is
+                // the checker and not a text lint (12 of `service.wat`'s 14 wildcards are
+                // invisible to a regex). Report-only: the `true` below is unchanged, so no
+                // diagnostic moves. Collection is OFF unless a reporting test enables it, and the
+                // enabled check is the first thing `record_if_enabled` does, so a normal
+                // `wat --check` pays one relaxed atomic load here and nothing else.
+                outcome_wildcard_census::record_if_enabled(
+                    enum_path,
+                    wildcard_span.as_ref().unwrap_or(head_span),
+                    env.types(),
+                    &covered_enum_variants,
+                );
                 true
             } else if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
                 e.variants.iter().all(|v| {
