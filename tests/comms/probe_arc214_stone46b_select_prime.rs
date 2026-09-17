@@ -80,13 +80,20 @@ fn probe_2_select_wrong_return_annotation_rejected() {
     // of this probe's spawn-prog shape, not what the test targets). The one this test names —
     // "select' return typed as String" — is the ReturnTypeMismatch on `:user::bad`; membership
     // (not exclusivity) is what `assert_startup_error!`'s `check` arm proves, so the other three
-    // don't need to be named. `got`'s trailing `:?NNNN` is a fresh unification-variable id
-    // (confirmed non-deterministic across repeated `--check` runs: `:?2950`, `:?10`, `:?3098`),
-    // so only the stable prefix up to it is asserted, not the whole string.
+    // don't need to be named. The tail element used to be a fresh unification-variable id
+    // rendered `:?NNNN` (non-deterministic across repeated `--check` runs: `:?2950`, `:?10`,
+    // `:?3098`), so only the stable prefix up to it was asserted. Since replay #352 (C19),
+    // `check::format_type`'s `TypeExpr::Var` arm renders `_` instead — stable across processes —
+    // so the whole `got` string is now pinned, not just a prefix.
+    // rune:lint(no-inlined-wat) — the expected/got string below is golden COMPARISON text for a
+    // ReturnTypeMismatch's rendered `got` field, never a wat world/driver; it became parseable
+    // only when #352/C19 made the Var tail a stable `_` (the prior `:?NNNN`-suffixed prefix pin
+    // never closed its brackets, so it never parsed as a form). Nothing here builds or runs a wat
+    // program from this string.
     wat::assert_startup_error!(result, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":user::bad"
             && expected == ":wat::core::String"
-            && got.starts_with("(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 :?")
+            && got == "(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 _])"
     );
 }
