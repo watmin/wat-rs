@@ -734,10 +734,13 @@ fn token_bindings_representation_dominance() {
     // deliberately NOT asserted: over twelve drives (2026-09-02) its ratio ran 1.19-2.02x, and a
     // 19% margin does not clear the ~16% the absolutes in this family reproduce to. That is the
     // same reasoning that keeps `binding_key_cost` off the floor two tests above, and this repo
-    // bans known flakes absolutely — a gate inside the noise would manufacture one. The three
-    // orderings below all carry margins measured at 2.6x or better across those same drives.
+    // bans known flakes absolutely — a gate inside the noise would manufacture one.
+    //
+    // ⛔ ONE ordering is asserted below, not three. Its margin is 4.53-10.15x across those same
+    // drives. The two LARGE-END orderings that stood here were STRUCK 2026-09-16 for being inside
+    // the noise after all — the full record is in the block below, and the large end's row is
+    // still measured and printed in `table`, just no longer machine-checked.
     let (lo_c, _lo_ext_trie, _lo_ext_arr, lo_get_trie, lo_get_arr) = rows[0];
-    let (hi_c, hi_ext_trie, hi_ext_arr, hi_get_trie, hi_get_arr) = rows[rows.len() - 1];
 
     // (2) THE SMALL END, GET — the array must be read faster at the smallest cardinality. This
     //     is the half of the threshold that makes the stone's premise pay: at 1-2 bindings an
@@ -752,25 +755,46 @@ fn token_bindings_representation_dominance() {
          to a hash plus a trie descent, which cannot be right\n{table}"
     );
 
-    // (3)+(4) THE LARGE END — the array must lose both operations at the largest cardinality.
-    //     This is what makes the printed verdict ("DOMINANCE: NO — a threshold, so R60's cut
-    //     stands") a measurement instead of a caption: array wins at the small end and loses at
-    //     the large end IS the threshold, and a threshold is exactly what R60 refuses to tune
-    //     from our own corpus. Were the array to win here too, the verdict would flip to
-    //     dominance and the representation question would be reopened — so these two are the
-    //     load-bearing half of the conclusion, not decoration.
-    assert!(
-        hi_ext_trie < hi_ext_arr,
-        "at the largest cardinality ({hi_c}) the array EXTENDED faster than the trie \
-         ({hi_ext_arr:.1}ns vs {hi_ext_trie:.1}ns) — copying {hi_c} pairs beat structural \
-         sharing. If that reproduces, the array DOMINATES and the verdict printed above is \
-         wrong\n{table}"
-    );
-    assert!(
-        hi_get_trie < hi_get_arr,
-        "at the largest cardinality ({hi_c}) the array was READ faster than the trie \
-         ({hi_get_arr:.1}ns vs {hi_get_trie:.1}ns) — a linear scan over {hi_c} entries beat a \
-         hashed lookup, so either the probe key stopped being the worst-case one or the twins \
-         are no longer the same computation\n{table}"
-    );
+    // ⛔⛔ (3)+(4) THE LARGE END — TWO DIRECTIONAL ASSERTIONS WERE STRUCK HERE, 2026-09-16.
+    // Ruled 4-YES by the builder on finding 32's precedent. This block is the record; the gap is
+    // deliberate. ⛔ DO NOT "REPAIR" IT BY PUTTING THEM BACK.
+    //
+    // They read:
+    //     assert!(hi_ext_trie < hi_ext_arr, "…the array EXTENDED faster than the trie…");
+    //     assert!(hi_get_trie  < hi_get_arr,  "…the array was READ faster than the trie…");
+    //
+    // MEASUREMENT IS THE REASON, not taste. On the batch-4i verification floor:
+    //     1 of 6   `kind(lib)` runs (1493 tests in parallel) ....... FAILED
+    //     0 of 15  runs of this test ALONE ...................... never failed
+    //     1 of 1   full floor (5717 tests) .......................... passed
+    //
+    // AND THE FAILING TABLE NAMES THE MECHANISM. At card 64 it saw trie 535.8ns vs array 355.6ns.
+    // But this trie's GET is 28.7 / 32.9 / 29.9 / 29.4 / 29.5 / 30.2 / 30.3 ns at every OTHER
+    // cardinality, and the array's 355.6ns is ordinary growth from 169.2ns at card 32. The array
+    // did not get faster — the TRIE measurement spiked ~17x against its own baseline. That is a
+    // preempted thread under parallel load, not a performance inversion. The assertion was
+    // gating the scheduler, which is findings 28 and 32's class exactly.
+    //
+    // THE FUTURE WAS CHECKED BEFORE STRIKING (the builder's standing steer: peek before drafting
+    // options). grok does not keep these. `ac07be72b` (replay step #472) `#[ignore]`s this test,
+    // and `bb306bd3c` (step #498, "Stone K moves 2-4 — three diagnostics leave the test binary")
+    // MOVES the whole fn OUT of the test binary and into a cargo bench target, on the rule that a
+    // benchmark does not belong in the test binary at all.
+    //
+    // ⛔ The destination file is named in that commit and is deliberately NOT spelled here. It does
+    // not exist on this tree until #498, and `no_stale_path_in_doc` correctly REDDENS on a rete doc
+    // comment naming a path that is not there — it caught exactly that in this strike's first floor
+    // (5716/5717, one failure, this file the only offender). Do not "helpfully" restore the path.
+    //
+    // At grok's tip this function DOES NOT EXIST. So the strike
+    // does not diverge from the branch's judgment — it reaches the branch's own conclusion early,
+    // and removes exactly the #320 → #472 exposure window, 152 steps in which nothing else on
+    // this file changes.
+    //
+    // WHAT IS LOST, stated plainly: the printed verdict ("DOMINANCE: NO — a threshold, so R60's
+    // cut stands") is no longer machine-checked at the large end. What survives: the table prints
+    // every cell, assertion (1) still refuses a dead clock, and assertion (2) still holds the
+    // small end — the half carrying `fire/delta.rs:725-726`'s premise. Were the array to genuinely
+    // dominate at the large end, this test now PRINTS that rather than failing on it, and the
+    // printed verdict line is where a reader would see it.
 }
