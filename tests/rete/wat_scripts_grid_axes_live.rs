@@ -17,7 +17,16 @@
 //! The SIZED axes — every stem NOT matching `where-*` — are the `run-axis.sh` contract: stdin is
 //! an i64 size vector, stdout is ONE `#grid/Result {... :derived #wat.core/PersistentVector [...]
 //! ...}` line. Those are asserted here per axis: (1) exit 0, (2) a `#grid/Result` line present,
-//! (3) `:derived` is NOT `[]`, (4) `:derived` equals `:oracle-derived`.
+//! (3) `:derived` is NOT `[]`, (4) an `:oracle-derived` field is present and occupies a DIFFERENT
+//! span from `:derived`.
+//!
+//! ⛔ (4) USED TO SAY "`:derived` equals `:oracle-derived`" AND THE TEST USED TO ASSERT IT. That
+//! assertion was structurally vacuous: `run_sized_axis` rewrites the source with
+//! `skip_oracle_fire` first, so the oracle column is a copy of the native answer and the
+//! comparison was `X == X` (measured 2026-09-03: `:oracle-ns` 544,437,493 → 5,608 under the
+//! rewrite). The rewrite is right for a LIVENESS test; the comparison was not. The real port
+//! pairing now lives in `wat_scripts_grid_port_check::every_grid_axis_native_matches_its_oracle`,
+//! which runs each axis from disk unmodified.
 //!
 //! The `where-*.wat` stems are the expressivity corpus (`check-where-shapes.sh`'s population vs
 //! Clara; `check-spec-native.sh` / `spec_equals_native_on_every_where_family` vs the oracle): no
@@ -119,6 +128,15 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
         "size=[rules items]; every k in [0,items) satisfies EXACTLY one of the N rules \
          (i == k mod N) by construction, so the derived Out set is items-many regardless of \
          rules — {0,1,2,3} for items=4.",
+    ),
+    (
+        "parametric-erasure",
+        &[6],
+        "size=[items]; ONE erased class `pe::Box` (a PARAMETRIC record, the only construct that \
+         puts instances of differing packability under one runtime class) beside the uniformly \
+         packable `pe::Plain`. Every key in [0,items) derives Hit, PlainHit and Pair, so items=6 \
+         derives 18 — non-empty for any items>=1, and the i64/String/Tag filler cycle needs only \
+         items>=3 to hold both interleavings.",
     ),
     (
         "strat-neg",
@@ -412,14 +430,26 @@ fn grid_axes_run_and_derive_nonvacuously() {
                 "  {stem} (size {size:?}, justification: {why}): DIED — ran and exited 0, but \
                  :derived is EMPTY ([]). Full line: {stdout:?}\n      stderr: {stderr:?}"
             )),
-            Some(derived) => {
-                // The axis ALREADY fires the `$oracle` on the same staged session and emits
-                // its answer; nothing read it. `conferre` found that four sized axes
-                // (fanout, min-finding, node-share, user-reduce) had NO oracle differential
-                // anywhere — the comparison lived only in `run-axis.sh`, which no test
-                // invokes and which CI cannot run (the Clara half needs a JDK the runner
-                // lacks). So a native-vs-oracle regression on those axes could merge fully
-                // green. The data was being computed and discarded; this reads it.
+            Some(_derived) => {
+                // ⛔ THIS BLOCK USED TO COMPARE `:derived` TO `:oracle-derived` AND CALL ITSELF
+                // THE PORT DIFFERENTIAL. IT COULD NOT BE. `run_sized_axis` above rewrites the
+                // source with `skip_oracle_fire`, which redirects the `$oracle` call site to a
+                // `FireOutcome::Fired` wrapping the ALREADY-FIRED NATIVE session — so `ofired`
+                // IS `fired`, `:oracle-derived` is the native answer, and the comparison was
+                // `X == X`. Measured 2026-09-03 on `min-finding [100 3]`: `:oracle-ns` falls from
+                // 544,437,493 ns (the interpreted oracle really running) to 5,608 ns (a match on
+                // a constructed value) under that rewrite. The span guard below defends the PARSE
+                // against reading one field twice; nothing defended the SOURCE against firing one
+                // engine twice.
+                //
+                // The rewrite is CORRECT for this test — liveness asks whether NATIVE runs, and
+                // the interpreted oracle would multiply its cost. So the value comparison moved
+                // to a gate that runs each axis from disk with no rewrite at all:
+                // `wat_scripts_grid_port_check::every_grid_axis_native_matches_its_oracle`.
+                //
+                // What remains here is what this test CAN honestly assert about the column: the
+                // field is PRESENT (an axis that stopped emitting it would silently remove itself
+                // from the port check) and it is a DIFFERENT span from `:derived`.
                 match extract_vector_field(&stdout, ":oracle-derived") {
                     None => failures.push(format!(
                         "  {stem} (size {size:?}): #grid/Result carries :derived but no \
@@ -427,9 +457,17 @@ fn grid_axes_run_and_derive_nonvacuously() {
                          staged session and must emit its answer, or this differential is \
                          silently not running.\n      stdout: {stdout:?}"
                     )),
-                    Some((oracle, oracle_at)) => {
-                        // Guard the guard: if both keys matched the same span the comparison
-                        // below is `X == X`.
+                    Some((_oracle, oracle_at)) => {
+                        // Guard the guard: two keys that match the SAME span are one field read
+                        // twice, which would make the port gate's comparison `X == X` from the
+                        // parse side.
+                        //
+                        // ⛔ The doc-comment on `extract_vector_field` below says `:oracle-derived`
+                        // CONTAINS `:derived` and that a plain `find` can therefore land inside the
+                        // oracle field. It cannot — the colon is part of the needle, and
+                        // `:oracle-derived` holds `-derived`, not `:derived` (driven 2026-09-03,
+                        // both here and against run-axis.sh:277's grep). The hazard is LATENT, and
+                        // the delimiter plus this span check are what keep it latent.
                         let derived_at = extract_vector_field(&stdout, ":derived")
                             .map(|(_, at)| at)
                             .unwrap_or(usize::MAX);
@@ -437,13 +475,6 @@ fn grid_axes_run_and_derive_nonvacuously() {
                             failures.push(format!(
                                 "  {stem}: :derived and :oracle-derived resolved to the SAME \
                                  span — the comparison would be vacuous"
-                            ));
-                        } else if derived.trim() != oracle.trim() {
-                            failures.push(format!(
-                                "  {stem} (size {size:?}): NATIVE AND $ORACLE DISAGREE.\n      \
-                                 native: [{}]\n      oracle: [{}]",
-                                derived.trim(),
-                                oracle.trim()
                             ));
                         }
                     }

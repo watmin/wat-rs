@@ -21,8 +21,19 @@ through even if it had been running.
 
 All eleven axes at correctness sizes (`min-finding [100 3]`, `negation [50]`, `asym-join [100]`,
 `strat-neg [3 50]`, `accum [10 20]`, `fanout [500]`, …): **11/11 `:derived` == `:oracle-derived`,
-total 5 seconds, no JVM.** So the gate is green the day it lands — its value is the next port bug,
-not this one.
+total 5 seconds, no JVM.**
+
+**⭐ RE-DRIVEN 2026-09-03 at HEAD `daa92c3b0`** — the original drive was at `3144f9123` and **three
+`src/` changes have landed since** (D10, D11, C19: `check.rs`, `freeze.rs`,
+`validate/{mod,typing,error}.rs`). Still **11/11, 5.7s** — and this time with per-axis element counts,
+so the green is not vacuous:
+
+```
+min-finding 49 · negation 25 · leading-exists 20 · neg-consumer 25 · asym-join 200 · strat-neg 75
+user-reduce 5 · node-share 20 · accum 50 · deep-cascade 200 · fanout 400
+```
+
+So the gate is green the day it lands — its value is the next port bug, not this one.
 
 ## The two pieces
 
@@ -43,11 +54,19 @@ new axis must load and resolve.
 
 1. **If any axis's port check is RED at HEAD**, stop and report it as a finding — that is a live port
    bug and it outranks this strike.
-2. **⚠ `fanout` emits `#fan/QuerySplit`, not `#grid/Result`** (driven). If your extraction cannot
-   read it, stop and report rather than silently skipping the axis.
-3. **If adding the parametric axis requires a `gen-<axis>.sh` twin** (`run-all.sh` discovers axes by
-   that pairing and errors on a `.wat` without one), stop and report — the Clara twin is the
-   expensive half this strike does not buy.
+2. **If any axis's `:derived` set is EMPTY, stop.** An empty set compares equal to an empty set and
+   prints `match`, proving nothing. Driven: `fanout` at the wrong size arity yields `[] == []` on
+   three different sizes. Non-vacuity is a gate requirement, not a nicety. (And the old wording of
+   this STOP was wrong: `fanout` emits a `#fan/QuerySplit` line **and then** a `#grid/Result` — read
+   the second line; there is no record-type problem. It takes a **single-number** size.)
+3. **⛔ THIS STOP'S PREMISE WAS BACKWARDS AND IS CORRECTED — do not stop on it.** It read
+   *"`run-all.sh` discovers axes by that pairing and errors on a `.wat` without one"*. **The opposite
+   is true** (`run-all.sh:85`): a `.wat` with **no** `gen-` twin is `continue`d — *"not a perf axis
+   (where-* has no gen-, by design)"*. What exits 2 (`:88-99`) is a `.wat` **WITH** a `gen-` twin and
+   **no LADDER rung**. So: give the parametric axis **no `gen-` twin**, and do not name it `where-*`
+   (`check-where-shapes.sh:140` globs `where-*.wat` and hard-fails a missing `.clj` twin). It then
+   lands clean — run-all skips it, check-where-shapes never sees it. The two `wat-scripts/` lint
+   gates DO read it: it must load and every `:wat::rete::` name must resolve.
 4. **If your gate's runtime exceeds ~60s**, stop and report the sizes; correctness sizes are not the
    perf ladder and must not drift toward it.
 
