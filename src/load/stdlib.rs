@@ -444,6 +444,24 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query.wat",
         source: include_str!("../../wat/query.wat"),
     },
+    // wat/queue.wat — `:wat::queue::Queue` (surface) + `:wat::queue::queue` (defservice):
+    // send / receive / ack with a visibility timeout, over any `:wat::query::Store`. PROMOTED
+    // from wat-scripts/queue/sqs.wat by excursus 001's "the queue matures into the stdlib",
+    // which was a SPLIT, not a move — the test suite that drove it stayed in wat-scripts/, and
+    // nothing in this half is in the user rendezvous namespace.
+    // ⛔ POSITION IS LOAD-BEARING: immediately after wat/query.wat because this file names
+    // `:wat::query::` (the backend-agnostic Store contract) at 143 code sites / 53 distinct
+    // names — measured, not the DESIGN's unreproducible 147 — plus ten distinct names
+    // from wat/service.wat (35): `defservice`, `Outcome`, `Alarm`, … It names NOTHING later —
+    // and nothing at 50 or beyond either. In particular neither
+    // wat/query/mem.wat nor wat/query/sqlite-store.wat below: the store arrives as an Address,
+    // never as a concrete backend, so picking a backend stays the caller's job. Enforced, not
+    // asserted, by `:wat::deporder::verify-stdlib` (tests/kernel/probe_arc275_verify_stdlib.rs
+    // and test_stdlib_load_order.rs), which reads every baked source and reds on a forward ref.
+    WatSource {
+        path: "wat/queue.wat",
+        source: include_str!("../../wat/queue.wat"),
+    },
     // wat/query/mem.wat — `:wat::query::mem-store`, the FIRST `:wat::query::Store` satisfier (a
     // `:wat::service::defservice :satisfies :wat::query::Store` holding a
     // PersistentVector<StoredRow>; a real in-memory backend AND the oracle sqlite will be

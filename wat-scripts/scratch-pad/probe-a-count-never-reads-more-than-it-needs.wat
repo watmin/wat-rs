@@ -4,7 +4,6 @@
 ;; mem and sqlite agree. Queue cap+1 still rejects a send at cap.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 (:wat::core::defn :cn::dial-store
   [a <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])]
@@ -86,16 +85,16 @@
     nil))
 
 (:wat::core::defn :cn::send-one
-  [q <- :queue::Queue  i <- :wat::core::i64] -> :wat::core::i64
+  [q <- :wat::queue::Queue  i <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match
-    (:queue::Queue/send q
-      (:queue::Queue::SendRequest
+    (:wat::queue::Queue/send q
+      (:wat::queue::Queue::SendRequest
         :queue "q"
         :bodies (:wat::core::Vector :- [:wat::core::String] (:wat::core::format "b{i}" :i i))
         :now-ns (:wat::i64::+ 1000 i)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Accepted n) n)
+        ((:wat::queue::Queue::SendResponse::Accepted n) n)
         (_ -1)))
     (_ -2)))
 
@@ -119,11 +118,11 @@
      s1  (:cn::count-at sst 1)
      qsh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     qh (:queue::queue/start :locus (:wat::spawn::thread)
-          :record (:queue::queue::Record :cap 4
+     qh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+          :record (:wat::queue::queue::Record :cap 4
                     :store-addr (:wat::query::mem-store::Handle/addr qsh)
                     :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q (:wat::core::match (:wat::kernel::connect (:queue::queue::Handle/addr qh))
+     q (:wat::core::match (:wat::kernel::connect (:wat::queue::queue::Handle/addr qh))
          ((:wat::kernel::ConnectOutcome::Connected c) c)
          (_ (:wat::kernel::assertion-failed! "cn: dial-queue failed" :wat::core::None :wat::core::None)))
      a0 (:cn::send-one q 0)

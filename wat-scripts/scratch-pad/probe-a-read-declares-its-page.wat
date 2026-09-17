@@ -120,36 +120,36 @@
      pages (:wat::i64::/ (:wat::i64::+ 250 63) 64)
      msh2 (:wat::query::mem-store/start :locus (:wat::spawn::thread)
              :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     qh (:queue::queue/start :locus (:wat::spawn::thread)
-          :record (:queue::queue::Record :cap 1000
+     qh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+          :record (:wat::queue::queue::Record :cap 1000
                     :store-addr (:wat::query::mem-store::Handle/addr msh2)
                     :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q (:user::dial-queue (:queue::queue::Handle/addr qh))
+     q (:user::dial-queue (:wat::queue::queue::Handle/addr qh))
      stg (:wat::core::format "Accepted({n})"
             :n
             (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::match
-                  (:queue::Queue/send q
-                    (:queue::Queue::SendRequest
+                  (:wat::queue::Queue/send q
+                    (:wat::queue::Queue::SendRequest
                       :queue "q"
                       :bodies (:wat::core::Vector :- [:wat::core::String] (:wat::core::format "b{i}" :i i))
                       :now-ns (:wat::i64::+ now i)))
                   ((:wat::kernel::RecvOutcome::Message r)
                     (:wat::core::match r
-                      ((:queue::Queue::SendResponse::Accepted n) (:wat::i64::+ acc n))
+                      ((:wat::queue::Queue::SendResponse::Accepted n) (:wat::i64::+ acc n))
                       (_ acc)))
                   (_ acc)))
               0
               (:wat::core::range 0 70)))
-     rec (:queue::Queue/receive q
-           (:queue::Queue::ReceiveRequest
+     rec (:wat::queue::Queue/receive q
+           (:wat::queue::Queue::ReceiveRequest
              :queue "q" :now-ns (:wat::i64::+ now 1000) :visibility-ns 1000000000000
-             :limit 1000 :wait (:queue::Queue::Wait::Immediate)))
+             :limit 1000 :wait (:wat::queue::Queue::Wait::Immediate)))
      rn (:wat::core::match rec
           ((:wat::kernel::RecvOutcome::Message r)
             (:wat::core::match r
-              ((:queue::Queue::ReceiveResponse::Ok envs) (:wat::core::count envs))
+              ((:wat::queue::Queue::ReceiveResponse::Ok envs) (:wat::core::count envs))
               (_ -1)))
           (_ -2))]
     (:wat::core::format
@@ -162,8 +162,8 @@
       :pg pages
       :stg stg
       :rn rn
-      :rm :queue::Queue::RECEIVE-MAX-PAGE
-      :f :queue::Queue::RECEIVE-MAX-PAGE-FIELD)))
+      :rm :wat::queue::Queue::RECEIVE-MAX-PAGE
+      :f :wat::queue::Queue::RECEIVE-MAX-PAGE-FIELD)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:user::compute)))

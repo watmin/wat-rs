@@ -1,7 +1,6 @@
 ;; Drive the probe-scan fold: ScanResponse::Transient (retryable, not a death)
 ;; and RecvOutcome by dying on scan (put still succeeds).
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 (:wat::service::defservice :ps::scan-fault
   :satisfies :wat::query::Store
@@ -91,20 +90,20 @@
   (:wat::core::Vector :- [:wat::core::String] "m0"))
 
 (:wat::core::defn :ps::dial-q
-  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
-  -> :queue::Queue
+  [a <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
+  -> :wat::queue::Queue
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected c) c)
     (_ (:wat::kernel::assertion-failed! "ps: queue dial failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :ps::send-tag
-  [q <- :queue::Queue] -> :wat::core::String
+  [q <- :wat::queue::Queue] -> :wat::core::String
   (:wat::core::match
-    (:queue::Queue/send q
-      (:queue::Queue::SendRequest :queue "q" :bodies (:ps::bodies) :now-ns 1000000000))
+    (:wat::queue::Queue/send q
+      (:wat::queue::Queue::SendRequest :queue "q" :bodies (:ps::bodies) :now-ns 1000000000))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Accepted n)
+        ((:wat::queue::Queue::SendResponse::Accepted n)
           (:wat::core::format "Accepted({n})" :n n))
         (_ "other-response")))
     ((:wat::kernel::RecvOutcome::Lost c)
@@ -123,11 +122,11 @@
             :record (:ps::scan-fault::Record
                       :inner-addr (:wat::query::mem-store::Handle/addr msh)
                       :die? die?))
-     qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record
+     qh  (:wat::queue::queue/start :locus (:wat::spawn::thread)
+            :record (:wat::queue::queue::Record
                       :cap 1024 :store-addr (:ps::scan-fault::Handle/addr fsh)
                       :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q   (:ps::dial-q (:queue::queue::Handle/addr qh))]
+     q   (:ps::dial-q (:wat::queue::queue::Handle/addr qh))]
     (:ps::send-tag q)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

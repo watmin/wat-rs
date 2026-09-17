@@ -17,7 +17,6 @@
 ;;          AckResponse, whether the remaining row redelivers.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 ;; ── wrapper ──────────────────────────────────────────────────────────────────
 (:wat::service::defservice :fs::failing-store
@@ -281,61 +280,61 @@
     (_ (:wat::kernel::assertion-failed! "e3: store dial failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :e3::dial-q
-  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
-  -> :queue::Queue
+  [a <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
+  -> :wat::queue::Queue
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected c) c)
     (_ (:wat::kernel::assertion-failed! "e3: queue dial failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :e3::send-tag
-  [q <- :queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64]
+  [q <- :wat::queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64]
   -> :wat::core::String
   (:wat::core::match
-    (:queue::Queue/send q
-      (:queue::Queue::SendRequest :queue name :bodies (:e3::bodies) :now-ns now-ns))
+    (:wat::queue::Queue/send q
+      (:wat::queue::Queue::SendRequest :queue name :bodies (:e3::bodies) :now-ns now-ns))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Accepted n)
+        ((:wat::queue::Queue::SendResponse::Accepted n)
           (:wat::core::format "Accepted({n})" :n n))
-        ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "RequestTooLarge")
-        ((:queue::Queue::SendResponse::RequestTooManyEntries e c)
+        ((:wat::queue::Queue::SendResponse::RequestTooLarge _b _c) "RequestTooLarge")
+        ((:wat::queue::Queue::SendResponse::RequestTooManyEntries e c)
           (:wat::core::format "RequestTooManyEntries({e},{c})" :e e :c c))
-        ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "RequestMalformed")))
+        ((:wat::queue::Queue::SendResponse::RequestMalformed _p _e _g) "RequestMalformed")))
     ((:wat::kernel::RecvOutcome::Lost _c) "Lost")
     (:wat::kernel::RecvOutcome::Closed "Closed")
     (:wat::kernel::RecvOutcome::Stopped "Stopped")
     (:wat::kernel::RecvOutcome::TimedOut "TimedOut") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :e3::ack-tag
-  [q <- :queue::Queue  name <- :wat::core::String  ids <- (:wat::core::Vector :- [:wat::core::String])]
+  [q <- :wat::queue::Queue  name <- :wat::core::String  ids <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
   (:wat::core::match
-    (:queue::Queue/ack q (:queue::Queue::AckRequest :queue name :ids ids))
+    (:wat::queue::Queue/ack q (:wat::queue::Queue::AckRequest :queue name :ids ids))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::AckResponse::Ok) "Ok")
-        ((:queue::Queue::AckResponse::RequestTooLarge _b _c) "RequestTooLarge")
-        ((:queue::Queue::AckResponse::RequestMalformed _p _e _g) "RequestMalformed")))
+        ((:wat::queue::Queue::AckResponse::Ok) "Ok")
+        ((:wat::queue::Queue::AckResponse::RequestTooLarge _b _c) "RequestTooLarge")
+        ((:wat::queue::Queue::AckResponse::RequestMalformed _p _e _g) "RequestMalformed")))
     ((:wat::kernel::RecvOutcome::Lost _c) "Lost")
     (:wat::kernel::RecvOutcome::Closed "Closed")
     (:wat::kernel::RecvOutcome::Stopped "Stopped")
     (:wat::kernel::RecvOutcome::TimedOut "TimedOut") ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :e3::recv-ids
-  [q <- :queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64  vis-ns <- :wat::core::i64]
+  [q <- :wat::queue::Queue  name <- :wat::core::String  now-ns <- :wat::core::i64  vis-ns <- :wat::core::i64]
   -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::match
-    (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest
+    (:wat::queue::Queue/receive q
+      (:wat::queue::Queue::ReceiveRequest
         :queue name :now-ns now-ns :visibility-ns vis-ns :limit 10
-        :wait (:queue::Queue::Wait::Immediate)))
+        :wait (:wat::queue::Queue::Wait::Immediate)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::ReceiveResponse::Ok envs)
+        ((:wat::queue::Queue::ReceiveResponse::Ok envs)
           (:wat::core::foldl
-            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])  e <- :queue::Envelope]
+            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])  e <- :wat::queue::Envelope]
               -> (:wat::core::Vector :- [:wat::core::String])
-              (:wat::core::conj acc (:queue::Envelope/id e)))
+              (:wat::core::conj acc (:wat::queue::Envelope/id e)))
             (:wat::core::Vector :- [:wat::core::String])
             envs))
         (_ (:wat::kernel::assertion-failed! "e3: receive not Ok" :wat::core::None :wat::core::None))))
@@ -367,21 +366,21 @@
              :record (:fs::failing-store::Record
                        :inner-addr (:wat::query::mem-store::Handle/addr msh2)
                        :put-fail-bp 10000 :delete-fail-bp 0 :drop-seed 1))
-     qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record
+     qh  (:wat::queue::queue/start :locus (:wat::spawn::thread)
+            :record (:wat::queue::queue::Record
                       :cap 1024 :store-addr (:fs::failing-store::Handle/addr fsh2)
                       :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q   (:e3::dial-q (:queue::queue::Handle/addr qh))
+     q   (:e3::dial-q (:wat::queue::queue::Handle/addr qh))
      send-r (:e3::send-tag q "q" T0)
      ;; Drain on the inner mem-store, not the wrapper: receive re-puts, and a
      ;; still-armed put-fail would partial-fail the visibility hide.
      ;; now-ns is T0+20 so the 1ns-staggered isk values T0..T0+9 are all visible
      ;; (a receive at T0 would see only the first row).
-     qh2 (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record
+     qh2 (:wat::queue::queue/start :locus (:wat::spawn::thread)
+            :record (:wat::queue::queue::Record
                       :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh2)
                       :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q2  (:e3::dial-q (:queue::queue::Handle/addr qh2))
+     q2  (:e3::dial-q (:wat::queue::queue::Handle/addr qh2))
      mem (:e3::dial-store (:wat::query::mem-store::Handle/addr msh2))
      td  (:e3::scan-td mem "q" (:wat::i64::+ T0 100))
      got (:e3::recv-ids q2 "q" (:wat::i64::+ T0 20) 100)]
@@ -431,19 +430,19 @@
              :record (:fs::failing-store::Record
                        :inner-addr (:wat::query::mem-store::Handle/addr msh2)
                        :put-fail-bp 0 :delete-fail-bp 10000 :drop-seed 1))
-     qh  (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record
+     qh  (:wat::queue::queue/start :locus (:wat::spawn::thread)
+            :record (:wat::queue::queue::Record
                       :cap 1024 :store-addr (:fs::failing-store::Handle/addr fsh2)
                       :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q   (:e3::dial-q (:queue::queue::Handle/addr qh))
+     q   (:e3::dial-q (:wat::queue::queue::Handle/addr qh))
      _s  (:e3::send-tag q "q" T0)
      ids (:e3::recv-ids q "q" (:wat::i64::+ T0 20) vis)
      ack-r (:e3::ack-tag q "q" ids)
-     qh2 (:queue::queue/start :locus (:wat::spawn::thread)
-            :record (:queue::queue::Record
+     qh2 (:wat::queue::queue/start :locus (:wat::spawn::thread)
+            :record (:wat::queue::queue::Record
                       :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr msh2)
                       :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q2  (:e3::dial-q (:queue::queue::Handle/addr qh2))
+     q2  (:e3::dial-q (:wat::queue::queue::Handle/addr qh2))
      ;; Past the visibility window: the undeleted row must redeliver.
      red (:e3::recv-ids q2 "q" (:wat::i64::+ (:wat::i64::+ T0 20) (:wat::i64::+ vis 1)) vis)
      mem (:e3::dial-store (:wat::query::mem-store::Handle/addr msh2))

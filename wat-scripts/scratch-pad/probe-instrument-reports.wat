@@ -10,12 +10,12 @@
   (:wat::core::let
     [msh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     qh  (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 8 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q   (:demo::dial-queue (:queue::queue::Handle/addr qh))
+     qh  (:wat::queue::queue/start :locus (:wat::spawn::thread)
+           :record (:wat::queue::queue::Record :cap 8 :store-addr (:wat::query::mem-store::Handle/addr msh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     q   (:demo::dial-queue (:wat::queue::queue::Handle/addr qh))
      expired (:demo::poll-until-unacked q 3)
      live (:demo::q-depth q)
-     _ (:wat::service::stop-faced (:queue::queue/stop qh))
+     _ (:wat::service::stop-faced (:wat::queue::queue/stop qh))
      dead (:demo::q-depth q)
      unread (:demo::poll-until-unacked q 3)]
     (:wat::core::let

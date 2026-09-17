@@ -54,7 +54,7 @@ pub struct MacroDef {
 pub struct MacroRegistry {
     pub(super) macros: HashMap<String, MacroDef>,
     /// Expanded `defsurface` forms, keyed by the surface's colon-name
-    /// (`:queue::Queue`). Filled as each surface expands; `defservice` reads
+    /// (`:wat::queue::Queue`). Filled as each surface expands; `defservice` reads
     /// the matching form so wrap-or-not for `:max-entries` can walk `:features`
     /// at expand time. Per-registry (per freeze), never process-lifetime.
     pub(crate) surface_forms: HashMap<String, WatAST>,

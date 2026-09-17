@@ -22,7 +22,6 @@
 ;; one run, from one state, so neither half rests on a separate setup.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 (:wat::core::defn :dd::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
@@ -32,7 +31,7 @@
     (_ nil)))
 
 (:wat::core::defn :dd::dial-q
-  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])] -> :queue::Queue
+  [a <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])] -> :wat::queue::Queue
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected c) c)
     (_ (:wat::kernel::assertion-failed! "dd: dial queue failed" :wat::core::None :wat::core::None))))
@@ -63,12 +62,12 @@
         (_ -1)))
     (_ -2)))
 
-(:wat::core::defn :dd::stats-pair [q <- :queue::Queue] -> :wat::core::String
-  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+(:wat::core::defn :dd::stats-pair [q <- :wat::queue::Queue] -> :wat::core::String
+  (:wat::core::match (:wat::queue::Queue/stats q (:wat::queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok qst)
-          (:wat::core::format "[{v}/{u}]" :v (:queue::Stats/visible qst) :u (:queue::Stats/unacked qst)))
+        ((:wat::queue::Queue::StatsResponse::Ok qst)
+          (:wat::core::format "[{v}/{u}]" :v (:wat::queue::Stats/visible qst) :u (:wat::queue::Stats/unacked qst)))
         (_ "[not-ok]")))
     (_ "[lost]")))
 
@@ -81,24 +80,24 @@
      vis (:dd::count-in-range st 0 now)]
     (:wat::core::format "[{v}/{u}]" :v vis :u (:wat::i64::- all vis))))
 
-(:wat::core::defn :dd::send-n [q <- :queue::Queue  bodies <- (:wat::core::Vector :- [:wat::core::String])]
+(:wat::core::defn :dd::send-n [q <- :wat::queue::Queue  bodies <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::nil
   (:wat::core::match
-    (:queue::Queue/send q
-      (:queue::Queue::SendRequest :queue "q" :bodies bodies
+    (:wat::queue::Queue/send q
+      (:wat::queue::Queue::SendRequest :queue "q" :bodies bodies
         :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
     ((:wat::kernel::RecvOutcome::Message _r) nil)
     (_ (:wat::kernel::assertion-failed! "dd: send failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :dd::take-one [q <- :queue::Queue  vis-ns <- :wat::core::i64] -> :wat::core::i64
+(:wat::core::defn :dd::take-one [q <- :wat::queue::Queue  vis-ns <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match
-    (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest :queue "q"
+    (:wat::queue::Queue/receive q
+      (:wat::queue::Queue::ReceiveRequest :queue "q"
         :now-ns (:wat::time::epoch-nanos (:wat::time::now))
-        :visibility-ns vis-ns :limit 1 :wait (:queue::Queue::Wait::Immediate)))
+        :visibility-ns vis-ns :limit 1 :wait (:wat::queue::Queue::Wait::Immediate)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::ReceiveResponse::Ok envs) (:wat::core::count envs))
+        ((:wat::queue::Queue::ReceiveResponse::Ok envs) (:wat::core::count envs))
         (_ -1)))
     (_ -2)))
 
@@ -106,9 +105,9 @@
   (:wat::core::let
     [sh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     qh (:queue::queue/start :locus (:wat::spawn::thread)
-          :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q  (:dd::dial-q (:queue::queue::Handle/addr qh))
+     qh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+          :record (:wat::queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     q  (:dd::dial-q (:wat::queue::queue::Handle/addr qh))
      st (:dd::dial-store (:wat::query::mem-store::Handle/addr sh))
      _s (:dd::send-n q (:wat::core::Vector :- [:wat::core::String] "m0" "m1" "m2"))
      took (:dd::take-one q 200000000)
