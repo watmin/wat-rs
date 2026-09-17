@@ -1318,6 +1318,28 @@ This is **#270's ledger-reseed class**, and it is now the third instance (the do
 something the branch edits.** It folds into the step that rewrote the text — #329→#340 rebuilt on top —
 never a repair commit after the batch.
 
+**5. FOURTH INSTANCE (#352), a NARROWER SUB-CLASS: a prefix pin written to dodge non-determinism goes
+stale when the non-determinism is cured.** The orchestrator's post-batch floor for batch 4k came back
+**RED 1-of-5792**. One cause: #352 (C19) deliberately changed `check::format_type`'s `TypeExpr::Var` arm
+from rendering a fresh unification-variable id (`:?{id}`) to a stable `_`, because the id varied per
+process — exactly the class this same commit's own gate (`diagnostic_output_is_deterministic`) exists to
+hunt. `tests/comms/probe_arc214_stone46b_select_prime.rs::probe_2_select_wrong_return_annotation_rejected`
+(last touched by main at `4b49f3c5c`, the arc-255 bare-`is_err()` migration) had, for exactly that reason,
+asserted only `got.starts_with("... :wat::core::i64 :?")` — a **prefix** pin, its own comment naming the
+non-determinism as the reason it stopped short of the whole string. #352 removes that reason. Main-only
+(grok's own #352 never touches this file; grok's own `probe_2` is a bare `assert!(result.is_err())`), so
+it folds into #352 itself, not a repair commit. **The cure is exact equality, not a new (shorter) prefix**
+— re-pinning `starts_with(... "_")` would recreate the same defect class one render away from now, for a
+reason (non-determinism) that this step's own diff already retired. Measured, not assumed: `--check` on
+the fixture, 5 fresh-process runs, byte-identical `got` each time. This is the general shape to watch for
+whenever a diagnostic's non-determinism is fixed: **audit every test that pinned only a prefix of it**,
+because the prefix's own reason for existing may have just disappeared. ⛔ **And the cure has its own
+second-order tell:** curing the non-determinism made the pinned string a COMPLETE, wat-reader-parseable
+form for the first time (the old prefix's unclosed brackets never parsed), so the fix itself walked
+straight into finding 33's gate (`no_inlined_wat_in_tests`) — RED a second time, in the same commit, for
+a reason the fix caused rather than inherited; the cure was correct and stood, and the second red was
+answered with the house `// rune:lint(no-inlined-wat)` rather than a reshaped or split literal.
+
 **2. TWO BLESS MECHANISMS, AND THE BLANKET RUN SILENTLY SKIPS ONE.**
 
 | golden | mechanism |

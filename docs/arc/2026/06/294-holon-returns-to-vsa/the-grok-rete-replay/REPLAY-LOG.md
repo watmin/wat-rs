@@ -2531,3 +2531,156 @@ methodology, is in `SCORE-7k-replay-batch-4k.md`'s E4 row.
 published tip, an ancestor of HEAD throughout. See `SCORE-7k-replay-batch-4k.md` for the full
 row-by-row account against all 23 rows.
 
+## #352 VAR-RENDER FOLD — a main-only prefix pin stale under C19's own render fix, folded into #352
+## per BRIEF-7k-ADDENDUM-352-the-var-render-pin.md
+
+After the SCORE above, the orchestrator's own verification floor at `a9d09e504` came back RED
+1-of-5792:
+
+```
+FAIL wat::comms probe_arc214_stone46b_select_prime::probe_2_select_wrong_return_annotation_rejected
+     tests/comms/probe_arc214_stone46b_select_prime.rs:86:5
+no check error matched `CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. } if
+function == ":user::bad" && expected == ":wat::core::String" &&
+got.starts_with("(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 :?")`
+```
+
+**One cause.** #352 (C19) deliberately changed `check::format_type`'s `TypeExpr::Var` arm from
+`:?{id}` to `_`, because the id varied per process — the exact class this same commit's own
+`diagnostic_output_is_deterministic` gate exists to hunt. `probe_2_select_wrong_return_annotation_rejected`
+(last touched by main at `4b49f3c5c`, the arc-255 bare-`is_err()` migration, 2026-08-26; never
+touched by grok's own #352, whose `probe_2` is a bare `assert!(result.is_err())`) had, for exactly
+that non-determinism reason, asserted only the prefix up to `:?`. #352 removes the reason. Finding
+38's fourth instance: a main-only artifact pinned to text a replayed step legitimately rewrote — here
+a narrower sub-class, a *prefix* pin written to dodge non-determinism that goes stale when the
+non-determinism is cured.
+
+**Measured before amending, not trusted from the addendum.** `target/release/wat --check
+tests/comms/probe_arc214_stone46b_select_prime_probe2.wat.bad`, run 5 times fresh-process on #352's
+own tree: byte-identical every time —
+`got == "(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 _])"` — matching the
+addendum's predicted string exactly. The test's own pre-fix failure message on this tree reports the
+identical string, confirming `startup_from_file` (the driver the assertion actually uses) agrees
+with the `--check` measurement.
+
+**Cure: exact equality, not a new prefix.** Rewrote the assertion to
+`got == "(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 _])"` and the comment above
+it to describe the render change instead of the retired non-determinism. Did NOT swap in
+`starts_with(... "_")` — that would re-pin a prefix for a reason that no longer exists.
+
+**Sibling sweep re-run on this tree**, `git grep -nE '":\?|:\?\)|starts_with\(.*:\?' -- tests/ src/`:
+the only remaining hits are `src/reflect/render.rs:119` and
+`tests/reflection/wat_arc201_structured_signature_types.rs:23`, both doc comments already stale
+before #352 (the code renders `Symbol("t{id}")`) — out of scope for this fold per the addendum,
+left untouched, the orchestrator's to fix separately. A repo-wide `-- '*.edn'` sweep found zero
+goldens pinning the `:?` spelling. One measured discrepancy from the addendum's own sweep list,
+reported rather than silently reconciled: `tests/wat_lang/wat_arc072_letstar_parametric.rs:48`
+("fresh var :?71") does not actually match the given regex — no `"` immediately precedes `:?`, and
+no `:?` is immediately followed by `)`.
+
+**Landed as a FOLD into #352 itself**, per the fold ruling and finding 34/E15 (no knowingly-red
+commit stands after a batch):
+
+```
+git checkout --detach 3436d2611               # old #352
+# edit tests/comms/probe_arc214_stone46b_select_prime.rs (assertion + comment)
+git add tests/comms/probe_arc214_stone46b_select_prime.rs
+git commit --amend -F <updated body>          # -> 8f87cd9d8
+git rebase --onto 8f87cd9d8 3436d2611 a9d09e504
+git branch -f replay/grok-rete <new tip>
+```
+
+The rebase replayed all 9 descendants (#353→#360, and the SCORE commit) with **zero conflicts** —
+old tip `a9d09e504` → new tip `f87ed74e7`.
+
+**Proved inert:** `git diff --stat a9d09e504 f87ed74e7` names exactly one path,
+`tests/comms/probe_arc214_stone46b_select_prime.rs` (6 insertions, 4 deletions), plus this
+docs-only commit added afterward. **Proved published history untouched:** `git merge-base
+--is-ancestor origin/replay/grok-rete HEAD` succeeds; `git for-each-ref refs/original/` and
+`git replace -l` are both empty; `origin/replay/grok-rete` (`28dae3a32`) is unmoved and remains an
+ancestor of the new tip. `scripts/replay/verify-step-record.sh 5ba45a81f HEAD 341 360` re-ran clean
+afterward. The formerly-failing test re-runs green at both the amended #352 and the new tip:
+`cargo nextest run --release -E 'test(probe_2_select_wrong_return_annotation_rejected)'` — 1
+passed, at each.
+
+**Disposition: COMPLETE.** Tree clean at `f87ed74e7`, not pushed. `origin/replay/grok-rete`
+(`28dae3a32`) remains the published tip, still an ancestor of HEAD; #341–#351 unmoved (only #352's
+own content changed; #353–#360 and the SCORE commit changed SHA only, byte-identical trees).
+E19's required disclosure and E22's fourth-disagreement entry are recorded in
+`SCORE-7k-replay-batch-4k.md`.
+
+## #352 VAR-RENDER FOLD, PART 2 — the cure itself made the literal parseable; ruled 4-YES, keep
+## exact equality and add the house rune (Section 2 of BRIEF-7k-ADDENDUM-352)
+
+After the docs commit above (`b502427c8`), the orchestrator's own verification floor came back RED
+1-of-5792 a second time, same step:
+
+```
+FAIL wat::lint no_inlined_wat_in_tests::tests_carry_no_inlined_wat (tests/lint/no_inlined_wat_in_tests.rs:440)
+  "1 file(s) still carry a string literal that wat's own reader parses as a form ... 1 other parse-body.
+   Offenders: tests/comms/probe_arc214_stone46b_select_prime.rs"
+```
+
+**Cause: the cure caused it, and so did the addendum that mandated it.** Part 1's exact-equality
+literal, `"(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 _])"`, is a COMPLETE,
+reader-parseable form — finding 33's class, wat embedded in a `.rs` string literal. The **old**
+prefix pin (`... :wat::core::i64 :?`, unclosed brackets) never parsed at all; closing the brackets
+to make the string exact-equal is exactly the act that made it parseable. Neither the first fold
+nor the addendum re-ran `lint-subset` after landing Part 1.
+
+**RULING (4-YES): keep exact equality (Part 1's cure is correct and stands), add the house rune.**
+A re-pinned, shorter prefix was explicitly ruled out — it would recreate finding 38's fourth-instance
+class one render away from now, for the same non-determinism reason Part 1 already retired. Nine
+files already carry `// rune:lint(no-inlined-wat)` for this exact shape (a rendered-diagnostic
+golden string that happens to be reader-parseable); read as the model:
+`tests/services/probe_arc170_c2_d_bodiless_edge.rs:43`, `tests/function/stone18a_errors.rs:22`.
+Placed directly above the matcher inside `probe_2`, reason stated honestly for this file (the
+literal became parseable only when #352/C19 made the Var tail a stable `_`), not generic
+boilerplate. The literal was NOT split or reshaped to dodge the gate.
+
+**Landed as a further amend of #352 itself**, same fold, second cause:
+
+```
+git checkout --detach 8f87cd9d8                 # #352 after Part 1
+# add the rune comment directly above the matcher in probe_2
+git add tests/comms/probe_arc214_stone46b_select_prime.rs
+git commit --amend -F <updated body>            # -> aa09e0aaf
+git rebase --onto aa09e0aaf 8f87cd9d8 b502427c8  # replays #353-#360, the SCORE commit, AND
+                                                  # Part 1's own docs commit, in one pass
+git branch -f replay/grok-rete <new tip>
+```
+
+The rebase replayed all 10 descendants (#353→#360, the SCORE commit, and Part 1's own docs commit)
+with **zero conflicts** — old tip `b502427c8` → new tip `c5cf8c76b`.
+
+**Re-measured, not assumed to still hold, at the twice-amended #352:**
+`cargo nextest run --release -E 'test(probe_2_select_wrong_return_annotation_rejected) +
+test(tests_carry_no_inlined_wat)'` — 2 passed. `lint-subset` (`binary(lint) -
+test(every_wat_scripts_file_loads_on_the_current_runtime)`) 267 passed, `kind(lib)` 1496 passed,
+`doctest` (`cargo test --doc --release`) 8 passed — every one identical to #352's own pre-existing
+record lines; nothing needed correcting. Re-measured again at the rebuilt #360: `lint-subset` 293
+passed, `kind(lib)` 1496 passed, `doctest` 8 passed — identical to #360's own pre-existing record
+lines.
+
+**Proved inert:** `git diff --stat b502427c8 c5cf8c76b` (before this docs-commit's own further
+edits) named exactly one path, the 5-line rune addition to
+`tests/comms/probe_arc214_stone46b_select_prime.rs`. **Proved published history untouched:**
+`git merge-base --is-ancestor origin/replay/grok-rete HEAD` succeeds; `git for-each-ref
+refs/original/` and `git replace -l` are both empty; `origin/replay/grok-rete` (`28dae3a32`)
+unmoved. `scripts/replay/verify-step-record.sh 5ba45a81f HEAD 341 360` re-ran clean.
+
+**A correct catch, recorded honestly.** BRIEF-7k-ADDENDUM-352's own Section 1 sibling sweep (this
+executor, re-run on #352's tree) reported that `tests/wat_lang/wat_arc072_letstar_parametric.rs:48`
+("fresh var :?71") does NOT match the exact regex the addendum itself gave
+(`git grep -nE '":\?|:\?\)|starts_with\(.*:\?'`) — true, and confirmed still true. The orchestrator
+found that same line with a second, looser grep, `:?[0-9]`, which is what the addendum's original
+sweep list was actually built from without saying so. Both facts stand: the named regex does not
+reach that line; a different, looser one does.
+
+**Disposition: COMPLETE.** Tree clean at `c5cf8c76b`, not pushed. `origin/replay/grok-rete`
+(`28dae3a32`) remains the published tip, still an ancestor of HEAD; #341–#351 unmoved throughout
+both folds. E19/E22 gain a further update in `SCORE-7k-replay-batch-4k.md`; finding 38's
+fourth-instance paragraph in `FINDINGS-composition.md` gains one sentence naming the mechanism:
+curing the non-determinism made the pinned string a parseable form, so the cure met finding 33's
+gate.
+
