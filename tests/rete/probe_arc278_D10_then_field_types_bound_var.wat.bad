@@ -1,0 +1,29 @@
+;; NEGATIVE FIXTURE — must FAIL. Arc 278 D10, arm 1/4: a bound `?var` whose declared type is
+;; String, written into a field declared i64.
+;;
+;; THE ORIGINAL REPRO, reduced. Driven at HEAD `135b19c37`
+;; (`wat-scripts/scratch-pad/d10-then-rhs-is-not-type-checked.wat`): this compiled, fired, and put
+;; `#tr/Bad {:n "not-an-i64"}` into the FACT SET, where joins, queries, the oracle and `explain`
+;; all trust the declared schema. The identical construction written OUTSIDE a rule has always
+;; been a `#wat.check/TypeMismatch`.
+;;
+;; ONE finding, on purpose: every field name is declared, every declared field is supplied, and
+;; the arity is right — so `UnknownField`, `RhsMissingFields` and `RhsArityMismatch` have nothing
+;; to say and `RhsFieldTypeMismatch` stands alone. The `.edn` golden asserts that.
+(:wat::core::defrecord :dbv::Box [k <- :wat::core::i64  s <- :wat::core::String])
+(:wat::core::defrecord :dbv::Bad [n <- :wat::core::i64])
+
+(:wat::rete::defrule :dbv::bad
+  :when [(:dbv::Box (?k <- :k) (?s <- :s))]
+  :then [(:dbv::Bad :n ?s)])
+
+;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.
+;;
+;; The neighbouring negative fixtures end `(:user::main [] -> :wat::core::nil nil)`, and with the
+;; D10 cure reverted that shape makes this file fail ANYWAY — `#wat.macro/MainSignatureError`
+;; (UselessMain) — so `assert!(!ok)` would pass whether or not the wall exists. Driven, not
+;; supposed: the mutation run of 2026-09-03 produced exactly that face. A main that DOES something
+;; makes the rete refusal the ONLY reason this file can fail, which is what makes the probe's
+;; failure assertion mean something on its own, before the `.edn` golden is even consulted.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::kernel::println "UNREACHABLE — this file must be refused at rule-compile time"))

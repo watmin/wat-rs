@@ -1,0 +1,29 @@
+[
+  #wat.kernel/LociDiedError.StartupError {
+    :error #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"1 rete rule validation error\" :location nil :causes [] :errors [#wat.rete/RhsOperandTypeMismatch {:message \"defrule `dbv::bad`: `:then` insert of `:dbv::Bad` field `:n` is declared `:wat::core::i64`; operand is `:wat::core::String`\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_D10_then_field_types_bound_var.wat.bad\" :line 18 :col 24 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 18 :col 26}}} :causes [] :rule \"dbv::bad\" :fact-type \"dbv::Bad\" :field \"n\" :declared \":wat::core::i64\" :actual \":wat::core::String\"}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/RhsOperandTypeMismatch {
+          :rule "dbv::bad"
+          :fact-type "dbv::Bad"
+          :field "n"
+          :declared ":wat::core::i64"
+          :actual ":wat::core::String"
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_D10_then_field_types_bound_var.wat.bad"
+            :line 18
+            :col 24
+            :end #wat.core/Option.Some {
+              :value #wat.core/Pos {
+                :line 18
+                :col 26
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+]

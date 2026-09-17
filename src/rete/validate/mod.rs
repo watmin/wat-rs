@@ -208,6 +208,22 @@ fn validate_rule_when_and_reorder_then(
         other => other.map(render_form).unwrap_or_else(|| "<unknown-rule>".to_string()),
     };
 
+    // ★ D10 — the bind map is HOISTED out of the `:when` block because the `:then` needs it too.
+    // A `:then` operand's type is knowable exactly when the `?var` it names is bound by this
+    // rule's `:when`, and that is the SAME rule-wide map the constraint typer already builds; a
+    // second, `:then`-local collection would be a second place for a join variable to go missing.
+    // Empty when `mr[2]` is not a `(quote [...])` — then every `?var` is `UnboundInThisRule`,
+    // which is the honest answer, not a skipped check dressed as one.
+    //
+    // ⛔ MERGE NOTE (replay #344): grok's own hoist was a fresh outer `let mut binds =
+    // HashMap::new()`, reassigned inside the `if let`. THIS tree already hoisted `binds` to
+    // function scope a different way — the `let binds = if let … { … } else { … }` expression
+    // immediately below is main's own pre-existing idiom (arc-277) for the identical need. Kept
+    // main's expression form and dropped grok's redundant outer `mut` declaration; carrying both
+    // compiled but left the outer declaration's initial value dead
+    // (`#[warn(unused_assignments)]`), which is the tell that two independent hoists had landed
+    // on the same variable.
+    //
     // :when (mr[2] = (quote [<cond>…])) — validate only, no rewrite.
     // Binds are collected BEFORE the mutable :then walk: quote_vector borrows `mr`
     // immutably, and `mr.get_mut(3)` cannot overlap that borrow.
@@ -1163,6 +1179,11 @@ fn validate_then_form(
         // genuinely unknown/malformed head still surfaces there, just not from this function.
         None => return,
     };
+    // D10 — the DECLARED type of each field, index-aligned with `field_names` (both read the same
+    // `TypeDef::Aggregate`, so a `lookup_fields` hit implies a `lookup_field_types` hit; the
+    // `unwrap_or_default` is the belt, and an empty vector makes every `get(i)` miss and every
+    // per-field type check skip rather than mis-index).
+    let field_types = lookup_field_types(types, &fact_type).unwrap_or_default();
 
     // Arc 294 item 9a — the SAME kwargs-shape test `build_insert_fact` uses:
     // even arity, ≥2 args, a keyword at every even index.
@@ -1220,6 +1241,29 @@ fn validate_then_form(
             walk_nested_constructors(v, rule_name, types, binds, errors);
         }
 
+        // D10 (grok-rete #344) — the COMPUTED-OPERAND fallback, kwargs side. `then_operand_declared_type`
+        // (used by `check_rhs_operands` above) answers in DECLARED PATHS and is the finer-grained
+        // resolver where the two overlap — it is what makes `probe_then_operand_fits_the_field.rs`'s
+        // `enum_into_a_different_enum_is_refused` work at all, since `check_then_field_type`'s
+        // resolver answers in rete SEGMENTS and collapses every enum to the one segment `"enum"`
+        // (`rete_type_segment_of`, this file). But the declared-path resolver has no arm for a
+        // COMPUTED operand whose `RETE_OPS` row declares a return type (e.g. `i64::+`) — it falls
+        // through to `None`, silently passing (measured empirically pre-#344: `rc=0` on
+        // `(:wat::rete::i64::+ ?k 1 :undefined 0)` written into a String field). `resolve_operand_type`
+        // (the shared `:when`-side resolver `check_then_field_type` uses) DOES have that source, so
+        // it runs here ONLY where the declared-path resolver found nothing to compare — never on a
+        // field it already classified, so the two never double-report the same operand.
+        for (field, value) in &kv_pairs {
+            if rhs_operand_can_never_resolve(value) {
+                continue;
+            }
+            let Some(declared) = type_map.get(field.as_str()) else { continue };
+            if then_operand_declared_type(value, binds, types).is_some() {
+                continue; // already classified (and compared, if comparable) above
+            }
+            check_then_field_type(field, declared, value, rule_name, &fact_type, binds, types, errors);
+        }
+
         if !all_known || has_missing {
             return; // do not rewrite a form already flagged invalid
         }
@@ -1233,6 +1277,28 @@ fn validate_then_form(
             .zip(args.iter())
             .collect();
         check_rhs_operands(&pairs, &type_map, binds, types, rule_name, &fact_type, errors);
+        // D10 (grok-rete #344) — same computed-operand fallback as the kwargs branch above.
+        // Positional args ARE declaration order by definition (`eval_insert.rs`'s
+        // `rete_kwargs_value_asts` says so), so arg `i` fills field `i` — but ONLY when the counts
+        // agree. Under a count mismatch there is no defensible pairing, `RhsArityMismatch` below
+        // is the finding, and inventing an alignment would report a type fault against a field the
+        // author never addressed.
+        if args.len() == field_names.len() {
+            for (i, arg) in args.iter().enumerate() {
+                if rhs_operand_can_never_resolve(arg) {
+                    continue;
+                }
+                let (Some(field), Some(declared)) = (field_names.get(i), field_types.get(i)) else {
+                    continue;
+                };
+                if then_operand_declared_type(arg, binds, types).is_some() {
+                    continue;
+                }
+                check_then_field_type(
+                    field, declared, arg, rule_name, &fact_type, binds, types, errors,
+                );
+            }
+        }
         // Arc 278 #1/#3 — recurse for a NESTED constructor operand, same as the kwargs branch.
         for a in args {
             walk_nested_constructors(a, rule_name, types, binds, errors);

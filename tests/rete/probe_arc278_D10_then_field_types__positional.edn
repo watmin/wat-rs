@@ -1,0 +1,47 @@
+[
+  #wat.kernel/LociDiedError.StartupError {
+    :error #wat.rete/ReteCheckErrors {
+      :message "#wat.rete/ReteCheckErrors {:message \"2 rete rule validation errors\" :location nil :causes [] :errors [#wat.rete/RhsOperandTypeMismatch {:message \"defrule `dps::bad`: `:then` insert of `:dps::Bad` field `:n` is declared `:wat::core::i64`; operand is `:wat::core::String`\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_D10_then_field_types_positional.wat.bad\" :line 21 :col 21 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 21 :col 23}}} :causes [] :rule \"dps::bad\" :fact-type \"dps::Bad\" :field \"n\" :declared \":wat::core::i64\" :actual \":wat::core::String\"} #wat.rete/RhsOperandTypeMismatch {:message \"defrule `dps::bad`: `:then` insert of `:dps::Bad` field `:t` is declared `:wat::core::String`; operand is `:wat::core::i64`\" :location #wat.core/Span {:file \"tests/rete/probe_arc278_D10_then_field_types_positional.wat.bad\" :line 21 :col 24 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 21 :col 26}}} :causes [] :rule \"dps::bad\" :fact-type \"dps::Bad\" :field \"t\" :declared \":wat::core::String\" :actual \":wat::core::i64\"}]}"
+      :location nil
+      :causes []
+      :errors [
+        #wat.rete/RhsOperandTypeMismatch {
+          :rule "dps::bad"
+          :fact-type "dps::Bad"
+          :field "n"
+          :declared ":wat::core::i64"
+          :actual ":wat::core::String"
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_D10_then_field_types_positional.wat.bad"
+            :line 21
+            :col 21
+            :end #wat.core/Option.Some {
+              :value #wat.core/Pos {
+                :line 21
+                :col 23
+              }
+            }
+          }
+        }
+        #wat.rete/RhsOperandTypeMismatch {
+          :rule "dps::bad"
+          :fact-type "dps::Bad"
+          :field "t"
+          :declared ":wat::core::String"
+          :actual ":wat::core::i64"
+          :span #wat.core/Span {
+            :file "tests/rete/probe_arc278_D10_then_field_types_positional.wat.bad"
+            :line 21
+            :col 24
+            :end #wat.core/Option.Some {
+              :value #wat.core/Pos {
+                :line 21
+                :col 26
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+]
