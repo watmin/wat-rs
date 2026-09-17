@@ -50,6 +50,12 @@
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
 pub(crate) mod env;
+// `pub`, not `pub(crate)` — the boot census's `mode`/`force_mode`/`Mode` are the ONLY door an
+// integration test (a separate crate) has to arm the instrument and prove it attributes real boot
+// work to real manifest entries. Same reason `crate::time::set_process_boot_instant` is `pub`.
+// ⛔ It measures and changes nothing — see the module header and
+// `docs/excursus/2026/08/001-sns-sqs/boot-names-where-its-time-goes/DESIGN.md`.
+pub mod census;
 // `pub`, not `pub(crate)` — unlike `env` (a genuinely internal builder), `validator` is the
 // extension point ITSELF: any crate depending on `wat` must be able to name
 // `wat::freeze::validator::{FreezeValidator, FreezeValidatorError}` to `inventory::submit!`
@@ -928,7 +934,9 @@ pub fn startup_from_source(
     // Span file label: use the canonical path when known; fall back
     // to `<entry>` for in-memory / test sources. Arc 016 slice 1.
     let file_label = base_canonical.unwrap_or("<entry>");
-    let entry_forms = parse_all_with_file(entry_src, &crate::load::loader::span_display_path(file_label))?;
+    let entry_forms = census::phase(census::P_ENTRY_PARSE, || {
+        parse_all_with_file(entry_src, &crate::load::loader::span_display_path(file_label))
+    })?;
     let world = startup_from_forms(entry_forms, base_canonical, loader)?;
     // Arc 170 — the `:user::main` wall. Imposed HERE (not in
     // `startup_from_forms`) because this is the chokepoint every real
@@ -1211,7 +1219,7 @@ pub fn startup_from_forms(
     loader: Arc<dyn SourceLoader>,
 ) -> Result<FrozenWorld, StartupError> {
     // 2. Config pass + entry-file discipline.
-    let (config, post_config) = collect_entry_file(entry_forms)?;
+    let (config, post_config) = census::phase(census::P_CONFIG, || collect_entry_file(entry_forms))?;
     startup_from_forms_post_config(config, post_config, base_canonical, loader, None)
 }
 
@@ -1263,7 +1271,9 @@ fn startup_from_forms_post_config(
     // 3. Recursive load resolution. The loader survives into the
     //    runtime as well — see step 9 — so `resolve_loads` borrows
     //    via `&*loader` (Arc deref) rather than owning.
-    let loaded = resolve_loads(post_config, base_canonical, &*loader)?;
+    let loaded = census::phase(census::P_RESOLVE_LOADS, || {
+        resolve_loads(post_config, base_canonical, &*loader)
+    })?;
 
     // 3a–7.6. Build the full registered environment (macros + types +
     //         symbols + user residue) via the canonical single pipeline.
@@ -1290,6 +1300,10 @@ fn startup_from_forms_post_config(
     // The resolve error is NOT swallowed: if the check is clean it is re-raised unchanged,
     // so a genuine unresolved reference (a real typo, a missing import) reports exactly as
     // before. Only the case where a located cause EXISTS changes.
+    // ⭐ Step 8 is census-recorded as SIX leaves INSIDE `check_program`, not one around the call:
+    // four of its passes sweep the whole symbol table (every stdlib fn body) and never look at the
+    // `residue` argument at all. Wrapping the call would have hidden that. See
+    // `census::P_CHECK_BODIES` and the step-8 note in `freeze/census.rs`.
     let check_result = check_program(&bundle.residue, &bundle.symbols, &bundle.types);
     match (check_result, bundle.deferred_resolve.take()) {
         (Err(check_err), Some(resolve_err)) => {
@@ -1330,15 +1344,21 @@ fn startup_from_forms_post_config(
             bundle.symbols.register_def_value(k.clone(), v.clone());
         }
     }
-    FrozenWorld::freeze(
-        config,
-        bundle.types,
-        bundle.macros,
-        bundle.symbols,
-        bundle.residue,
-        loader,
-        bundle.declared_rete_defns,
-    )
+    let world = census::phase(census::P_FREEZE, || {
+        FrozenWorld::freeze(
+            config,
+            bundle.types,
+            bundle.macros,
+            bundle.symbols,
+            bundle.residue,
+            loader,
+            bundle.declared_rete_defns,
+        )
+    })?;
+    // The boot census's report point: the end of the shared pipeline, on SUCCESS. Off by
+    // default; first completed startup only (see `census::report`).
+    census::report();
+    Ok(world)
 }
 // ─── :user::main invocation ─────────────────────────────────────────────
 

@@ -4130,6 +4130,13 @@ fn register_types_impl(
 ) -> Result<Vec<WatAST>, TypeError> {
     let mut rest = Vec::with_capacity(forms.len());
     for form in forms {
+        // Boot census, per-manifest-entry attribution (`WAT_BOOT_CENSUS=files` only; `None`
+        // otherwise). Shared by the stdlib and user streams, like `expand_all_with` — the file
+        // the guard stamps is what tells them apart.
+        let _census = crate::freeze::census::file_guard(
+            crate::freeze::census::F_TYPES,
+            &form.span().file,
+        );
         match classify_type_decl(&form) {
             Some(head) => {
                 // Arc 138 slice 2 — capture decl span BEFORE the form

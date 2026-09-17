@@ -654,7 +654,10 @@ pub fn check_program(
     // can be updated incrementally as top-level `def` forms are processed.
     // Stone 243.3.1 — pass `types` by reference (borrow); CheckEnv borrows it.
     // No Arc::new(types.clone()) — the borrow makes the deep-clone unrepresentable.
-    let mut env = CheckEnv::from_symbols(sym, types).map_err(|e| CheckErrors(vec![*e]))?;
+    let mut env = crate::freeze::census::phase(crate::freeze::census::P_CHECK_ENV, || {
+        CheckEnv::from_symbols(sym, types)
+    })
+    .map_err(|e| CheckErrors(vec![*e]))?;
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
 
@@ -682,6 +685,9 @@ pub fn check_program(
     // Arc 153/154/155 — legacy unit-name / let-star / lambda walkers retired
     // (sweep windows closed; variants + Display preserved as orphaned scaffolding).
     // Arc 159 — validate_legacy_typed_let_binding retired (sweep window closed).
+    // ⚠ BOOT CENSUS, and read the iterator: this sweeps `sym.function_values()`, i.e. EVERY
+    // function registered by step 6 — the whole stdlib — not the `forms` this fn was handed.
+    crate::freeze::census::phase(crate::freeze::census::P_CHECK_LEGACY_SWEEP, || {
     for func in sym.function_values() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
@@ -692,6 +698,7 @@ pub fn check_program(
             walk_for_bare_legacy_console(body, &mut errors);
         }
     }
+    });
     for form in forms {
         // ROOT-1 — skip function-definition forms whose fn body is already
         // walked by the `for func in sym.function_values()` loop above.
@@ -730,12 +737,15 @@ pub fn check_program(
     // substrate-namespace fn is in the whitelist (e.g. `[:wat::kernel::]`
     // covers callers in `:wat::kernel::*`), it passes. The walker
     // applies uniformly.
+    // ⚠ BOOT CENSUS — again the WHOLE symbol table, not `forms`.
+    crate::freeze::census::phase(crate::freeze::census::P_CHECK_RESTRICTED, || {
     for (name, func) in sym.functions_iter() {
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
             walk_for_restricted_call(body, name, func.synthesized_for.as_deref(), &env, &mut errors);
         }
     }
+    });
 
     // Arc 159 slice 3 — `validate_legacy_typed_let_binding` walker
     // retired per substrate-as-teacher § "Retire the hint when its
@@ -756,6 +766,8 @@ pub fn check_program(
     // runs for non-def declarations only. Runs on program forms only (not
     // function bodies — `def` inside a `define` body IS always illegal
     // and the position checker covers it via function-body descent).
+    // ⚠ BOOT CENSUS — the `forms` half is the user's; the loop below is the whole symbol table.
+    crate::freeze::census::phase(crate::freeze::census::P_CHECK_DEF_POS, || {
     validate_def_positions_in_forms(forms, &mut errors);
     // Also check inside user-defined function bodies (def inside fn body
     // is always non-top-level regardless of the call site).
@@ -770,6 +782,7 @@ pub fn check_program(
             );
         }
     }
+    });
 
     // Stone 237.3 — pre-register ALL top-level defclause names into
     // env.defclause_registrations BEFORE the sequential check loop.
@@ -780,6 +793,9 @@ pub fn check_program(
     // which type-checks the body; the recursive call tries
     // env.get_defclause_clauses which returns None (not registered yet);
     // falls through to env.get(stub) which has 0-param scheme → ArityMismatch.
+    // ⚠ BOOT CENSUS opens here: this pre-pass and the `check_form` loop below are the only
+    // passes in `check_program` whose cost is the USER program's.
+    let _census_forms = crate::freeze::census::pass_guard(crate::freeze::census::P_CHECK_FORMS);
     for form in forms {
         preregister_defclause_in_env(form, &mut env);
     }
@@ -819,16 +835,25 @@ pub fn check_program(
     // loop is safe: function bodies don't depend on each other's
     // `defined_values` (they read from `env.get()` which has all
     // function signatures from `from_symbols`, populated before the loop).
+    // ⭐ BOOT CENSUS, AND THIS IS THE EXPENSIVE ONE. `sym.functions_iter()` is every function in
+    // the symbol table, so this runs full type inference over every STDLIB body on every process
+    // start — measured 2026-09-16 at ~100 ms of a ~430 ms boot with a one-line user program. The
+    // comment above says "each user define's body"; the iterator says otherwise.
+    drop(_census_forms);
+    crate::freeze::census::phase(crate::freeze::census::P_CHECK_BODIES, || {
     for (path, func) in sym.functions_iter() {
         if let Some(scheme) = env.get(path) {
             check_function_body(path, func, scheme, &env, &mut fresh, &mut errors);
         }
     }
+    });
 
     // :impls completeness — features ⊆ impls. Driven off the derive edge
     // defservice emits (`surface::Op <: service::Op`). Extra internal arms
     // (`-flush-logs`) live only on the parent and are not required.
-    check_impls_completeness(types, &mut errors);
+    crate::freeze::census::phase(crate::freeze::census::P_CHECK_IMPLS, || {
+        check_impls_completeness(types, &mut errors)
+    });
 
     if errors.is_empty() {
         Ok(())

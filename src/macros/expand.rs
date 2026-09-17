@@ -49,6 +49,13 @@ pub fn expand_all_with(
     // macroexpand / macroexpand-1 primitives to find them).
     let mut out = Vec::with_capacity(forms.len());
     for form in forms {
+        // Boot census, per-manifest-entry attribution (`WAT_BOOT_CENSUS=files` only; `None`
+        // otherwise). This pass is shared by the stdlib and user streams — the FILE the guard
+        // stamps is what separates them in the report, because no phase boundary does.
+        let _census = crate::freeze::census::file_guard(
+            crate::freeze::census::F_EXPAND,
+            &form.span().file,
+        );
         let expanded = expand_form(form, registry, 0, env, sym, privilege)?;
         if is_defsurface_form(&expanded) {
             // Arc 294 item 9a — a defsurface's `:messages` children are `defrecord`/

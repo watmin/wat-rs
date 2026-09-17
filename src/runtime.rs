@@ -1582,6 +1582,12 @@ pub fn register_stdlib_defines(
 ) -> Result<Vec<WatAST>, RuntimeError> {
     let mut rest = Vec::new();
     for form in forms {
+        // Boot census, per-manifest-entry attribution (`WAT_BOOT_CENSUS=files` only; `None`
+        // otherwise) — see `crate::freeze::census`.
+        let _census = crate::freeze::census::file_guard(
+            crate::freeze::census::F_DEFINES,
+            &form.span().file,
+        );
         // Stone 241.11 — stdlib `(:wat::core::defn ...)` macro-expands to
         // `(:wat::core::def :name (:wat::core::fn sig body))` before this
         // function runs (macro expansion is step 4; registration is step 6).

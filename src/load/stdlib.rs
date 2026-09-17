@@ -535,6 +535,13 @@ const STDLIB_FILES: &[WatSource] = &[
 pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
     let mut all = Vec::new();
     for file in stdlib_files() {
+        // The boot census's per-manifest-entry seam, and the ONLY genuine one: past this loop
+        // the forms are one flat vector with no file boundary at all (see
+        // `crate::freeze::census`'s header). `None` unless `WAT_BOOT_CENSUS=files`.
+        let _census = crate::freeze::census::file_guard(
+            crate::freeze::census::F_PARSE,
+            file.path,
+        );
         let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError::new(
             crate::rust_caller_span!(),
             StdlibErrorKind::ParseFailed {

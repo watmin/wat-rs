@@ -32,6 +32,13 @@ pub fn register_stdlib_defmacros(
 ) -> super::ExpandBatch {
     let mut rest = Vec::with_capacity(forms.len());
     for form in forms {
+        // Boot census, per-manifest-entry attribution (`WAT_BOOT_CENSUS=files` only; `None`
+        // otherwise). The form's own span is the only surviving record of which of the 55
+        // manifest entries it came from — `stdlib_forms()` returned one flat vector.
+        let _census = crate::freeze::census::file_guard(
+            crate::freeze::census::F_DEFMACRO,
+            &form.span().file,
+        );
         if is_defmacro_form(&form) {
             let def = parse_defmacro_form(form)?;
             registry.register(def, crate::resolve::Privilege::Stdlib)?;

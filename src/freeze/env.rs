@@ -34,6 +34,7 @@ use crate::runtime::{
     register_stdlib_runtime_defs, register_struct_methods, register_type_predicates, Environment,
     EvalBreak, SymbolTable,
 };
+use crate::freeze::census;
 use crate::load::stdlib::stdlib_forms;
 use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
 
@@ -103,7 +104,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //     `(:wat::holon::Subtract …)` / `(:wat::holon::Amplify …)` call
     //     in user source resolves during step 4's macro expansion
     //     without an explicit `load!`.
-    let stdlib = stdlib_forms()?;
+    let stdlib = census::phase(census::P_STDLIB_PARSE, stdlib_forms)?;
 
     // 3b. Arc 278 #88 — pull the `(:wat::rete::core::defn …)` declarations out of the RAW,
     //     pre-macro-expansion user forms, and rewrite each head to plain `:wat::core::defn` so
@@ -114,15 +115,19 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //     that check out of `build_env` entirely (see the note beside step 6.97, below) —
     //     this fn now only DERIVES the name set and carries it out on `EnvBundle` for the
     //     caller to thread to `register_runtime_defs`, the check's new (and only) home.
-    let declared_rete_defns = extract_rete_defn_names(&user_forms);
-    let user_forms = rewrite_rete_defn_heads(user_forms);
+    let (declared_rete_defns, user_forms) = census::phase(census::P_RETE_DEFN_SCAN, || {
+        let declared = extract_rete_defn_names(&user_forms);
+        (declared, rewrite_rete_defn_heads(user_forms))
+    });
 
     // 4. Macro registration + expansion. Stdlib defmacros register
     //    first; user defmacros layer on top and can shadow (subject
     //    to the reserved-prefix gate) or reference stdlib forms.
     let mut macros = MacroRegistry::new();
-    let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
-    let post_macro_reg = register_defmacros(user_forms, &mut macros)?;
+    let stdlib_post_macros =
+        census::phase(census::P_STDLIB_DEFMACRO, || register_stdlib_defmacros(stdlib, &mut macros))?;
+    let post_macro_reg =
+        census::phase(census::P_USER_DEFMACRO, || register_defmacros(user_forms, &mut macros))?;
 
     // Arc 294 item 9a — class closure: an aggregate registered directly in Rust
     // (`TypeEnv::with_builtins()` — `register_builtin_types` + the `inventory`
@@ -136,7 +141,9 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // `kwargs-lower` forward. `TypeEnv::with_builtins()` is self-contained (no
     // stdlib/user forms needed) so it's safe to construct this early, ahead of
     // step 5's real `types` build.
-    register_aggregate_kwargs_companions(&crate::types::TypeEnv::with_builtins(), &mut macros)?;
+    census::phase(census::P_KWARGS_COMPANIONS, || {
+        register_aggregate_kwargs_companions(&crate::types::TypeEnv::with_builtins(), &mut macros)
+    })?;
 
     // ORDER LOAD-BEARING: macro_eval purity (src/macros/eval.rs) depends on
     // expand_all preceding register_defines. See freeze.rs header comment.
@@ -145,7 +152,10 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // expand_all so defservice's pascal->kebab-in call at expand time can
     // consult the registry.
     let mut macro_sym = SymbolTable::default();
-    preregister_acronyms(&post_macro_reg, &mut macro_sym).map_err(|e| match e {
+    census::phase(census::P_ACRONYMS_MACRO, || {
+        preregister_acronyms(&post_macro_reg, &mut macro_sym)
+    })
+    .map_err(|e| match e {
         EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
         EvalBreak::Signal(_) => {
             unreachable!("interpreter bug: eval-loop control signal escaped to freeze layer")
@@ -156,32 +166,39 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // EXPLICIT `Privilege::Stdlib` (threaded, no ambient flag) — the stdlib bypass. The
     // user pass below uses plain `expand_all` (Privilege::User), so a mis-namespaced
     // user macro still halts.
-    let expanded_stdlib = crate::macros::expand::expand_all_with(
-        stdlib_post_macros,
-        &mut macros,
-        &Environment::default(),
-        &macro_sym,
-        crate::resolve::Privilege::Stdlib,
-    )?;
-    let expanded_user = expand_all(
-        post_macro_reg,
-        &mut macros,
-        &Environment::default(),
-        &macro_sym,
-    )?;
+    let expanded_stdlib = census::phase(census::P_STDLIB_EXPAND, || {
+        crate::macros::expand::expand_all_with(
+            stdlib_post_macros,
+            &mut macros,
+            &Environment::default(),
+            &macro_sym,
+            crate::resolve::Privilege::Stdlib,
+        )
+    })?;
+    let expanded_user = census::phase(census::P_USER_EXPAND, || {
+        expand_all(
+            post_macro_reg,
+            &mut macros,
+            &Environment::default(),
+            &macro_sym,
+        )
+    })?;
 
     // 4b. Arc 163 slice 3g phase A — bare-legacy walker on raw
     //     post-expansion forms BEFORE register_types/register_defines.
     //     Walks user forms only; stdlib is substrate-authored.
     {
-        let mut bare_errors: Vec<CheckError> = Vec::new();
-        for form in &expanded_user {
-            validate_bare_legacy_primitives(form, &mut bare_errors);
-        }
-        // Arc 170 slice 2 — substrate-as-teacher walker.
-        for form in &expanded_user {
-            validate_arc170_legacy_callsites(form, &mut bare_errors);
-        }
+        let bare_errors = census::phase(census::P_LEGACY_WALKERS, || {
+            let mut bare_errors: Vec<CheckError> = Vec::new();
+            for form in &expanded_user {
+                validate_bare_legacy_primitives(form, &mut bare_errors);
+            }
+            // Arc 170 slice 2 — substrate-as-teacher walker.
+            for form in &expanded_user {
+                validate_arc170_legacy_callsites(form, &mut bare_errors);
+            }
+            bare_errors
+        });
         if !bare_errors.is_empty() {
             return Err(StartupError::Check(CheckErrors(bare_errors)));
         }
@@ -189,35 +206,42 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
 
     // 5. Type declarations. Seeded with built-in types before stdlib
     //    and user source land.
-    let mut types = TypeEnv::with_builtins();
-    let stdlib_post_types = register_stdlib_types(expanded_stdlib, &mut types)?;
+    let mut types = census::phase(census::P_TYPEENV_BUILTINS, TypeEnv::with_builtins);
+    let stdlib_post_types =
+        census::phase(census::P_STDLIB_TYPES, || register_stdlib_types(expanded_stdlib, &mut types))?;
     // Thread the namespace-scoped acronym registry (populated by `preregister_acronyms`
     // above, BEFORE macro expansion) into type registration so a `:satisfies` surface's
     // S1 protocol synthesis restores acronym casing on its `::Op`/`::Reply` variants
     // identically to how `defservice :impls` does at expand time.
-    let post_types =
-        register_types_with_acronyms(expanded_user, &mut types, &macro_sym.acronym_registry)?;
+    let post_types = census::phase(census::P_USER_TYPES, || {
+        register_types_with_acronyms(expanded_user, &mut types, &macro_sym.acronym_registry)
+    })?;
     // Arc 293.W — containment rule: after BOTH stdlib and user types are fully
     // registered, verify that no portable aggregate (record/holon) declares a
     // non-portable (struct) field. Forward references are now resolved, so the
     // check is complete and sound. TypeError converts to StartupError::Type via
     // the From impl in freeze.rs.
-    validate_aggregate_containment(&types)?;
+    census::phase(census::P_CONTAINMENT, || validate_aggregate_containment(&types))?;
 
     // 6. Function definitions.
     let mut symbols = SymbolTable::new();
     // Stone 237.8b — capture stdlib residue so defclause forms reach
     // register_runtime_defs.
-    let stdlib_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
+    let stdlib_residue = census::phase(census::P_STDLIB_DEFINES, || {
+        register_stdlib_defines(stdlib_post_types, &mut symbols)
+    })?;
     // (a) Pre-register defclause stubs into sym.functions so the checker
     //     sees them as callable names (e.g. :wat::kernel::spawn-program).
-    for form in &stdlib_residue {
-        preregister_stdlib_defclause_stub(form, &mut symbols);
-    }
+    census::phase(census::P_DEFCLAUSE_STUBS, || {
+        for form in &stdlib_residue {
+            preregister_stdlib_defclause_stub(form, &mut symbols);
+        }
+    });
     // (b) Extract stdlib forms that need RUNTIME registration via
     //     runtime_defs: defclause, extend-type, def.
     //     Arc 209 host-parity-4a broadened from defclause-only.
-    let stdlib_runtime_def_forms: Vec<WatAST> = stdlib_residue
+    let stdlib_runtime_def_forms: Vec<WatAST> = census::phase(census::P_RUNTIME_DEF_FILTER, || {
+        stdlib_residue
         .into_iter()
         .filter(|form| {
             if let WatAST::List(items, _) = form {
@@ -237,25 +261,34 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
                 false
             }
         })
-        .collect();
-    let mut residue = register_defines(post_types, &mut symbols)?;
+        .collect()
+    });
+    let mut residue =
+        census::phase(census::P_USER_DEFINES, || register_defines(post_types, &mut symbols))?;
 
-    // 6a. Struct auto-methods (ctor only; accessors now in 6.8a).
-    register_struct_methods(&types, &mut symbols)?;
-    // 6.5. Enum variant constructors.
-    register_enum_methods(&types, &mut symbols)?;
-    // 6.7. Newtype auto-methods.
-    register_newtype_methods(&types, &mut symbols)?;
-    // 6.8a. Arc 293.R2.2 — ONE unified accessor codegen for all Aggregate natures
-    // (Struct + Record + HolonRecord). Replaces the deleted register_record_methods
-    // + the accessor loop that was in register_struct_methods.
-    register_aggregate_methods(&types, &mut symbols)?;
-    // 6.9. Type membership predicates.
-    register_type_predicates(&types, &mut symbols)?;
+    // 6a–6.9. Auto-method codegen. ONE census leaf for all five: they walk the SAME
+    // fully-populated `TypeEnv` (stdlib types included) and no seam separates whose types
+    // they are working on.
+    census::phase(census::P_AUTO_METHODS, || -> Result<(), StartupError> {
+        // 6a. Struct auto-methods (ctor only; accessors now in 6.8a).
+        register_struct_methods(&types, &mut symbols)?;
+        // 6.5. Enum variant constructors.
+        register_enum_methods(&types, &mut symbols)?;
+        // 6.7. Newtype auto-methods.
+        register_newtype_methods(&types, &mut symbols)?;
+        // 6.8a. Arc 293.R2.2 — ONE unified accessor codegen for all Aggregate natures
+        // (Struct + Record + HolonRecord). Replaces the deleted register_record_methods
+        // + the accessor loop that was in register_struct_methods.
+        register_aggregate_methods(&types, &mut symbols)?;
+        // 6.9. Type membership predicates.
+        register_type_predicates(&types, &mut symbols)?;
+        Ok(())
+    })?;
 
     // 6.8. Arc 198 slice 2 Stone 1 — drain the `inventory` registry of
     //      Rust-side `RestrictionEntry` declarations into `binding_metadata`.
     // rune:sequi(ambient-context) — inventory::iter is link-time static state.
+    census::phase(census::P_RESTRICTION_DRAIN, || {
     for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
         let name = entry.wat_name.to_string();
         let mut prefix_items = vec![WatAST::Keyword(
@@ -274,11 +307,15 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             .or_default()
             .extend(meta);
     }
+    });
 
     // 6.96. Arc 265 — pre-register declare-acronyms forms into the
     //       runtime SymbolTable (macro_sym covered expand-time; this
     //       covers eval-time).
-    preregister_acronyms(&residue, &mut symbols).map_err(|e| match e {
+    census::phase(census::P_ACRONYMS_RUNTIME, || {
+        preregister_acronyms(&residue, &mut symbols)
+    })
+    .map_err(|e| match e {
         EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
         EvalBreak::Signal(_) => {
             unreachable!("interpreter bug: eval-loop control signal escaped to freeze layer")
@@ -292,7 +329,9 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //       `FrozenWorld::freeze` later overwrites `sym.types` with the same
     //       data (via `symbols.set_types(Arc::new(types.clone()))`); the early
     //       attach here is strictly for the resolve pass.
-    symbols.types_insert(std::sync::Arc::new(types.clone()));
+    census::phase(census::P_TYPEENV_ATTACH, || {
+        symbols.types_insert(std::sync::Arc::new(types.clone()))
+    });
 
     // Arc 278 #88 v2 — THE DEFINITION-SITE CHECK for every `(:wat::rete::core::defn …)`
     // collected at step 3b used to run HERE (step 6.975), stamping `Function::rete` on
@@ -310,17 +349,23 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // 7. Name resolution.
     // Stone 251.1b — normalize before resolve so rewritten AST flows
     // through check + eval with keyword heads.
-    residue = normalize_symbol_refs(residue, &symbols, &macros)?;
+    residue = census::phase(census::P_NORMALIZE, || {
+        normalize_symbol_refs(residue, &symbols, &macros)
+    })?;
     // DEFERRED, not swallowed: an unresolved reference is very often the SYMPTOM of a
     // malformed definition that failed to register. Running `check_program` first lets the
     // located cause be reported; if check is clean, this error is re-raised unchanged.
-    let deferred_resolve = resolve_references(&residue, &symbols, &macros).err();
+    let deferred_resolve = census::phase(census::P_RESOLVE_REFS, || {
+        resolve_references(&residue, &symbols, &macros).err()
+    });
 
     // 7.6. Stone 237.8b (+ arc 209 host-parity-4a) — register stdlib
     //      defclause / extend-type / def forms into
     //      runtime_def_values.
-    register_stdlib_runtime_defs(&stdlib_runtime_def_forms, &mut symbols)
-        .map_err(|e| StartupError::Runtime(Box::new(e)))?;
+    census::phase(census::P_STDLIB_RUNTIME_DEFS, || {
+        register_stdlib_runtime_defs(&stdlib_runtime_def_forms, &mut symbols)
+    })
+    .map_err(|e| StartupError::Runtime(Box::new(e)))?;
 
     // 7.7. Arc 278 BRIEF-STONE-extend-user-checked — pre-register USER extend-type
     //      SURFACE impls into sym.functions with their REAL inherited sig (mirrors
@@ -344,10 +389,13 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //      to re-walk the SAME residue (skip_if_present=true, see runtime.rs:1935),
     //      so pre-registering do/let-nested forms here is idempotent with step 9
     //      exactly like the existing top-level case.
-    for form in &residue {
-        preregister_extend_type_in_do_let(form, &mut symbols)
-            .map_err(|e| StartupError::Runtime(Box::new(e)))?;
-    }
+    census::phase(census::P_EXTEND_TYPE_PREREG, || -> Result<(), StartupError> {
+        for form in &residue {
+            preregister_extend_type_in_do_let(form, &mut symbols)
+                .map_err(|e| StartupError::Runtime(Box::new(e)))?;
+        }
+        Ok(())
+    })?;
 
     // 7.8 — Arc 294 item 9a (DESIGN-rete-defrule-wall.md) lifted into a pluggable
     // `FreezeValidator` extension point (mirrors step 6.8's `RestrictionEntry` drain, same
@@ -363,9 +411,12 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // fact (the 9a codemod's corruption class). Any OTHER crate depending on `wat` can
     // register its own validator the same way — zero special-casing for the rete wall here.
     // rune:sequi(ambient-context) — inventory::iter is link-time static state.
-    for v in inventory::iter::<crate::freeze::validator::FreezeValidator> {
-        (v.validate)(&mut residue, &types, &symbols).map_err(StartupError::Validator)?;
-    }
+    census::phase(census::P_FREEZE_VALIDATORS, || -> Result<(), StartupError> {
+        for v in inventory::iter::<crate::freeze::validator::FreezeValidator> {
+            (v.validate)(&mut residue, &types, &symbols).map_err(StartupError::Validator)?;
+        }
+        Ok(())
+    })?;
 
     Ok(EnvBundle {
         types,
