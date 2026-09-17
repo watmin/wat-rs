@@ -49,6 +49,19 @@ Two L1s, both driven, both reproduced by the `.wat` files beside this README:
    `:probe::E::A` that appears nowhere in the source.
    Repro: `experiri-then-match.wat` refuses; `experiri-when-match.wat` loads.
 
+   **⛔ CURED 2026-09-02 — arc 278 `strike-match-arm-is-not-a-call`.** The paragraph above is the
+   HEAD-`d10ae67c4` reading and is kept as the finding's record; it is no longer the current
+   behaviour. `walk_nested_constructors` now recognises `match` (through `resolve_core_name`, so
+   both the `:wat::rete::core::` and the `:wat::core::` spelling are covered) and walks the
+   SCRUTINEE and each arm's BODY, never an arm's PATTERN. **Both repro files now load and print
+   `"loaded"`**, and `experiri-then-match.wat`'s red-by-design declaration is retired — which is
+   what returns it to `tests/lint/docs_wat_loads_or_declares_why_not.rs`'s load check. The standing
+   gate is `tests/rete/probe_arc278_match_arm_is_not_a_call.rs` (5 tests): the bare and wrapped
+   `:then` spellings must compile AND agree on the fired values, a constructor nested in an arm
+   BODY must still be refused (this is the row that separates the cure from "stop walking match
+   forms"), its correctly-spelled control must still fire, and the core spelling must be refused by
+   the then-item FENCE rather than by a fabricated arity error.
+
 This also closes a recorded deferral. `RETE-OPEN-WORK.md:1258` carried an unreproduced
 `RhsArityMismatch` on `match` inside a `:then` with the instruction *"Drive it before
 believing either"*, recorded 2026-08-29 and never executed. `exigere` found it buried under a
@@ -103,6 +116,9 @@ Procedure:
 3. Fix the defects. For (1) that is a `rete_op_for` door in `lower_named_rete_fn` so the
    admission fence and the executor share one head-space; for (2) a head-aware
    `walk_nested_constructors` that does not descend into a form's pattern positions.
+   **(2) is DONE, 2026-09-02** — see the CURED note under "What it proves" §2. It did not land via
+   this procedure: `positions-3-4.rs.txt` asserts nothing (see the 2026-08-31 correction above), so
+   D5 got its own gate in `tests/rete/` instead. (1) is untouched.
 4. Re-run: GREEN, with the calibration still showing mixed outcomes.
 5. Run the full floor before commit.
 
