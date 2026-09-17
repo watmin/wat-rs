@@ -21,24 +21,30 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written at HEAD `24ca5ef5c` (AHEAD of origin — see below). **340 replayed locally, 323 pushed.**
+Stamp: written at HEAD `82367d8b8`. **340 of 651 replayed.** In flight: nothing.
 
-⚠⚠ **BATCH 4j: ALL 20 STEPS LANDED — BUT THE FLOOR IS RED AND A FOLD IS PENDING. DO NOT PUSH.**
-340 REPLAY steps at `24ca5ef5c` locally; **origin is still `e77ef977c`** (only #321–#323 are published).
-Batch-start for the record gate is **`665b17b60`**. The range gate exits 0 both ways, all 20 trailers are
-provenance-clean, clippy 0/0, lint-subset 249, kind(lib) 1496, and #324's suite is 5/5.
+**Batch 4j (#321–#340) is CLOSED.** Floor **5735/5735, 24 skipped** — the count predicted from the diff
+before running, **fourteenth consecutive exact match** — clippy 0/0, lint-subset 249, kind(lib) 1496,
+range gate exit 0 both ways, all 20 trailers provenance-clean, 0 replace refs, 0 `refs/original`.
 
-⛔ **THE FLOOR IS 5733/5735 — TWO STALE GOLDENS, ONE CAUSE.** #328 (D6) rewrote the `step-payload` doc
-comment; two **main-only** goldens pin its rendered text and were never regenerated:
-`tests/cli/pprintln_doc_row__step_payload.edn` (byte golden, **no bless path** — capture the binary's
-stdout) and `tests/reflection/probe_stone_metadata_of_whole_row__step_payload_row.edn`
-(`UPDATE_EDN=1`). ⚠ The two mechanisms differ; a blanket `UPDATE_EDN=1` leaves the first untouched while
-its test still fails. Both regenerations measured PROSE-ONLY (only `:doc` moves) — but that must be
-re-proven by whoever lands it, because #328 changed code as well as prose.
+Next is **batch 4k (#341–#360)**: censused — **13 docs-only, 7 code (#342 #344 #349 #352 #355 #357 #360)**,
+**ZERO hazard rows**, **no step touches `wat/`**, and all 8 M-status-absent paths are created earlier in
+the same range. 23 `.wat` (so `--check`/`convert.sh` work, **not** R21's codemod path). #377 is the next
+two-phase stdlib step — the batch after this one.
 
-★ **This FOLDS into #328** (the #270 ledger-reseed class: a main-only artifact pinned to text a replayed
-step legitimately rewrote), with **#329 → #340 rebuilt on top**. Never a repair commit after the batch.
-⛔ **Instructions: `BRIEF-7j-ADDENDUM-328-two-stale-goldens.md`.** After the fold, re-run the floor.
+⚠⚠ **4k LANDS TWO NEW LINT GATES, AND BOTH WALK OUR WHOLE CORPUS.**
+- **#360 `every_wat_bad_fixture_actually_fails.rs`** (433 lines, 32 files / 14 `.wat` / 9 `.rs` — the
+  batch's largest step): every `*.wat.bad` must return `Err` from `startup_from_file`. `CORPUS_FLOOR`
+  200; we carry **290 `.wat.bad`, ~32 of them MAIN-ONLY** and never subjected to this check — grok found
+  16 of its own 281 were lies and renamed 13. ⛔ **`./target/release/wat` and `startup_from_file` give
+  OPPOSITE verdicts on these files** — grok withdrew its own first draft for measuring with the binary.
+  Measure with the driver, not the binary.
+- **#352 `diagnostic_output_is_deterministic.rs`** (351 lines): runs every `.wat.bad` **twice in fresh
+  processes** and demands byte-identical stdout/stderr/exit. Carries a hard-coded 3-entry `QUARANTINE`
+  and a named driver fixture, both keyed to grok's corpus, not ours.
+
+📊 Three of the last four new grok lint gates landed red here (#274, #278, #283 red; #310 green).
+**Measure the blast radius BEFORE releasing** — it has turned a batch-stopper into a checklist every time.
 
 ★ **#324 WAS A DESIGN COLLISION, NOT A LANDING DEFECT — RULED 2026-09-16, OPTION A, FOUR YES.**
 Rewrite the two colliding tests to assert refusal, land grok's walker fix unchanged, regenerate the EDN
@@ -114,11 +120,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4h #281–#300 (CLOSED; floor 5702/5702, clippy 0, pushed)
                               + batch 4i #301–#320 (CLOSED; floor 5717/5717, clippy 0, pushed)
                               + the binding-repr STRIKE (4d5287a53; two timing asserts, 4-YES)
-                              + batch 4j #321–#340 (all 20 LANDED locally at 24ca5ef5c; NOT closed)
-                              ⇒ 320 of 651 PUSHED, plus #321–#323 = 323 published (origin e77ef977c).
-                                ⚠ 340 replayed in the working branch; #324–#340 are UNPUSHED because
-                                  the floor is RED on #328's two stale goldens — see the stamp. The
-                                  record gate's batch-start for 4j is 665b17b60.
+                              + batch 4j #321–#340 (CLOSED; floor 5735/5735, clippy 0, pushed)
+                              ⇒ 340 of 651 replayed. NEXT: batch 4k #341–#360.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -175,6 +178,22 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4j #321–#340 is CLOSED and PUSHED** (steps at `e7bcb65fc`, records at `82367d8b8`; SCORE-7j,
+  two ADDENDA, REPLAY-LOG; finding 38). 20 steps, 13 docs-only. Floor **5735/5735, 24 skipped** — the
+  count PREDICTED from the diff for the **fourteenth consecutive batch** — clippy 0/0, lint-subset 249,
+  kind(lib) 1496, range gate exit 0 both ways, all 20 trailers provenance-clean.
+  ★ **#324 WAS A DESIGN COLLISION AND THE BUILDER RULED IT — OPTION A, 4-YES.** Main's `250162a0e`
+  (ACCEPTED, ancestor of the batch start, absent from grok's branch, never revisited by its ~300
+  remaining commits) refuses `:wat::rete::core::match` in a `:then`; grok's D5 tests need it to compile.
+  The walker fix landed unchanged — delta-vs-delta identical but for the `binds` parameter this tree's
+  signature requires — and two of grok's assertions were INVERTED to assert refusal, asserting on the
+  DIAGNOSTIC'S CONTENT so they still prove the fix. `wat/rete/compile.wat` untouched; option B (narrow
+  the fence) stays open as a future stone.
+  ⚠ **THE BATCH STOPPED ONCE AND WAS RESUMED** — the first executor halted at #324 rather than commit
+  red or skip ahead, which was correct and is why the ruling happened at all.
+  ⚠ **TWO REBUILDS, both verified inert**: #327's `census:` verdict line wrapped across two physical
+  lines (finding 31's trap), and **#328's two stale goldens** (finding 38) — `git diff` old↔new tip named
+  only the two golden paths, published #321–#323 byte-identical, `refs/original/` empty.
 - **Batch 4i #301–#320 is CLOSED and PUSHED** (steps at `4cb246f06`, strike at `4d5287a53`; SCORE-7i,
   REPLAY-LOG; finding 37). 20 steps, 13 docs-only. Verified by the orchestrator: floor **5717/5717, 24
   skipped** — the count PREDICTED from the diff for the **twelfth consecutive batch** — clippy 0/0, walls

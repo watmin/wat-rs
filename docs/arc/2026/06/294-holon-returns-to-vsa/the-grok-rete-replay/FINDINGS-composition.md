@@ -1304,6 +1304,55 @@ fraction `5716/5717` as a filesystem path. **Across five batches the executors' 
 lower than mine.** What works, and is now habit: defer to the gate over my own regex, and validate every
 census two-sided with a control that must come back negative.
 
+## Finding 38 — a main-only golden pinned to text a replayed step rewrote; two bless mechanisms where one silently skips; and a verification filter I rigged against myself
+
+**1. THE CLASS: a MAIN-ONLY artifact pinned to text a REPLAYED step legitimately rewrote.** Batch 4j
+reported complete and the orchestrator's floor came back **RED 2-of-5735**. One cause: #328 (D6) rewrote
+the `step-payload` `#[wat_intrinsic]` doc comment, and two goldens pin its rendered text. Both are
+**main-only** — absent from grok's tip and its entire branch history, never touched by grok's own #328,
+whose 12-file list is byte-identical to ours. Nothing was dropped in the landing; main simply owns
+artifacts grok has never seen, pinned to prose grok is entitled to change.
+
+This is **#270's ledger-reseed class**, and it is now the third instance (the doc-link ledger at #270, the
+`WAT_ONLY` canary at #283, these goldens at #328). **Expect it wherever main owns a frozen rendering of
+something the branch edits.** It folds into the step that rewrote the text — #329→#340 rebuilt on top —
+never a repair commit after the batch.
+
+**2. TWO BLESS MECHANISMS, AND THE BLANKET RUN SILENTLY SKIPS ONE.**
+
+| golden | mechanism |
+|---|---|
+| `tests/reflection/probe_stone_metadata_of_whole_row__step_payload_row.edn` | `assert_edn_matches_file!` — honours `UPDATE_EDN=1` |
+| `tests/cli/pprintln_doc_row__step_payload.edn` | `include_str!` + plain `assert_eq!` against the **binary's stdout** — ⛔ **NO bless path at all** |
+
+Measured: a blanket `UPDATE_EDN=1` run regenerated the second and left the first **byte-identical while
+its test still failed**. The first is regenerated only by capturing stdout. ⛔ **"Regenerate the goldens"
+is not one action.** Before briefing a regeneration, read each test and name its mechanism.
+
+**3. AND I RIGGED MY OWN VERIFICATION.** To check the regeneration was prose-only I filtered the diff
+with `grep -viE 'constraint|classify_constraint_head|unrenderable|INLINE|predicates with bound'` — i.e. I
+excluded the exact words D6 changes — and it came back blank. **A filter built from the expected answer
+cannot fail.** The check that works is *"which top-level keys moved?"*, asked with **no** filter; run that
+way, both goldens showed `:doc` and nothing else. The executor re-proved it independently rather than
+taking the addendum's word, which is what the brief demanded and why the fold is trustworthy.
+
+⛔ **This matters because #328 changed CODE as well as prose** — it added `CONSTRAINT_NOT_RENDERED` and
+`render_constraint_operand` and dropped `classify_constraint_head` from the imports — and these goldens
+pin rendered VALUES (`:constraints`, `:bindings`, `:examples`) alongside the doc string. A value moving
+would have been a behaviour change wearing a format fix's clothes.
+
+**4. THE BREADCRUMB CHURNED FOUR TIMES IN ONE STRETCH, AND THE GATE CAUGHT ME TWICE.** The SEAM went
+held → ruled → pushed → red → closed, and each state change left the previous text false. My commit gate
+refused twice: first when I checked **one** stale token and four siblings survived (`IN FLIGHT`,
+`resumes at #324`, a stale origin SHA, a bare `323 of 651`); then when the widened sweep found the STAMP
+had gone stale in the **opposite** direction from the ledger I had just corrected — the same
+contradiction, mirrored.
+
+⛔ **A stale-claim check is only as good as the list of claims it knows to look for**, and a breadcrumb
+describing a fast-moving state needs the whole block re-read, not one token grepped. Related: I now write
+durable facts (batch-start SHA, range) and tell the reader to *measure* the transient ones, rather than
+pinning a tip SHA that rots at every push.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
