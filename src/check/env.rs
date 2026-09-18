@@ -277,12 +277,14 @@ impl<'a> CheckEnv<'a> {
     /// True when `path` is a registered Function — the checker's twin of
     /// `SymbolTable::has_function`. A builtin/defclause head is false.
     pub fn has_registered_function(&self, path: &str) -> bool {
+        crate::spike_probe::probe("registered_fns", path);
         self.registered_functions.contains(path)
     }
 
     /// Arc 048 — look up the enum type for a unit-variant keyword
     /// path. Returns `None` for non-variant keywords.
     pub fn unit_variant_type(&self, key: &str) -> Option<&TypeExpr> {
+        crate::spike_probe::probe("unit_variant", key);
         self.unit_variant_types.get(key)
     }
 
@@ -344,6 +346,7 @@ impl<'a> CheckEnv<'a> {
     /// Look up a function or builtin scheme by FQDN. For `def`-bound value types
     /// use `get_defined_value_type`; for defclause dispatch use `get_defclause_clauses`.
     pub fn get(&self, name: &str) -> Option<&TypeScheme> {
+        crate::spike_probe::probe("schemes", name);
         self.schemes.get(name)
     }
 
@@ -359,6 +362,7 @@ impl<'a> CheckEnv<'a> {
     /// `:wat::core::def`; `None` otherwise. Consulted in `infer`
     /// before the generic keyword fall-through.
     pub fn get_defined_value_type(&self, name: &str) -> Option<&TypeExpr> {
+        crate::spike_probe::probe("defined_values", name);
         // Stone A0 — per-file `defined_values` wins; `corpus_values` (seeded
         // once in `from_symbols` from the live `runtime_def_values`) is the
         // fallback for a stdlib value-const this file never `def`s itself.
@@ -446,6 +450,7 @@ impl<'a> CheckEnv<'a> {
         &self,
         name: &str,
     ) -> Option<&[(Vec<TypeExpr>, TypeExpr, bool)]> {
+        crate::spike_probe::probe("defclause_regs", name);
         self.defclause_registrations.get(name).map(|v| v.as_slice())
     }
 
@@ -471,6 +476,9 @@ impl<'a> CheckEnv<'a> {
         protocol_name: &str,
         type_name: &str,
     ) -> Option<&[String]> {
+        if crate::spike_probe::enabled() {
+            crate::spike_probe::probe("extend_regs", &format!("{}|{}", protocol_name, type_name));
+        }
         self.extend_registrations
             .get(&(protocol_name.to_string(), type_name.to_string()))
             .map(|v| v.as_slice())

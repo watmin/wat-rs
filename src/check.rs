@@ -842,10 +842,22 @@ pub fn check_program(
     drop(_census_forms);
     crate::freeze::census::phase(crate::freeze::census::P_CHECK_BODIES, || {
     for (path, func) in sym.functions_iter() {
+        // SPIKE PROBE — the window opens for EVERY function and carries the body's source
+        // FILE, so stdlib bodies are separated from the user's by attribution rather than by
+        // name. That distinction is load-bearing: the stdlib is NOT all `:wat::`-prefixed
+        // (`wat/repl.wat` defines `:repl::turn`), so a prefix test would have hidden exactly
+        // the three names that answer this spike.
+        let body_file = match &func.body {
+            FunctionBody::Wat(ast) => ast.span().file.as_ref().clone(),
+            FunctionBody::Native => "<native>".to_string(),
+        };
+        crate::spike_probe::begin_body_sweep(path, &body_file);
         if let Some(scheme) = env.get(path) {
             check_function_body(path, func, scheme, &env, &mut fresh, &mut errors);
         }
+        crate::spike_probe::end_body_sweep();
     }
+    crate::spike_probe::report();
     });
 
     // :impls completeness — features ⊆ impls. Driven off the derive edge

@@ -95,6 +95,7 @@ pub mod stream;
 pub mod rust_deps;
 pub mod panic_hook;
 pub mod span;
+pub mod spike_probe;
 pub mod services;
 pub mod special_forms;
 pub mod string;

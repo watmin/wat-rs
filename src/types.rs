@@ -642,6 +642,7 @@ impl TypeEnv {
     /// membership (`contains` → true) but no `TypeDef` to return, so this stays
     /// `None` for those names. See `builtin_names`'s field doc.
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
+        crate::spike_probe::probe("typeenv", name);
         self.types.get(name)
     }
 
