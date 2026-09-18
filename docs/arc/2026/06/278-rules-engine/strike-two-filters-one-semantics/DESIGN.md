@@ -41,7 +41,7 @@ differential. D7 cost this arc a day and was found by hand.
 
 ## The differential is already buildable — the affordance exists, unused
 
-`WhereTree::empty()` (`where_tree.rs:117`) is `pub(crate)` with **zero callers in `src/`**. An empty
+`WhereTree::empty()` (`where_tree.rs:117`) is `pub(crate)`. ⛔ **THIS LINE SAID "zero callers in `src/`" AND IT WAS FALSE** — `where_tree.rs:143` calls it as `build`'s own empty-input short-circuit, documented six lines above it. Asserted in bold three times across these artifacts and never grepped; repetition is not verification. It is a live constructor, and the lever works either way. An empty
 tree makes `covers` false for every tid, so `use_tree` is false and the dispatch takes the reference
 branch. **Same session, same facts, two dispatch strategies, comparable outputs.**
 
@@ -66,7 +66,6 @@ tree path.**
   O(tokens×tids) → O(tokens×k) win, and `covers(tid)` is token-independent so the uncovered subset
   hoists out of the loop. **It is a separate strike and it must land AFTER this one** — an
   optimisation to a path with no differential is a change nobody can prove safe.
-- **Deleting `WhereTree::empty()` as dead code.** `purgare` would flag it; it is the affordance this
-  differential needs. If the differential lands, it has a caller.
+- ~~**Deleting `WhereTree::empty()` as dead code.**~~ ⛔ STRUCK — it was never dead; `build` calls it.
 - **The import door.** `export.rs:2451` builds a second tree. Whether the two doors agree is Class A's
   question and is not this strike's.
