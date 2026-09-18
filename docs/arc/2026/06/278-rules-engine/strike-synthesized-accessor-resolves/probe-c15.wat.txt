@@ -1,0 +1,14 @@
+;; DISCONFIRMING PROBE for C15 — the orchestrator's, run before the brief.
+;;
+;; Drop this at wat-scripts/scratch-pad/zz-c15-probe.wat, run
+;;   cargo nextest run --release -E 'test(every_rete_name_in_wat_scripts_code_resolves)'
+;; then DELETE IT. ⛔ Leaving it in the tree turns the floor RED — the orchestrator has
+;; already pushed a red floor once by committing a recon .wat into this gated tree.
+;;
+;; AT HEAD b5c068ebd: the file type-checks and RUNS, and the gate FAILS with
+;;   wat-scripts/scratch-pad/zz-c15-probe.wat:4  :wat::rete::DerivationNode/via
+;; `via` is declared at wat/rete.wat:377 inside the defrecord at :374.
+;; AFTER the cure: the gate passes with this file present.
+(:wat::core::defn :zz::via-of [n <- :wat::rete::DerivationNode]
+    -> (:wat::core::PersistentVector :- [:wat::rete::DerivationStep])
+  (:wat::rete::DerivationNode/via n))
