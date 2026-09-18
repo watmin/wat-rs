@@ -17,7 +17,7 @@
 //! borrow checker splits them without help. That was STOP-1 for this strike.
 
 use super::super::*;
-use super::record_token;
+use super::record_tokens;
 use std::collections::HashSet;
 
 /// Seed root-join children from the elements that are NEW this round.
@@ -45,6 +45,11 @@ pub(crate) fn root_join_delta(
             .get(node_id)
             .map(|v| v.as_slice())
             .unwrap_or(&[]);
+        // Two `HashMap` lookups keyed on `*node_id`, the outermost loop variable.
+        // Occupancy is empty binds (measured); `span_from_resolved` still writes
+        // per element, but the gets do not.
+        let fields = wm.bind_only.get(node_id).map(Vec::as_slice);
+        let kids = wm.cond_key_ids.get(node_id).map(Vec::as_slice);
         // rune:temperare(simplicity-win) — kind_of filters mixed children_of; typed child
         // lists at intern would drop the Value-network probe. n children × rounds is small.
         for child_id in child_ids {
@@ -56,26 +61,37 @@ pub(crate) fn root_join_delta(
             if kind_of(child_node) != NodeKind::RootJoin {
                 continue;
             }
+            // Buffer then `record_tokens` once. `record_token` paid three hash ops
+            // per element on `*child_id`; the batched door is `record_tokens`.
+            // `push_match` still runs per element — Token.matches is a BindSpan
+            // into match_pool, written before the Token is buffered. Nothing in
+            // this nest reads beta/d_beta (hash-join reads them after this pass).
+            let mut buf: Vec<Token> = Vec::new();
             for ei in news.iter() {
                 let el = wm.alpha[node_id][ei];
+                census_root_join_element();
                 // Seed native Token: one matches edge (fact idx, alpha_id).
                 let binds = if el.binds.len > 0 {
                     seed_token_binds(&el)
                 } else {
-                    span_from_row(
+                    census_root_join_span();
+                    span_from_resolved(
                         &mut wm.bind_pool,
                         &el,
-                        *node_id,
                         &wm.i64_by_fact,
-                        &wm.bind_only,
-                        &wm.cond_key_ids,
+                        fields,
+                        kids,
                     )
                 };
                 let tok = Token {
                     matches: push_match(&mut wm.match_pool, el.fact, *node_id),
                     binds,
                 };
-                record_token(&mut wm.beta, d_beta, &arm.beta_readers, *child_id, tok);
+                buf.push(tok);
+            }
+            if !buf.is_empty() {
+                census_root_join_record_tokens();
+                record_tokens(&mut wm.beta, d_beta, &arm.beta_readers, *child_id, &buf);
             }
         }
     }
