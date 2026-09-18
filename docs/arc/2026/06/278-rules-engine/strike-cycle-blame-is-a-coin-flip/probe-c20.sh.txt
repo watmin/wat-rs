@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# DISCONFIRMING PROBE for C20 — the orchestrator's, run before the brief.
+# The blamed function and its line flip run-to-run on the SAME binary.
+#
+# ⚠ TWO RUNS UNDER-DETECT BY HALF. At p≈0.5 per run, "observe both outcomes in N runs"
+# misses at 2·0.5^(N-1) — 50% at N=2. Twelve is the floor for a confident reading here;
+# C19's own sweep needed 24 runs/file across 280 files to close its set.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+f=tests/rete/probe_arc278_rete_defn_recurse_mutual.wat.bad
+for _ in $(seq 1 12); do
+  ./target/release/wat "$f" 2>&1 | grep -o ':probe::[a-z]*\|:line [0-9]*' | tr '\n' ' '; echo
+done | sort | uniq -c | sort -rn
+# At HEAD 04abe37fc:
+#   6  :probe::b :probe::b :line 5 :line 5 :probe::b :probe::b
+#   6  :probe::a :probe::a :line 8 :line 8 :probe::a :probe::a
+# AFTER the cure: one row, count 12.
