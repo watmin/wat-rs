@@ -233,6 +233,27 @@ for node_id in &kind_ids.filter {
             continue;
         };
         let driver = driver_of(compiled_drivers, alpha_id)?;
+        let _prev_gather_node = census_gather_node(*node_id);
+        let hoisted_keys: Option<std::sync::Arc<[Value]>> = {
+            let els = alpha_elements(&wm.alpha, alpha_id);
+            if els.is_empty() || new_tokens.is_empty() {
+                None
+            } else {
+                Some(
+                    gather_join_keys(
+                        &bind_view(
+                            &wm.bind_keys,
+                            &wm.bind_vals,
+                            &wm.bind_pool,
+                            new_tokens[0].binds,
+                        ),
+                        els,
+                        GatherIntern::from_wm(wm, alpha_id),
+                    )
+                    .into(),
+                )
+            }
+        };
         for tok in new_tokens {
             let any_compat = token_exists_under(
                 driver,
@@ -242,6 +263,7 @@ for node_id in &kind_ids.filter {
                 match_scratch,
                 sym,
                 gather_cache,
+                hoisted_keys.as_ref(),
             )?;
             // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
             let pass = if is_exists { any_compat } else { !any_compat };
@@ -263,6 +285,7 @@ for node_id in &kind_ids.filter {
                 record_token(&mut wm.beta, d_beta, beta_readers, *node_id, tok);
             }
         }
+        census_gather_node(_prev_gather_node);
     }
 }
 

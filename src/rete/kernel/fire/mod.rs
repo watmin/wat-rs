@@ -466,6 +466,7 @@ fn fact_bindings_under<B: Bindings + ?Sized>(
 /// The leaf arm is the hot one and stays on `BindView` — no map is built. Only a COMBINATOR
 /// inner (`and`/`or`/`where`) falls through to `exists_cond_under`, which needs a real `PMap`
 /// seed; that path is rare, and the rune on it records the trade rather than hiding it.
+#[allow(clippy::too_many_arguments)]
 fn token_exists_under<B: Bindings + ?Sized>(
     driver: &CondDriver,
     tok: &B,
@@ -474,6 +475,7 @@ fn token_exists_under<B: Bindings + ?Sized>(
     scratch: &mut SlotFrame,
     sym: &SymbolTable,
     gather_cache: &mut GatherCache,
+    join_keys: Option<&Arc<[Value]>>,
 ) -> Result<bool, EvalBreak> {
     match driver {
         CondDriver::Leaf(alpha_id) => {
@@ -486,6 +488,7 @@ fn token_exists_under<B: Bindings + ?Sized>(
                 tok,
                 compiled,
                 scratch,
+                join_keys,
             ))
         }
         // rune:temperare(simplicity-win) — combinator :not/:exists still PMap::from_pairs;
@@ -561,6 +564,7 @@ fn exists_cond_under(
                 seed,
                 compiled,
                 scratch,
+                None,
             ))
         }
     }
@@ -2085,6 +2089,23 @@ fn ensure_gather<'a, B: Bindings + ?Sized>(
     }
     let join_keys: Arc<[Value]> =
         gather_join_keys(sample, els, GatherIntern::from_wm(wm, alpha_id)).into();
+    ensure_indexed(cache, wm, alpha_id, join_keys)
+}
+
+/// Cache probe with already-derived join keys. The filter pass hoists
+/// `gather_join_keys` beside `driver_of` and reuses one `Arc` for every token
+/// at the node — legal only while key-set stability holds (the gather-key census).
+fn ensure_indexed<'a>(
+    cache: &'a mut GatherCache,
+    wm: &FireSession,
+    alpha_id: i64,
+    join_keys: Arc<[Value]>,
+) -> Option<(&'a GatherIndex, Arc<[Value]>)> {
+    let els = alpha_elements(&wm.alpha, alpha_id);
+    if els.is_empty() {
+        return None;
+    }
+    census_ensure_gather(alpha_id, join_keys.as_ref());
     let index = cache
         .entry((alpha_id, Arc::clone(&join_keys)))
         .or_insert_with(|| {
@@ -2096,6 +2117,7 @@ fn ensure_gather<'a, B: Bindings + ?Sized>(
 }
 
 /// Exists/Not Leaf: probe the token's bucket. Empty bucket is absence (contract clause 2).
+#[allow(clippy::too_many_arguments)]
 fn any_seeded_keyed<B: Bindings + ?Sized>(
     sym: &SymbolTable,
     cache: &mut GatherCache,
@@ -2104,8 +2126,13 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
     seed: &B,
     compiled: &crate::rete::compiled_cond::CompiledCond,
     scratch: &mut SlotFrame,
+    join_keys: Option<&Arc<[Value]>>,
 ) -> bool {
-    let Some((index, join_keys)) = ensure_gather(cache, wm, alpha_id, seed) else {
+    let gathered = match join_keys {
+        Some(keys) => ensure_indexed(cache, wm, alpha_id, Arc::clone(keys)),
+        None => ensure_gather(cache, wm, alpha_id, seed),
+    };
+    let Some((index, join_keys)) = gathered else {
         return false;
     };
     let key = key_of(seed, join_keys.as_ref(), &wm.bind_val_ids);
