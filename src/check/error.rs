@@ -333,6 +333,69 @@ pub enum CheckErrorKind {
         called_arg_types: Vec<String>,
         candidate_returns: Vec<String>,
     },
+    /// `a-defclause-outranks-a-defn` — a `defclause` names something that is
+    /// ALREADY declared. Refused at registration, before the clause table lands.
+    ///
+    /// ## Why a refusal and not a merge
+    ///
+    /// A `defclause`'s clause table is consulted at `check.rs`'s call-site dispatch
+    /// BEFORE the registered scheme, and at runtime `runtime_def_values` outranks
+    /// `sym.functions` the same way. So a second declaration of a name does not add
+    /// to the first — it REPLACES it, at every call site in the program, including
+    /// call sites inside the file that made the first declaration. That is the whole
+    /// defect: a consumer that writes `(defclause :mylib::greet …)` after loading
+    /// `mylib` re-points `:mylib::greet` for `mylib`'s own bodies, and the library
+    /// author has no defence (only `:wat::`/`:rust::`/`:$bound::` are reserved).
+    ///
+    /// ## The outer span is the NEW declaration, deliberately
+    ///
+    /// Before this wall the program failed with `NoMatchingClauseAtCallSite` located
+    /// INSIDE the library — a file the person who must fix it never wrote. The outer
+    /// span here is the offending `defclause` form (the site the author edits);
+    /// `prior_decl_span` is the declaration it would have displaced.
+    ///
+    /// ARMED AT ZERO OFFENDERS (the house pattern, as `UnreachableClause` was): a
+    /// form-aware census over all 1873 tracked `.wat` files found 71 `defclause`
+    /// declarations, of which **zero** name something also declared in the same
+    /// program. See `wat-scripts/grep/defclause-over-defn.wat`.
+    ClauseOverExistingDeclaration {
+        name: String,
+        /// What the prior declaration was, for the message: `"function"`.
+        prior_kind: &'static str,
+        /// Source location of the declaration this `defclause` would displace.
+        /// Key `:prior-decl-loc`.
+        #[to_edn(key = "prior-decl-loc")]
+        prior_decl_span: Span,
+    },
+    /// `a-defclause-outranks-a-defn`, the SECOND door — a `defclause` names a
+    /// companion that a type declaration generates (`:T/field`, `:T'`).
+    ///
+    /// Why this is not the same arm as `ClauseOverExistingDeclaration`: the companion
+    /// is not in `SymbolTable` yet when the collision happens, and it never will be.
+    /// `runtime::register_defclause`'s `Stub` phase mints a stub `Function` under the
+    /// defclause's name at define-registration (freeze step 5); companion codegen runs
+    /// LATER (step 6.8a, `register_aggregate_methods`) and classifies any existing
+    /// entry as `resolve::Existing::Equivalent`, so it silently declines to mint. The
+    /// squatted name therefore resolves to the clause table — the record's own
+    /// `(:mylib::Point/x p)` calls into the squatter, with NO type error, at runtime.
+    /// Measured 2026-09-18: a consumer clause on a library record's accessor turned
+    /// `7` into `1004` and printed from consumer code, exit 0 both before and after.
+    ///
+    /// There is no prior span to cite: an `AggregateDef` carries no declaration span,
+    /// and inventing one (the defclause's own) would name the wrong file. The type's
+    /// NAME is what the reader needs, and it is carried instead.
+    ///
+    /// ⚠ `is-T?` is NOT in this arm — `register_type_predicates` already refuses a
+    /// squatter with `DuplicateDefine` (measured), so the predicate door is shut by a
+    /// different wall. Only the accessor and the `T'` positional constructor were open.
+    ClauseOverGeneratedCompanion {
+        name: String,
+        /// The declared type whose companion this name is. Key `:type`.
+        #[to_edn(key = "type")]
+        type_name: String,
+        /// Which companion: `"accessor"` or `"positional constructor"`.
+        companion_kind: &'static str,
+    },
     /// Stone 237.3 — `:guard` expression not boolean in defclause.
     GuardExprNotBoolean {
         defclause_name: String,
@@ -796,6 +859,37 @@ impl CheckErrorKind {
                         .map(|t| format!("`{}`", t))
                         .collect::<Vec<_>>()
                         .join(" vs "),
+                )
+            }
+            CheckErrorKind::ClauseOverExistingDeclaration { name, prior_kind, prior_decl_span } => {
+                write!(
+                    f,
+                    "{}this `:wat::core::defclause` declares `{}`, which is already declared as a {} at {}. \
+                     A defclause's clause table OUTRANKS an existing declaration at every call site in the \
+                     program — including call sites inside the file that made the first declaration — so this \
+                     form would re-point `{}` for its declarer too, not just for you. Give these clauses a \
+                     name of your own, or change the declaration at {}.",
+                    prefix,
+                    name,
+                    prior_kind,
+                    prior_decl_span,
+                    name,
+                    prior_decl_span,
+                )
+            }
+            CheckErrorKind::ClauseOverGeneratedCompanion { name, type_name, companion_kind } => {
+                write!(
+                    f,
+                    "{}this `:wat::core::defclause` declares `{}`, which is the {} the declaration of \
+                     `{}` generates. Declaring it here does not add a clause to that companion — it \
+                     takes the name INSTEAD of it, so `{}`'s own uses of `{}` would call this clause \
+                     table with no type error at all. Give these clauses a name of your own.",
+                    prefix,
+                    name,
+                    companion_kind,
+                    type_name,
+                    type_name,
+                    name,
                 )
             }
             CheckErrorKind::GuardExprNotBoolean { defclause_name, clause_index, got_type } => {

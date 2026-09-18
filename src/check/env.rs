@@ -137,6 +137,17 @@ pub struct CheckEnv<'a> {
     /// uses to emit `EvalSignal::TailCall`. Builtins/defclauses that are not
     /// Function entries are absent, matching the runtime.
     pub(crate) registered_functions: HashSet<String>,
+    /// `a-defclause-outranks-a-defn` — names whose `defclause` was REFUSED by the
+    /// pre-registration wall (`check.rs`'s `preregister_defclause_in_env`) because
+    /// the name is already declared elsewhere.
+    ///
+    /// Why a set rather than a second wall: the clause table has TWO writers —
+    /// the pre-pass at `check_program`'s top, and `collect_splice_defs_ctx`'s
+    /// `:wat::core::defclause` arm inside the sequential form loop. The pre-pass is
+    /// the one that can see `SymbolTable` and so is the one that reports; this set
+    /// is how its verdict reaches the second writer, which would otherwise register
+    /// the very table the first refused. One error, one verdict, two writers.
+    pub(crate) refused_defclause_names: HashSet<String>,
 }
 
 impl<'a> CheckEnv<'a> {
@@ -271,6 +282,7 @@ impl<'a> CheckEnv<'a> {
             extend_registrations: HashMap::new(),
             corpus_values: HashMap::new(),
             registered_functions: HashSet::new(),
+            refused_defclause_names: HashSet::new(),
         }
     }
 

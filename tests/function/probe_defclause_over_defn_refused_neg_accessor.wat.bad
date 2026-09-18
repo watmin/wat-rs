@@ -1,0 +1,6 @@
+;; MUST FAIL — and before the wall this FROZE CLEAN and answered 1004 instead of 7.
+(:wat::load-file! "lib-record.wat")
+(:wat::core::defclause :mylib::Point/x
+  ([p <- :mylib::Point] -> :wat::core::i64 1000))
+(:wat::core::defn :user::probe [] -> :wat::core::i64
+  (:mylib::sum (:mylib::Point :x 3 :y 4)))

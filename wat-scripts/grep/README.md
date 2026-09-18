@@ -25,6 +25,7 @@ difference is not noise.**
 | `defined-twice.wat` | does one file define the same name twice? | 0 real · 2 false positives, both macro templates |
 | `can-raise.wat` | which functions contain a call that can panic? | 207 call sites across 121 functions · 2.6s |
 | `core-numerics-ops.wat` | how big is the numerics rehome, really? | **1495** keyword leaves · text finds 1571 · *(whole corpus, 1577 files)* |
+| `defclause-over-defn.wat` | does any `defclause` name something a `defn` also declares? | **71** declarations, **0** collisions · text finds 74, three of them prose · *(whole corpus, 1873 files)* |
 
 ## What the differences were
 

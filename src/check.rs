@@ -797,7 +797,7 @@ pub fn check_program(
     // passes in `check_program` whose cost is the USER program's.
     let _census_forms = crate::freeze::census::pass_guard(crate::freeze::census::P_CHECK_FORMS);
     for form in forms {
-        preregister_defclause_in_env(form, &mut env);
+        preregister_defclause_in_env(form, &mut env, sym, &mut errors);
     }
 
     // Arc 157 — check program body forms sequentially, accumulating
@@ -9138,6 +9138,13 @@ fn register_defclause_from_form(form: &WatAST, env: &mut CheckEnv, idempotent: b
         Ok(pair) => pair,
         Err(_) => return false,
     };
+    // `a-defclause-outranks-a-defn` — the pre-pass already refused this name and
+    // reported it. Registering here anyway would land exactly the clause table the
+    // refusal exists to keep out (this function has two callers; see the field doc
+    // on `CheckEnv::refused_defclause_names`).
+    if env.refused_defclause_names.contains(&name) {
+        return false;
+    }
     if idempotent && env.get_defclause_clauses(&name).is_some() {
         return false;
     }
@@ -9300,7 +9307,17 @@ fn collect_splice_defs_ctx(
 /// falling through to a 0-param stub scheme.
 ///
 /// Only handles top-level defclause forms; ignores everything else.
-fn preregister_defclause_in_env(form: &WatAST, env: &mut CheckEnv) {
+///
+/// `a-defclause-outranks-a-defn` — this is also THE WALL. It is the only clause-table
+/// writer that can see `SymbolTable`, so it is where "is this name already declared?"
+/// is asked and where the refusal is reported; `refused_defclause_names` carries the
+/// verdict to the second writer.
+fn preregister_defclause_in_env(
+    form: &WatAST,
+    env: &mut CheckEnv,
+    sym: &SymbolTable,
+    errors: &mut Vec<CheckError>,
+) {
     let items = match form {
         WatAST::List(items, _) => items,
         _ => return,
@@ -9309,9 +9326,147 @@ fn preregister_defclause_in_env(form: &WatAST, env: &mut CheckEnv) {
         Some(WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause" => {}
         _ => return,
     }
+    if let Ok((name, _)) =
+        crate::runtime::parse_defclause_form(form, crate::resolve::Privilege::User)
+    {
+        if let Some(prior_decl_span) = defclause_displaces_declaration(&name, form, sym) {
+            env.refused_defclause_names.insert(name.clone());
+            errors.push(CheckError {
+                span: form.span().clone(),
+                kind: CheckErrorKind::ClauseOverExistingDeclaration {
+                    name,
+                    prior_kind: "function",
+                    prior_decl_span,
+                },
+            });
+            return;
+        }
+        if let Some((type_name, companion_kind)) =
+            defclause_squats_type_companion(&name, env.types)
+        {
+            env.refused_defclause_names.insert(name.clone());
+            errors.push(CheckError {
+                span: form.span().clone(),
+                kind: CheckErrorKind::ClauseOverGeneratedCompanion {
+                    name,
+                    type_name,
+                    companion_kind,
+                },
+            });
+            return;
+        }
+    }
     // Idempotent: first-registration wins; subsequent defclause forms
     // with the same name are silently skipped.
     register_defclause_from_form(form, env, true);
+}
+
+/// `a-defclause-outranks-a-defn` — does registering `name`'s clause table DISPLACE a
+/// declaration that is already in the symbol table? Returns the displaced
+/// declaration's span, or `None` when there is nothing to displace.
+///
+/// ## The one subtlety: a `defclause` is already in `sym.functions` under its own name
+///
+/// `runtime::register_defclause`'s `Stub` phase registers a 0-arg, nil-bodied stub
+/// `Function` for every `defclause` it sees (so the resolver can validate recursive
+/// clause bodies before the real `ClauseSet` exists at step 9). By the time
+/// `check_program` runs, EVERY `defclause` name is therefore in `sym.functions` — a
+/// bare `sym.has_function(&name)` test would refuse all 71 of them.
+///
+/// The discriminator is the stub's own body span. The stub body is
+/// `WatAST::NilLit(form.span().clone())` — literally the defclause form's span — so a
+/// function whose body is a `nil` literal spanning exactly this form IS this form's
+/// own stub and displaces nothing. This is an identity test, not a shape heuristic: a
+/// real `(defn :my::f [] -> :wat::core::nil nil)` has the identical *shape* (empty
+/// params, unit return, `NilLit` body — `:wat::core::nil` canonicalizes to
+/// `TypeExpr::Tuple(vec![])`), and only the span tells them apart.
+///
+/// It also keeps the live double-load path green: loading one file twice re-parses the
+/// same defclause at the same coordinates, so the second registration recognizes the
+/// first's stub as its own and no error fires. Measured before the wall existed — two
+/// `(:wat::load-file! "libc.wat")` forms and a call: exit 0.
+///
+/// ⚠ BOUND, stated: the identity is `(file, line, col)`. A file loaded twice under two
+/// different path spellings would produce two spans that differ only in `file`, and
+/// this test would call the second a displacement. That is the conservative direction
+/// (a refusal with a located message, not a silent hijack), and no corpus program does
+/// it.
+fn defclause_displaces_declaration(
+    name: &str,
+    form: &WatAST,
+    sym: &SymbolTable,
+) -> Option<Span> {
+    let prior = sym.get(name)?;
+    let body = match &prior.body {
+        FunctionBody::Wat(ast) => ast,
+        // A native builtin has no wat span; it is still a declaration this clause
+        // table would displace, so report the defclause's own span as the location
+        // of record rather than inventing one.
+        FunctionBody::Native => return Some(form.span().clone()),
+    };
+    let body_span = body.span();
+    let here = form.span();
+    let own_stub = matches!(&**body, WatAST::NilLit(_))
+        && prior.params.is_empty()
+        && body_span.file == here.file
+        && body_span.line == here.line
+        && body_span.col == here.col;
+    if own_stub {
+        None
+    } else {
+        Some(body_span.clone())
+    }
+}
+
+/// `a-defclause-outranks-a-defn`, the SECOND door — does this `defclause` name a
+/// companion that a DECLARED TYPE generates? Returns `(type name, companion kind)`.
+///
+/// The first door (`defclause_displaces_declaration`) cannot see this one: at freeze
+/// step 5 the defclause's stub takes the name, and companion codegen at step 6.8a
+/// (`register_aggregate_methods`) treats an occupied name as `Existing::Equivalent`
+/// and declines to mint. So by check time there is nothing in `SymbolTable` to
+/// displace — the companion was never born. The `TypeEnv` still knows it should have
+/// been, which is why the question is asked here.
+///
+/// Two shapes, both driven before the wall existed and both silent (exit 0, wrong
+/// answer):
+/// - `:T/field`  — the per-field accessor (`register_aggregate_methods`)
+/// - `:T'`       — the positional constructor
+///
+/// `is-T?` is deliberately absent: `register_type_predicates` refuses a squatter
+/// outright with `DuplicateDefine`, measured. Adding it here would double-report.
+///
+/// The name is split by `wat_reader::identifier`'s accessors — `receiver`/`method` for
+/// the `/`, `prime`/`deprimed` for the `'` — never by a hand-rolled `rsplit_once`
+/// (STONE-one-name-grammar: a name is an atom, parsed exactly one way).
+///
+/// `:wat::core::/` (division) is why the accessor arm requires a non-empty receiver AND
+/// a receiver that is a declared aggregate: it is the one corpus `defclause` name
+/// containing a `/`, and `receiver(":wat::core::/")` is `":wat::core:"`, which is not a
+/// type.
+fn defclause_squats_type_companion(
+    name: &str,
+    types: &TypeEnv,
+) -> Option<(String, &'static str)> {
+    use crate::types::TypeDef;
+    let recv = wat_reader::identifier::receiver(name);
+    if !recv.is_empty() {
+        let field = wat_reader::identifier::method(name);
+        if !field.is_empty() {
+            if let Some(TypeDef::Aggregate(agg)) = types.get(recv) {
+                if agg.field_names().any(|f| f == field) {
+                    return Some((recv.to_string(), "per-field accessor"));
+                }
+            }
+        }
+    }
+    if wat_reader::identifier::prime(name) {
+        let type_name = wat_reader::identifier::deprimed(name);
+        if !type_name.is_empty() && matches!(types.get(type_name), Some(TypeDef::Aggregate(_))) {
+            return Some((type_name.to_string(), "positional constructor"));
+        }
+    }
+    None
 }
 
 /// Arc 157 — extract the `(name, TypeExpr, Span)` triple from a

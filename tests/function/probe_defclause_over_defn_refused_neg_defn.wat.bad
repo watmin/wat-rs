@@ -1,0 +1,5 @@
+;; MUST FAIL. A consumer declaring clauses for a name the library already declared.
+(:wat::load-file! "lib.wat")
+(:wat::core::defclause :mylib::greet ([n <- :wat::core::i64] -> :wat::core::i64 n))
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [_ (:mylib::caller)] nil))

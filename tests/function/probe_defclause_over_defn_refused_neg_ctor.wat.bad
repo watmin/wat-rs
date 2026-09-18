@@ -1,0 +1,5 @@
+;; MUST FAIL. The other generated companion: `:T'`, the positional constructor.
+(:wat::load-file! "lib-record.wat")
+(:wat::core::defclause :mylib::Point'
+  ([n <- :wat::core::i64] -> :wat::core::i64 999))
+(:wat::core::defn :user::probe [] -> :wat::core::i64 1)
