@@ -30,19 +30,21 @@
 //!
 //! ## THE FILES THIS GATE DOES NOT ASSERT OVER — A FINDING, NOT A FLAKE LIST
 //!
-//! ⛔ These are **not** "known flakes". Each is a SECOND, INDEPENDENT source of nondeterminism,
-//! captured, characterised, and reproducible on demand — a defect this strike found and did not
-//! have licence to fix (its blast radius was the renderers). They are listed here so the gate can
-//! ship green over the rest of the corpus instead of being deleted, and each carries the evidence
-//! needed to re-check it in ten seconds. Neither is a type-variable problem; normalising
-//! `:?[0-9]+` makes neither stable.
+//! ✅ **The quarantine is EMPTY. All seven entries this tree ever carried were cured — grok's
+//! own three, plus this tree's own four extras (found at replay #352) — and the three "CURED AND
+//! REMOVED" sections below are their record.** The section stays, with its rules intact, because
+//! it is the designated home for the next one.
 //!
-//! Reproduce either of them with:
+//! ⛔ An entry here is **not** a "known flake". It is a SECOND, INDEPENDENT source of
+//! nondeterminism — captured, characterised, and reproducible on demand — that the strike which
+//! found it did not have licence to fix. Entries live here so the gate can ship green over the
+//! rest of the corpus instead of being deleted, and each must carry the evidence needed to
+//! re-check it in ten seconds.
+//!
+//! Reproduce a suspected offender with:
 //! ```text
 //! for i in $(seq 1 30); do ./target/release/wat <path> 2>&1 | sed 's/:?[0-9]*/:?N/g' | md5sum; done | sort | uniq -c
 //! ```
-//! Each comes back with TWO hashes at roughly 50/50 (measured 10/20 and 16/14 over 30 runs;
-//! re-driven 2026-09-03 at 24 runs each — 16/8 and 13/11).
 //!
 //! ⚠ AND NOTE HOW THE THIRD ONE WAS FOUND, because it is the methodological finding of this
 //! strike. A 2-run scan of the corpus reported exactly TWO offenders. It was wrong: a defect whose
@@ -50,92 +52,6 @@
 //! evidence about the sweep, not about the corpus. `probe_arc170_c2_mixed_macro_swap.wat.bad` was
 //! caught only when this gate itself ran — and a 24-run-per-file sweep of all 280 was then needed
 //! to close the set at three. Any future audit of this property must sample deeply, not twice.
-//!
-//! 1. **`tests/services/probe_arc170_w2a_kwargs_check_mint_swap.wat.bad` — the error ORDER varies.**
-//!    The same four errors every run; the `:wat::core::match` scrutinee mismatch at line 40 appears
-//!    FIRST in some runs and LAST in others, with the other three unmoved.
-//!
-//! 2. **`tests/services/probe_arc170_c2_mixed_macro_swap.wat.bad` — the error ORDER varies.**
-//!    Same shape as (1) at larger scale: the same NINE errors every run, but they arrive as two
-//!    blocks that swap — seven `:wat::core::match` scrutinee mismatches (lines 91-127) and two
-//!    `:probe::enrich::kwargs-check::Kwargs` parameter mismatches (line 156) — so a reader diffing
-//!    two runs sees nine moved errors and zero real changes.
-//!
-//! ### ✅ CURED AND REMOVED — `tests/rete/probe_arc278_rete_defn_recurse_mutual.wat.bad` (C20)
-//!
-//! It was entry 1 of grok's original three: a mutual-recursion pair where WHICH member was named
-//! as the offender flipped run to run, and the reported LINE flipped with it —
-//! `< :probe::b … :line 5   >   :probe::a … :line 8`. Re-driven at `c6bfe2fbb`, 24 runs: 16/8.
-//!
-//! The root was NOT this file's class. `apply_rete_defn_contracts` (`src/rete/purity.rs`) iterated
-//! `declared_rete_defns` — a `HashSet<String>` — and `rete_defn_cycle` returns on the FIRST
-//! failure, so the loop's ENTRY POINT was a per-process hash draw. That set is a `BTreeSet` at
-//! every site now, so the order is unrepresentable rather than merely sorted at one call site.
-//! 48/48 identical after the change.
-//!
-//! ⚠ THE OTHER TWO (grok's own remaining pair, items 1-2 above) WERE RE-DRIVEN AFTER THAT FIX AND
-//! ARE STILL NONDETERMINISTIC (24 runs each, two hashes each). Their root is check-phase error
-//! ORDER and is unlocated. One fix did not quietly cover three defects; two rows stay, with their
-//! evidence — plus the four found at replay #352 below, which are the SAME class, not this one.
-//!
-//! ⚠ AND NOTE WHAT REMOVING A ROW DOES **NOT** PROVE. This gate runs each file TWICE, so
-//! re-admitting a file to the corpus is a 2-run assertion — 42-50% blind to a defect of this
-//! shape (see "WHAT THIS GATE DELIBERATELY DOES NOT DO" below). The proof that C20 is cured is
-//! NOT this row's absence; it is
-//! `mutual_rete_defn_cycle_blames_the_same_member_every_run`
-//! (`tests/rete/probe_arc278_rete_defn_recurse.rs`), which drives 24 fresh processes and pins the
-//! blamed `(name, line)`. Re-admission here is a bonus assertion, not the evidence.
-//!
-//! ★ Note what this contradicts: the C19 DESIGN's bounding table asserts that "error kinds, their
-//! ORDER, spans, message text" are **stable** and that normalising `:?N` makes runs byte-identical.
-//! That held over the 120 files it sampled; over all 280 it is false for these two. The bound was
-//! measured on a subset and read as a property.
-//!
-//! ## ⛔ FOUR MORE, FOUND AT REPLAY #352 (this land), NOT BY GROK — SAME CLASS, REPORTED PER THE BRIEF
-//!
-//! grok's own methodology note above (§ "AND NOTE HOW THE THIRD ONE WAS FOUND") predicts exactly
-//! this: a defect that a 2-run scan catches only ~50% of the time will be missed by ONE sweep and
-//! caught by another. This replay's own first few double-runs of the corpus (fresh process pairs,
-//! independent of grok's own measurement) caught FOUR more files with the identical order-only
-//! variance, none touched by C19's rendering fix (no `TypeExpr::Var` anywhere in any of their
-//! output) and all four present on grok's own tip (confirmed via `git log origin/grok-rete --
-//! <path>` for each — not main-only). Per the brief's own instruction ("a fourth entry is a
-//! finding to REPORT, not a line to slip in"): reported here, in full, with captured evidence,
-//! exactly as findings 1-3 were — and repaired at this step per the fold rule (`#352 and #360
-//! repair AT the step that lands them`), since a knowingly-red gate cannot stand at the end of a
-//! batch.
-//!
-//! ⛔ **AND THIS TIME THE SET WAS CLOSED WITH A REAL SWEEP, NOT A GUESS.** After the second and
-//! third new files turned up from separate ad-hoc double-runs — confirming grok's own "closing
-//! the set needed 24 runs/file over 280" warning applies here too, not just on grok's own
-//! measurement — a **15-run sweep of the FULL 296-file corpus** (every `.wat.bad` under `tests/`,
-//! quarantined or not) was run before finalising this list: `for f in <all 296>; do 15 runs; hash
-//! each; flag if >1 distinct hash; done`, `-P16`. Result: **exactly 7 files varied — the 3 grok
-//! found, plus these 4** — and no others, across the whole corpus, at this sampling depth. That
-//! does not prove there is an eighth file whose flip probability is low enough to survive 15
-//! samples (grok's own math: a p≈0.5 flip escapes N runs at 2·0.5^(N-1), negligible at 15; a rarer
-//! flip is not ruled out) — stated as a limit, not hidden as a certainty, same as grok's own three.
-//!
-//! 4. **`tests/services/probe_arc170_c2_d_bodiless_edge.wat.bad` — the error ORDER varies, RICHER
-//!    than the 2-outcome cases above.** The same FIVE errors every run (confirmed: the sorted set
-//!    of `:head`/`:callee` identities hashes identically across 6 runs), but sequence varies more
-//!    than a single swap — 20 raw-output runs produced SIX distinct byte-level orderings (hash
-//!    counts 2/4/3/2/2/7), and the 15-run corpus sweep independently confirms 6 distinct hashes.
-//! 5. **`tests/types/probe_arc170_parametric_surface_param_wrong_param.wat.bad` — same shape as
-//!    (4).** The same FIVE errors every run (sorted identity-set hash identical across 6 runs);
-//!    20 raw-output runs gave SIX distinct orderings (counts 1/4/6/2/3/4), the 15-run sweep gives 6.
-//! 6. **`tests/services/probe_arc170_wrong_service_compile_error.wat.bad`** — found by the corpus
-//!    sweep. Same five-error identity-set hash across 6 runs (content stable); the 15-run sweep
-//!    counts 5 distinct byte-level orderings.
-//! 7. **`tests/services/probe_arc170_wrong_service_colocation.wat.bad`** — found by the corpus
-//!    sweep. Same five-error identity-set hash across 6 runs (content stable); the 15-run sweep
-//!    counts 5 distinct byte-level orderings.
-//!
-//! All six of the remaining quarantined files (the two grok found above, plus these four) sit in
-//! the SAME class: a `HashMap`-ordered traversal upstream deciding which errors
-//! are emitted, and in what order, per process. That is the STOP-1 territory this strike was
-//! explicitly barred from ("do not chase the traversal to determinism"), and it is a strictly
-//! larger job than a renderer.
 //!
 //! ### ✅ CURED AND REMOVED — `tests/rete/probe_arc278_rete_defn_recurse_mutual.wat.bad` (C20)
 //!
@@ -149,9 +65,8 @@
 //! every site now, so the order is unrepresentable rather than merely sorted at one call site.
 //! 48/48 identical after the change.
 //!
-//! ⚠ THE OTHER TWO WERE RE-DRIVEN AFTER THAT FIX AND ARE STILL NONDETERMINISTIC (24 runs each,
-//! two hashes each). Their root is check-phase error ORDER and is unlocated. One fix did not
-//! quietly cover three defects; two rows stay, with their evidence.
+//! ⚠ THE OTHER TWO WERE RE-DRIVEN AFTER THAT FIX AND WERE STILL NONDETERMINISTIC. One fix did not
+//! quietly cover three defects — their root was different and needed its own strike, below.
 //!
 //! ⚠ AND NOTE WHAT REMOVING A ROW DOES **NOT** PROVE. This gate runs each file TWICE, so
 //! re-admitting a file to the corpus is a 2-run assertion — 42-50% blind to a defect of this
@@ -163,13 +78,72 @@
 //!
 //! ★ Note what this contradicts: the C19 DESIGN's bounding table asserts that "error kinds, their
 //! ORDER, spans, message text" are **stable** and that normalising `:?N` makes runs byte-identical.
-//! That held over the 120 files it sampled; over all 280 it is false for these two. The bound was
+//! That held over the 120 files it sampled; over all 280 it was false for three. The bound was
 //! measured on a subset and read as a property.
+//!
+//! ### ✅ CURED AND REMOVED — the last two, `probe_arc170_{w2a_kwargs_check_mint,c2_mixed_macro}_swap.wat.bad`
+//!
+//! Entries 1 and 2 of three. Both emitted the same findings every run in a different ORDER:
+//!
+//! - `w2a_kwargs_check_mint_swap` — four errors; the `:wat::core::match` scrutinee mismatch at
+//!   line 40 appeared FIRST in some runs and LAST in others, the other three unmoved.
+//! - `c2_mixed_macro_swap` — NINE errors arriving as two blocks that swapped: seven
+//!   `:wat::core::match` scrutinee mismatches (lines 91-127) and two
+//!   `:probe::enrich::kwargs-check::Kwargs` parameter mismatches (line 156). A reader diffing two
+//!   runs saw nine moved errors and zero real changes.
+//!
+//! Re-driven at `75e82f882`, 24 runs each: **14/10 and 14/10**, two outputs apiece.
+//!
+//! The root: `check_program` (`src/check.rs`) collects errors in FOUR walks over the function
+//! map — two `functions_iter()`, two `function_values()`, a `HashMap<String, Arc<Function>>` —
+//! so the per-FUNCTION error blocks emerged in a per-process order. Unlike C20's first file this could NOT be cured
+//! by changing the container: `SymbolTable.functions` is a hot symbol-lookup path and C10's
+//! ruling forbids paying `O(log n)` there for a diagnostic's benefit. The batch is sorted at
+//! `check_program`'s exit instead (`check::error::sort_into_source_order`), into SOURCE order —
+//! which is strictly better than the hash-stable order a `BTreeMap` would have given, because a
+//! reader gets the findings in the order they occur in their file. 24/24 identical after, both.
+//!
+//! ⚠ THE SORT KEY IS TOTAL DOWN TO THE VARIANT PAYLOAD, AND THAT IS NOT DEFENSIVE. `c2` contains
+//! a genuine SAME-SPAN PAIR — two `TypeMismatch`es for parameters `#1` and `#2` of one call, both
+//! at `156:5..158:53`. Rust's sort is stable, so a key of `(line, col)`, or even
+//! `(file, line, col, end)`, would have left that pair in input — i.e. hash — order while looking
+//! exactly like a fix.
+//!
+//! ⚠ THE EVIDENCE IS NOT THESE ROWS' ABSENCE, for the same reason it was not C20's first file's.
+//! It is `tests/services/probe_arc278_c20_check_errors_in_source_order.rs`: two tests driving 24
+//! fresh processes each, pinning the WHOLE span sequence (not just "the two runs agreed") plus
+//! the same-span pair's order, and a third that feeds a constructed same-span pair through
+//! `sort_into_source_order` in both input orders.
+//!
+//! ⛔ THAT GATE'S OWN PINNED SEQUENCES DIFFER FROM GROK'S — 23 findings for `c2`, not 9; 8 for
+//! `w2a`, not 4 — because this tree independently carries a stricter, C20-unrelated check
+//! (`(:wat::service::Outcome.Reply s expr)`/`(:probe::SN::OpResponse.Ok expr)` positional variant
+//! construction, retired here, present in both fixtures' service boilerplate) that grok's tree
+//! did not have when this gate was written. Verified pre-dating C20 on this tree (checked out one
+//! step before this fix landed and ran `wat --check` directly: same 23/8 counts). See that test
+//! file's own `C2_SOURCE_ORDER`/`W2A_SOURCE_ORDER` docs for the full account — it is a real,
+//! measured, main-only divergence, not a regression from any replay step, and grok's original 4
+//! and 9 findings are still present, unmoved in relative order, inside the larger sequence.
+//!
+//! ### ✅ CURED AND REMOVED — this tree's own four extras, found at replay #352, not by grok
+//!
+//! `probe_arc170_c2_d_bodiless_edge.wat.bad`, `probe_arc170_parametric_surface_param_wrong_param.wat.bad`,
+//! `probe_arc170_wrong_service_compile_error.wat.bad`, `probe_arc170_wrong_service_colocation.wat.bad`
+//! — all four SAME CLASS as grok's own two above (a `HashMap`-ordered walk inside `check_program`
+//! deciding per-function error order), so #375's own `sort_into_source_order` was a HYPOTHESIS,
+//! not an assumption, that it would reach them too (the brief's own framing: "measure it, say how
+//! many runs bought the claim"). Measured at landing: **24 fresh-process runs per fixture,
+//! byte-identical every time, for all four** (`for i in $(seq 1 24); do ./target/release/wat
+//! <path> 2>&1 | md5sum; done | sort | uniq -c` — one distinct hash each, count 24). The
+//! hypothesis held: this tree's quarantine drains to the same zero grok's own reaches, with no
+//! survivor. Across this batch `QUARANTINE_LEN` moved 7 → 6 at #362 (the mutual cure) → 0 here
+//! at #375 (grok's own remaining 2 plus these 4, all six at once), not slipped in — a survivor
+//! would have been reported as a finding per the brief's own instruction; none did.
 //!
 //! ## WHAT THIS GATE DELIBERATELY DOES NOT DO
 //!
-//! It does NOT assert that the two quarantined files are STILL nondeterministic. That assertion is
-//! attractive — it would make the list self-expiring — and it was rejected on purpose: with each
+//! It does NOT assert that a quarantined file is STILL nondeterministic. That assertion is
+//! attractive — it would make the list self-expiring — and it was rejected on purpose: with a
 //! file's two outcomes at ~50/50, "observe at least two distinct outputs in N runs" is wrong with
 //! probability `0.5^(N-1)`, which at any N cheap enough to run is a genuine, if rare, false
 //! (⛔ ARITHMETIC CORRECTED 2026-09-04, C20's rider: this read `2 * 0.5^(N-1)`, which evaluates to
@@ -212,32 +186,14 @@ const N_SHARDS: usize = 16;
 /// ⛔ NOT a flake list. Adding a row here means "I found another determinism defect and could not
 /// fix it in this blast radius" — it must come with captured evidence in the header above and it
 /// must move [`QUARANTINE_LEN`], which is what makes the addition deliberate.
-const QUARANTINE: &[(&str, &str)] = &[
-    (
-        "tests/services/probe_arc170_w2a_kwargs_check_mint_swap.wat.bad",
-        "the four errors are the same every run but their ORDER flips (the line-40 match mismatch moves first<->last)",
-    ),
-    (
-        "tests/services/probe_arc170_c2_mixed_macro_swap.wat.bad",
-        "the nine errors are the same every run but arrive as two blocks (7 match + 2 Kwargs) whose ORDER flips",
-    ),
-    (
-        "tests/services/probe_arc170_c2_d_bodiless_edge.wat.bad",
-        "found at replay #352, not by grok: the same 5 errors every run, but ORDER varies across 6 distinct sequences over 20 runs (richer than a 2-outcome swap)",
-    ),
-    (
-        "tests/types/probe_arc170_parametric_surface_param_wrong_param.wat.bad",
-        "found at replay #352, not by grok: same shape as the row above — same 5 errors every run, 6 distinct orderings over 20 runs",
-    ),
-    (
-        "tests/services/probe_arc170_wrong_service_compile_error.wat.bad",
-        "found at replay #352's full-corpus 15-run sweep: same 5 errors every run, 5 distinct orderings over 15 runs",
-    ),
-    (
-        "tests/services/probe_arc170_wrong_service_colocation.wat.bad",
-        "found at replay #352's full-corpus 15-run sweep: same 5 errors every run, 5 distinct orderings over 15 runs",
-    ),
-];
+// ⛔ EMPTY, MEASURED NOT ASSUMED. Grok's own two (`w2a_kwargs_check_mint_swap`,
+// `c2_mixed_macro_swap`) were cured by `check::error::sort_into_source_order` (#375). This
+// tree's own four extras (found at replay #352) were a HYPOTHESIS that the same cure would reach
+// them, not an assumption: each swept 24 fresh processes at #375's landing
+// (`for i in $(seq 1 24); do ./target/release/wat <path> 2>&1 | md5sum; done | sort | uniq -c`),
+// one distinct hash each, count 24 — cured. See the module header's third "CURED AND REMOVED"
+// section for the full account.
+const QUARANTINE: &[(&str, &str)] = &[];
 
 /// Pinned length of [`QUARANTINE`]. A source of diagnostic nondeterminism cannot be absorbed
 /// silently: it has to change this number, and changing it is the moment someone asks why.
@@ -249,20 +205,32 @@ const QUARANTINE: &[(&str, &str)] = &[
 ///
 /// 7 → 6, C20 (arc 278, #362): `probe_arc278_rete_defn_recurse_mutual.wat.bad` was CURED (see the
 /// header's "CURED AND REMOVED" section) and re-admitted to the asserted corpus. This tree's own
-/// four extra entries (found at #352, not by grok) are untouched by this cure — measured, not
-/// assumed; see #375's own record for whether C20's later, larger fix reaches them.
+/// four extra entries (found at #352, not by grok) were untouched by THAT cure — measured, not
+/// assumed.
+///
+/// 6 → 0, C20's remaining two PLUS this tree's own four (#375, all six at once): all were CURED
+/// by `check::error::sort_into_source_order` and re-admitted. **THE EVIDENCE FOR GROK'S TWO IS
+/// NOT THIS ZERO** — see the header's second "CURED AND REMOVED" section. It is the pair of
+/// 24-fresh-process tests in `tests/services/probe_arc278_c20_check_errors_in_source_order.rs`,
+/// which pin the whole span sequence rather than merely observing that two runs agreed. **THE
+/// EVIDENCE FOR THIS TREE'S OWN FOUR** is a 24-fresh-process sweep per fixture at landing (see
+/// the header's third "CURED AND REMOVED" section) — the brief's own hypothesis that C20's cure
+/// would reach them, measured rather than assumed, and it held for all four.
 ///
 /// ⛔ THIS PIN CANNOT TELL A CURED FILE FROM A BROKEN ONE, AND IT IS NOT MEANT TO. Restoring a
-/// stale row and bumping this number back up goes GREEN — the path still exists, the length still
-/// matches, and the gate simply stops looking at the file. That is the deliberate design recorded
-/// under "WHAT THIS GATE DELIBERATELY DOES NOT DO", not an oversight: asserting a quarantined file
-/// is STILL nondeterministic is a check that can go red for a reason other than the defect. What
-/// stops a cured file being re-quarantined by mistake is the file's OWN determinism test, which
-/// asserts the property directly and deeply — for C20 that is
+/// stale row and bumping this number to match goes GREEN — the path still exists, the length
+/// still matches, and the gate simply stops looking at the file. **DRIVEN, not assumed** (C20's
+/// second strike, on grok's own tree): re-adding the cured `c2_mixed_macro_swap` row without
+/// touching this constant REDs on `left: 1, right: 0`; re-adding it AND setting this to 1 passes
+/// 17/17, shards included. That is the deliberate design recorded under "WHAT THIS GATE
+/// DELIBERATELY DOES NOT DO", not an oversight: asserting a quarantined file is STILL
+/// nondeterministic is a check that can go red for a reason other than the defect. What stops a
+/// cured file being re-quarantined by mistake is the file's OWN determinism test, which asserts
+/// the property directly and deeply — for C20 that is
 /// `mutual_rete_defn_cycle_blames_the_same_member_every_run`
 /// (`tests/rete/probe_arc278_rete_defn_recurse.rs`, 24 fresh processes). A row added here without
 /// one of those is an exclusion with nothing behind it.
-const QUARANTINE_LEN: usize = 6;
+const QUARANTINE_LEN: usize = 0;
 
 /// The fixture that drives `check::format_type_inner`'s `Var` arm — the NESTED type renderer.
 ///
@@ -292,6 +260,7 @@ const INNER_RENDERER_EXPECTED_GOT: &str = ":((wat::core::Vector :- [_]),(wat::co
 fn collect_bad(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for e in entries.flatten() {
+        // rune:lint(one-variant-separator, not-a-name) — DirEntry::path() is a filesystem path.
         let p = e.path();
         if p.is_dir() {
             collect_bad(&p, out);
@@ -333,10 +302,11 @@ fn run_once(path: &Path) -> (Option<i32>, Vec<u8>, Vec<u8>) {
 fn check_shard(shard: usize) {
     let paths = corpus();
 
-    // NON-VACUITY: a walk that comes back empty asserts nothing over nothing and reports PASS. The
-    // floor sits well under the 266 non-quarantined `.wat.bad` this walk finds today (268 in the
-    // tree, 2 quarantined — the population dropped 281 -> 268 at C18, `04abe37fc`, which retired
-    // the ones that were not actually failing), so it catches
+    // NON-VACUITY: a walk that comes back empty asserts nothing over nothing and reports PASS.
+    // ⛔ NOT grok's "268" — this tree's own number, re-derived here rather than transcribed:
+    // `find ./tests -name '*.wat.bad' | wc -l` = 285 non-quarantined (0 quarantined, all seven
+    // this tree ever carried are cured — see QUARANTINE_LEN's own doc). The floor sits well
+    // under that, so it catches
     // a walk gone blind — a moved root, a renamed extension — without rotting as the corpus grows.
     assert!(
         paths.len() > 200,

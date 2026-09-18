@@ -819,6 +819,73 @@ impl fmt::Display for CheckErrorKind {
     }
 }
 
+impl CheckError {
+    /// The **total** sort key that puts a batch of check errors into SOURCE ORDER.
+    /// Used by [`sort_into_source_order`]; see that function for WHY.
+    ///
+    /// ## ⛔ WHY THE KEY DOES NOT STOP AT `(line, col)`
+    ///
+    /// The sort is STABLE: elements whose keys compare equal keep their INPUT order — which,
+    /// at the site this exists for, is `HashMap` order. A key of `(line, col)` therefore leaves
+    /// same-span errors exactly as nondeterministic as they were while *looking* like a fix.
+    ///
+    /// Same-span pairs are not hypothetical, and not rare enough to wave off:
+    /// `tests/services/probe_arc170_c2_mixed_macro_swap.wat.bad` emits two `TypeMismatch`es —
+    /// parameters `#1` and `#2` of one call — BOTH at `156:5..158:53`. Same file, line, col,
+    /// end position, and the same variant. Extending the key with the end position or a variant
+    /// discriminant does not separate them; only the payload does.
+    ///
+    /// So the last component is `format!("{:?}", self.kind)`, the **derived** structural `Debug`
+    /// of [`CheckErrorKind`]. Note this deliberately reaches PAST `CheckError`'s own `Debug`
+    /// (which emits EDN) to the kind's field-by-field derive, because that derive carries every
+    /// field — including `#[to_edn(skip)]` ones like `ReturnTypeMismatch::remedies` that the EDN
+    /// merges through a `via` rather than emitting plainly.
+    ///
+    /// That makes the key total **with respect to the rendered output**: two errors can tie only
+    /// if every field of both is identical, and two errors with identical fields render identical
+    /// bytes — so the ordering freedom the stable sort leaves among ties is freedom that cannot
+    /// reach a reader. This is the honest claim; "no two errors are ever equal" would not be.
+    pub fn source_order_key(&self) -> (String, i64, i64, Option<(i64, i64)>, String) {
+        (
+            self.span.file.as_ref().clone(),
+            self.span.line,
+            self.span.col,
+            self.span.end.as_ref().map(|p| (p.line, p.col)),
+            format!("{:?}", self.kind),
+        )
+    }
+}
+
+/// Order a batch of check errors by where they occur in the source.
+///
+/// ## Why this exists (arc 278, C20)
+///
+/// `check_program` collects per-function errors by walking `SymbolTable::functions_iter()` — a
+/// `HashMap<String, Arc<Function>>`. Rust reseeds `RandomState` per process, so the per-function
+/// error blocks emerged in a different sequence on every run: two `wat` invocations over the same
+/// broken file printed the same findings in a different order, and every diff of two runs was
+/// noise that looked like signal. Measured at `75e82f882`, 24 runs each:
+/// `probe_arc170_c2_mixed_macro_swap.wat.bad` 14/10 and
+/// `probe_arc170_w2a_kwargs_check_mint_swap.wat.bad` 14/10, two outputs apiece.
+///
+/// The map itself is deliberately NOT changed. It is a hot symbol-lookup path, and putting
+/// `O(log n)` on a hot path to serve a diagnostic is the trade C10's ruling forbids. The batch is
+/// ordered at its exit instead, where the cost is paid only on the failure path.
+///
+/// ## Source order, not merely *a* stable order
+///
+/// De-randomising into hash-stable order would satisfy a determinism gate and serve no reader.
+/// Sorting by `(file, line, col, …)` means a person reading four findings gets them in the order
+/// they occur in their file.
+///
+/// ## It reorders; it never filters
+///
+/// A sort cannot change which errors are in the batch. That is the one property this must not
+/// break, and it is why this is a sort rather than a dedup or a truncation.
+pub fn sort_into_source_order(errors: &mut [CheckError]) {
+    errors.sort_by_cached_key(CheckError::source_order_key);
+}
+
 impl fmt::Debug for CheckError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

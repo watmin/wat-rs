@@ -4,6 +4,24 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
+      :message "malformed :wat::core::match form: non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)"
+      :location #wat.core/Span {
+        :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
+        :line 5
+        :col 4
+        :end #wat.core/Option.Some {
+          :value #wat.core/Pos {
+            :line 5
+            :col 21
+          }
+        }
+      }
+      :causes []
+      :head ":wat::core::match"
+      :reason "non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)"
+      :remedies []
+    }
+    #wat.check/MalformedForm {
       :message "malformed :my::Event.Pair form: positional variant construction is retired; write `(:my::Event.Pair {:field value …})` or `(:my::Event.Pair {})` for a unit variant"
       :location #wat.core/Span {
         :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
@@ -37,24 +55,6 @@
       :causes []
       :head ":wat::core::match"
       :reason "map pattern has 0 key(s), variant `:my::Event.Pair` declares 2"
-      :remedies []
-    }
-    #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)"
-      :location #wat.core/Span {
-        :file "tests/types/enums_unit_pattern_on_tagged.wat.bad"
-        :line 5
-        :col 4
-        :end #wat.core/Option.Some {
-          :value #wat.core/Pos {
-            :line 5
-            :col 21
-          }
-        }
-      }
-      :causes []
-      :head ":wat::core::match"
-      :reason "non-exhaustive: enum :my::Event missing arm(s) for variant(s): Pair (or include `_` wildcard)"
       :remedies []
     }
   ]
