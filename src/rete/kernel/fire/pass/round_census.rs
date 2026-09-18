@@ -94,11 +94,7 @@ pub(crate) fn record_round_census(
             beta_token_matches,
             d_beta_nodes: d_beta.values().filter(|v| !v.is_empty()).count(),
             d_beta_tokens: d_beta.values().map(Vec::len).sum(),
-            left_idx_tokens: left_idx
-                .values()
-                .flat_map(|m| m.values())
-                .map(Vec::len)
-                .sum(),
+            left_idx_tokens: left_idx.total_tokens(),
             right_idx_elements: right_idx.total_elements(),
             // ★ D2: the counter beside the population, per join. The union of both key sets — a
             // join present in ONE map only is exactly the case worth seeing, so neither map may

@@ -783,7 +783,7 @@ fn keyed_join(
 /// `hash_join_delta` appended to the same buckets without it.
 struct FilterJoinIdx<'a> {
     right_idx: &'a mut JoinRightIndex,
-    join_keys_cache: &'a mut JoinKeysCache,
+    left_idx: &'a mut JoinLeftIndex,
 }
 
 /// Join-after-filter: Δleft ⋈ all_right with a persistent right index (same
@@ -799,16 +799,36 @@ fn keyed_join_persistent(
     if left_tokens.is_empty() || right_elements.is_empty() {
         return Ok(vec![]);
     }
-    idx.join_keys_cache.entry(join_id).or_insert_with(|| {
-        gather_join_keys(
+    let keys: Vec<Value> = match idx.left_idx.keys(join_id) {
+        Some(k) => k.to_vec(),
+        None => gather_join_keys(
             &bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds),
             right_elements,
             GatherIntern::from_ctx(ctx, alpha_id),
-        )
-    });
+        ),
+    };
+    if !idx.left_idx.is_keyed(join_id) {
+        idx.left_idx
+            .key_and_index(join_id, keys.clone(), left_tokens, |tok| {
+                key_of(
+                    &bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds),
+                    &keys,
+                    ctx.val_ids,
+                )
+            });
+    } else if let Some(mut w) = idx.left_idx.writer(join_id) {
+        for tok in left_tokens {
+            let k = key_of(
+                &bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds),
+                &keys,
+                ctx.val_ids,
+            );
+            w.push(k, *tok);
+        }
+    }
     let already = idx.right_idx.already(join_id);
     if already < right_elements.len() {
-        let jk = &idx.join_keys_cache[&join_id];
+        let jk = keys.as_slice();
         let mut ridx = idx.right_idx.writer(join_id);
         for el in &right_elements[already..] {
             let k = key_of_el(el, jk, &GatherIntern::from_ctx(ctx, alpha_id));
@@ -836,7 +856,7 @@ fn keyed_join_persistent(
             right_elements.len() - already,
         );
     }
-    let jk = &idx.join_keys_cache[&join_id];
+    let jk = keys.as_slice();
     let Some(ridx) = idx.right_idx.get(&join_id) else {
         return Ok(vec![]);
     };

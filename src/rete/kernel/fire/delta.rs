@@ -317,13 +317,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
 
     // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
     // Keyed by HashJoinNode id J.
-    // left_idx[J]:  key → Vec<Token>   (all left tokens seen so far for J)
-    // right_idx[J]: key → Vec<Element> (all right elements seen so far for J), and the
-    //               high-water mark that counts them — ONE type, one insertion verb (arc 278 D2)
-    // join_keys[J]: the sorted shared-variable list (cached lazily on first use)
-    let mut left_idx: JoinLeftIndex = HashMap::new();
+    // left_idx[J]:  key → Vec<Token> AND the join's key list — ONE type, one door (arc 278 A1)
+    // right_idx[J]: key → Vec<Element> and the high-water mark — ONE type, one insertion verb (arc 278 D2)
+    let mut left_idx = JoinLeftIndex::default();
     let mut right_idx = JoinRightIndex::default();
-    let mut join_keys_cache: JoinKeysCache = HashMap::new();
     // P6-for-gathers: persist across rounds, append d_alpha
     // (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
     let mut gather_cache: GatherCache = FxHashMap::default();
@@ -555,7 +552,6 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut d_beta,
             &mut left_idx,
             &mut right_idx,
-            &mut join_keys_cache,
         )?;
 
         crate::rete::kernel::fire::pass::accumulate_pass(
@@ -604,8 +600,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut wm,
             &arm,
             &mut d_beta,
+            &mut left_idx,
             &mut right_idx,
-            &mut join_keys_cache,
             &mut match_scratch,
         )?;
 
@@ -625,8 +621,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 pre_dispatched: &mut pre_dispatched,
             },
             &mut d_beta,
+            &mut left_idx,
             &mut right_idx,
-            &mut join_keys_cache,
             &mut gather_cache,
             after_join_frontier,
             sym,

@@ -34,8 +34,8 @@ pub(crate) fn join_after_filter(
     wm: &mut FireSession,
     arm: &InternedNetwork,
     d_beta: &mut BetaMemory,
+    left_idx: &mut JoinLeftIndex,
     right_idx: &mut JoinRightIndex,
-    join_keys_cache: &mut JoinKeysCache,
     match_scratch: &mut SlotFrame,
 ) -> Result<Vec<i64>, EvalBreak> {
     // ── 3.6 Join-after-filter (A1): HashJoin children of Test/Neg/Exists/Accum. ─
@@ -88,7 +88,7 @@ pub(crate) fn join_after_filter(
                 *child_id,
                 &mut FilterJoinIdx {
                     right_idx,
-                    join_keys_cache,
+                    left_idx,
                 },
                 &mut FireCtx {
                             sym,
