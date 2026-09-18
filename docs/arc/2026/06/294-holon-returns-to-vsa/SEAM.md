@@ -21,41 +21,44 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `076aa59a1` (batch 4l's records, pushed). **380 of 651 replayed.** In flight: nothing.
+Stamp: written on top of `d1bf3cecf` (batch 4m's records, pushed). **400 of 651 replayed.** In flight: nothing.
 
-**Batch 4l (#361–#380) is CLOSED and PUSHED.** Floor **5808/5808, 24 skipped** — the count predicted from
-the diff before running, **sixteenth consecutive exact match** — clippy 0, range gate exit 0, origin an
-ancestor, 0 `refs/original`, 0 replace refs. The quarantine **drained 7 → 6 → 0** exactly as grok's C20
-cure predicted, measured at 24 fresh runs per fixture. Detail in the ledger row below and
-`SCORE-7l-replay-batch-4l.md`.
+**Batch 4m (#381–#400) is CLOSED and PUSHED.** Floor **5828/5828, 24 skipped** — the count predicted from
+the diff before running, **seventeenth consecutive exact match** — clippy 0, range gate exit 0, census
+`no STOP-8`, all 20 subjects byte-identical to grok's, all 20 trailers two-sided. Detail in the ledger row
+below, `SCORE-7m-replay-batch-4m.md` and `BRIEF-7m-ADDENDUM-388-check-is-a-unit-checker.md`.
 
-⚠⚠ **FINDING 39 — NINE SUBJECTS WERE PARAPHRASED AND THE GATE COULD NOT SEE IT.** The record gate reads
-the `REPLAY(grok-rete #N)` prefix and the trailer, never the words, so nine 4l steps landed with the
-executor's own subject (and one re-classified `fix(tests):` as `perf:`). Repaired by rebuild; proven
-inert. ⛔ **THE ORCHESTRATOR'S STANDING CHECK, EVERY BATCH:** compare each landed subject against
-`REPLAY(grok-rete #N): $(git log -1 --format=%s <C>)`.
+★★ **#388 IS THE SECOND DELIBERATE DIVERGENCE FROM GROK — RULED 4-YES, 2026-09-17.** `--check` is the CLI
+face of the LIBRARY driver here: it answers *"does this unit type-check"*, not *"is this a runnable
+program"*. Grok's cure made it demand `:user::main`, which flipped **1052 of 2165** tracked `.wat` to rc 1
+— **27 of them under `wat/`, the stdlib** — while the whole `cargo nextest` floor stayed green, because
+the change lives in the CLI path and the floor never shells out. **Only `census.sh` saw it.** We kept the
+`RLIMIT_STACK` hoist verbatim (it cures a real SIGABRT-on-a-runnable-program) and narrowed the entry-point
+check to fire only when `:user::main` is DECLARED. Grok never revisits that branch again (measured to its
+tip) and broke it for itself unnoticed: **307 of 400** sampled `.wat` at grok's tip lack an entry point.
+⛔ **`--check` accepting an entry-point-less file is now a PINNED property** (`mode_parity_empty`), and
+`mode_parity_malformed_main` pins the half we kept. Recorded as **finding 40**.
 
-Next is **batch 4m (#381–#400)**: censused — **12 docs-only, 8 code (#381 #383 #384 #387 #388 #390 #398
-#400)**, **ZERO hazard rows**, both M-status-absent paths created earlier in the range (#383→#384,
-#396→#398). #398 is the only `wat/` step (3 files, `stdlib-touch`) and lands **one new lint gate**
-(`tests/lint/no_raw_network_keys_in_oracle.rs`).
+Next is **batch 4n (#401–#420)**: censused — **10 docs-only, 10 code (#402 #404 #406 #408 #410 #412 #414
+#416 #418 #420)**, **ZERO hazard rows**, **no `wat/` or `wat-scripts/fixes/` file anywhere in the range**,
+no M-status-absent paths. It is entirely `src/rete/kernel` work: three cures (D1, A8, A3), a census union,
+the GATHER_VISITS one-door gate, two gate-drive steps, and three perf steps.
 
-⚠⚠ **#387/#388 ARE A DELIBERATE RED-THEN-CURE PAIR, AND BOTH ARMS ARE LIVE ON THIS TREE.** #387 lands
-`tests/cli/mode_parity.rs`, a gate grok intends to FAIL until #388 cures it. **Measured here before
-release, with grok's own fixtures:**
-- **SOUNDNESS is red here**: `mode_parity__empty.wat` → `--check` rc **0** (Accepted), run rc **4**
-  (Rejected). Our `--check` accepts a program with no `:user::main` that the run path refuses.
-- **LIVENESS is red here**: the deep fixture → run rc **0**, `--check` **SIGABRT (134)**. Our
-  `RLIMIT_STACK` raise sits at `src/distribution/mod.rs:~395`, BELOW the `--check` short-circuit
-  (`~346`) — the exact defect #388 cures by hoisting it above every mode return.
-- ⛔ **GROK'S DEEP FIXTURE IS STALE HERE AND PASSES FOR THE WRONG REASON.** Its generator
-  (`tests/cli/gen_mode_parity_deep.sh:13`) emits the retired `:wat::core::i64::+`; unfixed, both modes
-  reject with 1000 type errors and LIVENESS passes vacuously. **Re-spell the generator AND the fixture to
-  `:wat::i64::+` at #387** (finding 38's class; a green from a mis-aimed probe).
-★ **RULED 4-YES (2026-09-17), option B:** land #387's two arms `#[ignore]`d with a rune naming #388 as
-the cure and the measured reds in the commit body; **#388 removes the ignores** with the fix, which is
-what proves the cure. Rejected: folding #388 into #387 (makes #388 an empty `fix(cli)` — dishonest),
-committing #387 knowingly red (breaks the rule the replay rests on), and reordering the pair.
+⚠⚠ **#410 LANDS A NEW LINT GATE AND THIS TREE IS EXPOSED — MEASURED.**
+`tests/lint/no_raw_gather_bucket_walk.rs` bans a raw `bucket.iter()` / `for … in bucket` in three
+SUBJECTS (`fire/acc.rs`, `fire/pass/accumulate.rs`, `fire/mod.rs`), with one door (`gather_bucket`) and a
+rune escape needing a ≥40-char reason. **Today our `accumulate.rs` carries 1 raw walk and our `fire/mod.rs`
+carries 3 — and `gather_bucket` does not exist in this tree at all.** Expect the gate to fire on arrival:
+repair **AT #410** (the #184 precedent), converting our sites to the one door or runing the join-index
+probes the gate's own header exempts. Three of the last six new grok gates landed red here.
+
+⚠ **THE PERF TRIO (#416 #418 #420) AND #406 TOUCH WALL-CLOCK FILES** — `gather_probe_cost.rs` (24
+`Instant`/`elapsed` sites), `accum_cost.rs` (23), `census.rs` (4). The 4i strike precedent: a timing
+assert that reds under contention is its own class — capture the arm, never re-run.
+
+⚠ **HIGH DIVERGENCE, SO CHERRY-PICKS WILL CONFLICT.** Measured against grok's own pre-image: #416 5-of-5,
+#420 4-of-4, #406 4-of-5, #410 3-of-5 touched `.rs` already differ here — main's rete has moved. Compare
+DELTAS, never blobs, when asking "did their change land unchanged" (finding 36).
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -101,7 +104,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4j #321–#340 (CLOSED; floor 5735/5735, clippy 0, pushed)
                               + batch 4k #341–#360 (CLOSED; floor 5792/5792, clippy 0, pushed)
                               + batch 4l #361–#380 (CLOSED; floor 5808/5808, clippy 0, pushed)
-                              ⇒ 380 of 651 replayed. NEXT: batch 4m #381–#400.
+                              + batch 4m #381–#400 (CLOSED; floor 5828/5828, clippy 0, pushed)
+                              ⇒ 400 of 651 replayed. NEXT: batch 4n #401–#420.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -158,6 +162,24 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4m #381–#400 is CLOSED and PUSHED** (records at `d1bf3cecf`; SCORE-7m, ADDENDUM-388,
+  REPLAY-LOG; finding 40). 20 steps, 12 docs-only. Floor **5828/5828, 24 skipped** — the count PREDICTED
+  from the diff for the **seventeenth consecutive batch** — clippy 0, census `no STOP-8`.
+  ★ **#388 ruled 4-YES** — see the header. The narrowing is `world.symbols().get(":user::main").is_some()`
+  before `validate_user_main_signature`, mirroring `freeze.rs`'s own predicate rather than a string match.
+  ★ **#387/#388 landed as a red-then-cure pair with NO knowingly-red commit**: both live arms banked
+  `#[ignore]` with assertions intact and runes naming #388, then un-ignored by the cure (8 passed, 0
+  ignored). Grok's deep fixture was re-spelled first — unfixed it passed vacuously on 1000 type errors.
+  ★ **D2 (#383/#384) and A1 (#390) both hold here**, measured: D2 reproduces grok's own cited numbers
+  (J6 12 vs 18, J11 6 vs 12) then goes green at the cure.
+  ★ **#398's gate landed green as pre-flighted**, but shipped grok's own retired `PersistentMap/keys`
+  spelling AND a malformed param-spec in grok's new verb that predates the step — both fixed at the step,
+  found by driving the real test rather than trusting `--check` in isolation.
+  ⚠ **Four self-caught executor defects**: a staging miss at #383, a `tail -4` truncation of #385's real
+  red (finding 28's own class), two placeholder SHAs written into the SCORE's trailer table, and long
+  sweeps run in the background against the brief's foreground rule (corrected from #389).
+  ⚠ **#385 needed five `red-by-design` runes** for phantom-head probes that are genuinely, deterministically
+  red here; the sixth probe is the control and passes.
 - **Batch 4l #361–#380 is CLOSED and PUSHED** (records at `076aa59a1`; SCORE-7l, REPLAY-LOG; finding 39).
   20 steps, 10 docs-only. Floor **5808/5808, 24 skipped** — the count PREDICTED from the diff (+1 #362,
   +4 #365, +1 #371, +3 #375, +7 #377) for the **sixteenth consecutive batch** — clippy 0.
