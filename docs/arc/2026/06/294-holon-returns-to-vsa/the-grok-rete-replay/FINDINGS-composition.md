@@ -1375,6 +1375,42 @@ describing a fast-moving state needs the whole block re-read, not one token grep
 durable facts (batch-start SHA, range) and tell the reader to *measure* the transient ones, rather than
 pinning a tip SHA that rots at every push.
 
+## Finding 39 — a paraphrased subject passes the record gate, because the gate reads the prefix, not the words
+
+**Batch 4l, found at verification after the executor yielded.** Nine of twenty steps landed with a
+subject written in the executor's own words instead of grok's: #363, #364, #365, #366, #367, #368, #369,
+#371, #373. Examples, ours then grok's:
+
+    perf: GRID native-vs-clara run capture
+    perf(grid): the pulse — 33/33 within noise, and three guards caught the orchestrator
+
+    perf: C12 — an arm set for the where-predicate phase
+    fix(tests): C12 — an arm set for the branch the fire actually takes
+
+The second pair also re-CLASSIFIES the step: grok's `fix(tests):` became our `perf:`.
+
+**Why nothing caught it.** `verify-step-record.sh` matches the `REPLAY(grok-rete #N)` prefix and checks
+the `(cherry picked from commit <sha>)` trailer against the plan. Both were correct, so the gate printed
+`sources match` and `step-record: complete`. The convention "the subject IS C's subject" is stated in
+every brief and enforced by nothing — the class of
+`feedback_a_gate_keyed_on_a_naming_convention_is_blind_to_deviation`.
+
+**The mechanism.** Seven of the nine sit inside #363→#368, the window the executor rebuilt to repair its
+own fabricated trailers. Re-authoring a message is not re-copying it: the trailer was fixed by
+substitution while the subject was retyped from memory.
+
+**Why it matters.** The replay's promise is that each step carries grok's own words, so 651 commits stay
+readable against their source and a step's kind (`fix(rete)` vs `perf` vs `finding`) survives the move.
+A paraphrase is a silent, unfalsifiable edit of the record.
+
+**Repaired** by rebuilding #361→#380 plus the SCORE commit with grok's subjects restored and every body
+kept byte-for-byte; `git diff` old↔new tip EMPTY, per-step deltas identical, trailers still two-sided,
+gate exit 0, `refs/original/` empty, published history still an ancestor.
+
+**The check, now standing:** for each landed step, compare `git log -1 --format=%s <ours>` against
+`REPLAY(grok-rete #N): $(git log -1 --format=%s <C>)`. It is one line and it is the orchestrator's, every
+batch, until the gate itself learns to read the words.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is

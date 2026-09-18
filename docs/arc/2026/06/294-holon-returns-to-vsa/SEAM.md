@@ -21,50 +21,50 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `d940cf3ab` (batch 4k's records, pushed). **360 of 651 replayed.** In flight: nothing.
+Stamp: written on top of `076aa59a1` (batch 4l's records, pushed). **380 of 651 replayed.** In flight: nothing.
 
-**Batch 4k (#341–#360) is CLOSED and PUSHED.** Floor **5792/5792, 24 skipped** — the count predicted from
-the diff before running, **fifteenth consecutive exact match** — clippy 0, lint-subset 293, kind(lib) 1496,
-doctest 8, range gate exit 0, origin an ancestor, 0 `refs/original`, 0 replace refs. Detail in the ledger
-row below and `SCORE-7k-replay-batch-4k.md`.
+**Batch 4l (#361–#380) is CLOSED and PUSHED.** Floor **5808/5808, 24 skipped** — the count predicted from
+the diff before running, **sixteenth consecutive exact match** — clippy 0, range gate exit 0, origin an
+ancestor, 0 `refs/original`, 0 replace refs. The quarantine **drained 7 → 6 → 0** exactly as grok's C20
+cure predicted, measured at 24 fresh runs per fixture. Detail in the ledger row below and
+`SCORE-7l-replay-batch-4l.md`.
 
-Next is **batch 4l (#361–#380)**: censused — **10 docs-only, 10 code (#362 #363 #365 #367 #369 #371 #373
-#375 #377 #379)**, **ZERO hazard rows**, **no new `tests/lint/` gate file**, no `wat-scripts/fixes/` edit.
-⚠ Three trap doors, named in advance:
-- **#362 and #375 are grok's C20 cure** ("hash order is now unrepresentable"; grok's tip ends with
-  `QUARANTINE_LEN = 0`). ⛔ **Our quarantine is 7, not grok's 3** — four shared `arc170` fixtures grok's
-  two-run measurement missed were added at #352. **At #375 the list must drain to 0 INCLUDING our four**;
-  a survivor is a FINDING (C20's cure did not reach it), never a row kept to stay green. #362 touches
-  `src/freeze.rs` and #375 `src/check.rs` — the only 4l overlap with 4k's src files.
-- **#377 (9 files, 3 under `wat/`) and #379 (28 files, 25 `.wat`, 10 under `wat/`) are STDLIB steps**
-  (`stdlib-touch.tsv`): the two-phase / R21 path, not `--check`/`convert.sh`. Measure which before release.
-- **D10/D11 landed as narrow FALLBACKS here** (`then_operand_declared_type(...).is_none()`), not grok's
-  shape — main's `RhsOperandTypeMismatch` already covered them. Measured: no 4l step touches
-  `src/rete/validate/`.
+⚠⚠ **FINDING 39 — NINE SUBJECTS WERE PARAPHRASED AND THE GATE COULD NOT SEE IT.** The record gate reads
+the `REPLAY(grok-rete #N)` prefix and the trailer, never the words, so nine 4l steps landed with the
+executor's own subject (and one re-classified `fix(tests):` as `perf:`). Repaired by rebuild; proven
+inert. ⛔ **THE ORCHESTRATOR'S STANDING CHECK, EVERY BATCH:** compare each landed subject against
+`REPLAY(grok-rete #N): $(git log -1 --format=%s <C>)`.
+
+Next is **batch 4m (#381–#400)**: censused — **12 docs-only, 8 code (#381 #383 #384 #387 #388 #390 #398
+#400)**, **ZERO hazard rows**, both M-status-absent paths created earlier in the range (#383→#384,
+#396→#398). #398 is the only `wat/` step (3 files, `stdlib-touch`) and lands **one new lint gate**
+(`tests/lint/no_raw_network_keys_in_oracle.rs`).
+
+⚠⚠ **#387/#388 ARE A DELIBERATE RED-THEN-CURE PAIR, AND BOTH ARMS ARE LIVE ON THIS TREE.** #387 lands
+`tests/cli/mode_parity.rs`, a gate grok intends to FAIL until #388 cures it. **Measured here before
+release, with grok's own fixtures:**
+- **SOUNDNESS is red here**: `mode_parity__empty.wat` → `--check` rc **0** (Accepted), run rc **4**
+  (Rejected). Our `--check` accepts a program with no `:user::main` that the run path refuses.
+- **LIVENESS is red here**: the deep fixture → run rc **0**, `--check` **SIGABRT (134)**. Our
+  `RLIMIT_STACK` raise sits at `src/distribution/mod.rs:~395`, BELOW the `--check` short-circuit
+  (`~346`) — the exact defect #388 cures by hoisting it above every mode return.
+- ⛔ **GROK'S DEEP FIXTURE IS STALE HERE AND PASSES FOR THE WRONG REASON.** Its generator
+  (`tests/cli/gen_mode_parity_deep.sh:13`) emits the retired `:wat::core::i64::+`; unfixed, both modes
+  reject with 1000 type errors and LIVENESS passes vacuously. **Re-spell the generator AND the fixture to
+  `:wat::i64::+` at #387** (finding 38's class; a green from a mis-aimed probe).
+★ **RULED 4-YES (2026-09-17), option B:** land #387's two arms `#[ignore]`d with a rune naming #388 as
+the cure and the measured reds in the commit body; **#388 removes the ignores** with the fix, which is
+what proves the cure. Rejected: folding #388 into #387 (makes #388 an empty `fix(cli)` — dishonest),
+committing #387 knowingly red (breaks the rule the replay rests on), and reordering the pair.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
-time** at 4k, and there its CURE tripped finding 33's gate: making a non-deterministic prefix pin exact
-closed its brackets into a parseable form. **After any fold that edits a `.rs` string literal, re-run the
-lint subset before the floor.**
+time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
+re-run the lint subset before the floor.**
+
 ★ **#324 (batch 4j) was ruled option A, 4-YES** — the reasoning and the still-open option B live in the
 4j ledger row below and `BRIEF-7j-ADDENDUM-324-the-then-match-collision.md`. ⛔ Still: no replay step
 touches `wat/rete/compile.wat`; grok's `okF` row (a `match` in a `:then` arm body) was dropped at #349 for
 the same fence and returns only with option B.
-⚠ **`.wat` FILES RETURN: 13 across the range** (#324's 5, #328's 3, #332's 2, #336's 2, #327's 1) after
-two batches with none — so **`--check` and `convert.sh` conversion work reappears**.
-⛔ **CORRECTION, 2026-09-16:** an earlier version of this line said "R21 is live again — corpus rewrites
-go through a recorded wat-fix codemod". **That overstated it and the pre-flight disproved it.** All 13 are
-NEW files under `tests/rete/`, `wat-scripts/scratch-pad/` and `docs/arc/**`; **not one lives under `wat/`**
-and no `wat-scripts/fixes/` file is touched. Adding fixtures is not a structural corpus rewrite, so R21's
-codemod path is NOT triggered here — reach for a codemod only if a conversion proves structural across
-many files. Recorded rather than quietly edited, per finding 37: I propagated an unverified claim into a
-pushed record one commit after writing the finding against doing exactly that.
-⚠ **#332 is a FINDING, not a fix** — *"D7 is LIVE — native drops a derived fact"*. Expect a step that
-records a live bug rather than curing one; #336 is its cure.
-⚠ **#329's own subject says grok PUSHED A RED** (*"D6 closed; and I pushed a red f…"*). Read that body
-before landing it — our rule is no knowingly-red REPLAY commit, and grok's own account of a red it
-shipped is exactly the kind of history that needs the fold rule considered at the step.
-⚠ **#333 is grok repairing its own deleted table** (*"restore the Class D table my own edit deleted"*).
 📊 **THREE FOR FOUR — and the fourth is the important one.** #274 → 9 undeclared + 1 hollow. #278 → 63
 rune declarations. #283 → red 3-of-20. **#310 → GREEN, zero repair needed.** I wrote "it WILL land red"
 into BRIEF-7i as near-certainty and propagated "four for four" into three permanent records before it was
@@ -100,7 +100,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + the binding-repr STRIKE (4d5287a53; two timing asserts, 4-YES)
                               + batch 4j #321–#340 (CLOSED; floor 5735/5735, clippy 0, pushed)
                               + batch 4k #341–#360 (CLOSED; floor 5792/5792, clippy 0, pushed)
-                              ⇒ 360 of 651 replayed. NEXT: batch 4l #361–#380.
+                              + batch 4l #361–#380 (CLOSED; floor 5808/5808, clippy 0, pushed)
+                              ⇒ 380 of 651 replayed. NEXT: batch 4m #381–#400.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -157,6 +158,21 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4l #361–#380 is CLOSED and PUSHED** (records at `076aa59a1`; SCORE-7l, REPLAY-LOG; finding 39).
+  20 steps, 10 docs-only. Floor **5808/5808, 24 skipped** — the count PREDICTED from the diff (+1 #362,
+  +4 #365, +1 #371, +3 #375, +7 #377) for the **sixteenth consecutive batch** — clippy 0.
+  ★ **The quarantine reached 0**: #362 dequarantined the mutual-cycle fixture (7 → 6) and #375's C20
+  sort drained the rest, INCLUDING the four this tree found at #352, each swept 24 fresh processes.
+  ★ **#375 regenerated 15 main-only artifacts rather than copying grok's text** — 13 `.edn` via
+  `UPDATE_EDN=1`, two `include_str!` CLI goldens hand-derived (no bless path), and a `.wat` fixture
+  adapted; each verified a pure REORDER, no content or count change. Finding 38's class at scale.
+  ★ **A measured divergence:** the two originally-quarantined fixtures raise **23 and 8** check errors
+  here, not grok's 9 and 4 — this tree carries a stricter "positional variant construction is retired"
+  check that their boilerplate trips. The new gate's pinned sequences were adapted to our real values.
+  ⚠ **Two self-caught executor incidents:** fabricated trailers at #363–#368 (repaired by
+  detach/re-commit/rebuild, tree byte-identical), and two second-order lint trips from finding-33 fixes.
+  ⛔ **And one the executor did NOT catch — finding 39**, nine paraphrased subjects, repaired by the
+  orchestrator's rebuild; `git diff` old↔new tip EMPTY.
 - **Batch 4k #341–#360 is CLOSED and PUSHED** (records at `d940cf3ab`; SCORE-7k, ADDENDUM-352,
   REPLAY-LOG; finding 38's fourth instance). 20 steps, 13 docs-only. Floor **5792/5792, 24 skipped** — the
   count PREDICTED from the diff (+44 lint from #352/#360's 16-shard gates, +13 rete probes) for the
