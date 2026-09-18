@@ -719,10 +719,19 @@ pub fn check_program(
     }
 
     // Stone 241.14 — generic restriction walker (`walk_for_restricted_call`).
-    // For every fn body, walk every call site; if the call head names a
-    // binding with a `:restricted-to` key in `binding_metadata`, verify
+    // For every fn body, walk every MENTION — every `WatAST::Keyword` leaf,
+    // in any position, not only ones sitting in call-head position (arc 198:
+    // to call a thing you must first name it) — EXCEPT leaves inside quoted
+    // data, which name something for a different program to resolve later
+    // and are not mentions by this fn at all. If the mentioned name has a
+    // `:restricted-to` key in `binding_metadata`, verify
     // the enclosing fn FQDN matches the binding's allowed-caller-prefix
-    // whitelist. Subsumes arc 170 Stone B's hard-coded
+    // whitelist.
+    // ⚠ This comment read "walk every call site; if the call head names a
+    // binding" until 2026-09-18 — it described the pre-arc-198 rule the code
+    // had already stopped implementing, and a reader who trusted it could not
+    // have predicted a single one of the nine stdlib errors that finding
+    // produced. The rule the code means is the one written above. Subsumes arc 170 Stone B's hard-coded
     // `validate_join_result_user_namespace` rule (deleted in arc 198
     // slice 2 Stone 4 once Stone 3 applied `#[restricted_to(":wat::")]`
     // to `eval_kernel_*_join_result`) — the restriction is declared at
@@ -1625,6 +1634,26 @@ fn extract_prefix_list_from_metadata(meta: &HashMap<String, WatAST>) -> Option<V
 /// variant, same span source — no new storage, nothing added to any
 /// builtin.
 ///
+/// ⛔ QUOTED DATA IS NOT A MENTION (2026-09-18, excursus 001-sns-sqs
+/// `a-mention-in-a-quoted-form-is-not-a-call`). Arc 198's width is over
+/// POSITION — head, argument, `let` binding, map value, collection literal —
+/// and every escape it closed is a name this program RESOLVES: the load-
+/// bearing property is that the check stays syntactically decidable while a
+/// value can be rebound. A `WatAST::Keyword` inside `(:wat::core::quote …)`,
+/// `(:wat::core::forms …)`, `(:wat::holon::literal …)` or a quasiquote
+/// TEMPLATE is none of those. It is source text for a CHILD program — a name
+/// resolved in a different program, at a different time, by a different
+/// caller — so a CALLER-restriction applied to it checks the wrong thing at
+/// the wrong time. The witness: `{:restricted-to [:my::]}` on the user's own
+/// `:user::main` produced nine `DefRestrictedCallerNotAllowed` errors inside
+/// six STDLIB files, because nine `…::service-forms` bodies quote
+/// `:user::main` into the program they hand a spawned child.
+///
+/// The exemption is exactly "quoted-and-not-unquoted": an unquote escape
+/// (`~x` / `~@x`) inside a quasiquote IS evaluated here and now, so it
+/// resumes the full walk — see [`walk_restricted_quasiquote_template`].
+/// Exempting a whole quasiquote instead would reopen arc 198 through `~`.
+///
 /// Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2, ruling B2) —
 /// `owner_type` is `enclosing_fn`'s `Function::synthesized_for`: `Some(T)`
 /// iff this body was RUNTIME-SYNTHESIZED as T's positional prime ctor
@@ -1660,11 +1689,93 @@ fn walk_for_restricted_call(
             }
         }
     }
+    // ── The quote-family boundary — a mention inside quoted data is not a
+    // mention BY this function (see the doc's "quoted data" section above).
+    // Classification comes from `resolve::boundary::quote_boundary`, the
+    // single encoding of "which heads capture arguments as data"; this
+    // walker is its fourth consumer (after `resolve::walk`,
+    // `resolve::normalize` and `macros::expand`) rather than a fifth,
+    // hand-rolled copy that can drift from them.
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            match crate::resolve::boundary::quote_boundary(head) {
+                // `quote` / `forms` / `literal` — EVERY argument is data; no
+                // child is code, and there is no escape hatch out of them.
+                // The head itself is a live mention (it is this form's own
+                // call head), so it is walked; `items[1..]` is not.
+                crate::resolve::boundary::Boundary::AllData => {
+                    walk_for_restricted_call(&items[0], enclosing_fn, owner_type, env, errors);
+                    return;
+                }
+                // `quasiquote` — the template is data EXCEPT inside
+                // `unquote` / `unquote-splicing` escapes, which ARE evaluated
+                // here and now and are therefore real mentions.
+                crate::resolve::boundary::Boundary::Quasiquote => {
+                    walk_for_restricted_call(&items[0], enclosing_fn, owner_type, env, errors);
+                    for arg in items.iter().skip(1) {
+                        walk_restricted_quasiquote_template(arg, enclosing_fn, owner_type, env, errors);
+                    }
+                    return;
+                }
+                // Every other boundary (`matches?`, `match`, `make-rule`,
+                // `Ordinary`) keeps the arc-198 width: their "data" regions
+                // are DSL argument shapes resolved in THIS program, not
+                // child-program source, so a restricted name in one is still
+                // a mention by this function.
+                _ => {}
+            }
+        }
+    }
     // Arc 212 — generic recursion via children() covers List, Vector,
     // Map, and Set uniformly. children() returns &[] for leaf nodes
     // (Keyword included, so this is a no-op once the node above fires).
     for child in node.children().iter() {
         walk_for_restricted_call(child, enclosing_fn, owner_type, env, errors);
+    }
+}
+
+/// Quasiquote-template descent for the restriction walker — the FOURTH
+/// quasiquote descent in the tree (after `resolve::quote::check_quasiquote_template`,
+/// `resolve::normalize::normalize_quasiquote_template` and
+/// `closure_extract`'s free-symbol walk), and deliberately the same shape as
+/// the first: template text is data, and the ONLY place data gives way to
+/// live code is an `is_unquote_escape` head, whose arguments resume the full
+/// [`walk_for_restricted_call`].
+///
+/// ⛔ This is the whole point of the narrowing. Exempting everything under a
+/// quasiquote would reopen arc 198's hole through `~`:
+///
+/// ```text
+/// `(… ~(:wat::kernel::str-double "x" 2) …)   ← evaluated NOW, in THIS program: a mention
+/// `(…  (:wat::kernel::str-double "x" 2) …)   ← template text, resolved later, elsewhere
+/// ```
+///
+/// Nested `(:wat::core::quasiquote …)` inside a template is treated as
+/// template data whose children are still scanned for escapes — the same
+/// reading `check_quasiquote_template` takes, so the two cannot disagree
+/// about what a nested template means.
+fn walk_restricted_quasiquote_template(
+    node: &WatAST,
+    enclosing_fn: &str,
+    owner_type: Option<&str>,
+    env: &CheckEnv,
+    errors: &mut Vec<CheckError>,
+) {
+    if let WatAST::List(items, _) = node {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if crate::resolve::boundary::is_unquote_escape(head) {
+                // Escape: the argument is live code in THIS program.
+                for arg in items.iter().skip(1) {
+                    walk_for_restricted_call(arg, enclosing_fn, owner_type, env, errors);
+                }
+                return;
+            }
+        }
+    }
+    // Arc 212 — generic recursion via children() covers List, Vector, Map and
+    // Set uniformly, so an escape inside a bracketed form is still found.
+    for child in node.children().iter() {
+        walk_restricted_quasiquote_template(child, enclosing_fn, owner_type, env, errors);
     }
 }
 

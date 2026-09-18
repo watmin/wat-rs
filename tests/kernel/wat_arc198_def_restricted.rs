@@ -155,3 +155,67 @@ fn def_restricted_value_position_alias_denied() {
         &[":my::kernel::"],
     );
 }
+
+// ─── Tests 7–10 — a mention in a QUOTED form is not a call ────────────────
+//
+// excursus/2026/08/001-sns-sqs/a-mention-in-a-quoted-form-is-not-a-call.
+//
+// Arc 198 widened this walker from "call head" to "mention" because to call a
+// thing you must first name it, and the escapes it closed — a `let` alias, an
+// `apply` argument, a `kwargs-construct` trampoline — are all names THIS
+// program resolves. Its load-bearing property is decidability: a value can be
+// rebound, so the check must stay syntactic.
+//
+// A `WatAST::Keyword` inside `(:wat::core::quote …)`, `(:wat::core::forms …)`,
+// `(:wat::holon::literal …)` or a quasiquote TEMPLATE is none of those. It is
+// source text for a CHILD program — resolved in a different program, at a
+// different time, by a different caller. Restricting who may CALL a name says
+// nothing about who may WRITE it into a template, so the walker stopped
+// firing there. The exemption is exactly "quoted-and-not-unquoted": test 10 is
+// the wall that keeps `~` from reopening arc 198.
+
+#[test]
+fn quoted_mention_users_own_restricted_main_does_not_redden_the_stdlib() {
+    // THE WITNESS. `{:restricted-to [:my::]}` on the user's own `:user::main`
+    // produced NINE `DefRestrictedCallerNotAllowed` errors across SIX stdlib
+    // files, because nine `…::service-forms` bodies quote `:user::main` into a
+    // `(:wat::core::forms …)` child-program template. Not one error was in the
+    // user's own file, and the remedy text told them to move a stdlib fn.
+    startup_from_file("tests/kernel/wat_arc198_quoted_mention_ok_user_main.wat")
+        .expect("the user's own restricted `:user::main` must not redden stdlib bodies");
+}
+
+#[test]
+fn quoted_mention_users_own_restricted_service_locus_does_not_redden_the_stdlib() {
+    // The SECOND witness, independent of the first and one body wider: the same
+    // nine templates plus `:wat::spawn::ProcessOpts/launch` quote
+    // `:user::spawn::service-locus` — 10 stdlib bodies from one metadata-map.
+    startup_from_file("tests/kernel/wat_arc198_quoted_mention_ok_service_locus.wat")
+        .expect("the user's own restricted `:user::spawn::service-locus` must not redden stdlib bodies");
+}
+
+#[test]
+fn quoted_mention_template_text_is_not_a_mention_by_the_enclosing_fn() {
+    // The narrowing stated positively, over BOTH quote-family shapes that carry
+    // a child program: `(:wat::core::forms …)` (`Boundary::AllData`) and a
+    // quasiquote template with no escape (`Boundary::Quasiquote`). The
+    // restricted `:my::kernel::restricted-fn` appears in both, from `:user::`
+    // fns, and neither is a call.
+    startup_from_file("tests/kernel/wat_arc198_quoted_mention_ok_templates.wat")
+        .expect("a restricted FQDN as template text must not fire");
+}
+
+#[test]
+fn quoted_mention_unquote_escape_inside_a_quasiquote_still_fires() {
+    // ⛔ THE BOUNDARY, and the whole implementation. `~` is evaluated NOW, in
+    // THIS program, so a restricted name inside the escape is a real mention.
+    // Exempting the whole quasiquote instead would reopen arc 198 through `~`
+    // — and the escape's body here is arc 198's own `apply`-laundering shape,
+    // with the FQDN in ARGUMENT position rather than call-head position.
+    assert_restricted_call_rejected(
+        "tests/kernel/wat_arc198_quoted_mention_bad_unquote_escape.wat",
+        ":my::kernel::restricted-fn",
+        ":user::sneaky",
+        &[":my::kernel::"],
+    );
+}
