@@ -1,30 +1,38 @@
-# SCORE — F1 explain attribution order (after REVIEW)
+# SCORE — F1 after REVIEW-2
 
-The first SCORE's rune on `node-parents` was narrower than its use. Sorted that walk too; rune gone; Gate B now compares the derivation the token yields.
+The two-arm `:or` gate was blind, same as F1 at two producers. Widened to eight arms. The token defect is **real**. The cure closed it. The gate is a proof.
 
 ## Scorecard
 
 | # | result |
 |---|---|
-| 1★ 2★ deterministic + agrees | **HOLD.** Unchanged: harvest-support walks `topological-node-ids`. |
-| 3★ control | **HOLD.** Single-producer row still agrees. |
-| 4★ Gate A | **HOLD, tighter.** Exemption list is **empty**. Exactly one `PersistentMap/keys network` in oracle code, inside the verb. A rune does not save a raw walk (`a_runed_walk_is_still_a_hit`). |
-| 5★ five sites | **HOLD, revised.** `node-parents` now **calls the verb** (was runed). The other four still call it. |
-| 6 one definition | **HOLD.** |
-| 7 floor | **HOLD.** `Summary [ 433.929s] 5437 tests run: 5437 passed (1 slow), 21 skipped`. `.floor/2026-09-05T12-49-06Z/`. (+2 Gate B `:or` tests vs the previous floor.) |
-| 8 clippy | **HOLD.** `cargo clippy --all-targets --release -- -D warnings` rc=0. |
-| 9 blast | **HOLD.** Zero `src/`. |
+| 1★ 2★ 3★ rule attribution | **HOLD.** Unchanged. |
+| 4★ Gate A | **HOLD.** Exemption list empty. |
+| token path | **PROVEN.** See samples below. |
+| 7 floor | **HOLD.** `Summary [ 433.054s] 5437 tests run: 5437 passed (1 slow), 21 skipped`. `.floor/2026-09-05T13-22-27Z/`. |
+| 9 blast | **HOLD.** Zero `src/`. Sort restored after the mutation. |
 
-## What changed in this pass
+## Both sample sets
 
-`pass.wat` `node-parents` iterates `topological-node-ids`. Parent-id VECTOR order is now topological, matching native `index_network_edges` (walks `sorted_node_ids`). `tokens-from-parents` is deterministic → `Support/token` is deterministic → the derivation tree is deterministic.
+**Sorted tree** (`node-parents` walks `topological-node-ids`): 8/8 processes green.
 
-The rune is deleted. Gate A no longer has a carve-out.
+**Mutation** (`node-parents` reverted to `PersistentMap/keys network`; rebuild 59.9s, `include_str!` confirmed): 8 processes, **6 red / 2 green**.
 
-Gate B extended: `:or` rule whose two arms (`:orx::Left` / `:orx::Right`) derive the same `:orx::Out`. Compares `via[0]` supporting-fact type, native == oracle. Left-only control. `or_two_arms_native_and_oracle_attribute_the_same_token` / `or_control_a_single_arm_agrees`.
+| process | oracle via[0] vs native `orx::A1` |
+|---|---|
+| 1 | `"orx::A6"` FAIL |
+| 2 | `"orx::A6"` FAIL |
+| 3 | `"orx::A4"` FAIL |
+| 4 | pass |
+| 5 | `"orx::A3"` FAIL |
+| 6 | `"orx::A5"` FAIL |
+| 7 | `"orx::A6"` FAIL |
+| 8 | pass |
 
-Sorting `node-parents` changed no existing rete test (486/486, including the two new). STOP-1 did not fire.
+Native is stable `orx::A1`. Oracle HAMT-picks A3/A4/A5/A6. Two processes happened to agree — the same probabilistic green that made two arms look like a gate.
 
-## Not this
+Rebuild was forced (not a stale binary). Sort restored after capture.
 
-F2. `src/`. The four sites already on the verb.
+## What the gate is
+
+`or_eight_arms_native_and_oracle_attribute_the_same_token` — eight `:or` arms (`:orx::A1`…`:orx::A8`) all derive `:orx::Out :k 1`. Compares `via[0]` supporting-fact type. A1-only control. At two arms this row could not go red; at eight it does, under the defect, and does not, under the cure.

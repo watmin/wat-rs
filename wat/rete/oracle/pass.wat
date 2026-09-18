@@ -5,6 +5,16 @@
 ;;
 ;; Namespace: :wat::rete::
 
+;; topological-node-ids — compile mints ids left-to-right, so ascending id IS
+;; topological. PersistentMap/keys is HAMT order — not that. Native sorts
+;; (`sorted_node_ids`); the spec must too. ONE definition: a raw keys-walk
+;; over `network` has no other form in the oracle (arc 278 F1).
+(:wat::core::defn :wat::rete::topological-node-ids
+  [network <- :wat::core::PersistentMap]
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::sort (:wat::core::into (:wat::core::Vector :- [:wat::core::i64])
+                      (:wat::map::keys network))))
+
 ;; activate-fact — fold step: try one fact against a single AlphaNode's condition.
 ;; On a match, appends an Element(fact, bindings) to alpha-memory at alpha-id;
 ;; on no match, returns alpha-memory unchanged.
@@ -174,7 +184,7 @@
               -1)
             -1))))
     -1
-    (:wat::map::keys network)))
+    (:wat::rete::topological-node-ids network)))
 
 ;; any-seeded-element? — rete exists/not over alpha elements, rematched with
 ;; the token's left bindings (`alpha-match-under`). Compatible-only drops
@@ -221,7 +231,7 @@
                                           -1))
                                       -1))))
                               -1
-                              (:wat::map::keys network))]
+                              (:wat::rete::topological-node-ids network))]
       (:wat::core::if (:wat::i64::>= found 0)
         (:wat::core::Option.Some {:value found})
         :wat::core::Option.None))))
@@ -392,7 +402,7 @@
           (:wat::vector::conj acc node-id)
           acc)))
     (:wat::core::PersistentVector)
-    (:wat::map::keys network)))
+    (:wat::rete::topological-node-ids network)))
 
 ;; tokens-from-parents — concat beta-memory tokens from every parent.
 ;; Condition `:or` leaves N terminals; a later Test/:not/:exists/accum
