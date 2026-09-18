@@ -2084,13 +2084,17 @@ fn dispatch_where_tests(
                     continue;
                 }
                 if proven.contains(&tid) && sink.where_tree.is_pure_cmp(tid) {
+                    // Tree-proven push: `exec_stashed_where` is not called.
+                    // `filter:test-reuse` is this event. Not `filter:test-pass`
+                    // (that key is evaluated-and-passed only; arc 278 census-name).
                     census_count("filter:test-reuse");
-                    census_count("filter:test-pass");
                     record_token(&mut sink.wm.beta, sink.d_beta, sink.beta_readers, tid, *tok);
                     continue;
                 }
+                // `exec_stashed_where` is about to run.
                 census_count("filter:test-evals");
                 if exec_stashed_where(sink.compiled_wheres, tid, &binds, sink.sym)? {
+                    // Predicate ran and returned true. Subset of `filter:test-evals`.
                     census_count("filter:test-pass");
                     record_token(&mut sink.wm.beta, sink.d_beta, sink.beta_readers, tid, *tok);
                 }
@@ -2099,6 +2103,7 @@ fn dispatch_where_tests(
     } else {
         for &tid in tids {
             for tok in tokens {
+                // Fallback: no tree coverage. `exec_stashed_where` is about to run.
                 census_count("filter:test-evals");
                 if exec_stashed_where(
                     sink.compiled_wheres,
@@ -2111,6 +2116,7 @@ fn dispatch_where_tests(
                     ),
                     sink.sym,
                 )? {
+                    // Predicate ran and returned true. Subset of `filter:test-evals`.
                     census_count("filter:test-pass");
                     record_token(&mut sink.wm.beta, sink.d_beta, sink.beta_readers, tid, *tok);
                 }
