@@ -405,7 +405,45 @@ and I read it as a live work list. Its §2 happened to still be live (that becam
 days dead. **The tell was available and free: run the repro.** The README now carries a banner saying
 so.
 
-### ⏭ D2 — DRIVEN 2026-08-31. The code asymmetry is REAL; no constructed input reaches it. **LATENT, not live.**
+### ⛔⛔ D2 — **LIVE.** DRIVEN 2026-09-05 with the probe this row itself asked for and nobody built.
+
+> **The bounded negative was WRONG.** `right_idx[J]` accumulates duplicate elements — **J6 carries 18
+> against a mark of 12; J11 carries 12 against 6** — persisting to fixpoint. Two joins, two different
+> bypass sites (`hash_join.rs:298` step-2 Δright; `:185` first-keying catch-up). J4 and J9 are
+> maintainer-only controls and hold, so the assert discriminates.
+>
+> **Why two honest drives cleared it:** both were native-vs-oracle on `:derived`, which every axis
+> header defines as *"the FULL SORTED derived-fact **SET**"*. **D2 duplicates TOKENS**, and
+> `seen_insert` dedups them into the same fact set. **The differential is blind by construction** —
+> the fifth instrument this arc has caught returning green over a defect it could not see (C16's
+> filter, C14's zero-contributing arms, C18's `assert!(!ok)`, C9's corpus hole, and this).
+>
+> ★ **This row's own last sentence named the cure and sat unactioned since 2026-08-31:** *"nothing
+> here inspected `right_idx_n` directly."* One strike built it.
+>
+> ⚠ **The stagger is load-bearing, and no artifact said so.** The decoded shape ALONE produces a
+> **vacuous partition** — J4 maintainer-only, J6 bypass-only, invariant true because the two writers
+> never meet on one index. The probe's own guard caught that and refused a verdict. Two waves of
+> facts are what force the overlap; this is very likely why the 2026-08-31 drives found nothing *on
+> the right shape*.
+>
+> ⛔ **The orchestrator's "the defect moved down the ladder" correction was EXACTLY BACKWARDS** and is
+> struck: `hash_join.rs` has **zero** mentions of `right_idx_n` — the original evidence stands — and
+> `filter_after_join.rs:201` / `join_after_filter.rs:93` **do** maintain it, handing `indexed_n` to
+> the maintainer. Callers that route *through* the maintainer were conflated with the function that
+> bypasses it.
+>
+> ⏭ **UNFIXED. The acceptance test is banked `#[ignore]`** (`right_index_counter_invariant.rs`,
+> assertion INTACT — un-ignored it still REDs with the reading above). **Banking a live defect with an
+> idiom meant for unbuilt features was the orchestrator's error**; the cure is drawn at
+> `strike-d2-the-cure/` and un-banking it green is that strike's definition of done.
+>
+> ⏭ **ROWED: the grid cannot see this class.** `:derived` is a deduped set, so no port check —
+> including the three-way landed today — can detect a multiplicity defect. It needs a
+> multiplicity-sensitive column **and** a `filter → HJ(a) → HJ(b)` axis **with the stagger**. Same
+> pair as D7's parametric hole; the shape was supplied then and the observable never questioned.
+
+**The original row, kept:**
 
 The orchestrator owed this row a drive and has now paid it. **The result is a bounded negative, and
 "I could not construct a trigger" is NOT "there is no trigger."**

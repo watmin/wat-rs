@@ -658,6 +658,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &d_beta,
             &left_idx,
             &right_idx,
+            &right_idx_n,
             &seen_ids,
             &seen_rest,
             round_no,
