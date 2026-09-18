@@ -176,7 +176,7 @@ for node_id in &kind_ids.acc {
     let leftover = from_compiled.has_seed_cmp();
     let from_keys = from_compiled.bind_keys();
     let operand_keys = acc_fold.operand_keys();
-    let col_keys = from_compiled.slot_keys();
+    let col_keys: Vec<Value> = from_compiled.slot_keys().cloned().collect();
     let empty_fields: &[u8] = &[];
     let col_fields = wm
         .bind_only
@@ -212,7 +212,7 @@ for node_id in &kind_ids.acc {
                 from_elements,
                 bucket,
                 sym,
-                &acc_view(wm, col_keys, col_fields),
+                &acc_view(wm, &col_keys, col_fields),
             )? {
                 let new_tok = token_assoc(
                     &tok,
@@ -298,7 +298,7 @@ for node_id in &kind_ids.acc {
                 acc_fold,
                 &group_els,
                 sym,
-                &acc_view(wm, col_keys, col_fields),
+                &acc_view(wm, &col_keys, col_fields),
             )? {
                 let new_bindings = group_bindings.assoc(result_var.clone(), aggregate);
                 let new_tok = Token {
