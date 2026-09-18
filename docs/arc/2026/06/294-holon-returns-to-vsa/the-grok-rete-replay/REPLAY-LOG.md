@@ -2853,3 +2853,150 @@ rev-parse` — 0 mismatches (full table in `SCORE-7l-replay-batch-4l.md`).
 published tip (the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. See
 `SCORE-7l-replay-batch-4l.md` for the full row-by-row account against all 23 rows.
 
+## Batch 4m — #381→#400 (SCORE-7m-replay-batch-4m.md)
+
+## #381 — LANDED (fix(docs): F2 CLOSED). Clean auto-merge, 47 files (44 docs, 3 `.rs`
+## comment/doc-comment only — a symbol citation replacing a stale line-number citation, two
+## doc-comment tightenings, zero code lines changed).
+
+## #382 — docs-only, 3 files (D2 strike draw).
+
+## #383 — LANDED (finding(rete): D2 is LIVE, banked `#[ignore]`, assertion intact). Clean
+## auto-merge, 10 files.
+
+⛔ SELF-CAUGHT PROCESS DEFECT: the finding-33 fix to the new `right_index_counter_invariant.rs`
+was made to the working tree but never re-staged before `git commit -F -` created the first #383
+commit, so it captured grok's ORIGINAL retired-syntax file. Caught when #384's cherry-pick failed
+on the stray unstaged diff this left; repaired via `git add` + `git commit --amend` on #383 alone
+(zero descendants existed yet). Final SHA `b3335eff1`.
+
+⛔⛔ FINDING 33'S CLASS, MEASURED AND FIXED — the new test file ships wat embedded in `.rs` string
+literals using syntax this tree already retired: `:wat::rete::core::i64::+`/`::>` (Stone B-ii
+rehomed to `:wat::rete::i64::*`), `:wat::core::i64::+`/`::*` (Stone B-i rehomed to `:wat::i64::*`),
+and the retired positional match-arm / `assertion-failed!` forms. Re-spelled to this tree's live
+idiom (bracket arms, `:message` kwarg), matching the pattern already used 40 lines away in the same
+`tests/` module. Re-measured, forced with `--run-ignored all`: the banked test reproduces grok's
+own cited numbers exactly (J6 `indexed_n=12` vs `Σ=18`; J11 `indexed_n=6` vs `Σ=12`); the control
+(`a_single_hashjoin_shape_is_refused_as_inapplicable`) PASSES.
+
+## #384 — LANDED (fix(rete): D2 CURED — `JoinRightIndex` newtype, one door). Clean auto-merge,
+## 14 files (grok's diff), plus this tree's own finding-33 fix to the new scratch `.wat` file
+## (`d2-derived-fact-axis.wat` — the SAME retired spellings as #383's `.rs`, plus
+## `PersistentVector/concat`/`String/concat`/`i64::to-string`, all rehomed). Both `#[ignore]`s
+## removed; forced+normal runs verified. `fire_mod_cfg_test_sites_are_exactly_the_documented_set`'s
+## count moves 9→10 (a THIRD `#[cfg(test)]` shape: a test-only STATEMENT inside a production fn).
+
+## #385 — LANDED (vigilia 2026-09-05 docs sweep, 40 files, semantically docs-only but carrying 10
+## `.wat` + 5 `.rs` probe/example files under `docs/`, which the record gate's own EXTENSION-based
+## regex still requires walls for).
+
+⛔ A `| tail -4` TRUNCATION ON A REAL RED, SELF-CAUGHT. `every_docs_wat_loads_or_declares_why_not`
+went RED landing this step; the first wall script piped the run through `tail -4` (finding 28's own
+forbidden class), hiding the failure detail behind only a summary FAIL line. Caught immediately;
+re-captured the same DETERMINISTIC content-check test in isolation with no truncation (not the
+forbidden "re-run a red until it goes green" — the test is static, not timing-sensitive, and this
+capture is what drove every fix below).
+
+Two independent defect classes found by that one gate: (1) finding 33's class again, in 3 of the
+10 new `.wat` probes (identical fix pattern to #383/#384); (2) FIVE of the phantom-head calibration
+probes (`p1`/`p2`/`p3`/`p4`/`p6`) are genuinely, deterministically red-by-design on this tree — `p1`
+and `p2` both raise `UnresolvedReferences` regardless of forced/unforced call position (this
+tree's resolver does not distinguish the two, unlike whatever gap grok's own tree was calibrating
+for); `p3`/`p4` first failed on unrelated retired syntax (bare `Some`/`None` variant spelling,
+retired match arms) — fixed those so each probe tests what it was WRITTEN to test, then re-measured:
+`:wat::kernel::abort` genuinely does not resolve on this tree, in the taken arm (p3) AND the untaken
+one (p4). Added `;; rune:lint(red-by-design)` headers to all five, matching grok's own pre-existing
+`p5` model, each with a per-file reason stating what was actually measured.
+
+## #386 — docs-only, 3 files (mode-parity strike draw).
+
+## #387 — LANDED (gate(cli): mode parity — RED BY DESIGN, ruled 4-YES option B). Clean auto-merge,
+## 8 files. Both live arms (`mode_parity_empty` SOUNDNESS, `mode_parity_deep_freeze_recursion`
+## LIVENESS) banked `#[ignore]`, assertions INTACT, each rune naming #388 and the measured rc
+## values, matching #383's own idiom exactly as instructed.
+
+⛔ GROK'S DEEP FIXTURE WAS STALE AND WOULD HAVE PASSED VACUOUSLY — finding 33's class in a `.sh`
+generator that WRITES wat (`gen_mode_parity_deep.sh:13`, `:wat::core::i64::+`, retired). Re-spelled
+to `:wat::i64::+` and regenerated the 1000-deep fixture. Measured, matching the brief exactly:
+SOUNDNESS check rc 0/run rc 4; LIVENESS (post-respell) check rc 134 (SIGABRT)/run rc 0.
+
+## #388 — ⛔⛔ STOPPED MID-BATCH, REPORTED, THEN LANDED UNDER A RULING (BRIEF-7m-ADDENDUM-388,
+## finding 40).
+
+Grok's own diff (1 file, `src/distribution/mod.rs`) adds `validate_user_main_signature`
+UNCONDITIONALLY inside the CLI's `check_only` branch. Landing it verbatim + un-ignoring #387's two
+arms is correct against grok's own three-fixture parity suite and the `cargo nextest` floor is
+entirely unaffected — but `scripts/replay/census.sh`, a required part of THIS batch's own record
+gate, came back **STOP-8, 1052 of 2165 tracked `.wat` files** flipping `wat --check` rc 0 → rc 1,
+every one the identical `MainSignatureError`, spanning `tests/` (823), `wat-scripts/` (103),
+`wat-tests/` (89), and **`wat/` itself — the stdlib** (27), plus 4 examples/, 4 docs/, 1 crates/,
+1 benches/. Fully diagnosed (single uniform mechanism, confined to the CLI subprocess path — the
+floor never shells out, which is why `every_wat_scripts_file_loads_on_the_current_runtime` and
+`every_docs_wat_loads_or_declares_why_not`, both calling `startup_from_source` directly, stayed
+green throughout) before stopping. Deciding the resolution was outside an executor's mandate, and
+`verify-step-record.sh` requires the literal substring `no STOP-8`, which was not true — reported
+in full and yielded rather than engineered around.
+
+**THE RULING (4-YES): keep half verbatim, narrow half, land both AT #388.** The `RLIMIT_STACK`
+hoist is landed verbatim — it cures the real LIVENESS defect and was never in dispute. The
+entry-point check is narrowed to fire only when `:user::main` is DECLARED, mirroring
+`freeze.rs:952`'s own pre-existing predicate rather than matching on the error string — a
+declared-but-malformed main still fails `--check` (already true upstream, inside
+`startup_from_source`, before and after the narrowing); an absent one is now accepted as a unit.
+`tests/cli/mode_parity.rs`'s SOUNDNESS arm restated to this tree's semantics (`soundness_holds`
+gains a `has_main` parameter; `mode_parity_empty` now PINS the documented mode difference rather
+than treating it as a violation); a new `mode_parity_malformed_main` test proves the kept half using
+the pre-existing `wat_cli__wrong_arg_type_main.wat`. Both #387-banked arms un-ignored;
+`-E 'test(mode_parity)'` → 8 passed, 0 ignored. `scripts/replay/census.sh` re-run in the FOREGROUND
+after the narrowing: genuine `census-diff: no STOP-8`, exit 0 — never a phrase engineered to
+satisfy the gate's substring. Recorded as finding 40 in `FINDINGS-composition.md`.
+
+## #389 — docs-only, 3 files (A1 strike draw).
+
+## #390 — LANDED (fix(rete): A1 CURED — `JoinLeftIndex` newtype, the same D-family shape as D2,
+## on the left side). Clean auto-merge, 11 files.
+
+⛔⛔ FINDING 33'S CLASS AGAIN — `tests/rete/probe_arc278_left_idx_latch.wat` is the SAME probe as
+#385's docs-only copy, byte-for-byte identical apart from the fix; copied the already-fixed content
+from #385's probe (diffed first to confirm ONLY the syntax differed) rather than re-deriving.
+RE-VERIFIED: A1's fix holds on this tree, answering EXPECTATIONS-7m's own open question — native
+and oracle agree, guarded-chain OutW=2 as expected.
+
+## #391 — docs-only, 3 files (Ω4 strike draw).
+## #392 — docs-only, 2 files (Ω4 review).
+## #393 — docs-only, 1 file (Ω4 halted — out of scope, config.rs is not rete).
+## #394 — docs-only, 1 file (vigilia re-scoped to rete only).
+## #395 — docs-only, 3 files (F1 strike draw).
+## #396 — docs-only, 2 files (F1 review).
+## #397 — docs-only, 2 files (F1 review-2; SCORE.md modified, not just added).
+
+## #398 — LANDED (fix(rete): F1 CURED — `topological-node-ids`, one definition). THREE conflicts,
+## all in `wat/rete/oracle/{explain,fire,pass}.wat` — grok's own structural swap (a raw
+## `keys network` walk replaced by the new verb) colliding line-for-line with unrelated content;
+## resolved by taking grok's structural change everywhere, preserving this tree's own live syntax
+## at the one site (`alpha-id-for-cond`) where BOTH sides had touched the following line.
+
+⛔⛔ FINDING 33'S CLASS, THREE MORE TIMES: the new verb itself calls the RETIRED
+`:wat::core::PersistentMap/keys` (re-spelled to `:wat::map::keys`); the SAME verb's
+`(:wat::core::Vector :wat::core::i64)` witness arg to `into` is a PRE-EXISTING bug in grok's own
+diff (confirmed via `git show`, present before any edit here) missing its `:- […]` param-spec —
+measured as a REAL failure (the new probe's tests failed to freeze), not a `--check`-in-isolation
+artifact; fixed. `tests/rete/probe_arc278_explain_order.wat` — same promoted-probe pattern as #390,
+same fixes. THE NEW GATE ITSELF (`no_raw_network_keys_in_oracle.rs`) shipped the retired spelling
+as its own `BANNED` detection literal — re-spelled to match, along with its 3 detector unit tests'
+hardcoded specimens. Gate green after: 4 passed. F1's cure re-verified: native/oracle attribution
+agrees on both the first-producer-wins and inner-`:or`-first-wins questions.
+
+## #399 — docs-only, 3 files (D3 strike draw — batch finale).
+
+## #400 — LANDED (fix(rete): D3 CURED — `BetaStore` newtype, the same D-family shape a third time,
+## for beta memory). Clean auto-merge, 6 files, two in-context merges (field-rename-adjacent, no
+## overlap). No wat strings in this diff (pure Rust plumbing). RE-VERIFIED: the whole `wat::rete`
+## binary (495 tests, including the grid port checks and native/oracle differentials) — 495 passed.
+
+**Disposition: COMPLETE.** All 20 steps (#381–#400) landed, tree clean at `7c9f4868e`
+(`REPLAY(grok-rete #400)`), not pushed. `origin/replay/grok-rete` (`ba2eae082`) remains the
+published tip (the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. One mid-batch STOP
+(#388), resolved by `BRIEF-7m-ADDENDUM-388-check-is-a-unit-checker.md` and recorded as finding 40.
+See `SCORE-7m-replay-batch-4m.md` for the full row-by-row account against all 22 rows.
+

@@ -1411,6 +1411,57 @@ gate exit 0, `refs/original/` empty, published history still an ancestor.
 `REPLAY(grok-rete #N): $(git log -1 --format=%s <C>)`. It is one line and it is the orchestrator's, every
 batch, until the gate itself learns to read the words.
 
+## Finding 40 — a cure that conflates two questions the host tree keeps apart breaks the tool that answers the other one, and the floor cannot see it because the floor never shells out
+
+**Batch 4m, #388.** Grok's cure adds `crate::freeze::validate_user_main_signature(&world)`
+UNCONDITIONALLY inside the CLI's `check_only` branch — `--check` now refuses any file lacking
+`:user::main`. This is correct against grok's own intent ("a file named on the command line IS a
+program") and its own three-fixture parity suite passes either way. Measured on this tree,
+unnarrowed: `scripts/replay/census.sh` — a required part of THIS replay's own record gate, not
+grok's — came back **STOP-8, 1052 of 2165 tracked `.wat` files**, all with the identical
+`MainSignatureError`, spanning `tests/` (823), `wat-scripts/` (103), `wat-tests/` (89), and **`wat/`
+itself — the stdlib** (27). A 600-file sample found 445 declaring no entry point: the NORMAL shape
+of this corpus. `startup_from_source` (the library driver `--check` calls) already conditions the
+identical wall on `:user::main` being DECLARED at all (`freeze.rs:952`, predating this replay)
+precisely so library modules and macro-expanded worlds pass; the root `CLAUDE.md` injected into
+every session documents `--check` as the type-check-only tool for exactly this reason, and
+`scripts/green-gate.sh` plus this replay's own `census.sh` both depend on that contract holding.
+
+**Grok broke this for itself and never saw it.** A 400-file sample of grok's own tip found 307
+without `:user::main`; grok never revisits the `check_only` branch again through its own tip
+(measured across every commit from #388 onward), so the unnarrowed form is permanent and
+unexamined there — invisible because grok carries no whole-corpus `--check` census and its own
+parity suite exercises three curated fixtures.
+
+**Why the floor cannot see it.** `cargo nextest run --release` is entirely unaffected by either the
+unnarrowed or narrowed form (measured both ways: lint-subset, `kind(lib)`, doctest all identical).
+The change lives in `run_with_args`'s CLI-subprocess plumbing; every in-process gate
+(`every_wat_scripts_file_loads_on_the_current_runtime`, `every_docs_wat_loads_or_declares_why_not`)
+calls `startup_from_source` directly and never sees it. Only an instrument that shells out to the
+`wat` BINARY — this replay's own `census.sh` — can observe the divergence, which is exactly why a
+correct, floor-green cure can still break a tool nothing in `cargo test` exercises.
+
+**RULING (4-YES, BRIEF-7m-ADDENDUM-388): keep half, narrow half, land both AT the step.** The
+`RLIMIT_STACK` hoist (the real LIVENESS cure) is landed verbatim. The entry-point check is narrowed
+to fire only when `:user::main` IS declared — mirroring `freeze.rs`'s own existing predicate rather
+than inventing one, so a declared-but-malformed main still fails `--check` (already true upstream,
+inside `startup_from_source`, before this narrowing and after it) while an absent one is accepted
+as a unit. `tests/cli/mode_parity.rs`'s SOUNDNESS arm is restated to this tree's semantics —
+"`--check` Accepted ⇒ the run path does not reject it for a reason `--check` could itself have
+seen", with a missing entry point named as the one excluded reason — and a new test
+(`mode_parity_malformed_main`) proves the kept half using a pre-existing fixture
+(`wat_cli__wrong_arg_type_main.wat`). Re-measured: `scripts/replay/census.sh` returns to a genuine
+`no STOP-8`, not a phrase engineered to satisfy the gate's substring — the diff command's own exit
+code is 0.
+
+**This is the second deliberate, permanent divergence from grok's branch in this replay** (after
+#324's `:then`-match fence). Both share the same shape: grok's change is correct against grok's own
+tree and collides with a semantic this tree established first and depends on elsewhere. The rule
+this leaves standing: **a new `src/` change that touches how the CLI binary itself behaves needs a
+whole-corpus check via the binary, not just the targeted fixtures a new test file drives** — the
+`cargo nextest` floor alone cannot see a regression in what the BINARY does when invoked as a
+subprocess, only in what the library API returns in-process.
+
 ## Finding 8 — a NESTED program is never checked, so its defects are invisible on main
 
 - A child program inside `(:wat::core::forms …)` (spawned by `spawn-peer`, `spawn-program`, …) is
