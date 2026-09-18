@@ -192,7 +192,16 @@ pub(crate) fn alpha_seed(
             continue;
         }
         census_count("seed:batch-class-uniform");
-        census_count_n("compiled:calls", ids.len() as u64 * aids.len() as u64);
+        // ⛔ PAIRS, NOT CALLS — one bulk add of the (fact, alpha) pairs pass 2 is about to write,
+        // and NOT ONE COMPILED CONDITION IS EXECUTED here: the batched fill writes `alpha[aid]`
+        // straight from the class column and never reaches `exec_compiled_with_key_ids`.
+        //
+        // It shared the key `compiled:calls` until 2026-09-03 (arc 278 C14), where it supplied
+        // 100% of that counter's 80,200 on the accum axis while the two genuine per-call sites
+        // (`fire/delta.rs`'s `skip_span` arm and `compiled_cond.rs`) contributed ZERO — so a call
+        // count was really a pair count, and losing a call site changed nothing anyone asserted.
+        // One counter, one unit. See `accum_matcher_op_census` (`tests/accum_cost.rs`).
+        census_count_n("alpha:leaf-fill-pairs", ids.len() as u64 * aids.len() as u64);
         // rune:perspicere(intentional-structure) — Arc vs owned Vec is the occupancy-share door
         let els: Arc<Vec<Element>> = Arc::from(
             ids.iter()
