@@ -206,8 +206,129 @@ pub(crate) enum JoinKey {
 pub(crate) type JoinKeyMap<T> = HashMap<JoinKey, Vec<T>>;
 /// HashJoin id → left (token) index, persistent across rounds.
 pub(crate) type JoinLeftIndex = HashMap<i64, JoinKeyMap<Token>>;
-/// HashJoin id → right (element) index, persistent across rounds.
-pub(crate) type JoinRightIndex = HashMap<i64, JoinKeyMap<Element>>;
+/// HashJoin id → right (element) index, persistent across rounds, **owning the high-water mark
+/// that describes it**.
+///
+/// ── WHY THIS IS A TYPE AND NOT TWO MAPS (arc 278 D2) ─────────────────────────────────────────
+///
+/// It was two: a `HashMap<i64, JoinKeyMap<Element>>` and a separate `right_idx_n:
+/// HashMap<i64, usize>` threaded beside it through five signatures. THREE sites appended to the
+/// buckets and exactly ONE of them advanced the mark:
+///
+///   | writer                                                             | advanced the mark |
+///   | `keyed_join_persistent` (`fire/mod.rs`)                            | yes               |
+///   | `hash_join_delta` first-keying catch-up (`fire/pass/hash_join.rs`) | **no**            |
+///   | `hash_join_delta` step-2 Δright (`fire/pass/hash_join.rs`)         | **no**            |
+///
+/// `keyed_join_persistent` reads the mark back as `already` and indexes `right_elements[already..]`
+/// — the mark is the ONLY thing stopping a second visit from re-pushing every element the bucket
+/// already holds. A stale-low mark therefore DOUBLES a bucket, and doubles the join's token
+/// output. Driven at `f4a271cb3`: J6 carried 18 elements against a mark of 12, J11 carried 12
+/// against 6, both persisting to fixpoint. `seen_insert` dedups the derived FACTS, which is why
+/// every end-to-end differential of this question came back clean by construction.
+///
+/// ⛔ **THE CURE IS STRUCTURAL, NOT CONVENTIONAL.** Bumping the counter at the two bypass sites
+/// would have cured today's two writers and left a third free to appear — which is exactly how
+/// this survived the `partire` pass extraction. Here the two maps are private fields of one type
+/// and the ONLY way to add an element is [`RightIndexWriter::push`], which appends to the bucket
+/// and advances the mark **in one act**. There is no accessor that hands out `&mut` to the
+/// buckets, so a fourth writer cannot be written. Same shape, and the same reason, as
+/// `fire::pass::record_token` and its beta census.
+///
+/// The mark counts ELEMENTS PUSHED. Every writer pushes exactly one element per element of the
+/// feeding alpha memory it indexes, and all three walk that memory in order, so the mark is also
+/// the length of the alpha prefix already indexed — which is the reading `already` needs.
+#[derive(Default)]
+pub(crate) struct JoinRightIndex {
+    /// join id → key → the elements indexed under it.
+    buckets: HashMap<i64, JoinKeyMap<Element>>,
+    /// join id → how many elements have been pushed into `buckets[join]`.
+    indexed_n: HashMap<i64, usize>,
+}
+
+/// The one door into a join's right index: appends and mark advance as a single act.
+///
+/// Handed out by [`JoinRightIndex::writer`], which is the only constructor. It borrows the
+/// bucket map and its mark together, so `push` cannot do one without the other.
+pub(crate) struct RightIndexWriter<'a> {
+    buckets: &'a mut JoinKeyMap<Element>,
+    indexed_n: &'a mut usize,
+}
+
+impl RightIndexWriter<'_> {
+    /// Index one element under `key`, advancing the mark by one.
+    #[inline]
+    pub(crate) fn push(&mut self, key: JoinKey, el: Element) {
+        self.buckets.entry(key).or_default().push(el);
+        *self.indexed_n += 1;
+    }
+}
+
+impl JoinRightIndex {
+    /// How many elements this join's index already holds — `keyed_join_persistent`'s `already`.
+    ///
+    /// A join never written is `0`: nothing is indexed, so the whole of the feeding alpha memory
+    /// is the tail still to index.
+    #[inline]
+    pub(crate) fn already(&self, join_id: i64) -> usize {
+        self.indexed_n.get(&join_id).copied().unwrap_or(0)
+    }
+
+    /// Open the one door. Creates the join's index (and its mark, at zero) on first use.
+    #[inline]
+    pub(crate) fn writer(&mut self, join_id: i64) -> RightIndexWriter<'_> {
+        RightIndexWriter {
+            buckets: self.buckets.entry(join_id).or_default(),
+            indexed_n: self.indexed_n.entry(join_id).or_default(),
+        }
+    }
+
+    /// Read one join's buckets, for probing. Shared — a prober cannot append.
+    #[inline]
+    pub(crate) fn get(&self, join_id: &i64) -> Option<&JoinKeyMap<Element>> {
+        self.buckets.get(join_id)
+    }
+
+    /// Σ over every join of Σ over every bucket of its length — the whole element population.
+    ///
+    /// ⚠ NOT a bucket count. `buckets[J]` is a `JoinKeyMap`, so its `.len()` is how many distinct
+    /// join keys `J` has seen; the population is the sum of the bucket vectors' lengths.
+    #[cfg(test)]
+    pub(crate) fn total_elements(&self) -> usize {
+        self.buckets
+            .values()
+            .flat_map(|m| m.values())
+            .map(Vec::len)
+            .sum()
+    }
+
+    /// The D2 reading, one row per join: `(join id, mark, Σ bucket lengths)`.
+    ///
+    /// The mark is `Option` because "no entry" and "zero" are different facts: an absent mark next
+    /// to a non-empty index would name a join written by something that never opened the writer.
+    /// The row set is the UNION of both key sets for the same reason — neither map may drive the
+    /// iteration alone, or the disagreement worth seeing is the one that cannot appear.
+    #[cfg(test)]
+    pub(crate) fn per_join_marks(&self) -> Vec<(i64, Option<usize>, usize)> {
+        let mut ids: Vec<i64> = self.buckets.keys().copied().collect();
+        for id in self.indexed_n.keys() {
+            if !self.buckets.contains_key(id) {
+                ids.push(*id);
+            }
+        }
+        ids.sort_unstable();
+        ids.into_iter()
+            .map(|id| {
+                let elements = self
+                    .buckets
+                    .get(&id)
+                    .map(|m| m.values().map(Vec::len).sum())
+                    .unwrap_or(0);
+                (id, self.indexed_n.get(&id).copied(), elements)
+            })
+            .collect()
+    }
+}
 
 /// The mutable fire-scoped mirror of a `:wat::rete::Session`.
 ///

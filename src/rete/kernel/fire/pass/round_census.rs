@@ -29,7 +29,6 @@ pub(crate) fn record_round_census(
     d_beta: &BetaMemory,
     left_idx: &JoinLeftIndex,
     right_idx: &JoinRightIndex,
-    right_idx_n: &HashMap<i64, usize>,
     seen_ids: &rustc_hash::FxHashSet<u64>,
     seen_rest: &rustc_hash::FxHashSet<Value>,
     round_no: usize,
@@ -100,32 +99,12 @@ pub(crate) fn record_round_census(
                 .flat_map(|m| m.values())
                 .map(Vec::len)
                 .sum(),
-            right_idx_elements: right_idx
-                .values()
-                .flat_map(|m| m.values())
-                .map(Vec::len)
-                .sum(),
-            // ★ D2: the counter beside the population, per join. Union of both key sets — a join
-            // present in ONE map only is exactly the case worth seeing, so neither map may be
-            // used as the driving iteration on its own.
-            right_idx_by_join: {
-                let mut ids: Vec<i64> = right_idx.keys().copied().collect();
-                for id in right_idx_n.keys() {
-                    if !right_idx.contains_key(id) {
-                        ids.push(*id);
-                    }
-                }
-                ids.sort_unstable();
-                ids.into_iter()
-                    .map(|id| {
-                        let elements = right_idx
-                            .get(&id)
-                            .map(|m| m.values().map(Vec::len).sum())
-                            .unwrap_or(0);
-                        (id, right_idx_n.get(&id).copied(), elements)
-                    })
-                    .collect()
-            },
+            right_idx_elements: right_idx.total_elements(),
+            // ★ D2: the counter beside the population, per join. The union of both key sets — a
+            // join present in ONE map only is exactly the case worth seeing, so neither map may
+            // drive the iteration on its own. Both maps are fields of `JoinRightIndex` now, and
+            // the union is `per_join_marks`.
+            right_idx_by_join: right_idx.per_join_marks(),
             production_facts: wm.production.values().map(Vec::len).sum(),
             seen_facts: seen_ids.len() + seen_rest.len(),
             network_edges: node_ids

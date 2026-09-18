@@ -32,6 +32,13 @@
 //! set in this file is pinned by `tests/lint/rete_header_claims_are_asserted.rs`, so this
 //! sentence cannot rot without a red build.
 //!
+//! ⚠ **And the attribute marks three different shapes here, not one.** A test-only PASS
+//! (`alpha_pass` and its three siblings), a test-only ITEM that is not a pass (`keyed_join`,
+//! `GatherIntern::of`), and — since arc 278's D2 cure — a test-only STATEMENT inside a
+//! PRODUCTION function: the `RIGHT_IDX_SITE_MAINTAINER` census call in `keyed_join_persistent`.
+//! That third shape is why the count and not the item list is what the gate pins: a reader who
+//! greps for `#[cfg(test)] fn` will miss it, and `keyed_join_persistent` itself ships.
+//!
 //! ## What the rest of this file is: the machinery BOTH families share
 //!
 //! Most of what is not one of those four passes is live in production, reached from `fire/pass/`
@@ -770,10 +777,13 @@ fn keyed_join(
 }
 
 /// Persistent right index for join-after-filter HashJoins.
+///
+/// ⛔ The mark is NOT a field here any more. `JoinRightIndex` owns it (arc 278 D2): it was a
+/// sibling `&mut HashMap<i64, usize>` that only THIS struct's user maintained, while two sites in
+/// `hash_join_delta` appended to the same buckets without it.
 struct FilterJoinIdx<'a> {
     right_idx: &'a mut JoinRightIndex,
     join_keys_cache: &'a mut JoinKeysCache,
-    indexed_n: &'a mut HashMap<i64, usize>,
 }
 
 /// Join-after-filter: Δleft ⋈ all_right with a persistent right index (same
@@ -796,10 +806,10 @@ fn keyed_join_persistent(
             GatherIntern::from_ctx(ctx, alpha_id),
         )
     });
-    let already = idx.indexed_n.get(&join_id).copied().unwrap_or(0);
+    let already = idx.right_idx.already(join_id);
     if already < right_elements.len() {
         let jk = &idx.join_keys_cache[&join_id];
-        let ridx = idx.right_idx.entry(join_id).or_default();
+        let mut ridx = idx.right_idx.writer(join_id);
         for el in &right_elements[already..] {
             let k = key_of_el(el, jk, &GatherIntern::from_ctx(ctx, alpha_id));
             let el = element_with_row_span(
@@ -810,9 +820,21 @@ fn keyed_join_persistent(
                 ctx.bind_only,
                 ctx.cond_key_ids,
             );
-            ridx.entry(k).or_default().push(el);
+            // One act: the bucket grows and the mark grows. The old body wrote the mark ONCE
+            // after the loop, as `indexed_n.insert(join_id, right_elements.len())` — the same
+            // arithmetic, because this walk pushes exactly `len - already` elements.
+            ridx.push(k, el);
         }
-        idx.indexed_n.insert(join_id, right_elements.len());
+        // ★ D2 census (test-only statement — no release code, see `census.rs`): the MAINTAINER
+        // appended here. Recorded so the invariant probe's non-vacuity guard can require that the
+        // maintainer and a bypass site met on ONE index, rather than inferring it from the mark's
+        // presence — which stopped discriminating the moment every writer began maintaining it.
+        #[cfg(test)]
+        crate::rete::kernel::census::right_idx_appended(
+            join_id,
+            crate::rete::kernel::census::RIGHT_IDX_SITE_MAINTAINER,
+            right_elements.len() - already,
+        );
     }
     let jk = &idx.join_keys_cache[&join_id];
     let Some(ridx) = idx.right_idx.get(&join_id) else {

@@ -182,7 +182,7 @@ for node_id in &kind_ids.join_parent {
             // missed token probes (7b/7exists/8b native=0).
             let __cri = phase_start();
             {
-                let ridx = right_idx.entry(*child_id).or_default();
+                let mut ridx = right_idx.writer(*child_id);
                 if let Some(right) = all_right.as_deref() {
                     for &el in right {
                         let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
@@ -194,13 +194,19 @@ for node_id in &kind_ids.join_parent {
                             &wm.bind_only,
                             &wm.cond_key_ids,
                         );
-                        ridx.entry(k).or_default().push(el);
+                        // ★ D2 (arc 278): this walk USED to append straight into the bucket map
+                        // and leave `indexed_n[J]` absent, so the maintainer's next visit read
+                        // `already = 0` and re-pushed every element already here. There is no
+                        // longer a form of this statement that can skip the mark.
+                        ridx.push(k, el);
                     }
                 }
             }
             phase_end("  ├ hj:catchup:right-idx", __cri);
             // ★ D2 census (test-only statement — no release code, see `census.rs`): this block
-            // appended `n_right` elements to `right_idx[J]` and touched NO high-water mark.
+            // appended `n_right` elements to `right_idx[J]`, and since the cure it advanced the
+            // mark by the same `n_right` — the row stays because WHICH site wrote an index is
+            // still the reading, and the probe's non-vacuity guard needs it.
             // `n_right` is the loop's exact trip count: the walk above is over `all_right` in
             // full, one `push` per element.
             #[cfg(test)]
@@ -305,7 +311,7 @@ for node_id in &kind_ids.join_parent {
         // Span once onto the indexed copy (`DESIGN-STONE-join-index-span`).
         let __s2 = phase_start();
         {
-            let ridx = right_idx.entry(*child_id).or_default();
+            let mut ridx = right_idx.writer(*child_id);
             let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
             for ei in dr.iter() {
                 let el = right_mem[ei];
@@ -318,14 +324,18 @@ for node_id in &kind_ids.join_parent {
                     &wm.bind_only,
                     &wm.cond_key_ids,
                 );
-                ridx.entry(k).or_default().push(el);
+                // ★ D2 (arc 278): this Δright append USED to leave `indexed_n[J]` stale-low, so
+                // pass 3.7's `keyed_join_persistent` re-pushed the very elements step 2 had just
+                // placed. The mark now advances with the bucket, in one act.
+                ridx.push(k, el);
             }
         }
         phase_end("  ├ hj:step2-right-idx", __s2);
         // ★ D2 census (test-only statement — no release code, see `census.rs`): step 2 appended
-        // one element per `dr` slot to `right_idx[J]` and touched NO high-water mark. Recorded
-        // even when `dr` is empty, so "step 2 ran and had nothing to add" stays distinguishable
-        // from "step 2 never ran" — the blind spot the first D2 probe shipped.
+        // one element per `dr` slot to `right_idx[J]`, and since the cure it advanced the mark by
+        // the same count. Recorded even when `dr` is empty, so "step 2 ran and had nothing to
+        // add" stays distinguishable from "step 2 never ran" — the blind spot the first D2 probe
+        // shipped.
         #[cfg(test)]
         crate::rete::kernel::census::right_idx_appended(
             *child_id,

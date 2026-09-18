@@ -477,6 +477,12 @@ pub(crate) fn with_beta_traffic<R>(f: impl FnOnce() -> R) -> (R, Vec<(i64, u64, 
 // is then stale-low against what `right_idx[J]` already holds, and its next visit re-pushes
 // elements the bucket already carries.
 //
+// ⛔ THAT TABLE IS THE DEFECT, NOT THE CODE. It is kept in the past tense on purpose: the cure
+// (`session.rs`, `JoinRightIndex`) folded the two maps into one type whose only insertion verb
+// advances the mark, so all three rows now read YES and no fourth row can be written. This
+// instrument stays because WHICH site indexed a join is still the reading the probe needs — the
+// invariant it guards is only worth a green over a workload where the writers actually met.
+//
 // ⛔ THE COUNTER HAS NEVER BEEN READ DIRECTLY. Both prior drives of this question were
 // END-TO-END (native-vs-oracle fact counts, and a query whose rows mirror the join chain), and
 // `seen_insert` dedups the fact set — so a doubled bucket is invisible to them BY CONSTRUCTION.
@@ -496,6 +502,16 @@ pub(crate) fn with_beta_traffic<R>(f: impl FnOnce() -> R) -> (R, Vec<(i64, u64, 
 pub(crate) const RIGHT_IDX_SITE_CATCHUP: &str = "hash_join_delta:first-keying-catchup";
 #[cfg(test)]
 pub(crate) const RIGHT_IDX_SITE_STEP2: &str = "hash_join_delta:step2-delta-right";
+/// ★ The maintainer, recorded as a site of its own since the D2 cure.
+///
+/// ⛔ WHY IT HAD TO BECOME A ROW. The invariant probe's non-vacuity guard used to read "the
+/// maintainer visited join J" off the PRESENCE of `indexed_n[J]`, which was sound only while the
+/// maintainer was the mark's sole writer. The cure makes every writer advance it, so mark presence
+/// now means "some writer touched J" and could no longer prove the two writers MET on one index —
+/// the exact vacuity that guard exists to refuse. This row states it directly instead of inferring
+/// it from a signal the cure consumed.
+#[cfg(test)]
+pub(crate) const RIGHT_IDX_SITE_MAINTAINER: &str = "keyed_join_persistent:maintainer";
 
 #[cfg(test)]
 // rune:sequi(performance-counter) — test-only right-index append census; off unless armed.
