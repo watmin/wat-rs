@@ -51,3 +51,20 @@ engine can COUNT the duplicate but cannot REMOVE it. That is the argument for th
 needs no external reference. `BRIEF-STONE-4c-truth-maintenance.md:46-50` shows the origin: retract
 was specified as *"mirror `merge-facts`"*, and `merge-facts` is set-semantic for a **termination**
 reason that does not reach retraction. Inherited, never decided.
+
+## ⛔ CORRECTION 2026-09-06 — the TMS fuzzer needs NO re-derivation
+
+This REVIEW's disposition said strike 2 must "re-derive the TMS fuzzer's model from Clara". **There
+is no model.** Driven: `final-facts` occurs exactly once in
+`wat-tests/rete/differential-fuzz-tms.wat` — inside the header comment — and is not a function;
+`tms::step` (`:68-87`) calls the real `:wat::rete::retract` at ops 3/4/5, and `run-prog` folds it
+for all four arms (native/oracle × interleaved/one-shot). The cure moves every arm together, so the
+fuzzer stays green untouched — including `q-acc`, an accumulate over the INSERTED class gated
+`?n >= 2`, which is multiplicity-sensitive and moves consistently on all four.
+
+The blindness is real; my mechanism for it was wrong. It is the SAME shared-verb blindness as the
+port check, so the count is two mechanisms across three instruments. I read the file's comment and
+not its code — `[[a-named-counter-proof-is-still-a-claim]]`.
+
+Strike 2 therefore drops that item and gains a smaller one: the comment at `:26-30` asserts a
+`final-facts` replay the file does not contain, and should be struck.
