@@ -3000,3 +3000,130 @@ published tip (the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. O
 (#388), resolved by `BRIEF-7m-ADDENDUM-388-check-is-a-unit-checker.md` and recorded as finding 40.
 See `SCORE-7m-replay-batch-4m.md` for the full row-by-row account against all 22 rows.
 
+## Batch 4n — #401→#420 (SCORE-7n-replay-batch-4n.md)
+
+## #401 — docs-only, 3 files (D1 strike draw).
+
+## #402 — LANDED (fix(rete): D1 CURED — the mark is a prefix length). Clean auto-merge, 7 files,
+## no conflicts. The catch-up site in `hash_join.rs` now indexes `right[already..]` instead of the
+## whole feeding-alpha memory, so every writer respects the mark structurally. No wat strings in
+## this diff.
+
+## #403 — docs-only, 3 files (A8 strike draw).
+
+## #404 — LANDED (fix(rete): A8 CURED — `ClassPlan`, `has_mixed()` DERIVED not stored). Clean
+## auto-merge, 2 files, no conflicts. Grok's own rune (`rune:lint(cited-name-absent) any_mixed`)
+## landed verbatim for `every_backticked_name_in_a_rete_comment_resolves`.
+
+## #405 — docs-only, 3 files (A3 strike draw).
+
+## #406 — LANDED (fix(rete): A3 CURED — `SlotZip`, the desynchronised pair has no form). Four of
+## five non-docs `.rs` files already differed from grok's pre-image; composed via 3-way merge, no
+## conflict markers on any file. DELTA vs DELTA (finding 36) confirmed content-identical on all
+## four (one differs only by a uniform +1 line-number context offset). Wall-clock-neighbour files
+## (accum_cost.rs, gather_probe_cost.rs) touched but only API-shape adaptation — no timing red.
+## ⛔ SELF-CAUGHT: a commit-message heredoc with unquoted backticks lost several inline-code spans
+## on first commit; caught by reading `git log -1 --format=%B` back, repaired via `git commit
+## --amend -F` before any descendant existed.
+
+## #407 — docs-only, 3 files (census-union strike draw).
+
+## #408 — LANDED (fix(rete): the census union — three gates were asserting arithmetic identities).
+## ONE real conflict in `node_share_cost.rs`: this tree's own stale inline duplicate of the
+## fire+collect logic vs grok's extraction into a shared `node_share_filter_counts`. Resolved by
+## taking grok's structural change (the extraction is the whole point of the cure).
+## ⛔⛔ FINDING 33'S CLASS, caught in the auto-merged (non-conflicting) half of the SAME file: the
+## newly-extracted helper carried grok's own retired `::Variant` match-arm syntax verbatim.
+## Re-spelled to this tree's live idiom, matching the file's own already-fixed sibling strings.
+## Driven: `node_share_filter_eval_census`/`node_share_waste_gate_is_refused_when_evals_are_zero`/
+## `node_share_where_cost_decomposition` all pass, plus the full `wat::rete` binary (495/495).
+
+## #409 — docs-only, 3 files (GATHER_VISITS strike draw).
+
+## #410 — LANDED (fix(rete): GATHER_VISITS — every gather examination now goes through one door).
+## ⛔⛔ THE NEW GATE FIRED ON ARRIVAL EXACTLY AS BRIEFED, and grok's own diff resolves every site
+## for its own tree — clean auto-merge, no conflicts, because our pre-existing raw walks sat at the
+## same context grok's patch touches. MEASURED (whitespace-normalized, unlike the brief's own
+## pre-flight grep): true exposure was 12 raw-walk sites across the three SUBJECTS
+## (`acc.rs` 5, `accumulate.rs` 2, `fire/mod.rs` 5), not the brief's pre-flighted 3 — a RESULT
+## per finding 37, not a defect. 10 sites routed through `gather_bucket`; 2 join-index probe sites
+## (`keyed_join`, `keyed_join_persistent`) carry grok's own ≥40-char runes, read and verified
+## against their call sites before acceptance. Keyed-gather ratio re-driven: 1.00x, unmoved,
+## matching grok's own cited figure — the three newly-counted paths are not on that axis.
+
+## #411 — docs-only, 3 files (gather-gate-reaches-every-fold strike draw).
+
+## #412 — LANDED (test(rete): drive the keyed-gather gate over every instrumented path — test-only,
+## zero engine change). Clean auto-merge, no conflicts.
+## ⛔⛔ FINDING 33'S CLASS, plus a SELF-CAUGHT RED FROM MY OWN FIX. The new driver carried the same
+## retired syntax; re-spelled — but my first rune comment cited a FABRICATED sibling name
+## (`BIND_ONLY_WORLD`, which does not exist). `every_backticked_name_in_a_rete_comment_resolves`
+## went RED 1-of-315, naming the exact unresolved citation. Per doctrine, did NOT re-run the whole
+## suite; re-captured ONLY the single deterministic test in isolation (`--no-capture`, the #385
+## precedent) for the full panic message, fixed by citing the two REAL identifiers, re-verified
+## green, then the full lint-subset green (315/315). New test
+## `keyed_gather_visits_per_instrumented_path` readings match grok's cited numbers exactly.
+
+## #413 — docs-only, 3 files (predicted-visits strike draw).
+
+## #414 — LANDED (test(rete): gate the keyed-gather FORMULA, because the ratio is exactly blind).
+## Clean auto-merge, no conflicts. No wat strings introduced.
+## ⚠ THE BRIEF'S OWN "REMOVES A TEST" FRAMING DOES NOT MATCH THE DIFF — measured directly (diffed
+## the pre/post function body, substituting only const relocations): `keyed_gather_visits_per_
+## instrumented_path` was NOT deleted, every assertion is byte-for-byte unchanged; the diff's
+## -/+ `#[test]` pair is the SAME test relocated, not a deletion-and-replacement. Net effect is
+## still the brief's own +2, from two genuinely NEW tests, zero deletions — a RESULT per finding
+## 37, reported in #414's own commit body. All four readings re-driven, matching grok's cited
+## numbers exactly, including the deliberate ratio-blind-spot simulation.
+
+## #415 — docs-only, 3 files (join-extend-hoist strike draw).
+
+## #416 — LANDED (perf(rete): join_extend resolves its alpha once per node, not once per pair).
+## Pre-flighted as 5-of-5 touched `.rs` files diverging from grok's pre-image; EVERY file
+## auto-merged with NO conflict markers. DELTA vs DELTA (finding 36) confirmed content-identical
+## on all five.
+## ⛔⛔ FINDING 33'S CLASS, TWICE in the same new block (the fire driver AND the `JOIN_EXTEND_WORLD`
+## seed const's nested `InsertOutcome` match) — both re-spelled to this tree's live idiom. Driven:
+## the two new formula tests pass, plus the full `wat::rete` binary (495/495). Perf cure re-driven
+## directly, matching grok's own four-point table exactly, including grok's own disclosed
+## self-correction (3x overstated in the DESIGN, live count was 1x per pair). NO millisecond
+## claimed anywhere; formula gate only — no timing red on this wall-clock-neighbour step.
+
+## #417 — docs-only, 3 files (production-entry-hoist strike draw).
+
+## #418 — LANDED (perf(rete): production_delta buffers per node — 40,000 map lookups become 1).
+## Pre-flighted as 2-of-3 diverging; auto-merged clean, DELTA vs DELTA confirmed identical on all
+## three.
+## ⛔⛔ FINDING 33'S CLASS AGAIN (`fanout_prod_entry_fire`'s driver) — re-spelled; `FANOUT_CENSUS_
+## WORLD` confirmed pre-existing in `tests/mod.rs`, out of scope, not touched. Driven: both new
+## formula tests pass at all five axis points including the 40,000-pair cell, plus the full
+## `wat::rete` binary (495/495). Formula gate only, no timing red.
+
+## #419 — docs-only, 3 files (col-field-of-measure strike draw — batch finale).
+
+## #420 — LANDED (perf(rete): hoist col_field_of out of the catch-up loop — 2002 lookups become 3).
+## Pre-flighted as 4-of-4 diverging; auto-merged clean, DELTA vs DELTA confirmed identical on all
+## four.
+## ⛔⛔ FINDING 33'S CLASS A SIXTH TIME (`fire_col_field`'s driver) — re-spelled.
+## ⛔⛔ A SECOND, DIFFERENT RED SURFACED AFTER THAT FIX: `one_variant_separator.rs`, a MAIN-ONLY
+## lint (confirmed absent from `origin/grok` entirely) flagged the SAME line for composing
+## `{ns}::seed`/`{ns})` — a runtime-substituted RECORD NAMESPACE prefix, not an enum variant, and
+## byte-identical to grok's own pre-image (not introduced by the finding-33 fix). Per doctrine, did
+## NOT re-run the whole suite; re-captured the single deterministic test in isolation, read the two
+## call sites, added the gate's own documented `rune:lint(one-variant-separator, namespace)` escape
+## — placed inside the gate's contiguous-comment-block window (past the `let src = format!(` line,
+## since a comment separated from the offending line by code does not reach it). Re-verified green
+## (1/1), then the full lint-subset green (315/315). Perf cure re-driven, matching grok's own
+## four-axis table exactly including the 40,000-pair cell. Full `wat::rete` binary re-verified
+## (495/495).
+## ⛔ SELF-CAUGHT: the same unquoted-heredoc backtick-eating defect as #406, caught the same way,
+## repaired the same way (`git commit --amend -F`, zero descendants at the time).
+
+**Disposition: COMPLETE.** All 20 steps (#401–#420) landed, tree clean at `d6f3c06f9`
+(`REPLAY(grok-rete #420)`), not pushed. `origin/replay/grok-rete` (`a09ad65b0`) remains the
+published tip (the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. No mid-batch STOP.
+Finding 33's class recurred six times (all caught pre-landing); two self-caught, unrelated content-
+check reds (#412, #420), both repaired without re-running into green; two self-caught commit-
+message authoring defects (#406, #420), both repaired by amend before any descendant existed. See
+`SCORE-7n-replay-batch-4n.md` for the full row-by-row account against all 25 rows.
+
