@@ -29,6 +29,10 @@ use super::{pmap_from_span, Token};
 // oracle to compare against itself: `fire_fixpoint_delta` records into the thread-local below,
 // and production is untouched because every line of it is `#[cfg(test)]`.
 
+/// ★ D1: `(join id, mark, indexed-facts bag, feeding-alpha prefix bag)`.
+#[cfg(test)]
+pub(crate) type RightIdxPrefix = (i64, usize, Vec<u32>, Vec<u32>);
+
 /// One round's census of every native structure the fire loop grows.
 ///
 /// Recorded at the END of each round, after the round body and before the terminate check, so
@@ -69,6 +73,13 @@ pub(crate) struct RoundCensus {
     /// Summed over every join this equals `right_idx_elements`; kept per-join because the
     /// aggregate cannot see one join doubling while another is short.
     pub(crate) right_idx_by_join: Vec<(i64, Option<usize>, usize)>,
+    /// ★ D1: per HashJoinNode with a mark, `(join id, mark, indexed-facts bag, feeding-alpha prefix bag)`.
+    ///
+    /// Both bags are sorted `Element.fact` ids. Equal bags means the indexed elements are
+    /// exactly `right_elements[0..mark]` — the property `already` slices on. Count agreement
+    /// (`right_idx_by_join`) can hold while this fails: every push advances the mark regardless
+    /// of *which* element it pushed.
+    pub(crate) right_idx_prefix: Vec<RightIdxPrefix>,
     /// Derived facts retained in production-memory, and the size of the `seen` dedup set.
     pub(crate) production_facts: usize,
     pub(crate) seen_facts: usize,

@@ -211,10 +211,19 @@ type JoinMark = (i64, Option<usize>, usize);
 /// One round's readings: `(round index, every join's mark)`.
 type RoundMarks = (usize, Vec<JoinMark>);
 
+/// One join's prefix reading: `(join, mark, indexed-facts bag, alpha-prefix bag)`.
+type PrefixRow = (i64, usize, Vec<u32>, Vec<u32>);
+/// One round's prefix readings: `(round, rows)`.
+type RoundPrefix = (usize, Vec<PrefixRow>);
+/// One prefix miss: `(round, join, mark, indexed bag, alpha-prefix bag)`.
+type PrefixMiss = (usize, i64, usize, Vec<u32>, Vec<u32>);
+
 /// What one fire of the D2 shape recorded: the per-round census, and the append rows.
 struct D2Reading {
     /// Per round: `(round, [(join id, indexed_n or None, Σ|right_idx[J]|)])`.
     rounds: Vec<RoundMarks>,
+    /// Per round: the D1 prefix property — indexed facts vs `right_elements[0..mark]`.
+    prefix: Vec<RoundPrefix>,
     /// `(join id, site, elements appended)` — one row per site that RAN, `0` if it appended none.
     appends: Vec<(i64, &'static str, usize)>,
 }
@@ -236,8 +245,12 @@ fn fire_d2(world_src: &str, n: i64, what: &str) -> D2Reading {
     });
     D2Reading {
         rounds: census
+            .iter()
+            .map(|r| (r.round, r.right_idx_by_join.clone()))
+            .collect(),
+        prefix: census
             .into_iter()
-            .map(|r| (r.round, r.right_idx_by_join))
+            .map(|r| (r.round, r.right_idx_prefix))
             .collect(),
         appends,
     }
@@ -319,6 +332,21 @@ impl D2Reading {
         }
         for (j, site, n) in &self.appends {
             s.push_str(&format!("    J{j}  {site}  {n}\n"));
+        }
+        s.push_str("  prefix  (join, mark, indexed-facts bag, alpha-prefix bag):\n");
+        for (round, rows) in &self.prefix {
+            s.push_str(&format!("    round {round}: "));
+            if rows.is_empty() {
+                s.push_str("(no marked join)\n");
+                continue;
+            }
+            for (j, mark, indexed, prefix) in rows {
+                let ok = if indexed == prefix { "HOLD" } else { "MISS" };
+                s.push_str(&format!(
+                    "[J{j} n={mark} idx={indexed:?} pre={prefix:?} {ok}] "
+                ));
+            }
+            s.push('\n');
         }
         s
     }
@@ -475,6 +503,37 @@ fn right_index_counter_tracks_its_bucket_population() {
         violations,
         r.render()
     );
+
+    // ── ★ D1 THE PREFIX PROPERTY, per round, per join. ─────────────────────────────────────
+    //
+    // `already` slices `right_elements[already..]`. Count agreement (above) holds whenever
+    // every push advances the mark, including pushes of the WRONG elements. The indexed
+    // bag must be exactly the feeding-alpha prefix of length `mark`.
+    //
+    // ⛔ THIS ASSERTION IS REGRESSION COVER, NOT A PROOF THAT CATCH-UP CANNOT IGNORE THE
+    // MARK ON TODAY'S WORKLOAD. Catch-up still only runs when `first_keying`, and on this
+    // shape that implies `already == 0`, so a whole-memory walk and a tail walk coincide.
+    // The unit test below replays the two walks against `JoinRightIndex` and is what
+    // reddens the assertion.
+    let mut prefix_violations: Vec<PrefixMiss> = Vec::new();
+    for (round, rows) in &r.prefix {
+        for (join, mark, indexed, prefix) in rows {
+            if indexed != prefix {
+                prefix_violations.push((*round, *join, *mark, indexed.clone(), prefix.clone()));
+            }
+        }
+    }
+    assert!(
+        prefix_violations.is_empty(),
+        "\n⛔ D1 IS LIVE — the right-index contents are not the feeding-alpha prefix of length mark.\n\
+         \n\
+         {} (round, join, mark, indexed-facts bag, alpha-prefix bag):\n\
+         {:#?}\n\
+         \n{}",
+        prefix_violations.len(),
+        prefix_violations,
+        r.render()
+    );
 }
 
 /// ★ MUTATION 3, STANDING: the guard must REFUSE a single-HashJoin shape, not pass green over it.
@@ -513,5 +572,90 @@ fn a_single_hashjoin_shape_is_refused_as_inapplicable() {
         msg.contains("INAPPLICABLE SHAPE"),
         "the guard refused the control, but NOT for inapplicability — so this proves the control \
          is broken rather than that the guard discriminates. Panic was:\n{msg}"
+    );
+}
+
+/// The D1 prefix property against a feeding-alpha slice: indexed facts == `right[0..mark]`.
+fn prefix_holds(idx: &JoinRightIndex, join: i64, right: &[Element]) -> bool {
+    let mark = idx.already(join);
+    if mark > right.len() {
+        return false;
+    }
+    let indexed = idx.indexed_facts(join);
+    let mut prefix: Vec<u32> = right[..mark].iter().map(|e| e.fact).collect();
+    prefix.sort_unstable();
+    indexed == prefix
+}
+
+fn el(fact: u32) -> Element {
+    Element {
+        fact,
+        binds: BindSpan { off: 0, len: 0 },
+    }
+}
+
+/// ★ D1 MUTATION: the prefix assertion reddens when a writer ignores the mark.
+///
+/// The catch-up site used to walk the whole feeding alpha. On the D2 fire that walk
+/// coincides with the tail (`first_keying` ⇒ `already == 0`), so reverting the site
+/// does not redden the fire test. This probe replays the two walks against
+/// `JoinRightIndex` itself: maintainer indexes the prefix, then a whole-memory
+/// re-walk (the old catch-up) re-pushes it. The prefix property must fail; the
+/// tail-only walk must hold. Regression cover of the assertion, not a proof that
+/// today's catch-up gate can reach `already > 0`.
+#[test]
+fn prefix_property_reddens_when_a_writer_walks_the_whole_memory_after_a_mark() {
+    let right: Vec<Element> = (0..6).map(el).collect();
+    let join = 1_i64;
+
+    // Maintainer: index the whole feeding alpha from mark 0.
+    let mut idx = JoinRightIndex::default();
+    {
+        let mut w = idx.writer(join);
+        for e in &right {
+            w.push(JoinKey::Empty, *e);
+        }
+    }
+    assert!(
+        prefix_holds(&idx, join, &right),
+        "after a single in-order walk the prefix property must hold (mark={}, indexed={:?})",
+        idx.already(join),
+        idx.indexed_facts(join)
+    );
+
+    // Old catch-up: walk ALL of `right`, ignoring the mark.
+    {
+        let mut w = idx.writer(join);
+        for e in &right {
+            w.push(JoinKey::Empty, *e);
+        }
+    }
+    assert!(
+        !prefix_holds(&idx, join, &right),
+        "whole-memory re-push after a mark must redden the prefix property; got mark={} indexed={:?}",
+        idx.already(join),
+        idx.indexed_facts(join)
+    );
+
+    // Tail-only catch-up (the cure): maintainer first, then `right[already..]`.
+    let mut idx = JoinRightIndex::default();
+    {
+        let mut w = idx.writer(join);
+        for e in &right {
+            w.push(JoinKey::Empty, *e);
+        }
+    }
+    let already = idx.already(join);
+    {
+        let mut w = idx.writer(join);
+        for e in right.get(already..).unwrap_or(&[]) {
+            w.push(JoinKey::Empty, *e);
+        }
+    }
+    assert!(
+        prefix_holds(&idx, join, &right),
+        "tail-only catch-up after a mark must keep the prefix property (mark={}, indexed={:?})",
+        idx.already(join),
+        idx.indexed_facts(join)
     );
 }

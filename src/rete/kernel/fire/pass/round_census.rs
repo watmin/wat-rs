@@ -29,6 +29,7 @@ pub(crate) fn record_round_census(
     d_beta: &BetaMemory,
     left_idx: &JoinLeftIndex,
     right_idx: &JoinRightIndex,
+    feeding_alpha_of: &std::collections::HashMap<i64, i64>,
     seen_ids: &rustc_hash::FxHashSet<u64>,
     seen_rest: &rustc_hash::FxHashSet<Value>,
     round_no: usize,
@@ -101,6 +102,33 @@ pub(crate) fn record_round_census(
             // drive the iteration on its own. Both maps are fields of `JoinRightIndex` now, and
             // the union is `per_join_marks`.
             right_idx_by_join: right_idx.per_join_marks(),
+            // ★ D1: the prefix property `already` relies on. For each join with a mark,
+            // the bag of facts in the buckets vs the bag of facts in the feeding alpha's
+            // `[0..mark]` prefix. `mark > alpha.len()` records the whole alpha (shorter
+            // than the indexed bag), so the bags cannot match.
+            right_idx_prefix: {
+                let marks = right_idx.per_join_marks();
+                marks
+                    .into_iter()
+                    .filter_map(|(id, mark, _)| {
+                        let mark = mark?;
+                        let alpha_id = feeding_alpha_of.get(&id).copied()?;
+                        let right = wm
+                            .alpha
+                            .get(&alpha_id)
+                            .map(|v| v.as_slice())
+                            .unwrap_or(&[]);
+                        let indexed = right_idx.indexed_facts(id);
+                        let mut prefix: Vec<u32> = if mark <= right.len() {
+                            right[..mark].iter().map(|e| e.fact).collect()
+                        } else {
+                            right.iter().map(|e| e.fact).collect()
+                        };
+                        prefix.sort_unstable();
+                        Some((id, mark, indexed, prefix))
+                    })
+                    .collect()
+            },
             production_facts: wm.production.values().map(Vec::len).sum(),
             seen_facts: seen_ids.len() + seen_rest.len(),
             network_edges: node_ids

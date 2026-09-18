@@ -143,10 +143,10 @@ for node_id in &kind_ids.join_parent {
 
         // CATCH-UP (first keying only): J was skipped every prior round while one side
         // was empty, so right_idx[J] was never populated from those rounds' facts.
-        // Rebuild from ALL cumulative wm.alpha[alpha_id] and wm.beta[parent], cross-join
-        // fully, and build both indexes. Safe: J produced ZERO tokens before first keying
-        // so there is nothing to double-count. On subsequent rounds the incremental
-        // semi-naive path (steps 2–5 below) handles new arrivals correctly.
+        // Index the right tail `wm.alpha[alpha_id][already..]`, cross-join fully against
+        // cumulative wm.beta[parent], and build the left index. Safe: J produced ZERO
+        // tokens before first keying so there is nothing to double-count. On subsequent
+        // rounds the incremental semi-naive path (steps 2–5 below) handles new arrivals.
         //
         // Note: at this point in the round, steps 1 (alpha delta) and 2 (root-join delta)
         // have ALREADY run, so wm.alpha and wm.beta contain ALL cumulative data including
@@ -157,7 +157,12 @@ for node_id in &kind_ids.join_parent {
             // is taken, walked, put back — not cloned
             // (`DESIGN-STONE-catchup-take-left`).
             let all_right = wm.alpha.get(&alpha_id).cloned();
-            let n_right = all_right.as_ref().map(|v| v.len()).unwrap_or(0);
+            let n_all = all_right.as_ref().map(|v| v.len()).unwrap_or(0);
+            // ★ D1 (arc 278): the mark is a prefix length. Index `right[already..]`,
+            // the same slice `keyed_join_persistent` uses. Walking the whole memory
+            // here was safe only while first_keying implied `already == 0` (call-order
+            // coupling with the left latch). Every writer now respects the mark.
+            let already = right_idx.already(*child_id);
             // BORROWED, not taken. The removal this replaces existed to dodge a
             // borrow conflict that the compiler does not actually have: every
             // mutable touch inside this window is `wm.bind_pool` or
@@ -177,7 +182,8 @@ for node_id in &kind_ids.join_parent {
             {
                 let mut ridx = right_idx.writer(*child_id);
                 if let Some(right) = all_right.as_deref() {
-                    for &el in right {
+                    let tail = right.get(already..).unwrap_or(&[]);
+                    for &el in tail {
                         let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
                         let el = element_with_row_span(
                             el,
@@ -197,22 +203,22 @@ for node_id in &kind_ids.join_parent {
             }
             phase_end("  ├ hj:catchup:right-idx", __cri);
             // ★ D2 census (test-only statement — no release code, see `census.rs`): this block
-            // appended `n_right` elements to `right_idx[J]`, and since the cure it advanced the
-            // mark by the same `n_right` — the row stays because WHICH site wrote an index is
-            // still the reading, and the probe's non-vacuity guard needs it.
-            // `n_right` is the loop's exact trip count: the walk above is over `all_right` in
-            // full, one `push` per element.
+            // appended `right[already..].len()` elements to `right_idx[J]`, and since the D2
+            // cure it advanced the mark by the same count — the row stays because WHICH site
+            // wrote an index is still the reading, and the probe's non-vacuity guard needs it.
+            // The capacity heuristic below still uses `n_all` because the catch-up cross-join
+            // is against the full index.
             #[cfg(test)]
             crate::rete::kernel::census::right_idx_appended(
                 *child_id,
                 crate::rete::kernel::census::RIGHT_IDX_SITE_CATCHUP,
-                n_right,
+                n_all.saturating_sub(already),
             );
             // Reserve the 40k appends. Isolated unreserved extend paid
             // G−E = 4.13 ms (`DESIGN-STONE-probe-gap-split`).
             let n_join = match right_idx.get(child_id) {
-                Some(idx) if !idx.is_empty() && n_right > 0 => {
-                    all_left.len().saturating_mul(n_right / idx.len())
+                Some(idx) if !idx.is_empty() && n_all > 0 => {
+                    all_left.len().saturating_mul(n_all / idx.len())
                 }
                 _ => 0,
             };
