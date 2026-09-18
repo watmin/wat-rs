@@ -276,6 +276,37 @@ pub(crate) fn with_gather_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
     (out, counted)
 }
 
+// Test-only instrument: one HashMap lookup of join_extend's per-alpha triple
+// (`compiled_conds`, `bind_only`, `cond_key_ids`), all keyed on `alpha_id`.
+//
+// temperare §1: those three gets ran once per emitted pair. After the hoist they run
+// once per join node. The count is the proof; a wall-clock is not.
+#[cfg(test)]
+// rune:sequi(performance-counter) — test-only join_extend per-alpha lookup count; hoist gate.
+thread_local! {
+    /// Lookups of join_extend's per-alpha triple since the counter was armed.
+    pub(crate) static JOIN_ALPHA_LOOKUPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn census_join_alpha_lookup() {
+    JOIN_ALPHA_LOOKUPS.with(|c| c.set(c.get() + 1));
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn census_join_alpha_lookup() {}
+
+/// Run `f` with the join-alpha lookup counter zeroed, and return what it counted.
+#[cfg(test)]
+pub(crate) fn with_join_alpha_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
+    let prior = JOIN_ALPHA_LOOKUPS.with(|c| c.replace(0));
+    let out = f();
+    let counted = JOIN_ALPHA_LOOKUPS.with(|c| c.replace(prior));
+    (out, counted)
+}
+
 // ── Per-phase wall-clock inside the fire loop ────────────────────────────────
 //
 // `RoundCensus` counts STRUCTURES (how many tokens, how many elements); this counts NANOSECONDS,

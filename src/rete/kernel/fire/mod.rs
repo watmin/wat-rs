@@ -119,6 +119,46 @@ pub(crate) struct FireCtx<'a> {
     pub(crate) cond_key_ids: &'a CondKeyIds,
 }
 
+/// The per-alpha triple `join_extend` used to look up on every emitted pair.
+///
+/// `alpha_id` is loop-invariant at every call site; resolve once per join node
+/// (`JoinAlpha::resolve`) and pass the handle in. Three `HashMap<i64, _>` gets
+/// become three per node, not three per pair.
+///
+/// The two side tables are **owned** (cloned once per node). Holding `&wm.bind_only`
+/// across a `&mut wm` call is the borrow FireCtx exists to split; the step-3/step-4
+/// lifts take `&mut wm` whole, so the handle cannot borrow those fields.
+pub(crate) struct JoinAlpha<'a> {
+    pub(crate) id: i64,
+    pub(crate) compiled: &'a crate::rete::compiled_cond::CompiledCond,
+    bind_only: Option<Vec<u8>>,
+    cond_key_ids: Option<Vec<u32>>,
+}
+
+impl<'a> JoinAlpha<'a> {
+    pub(crate) fn resolve(
+        compiled_conds: &'a HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+        bind_only: &BindOnlyFields,
+        cond_key_ids: &CondKeyIds,
+        alpha_id: i64,
+    ) -> Result<Self, EvalBreak> {
+        // Three gets, counted at the door. `rematch_compiled` is get #1 (and the
+        // raise if setup failed to compile this alpha).
+        crate::rete::kernel::census::census_join_alpha_lookup();
+        let compiled = rematch_compiled(compiled_conds, alpha_id)?;
+        crate::rete::kernel::census::census_join_alpha_lookup();
+        let bind_only = bind_only.get(&alpha_id).cloned();
+        crate::rete::kernel::census::census_join_alpha_lookup();
+        let cond_key_ids = cond_key_ids.get(&alpha_id).cloned();
+        Ok(Self {
+            id: alpha_id,
+            compiled,
+            bind_only,
+            cond_key_ids,
+        })
+    }
+}
+
 // ── Pass 1: Alpha pass ────────────────────────────────────────────────────────
 
 /// `activate-alpha` + `activate-fact` — type-index each fact,
@@ -596,10 +636,26 @@ fn span_from_row(
     bind_only: &BindOnlyFields,
     cond_key_ids: &CondKeyIds,
 ) -> BindSpan {
-    let Some(fields) = bind_only.get(&alpha_id) else {
+    span_from_resolved(
+        pool,
+        el,
+        i64_by_fact,
+        bind_only.get(&alpha_id).map(Vec::as_slice),
+        cond_key_ids.get(&alpha_id).map(Vec::as_slice),
+    )
+}
+
+fn span_from_resolved(
+    pool: &mut Vec<(u32, u32)>,
+    el: &Element,
+    i64_by_fact: &[Option<I64Row>],
+    fields: Option<&[u8]>,
+    kids: Option<&[u32]>,
+) -> BindSpan {
+    let Some(fields) = fields else {
         return empty_span();
     };
-    let Some(kids) = cond_key_ids.get(&alpha_id) else {
+    let Some(kids) = kids else {
         return empty_span();
     };
     let Some(row) = i64_by_fact.get(el.fact as usize).and_then(|o| o.as_ref()) else {
@@ -681,15 +737,18 @@ fn token_assoc(tok: &Token, k: Value, v: Value, intern: &mut BindIntern<'_>) -> 
 }
 
 /// Rematch one token against one alpha element and extend the support chain.
-/// Returns `None` when a leftover `SeedCmp` rejects the pair. `alpha_id` is
+/// Returns `None` when a leftover `SeedCmp` rejects the pair. `alpha.id` is
 /// recorded on the new token's matches span.
+///
+/// The per-alpha triple is a [`JoinAlpha`] resolved once per join node — not
+/// three `HashMap` lookups on every pair.
 pub(crate) fn join_extend(
     tok: &Token,
     el: &Element,
-    alpha_id: i64,
+    alpha: &JoinAlpha<'_>,
     ctx: &mut FireCtx<'_>,
 ) -> Result<Option<Token>, EvalBreak> {
-    let compiled = rematch_compiled(ctx.compiled_conds, alpha_id)?;
+    let compiled = alpha.compiled;
     // No leftover SeedCmp: the keyed bucket is the join (same contract as
     // fold-the-wall). Rematch cannot reject a member (`DESIGN-STONE-join-extend-no-leftover`).
     if compiled.has_seed_cmp()
@@ -706,20 +765,19 @@ pub(crate) fn join_extend(
     let right = if el.binds.len > 0 {
         el.binds
     } else {
-        span_from_row(
+        span_from_resolved(
             ctx.pool,
             el,
-            alpha_id,
             ctx.i64_by_fact,
-            ctx.bind_only,
-            ctx.cond_key_ids,
+            alpha.bind_only.as_deref(),
+            alpha.cond_key_ids.as_deref(),
         )
     };
     Ok(Some(extend_token(
         tok,
         el.fact,
         right,
-        alpha_id,
+        alpha.id,
         ctx.pool,
         ctx.match_pool,
     )))
@@ -741,6 +799,7 @@ fn keyed_join(
     if left_tokens.is_empty() || right_elements.is_empty() {
         return Ok(vec![]);
     }
+    let alpha = JoinAlpha::resolve(ctx.compiled_conds, ctx.bind_only, ctx.cond_key_ids, alpha_id)?;
 
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
     let join_keys: Vec<Value> = gather_join_keys(
@@ -768,7 +827,7 @@ fn keyed_join(
         if let Some(bucket) = index.get(&probe_key) {
             // rune:lint(gather-walk-not-examining) — HashJoin left-token bucket probe; GATHER_VISITS is Acc/Neg/Exists, not join_extend.
             for &el_idx in bucket {
-                if let Some(new_tok) = join_extend(tok, &right_elements[el_idx], alpha_id, ctx)? {
+                if let Some(new_tok) = join_extend(tok, &right_elements[el_idx], &alpha, ctx)? {
                     out.push(new_tok);
                 }
             }
@@ -800,6 +859,7 @@ fn keyed_join_persistent(
     if left_tokens.is_empty() || right_elements.is_empty() {
         return Ok(vec![]);
     }
+    let alpha = JoinAlpha::resolve(ctx.compiled_conds, ctx.bind_only, ctx.cond_key_ids, alpha_id)?;
     let keys: Vec<Value> = match idx.left_idx.keys(join_id) {
         Some(k) => k.to_vec(),
         None => gather_join_keys(
@@ -871,7 +931,7 @@ fn keyed_join_persistent(
         if let Some(bucket) = ridx.get(&probe_key) {
             // rune:lint(gather-walk-not-examining) — HashJoin persistent-right-index probe; GATHER_VISITS is Acc/Neg/Exists, not join_extend.
             for el in bucket {
-                if let Some(new_tok) = join_extend(tok, el, alpha_id, ctx)? {
+                if let Some(new_tok) = join_extend(tok, el, &alpha, ctx)? {
                     out.push(new_tok);
                 }
             }
