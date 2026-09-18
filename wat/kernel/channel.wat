@@ -35,7 +35,7 @@
 ;; substrate concepts — bare channel ends and the pair, before any
 ;; program / producer is wired around them.
 ;;
-;; Registered via the stdlib-types path (src/stdlib.rs +
+;; Registered via the stdlib-types path (src/load/stdlib.rs +
 ;; types::register_stdlib_types), which bypasses the reserved-prefix
 ;; gate that otherwise blocks user code from declaring under :wat::*.
 

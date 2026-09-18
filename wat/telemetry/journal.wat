@@ -15,7 +15,7 @@
 ;; (the shared :wat::query:: error vocabulary — derive-is-the-wall, NOT a parallel telemetry one).
 ;;
 ;; Loads after wat/telemetry.wat (Journal/Metric/Log/PartitionKey/Kind), wat/query.wat (Store), and
-;; wat/service.wat (defservice) — see the src/stdlib.rs manifest slot.
+;; wat/service.wat (defservice) — see the src/load/stdlib.rs manifest slot.
 
 ;; ── small pure helpers ──────────────────────────────────────────────────────────
 ;; sk = #inst "<iso8601 with 9 fixed fractional digits, Z>" — CONSTANT WIDTH, so it sorts

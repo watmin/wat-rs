@@ -426,7 +426,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // resemble each other; the operative Rust type does not — it is `Diagnostic`, never `Signal`.
     // `Partial`. The registry consult below now answers for it directly.
     // `:wat::verify::string` / `:wat::verify::http-path` / `:wat::verify::s3-path`
-    // (`resolve_verify_payload`, `src/runtime.rs:24271-24306` — never anchored, invisible to the
+    // (`resolve_verify_payload`, `src/runtime.rs` — never anchored, invisible to the
     // old two-anchor scan). `string` evaluates its one argument and returns it unchanged if it is
     // already a `String` (`TypeMismatch` otherwise — nothing ambient touched either way);
     // `http-path`/`s3-path` don't even evaluate their argument — the arm unconditionally raises
@@ -438,7 +438,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     ) {
         return Some(OpMeta { pure: true, deterministic: true, total: false });
     }
-    // `:wat::verify::file-path` (`resolve_verify_payload`, `src/runtime.rs:24281-24297`) — reads
+    // `:wat::verify::file-path` (`resolve_verify_payload`, `src/runtime.rs`) — reads
     // a FILE FROM DISK (`sym.source_loader()...fetch_payload_file`), the same class of externally
     // observable effect `:wat::io::`'s whole namespace is blanket `Impure` for. Ruled Impure
     // per-verb here (there is no `:wat::verify::` = Impure namespace rule — its siblings above

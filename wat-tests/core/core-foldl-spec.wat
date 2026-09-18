@@ -4,8 +4,9 @@
 ;; ★ THE SHAPE, and it is the point of the stone. `foldl` is a Rust intrinsic. `foldl-spec` is the
 ;; same fold written in wat as obviously as possible — correct and slow on purpose. Builder,
 ;; 2026-08-18: *"we build wat-oracles that guide the rust code... the wat-native using rust provided
-;; intrinsics must be faster than wat-oracle."* Same shape as `:wat::rete::insert-all-spec`, whose
-;; own comment says it best: *"the native kernel is the fast impl, the spec keeps it honest."*
+;; intrinsics must be faster than wat-oracle."* Same shape as `:wat::rete::insert-all$oracle`
+;; (`wat/rete/oracle/insert.wat`), the recorded exemplar of it: *"the native kernel is the fast
+;; impl, the spec keeps it honest."*
 ;;
 ;; ⚠ EVERY ROW USES AN ORDER-SENSITIVE `f`: `acc*2 + x`. This matters more than it looks.
 ;; A `+` differential is nearly vacuous — it passes while iterating BACKWARDS or re-associating.

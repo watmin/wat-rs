@@ -327,7 +327,7 @@
 ;; send side went unwalled for months (R57 `IGNORANTIAM DELEMVS`).
 ;;
 ;; `send'` has always been able to tell a stop from a peer loss —
-;; `SendError::Shutdown` is a distinct variant (`comms/mod.rs:919`, built to
+;; `SendError::Shutdown` is a distinct variant (`comms/mod.rs`, built to
 ;; mirror `RecvError::Shutdown`) — and folded it into `Lost` anyway.
   :Stopped
   :Lost [cause <- :wat::kernel::LociDiedError])

@@ -97,8 +97,9 @@
   :Predicate [pred <- :wat::core::String])
 
 ;; sieve-pred — the organic-UX capture macro. The user writes a REAL `(fn [log] -> :bool …)`;
-;; this macro (modeled on `defrule`, wat/rete.wat:1971) captures the form, `ast->source`s it into
-;; a String, and expands to a `Sieve::Predicate` — the user never types a string themselves.
+;; this macro (modeled on `:wat::rete::defrule`, `wat/rete/syntax.wat`) captures the form,
+;; `ast->source`s it into a String, and expands to a `Sieve::Predicate` — the user never types
+;; a string themselves.
 (:wat::core::defmacro :wat::query::sieve-pred
   [fn-form <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::let [src (:wat::core::ast->source fn-form)]
@@ -113,7 +114,8 @@
 ;; `(PersistentVector :- [wat::core::Value])` reply — the level-up from the Predicate's SELECT to INFER
 ;; (one log can yield MANY deductions; the returned count can exceed the page size).
 ;;
-;; Canonical kwargs order assumed (defrule precedent, wat/rete.wat:1971): `:name :defs :rules`.
+;; Canonical kwargs order assumed (`:wat::rete::defrule` precedent, `wat/rete/syntax.wat`):
+;; `:name :defs :rules`.
 ;;
 ;; ── the two macro-time extraction problems (both probed clean, scratchpad/probe-rule-lits.wat) ──
 ;;   (1) Rule VALUES, not defns: `:rules` are literal `(defrule name :when […] :then …)` forms. A
