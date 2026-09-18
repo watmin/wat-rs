@@ -5,7 +5,8 @@
 ;; then DELETE IT. ⛔ Leaving it in the tree turns the floor RED — the orchestrator has
 ;; already pushed a red floor once by committing a recon .wat into this gated tree.
 ;;
-;; AT HEAD b5c068ebd: the file type-checks and RUNS, and the gate FAILS with
+;; AT HEAD b3dee4619 (⚠ this line first read `b5c068ebd`, a HEAD that is not this strike's —
+;; the self-certifying-date shape CLAUDE.md warns about, in the orchestrator's own probe): the file type-checks and RUNS, and the gate FAILS with
 ;;   wat-scripts/scratch-pad/zz-c15-probe.wat:4  :wat::rete::DerivationNode/via
 ;; `via` is declared at wat/rete.wat:377 inside the defrecord at :374.
 ;; AFTER the cure: the gate passes with this file present.
