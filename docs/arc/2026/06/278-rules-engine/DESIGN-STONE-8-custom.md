@@ -38,7 +38,7 @@ rule. Out of scope (separate queue items, NOT here): `returns-the-fact` (item 2)
 ## Files
 - `wat/rete.wat` — `accumulate-pass-for-token`: the unknown-head arm evals the user fn over the gathered PV;
   `compile-condition` accumulate-branch: fence the user fn (`pure? ∧ deterministic?`) when head ∉ built-ins.
-- `src/rete/kernel.rs` — `accumulate_value` (`:1234`): the `other` arm evals the user fn over `gathered`
+- `src/rete/kernel/fire/acc.rs` — `accumulate_value`: the `other` arm evals the user fn over `gathered`
   (reuse the eval path; needs `sym`/env threaded in like `eval_test_core`).
 - `tests/probe_arc278_8custom_native_differential.rs` — RED probe: a user fold fn (e.g. a simple `range`/`max`
   or a stddev-shaped fold) as an accumulator; native == oracle; + the fence rejects an impure fold at compile.

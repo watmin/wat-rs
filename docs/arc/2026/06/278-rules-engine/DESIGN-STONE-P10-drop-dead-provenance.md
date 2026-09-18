@@ -33,7 +33,7 @@ proves TM is replay-based, independent of `matches`), and it does NOT un-do the 
 cross-fire engine builds its OWN incremental support store when it exists (`exigere`: we do not carry dead
 provenance speculatively for an unbuilt consumer; we name where it tracks). Dead-weight removal, gated.
 
-## The kill (`src/rete/kernel.rs` — the native fire passes only)
+## The kill (`src/rete/kernel/fire/` — the native fire passes only)
 Stop POPULATING `matches` in the native engine. The `bindings` (the live data — drives firing) is untouched.
 - `make_token` callers in the fire passes: build the token with an **empty** `matches` PV.
   - root-join seed (`:489-492` batch, `:1197-1200` delta): drop the `support` Tuple + the `matches_pv` new/push;
@@ -57,7 +57,8 @@ Stop POPULATING `matches` in the native engine. The `bindings` (the live data �
   (provenance), that test checks dead data — STOP and surface it (do not weaken it silently).
 
 ## Files / out of scope
-- `src/rete/kernel.rs` — the fire passes (make_token seeds + extend_token). NOTHING else.
+- `src/rete/kernel/fire/` — the fire passes (make_token seeds + extend_token). NOTHING else.
+  (`make_token` has not existed since `82b9b5518`; the passes build `Token { … }` literals — see `seed_token_binds` in `fire/mod.rs`.)
 - NOT the oracle, NOT `to_transient`/`to_persistent` (stay lossless), NOT `bindings`, NOT the Token type/arity,
   NOT `Value`. No new probe (behavior-preserving — the differential is the net; the bench is the win).
 

@@ -60,7 +60,7 @@ Next intern cell is fanout unless its top-row is
 
 ## Blast radius
 
-`src/rete/kernel.rs` tests only. One counted helper
+`src/rete/kernel/tests/` only. One counted helper
 for cascade (depth-split already fires this world).
 No `.wat`. No engine change.
 

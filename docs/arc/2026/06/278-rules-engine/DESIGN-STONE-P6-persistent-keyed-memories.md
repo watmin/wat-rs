@@ -2,7 +2,7 @@
 
 The Clara head-to-head (P5b) diagnosed the one regime where Clara wins: **width-heavy** (30×10: Clara 14 ms vs
 our 36 ms). Cause, grounded in our own code: the P4b delta is round-based semi-naive AND **`keyed_join` rebuilds
-the join index from scratch on every call** (`src/rete/kernel.rs::keyed_join` computes `join_keys` + a
+the join index from scratch on every call** (`src/rete/kernel/fire/mod.rs::keyed_join` computes `join_keys` + a
 `HashMap<key,Vec<usize>>` every round, every join node). At width W that re-index is O(W) per round per node →
 O(D²·W)-ish. Clara keeps **persistent per-node indexes** and probes O(matches). P6 closes that gap: maintain the
 join indexes **across rounds**, update them incrementally, and **probe** them in the delta join — never rebuild.
@@ -20,7 +20,7 @@ not the rounds).
   (`wat-scripts/perf/clara/`) — native-ns at 20×10 / 30×10 must drop **below Clara** (currently 12.2/36.2 ms vs
   Clara 12.1/14.1). Re-run both each iteration.
 
-## What changes (Rust — `src/rete/kernel.rs::fire_fixpoint_delta` + helpers only)
+## What changes (Rust — `src/rete/kernel/fire/delta.rs::fire_fixpoint_delta` + helpers only)
 Each `HashJoinNode` J has exactly one left parent P (the node whose `children` include J) and one feeding alpha
 A (`alpha_feeding(J)`). The join key set for J — `join_keys[J]` = the sorted shared binding-var names — is fixed;
 compute it ONCE (lazily, the first round J has ≥1 token and ≥1 element) and cache it.
@@ -65,7 +65,7 @@ ones. The deep-cascade differential (depth 20) is the proof.
   from the staged session each fire — value-semantics preserved), no public-surface change, no retract change.
 
 ## Files
-- `src/rete/kernel.rs` — rework the hash-join delta inside `fire_fixpoint_delta` to maintain + probe persistent
+- `src/rete/kernel/fire/delta.rs` — rework the hash-join delta inside `fire_fixpoint_delta` to maintain + probe persistent
   `left_idx`/`right_idx`/`join_keys`. Add a small `key_of(bindings, join_keys)` helper. Nothing else.
 
 ## Verify

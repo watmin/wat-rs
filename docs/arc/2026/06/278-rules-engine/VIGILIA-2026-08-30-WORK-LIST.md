@@ -543,7 +543,32 @@ non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch
 | ~~`MINIMUM of` header may not co-occur with `/= r`~~ ⛔ **ALREADY SATISFIED — struck 2026-09-01.** C1 itself shipped `tests/lint/minimum_label_matches_its_estimator.rs` (446 lines, `119214aef`), whose header reads *"a table that says `MINIMUM` may not compute a MEAN"* and which names the `/= r` shape by name. Population today: **9 files say `MINIMUM of`, ZERO divide by rounds** — pattern verified sound against C1's own removals. The row was filed 2026-08-30 and the cure landed 2026-08-31; nobody struck it. **F0's thesis exactly: a claim that was true when written.** |
 | ~~non-vacuity guards on walking gates~~ ✅ `58a10e1f8` | ⚠ **the row's count was wrong, and so was my audit grep's** — the instrument reports **24 in scope, 19 undeclared** (6 of those already had a real guard). **Driven first: NO gate is vacuous today.** `every_walking_gate_declares_non_vacuity.rs` now requires a declared guard — marker+assertion, or a rune naming the mechanism. ★ It caught itself: its own `///` doc parsed as a rune and it was one run from vouching for itself. |
 
-**F2 — rotted claims inside `src/` and the arc** (do these WITH F0, not as corrections):
+~~**F2 — rotted claims inside `src/` and the arc**~~ ✅ **CLOSED 2026-09-05.** All seven bullets cured or struck; **50 pointers moved across 39 files**, 20 verified to a specific file by grepping the symbol the sentence names, 30 to a subtree, **none on a basename**, nine dead line coordinates dropped. Two dated **census-table rows** left untouched — a dated MEASUREMENT is a record, a dead POINTER is not.
+
+> ⛔ **DERIVE THE COUNT, NEVER QUOTE IT.** The bullet said *"83 of 207"*, correct when written:
+> ```
+> grep -rlc 'src/rete/kernel\.rs' docs/arc --include='DESIGN-STONE-*.md' | wc -l
+> find docs/arc -name 'DESIGN-STONE-*.md' | wc -l
+> ```
+>
+> ⛔⛔ **AND THE STRIKE'S OWN ARTIFACTS WROTE THE CORRECTED NUMBER SIX TIMES WHILE FORBIDDING IT** —
+> DESIGN, BRIEF and EXPECTATIONS each twice, one in a table presenting it as measured truth, beside
+> a row saying that writing it *anywhere* fails the strike. Annotated as dated readings with the
+> command beside them. **The rule was right and its author broke it in the act of writing it down.**
+>
+> ⛔ **NOT ONE CURE IS GATED.** Mutations proved it: `no_stale_path_in_doc` reads a `:LINE` only on a
+> **slashed** token, so a bare `:2115` beside a symbol is invisible, and a directory re-point is
+> invisible in both directions. **The class can regrow.** Three of the orchestrator's claims were
+> also wrong: *"every citation has drifted"* (bullet 1's are exact), bullets 1 and 5 were never
+> measured (both live; 5 had a **third** violating site the row never named), and the golden warning
+> named `.wat` line pins when the real hazard was `rust_caller_span!()` goldens pinning **Rust**
+> lines — the third strike running where the prior artifact's golden list was short.
+>
+> ⏭ **STOP-3, REPORTED NOT FIXED:** extending the gate to `docs/` is four lines and surfaces
+> **5,356 citations across 1,278 paths that exist nowhere** (`src/fork.rs` ×187, `src/macros.rs`
+> ×176, `src/rete/kernel.rs` ×99 — ~98 of those outside the stone population). Builder's call.
+>
+> See `strike-f2-the-rotted-seven/SCORE.md`. **The original bullets:**
 
 > ⛔ **NEW ROW, opened 2026-09-05 by the deferred-34 strike's STOP-3 — IN-RANGE CITATION DRIFT.**
 > `every_location_named_in_a_doc_comment_exists` cannot see two whole classes, and both were driven:
@@ -558,19 +583,68 @@ non-memory fields"*, *"four cells"*, *"a 74-row table"*, *"nine"* (`RoundScratch
 > citations do not have this failure mode — which is why C14 and F2-e both landed on *prefer a symbol
 > to a line*.
 
-- `NEXT-STRIKES:1491,1512` — both TRACKED DECISIONS premises expired; the tally at `:1283`
-  contradicts them. The section banning two-places-per-row committed it again. *(`exigere`)*
-- `rust_deps/cache.rs:70` — cites heading *"exigere — the cache panic conversion"*; grep finds it
-  **only in that source line**. *(`exigere`)*
-- `purity.rs:216` — *"nothing enforces that"*; `mod completeness_gate` is at `:2093`, same file. *(`exigere`)*
-- `DESIGN-STONE-4b:68` — *"its own future stone (let need reveal)"*; `delta.rs:391` says *"THIS IS
-  THE STONE 4b DEFERRED … The need revealed."* Forward edge, no back edge. *(`exigere`)*
-- `DESIGN-STONE-gather-no-snapshot:53` — forbids what `delta.rs:321` does; superseded 2026-08-19,
-  neither earlier stone annotated. *(`conferre`)*
-- **83 of 207 stones name `src/rete/kernel.rs`**, deleted 2026-08-20. `no_stale_path_in_doc.rs`
-  scans `src/rete` only, so the impl side is spotless and the stones rotted. *(`conferre`)*
-- `reachability.rs:820,830,832` coverage prose; `:568-578` an orphaned doc block that merged onto
-  `uniform_call`'s rustdoc; `:419,446` "four cells" vs six. *(`intueri`)*
+- ~~`NEXT-STRIKES:1491,1512` — both TRACKED DECISIONS premises expired~~ ✅ **CURED 2026-09-05, and
+  the row's own citations were the ONLY two in F2 that had NOT drifted.** Both premises re-driven:
+  ① *"moved to arc 109 as a NOTE"* — the NOTE is on disk and RULES ON THE MERITS (convert `Lru::new`,
+  leave `put`/`get`); ② *"`match` map-destructure lowers"* — `expr_ir/mod.rs`'s hash-destructure arm
+  carries the closure verbatim, `:md::Point{40,2}` → 42 fires in both positions. **Both sections are
+  struck IN PLACE** with the tally's finding restated where a reader lands, so neither reads as an
+  open row. *(`exigere`)*
+- ~~`rust_deps/cache.rs:70` — cites heading *"exigere — the cache panic conversion"*~~ ✅ **CURED
+  2026-09-05. CONFIRMED PHANTOM: that heading has never existed anywhere** — `grep -rn` over the tree
+  returns the source line and this row, nothing else. And the row it MEANT had also moved out of
+  `NEXT-STRIKES` to arc 109, so the pointer was dead twice over. Now names the NOTE by PATH (no
+  heading, no line): `docs/arc/2026/04/109-kill-std/NOTE-the-cache-lru-panics-on-a-value-that-arrives-from-durable-storage.md`,
+  with its merits ruling summarised inline. *(`exigere`)*
+- ~~`purity.rs:216` — *"nothing enforces that"*~~ ✅ **CURED 2026-09-05 — and the row's `:2093` had
+  itself drifted to `:2115`, which is why the cure is a SYMBOL.** `completeness_gate` is exact about
+  it: a dispatch verb with neither an `intrinsic_meta` classification nor a `RULES`/`KNOWN_UNREVIEWED`
+  disposition REDs the build, naming the verb. The claim now cites the symbol and no line, with the
+  reason written beside it. *(`exigere`)*
+- ~~`DESIGN-STONE-4b:68` — forward edge, no back edge~~ ✅ **CURED 2026-09-05. Two corrections to the
+  row itself:** the stone is `DESIGN-STONE-4b-cascade-fixpoint.md` (there is also a
+  `DESIGN-STONE-P4b-delta-fire.md`, and `DESIGN-STONE-4b` names neither), and `delta.rs:391` had
+  drifted to `:400` — the file moved to `src/rete/kernel/fire/delta.rs` in the kernel split. The back
+  edge is now an **annotation** under § Termination, dated, retracting nothing: the cap shipped as
+  `fire_fixpoint_delta`'s TERMINATION CAP, per-program via
+  `(:wat::config::rete::set-max-fire-rounds! n)`. *(`exigere`)*
+- ~~`DESIGN-STONE-gather-no-snapshot:53` — superseded 2026-08-19, neither earlier stone annotated~~
+  ✅ **CURED 2026-09-05 — and `delta.rs:321` had drifted too** (it is now a `right_idx` comment; the
+  site is the `gather_cache` declaration a few lines down, which names
+  `DESIGN-STONE-persist-gather-across-rounds` outright). Both earlier stones now carry a dated
+  SUPERSEDED annotation: `gather-no-snapshot` § THE ONE CONTRACT DECISION, and `gather-index-cache`
+  at BOTH sites — the *"round-scoped, never longer"* clause and the *"a cross-round or cross-fire
+  cache"* rejection, which the row did not name. Annotated, never rewritten. *(`conferre`)*
+- ~~**83 of 207 stones name `src/rete/kernel.rs`**, deleted 2026-08-20~~ ✅ **CURED 2026-09-05 —
+  ⛔ AND THE COUNT IS NOT REPLACED BY A FRESHER NUMBER.** *"83 of 207"* was TRUE when written and was
+  wrong in both directions when read; a corrected figure is the same defect with newer digits. **The
+  count is the command that derives it, and the command is the row:**
+
+  ```sh
+  grep -rl 'src/rete/kernel\.rs' --include='DESIGN-STONE-*.md' docs | wc -l   # stones still naming it
+  find docs -name 'DESIGN-STONE-*.md' | wc -l                                 # the corpus it is out of
+  ```
+
+  Every citation was re-pointed to a successor **grepped from the tree** or had its path removed —
+  never on a basename match, which is what the deferred-34 strike proved is the danger. What the
+  first command still returns is the deliberate residue: dated **MEASUREMENTS** (per-file site
+  censuses in `DESIGN-STONE-persistent-build-is-a-transient.md` and 296's
+  `DESIGN-STONE-G-the-value-carries-its-own-names.md`), which are records, not pointers, and stay.
+  ⚠ **The gate still does not scan `docs/`, so these cures are a CONVENTION, not a wall** — the pile
+  and the cost of extending it are in `strike-f2-the-rotted-seven/SCORE.md`. *(`conferre`)*
+- ~~`reachability.rs:820,830,832` coverage prose; `:568-578` orphaned doc block; `:419,446` "four
+  cells" vs six~~ ✅ **CURED 2026-09-05 — all three live, and two of the three citations had drifted**
+  (`:568-578`→`:585-595`; `:419,446`→`:436,539`). ⚠ **The first did NOT: `:830,832` still land inside
+  `NOT_YET_GENERABLE`'s doc block, and `:820` is a blank `///` line inside the block whose subject
+  starts at `:805`** — so a flat "every citation in this row has drifted" reading is FALSE for (a),
+  and is corrected here rather than carried forward. (a) `COMPILED_EXECUTOR_CANNOT_RUN` and `NOT_YET_GENERABLE` are both **empty
+  arrays** carrying present-tense prose about rows that were FIXED (`db17511f6`, `2c4c6a163`); both
+  now open by saying the list is empty and that what follows is the record. (b) the orphan was
+  severed from `operands_for` at `d07933919` by an insertion between doc and item — **moved back onto
+  the item it documents**, not deleted. (c) *"four cells"* over a **six**-row table, in three places
+  including the test's own NAME; all three re-worded **number-free** (`the_ledger_reproduces_every_known_cell_…`)
+  so the claim cannot rot again. ⚠ A fourth drifted citation in the same block, not in the row:
+  `expr_ir/mod.rs line ~371` for the HOF route — now `lower_hof_callee`. *(`intueri`)*
 - ~~`wat-scripts/fixes/rete-where-per-type-spelling.wat:80,96`~~ ✅ `f4800ef97` — the row was right and
   the drive found the doctrine claim underneath: **`CLAUDE.md`'s "all wat stays correct, always" was
   FALSE**. Type-checking is not resolution — an invented head in an unforced `def` type-checks and

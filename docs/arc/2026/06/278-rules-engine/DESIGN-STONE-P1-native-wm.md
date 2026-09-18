@@ -12,7 +12,7 @@ session. The wat oracle has no transient — every memory op is an O(log n) pers
 O(N²) tree). The kernel needs O(1) native mutation during fire; this stone is the mutable rep + the freeze
 boundary it rests on. Everything in P2–P5 mutates a `WorkingMemory` and freezes it back.
 
-## What P1 delivers (Rust, internal — `src/rete/kernel.rs`, new)
+## What P1 delivers (Rust, internal — `src/rete/kernel/`, new)
 
 A `WorkingMemory` struct — the native mirror of a `:wat::rete::Session`:
 ```rust
@@ -46,7 +46,7 @@ ordering is content-equality (hash maps); per-node `Vec` order is preserved end 
 ## Verification — an in-crate round-trip unit test (NOT a wat probe)
 The converters are internal Rust (the transient mutation is sealed; exposing `to_transient`/`to_persistent` to
 wat would either be useless without exposing mutation, or put mutation in the user's surface — neither is
-wanted). So P1 is tested by a `#[cfg(test)]` unit test in `src/rete/kernel.rs`:
+wanted). So P1 is tested by a `#[cfg(test)]` unit test in `src/rete/kernel/tests/`:
 1. `startup_from_source` a world (Temperature/WindSpeed/ColdAndWindy + the cold-and-windy rule).
 2. Build a fired `Session` via the **oracle** (`collect-rules`/`compile`/`insert`/`fire-rules`) through
    `eval_in_frozen` — a session with populated alpha/beta/production memories + facts.
@@ -57,7 +57,7 @@ wanted). So P1 is tested by a `#[cfg(test)]` unit test in `src/rete/kernel.rs`:
 RED before the converters exist (won't compile). GREEN when the seam is lossless.
 
 ## Files touched
-- `src/rete/kernel.rs` (new) — `WorkingMemory` + `to_transient` + `to_persistent` + the round-trip unit test.
+- `src/rete/kernel/session.rs` (new) — `WorkingMemory` + `to_transient` + `to_persistent` + the round-trip unit test.
 - `src/rete/mod.rs` — `pub(crate) mod kernel;` + a note.
 
 ## Out of scope = REJECTED

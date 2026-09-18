@@ -57,7 +57,7 @@ fire-only window is HONEST for this axis. The `accum` loss is a genuine engine l
 
 ## The defect, grounded to file:line
 
-**Accumulate pass — `src/rete/kernel.rs:1939-1952`:**
+**Accumulate pass — `src/rete/kernel/fire/pass/accumulate.rs`:**
 ```rust
 let from_elements: Vec<Value> = wm.alpha.get(&from_alpha_id).cloned().unwrap_or_default();
 for tok in new_tokens {
@@ -115,7 +115,7 @@ exactly the same keys. The predicates are equivalent, not approximately equal.
 **Do not gate on wall-clock.** A wall is timing-flaky, and yesterday a wall drawn over the cheap
 container passed *before the fix existed*. Gate on the mechanism itself.
 
-Extend the existing `a8_node_share_fire_census` pattern (`src/rete/kernel.rs`, `#[cfg(test)]`,
+Extend the existing `a8_node_share_fire_census` pattern (`src/rete/kernel/tests/node_share_cost.rs`, `#[cfg(test)]`,
 thread-local, records nothing unless armed) with a **gather-visit counter**: increment once per
 element examined in the accumulate/filter gathers. Then:
 
@@ -132,7 +132,7 @@ derivation — surfaces there. That net is why this rewrite can be done aggressi
 
 ## Blast radius
 
-- **`src/rete/kernel.rs` only.** The accumulate pass (`:1904-1961`), the Negation/Exists filter-pass
+- **`src/rete/kernel/` only.** The accumulate pass, the Negation/Exists filter-pass
   gather, one shared index helper, and the `#[cfg(test)]` census counter.
 - **No `.wat` changes. No corpus migration. No codemod.** The wat oracle is untouched by ruling.
 - The `join_keys`-from-samples derivation is **inherited** from `keyed_join`, not newly introduced:

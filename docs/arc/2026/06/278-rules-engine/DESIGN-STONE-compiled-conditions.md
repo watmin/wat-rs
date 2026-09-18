@@ -71,7 +71,7 @@ ruling and not this stone's to make (`feedback_no_consumers_does_not_mean_dead`)
 
 ## Blast radius
 
-`src/rete/matcher.rs` (the compiler and the executor) and `src/rete/kernel.rs` (build the compiled
+`src/rete/matcher.rs` (the compiler and the executor) and `src/rete/kernel/` (build the compiled
 forms alongside the tree at setup; call the executor from step 1). **Nothing under `wat/`** — the
 oracle does not move, and stays naive by ruling.
 

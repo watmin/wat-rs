@@ -20,7 +20,7 @@ re-run O(depth²) → delta linear.
 - The bend (measured, not gated): `wat-scripts/perf/deep-cascade.wat` — us/round should go ~flat in depth
   (linear total) vs P4a's climbing re-run.
 
-## What changes (Rust — `src/rete/kernel.rs` only)
+## What changes (Rust — `src/rete/kernel/` only)
 `fire-rules'` (`eval_fire_rules_native`) stops calling the re-run `fire_fixpoint` and calls a new
 **`fire_fixpoint_delta`**. `fire_once_session` and the four batch passes stay UNTOUCHED (they remain
 `fire-once'`'s impl and the P4a re-run path — keep `fire_fixpoint` too, unused-but-kept is fine, or
@@ -94,7 +94,7 @@ Behavior is preserved (observable `query` results unchanged); only the algorithm
 of the bend. The wat oracle is the reference; `fire-rules'` conforms to it.
 
 ## Files touched
-- `src/rete/kernel.rs` — add `fire_fixpoint_delta` (+ small helpers: a delta-alpha, delta-root-join, delta-
+- `src/rete/kernel/fire/delta.rs` — add `fire_fixpoint_delta` (+ small helpers: a delta-alpha, delta-root-join, delta-
   hash-join using the existing `join_keys`/index + `extend_token`, delta-production using `build_insert_fact`);
   point `eval_fire_rules_native` at it. NO change to the four batch passes, `fire_once_session`, `fire-once'`,
   the keyed-join helpers, `WorkingMemory`'s shape, the dispatch arm, the TypeScheme, or the oracle.

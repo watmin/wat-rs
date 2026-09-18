@@ -62,6 +62,10 @@ Two supporting constraints:
 - **Round-scoped, never longer.** `wm.alpha` grows during step 1 of each round. A cache that
   outlived a round would serve a stale index missing that round's new elements — again a wrong
   answer, silently. Clear it at the top of each round, after step 1.
+  > **⛔ SUPERSEDED 2026-08-19 by `DESIGN-STONE-persist-gather-across-rounds.md`.** The cache does
+  > outlive the round now; the staleness named here is closed by appending `d_alpha` rather than by
+  > clearing (`src/rete/kernel/fire/delta.rs`). Annotated, not rewritten — the reasoning was sound
+  > for this stone.
 - **The cached snapshot is the one the index indexes.** Buckets hold *indices into `from_elements`*,
   so the cached `Vec<Value>` and its index must travel together and be borrowed together. Storing
   one and re-deriving the other re-introduces the clone this stone exists to remove.
@@ -92,7 +96,7 @@ stone does not touch them.
 
 ## Blast radius
 
-`src/rete/kernel.rs` only — the round loop (cache lifetime), the accumulate pass, the
+`src/rete/kernel/fire/` only — the round loop (cache lifetime), the accumulate pass, the
 Negation/Exists filter pass, and the counter. No `.wat` changes, no corpus migration; the wat oracle
 does not move.
 
@@ -100,6 +104,9 @@ does not move.
 
 - **A cross-round or cross-fire cache.** Alpha memories grow every round; the invalidation is the
   hard part and the win is one build per round. Round-scoped is correct by construction.
+  > **⛔ THIS REJECTION WAS OVERTURNED 2026-08-19** by `DESIGN-STONE-persist-gather-across-rounds.md`,
+  > which solved the invalidation ("the hard part") by appending `d_alpha`. Cross-ROUND shipped;
+  > cross-FIRE did not.
 - **Deduplicating the alpha nodes themselves** (Reading-A vs Reading-B differ only by binding `?v`).
   That is a *compiler* question — whether two conditions over one fact type should share an alpha
   and project bindings per consumer — and it is a bigger, separate stone with its own correctness

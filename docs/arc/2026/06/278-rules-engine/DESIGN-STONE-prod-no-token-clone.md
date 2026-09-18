@@ -61,7 +61,7 @@ construct — say so; do not intern class `String` in this stone.
 
 ## Blast radius
 
-`src/rete/kernel.rs` production loop only. No `.wat`.
+`src/rete/kernel/fire/pass/production.rs` only. No `.wat`.
 
 ## Out of scope = REJECTED
 

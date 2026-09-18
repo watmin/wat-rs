@@ -61,7 +61,7 @@ drawable ≥ 1 ms that is not 2o / names / stamp. Say so.
 
 ## Blast radius
 
-`src/rete/kernel.rs` tests only. No `.wat`. No engine change.
+`src/rete/kernel/tests/` only. No `.wat`. No engine change.
 
 ## Out of scope = REJECTED
 

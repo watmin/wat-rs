@@ -1,5 +1,15 @@
 # BRIEF — close F2's bullets, and do not leave a corrected number behind
 
+
+> ⛔ **THIS FILE WROTE THE CORRECTED NUMBER IT FORBADE, SIX TIMES.** Found by the rider,
+> 2026-09-05. EXPECTATIONS row 1 says writing `39 of 487` *anywhere* fails the strike; DESIGN,
+> BRIEF and EXPECTATIONS each wrote it twice, one of them in a table presenting it as measured
+> truth. A dated draw-record is the charitable reading, and by F0's own argument those six
+> sites rot within the month. **The reading is kept ONLY where it is stamped as a dated
+> observation; the live figure is the command:**
+>
+>     `grep -rlc 'src/rete/kernel\.rs' docs/arc --include='DESIGN-STONE-*.md' | wc -l` of `find docs/arc -name 'DESIGN-STONE-*.md' | wc -l`
+
 Five live prose claims plus 39 stones citing a file deleted 2026-08-20. Every one of the row's own
 citations has drifted. F0 governs the counts; the deferred-34 lesson governs the paths.
 
@@ -20,14 +30,14 @@ citations has drifted. F0 governs the counts; the deferred-34 lesson governs the
 
 ## Driven by the orchestrator at HEAD `6db874fc9`
 
-- **39 of 487** stones name `src/rete/kernel.rs`; **26 carry a dated `Origin (` header**.
+- **39 of 487 _(a dated reading, 2026-09-04 — derive it, do not quote it)_** stones name `src/rete/kernel.rs`; **26 carry a dated `Origin (` header**.
 - Bullet 2 confirmed: the cited heading exists only in the source line and the work-list row.
 - Bullet 3 live; the gate it says is absent is at `purity.rs:2115` (row said `:2093`).
 - Bullets 4 and 7 live; both row citations drifted (`:391`→`:400`, `:419,446`→`:436,539`).
 
 ## The change
 
-- **Counts become the command.** Bullet 6 must not become *"39 of 487"*. Write the `grep`.
+- **Counts become the command.** Bullet 6 must not become *"**39 of 487 _(a dated reading, 2026-09-04 — derive it, do not quote it)_**"*. Write the `grep`.
 - **Paths: verify or delete.** `src/rete/kernel.rs` → `src/rete/kernel/` where the citation meant the
   module; verified-to-item or deleted otherwise.
 - **The row's own citations become symbols**, not corrected line numbers.

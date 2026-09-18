@@ -64,7 +64,7 @@ the one boundary where a malformed Value can actually arrive (`value_to_element`
 
 ## Blast radius — one file
 
-`src/rete/kernel.rs` only. `make_element`/`element_fact_bindings` exist nowhere else; `matcher.rs`
+`src/rete/kernel/` only (both defined in `kernel/session.rs`). `make_element`/`element_fact_bindings` exist nowhere else; `matcher.rs`
 never sees an Element (it takes `&rpds::HashTrieMapSync` bindings directly).
 
 Sites that name the element type explicitly and change `Vec<Value>` → `Vec<Element>`:

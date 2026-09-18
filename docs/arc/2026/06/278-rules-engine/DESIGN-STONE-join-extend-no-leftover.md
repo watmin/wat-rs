@@ -61,7 +61,7 @@ If probe barely moves, leftover is `extend_token` — say so.
 
 ## Blast radius
 
-`src/rete/kernel.rs` `join_extend` only. All four call sites
+`src/rete/kernel/fire/mod.rs` `join_extend` only. All four call sites
 share it. No `.wat`.
 
 ## Out of scope = REJECTED

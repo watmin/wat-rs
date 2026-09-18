@@ -3,7 +3,7 @@
 > **2026-08-17.** This stone's gather is the contract we returned to.
 > Implementation drifted: both mouths scanned the **session fact bag**
 > (leftover `?v < ?m` after accum became the universal algorithm).
-> Dirty tree (`wat/rete.wat` + `src/rete/kernel.rs`) probes **alpha**
+> Dirty tree (`wat/rete.wat` + `src/rete/kernel/`) probes **alpha**
 > for fact-shaped inners again. Live breadcrumb:
 > **`CURRENT-STATE-annihilate-interpretation.md`**.
 >
@@ -49,7 +49,7 @@ binds nothing, by definition).
 - `wat/rete.wat` — `ExistsNode` record + `Node` variant + `node-children` arm; `compile-condition` `is-exists`
   branch (mirror the `:not` branch); filter-pass `ExistsNode` arm (mirror the NegationNode arm, predicate
   flipped to `any-compat`).
-- `src/rete/kernel.rs` — `node_children` `ExistsNode` arm; `fire_fixpoint_delta` filter-pass `ExistsNode`
+- `src/rete/kernel/` — `node_children` `ExistsNode` arm (`kernel/node.rs`); `fire_fixpoint_delta` filter-pass `ExistsNode`
   branch (pass iff ≥1 `token_element_compatible`).
 - `tests/probe_arc278_7exists_native_differential.rs` — the contract (RED at HEAD; 5 tests).
 

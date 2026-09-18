@@ -107,7 +107,7 @@ on `accum` only after the census is green.
 
 ## Blast radius
 
-`src/rete/kernel.rs` (the accumulate token loop + `acc_var_i64`
+`src/rete/kernel/fire/acc.rs` (the accumulate token loop + `acc_var_i64`
 slot helper). `src/rete/compiled_cond.rs` only if
 `has_seed_cmp` is cleaner there than a local walk of `ops()`.
 No `.wat`. Oracle unmoved.

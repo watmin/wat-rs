@@ -16,8 +16,8 @@ P3 changes NO observable behavior (same joined tokens → same derived facts). S
   P3/keyed target: us/fact stays ~flat (~constant) — the join is now O(N). Verified by re-running the bench +
   reading the keyed-join diff (no flaky CI timing assertion).
 
-## What P3 changes (Rust — `src/rete/kernel.rs`, the hash-join cross only)
-Replace the nested cross in `hash_join_pass` (lines ~573-589) with a keyed probe. For each HashJoinNode child
+## What P3 changes (Rust — `src/rete/kernel/fire/mod.rs`, the hash-join cross only)
+Replace the nested cross in `hash_join_pass` with a keyed probe. For each HashJoinNode child
 J with LEFT tokens + RIGHT elements:
 1. **Join key = the shared var names** = (a token's binding keys) ∩ (an element's binding keys), computed once
    per (node, child) — all tokens at a beta node share a key set; all elements at an alpha share a key set, so
@@ -46,7 +46,7 @@ derived facts); the only change is complexity (O(N²) → O(N)). The P2 differen
 the bench is the proof of the bend.
 
 ## Files touched
-- `src/rete/kernel.rs` — rewrite the hash-join cross (lines ~573-589) as a keyed index+probe. Nothing else.
+- `src/rete/kernel/fire/mod.rs` — rewrite `hash_join_pass`'s cross as a keyed index+probe. Nothing else.
 - (bench already extended: `tests/perf_arc278_fire_baseline.rs::native_fire_once_join_scaling`.)
 
 ## Verify

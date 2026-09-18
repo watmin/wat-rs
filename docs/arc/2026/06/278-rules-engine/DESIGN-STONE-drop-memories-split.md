@@ -63,7 +63,7 @@ is fact-as-index if A ≥ 1. Do not intern in this stone.
 
 ## Blast radius
 
-`src/rete/kernel.rs` tests only. No `.wat`. No engine change.
+`src/rete/kernel/tests/` only. No `.wat`. No engine change.
 
 ## Out of scope = REJECTED
 

@@ -8,7 +8,7 @@
 
 ## What was measured
 
-`beta_write_read_traffic` (`src/rete/kernel.rs`) counts, per node, tokens written into `wm.beta` and
+`beta_write_read_traffic` (`src/rete/kernel/tests/fanout_cost.rs`) counts, per node, tokens written into `wm.beta` and
 tokens read back out. All six write sites in `fire_fixpoint_delta` are instrumented by a script that
 **asserts it found exactly six**, so a seventh write path added later fails the edit rather than
 silently under-counting. Both real read sites are instrumented; the two remaining `wm.beta` readers

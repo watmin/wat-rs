@@ -58,7 +58,7 @@ trie's operation.
 
 ## Blast radius
 
-`src/rete/kernel.rs` (the `Element` struct's field, the encode/decode pair) and `src/rete/matcher.rs`
+`src/rete/kernel/session.rs` (the `Element` struct's field, the encode/decode pair) and `src/rete/matcher.rs`
 (7 bindings-taking signatures, 13 mentions of the concrete type). **Not one file** — the earlier claim
 that this was contained to `kernel.rs` was wrong and is corrected here.
 

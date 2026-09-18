@@ -1,5 +1,15 @@
 # DESIGN — the row about rotted claims has itself rotted, in every citation
 
+
+> ⛔ **THIS FILE WROTE THE CORRECTED NUMBER IT FORBADE, SIX TIMES.** Found by the rider,
+> 2026-09-05. EXPECTATIONS row 1 says writing `39 of 487` *anywhere* fails the strike; DESIGN,
+> BRIEF and EXPECTATIONS each wrote it twice, one of them in a table presenting it as measured
+> truth. A dated draw-record is the charitable reading, and by F0's own argument those six
+> sites rot within the month. **The reading is kept ONLY where it is stamped as a dated
+> observation; the live figure is the command:**
+>
+>     `grep -rlc 'src/rete/kernel\.rs' docs/arc --include='DESIGN-STONE-*.md' | wc -l` of `find docs/arc -name 'DESIGN-STONE-*.md' | wc -l`
+
 ## Why
 
 **F2's seven bullets**, the last substantive block of the 2026-08-30 vigilia. Audited against the tree
@@ -8,7 +18,7 @@ wrong in both directions.
 
 | bullet | the row says | measured |
 |---|---|---|
-| 6 | *"83 of 207 stones name `src/rete/kernel.rs`"* | **39 of 487.** Corpus more than doubled; hits more than halved |
+| 6 | *"83 of 207 stones name `src/rete/kernel.rs`"* | **39 of 487 _(a dated reading, 2026-09-04 — derive it, do not quote it)_** Corpus more than doubled; hits more than halved |
 | 3 | `purity.rs:216` + `completeness_gate` at `:2093` | claim **LIVE**; the gate is at **`:2115`** |
 | 4 | `delta.rs:391` | **`:400`** |
 | 7 | *"four cells"* at `:419,446` | **`:436,539`** |
@@ -38,7 +48,7 @@ thing it names.
 **F0 governs the counts; the deferred-34 lesson governs the paths.**
 
 - **Counts → the command that derives them, never a corrected number.** Bullet 6 does not become
-  *"39 of 487"* — that rots in a week, exactly as *"83 of 207"* did. It becomes the `grep` that
+  *"**39 of 487 _(a dated reading, 2026-09-04 — derive it, do not quote it)_**"* — that rots in a week, exactly as *"83 of 207"* did. It becomes the `grep` that
   answers it.
 - **Paths → verify or delete, never re-point on a name match.** `src/rete/kernel.rs` split into
   `src/rete/kernel/` on 2026-08-20. A citation that meant *the module* re-points; one that meant a
