@@ -179,7 +179,19 @@ priority = 99
 #
 # THE NUMBER, DERIVED NOT PICKED (measured 2026-09-03 on this box, 8 cores):
 #   `wat` per run on this corpus ..............  ~0.30s  (~0.16s of it is process startup alone)
-#   `.wat.bad` in the tree ....................  281  (278 asserted over, 3 quarantined)
+#   `.wat.bad` in the tree ....................  285  (279 asserted over, 6 quarantined)
+#     ⛔ NOT grok's `268 (266 asserted over, 2 quarantined)` — this tree's own numbers, re-derived
+#     at replay #362, not copied. `find . -name '*.wat.bad' -not -path './target/*' | wc -l`
+#     (the command this comment already gave) returns 855 on THIS tree, not 285 — it also walks
+#     this repo's own untracked `bootstrap/era/*/tests/` and `bootstrap/composition/*/tests/`
+#     snapshot copies (main-only replay tooling, absent from grok's tree entirely), which the
+#     gate's own `collect_bad(Path::new("tests"), …)` never visits. Scoped the same way the gate
+#     itself walks — `find ./tests -name '*.wat.bad' | wc -l` — 285. Quarantine is 6 (this tree's
+#     own #352/#362 count, not grok's 2 — see `diagnostic_output_is_deterministic.rs`'s own
+#     `QUARANTINE_LEN`), so 285 - 6 = 279 asserted over. The derivation below is UNAFFECTED — a
+#     285-file corpus is still well inside the same budget grok derived for 268 — but a derivation
+#     nobody re-derives is how a budget silently stops matching its workload. Re-derive with:
+#       find ./tests -name '*.wat.bad' | wc -l
 #   full corpus twice, sequential .............  ~167s CPU
 #   full corpus twice, 8-way parallel .........  33.4s wall  (3m55s CPU)
 #   ONE shard (16 shards, ~17 files = ~35 runs)  ~10.4s alone

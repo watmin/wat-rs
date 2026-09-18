@@ -28,7 +28,8 @@ the work.
 ## Trap doors named in advance
 
 - **⛔ SAMPLE SIZE IS THE TRAP.** At p≈0.5, "observe both outcomes in N runs" is a false green at
-  `2·0.5^(N−1)` — **50% at N=2**. C19's own sweep needed **24 runs/file over 280 files**, and its
+  `0.5^(N−1)` — **50% at N=2**. (⛔ this row first read `2·0.5^(N−1)`, which is **1.0** at N=2; the
+  headline was right and the formula was not. Corrected by the rider, 2026-09-04.) C19's own sweep needed **24 runs/file over 280 files**, and its
   first run caught a third file a 2-run scan had missed on a coin flip. A regression test that runs
   the fixture twice proves almost nothing.
 - **One surviving `HashSet` re-opens the hole** and makes the type change a lie. Row 2 is

@@ -3,7 +3,7 @@
 # The blamed function and its line flip run-to-run on the SAME binary.
 #
 # ⚠ TWO RUNS UNDER-DETECT BY HALF. At p≈0.5 per run, "observe both outcomes in N runs"
-# misses at 2·0.5^(N-1) — 50% at N=2. Twelve is the floor for a confident reading here;
+# misses at 0.5^(N-1) — 50% at N=2.  (NOT 2*0.5^(N-1), which is 1.0 at N=2; corrected 2026-09-04.) Twelve is the floor for a confident reading here;
 # C19's own sweep needed 24 runs/file across 280 files to close its set.
 cd "$(git rev-parse --show-toplevel)" || exit 1
 f=tests/rete/probe_arc278_rete_defn_recurse_mutual.wat.bad
