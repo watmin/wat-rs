@@ -64,6 +64,14 @@ pub(crate) fn production_delta(
             None => continue,
         };
 
+        // Buffer this node's derived facts, then `entry` once. The key is
+        // `*node_id` — constant for the whole nest — so the old form paid one
+        // map lookup per derived fact where one per deriving node will do.
+        // Same hoist as `hash_join.rs` catch-up emit. A local Vec, not an
+        // `entry()` Occupied held across the inner loops: the explain arm
+        // takes `&wm` whole (`encode_view`).
+        let mut buffered: Vec<Value> = Vec::new();
+
         // Fire on NEW tokens at EVERY parent (condition `:or` has N).
         // Walk d_beta in place — production only reads bindings
         // (`DESIGN-STONE-prod-no-token-clone`).
@@ -113,6 +121,8 @@ pub(crate) fn production_delta(
                     // Dedup + termination guard: only propagate truly new facts.
                     if seen_insert(seen_ids, seen_rest, &derived) {
                         // P12a: record the support index (first-producer-wins; or_insert_with).
+                        // ⛔ Do not touch this `idx.entry` — it is keyed on the derived
+                        // fact, which varies. The hoist is `wm.production.entry` only.
                         if let Some(ref mut idx) = support {
                             idx.entry(derived.clone()).or_insert_with(|| {
                                 (
@@ -121,10 +131,7 @@ pub(crate) fn production_delta(
                                 )
                             });
                         }
-                        wm.production
-                            .entry(*node_id)
-                            .or_default()
-                            .push(derived.clone());
+                        buffered.push(derived.clone());
                         let idx = wm.n_input + wm.derived_facts.len() as u32;
                         wm.derived_facts.push(derived);
                         next_delta.push(idx);
@@ -132,6 +139,13 @@ pub(crate) fn production_delta(
                     phase_end("  ├ prod:dedup-store", __pd);
                 }
             }
+        }
+        if !buffered.is_empty() {
+            census_prod_entry();
+            wm.production
+                .entry(*node_id)
+                .or_default()
+                .extend(buffered);
         }
     }
     Ok(next_delta)
