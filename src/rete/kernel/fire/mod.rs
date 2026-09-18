@@ -2017,7 +2017,12 @@ fn dispatch_where_tests(
     if tids.is_empty() || tokens.is_empty() {
         return Ok(());
     }
-    let use_tree = tids.iter().any(|id| sink.where_tree.covers(*id));
+    // `covers(tid)` is `ids.contains(tid)` — a function of `tid` ALONE, and the loop below
+    // ran it once per (token, tid) pair. Hoisted: this walk REPLACES the one `use_tree`
+    // already made, forfeiting `any`'s short-circuit (at most `|tids|` lookups, once) to
+    // remove `|tids| x |tokens|`. No ordering change — the loop still visits `tids` in order.
+    let covered: Vec<bool> = tids.iter().map(|id| sink.where_tree.covers(*id)).collect();
+    let use_tree = covered.iter().any(|c| *c);
     if use_tree {
         let span = crate::rust_caller_span!();
         for tok in tokens {
@@ -2030,10 +2035,10 @@ fn dispatch_where_tests(
             let cands = sink.where_tree.candidates(&binds, &span);
             let proven: HashSet<i64> = cands.proven.into_iter().collect();
             let maybe: HashSet<i64> = cands.maybe.into_iter().collect();
-            for &tid in tids {
+            for (i, &tid) in tids.iter().enumerate() {
                 // Uncovered ids are not in the tree — always eval.
                 // Covered + miss is a proven fail (or a raise we suppress).
-                if sink.where_tree.covers(tid) && !proven.contains(&tid) && !maybe.contains(&tid) {
+                if covered[i] && !proven.contains(&tid) && !maybe.contains(&tid) {
                     continue;
                 }
                 if proven.contains(&tid) && sink.where_tree.is_pure_cmp(tid) {
