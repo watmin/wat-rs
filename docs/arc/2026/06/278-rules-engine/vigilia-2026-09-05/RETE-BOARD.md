@@ -154,3 +154,42 @@ and the grid axes would need re-verifying.
 ⚠ `experiri` ranked F2 as L2 on the phrase *"by value equality"*. Reading the whole docstring inverts
 that: *"symmetric with insert"* is a claim the implementation breaks. **The phrase was documentation;
 the paragraph was a contract.**
+
+### ⛔ Why THREE instruments are blind to the retract defect — 2026-09-06
+
+Builder asked whether wat-gen should have caught it. It cannot, and the reasons compound.
+
+**1. The grid fixtures stage no duplicate.** Three axes call `retract`; not one inserts the same
+fact twice. `where-not-fact` row 5 is *named* `partial-retract` and uses two DISTINCT values.
+(The grid's *comparison* is honest — `run-axis.sh:283` is a literal string compare of `:derived`
+after stripping wat's PV tag, and its header says it fails on missing/extra/**reordered**. The
+fixtures are the gap, not the instrument. But every Clara side answers `(count (set …))`, which
+would collapse a multiplicity difference even if one were staged.)
+
+**2. The port check compares a verb to itself.** `retract` has NO native implementation — no
+`RETE_OPS` row, no `fn retract` in `src/rete/`, one definition at `insert.wat:100`. Native and
+oracle call the SAME code, so `oracle == native` always. `check-grid-three-way.sh`'s header names
+this class exactly: *"a flaw the oracle and its faithful Rust port SHARE is invisible."*
+
+**3. ★ The TMS fuzzer's MODEL was derived from the implementation.**
+`wat-tests/rete/differential-fuzz-tms.wat:26-30`:
+
+> *"THE MODEL IS A MULTISET, NOT A SET, and that is load-bearing. `insert` appends and may
+> duplicate; **`retract` removes EVERY fact equal to its argument**. So a program that inserts A0
+> twice leaves two facts… `final-facts` below replays the program with exactly those semantics."*
+
+The fuzzer's own model encodes the defect as ground truth, so a model-vs-engine comparison agrees
+too. And `:57` shows the author met the behaviour and routed around it:
+
+> *"Two A's so a retraction can leave the class non-empty (**an all-or-nothing retraction cannot
+> tell "removed one" from "removed the class"**)"*
+
+`A0` and `A1` are distinct **because** all-or-nothing retraction destroys discriminating power. The
+fuzzer mirrors the engine's own split — multiset on insert, all-or-nothing on retract — including
+the half that is wrong.
+
+**The lesson, and it generalises past this row:** a property test whose model is read off the
+implementation cannot falsify the implementation. The oracle protects against a port bug; only an
+EXTERNAL reference protects against a spec bug. That is the whole content of the builder's
+hierarchy — Clara → oracle → native — and F2 is the case that proves it: **three instruments, all
+green, one external question, immediate divergence.**
