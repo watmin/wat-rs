@@ -766,6 +766,7 @@ fn keyed_join(
             ctx.val_ids,
         );
         if let Some(bucket) = index.get(&probe_key) {
+            // rune:lint(gather-walk-not-examining) — HashJoin left-token bucket probe; GATHER_VISITS is Acc/Neg/Exists, not join_extend.
             for &el_idx in bucket {
                 if let Some(new_tok) = join_extend(tok, &right_elements[el_idx], alpha_id, ctx)? {
                     out.push(new_tok);
@@ -868,6 +869,7 @@ fn keyed_join_persistent(
             ctx.val_ids,
         );
         if let Some(bucket) = ridx.get(&probe_key) {
+            // rune:lint(gather-walk-not-examining) — HashJoin persistent-right-index probe; GATHER_VISITS is Acc/Neg/Exists, not join_extend.
             for el in bucket {
                 if let Some(new_tok) = join_extend(tok, el, alpha_id, ctx)? {
                     out.push(new_tok);
@@ -1948,8 +1950,7 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
     if !compiled.has_seed_cmp() {
         return !bucket.is_empty();
     }
-    bucket.iter().any(|&i| {
-        census_gather_visit();
+    gather_bucket(bucket).any(|i| {
         fact_holds_under(
             sym,
             fact_at(&wm.facts, &wm.derived_facts, wm.n_input, elements[i].fact),
@@ -1977,9 +1978,8 @@ fn seeded_bindings_keyed(
     let elements = alpha_elements(&wm.alpha, alpha_id);
     let bucket = index.bucket(&key);
     if !compiled.has_seed_cmp() {
-        return bucket
-            .iter()
-            .map(|&i| {
+        return gather_bucket(bucket)
+            .map(|i| {
                 let el_b = element_fact_bindings(
                     &elements[i],
                     &wm.bind_keys,
@@ -1996,10 +1996,8 @@ fn seeded_bindings_keyed(
             })
             .collect();
     }
-    bucket
-        .iter()
-        .filter_map(|&i| {
-            census_gather_visit();
+    gather_bucket(bucket)
+        .filter_map(|i| {
             fact_bindings_under(
                 sym,
                 fact_at(&wm.facts, &wm.derived_facts, wm.n_input, elements[i].fact),

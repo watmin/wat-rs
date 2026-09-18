@@ -234,9 +234,8 @@ for node_id in &kind_ids.acc {
         // bucket's indices were pushed in that same order.
         let mut gathered: Vec<&Element> = Vec::new();
         if leftover {
-            for &i in bucket {
+            for i in gather_bucket(bucket) {
                 let el = &from_elements[i];
-                census_gather_visit();
                 let ok = fact_holds_under(
                     sym,
                     fact_at(&wm.facts, &wm.derived_facts, wm.n_input, el.fact),
@@ -249,7 +248,7 @@ for node_id in &kind_ids.acc {
                 }
             }
         } else {
-            gathered.extend(bucket.iter().map(|&i| &from_elements[i]));
+            gathered.extend(gather_bucket(bucket).map(|i| &from_elements[i]));
         }
         // One fold of the whole gather when the token already holds every
         // `:from` bind (or the `:from` binds none). Otherwise group by the
