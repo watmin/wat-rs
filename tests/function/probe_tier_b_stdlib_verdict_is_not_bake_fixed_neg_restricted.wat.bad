@@ -1,0 +1,8 @@
+;; Tier B — THE WITNESS. One metadata-map on the user's OWN `:user::main` turns nine green
+;; bodies inside SIX stdlib files red. `:user::main` is namespaced and outside every reserved
+;; prefix, so the registration gate lets it into `binding_metadata`; nine stdlib
+;; `…::service-forms` bodies MENTION `:user::main` inside a quoted `(:wat::core::forms …)`
+;; child-program template, and `walk_for_restricted_call` fires on every Keyword leaf it walks,
+;; quoted or not.
+(:wat::core::defn :user::main {:restricted-to [:my::]} [] -> :wat::core::nil
+  (:wat::kernel::println "hi"))
