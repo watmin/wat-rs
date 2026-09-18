@@ -596,3 +596,59 @@ it for an open question:
 
 ⭑ The order is the builder's and it matches the measurement: Tier A is the larger phase *and* the one
 with no open question. Tier B is smaller *and* carries the only soundness risk in the whole finding.
+
+
+---
+
+## ⛔ RULED 2026-09-18 — TIER B IS THE TARGET AFTER `defclause` IS MADE CORRECT
+
+**Builder:** *"ok - B is our target after defclause is made correct"*.
+
+### What changed since the first ruling, and it is not what anyone expected
+
+Tier B was declared **UNSOUND** (`52b5574ac`) by a witness: a user `defclause` changed the verdict of
+five call sites inside `wat/repl.wat`. **That blocker is GONE — and `defclause` is not why.**
+`the-stdlib-vends-only-wat` (`c67974cb2`) renamed the three vended non-`:wat::` names, and since
+`:wat::` is **reserved**, a user can no longer declare a stdlib name *by any mechanism*. The door is
+walled, not merely unused. Measured: user-declarable names reachable during the stdlib sweep, **0**.
+
+⭑ **So fixing `defclause` buys ZERO milliseconds.** It is a **correctness** stone
+(`a-defclause-outranks-a-defn`), and its subject is *user-space libraries* — a consumer can still break
+a library's own internal call site, with the library author having no defence. That is worth fixing on
+its own terms, and the builder has sequenced it first.
+
+### What Tier B is still worth, measured after Tier A landed
+
+```
+accounted boot after Tier A            191.30 ms
+  check:body-infer(ALL fns)            109.64 ms   57.3 %
+  check:retired-syntax(ALL fns)         11.26
+  check:restricted-call(ALL fns)         3.43
+  check:def-position(ALL fns)            2.16
+  ───────────────────────────────────────────────
+  the four sweeps Tier B elides        ~126.5 ms   ≈ 66 % of what REMAINS
+                                        boot ≈ 0.22 s → ≈ 0.09 s
+```
+
+Every `stdlib-*` phase now reads **0 hits** — Tier A is doing its job, and what is left is dominated by
+the checker.
+
+### ⭐ THE REMAINING GATE CHANGED SHAPE — from measurement to proof
+
+The spike's census is **one program's control flow**: it enumerated the names probed during *a* stdlib
+sweep and found zero user-declarable ones. It did **not** establish that a *different* user program
+cannot drive stdlib inference down a path probing something else. **That bound was never lifted, and the
+executor said so rather than claiming the win.**
+
+After the builder's namespace ruling the argument can be **structural rather than empirical**:
+
+> every name a stdlib body can resolve is either `:wat::` — reserved, unforgeable — or a local binding.
+
+If that closure holds **by construction**, Tier B is sound with no census at all. ⭑ That makes the next
+stone a **reading-and-proof** stone, not a measuring one — a different and smaller kind of work than the
+spike was.
+
+### The sequence, as ruled
+
+1. `a-defclause-outranks-a-defn` — correctness, in flight, zero perf.
+2. **Tier B** — prove the closure, then elide the four sweeps for cached functions.
