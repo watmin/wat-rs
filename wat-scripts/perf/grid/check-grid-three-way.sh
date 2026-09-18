@@ -82,6 +82,7 @@ declare -A SIZES=(
   [neg-consumer]="50"
   [node-share]="10 20"
   [parametric-erasure]="200"
+  [retract-multiplicity]="3"
   [strat-neg]="3 50"
   [user-reduce]="5 20"
 )

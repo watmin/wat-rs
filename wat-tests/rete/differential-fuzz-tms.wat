@@ -23,11 +23,18 @@
 ;; (`wat/rete/oracle/insert.wat`). So the honest unit of interleaving is the OPERATION, not the
 ;; round, and that is what this file generates.
 ;;
-;; THE MODEL IS A MULTISET, NOT A SET, and that is load-bearing. `insert` appends and may
-;; duplicate; `retract` removes EVERY fact equal to its argument. So a program that inserts A0
-;; twice leaves two facts and a class-scan query returns two rows — a set model would predict one
-;; and the gate would fail on the MODEL rather than the engine. `final-facts` below replays the
-;; program with exactly those semantics.
+;; ⛔ THERE IS NO MODEL HERE, AND THE PROSE ONCE CLAIMED ONE. This paragraph used to say
+;; "`final-facts` below replays the program with exactly those semantics" — `final-facts` has
+;; never existed in this file. `tms::step` calls the REAL `:wat::rete::insert` / `retract` /
+;; fire verbs, and `run-prog` folds them for all four arms (native/oracle × interleaved/one-shot).
+;; The property is PATH INDEPENDENCE between arms that share an implementation, so this file
+;; cannot falsify that implementation — a flaw in a shared verb moves all four numbers together.
+;; That is the same blindness the port check has, not a second one (arc 278, 2026-09-06).
+;;
+;; The fact base IS a multiset and that is load-bearing here: `insert` appends and may duplicate,
+;; `retract` drops ONE equal fact (cured 2026-09-06), so a program that inserts A0 twice leaves
+;; two facts and `q-acc`'s `?n >= 2` can still see them. The alphabet's two distinct A's (`:57`)
+;; predate the cure — they exist because an all-or-nothing retraction could not discriminate.
 
 (:wat::core::defrecord :wat-tests::rete::tms::A [k <- :wat::core::i64])
 (:wat::core::defrecord :wat-tests::rete::tms::B [k <- :wat::core::i64])
