@@ -183,8 +183,12 @@ for node_id in &kind_ids.join_parent {
                 let mut ridx = right_idx.writer(*child_id);
                 if let Some(right) = all_right.as_deref() {
                     let tail = right.get(already..).unwrap_or(&[]);
+                    let fields = {
+                        let intern = GatherIntern::from_wm(wm, alpha_id);
+                        col_fields_for(&intern, jk)
+                    };
                     for &el in tail {
-                        let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
+                        let k = key_of_occupancy_wm(&el, jk, &fields, wm, alpha_id);
                         let el = element_with_row_span(
                             el,
                             &mut wm.bind_pool,
@@ -315,9 +319,13 @@ for node_id in &kind_ids.join_parent {
         {
             let mut ridx = right_idx.writer(*child_id);
             let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
+            let fields = {
+                let intern = GatherIntern::from_wm(wm, alpha_id);
+                col_fields_for(&intern, jk)
+            };
             for ei in dr.iter() {
                 let el = right_mem[ei];
-                let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
+                let k = key_of_occupancy_wm(&el, jk, &fields, wm, alpha_id);
                 let el = element_with_row_span(
                     el,
                     &mut wm.bind_pool,
@@ -436,9 +444,13 @@ let alpha_id = alpha.id;
 if !dr.is_empty() {
     if let Some(lidx) = left_idx.get(child_id) {
         let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
+        let fields = {
+            let intern = GatherIntern::from_wm(wm, alpha_id);
+            col_fields_for(&intern, jk)
+        };
         for ei in dr.iter() {
             let el = right_mem[ei];
-            let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
+            let k = key_of_occupancy_wm(&el, jk, &fields, wm, alpha_id);
             let el = element_with_row_span(
                 el,
                 &mut wm.bind_pool,

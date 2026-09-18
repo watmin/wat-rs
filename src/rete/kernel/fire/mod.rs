@@ -811,8 +811,14 @@ fn keyed_join(
     // Step 2: index RIGHT (elements) by join-key-value tuple.
     let mut index: JoinKeyMap<usize> = HashMap::new();
     let intern = GatherIntern::from_ctx(ctx, alpha_id);
+    let fields = col_fields_for(&intern, &join_keys);
     for (i, el) in right_elements.iter().enumerate() {
-        let key = key_of_el(el, &join_keys, &intern);
+        let key = if el.binds.len > 0 {
+            key_of_el(el, &join_keys, &intern)
+        } else {
+            crate::rete::kernel::census::census_key_of_el(true);
+            join_key_from_columns(el, &join_keys, &fields, intern.i64_by_fact)
+        };
         index.entry(key).or_default().push(i);
     }
 
@@ -891,8 +897,12 @@ fn keyed_join_persistent(
     if already < right_elements.len() {
         let jk = keys.as_slice();
         let mut ridx = idx.right_idx.writer(join_id);
+        let fields = {
+            let intern = GatherIntern::from_ctx(ctx, alpha_id);
+            col_fields_for(&intern, jk)
+        };
         for el in &right_elements[already..] {
-            let k = key_of_el(el, jk, &GatherIntern::from_ctx(ctx, alpha_id));
+            let k = key_of_occupancy_ctx(el, jk, &fields, ctx, alpha_id);
             let el = element_with_row_span(
                 *el,
                 ctx.pool,
@@ -1612,6 +1622,7 @@ impl<'a> GatherIntern<'a> {
     }
 
     pub(crate) fn from_wm(wm: &'a FireSession, alpha_id: i64) -> Self {
+        crate::rete::kernel::census::census_from_wm();
         Self {
             bind_keys: &wm.bind_keys,
             vals: &wm.bind_vals,
@@ -1660,6 +1671,7 @@ impl<'a> GatherIntern<'a> {
 
 /// Field index of `join_key` on this intern's alpha, if bind-only packed.
 fn col_field_of(intern: &GatherIntern<'_>, join_key: &Value) -> Option<u8> {
+    crate::rete::kernel::census::census_col_field_of();
     let fields = intern.bind_only.get(&intern.alpha_id)?;
     let kids = intern.cond_key_ids.get(&intern.alpha_id)?;
     let kid = intern
@@ -1697,12 +1709,91 @@ fn unary_el_vid(
 }
 
 fn col_vid(intern: &GatherIntern<'_>, el: &Element, field: u8) -> Option<u32> {
-    intern
-        .i64_by_fact
+    col_vid_at(intern.i64_by_fact, el, field)
+}
+
+fn col_vid_at(i64_by_fact: &[Option<I64Row>], el: &Element, field: u8) -> Option<u32> {
+    i64_by_fact
         .get(el.fact as usize)
         .and_then(|o| o.as_ref())
         .filter(|r| (field as usize) < r.n as usize)
         .map(|r| r.vids[field as usize])
+}
+
+/// `col_field_of` for every join key. Pure in `(intern.alpha_id, join_keys)` —
+/// hoist this above a per-element loop; `key_of_occupancy_wm` / `key_of_occupancy_ctx` consume it.
+fn col_fields_for(intern: &GatherIntern<'_>, join_keys: &[Value]) -> Vec<Option<u8>> {
+    join_keys.iter().map(|k| col_field_of(intern, k)).collect()
+}
+
+/// Join key of an occupancy element (`binds.len == 0`) from precomputed packed
+/// fields. Same `JoinKey` as `key_of_el`'s empty-binds arm; does not look up
+/// `col_field_of`.
+fn join_key_from_columns(
+    el: &Element,
+    join_keys: &[Value],
+    fields: &[Option<u8>],
+    i64_by_fact: &[Option<I64Row>],
+) -> JoinKey {
+    match join_keys.len() {
+        0 => JoinKey::Empty,
+        1 => {
+            let field = fields.first().copied().flatten().unwrap_or_else(|| {
+                panic!("key_of_el: join key {:?} has no packed field", join_keys[0])
+            });
+            let vid = col_vid_at(i64_by_fact, el, field).unwrap_or_else(|| {
+                panic!("key_of_el: packed vid missing for field {field}")
+            });
+            JoinKey::Unary(vid)
+        }
+        _ => {
+            let mut out = Vec::with_capacity(join_keys.len());
+            for (k, field) in join_keys.iter().zip(fields) {
+                let field = field.unwrap_or_else(|| {
+                    panic!("key_of_el: join key {k:?} has no packed field")
+                });
+                let vid = col_vid_at(i64_by_fact, el, field).unwrap_or_else(|| {
+                    panic!("key_of_el: packed vid missing for field {field}")
+                });
+                out.push(vid);
+            }
+            JoinKey::Nary(out.into_boxed_slice())
+        }
+    }
+}
+
+/// Occupancy element (`binds.len == 0`) or bound. Empty binds use hoisted
+/// `fields` and do not construct a `GatherIntern`. A BindSpan still goes
+/// through `key_of_el` with a short-lived intern — occupancy on the driven
+/// axes never takes that arm.
+fn key_of_occupancy_wm(
+    el: &Element,
+    join_keys: &[Value],
+    fields: &[Option<u8>],
+    wm: &FireSession,
+    alpha_id: i64,
+) -> JoinKey {
+    if el.binds.len > 0 {
+        key_of_el(el, join_keys, &GatherIntern::from_wm(wm, alpha_id))
+    } else {
+        crate::rete::kernel::census::census_key_of_el(true);
+        join_key_from_columns(el, join_keys, fields, &wm.i64_by_fact)
+    }
+}
+
+fn key_of_occupancy_ctx(
+    el: &Element,
+    join_keys: &[Value],
+    fields: &[Option<u8>],
+    ctx: &FireCtx<'_>,
+    alpha_id: i64,
+) -> JoinKey {
+    if el.binds.len > 0 {
+        key_of_el(el, join_keys, &GatherIntern::from_ctx(ctx, alpha_id))
+    } else {
+        crate::rete::kernel::census::census_key_of_el(true);
+        join_key_from_columns(el, join_keys, fields, ctx.i64_by_fact)
+    }
 }
 
 /// The join key of one element: `Empty`, `Unary`, or `Nary` over interned value ids.
@@ -1717,6 +1808,7 @@ fn col_vid(intern: &GatherIntern<'_>, el: &Element, field: u8) -> Option<u32> {
 /// a fire-time condition — the same invariant class as `driver_of`, at a depth where a `Result`
 /// would have to be threaded through every key.
 fn key_of_el(el: &Element, join_keys: &[Value], intern: &GatherIntern<'_>) -> JoinKey {
+    crate::rete::kernel::census::census_key_of_el(el.binds.len == 0);
     if el.binds.len > 0 {
         let el_b = element_fact_bindings(el, intern.bind_keys, intern.vals, intern.pool);
         return key_of(&el_b, join_keys, intern.val_ids);
@@ -1793,8 +1885,15 @@ impl GatherIndex {
                 }
             }
             Self::Nary(m) => {
+                let fields = col_fields_for(&intern, join_keys);
                 for i in new_idxs {
-                    let key = key_of_el(&elements[i], join_keys, &intern);
+                    let el = &elements[i];
+                    let key = if el.binds.len > 0 {
+                        key_of_el(el, join_keys, &intern)
+                    } else {
+                        crate::rete::kernel::census::census_key_of_el(true);
+                        join_key_from_columns(el, join_keys, &fields, intern.i64_by_fact)
+                    };
                     m.entry(key).or_default().push(i);
                 }
             }
@@ -1957,8 +2056,14 @@ pub(crate) fn build_gather_index(
         GatherIndex::UnaryId(index)
     } else {
         let mut index: GatherNary = FxHashMap::default();
+        let fields = col_fields_for(&intern, join_keys);
         for (i, el) in elements.iter().enumerate() {
-            let key = key_of_el(el, join_keys, &intern);
+            let key = if el.binds.len > 0 {
+                key_of_el(el, join_keys, &intern)
+            } else {
+                crate::rete::kernel::census::census_key_of_el(true);
+                join_key_from_columns(el, join_keys, &fields, intern.i64_by_fact)
+            };
             index.entry(key).or_default().push(i);
         }
         GatherIndex::Nary(index)
