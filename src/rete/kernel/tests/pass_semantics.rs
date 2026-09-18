@@ -296,8 +296,7 @@ fn root_join_seeds_one_token_per_element() {
 
     // (2) That node holds exactly one Token.
     let (root_join_id, tokens) = wm
-        .beta
-        .iter()
+        .beta.iter()
         .next()
         .expect("beta must have exactly one entry");
     assert_eq!(
