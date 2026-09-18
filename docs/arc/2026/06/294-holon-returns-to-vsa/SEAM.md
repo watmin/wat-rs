@@ -21,44 +21,46 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `d1bf3cecf` (batch 4m's records, pushed). **400 of 651 replayed.** In flight: nothing.
+Stamp: written on top of `366d566b3` (batch 4n's records, pushed). **420 of 651 replayed. 231 remain.**
+In flight: nothing.
 
-**Batch 4m (#381–#400) is CLOSED and PUSHED.** Floor **5828/5828, 24 skipped** — the count predicted from
-the diff before running, **seventeenth consecutive exact match** — clippy 0, range gate exit 0, census
-`no STOP-8`, all 20 subjects byte-identical to grok's, all 20 trailers two-sided. Detail in the ledger row
-below, `SCORE-7m-replay-batch-4m.md` and `BRIEF-7m-ADDENDUM-388-check-is-a-unit-checker.md`.
+**Batch 4n (#401–#420) is CLOSED and PUSHED.** Floor **5847/5847, 24 skipped** — the count predicted from
+the diff before running, **eighteenth consecutive exact match** — clippy 0, range gate exit 0, 20/20
+subjects byte-identical, 20/20 trailers two-sided. Detail in the ledger row below and `SCORE-7n`.
 
-★★ **#388 IS THE SECOND DELIBERATE DIVERGENCE FROM GROK — RULED 4-YES, 2026-09-17.** `--check` is the CLI
-face of the LIBRARY driver here: it answers *"does this unit type-check"*, not *"is this a runnable
-program"*. Grok's cure made it demand `:user::main`, which flipped **1052 of 2165** tracked `.wat` to rc 1
-— **27 of them under `wat/`, the stdlib** — while the whole `cargo nextest` floor stayed green, because
-the change lives in the CLI path and the floor never shells out. **Only `census.sh` saw it.** We kept the
-`RLIMIT_STACK` hoist verbatim (it cures a real SIGABRT-on-a-runnable-program) and narrowed the entry-point
-check to fire only when `:user::main` is DECLARED. Grok never revisits that branch again (measured to its
-tip) and broke it for itself unnoticed: **307 of 400** sampled `.wat` at grok's tip lack an entry point.
-⛔ **`--check` accepting an entry-point-less file is now a PINNED property** (`mode_parity_empty`), and
-`mode_parity_malformed_main` pins the half we kept. Recorded as **finding 40**.
+⛔ **PRE-FLIGHT A GATE BY READING ITS OWN CONSTANTS, NOT BY RECALLING MODULE NAMES.** My 4n brief put our
+exposure to #410's gate at **3** raw-walk sites. It was **12**. I hand-listed the files to grep — naming
+two modules that do not exist here — and never read the gate's own `SUBJECTS`, and my pattern could not
+see a site split across two lines. The executor measured it properly and reported the gap (finding 37's
+row). **Read the gate's constants; normalise whitespace the way the gate does.**
 
-Next is **batch 4n (#401–#420)**: censused — **10 docs-only, 10 code (#402 #404 #406 #408 #410 #412 #414
-#416 #418 #420)**, **ZERO hazard rows**, **no `wat/` or `wat-scripts/fixes/` file anywhere in the range**,
-no M-status-absent paths. It is entirely `src/rete/kernel` work: three cures (D1, A8, A3), a census union,
-the GATHER_VISITS one-door gate, two gate-drive steps, and three perf steps.
+Next is **batch 4o (#421–#440)**: censused — **14 docs-only, 6 code (#421 #423 #426 #429 #438 #440)**.
+Light on top, heavy at the end: #421 is two perf `.txt` captures, #423/#426 are rete perf, #429 touches
+`src/rete/reachability.rs`. Both M-status-absent docs are created earlier in the range (#425→#426,
+#428→#429).
 
-⚠⚠ **#410 LANDS A NEW LINT GATE AND THIS TREE IS EXPOSED — MEASURED.**
-`tests/lint/no_raw_gather_bucket_walk.rs` bans a raw `bucket.iter()` / `for … in bucket` in three
-SUBJECTS (`fire/acc.rs`, `fire/pass/accumulate.rs`, `fire/mod.rs`), with one door (`gather_bucket`) and a
-rune escape needing a ≥40-char reason. **Today our `accumulate.rs` carries 1 raw walk and our `fire/mod.rs`
-carries 3 — and `gather_bucket` does not exist in this tree at all.** Expect the gate to fire on arrival:
-repair **AT #410** (the #184 precedent), converting our sites to the one door or runing the join-index
-probes the gate's own header exempts. Three of the last six new grok gates landed red here.
+⚠⚠⚠ **#438 IS THE FACTBAG MIGRATION — R21 IS LIVE FOR THE FIRST TIME IN SIX BATCHES.** 33 files, **26
+`.wat`**, 6 under `wat/`, **153 CODE lines** under `wat/` (not a prose sweep), plus a new lint gate, plus
+a hazard row. Measured here before release:
+- **It ships its own recorded codemod**, `wat-scripts/fixes/wrap-session-facts-in-factbag.wat` (added at
+  #438, refined at #440). ⛔ **R21: run the tool over OUR path list — never hand-edit 26 `.wat`.**
+- **Our corpus is not grok's.** We carry **23 `.wat` with CODE-position `Session/facts`/`FactBag/items`**;
+  grok rewrote 26, of which **24 exist here and 2 do not**. **Two of ours are outside grok's set entirely**
+  — `tests/rete/probe_then_match_is_refused.wat` and
+  `wat-scripts/scratch-pad/probe-reland10-session-in-struct.wat` — and both must go through the codemod.
+- **The new gate `tests/lint/no_raw_factbag_access.rs` has NO exemption list** — its own words: *"the
+  exemption list is empty. A rune does not save a raw access."* It bans those two accessors in code
+  position anywhere under `wat/` except `wat/rete/factbag.wat`, and the string `"facts"` in `src/rete/`
+  outside `session.rs`'s two doors. It strips comments first, so prose mentions are safe.
+- **Our `wat/` exposure is exactly the three files grok converts** (`oracle/explain.wat` 1,
+  `oracle/fire.wat` 7, `oracle/insert.wat` 2). **Our `src/rete/` exposure is exactly the two files grok
+  converts** (`fire/rules.rs` 4, `insert.rs` 2), and **both doors already exist here**
+  (`session_facts`, `session_with_facts` in `src/rete/kernel/session.rs`).
+- ⚠ **HAZARD ROW**: grok edits `src/stdlib.rs` to register `wat/rete/factbag.wat`; this tree renamed that
+  file to **`src/load/stdlib.rs`** (`R092`, `f0cd8bed1`). Re-point the edit; do not recreate the old path.
 
-⚠ **THE PERF TRIO (#416 #418 #420) AND #406 TOUCH WALL-CLOCK FILES** — `gather_probe_cost.rs` (24
-`Instant`/`elapsed` sites), `accum_cost.rs` (23), `census.rs` (4). The 4i strike precedent: a timing
-assert that reds under contention is its own class — capture the arm, never re-run.
-
-⚠ **HIGH DIVERGENCE, SO CHERRY-PICKS WILL CONFLICT.** Measured against grok's own pre-image: #416 5-of-5,
-#420 4-of-4, #406 4-of-5, #410 3-of-5 touched `.rs` already differ here — main's rete has moved. Compare
-DELTAS, never blobs, when asking "did their change land unchanged" (finding 36).
+⚠ **#440 refines the codemod and `wat/rete/factbag.wat`** (retract removes ONE occurrence) and adds a
+`retract-multiplicity` grid axis. It re-runs the same R21 discipline.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -105,7 +107,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4k #341–#360 (CLOSED; floor 5792/5792, clippy 0, pushed)
                               + batch 4l #361–#380 (CLOSED; floor 5808/5808, clippy 0, pushed)
                               + batch 4m #381–#400 (CLOSED; floor 5828/5828, clippy 0, pushed)
-                              ⇒ 400 of 651 replayed. NEXT: batch 4n #401–#420.
+                              + batch 4n #401–#420 (CLOSED; floor 5847/5847, clippy 0, pushed)
+                              ⇒ 420 of 651 replayed. NEXT: batch 4o #421–#440.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -162,6 +165,22 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4n #401–#420 is CLOSED and PUSHED** (records at `366d566b3`; SCORE-7n, REPLAY-LOG). 20 steps,
+  10 docs-only, entirely `src/rete/kernel`. Floor **5847/5847, 24 skipped** — the count PREDICTED from the
+  diff for the **eighteenth consecutive batch** — clippy 0.
+  ★ **#410's gate fired here and was repaired AT the step**: 12 raw-walk sites (not my brief's 3),
+  `acc.rs` 5 / `accumulate.rs` 2 / `fire/mod.rs` 5. Ten examinations were routed through `gather_bucket`;
+  the two join-index probes carry the gate's own rune with 86- and 87-character reasons naming why they
+  are not examinations. `SUBJECTS` and the pattern untouched; keyed-gather ratio unmoved at 1.00x.
+  ★ **No redundancy**: D1/A8/A3 landed without a competing implementation on this tree — measured, and
+  the opposite of 4k's D10/D11 finding.
+  ⚠ **#414 does not delete a test** — the brief said it did. `keyed_gather_visits_per_instrumented_path`
+  was RELOCATED with every assertion intact; net +2 holds for a different reason.
+  ⚠ **#420 tripped a MAIN-ONLY gate no brief named** (`one_variant_separator`, absent from grok entirely)
+  on a correct pre-existing composition; fixed with that gate's own documented namespace rune.
+  ⚠ **Finding 33 recurred six times** (#408 #412 #416×2 #418 #420), every one caught before landing, and
+  two commit messages were mangled by an unquoted heredoc eating backtick spans — both caught by reading
+  `git log -1 --format=%B` back, both amended with zero descendants.
 - **Batch 4m #381–#400 is CLOSED and PUSHED** (records at `d1bf3cecf`; SCORE-7m, ADDENDUM-388,
   REPLAY-LOG; finding 40). 20 steps, 12 docs-only. Floor **5828/5828, 24 skipped** — the count PREDICTED
   from the diff for the **seventeenth consecutive batch** — clippy 0, census `no STOP-8`.
