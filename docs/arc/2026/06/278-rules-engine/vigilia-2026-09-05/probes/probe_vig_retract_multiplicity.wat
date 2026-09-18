@@ -48,7 +48,7 @@
     (:wat::core::mapv
       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
       (:wat::core::PersistentVector
-        (:wat::core::length (:wat::rete::Session/facts f0))
-        (:wat::core::length (:wat::rete::Session/facts r1))
+        (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts f0)))
+        (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts r1)))
         (:wat::core::length (:wat::rete::query f1 (:vrm::q-seen)))
         (:wat::core::length (:wat::rete::query f0 (:vrm::q-seen)))))))

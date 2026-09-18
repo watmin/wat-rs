@@ -1194,7 +1194,7 @@ fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSess
     let alpha_pm = require("alpha-memory")?;
     let beta_pm = require("beta-memory")?;
     let prod_pm = require("production-memory")?;
-    let facts = require("facts")?.clone();
+    let facts = session_facts(session);
     let next_id = match require("next-id")? {
         Value::i64(n) => *n,
         other => {
@@ -1412,7 +1412,7 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
             alpha_pm,
             beta_pm,
             prod_pm,
-            wm.facts,
+            wrap_factbag(wm.facts),
             Value::i64(wm.next_id),
             query_pm,
         ]),
@@ -1443,10 +1443,47 @@ pub(crate) fn session_named_field<'a>(session: &'a Value, name: &str) -> Option<
     agg_named_field(session, name)
 }
 
+::wat_source_derive::wat_field_names_from!(FACTBAG_FIELDS, "wat/rete.wat", ":wat::rete::FactBag");
+
+fn factbag_names() -> FieldNames {
+    static N: OnceLock<FieldNames> = OnceLock::new();
+    N.get_or_init(|| crate::value::value::names_arc_from_static(FACTBAG_FIELDS))
+        .clone()
+}
+
+fn empty_facts_pvec() -> Value {
+    Value::wat__core__PersistentVector(crate::value::pvec::PVec::new())
+}
+
+/// Unwrap a FactBag Value to its inner PersistentVector. The ONE native unwrap.
+fn factbag_items(bag: &Value) -> Value {
+    match bag {
+        Value::Aggregate(a) if a.class.as_ref() == "wat::rete::FactBag" => agg_named_field(bag, "items")
+            .cloned()
+            .unwrap_or_else(empty_facts_pvec),
+        _ => empty_facts_pvec(),
+    }
+}
+
+/// Wrap a PersistentVector as a FactBag Value. The ONE native wrap.
+fn wrap_factbag(items: Value) -> Value {
+    let items = match items {
+        Value::wat__core__PersistentVector(_) => items,
+        _ => empty_facts_pvec(),
+    };
+    Value::Aggregate(Arc::new(AggregateValue::record_arc(
+        Arc::from("wat::rete::FactBag"),
+        factbag_names(),
+        Arc::new(vec![items]),
+    )))
+}
+
+/// Read Session.facts as the inner PersistentVector. Callers compile unchanged.
 pub(crate) fn session_facts(session: &Value) -> Value {
-    session_named_field(session, "facts")
-        .cloned()
-        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()))
+    match session_named_field(session, "facts") {
+        Some(bag) => factbag_items(bag),
+        None => empty_facts_pvec(),
+    }
 }
 
 pub(crate) fn session_network(session: &Value) -> Option<&Value> {
@@ -1505,8 +1542,9 @@ pub(crate) fn session_with_fields(session: &Value, pairs: &[(&str, Value)]) -> V
     }
 }
 
+/// Write Session.facts from an inner PersistentVector. Callers compile unchanged.
 pub(crate) fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
-    session_with_fields(fired, &[("facts", new_facts)])
+    session_with_fields(fired, &[("facts", wrap_factbag(new_facts))])
 }
 
 // ─── Fire kernel (P2) — four-pass native fire-once ───────────────────────────

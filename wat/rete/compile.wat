@@ -1187,8 +1187,7 @@
                     final-state (:wat::core::foldl :wat::rete::compile-query after-rules queries)
                     network  (:wat::rete::CompileState/network final-state)
                     next-id  (:wat::rete::CompileState/next-id final-state)
-                    empty-pm (:wat::core::PersistentMap)
-                    empty-pv (:wat::core::PersistentVector)]
+                    empty-pm (:wat::core::PersistentMap)]
     ;; Intern the rust InternedNetwork under the network identity so first fire-rules HIT
     ;; (`DESIGN-STONE-arm-at-compile`). Session bytes unchanged.
     (:wat::rete::arm-session
@@ -1198,6 +1197,6 @@
          :alpha-memory empty-pm
          :beta-memory empty-pm
          :production-memory empty-pm
-         :facts empty-pv
+         :facts (:wat::rete::factbag::empty)
          :next-id next-id
          :query-memory empty-pm))))

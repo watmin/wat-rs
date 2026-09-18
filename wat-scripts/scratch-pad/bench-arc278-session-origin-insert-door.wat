@@ -50,7 +50,7 @@
 ;; from that block is measuring the wrong thing.
 (:wat::core::defn :bd::staged [o <- :wat::rete::InsertOutcome] -> :wat::core::i64
   (:wat::core::match o
-    [:wat::rete::InsertOutcome.Inserted {:session s} (:wat::core::length (:wat::rete::Session/facts s))]
+    [:wat::rete::InsertOutcome.Inserted {:session s} (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts s)))]
     [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st} -1]))
 
 (:wat::core::defn :bd::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64

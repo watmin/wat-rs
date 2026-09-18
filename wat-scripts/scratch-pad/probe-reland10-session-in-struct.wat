@@ -30,5 +30,5 @@
       (:wat::core::let
         [fired (:wat::core::match (:wat::rete::fire-rules inserted) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
         (:wat::kernel::println "FIRED")
-        (:wat::kernel::pprintln (:wat::core::count (:wat::rete::Session/facts fired)))
+        (:wat::kernel::pprintln (:wat::core::count (:wat::rete::factbag::items (:wat::rete::Session/facts fired))))
         nil))))

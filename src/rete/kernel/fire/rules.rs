@@ -174,17 +174,19 @@ pub(crate) fn fire_rules_stratified(
         // would never see it).
         let __st_sess = phase_start();
         let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
-        let sub_sess = session_with_fields(
-            session,
-            &[
-                ("network", sliced_network),
-                ("rules", stratum_rules),
-                ("alpha-memory", empty_pm.clone()),
-                ("beta-memory", empty_pm.clone()),
-                ("production-memory", empty_pm),
-                ("facts", acc_facts.clone()),
-                ("next-id", next_id.clone()),
-            ],
+        let sub_sess = session_with_facts(
+            &session_with_fields(
+                session,
+                &[
+                    ("network", sliced_network),
+                    ("rules", stratum_rules),
+                    ("alpha-memory", empty_pm.clone()),
+                    ("beta-memory", empty_pm.clone()),
+                    ("production-memory", empty_pm),
+                    ("next-id", next_id.clone()),
+                ],
+            ),
+            acc_facts.clone(),
         );
         phase_end("  ├ strat:session", __st_sess);
 
@@ -265,18 +267,20 @@ pub(crate) fn fire_rules_stratified(
     };
 
     let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
-    Ok(session_with_fields(
-        session,
-        &[
-            ("alpha-memory", empty_pm.clone()),
-            ("beta-memory", empty_pm),
-            (
-                "production-memory",
-                Value::wat__core__PersistentMap(prod_pm),
-            ),
-            ("facts", input_facts),
-            ("query-memory", qmem),
-        ],
+    Ok(session_with_facts(
+        &session_with_fields(
+            session,
+            &[
+                ("alpha-memory", empty_pm.clone()),
+                ("beta-memory", empty_pm),
+                (
+                    "production-memory",
+                    Value::wat__core__PersistentMap(prod_pm),
+                ),
+                ("query-memory", qmem),
+            ],
+        ),
+        input_facts,
     ))
 }
 
@@ -412,17 +416,19 @@ fn harvest_stratified_queries(
     let q_arm = subset_rete_arm(full_arm, &q_ids, &HashSet::new(), &q_net);
     let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
     let empty_rules = Value::wat__core__PersistentVector(crate::value::pvec::PVec::new());
-    let q_sess = session_with_fields(
-        session,
-        &[
-            ("network", q_net),
-            ("rules", empty_rules),
-            ("alpha-memory", empty_pm.clone()),
-            ("beta-memory", empty_pm.clone()),
-            ("production-memory", empty_pm),
-            ("facts", acc_facts.clone()),
-            ("next-id", next_id),
-        ],
+    let q_sess = session_with_facts(
+        &session_with_fields(
+            session,
+            &[
+                ("network", q_net),
+                ("rules", empty_rules),
+                ("alpha-memory", empty_pm.clone()),
+                ("beta-memory", empty_pm.clone()),
+                ("production-memory", empty_pm),
+                ("next-id", next_id),
+            ],
+        ),
+        acc_facts.clone(),
     );
     let q_fired = fire_fixpoint_delta_armed(&q_sess, sym, None, Some(q_arm), FireKind::Once)?;
     Ok(session_named_field(&q_fired, "query-memory")
@@ -570,9 +576,7 @@ fn requery_closed_world(
         .cloned()
         .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
     let derived = collect_derived(&production_pm);
-    let input_facts = session_named_field(&fired, "facts")
-        .cloned()
-        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()));
+    let input_facts = session_facts(&fired);
     let mut present = facts_membership(&input_facts);
     let closed = merge_facts(&input_facts, &mut present, &derived);
 

@@ -31,7 +31,7 @@
       :alpha-memory (:wat::rete::Session/alpha-memory      session)
       :beta-memory (:wat::rete::Session/beta-memory       session)
       :production-memory (:wat::rete::Session/production-memory session)
-      :facts (:wat::vector::conj (:wat::rete::Session/facts session) fact)
+      :facts (:wat::rete::factbag::add (:wat::rete::factbag::of session) fact)
       :next-id (:wat::rete::Session/next-id           session)
       :query-memory (:wat::rete::Session/query-memory session))]
     (:wat::rete::InsertOutcome.Inserted {:session staged})))
@@ -103,23 +103,13 @@
   [session <- :wat::rete::Session
    fact    <- :wat::core::Record]
   -> :wat::rete::Session
-  (:wat::core::let [old-facts (:wat::rete::Session/facts session)
-                    new-facts (:wat::core::foldl
-                                 (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
-                                                  f   <- :wat::core::Record]
-                                   -> (:wat::core::PersistentVector :- [:wat::core::Record])
-                                   (:wat::core::if (:wat::core::not (:wat::core::= f fact))
-                                     (:wat::vector::conj acc f)
-                                     acc))
-                                 (:wat::core::PersistentVector)
-                                 old-facts)]
-    (:wat::rete::Session
-      :network (:wat::rete::Session/network           session)
-      :rules (:wat::rete::Session/rules             session)
-      :alpha-memory (:wat::rete::Session/alpha-memory      session)
-      :beta-memory (:wat::rete::Session/beta-memory       session)
-      :production-memory (:wat::rete::Session/production-memory session)
-      :facts new-facts
-      :next-id (:wat::rete::Session/next-id           session)
-      :query-memory (:wat::rete::Session/query-memory session))))
+  (:wat::rete::Session
+    :network (:wat::rete::Session/network           session)
+    :rules (:wat::rete::Session/rules             session)
+    :alpha-memory (:wat::rete::Session/alpha-memory      session)
+    :beta-memory (:wat::rete::Session/beta-memory       session)
+    :production-memory (:wat::rete::Session/production-memory session)
+    :facts (:wat::rete::factbag::remove-every-equal (:wat::rete::factbag::of session) fact)
+    :next-id (:wat::rete::Session/next-id           session)
+    :query-memory (:wat::rete::Session/query-memory session)))
 

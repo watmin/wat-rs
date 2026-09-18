@@ -24,4 +24,4 @@
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cr)
      session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
-    (:wat::core::length (:wat::rete::Session/facts session))))
+    (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts session)))))

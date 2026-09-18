@@ -1,0 +1,15 @@
+;; Fixture for wrap-session-facts-in-factbag — exercises BOTH uniform wraps:
+;; the Session/facts READ wrap, and the :facts CONSTRUCTOR-FIELD wrap.
+;; history: tests/rete/probe_arc278_2b_insert_alpha.wat at 09e3d912c (read wrap)
+;; history: tests/rete/probe_arc278_1a_data_model.wat at 09e3d912c (ctor-field wrap)
+
+(:wat::core::defn :user::seed-temps-fact-count [] -> :wat::core::i64
+  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts (:test::seed-temps (:test::compile-temp-rule))))))
+
+(:wat::core::defn :user::network-size [] -> :wat::core::i64
+  (:wat::core::let
+    [net (:wat::core::PersistentMap)
+     em  (:wat::core::PersistentMap)
+     ev  (:wat::core::PersistentVector)
+     s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts (:wat::rete::FactBag :items ev) :next-id 2 :query-memory em)]
+    (:wat::core::PersistentMap/length (:wat::rete::Session/network s))))

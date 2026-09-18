@@ -186,16 +186,23 @@
 ;;   beta-memory:       PersistentMap — flat `node-id → (PV :- [Token])` (BetaMemory walker view).
 ;;   production-memory: PersistentMap — flat `node-id → (PV :- [Record])` of derived facts
 ;;                      (ProductionMemory walker view). Support lives on Explained.
-;;   facts:             PersistentVector of asserted facts.
+;;   facts:             FactBag of asserted facts. The bag's verbs live in
+;;                      wat/rete/factbag.wat (loaded after this file). The record
+;;                      is declared HERE so Session can name the type at the field;
+;;                      a file cannot both precede Session (for the type) and follow
+;;                      it (for `factbag::of`).
 ;;   next-id:           the next free node id (i64).
 ;;   query-memory:      query-name → PV of binding maps (QueryNode answers; survives fire).
+(:wat::core::defrecord :wat::rete::FactBag
+  [items <- (:wat::core::PersistentVector :- [:wat::core::Record])])
+
 (:wat::core::defrecord :wat::rete::Session
   [network           <- :wat::core::PersistentMap
    rules             <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
    alpha-memory      <- :wat::core::PersistentMap
    beta-memory       <- :wat::core::PersistentMap
    production-memory <- :wat::core::PersistentMap
-   facts             <- :wat::core::PersistentVector
+   facts             <- :wat::rete::FactBag
    next-id           <- :wat::core::i64
    query-memory      <- :wat::core::PersistentMap])
 

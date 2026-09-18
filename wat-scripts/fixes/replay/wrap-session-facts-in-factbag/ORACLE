@@ -1,0 +1,9 @@
+# ORACLE for wrap-session-facts-in-factbag — HISTORY, never the tool.
+#
+# Both cited paths are grok's own #438 (09e3d912c) — files whose ENTIRE diff at that commit
+# is the codemod's pure mechanical output (no later hand-authored semantic-door second pass
+# touches either), so their pre/post images are faithful witnesses of what THIS tool does:
+#   probe_arc278_2b_insert_alpha.wat  — the Session/facts READ wrap
+#   probe_arc278_1a_data_model.wat    — the :facts CONSTRUCTOR-FIELD wrap (twice in that file)
+
+history 09e3d912c tests/rete/probe_arc278_2b_insert_alpha.wat tests/rete/probe_arc278_1a_data_model.wat

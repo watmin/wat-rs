@@ -4,32 +4,10 @@ use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
 use crate::types::Nature;
-use crate::value::value::AggregateValue;
 
-use super::{session_named_field, session_with_facts};
+use super::{session_facts, session_with_facts};
 
 // ── Public entry: native insert ───────────────────────────────────────────────
-
-/// `facts` slot from the Aggregate's carried names (arc 296 G).
-/// TypeEnv is not on this path (`DESIGN-STONE-insert-facts-from-names`).
-/// `available` is allocated only on miss.
-fn require_session_facts<'a>(
-    session: &'a Value,
-    agg: &AggregateValue,
-    list_span: &Span,
-) -> Result<&'a Value, EvalBreak> {
-    session_named_field(session, "facts").ok_or_else(|| {
-        RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::UnknownField {
-                record_class: agg.class.to_string(),
-                field: "facts".to_string(),
-                available: agg.names.as_ref().clone(),
-            },
-        )
-        .into()
-    })
-}
 
 /// `(:wat::rete::insert <session> <fact>) -> :wat::rete::InsertOutcome`
 ///
@@ -177,10 +155,10 @@ fn insert_one_on_session(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::insert";
     require_record_fact(&fact, OP, list_span)?;
-    let agg = require_session_agg(&session, OP, list_span)?;
+    require_session_agg(&session, OP, list_span)?;
 
-    let facts_val = require_session_facts(&session, agg, list_span)?;
-    let new_facts = crate::collection::eval::persistentvector_conj_inner(facts_val, &fact)?;
+    let facts_val = session_facts(&session);
+    let new_facts = crate::collection::eval::persistentvector_conj_inner(&facts_val, &fact)?;
     let staged = value_len(&new_facts);
     let staged_session = session_with_facts(&session, new_facts);
     // THE SESSION CEILING, at the second of its two doors. AFTER the staging, so `used` and
@@ -217,15 +195,15 @@ fn insert_facts_on_session(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::insert-all";
-    let agg = require_session_agg(&session, OP, list_span)?;
+    require_session_agg(&session, OP, list_span)?;
     if let Value::wat__core__PersistentVector(pv) = &new_facts_vec {
         for f in pv.iter() {
             require_record_fact(f, OP, list_span)?;
         }
     }
 
-    let facts_val = require_session_facts(&session, agg, list_span)?;
-    let new_facts = crate::collection::eval::vector_concat_inner(facts_val, &new_facts_vec)?;
+    let facts_val = session_facts(&session);
+    let new_facts = crate::collection::eval::vector_concat_inner(&facts_val, &new_facts_vec)?;
     let staged = value_len(&new_facts);
     let staged_session = session_with_facts(&session, new_facts);
     // The same door, batch arity. One shared check (`session::check_insert_ceiling`) so the two
