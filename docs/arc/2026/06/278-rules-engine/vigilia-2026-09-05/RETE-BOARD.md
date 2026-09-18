@@ -87,3 +87,70 @@ computing a different list would be hidden rather than surfaced. A `debug_assert
 one `sort` at the check rung with a shared `topological-node-ids` verb at the shape rung — the law
 is already written down in the sibling file. Then **D3** (the false structural claim, mutation-proved
 invisible), then **A8** (fact loss), then the census names, which everything else's numbers depend on.
+
+---
+
+## F2 — RESOLVED INTO TWO ROWS, 2026-09-06. Clara driven as the reference.
+
+Builder's ruling on the hierarchy: **Clara is the reference for correctness; the wat oracle must be
+in parity with Clara; wat-native must adhere precisely to the oracle's public behaviour, differing
+only in performance.**
+
+Clara 0.24.0 driven this session (`insert F` ×2, `insert G`, fire; then retract F once, then again):
+
+```
+after 2x insert F + 1x G, fire   : Out rows = 2
+after retracting F ONCE          : Out rows = 1
+after retracting F a SECOND time : Out rows = 0
+VERDICT: one retract removes ONE copy (multiset semantics)
+```
+
+wat, same shape, same session: `facts_after_two_identical_inserts=3`,
+`facts_after_one_retract=1`, `seen_rows_before_retract=1`.
+
+### ✅ Divergence 2 — derived-fact multiplicity. **JUSTIFIED. NOT A DEFECT. CLOSED.**
+
+Clara derives **2** `Out` rows from two identical `F`s; wat derives **1**. This is deliberate and the
+reason is written down in the oracle itself:
+
+- `wat/rete/oracle/fire.wat:214-215` — *"the dedup guard is the **termination invariant** — if a
+  derived fact is already in facts, re-adding it would grow facts every round and spin the fixpoint
+  forever."*
+- `:255-256` — *"the GROWING half: re-run the full match over a **dedup-growing fact set** until a
+  round adds no new fact (**monotone-finite termination — datalog property**)."*
+
+wat-rete is a **pure replay-to-fixpoint** engine; set semantics on derived facts IS its termination
+proof. Clara is incremental RETE with truth maintenance and needs no such invariant. **Native
+(`seen_insert`) and oracle (`merge-facts`) agree**, so the hierarchy holds — this is a considered
+departure from the reference, not drift. `fire.wat:265` already reads *"Measured (Clara 0.24.0 is the
+authority)"*, so the tree was weighing itself against Clara when it made the choice.
+
+**Do not "fix" this.** Making derived facts a multiset removes the termination argument.
+
+### ⛔ Divergence 1 — `retract` cardinality. **STILL A DEFECT.**
+
+`wat/rete/oracle/insert.wat:100` drops **every** equal fact; Clara drops one. The termination
+invariant above does **not** reach it: that invariant is about derived facts *growing*, and retract
+shrinks.
+
+**And the tree contradicts itself.** `fire.wat:234-236`, on `retain-supported`:
+
+> *"⛔ IT MUST NOT DEDUP. `insert$oracle` never dedups, so a caller that stages the same fact twice
+> **genuinely holds it twice**… Collapsing here would silently retract a duplicate the INPUT
+> contains — **a retraction with no cause**."*
+
+Input multiplicity is protected in one function and destroyed in another ~400 lines away.
+`retract`'s own docstring claims *"**Symmetric with insert**"* and *"value-precise"* — insert stages
+one; retract removes N.
+
+**Four questions:** Obvious NO (the doc implies one-for-one) · Simple NO (one name, two operations) ·
+Honest NO (contradicts its own "symmetric" claim and the tree's multiset rule) · UX not reached.
+
+**Direction is fixed by the hierarchy**: retract removes ONE occurrence. Before drawing it, count how
+many of the **24 call sites** ever have duplicates in flight — most retract singly-inserted facts,
+where both behaviours coincide, but `wat-scripts/perf/grid/where-exists.wat:91-92` nests two retracts
+and the grid axes would need re-verifying.
+
+⚠ `experiri` ranked F2 as L2 on the phrase *"by value equality"*. Reading the whole docstring inverts
+that: *"symmetric with insert"* is a claim the implementation breaks. **The phrase was documentation;
+the paragraph was a contract.**
