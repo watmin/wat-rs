@@ -164,7 +164,7 @@
 ;; HolonAST-keyed `hologram-svc` (Stone 4, below), whose keys/values are far larger than
 ;; `lru-svc`'s `String`/`i64`. Measured via `(string::length (edn::write req))` — the SAME
 ;; expression `wat/service.wat`'s generated guard evaluates — against a live build
-;; (`wat-scripts/scratch-pad/probe-arc278-cache-batch-request-bytes.wat`, a throwaway probe run
+;; (`probe-arc278-cache-batch-request-bytes.wat`, a throwaway probe run
 ;; once and deleted after measuring, per the scratch-`.wat` convention). Real numbers:
 ;;   lru-get (5 String probes)              =   80 bytes
 ;;   lru-put (5 String/i64 entries)         =  246 bytes
@@ -252,7 +252,7 @@
 ;; Hologram store is HolonAST-keyed, not generic), so unlike Stone 1 this type carries no `:- [K V]`.
 ;;
 ;; Study oracle (⚠ GONE — Stone 5 annihilated the crate; provenance, not a live path):
-;; `crates/wat-holon-lru/wat/holon/lru/HologramCache.wat` — read for the shape
+;; `HologramCache.wat`, in the annihilated `wat-holon-lru` crate — read for the shape
 ;; (`put`'s eviction → `Hologram/remove` chain, `get`'s `Hologram/find` → LRU-bump), never copied.
 ;; Rebuilt here clean on Stone 1's `(:wat::cache::Lru :- [K V])` primitive (named `Entry`, not the
 ;; oracle's positional tuple) exactly as Stone 1 was rebuilt from its own oracle.
@@ -356,7 +356,7 @@
 ;; no precedent in this corpus before this stone (the only prior `:satisfies` with type args is
 ;; Stone 2's `lru-svc :- [K V] :satisfies (Cache :- [K V])` — parametric satisfying parametric, service
 ;; binders flowing straight through). Grounded first as a throwaway probe
-;; (`wat-scripts/scratch-pad/probe-arc278-concrete-satisfies-parametric.wat`): a concrete service
+;; (`probe-arc278-concrete-satisfies-parametric.wat`, since deleted): a concrete service
 ;; satisfying `(Cache :- [K V])` at fixed FQDN type args `--check`s clean, and a deliberately-sabotaged
 ;; variant (swapped K/V) correctly produces type errors naming the exact derived
 ;; `(Cache::Reply :- [wat::core::String wat::core::i64])` instantiation — proof the macro's

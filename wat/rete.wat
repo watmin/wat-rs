@@ -164,8 +164,9 @@
 ;; Overlay — the thing with-overlay hands its body: facts in, a FIRED Session out. The Session
 ;; is a fact overlay over circuits it does not own (arm.rs:572) and is immutable, so re-seeding
 ;; from the compiled base is the only "reset" there is. Named by the 2026-08-24 intueri cast
-;; (rete-scoped-work-naming.wat.intueri) — "overlay" is this corpus's own word (arm.rs:572,
-;; session.rs:1114, kernel/tests.rs:3068), not imported vocabulary.
+;; (rete-scoped-work-naming.wat.intueri) — "overlay" is this corpus's own word, not imported
+;; vocabulary: attested in src/rete/kernel/arm.rs, src/rete/kernel/session.rs and
+;; src/rete/kernel/tests/arm_lease.rs (the arm-lease block the pre-split kernel `tests.rs` held).
 ;;
 ;; ⛔ IT HANDS BACK A `(FireOutcome :- [Session])`, NOT A BARE SESSION — arc 278, the fire-outcome
 ;; wall. `with-overlay` fires, and a fire carries two ceilings; a convenience wrapper that swallowed

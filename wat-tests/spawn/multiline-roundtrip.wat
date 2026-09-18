@@ -1,4 +1,4 @@
-;; wat-tests/process-multiline-roundtrip.wat — arc 259.S3.6 dogfood, wat surface.
+;; wat-tests/spawn/multiline-roundtrip.wat — arc 259.S3.6 dogfood, wat surface.
 ;;
 ;; THE GOLD-STANDARD round-trip: a MULTI-LINE pretty-printed value crosses a
 ;; process peer as ONE message.

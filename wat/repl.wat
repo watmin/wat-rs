@@ -1,4 +1,4 @@
-;; wat-scripts/demos/repl/repl.wat — the wat REPL, correct-but-slow (arc 170).
+;; wat/repl.wat — the wat REPL, correct-but-slow (arc 170).
 ;;
 ;; THE SHAPE. A REPL is a loop over ONE state — the user's definition set — and one verb:
 ;;

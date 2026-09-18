@@ -5,7 +5,7 @@
 ;; increment/get, the request constructors, the Handle, the Response accessor) is byte-identical.
 ;; This is the parity contract written as a test: swap the locus, the same service runs.
 ;;
-;; The Rust-level proof is `tests/probe_arc272_6b_defservice_on_process.rs` (a forking [[test]] binary);
+;; The Rust-level proof is `tests/services/probe_arc272_6b_defservice_on_process.rs` (a forking [[test]] binary);
 ;; this dogfoods the same surface in wat. defservice names NO transport — the (process) literal the
 ;; service rides lives only in the ProcessOpts `launch` arm (design C).
 ;;

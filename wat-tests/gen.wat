@@ -799,7 +799,7 @@
 
 ;; ── L26 — SAMPLING ORDER: the bijection, and what a prefix actually covers ──
 ;;
-;; THIS LAW REPLACES A PROBE THAT NEVER RAN. `wat-scripts/fuzz/sampling-order-probe.wat`
+;; THIS LAW REPLACES A PROBE THAT NEVER RAN. `sampling-order-probe.wat` (since deleted)
 ;; was written to stop a Python-model verification — its header said "the thing
 ;; under test is the thing that ships". It was not, twice over
 ;; (GEN-VIGILIA, circumspicere finding 3):

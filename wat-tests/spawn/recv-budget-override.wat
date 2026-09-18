@@ -21,7 +21,7 @@
 ;; override to be genuinely honored: were the budget ignored, 258 < 512 KiB default
 ;; → the complete frame is DELIVERED as ::Message → the assertion fires FAIL.
 ;;
-;; Model: wat-tests/spawn/overcap-flood-no-deadlock.wat + the recv'-wall value
+;; Model: overcap-flood-no-deadlock.wat (since deleted) + the recv'-wall value
 ;; contract (probe_arc278_recv_over_budget_reason). PRIMED ONLY.
 (:wat::test::deftest :wat-tests::recv-budget::tiny-budget-rejects-oversized-message
   

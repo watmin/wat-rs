@@ -8,7 +8,7 @@
 ;; asymmetry that clears the bar.
 ;;
 ;; WHY IT IS NOT IN `services/`, AND NOT CALLED `stdin`. It held neither name honestly until
-;; arc 170 #24. It was `wat/kernel/services/stdin.wat` because the hand-rolled `StdInService`
+;; arc 170 #24. It was `stdin.wat`, under `services/`, because the hand-rolled `StdInService`
 ;; once lived here; Phase 3 DELETED that service (stdin is now the `:wat::kernel::stdin-svc`
 ;; defservice in `wat/kernel/services/stdio.wat`) and left the file standing over its own
 ;; grave, holding two things that are entirely about `readln` and nothing about stdin. A macro

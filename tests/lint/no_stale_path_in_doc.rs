@@ -63,62 +63,27 @@ use std::path::{Path, PathBuf};
 /// `src/rete` is the original root — the rete tree's headers cite each other constantly.
 /// `wat/` and `wat-tests/` were added 2026-09-04: all five `wat/rete.wat:1508` citations lived
 /// there, and nothing had ever scanned `.wat` prose at all.
+///
+/// ── THE STOP-1 PILE IS GONE, AND A `DEFERRED` FENCE WENT WITH IT (2026-09-05) ─────────────────
+///
+/// That widening took the population from 174 citations to 610 and surfaced **34 pre-existing
+/// stale paths** no gate had ever looked at. They were fenced in a `DEFERRED` allowlist of exact
+/// `(naming file, cited path)` pairs — never suppressed — and every one has now been cured, so
+/// the fence is deleted rather than left standing empty. There is no allowlist here any more:
+/// a citation resolves or this gate REDs.
+///
+/// ⛔ **15 of the 34 were RE-POINTED and 19 had the path DELETED, and the split is not the one a
+/// basename search predicts.** `wat/rete.wat` cited `kernel/tests.rs`, whose only tree-wide
+/// basename match is `src/macros/tests.rs` — a different file that merely shares a name (1,583
+/// lines, zero occurrences of the word the sentence was vouching for). The real target was found
+/// by content: the pre-split `src/rete/kernel/tests.rs:3068` sat inside the arm-lease block, whose
+/// assertions live verbatim in `src/rete/kernel/tests/arm_lease.rs` today. A re-point earns itself
+/// by CONTENT; a name match is a hint. **This gate checks that a path exists, never that it is the
+/// right path** — so re-pointing on a name match converts a defect it can see into one it cannot.
 const ROOTS: &[(&str, &str)] = &[
     ("src/rete", "rs"),
     ("wat", "wat"),
     ("wat-tests", "wat"),
-];
-
-/// ── STOP-1: THE PILE THE 2026-09-04 SCOPE WIDENING SURFACED, ENUMERATED ──────────────────────
-///
-/// Adding `wat/` and `wat-tests/` to [`ROOTS`] took the population from 174 citations to 610 and
-/// found **34 pre-existing stale paths** that no gate had ever looked at. Curing 34 comment sites
-/// was not this strike's scope, so they are DEFERRED HERE — never suppressed:
-///
-/// - Every row is an exact `(naming file, cited path)` pair, so a new stale path in any of these
-///   files still REDs; only these thirty-four specific rots are held.
-/// - A row that stops matching is a HARD FAILURE (the `unused` check below), so curing one forces
-///   its removal and this list can only shrink. It cannot rot the way the citations in it did.
-///
-/// The rots themselves are ordinary: a `scratchpad/` that became `wat-scripts/scratch-pad/`, probe
-/// files deleted after their arc closed, `src/rete/validate.rs` and `src/rete/kernel/tests.rs` that
-/// became directories. `wat/rete.wat`'s `kernel/tests.rs` is THE citation in this file's own
-/// opening paragraph — it was in `wat/` all along, where nothing was scanning.
-const DEFERRED: &[(&str, &str)] = &[
-    ("wat/bracket.wat", "scratchpad/probe-c1-kwargs-impl-astname.wat"),
-    ("wat/bracket.wat", "scratchpad/probe-m1-worker-setup.wat"),
-    ("wat/cache.wat", "crates/wat-holon-lru/wat/holon/lru/HologramCache.wat"),
-    ("wat/cache.wat", "wat-scripts/scratch-pad/probe-arc278-cache-batch-request-bytes.wat"),
-    ("wat/cache.wat", "wat-scripts/scratch-pad/probe-arc278-concrete-satisfies-parametric.wat"),
-    ("wat/capability.wat", "scratchpad/probe-c2-typed-coordinate.wat"),
-    ("wat/capability.wat", "scratchpad/probe-v-bodiless.wat"),
-    ("wat/gen.wat", "tests/lint/gen_lib_laws.rs"),
-    ("wat/gen.wat", "wat-scripts/fuzz/gen-selftest.wat"),
-    ("wat/gen.wat", "wat-scripts/lib/gen.wat"),
-    ("wat/kernel/readln.wat", "wat/kernel/services/stdin.wat"),
-    ("wat/query.wat", "scratchpad/probe-rule-lits.wat"),
-    ("wat/repl.wat", "wat-scripts/demos/repl/repl.wat"),
-    ("wat/rete.wat", "kernel/tests.rs"),
-    ("wat/service.wat", "scratchpad/probe-v-bodiless.wat"),
-    ("wat/spawn.wat", "scratchpad/probe-m1-worker-setup.wat"),
-    ("wat-tests/core/core-arithmetic.wat", "tests/wat_polymorphic_arithmetic.rs"),
-    ("wat-tests/core/core-arithmetic.wat", "wat-tests/core/seq-fold-aliases.wat"),
-    ("wat-tests/core/core-equality.wat", "tests/wat_polymorphic_arithmetic.rs"),
-    ("wat-tests/core/core-equality.wat", "wat-tests/core/seq-fold-aliases.wat"),
-    ("wat-tests/core/core-threading.wat", "tests/probe_arc249_threading.rs"),
-    ("wat-tests/core/record-def.wat", "tests/probe_arc234_stone2b_defrecord_macro.rs"),
-    ("wat-tests/core/record-def.wat", "tests/probe_arc237_sC3_macro_split.rs"),
-    ("wat-tests/format.wat", "tests/probe_arc279_format.rs"),
-    ("wat-tests/gen.wat", "wat-scripts/fuzz/sampling-order-probe.wat"),
-    ("wat-tests/process/signal-reset-sigusr1-is-a-transition.wat", "tests/process/signal_user1_delivers_child_observes_flag.wat"),
-    ("wat-tests/process/signal-terminate-kills-the-child-and-the-read-sees-it.wat", "tests/process/shutdown_cascade_memory.rs"),
-    ("wat-tests/process/signal-user1-delivers-child-observes.wat", "tests/process/signal_user1_delivers_child_observes_flag.wat"),
-    ("wat-tests/process/signal-user2-and-hangup-independent.wat", "tests/process/signal_user1_delivers_child_observes_flag.wat"),
-    ("wat-tests/rete/differential-fuzz-nesting.wat", "src/rete/validate.rs"),
-    ("wat-tests/rete/differential-fuzz-scalars.wat", "src/rete/validate.rs"),
-    ("wat-tests/service-locus-parity.wat", "tests/probe_arc272_6b_defservice_on_process.rs"),
-    ("wat-tests/spawn/multiline-roundtrip.wat", "wat-tests/process-multiline-roundtrip.wat"),
-    ("wat-tests/spawn/recv-budget-override.wat", "wat-tests/spawn/overcap-flood-no-deadlock.wat"),
 ];
 
 /// How a comment opens, per extension. A `.wat` comment is `;;`; a Rust one is `//` (which covers
@@ -282,7 +247,6 @@ fn every_location_named_in_a_doc_comment_exists() {
     let mut checked = 0usize;
     let mut checked_lines = 0usize;
     let mut lens: BTreeMap<PathBuf, usize> = BTreeMap::new();
-    let mut deferral_seen = vec![false; DEFERRED.len()];
 
     for (path, head) in scanned_files(root) {
         let Ok(src) = std::fs::read_to_string(&path) else {
@@ -292,15 +256,7 @@ fn every_location_named_in_a_doc_comment_exists() {
         for cite in citations_in_comments(&src, head) {
             checked += 1;
             let Some(target) = resolve(root, &path, &cite.path) else {
-                match DEFERRED
-                    .iter()
-                    .position(|(f, c)| *f == naming && *c == cite.path)
-                {
-                    Some(i) => deferral_seen[i] = true,
-                    None => {
-                        stale.push(format!("{naming}: names `{}`, which does not exist", cite.path))
-                    }
-                }
+                stale.push(format!("{naming}: names `{}`, which does not exist", cite.path));
                 continue;
             };
             let Some(cited) = cite.line else {
@@ -345,24 +301,6 @@ fn every_location_named_in_a_doc_comment_exists() {
         stale.len(),
         stale.join("\n  ")
     );
-    // A held row that no longer matches is a cure that never removed its deferral — and a stale
-    // deferral is how a fenced pile turns into a licence nobody re-reads. Removing it is the only
-    // way this list moves.
-    let unused: Vec<String> = DEFERRED
-        .iter()
-        .zip(&deferral_seen)
-        .filter(|(_, seen)| !**seen)
-        .map(|((f, c), _)| format!("{f} -> {c}"))
-        .collect();
-    assert!(
-        unused.is_empty(),
-        "\n\n{} DEFERRED row(s) no longer match anything the walk found — the citation was cured, \
-         renamed, or deleted. Delete the row: a deferral that holds nothing is a standing licence \
-         for a rot that is already gone.\n\n{}\n",
-        unused.len(),
-        unused.join("\n")
-    );
-
     assert!(
         out_of_range.is_empty(),
         "\n\n{} citation(s) name a line past the end of the file they point at. A `path:line` is \

@@ -2,7 +2,7 @@
 ;;
 ;; Happy-path cases for the named-template printf macro.
 ;; Strict-error cases (macro-error on missing/unused kwarg) are in
-;; tests/probe_arc279_format.rs (require startup_from_source failure testing).
+;; tests/macros/probe_arc279_format.rs (require startup_from_source failure testing).
 ;;
 ;; All cases compile at deftest-discovery time — the format macro is
 ;; expanded when startup_from_source loads this file.
