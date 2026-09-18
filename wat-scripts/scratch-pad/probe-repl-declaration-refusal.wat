@@ -5,7 +5,7 @@
 ;; is wrong") — using only the substrate's own refusal, with no second list of
 ;; declaration heads to drift from `dispatch_keyword_head`'s?
 ;;
-;; Why it decides the design: `:repl::turn` wants exactly one classifier. The substrate
+;; Why it decides the design: `:wat::repl::turn` wants exactly one classifier. The substrate
 ;; already owns one — `#wat.runtime/DeclarationInExpressionPosition` (`runtime.rs:4129`
 ;; for `def`, `:4137` for `defclause`). If EVERY declaration head refuses distinguishably,
 ;; the REPL consults that authority and never copies it. If some heads refuse the same way
@@ -19,7 +19,12 @@
 ;; RUN: target/release/wat wat-scripts/scratch-pad/probe-repl-declaration-refusal.wat
 ;; Read the EDN on stdout: each line is one case's `Result`. Compare the DECLARATION
 ;; cases against the CONTROL cases — if their error shapes are the same, the classifier
-;; is not available and `:repl::turn`'s match arm as drafted is dishonest.
+;; is not available and `:wat::repl::turn`'s match arm as drafted is dishonest.
+;;
+;; (Those two names were `:repl::turn` until 2026-09-18; the stdlib's REPL moved under the
+;; reserved root — `wat-scripts/fixes/vend-only-wat-repl-names.wat`, builder's ruling *"we must
+;; only vend `:wat::*`"*. Prose only: this probe holds no call to any of the three, which is
+;; why the codemod's census reported it at zero and left the file byte-identical.)
 
 (:wat::core::defn :probe::try [label <- :wat::core::String  src <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do

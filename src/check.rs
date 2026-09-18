@@ -844,9 +844,23 @@ pub fn check_program(
     for (path, func) in sym.functions_iter() {
         // SPIKE PROBE — the window opens for EVERY function and carries the body's source
         // FILE, so stdlib bodies are separated from the user's by attribution rather than by
-        // name. That distinction is load-bearing: the stdlib is NOT all `:wat::`-prefixed
-        // (`wat/repl.wat` defines `:repl::turn`), so a prefix test would have hidden exactly
-        // the three names that answer this spike.
+        // name.
+        //
+        // ⚠ THE REASON THIS WAS LOAD-BEARING IS GONE, and the note is kept rather than deleted
+        // because the fact it argued from is what a later reader would otherwise re-derive.
+        // Until 2026-09-18 this read: *"the stdlib is NOT all `:wat::`-prefixed (`wat/repl.wat`
+        // defines `:repl::turn`), so a prefix test would have hidden exactly the three names
+        // that answer this spike."* True when written, and it is exactly how the spike found
+        // them. `wat-scripts/fixes/vend-only-wat-repl-names.wat` then moved those three names
+        // to `:wat::repl::*` under the builder's ruling *"we must only vend `:wat::*`"*, and
+        // `load::stdlib::tests::stdlib_vends_only_wat_prefixed_names` now gates it from the
+        // frozen symbol table — so a `:wat::` prefix test over body-owner names IS valid today,
+        // and file attribution is no longer the only honest instrument.
+        //
+        // It stays file-attributed anyway, for a reason that does not expire: the probe's
+        // subject is "which names did a body from a STDLIB FILE reach for", and a name prefix
+        // answers a different question (who OWNS the name) that happens to coincide. The
+        // coincidence is now gated; the question is still not the same one.
         let body_file = match &func.body {
             FunctionBody::Wat(ast) => ast.span().file.as_ref().clone(),
             FunctionBody::Native => "<native>".to_string(),

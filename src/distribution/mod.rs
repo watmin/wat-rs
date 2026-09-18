@@ -137,15 +137,26 @@ use std::process::ExitCode;
 
 /// The `--repl` ENTRY — a one-form shim, and deliberately nothing more.
 ///
-/// The loop itself is `wat/repl.wat`, a stdlib module exposing `:repl::turn`. Only the entry
-/// point lives here, which is where an entry point belongs: a stdlib file that declared
+/// The loop itself is `wat/repl.wat`, a stdlib module exposing `:wat::repl::turn`. Only the
+/// entry point lives here, which is where an entry point belongs: a stdlib file that declared
 /// `:user::main` would hand one to EVERY wat program and collide with the author's own.
 ///
 /// Splitting it this way makes the REPL a LIBRARY rather than a script — any program can
-/// `(:repl::turn defs)` to embed a loop seeded with its own definitions, which is the thing
-/// a REPL-as-a-file could never offer.
+/// `(:wat::repl::turn defs)` to embed a loop seeded with its own definitions, which is the
+/// thing a REPL-as-a-file could never offer.
+///
+/// ⛔ THIS IS A GENERATED PROGRAM, NOT A REFERENCE. It is the only `:wat::repl::turn` call
+/// site outside `wat/repl.wat` itself, and it is a Rust string literal — so no `.wat` census
+/// and no wat-fix codemod can see it. The 2026-09-18 rename `:repl::turn` ->
+/// `:wat::repl::turn` (`wat-scripts/fixes/vend-only-wat-repl-names.wat`, builder's ruling
+/// *"we must only vend `:wat::*`"*) had to reach in here by hand. MEASURED, by temporarily
+/// putting the old name back: `wat --repl` then dies at freeze with exit 3 and
+/// `#wat.resolve/UnresolvedReferences {:path ":repl::turn" … :file "<repl-entry>"}` — while
+/// the entire `.wat` corpus stays green and the codemod's census reports zero remaining hits.
+/// The wall that catches a future miss is `tests/cli/wat_repl.rs`, which drives the real
+/// binary over a pipe: the name here must stay in step with `wat/repl.wat`'s own `defn` head.
 const REPL_SOURCE: &str =
-    "(:wat::core::defn :user::main [] -> :wat::core::nil\n   (:repl::turn (:wat::core::Vector :- [:wat::WatAST])))\n";
+    "(:wat::core::defn :user::main [] -> :wat::core::nil\n   (:wat::repl::turn (:wat::core::Vector :- [:wat::WatAST])))\n";
 const REPL_LABEL: &str = "<repl-entry>";
 /// `--mcp` has no entry file either — the loop is Rust (see `mcp.rs`), and this is what any
 /// diagnostic reaching a span from that path carries.

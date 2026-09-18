@@ -17,10 +17,16 @@ static IN_BODY_SWEEP: AtomicBool = AtomicBool::new(false);
 static CURRENT_FN: Mutex<Option<(String, String)>> = Mutex::new(None);
 static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+/// One trace record: (body-file, fn-path, door, probed-name). Named rather than spelled
+/// inline because `clippy::type_complexity` (deny, via `clippy::all`) fires on the nested
+/// `Mutex<Option<BTreeSet<4-tuple>>>` — a RED at HEAD `043259d3c`, in a file this stone did not
+/// otherwise touch. See `docs/excursus/2026/08/001-sns-sqs/the-stdlib-vends-only-wat/SCORE.md`.
+type TraceRecord = (String, String, &'static str, String);
+
 /// door → set of names probed at that door during the sweep.
 static WITNESS: Mutex<Option<BTreeSet<(&'static str, String)>>> = Mutex::new(None);
 /// (body-file, fn-path, door, probed-name) — the full, unfiltered record.
-static TRACE: Mutex<Option<BTreeSet<(String, String, &'static str, String)>>> = Mutex::new(None);
+static TRACE: Mutex<Option<BTreeSet<TraceRecord>>> = Mutex::new(None);
 
 pub fn enabled() -> bool {
     *ENABLED.get_or_init(|| std::env::var_os("WAT_SPIKE_WITNESS").is_some())

@@ -10,7 +10,7 @@
 ;; THE STATE, and it is a LOOP PARAMETER — not a defservice.
 ;;
 ;; ⚠ This paragraph used to describe a `:durable` / `:ephemeral` split, i.e. defservice clause
-;; vocabulary, for a file that contains NO defservice: `:repl::turn`/`eval-and-loop`/`eval-form`
+;; vocabulary, for a file that contains NO defservice: `:wat::repl::turn`/`eval-and-loop`/`eval-form`
 ;; are three plain `defn`s and `defs` is a tail-call parameter. That wording is a leftover from
 ;; the earlier REPL demos, which WERE a spawned service you dialled — a design where the session
 ;; genuinely crossed callers. The architecture changed; the comment did not, and it cost an hour
@@ -60,7 +60,7 @@
 ;; it is the exact defect class this arc hunts: a claim nothing contradicts, which reads as
 ;; grounded precisely because it names a limitation instead of a capability.
 
-(:wat::core::defn :repl::eval-and-loop
+(:wat::core::defn :wat::repl::eval-and-loop
   [defs <- (:wat::core::Vector :- [:wat::WatAST])
    text <- :wat::core::String]
   -> :wat::core::nil
@@ -72,11 +72,11 @@
     ((:wat::core::ReadOutcome::Malformed cause)
       (:wat::core::do
         (:wat::kernel::println cause)
-        (:repl::turn defs)))
+        (:wat::repl::turn defs)))
     ((:wat::core::ReadOutcome::Forms forms)
-      (:repl::eval-form defs (:wat::core::first forms)))))
+      (:wat::repl::eval-form defs (:wat::core::first forms)))))
 
-(:wat::core::defn :repl::eval-form
+(:wat::core::defn :wat::repl::eval-form
   [defs <- (:wat::core::Vector :- [:wat::WatAST])
    form <- :wat::WatAST]
   -> :wat::core::nil
@@ -88,27 +88,27 @@
       ;; and THIS is the only arm that grows it.
       ;; (a UNIT variant matches BARE — the inner parens are for tagged variants only)
       (:wat::eval::FormOutcome::Declared
-        (:repl::turn (:wat::core::conj defs form)))
+        (:wat::repl::turn (:wat::core::conj defs form)))
 
       ;; An EXPRESSION produced a value. The world is unchanged.
       ((:wat::eval::FormOutcome::Evaluated v)
         (:wat::core::do
           (:wat::kernel::println v)
-          (:repl::turn defs)))
+          (:wat::repl::turn defs)))
 
       ;; It did not type-check in this world. Nothing ran; the session is untouched.
       ;; `cause` is a navigable error TREE, not prose — `:causes` down to a real `:span`.
       ((:wat::eval::FormOutcome::CheckFailed cause)
         (:wat::core::do
           (:wat::kernel::println cause)
-          (:repl::turn defs)))
+          (:wat::repl::turn defs)))
 
       ;; It type-checked, ran, and unwound. Also non-fatal: one bad line does not end a
       ;; session, which is the whole reason a REPL's failures must be VALUES.
       ((:wat::eval::FormOutcome::Raised cause)
         (:wat::core::do
           (:wat::kernel::println cause)
-          (:repl::turn defs))))))
+          (:wat::repl::turn defs))))))
 
 ;; The READ half. `read-frame` hands back the frame's RAW TEXT — a user types wat source,
 ;; not an EDN literal — and hands back EOF as a VALUE, so Ctrl-D returns cleanly instead of
@@ -121,12 +121,12 @@
 ;; "keyword begins with ::" case), so a half-typed form ends the frame at the newline.
 ;; A multi-line form therefore reaches `read-string` truncated and raises UnclosedParen.
 ;; That is a real limitation of this REPL, named rather than discovered by the next person.
-(:wat::core::defn :repl::turn
+(:wat::core::defn :wat::repl::turn
   [defs <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::read-frame )
     ((:wat::kernel::ReadFrameOutcome::Frame text)
-      (:repl::eval-and-loop defs text))
+      (:wat::repl::eval-and-loop defs text))
     ;; the honest stop — and this time the comment is true
     (:wat::kernel::ReadFrameOutcome::Eof nil)
     ;; Arc 170 — a process-wide stop (SIGTERM/SIGINT) arrived while parked
@@ -135,10 +135,31 @@
     (:wat::kernel::ReadFrameOutcome::Stopped nil)))
 
 ;; NO `:user::main` HERE — deliberately. This is a stdlib MODULE, not a program: it exposes
-;; `:repl::turn` and nothing else runs on load. The entry point lives in the CLI's `--repl`
-;; mode, which is a one-form shim calling `:repl::turn` with an empty definition set. Putting
-;; a `:user::main` in a stdlib file would hand one to EVERY wat program and collide with the
-;; author's own; keeping the shim in the CLI is also just where an entry point belongs.
+;; `:wat::repl::turn` and nothing else runs on load. The entry point lives in the CLI's
+;; `--repl` mode, which is a one-form shim calling `:wat::repl::turn` with an empty definition
+;; set. Putting a `:user::main` in a stdlib file would hand one to EVERY wat program and
+;; collide with the author's own; keeping the shim in the CLI is also just where an entry point
+;; belongs.
 ;;
-;; The consequence worth having: the REPL is a LIBRARY. Any program can `(:repl::turn defs)`
-;; to embed a loop of its own, seeded with whatever definitions it likes.
+;; The consequence worth having: the REPL is a LIBRARY. Any program can
+;; `(:wat::repl::turn defs)` to embed a loop of its own, seeded with whatever definitions it
+;; likes.
+;;
+;; ⛔ AND THE NAMES ARE UNDER `:wat::` FOR A REASON THAT IS NOT TIDINESS. Until 2026-09-18
+;; these three were `:repl::turn` / `:repl::eval-form` / `:repl::eval-and-loop`. A stdlib
+;; module's top-level names are registered into the world EVERY wat program inherits, and
+;; only `:wat::` / `:rust::` / `:$bound::` are reserved — so those three were the only three
+;; of the 3031 names the stdlib vends that a user program could legally declare. That is not
+;; theory: `(:wat::core::defclause :repl::turn ([s <- :wat::core::String] -> String s))` plus a
+;; trivial `:user::main` turned FIVE green call sites IN THIS FILE red (lines 75/91/97/104/111,
+;; `NoMatchingClauseAtCallSite`), because a user clause table wins over the stdlib's own
+;; registered scheme. Builder's ruling: *"it must be `:wat::repl::*` — we must only vend
+;; `:wat::*`"*. The rename is `wat-scripts/fixes/vend-only-wat-repl-names.wat`; the wall that
+;; keeps it true is `load::stdlib::tests::stdlib_vends_only_wat_prefixed_names`, which reads
+;; the frozen SYMBOL TABLE rather than grepping. Record:
+;; docs/excursus/2026/08/001-sns-sqs/the-stdlib-vends-only-wat/.
+;;
+;; The namespace `:repl::` is now FREE for user programs, and two in this corpus already own
+;; it (`wat-scripts/demos/stdio-service/stdio-service.wat`'s `:repl::serve`/`:repl::Cmd`,
+;; `crates/wat-edn/demo/repl-daemon.wat`'s `:repl::serve`) — which is the point: a stdlib that
+;; squats a non-reserved namespace is taking a name it cannot defend.

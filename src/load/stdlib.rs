@@ -509,10 +509,21 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/telemetry/span.wat",
         source: include_str!("../../wat/telemetry/span.wat"),
     },
-    // wat/repl.wat — `:repl::turn`, the read/eval/print loop, as a stdlib MODULE. It defines
-    // no `:user::main`: the entry point is the CLI's `--repl` shim, so this file adds a
-    // LIBRARY (any program may `(:repl::turn defs)` to embed a loop seeded with its own
-    // definitions) rather than a program. Depends only on builtins — `eval-with-defs!`,
+    // wat/repl.wat — `:wat::repl::turn`, the read/eval/print loop, as a stdlib MODULE. It
+    // defines no `:user::main`: the entry point is the CLI's `--repl` shim, so this file adds
+    // a LIBRARY (any program may `(:wat::repl::turn defs)` to embed a loop seeded with its own
+    // definitions) rather than a program.
+    //
+    // ⛔ ITS THREE NAMES LIVE UNDER `:wat::` AND MUST STAY THERE. They were `:repl::turn` /
+    // `:repl::eval-form` / `:repl::eval-and-loop` until 2026-09-18, and being outside the
+    // reserved root made them the ONLY three of the 3031 names this stdlib vends that a user
+    // program could legally declare — which a user `defclause` then used to turn five green
+    // bodies inside this very file red
+    // (`docs/excursus/2026/08/001-sns-sqs/can-a-user-def-change-a-stdlib-verdict/FINDING.md`).
+    // Builder's ruling: *"we must only vend `:wat::*`"*. Gated by
+    // `tests::stdlib_vends_only_wat_prefixed_names` below, off the frozen symbol table.
+    //
+    // Depends only on builtins — `eval-with-defs!`,
     // `read-frame`, `println`, `read-string` — so it loads last with no eval-deps to satisfy.
     WatSource {
         path: "wat/repl.wat",
@@ -895,5 +906,94 @@ mod tests {
         assert!(s.contains("#wat.parse/"), ":cause must embed #wat.parse/...; got: {}", s);
         // Must be valid EDN.
         wat_edn::parse_owned(&s).expect("must be valid EDN");
+    }
+
+    // ─── THE STDLIB VENDS ONLY `:wat::` ─────────────────────────────────────────
+    //
+    // Builder's ruling (2026-09-18): *"it must be `:wat::repl::*` — we must only vend
+    // `:wat::*`"*. This is the gate that keeps it true.
+    //
+    // ⛔ THE INSTRUMENT IS THE FROZEN WORLD, NOT GREP. `docs/excursus/2026/08/001-sns-sqs/
+    // the-stdlib-vends-only-wat/DESIGN.md` records grep getting this exact question wrong:
+    // unanchored it reported six offending files (`:myapp::`, `:my::`, `:weather::`,
+    // `:usr::`, `:user::`) which were doc-example bodies and quasiquotes; anchored it
+    // reported the three real ones. A gate built on grep would enshrine that error. This
+    // reads the five name-keyed tables of a world frozen with NO user source — functions,
+    // unit variants, `def` values, types, macros — i.e. exactly the names a user program
+    // inherits whether it asked for them or not.
+    //
+    // WHY IT MATTERS, measured: `can-a-user-def-change-a-stdlib-verdict/FINDING.md` is a
+    // WITNESS that a four-line user program turned five green stdlib bodies red, by
+    // declaring `(:wat::core::defclause :repl::turn …)` — legal because `:repl::` is not
+    // reserved. The spike's census of the stdlib body sweep found 30,964 name-probes over
+    // 3,060 distinct names, of which exactly THREE were user-declarable: `:repl::turn`,
+    // `:repl::eval-form`, `:repl::eval-and-loop`. Every other probed name was under a
+    // reserved prefix (unforgeable — `ReservedPrefix`) or unnamespaced (unforgeable —
+    // `UnnamespacedName`). A non-`:wat::` vended name IS the attack surface; zero of them
+    // is why the surface is zero.
+    //
+    // This must stay in-crate: `MacroRegistry::name_set` is `pub(crate)` (the boot-cache
+    // door), same reason `stdlib_error_stays_narrow` above lives here.
+    #[test]
+    fn stdlib_vends_only_wat_prefixed_names() {
+        let world = crate::freeze::startup_bare().expect("bare stdlib world must freeze");
+
+        // Every name-keyed table a user program inherits from the frozen stdlib. The
+        // TABLE is the authority on what is vended; the label is only for the report.
+        let mut vended: Vec<(&'static str, String)> = Vec::new();
+        for (path, _) in world.symbols.functions_iter() {
+            vended.push(("function", path.clone()));
+        }
+        for (path, _) in world.symbols.unit_variants_iter() {
+            vended.push(("unit-variant", path.clone()));
+        }
+        for (path, _) in world.symbols.def_values_iter() {
+            vended.push(("def-value", path.clone()));
+        }
+        for (name, _) in world.types.iter() {
+            vended.push(("type", name.clone()));
+        }
+        for name in world.macros.name_set() {
+            vended.push(("macro", name));
+        }
+
+        // NON-VACUITY. A gate that walks an empty set is a claim, not a check.
+        assert!(
+            vended.len() > 1000,
+            "only {} vended names found across five stdlib tables — the instrument is              broken or the stdlib stopped loading; this gate would then pass vacuously",
+            vended.len()
+        );
+
+        // THE RULE, and it is the ruling verbatim: every vended top-level name lives under
+        // `:wat::`. NO exemptions — measured, not assumed. The prefix census of these same
+        // five tables (2026-09-18, this stone) is:
+        //
+        //     :wat::   3028        :repl::   3        (total 3031)
+        //
+        // ZERO `:rust::` and ZERO unnamespaced names are vended, so the two exemptions that
+        // would otherwise be defensible on unforgeability grounds (`:rust::` is reserved;
+        // a bare name is refused by `UnnamespacedName`) are not needed and are deliberately
+        // NOT written — an exemption nothing uses is an unmeasured licence for the next
+        // stdlib file. If one legitimately appears, re-weigh this gate against the ruling
+        // rather than widening the filter to make a red go away.
+        let offenders: Vec<String> = vended
+            .iter()
+            .filter(|(_, name)| !name.starts_with(":wat::"))
+            .map(|(kind, name)| format!("  {kind:<12} {name}"))
+            .collect();
+
+        assert!(
+            offenders.is_empty(),
+            "the frozen stdlib vends {} name(s) OUTSIDE `:wat::` (of {} vended names across \
+             five tables). Every one is a name a USER PROGRAM CAN LEGALLY DECLARE, and a user \
+             `defclause` on such a name re-points the stdlib's own call sites — see \
+             docs/excursus/2026/08/001-sns-sqs/can-a-user-def-change-a-stdlib-verdict/FINDING.md \
+             (five green stdlib bodies turned red by one user form). Builder's ruling: we vend \
+             only `:wat::*`. Move the name under `:wat::` (a `.wat` rename goes through the \
+             self-hosted codemod, `wat-scripts/fixes/`, never a hand-edit):\n{}",
+            offenders.len(),
+            vended.len(),
+            offenders.join("\n")
+        );
     }
 }
