@@ -2684,3 +2684,172 @@ fourth-instance paragraph in `FINDINGS-composition.md` gains one sentence naming
 curing the non-determinism made the pinned string a parseable form, so the cure met finding 33's
 gate.
 
+## Batch 4l — #361→#380 (SCORE-7l-replay-batch-4l.md)
+
+## #361 — docs-only, 4 files (C20 strike draw).
+
+## #362 — LANDED (C20 part 1 — dequarantines the mutual-cycle fixture). THREE conflicts, all
+## `declared_rete_defns` HashSet→BTreeSet, colliding with this tree's own arc-109 module split.
+
+`register_runtime_defs`/`register_runtime_defs_form` already live at `src/declare/register.rs` on
+this tree (moved by an earlier arc-109 Stone 2 step); applied the analogous type change there
+instead of in `src/runtime.rs`, where grok's own diff still lands it. `src/freeze.rs` kept this
+tree's own `crate::load::loader::SourceLoader` path alongside grok's type change. The doc-comment
+conflict in `tests/lint/diagnostic_output_is_deterministic.rs` was structural (both sides insert a
+new section at the same point — grok's "CURED AND REMOVED" for the mutual fixture, this tree's own
+"FOUR MORE, FOUND AT REPLAY #352" from the 4k fold) — merged both, kept, and re-derived the
+`.config/nextest.toml` corpus comment to this tree's own numbers (285 total, 6 quarantined, 279
+asserted) rather than transcribing grok's post-cure "268/266/2". `QUARANTINE_LEN` 7→6.
+
+## #363 — perf: GRID native-vs-clara data capture, 1 file (a `.txt`, no code).
+
+## #364 — docs-only, 4 files (C15 strike draw).
+
+## #365 — LANDED (C15 CLOSED — synthesized record accessors resolve). Clean auto-merge, 1 `.rs`.
+
+The wat-scripts loader gate's resolver gained a third resolution source: parse
+`defrecord`/`holon::defrecord` forms out of `wat/` (not just `wat/rete.wat`) and accept
+`Type/field` as resolving when `field` is a declared field of `Type`. No allowlist, zero runes.
+
+## #366 — docs-only, 4 files (C14 strike draw).
+
+## #367 — LANDED (C14 CLOSED — a counter with no unit now has one). Clean auto-merge, 3 `.rs`.
+
+`alpha_seed`'s batched occupancy leaf-fill (a bulk PAIR count) had shared one census key,
+`compiled:calls`, with the genuine per-call EXECUTION count sites — split into
+`alpha:leaf-fill-pairs` vs `compiled:calls`. `accum_matcher_op_census` now correctly measures ZERO
+`compiled:calls` on the accum axis (a property of the world, not a broken test).
+
+## #368 — docs-only, 3 files (C12 strike draw).
+
+## #369 — LANDED (perf: C12, an arm set for the where-predicate phase). Clean auto-merge, 1 `.rs`.
+
+⛔ FINDING 33's CLASS, MEASURED AND FIXED — grok's own new arm ships wat embedded in a `.rs`
+`format!` string using RETIRED syntax (`::Variant` positional match arms, `assertion-failed!`'s
+retired positional form). No gate reaches it (`no_inlined_wat_in_tests` roots at `tests/`; this is
+`src/`). Measured before fixing: `node_share_where_cost_decomposition` failed at load with
+`#wat.kernel/AssertionFailure`. Brought both drivers to this tree's current syntax, matching the
+pre-existing `src` string 40 lines above (untouched by grok's diff, this tree's own live
+reference). Re-verified green.
+
+## #370 — docs-only, 3 files (the filter branch-pair differential, strike draw).
+
+## #371 — LANDED (test: the filter branch-pair differential). Clean auto-merge, 2 files, adds
+## `where_tree_branch_differential.rs` (1 `#[test]`, no wall-clock).
+
+Two R21-exception defects found and fixed while landing: (1) `crate::edn_shim::...` does not exist
+on this tree — real home is `crate::edn::render::value_to_edn_string_lossy`, already used the same
+way by a dozen `src/` call sites. (2) Same finding-33 class as #369, two more embedded wat drivers
+with the same retired syntax; fixed the same way.
+
+⛔ A CURE ANSWERING TO A SECOND GATE. The finding-33 fix's own log comment used the word "variant"
+to describe the retired match-arm shape, which brought this file into scope for
+`tests/lint/one_variant_separator.rs` for the first time and tripped a pre-existing
+`DirEntry::path()` false positive in the new file's own directory walker
+(`only_identifier_rs_spells_the_variant_separator` FAILED, 1 offender, an ACCESSOR false-positive).
+Confirmed via `git show 5f0b2f1b1:<path> | grep -i variant` that grok's original file never
+mentions "variant" and was never in scope before this edit. Reworded the log comment to avoid the
+trigger word rather than adding a rune to code otherwise untouched. Re-verified green.
+
+## #372 — docs-only, 3 files (perf: A, strike draw).
+
+## #373 — LANDED (perf: A CLOSED — hoist a token-independent lookup). Clean auto-merge, 2 files.
+
+`dispatch_where_tests`'s `sink.where_tree.covers(tid)` (a function of `tid` alone) was called once
+per (token, tid) pair; hoisted to a single `Vec<bool>` computed once before the per-token loop.
+
+## #374 — docs-only, 3 files (C20's remaining two, strike draw).
+
+## #375 — LANDED (fix(check): C20 FULLY CLOSED — diagnostics arrive in source order). FIFTEEN
+## conflicts: `tests/cli/wat_cli.rs`, `tests/lint/diagnostic_output_is_deterministic.rs`, 13 `.edn`
+## goldens. `src/check.rs`/`src/check/error.rs` (the actual cure) auto-merged clean.
+
+The batch's largest and hardest step. `check_program` collected per-function errors via four
+`HashMap`-ordered walks; sorted at the exit instead (`check::error::sort_into_source_order`,
+`SymbolTable.functions` stays a `HashMap` — C10's ruling forbids `O(log n)` on that hot path for a
+diagnostic's benefit). Sort key is TOTAL down to the variant payload (a genuine same-span pair
+exists in the corpus).
+
+⛔⛔ FOUR ROWS, ALL MEASURED:
+1. `wat_cli.rs`'s two order-flip conflicts: kept this tree's own `:wat::i64::+` spelling (grok's
+   replacement used `:wat::core::i64::+`, confirmed pre-existing and unrelated via `git show
+   efbfd6b71:<path>`), adopted grok's reordering. Verified by running both `check_output_*` tests
+   green.
+2. All 13 `.edn` goldens regenerated via `UPDATE_EDN=1` (never copied), each verified a PURE
+   REORDER via a no-filter multiset comparison (sorted, whitespace-stripped lines identical
+   before/after). `wat_cli__check_bad.wat` ADAPTED, not overwritten.
+3. ⛔⛔ THE QUARANTINE DRAINS 6→0, BUT GROK'S OWN TWO FIXTURES' REAL ERROR COUNTS ARE 23 AND 8, NOT
+   GROK'S 9 AND 4 — this tree independently carries a stricter, C20-unrelated check (positional
+   variant construction retired) that both fixtures' service boilerplate trips, verified pre-dating
+   C20 by checking out one step earlier and running `wat --check` directly. Adapted the new gate's
+   `C2_SOURCE_ORDER`/`W2A_SOURCE_ORDER` to this tree's real, measured sequences (grok's original
+   findings are the LAST 4/9 rows, unmoved). This tree's own four extras (found at #352) were a
+   HYPOTHESIS that the same cure would reach them — measured, not assumed: 24 fresh-process runs
+   per fixture, one distinct hash each, count 24, all four. Hypothesis held; no survivor.
+   `QUARANTINE` emptied to `&[]`, `QUARANTINE_LEN` 6→0.
+4. The corpus-count comment re-derived again (285 total, 0 quarantined, all cured).
+
+A second lint-gate near-miss, same class as #371: this step's own prose legitimately discusses
+enum-variant construction, which brought the file into scope for `one_variant_separator` again —
+this time the word could not be reworded away (it is genuinely the topic), so the one offending
+`DirEntry::path()` line was annotated with the gate's own `not-a-name` rune, the model already used
+at `tests/cli/every_recorded_migration_replays.rs:40,638` and
+`tests/resolve/probe_stone_233_2_j_producer_migration.rs:210`.
+
+## #376 — docs-only, 3 files (F2-e strike draw).
+
+## #377 — LANDED (fix(lint): F2-e — a cited LINE must exist). Clean auto-merge, 9 files in grok's
+## own diff.
+
+`no_stale_path_in_doc` (renamed `every_location_named_in_a_doc_comment_exists`) now checks the
+cited LINE is within the file, not just that the path exists, and scans `wat/`+`wat-tests/` too.
+
+⛔⛔ WIDER THAN THE PRE-FLIGHT ON THIS TREE — E8 measured, not assumed. Landing grok's own 9-file,
+100%-comment diff immediately reddened the widened gate on genuine MAIN-ONLY staleness the brief's
+own pre-flight (run against grok's corpus) never saw: `wat/kernel/channel.wat` and
+`wat/telemetry/journal.wat` cite `src/stdlib.rs` (this tree's own arc-109 split moved it to
+`src/load/stdlib.rs`); `src/rete/purity.rs` cites two `src/runtime.rs` line ranges past its real
+(post-split) 21266-line length for `resolve_verify_payload`; `wat/kernel/outcomes.wat` cites
+`comms/mod.rs:919` past `src/comms/mod.rs`'s real 532-line length for `SendError::Shutdown`. Fixed
+all four per the gate's own stated remedy ("cite the symbol, drop the line" for the two out-of-range
+citations; corrected path for the two nonexistent-file citations) — confirmed each symbol still
+exists before dropping its line. Final landing: 13 files (grok's 9 + these 4), still 100% comment
+lines throughout (`git diff --cached --numstat` on the four extra files: 1/1, 1/1, 1/1, 2/2 — five
+single-line replacements, zero code).
+
+## #378 — docs-only, 3 files (the deferred 34, strike draw).
+
+## #379 — LANDED (fix(docs): the deferred 34 — fence emptied). ONE conflict, `wat/bracket.wat`
+## (ADD-ADD, same numerics-rehome spelling class as #375/#377's siblings).
+
+Grok's diff touches only a comment line re-pointing a stale `scratchpad/` citation; the adjacent
+CODE line's `:wat::i64::-` (this tree) vs `:wat::core::i64::-` (grok) is a pre-existing, unrelated
+divergence that only conflicted by line adjacency. Kept grok's comment re-point + this tree's own
+spelling. `no_stale_path_in_doc`'s `DEFERRED` allowlist (34 exact pairs, fenced at #377) is deleted
+entirely — 15 re-pointed by CONTENT (not a basename guess: `wat/rete.wat`'s `kernel/tests.rs`
+citation's only same-named match, `src/macros/tests.rs`, is the WRONG file; the real target,
+`src/rete/kernel/tests/arm_lease.rs`, was found by reading what the citation actually vouches for),
+19 by deleting the stale reference. R21 measured directly (not trusted from the pre-flight): every
+changed line across all 25 `.wat`/`.wat-tests` files in this diff is a `;;` comment or blank,
+confirmed by a no-filter grep. A mid-resolution census run (before `git add`ing the still-conflicted
+`wat/bracket.wat`) transiently double-counted its 3 merge stages as files=2153; re-run clean
+(files=2151) after resolving.
+
+## #380 — docs-only, 3 files (F2's seven, strike draw — batch finale).
+
+**Process incident, self-caught and repaired at #363-#368 (six commits), before yielding.**
+Hand-typed commit-trailer SHAs for #363 through #368 instead of copying from `git rev-parse`, and
+five of the six were wrong (only #361/#362 happened to be typed correctly earlier). Caught during a
+routine post-landing cross-check of every trailer against fresh `git rev-parse` output. Repaired via
+detach/re-commit/rebuild-descendants: detached at #362 (`1ad7a5be0`), re-cherry-picked #363→#368 one
+at a time from grok's own commits (identical diffs, since only the message trailer was wrong, never
+the content), wrote each message using shell substitution this time, `git branch -f
+replay/grok-rete` to the new tip. Proved inert: old tip (`494674084`) and new tip's tree hashes are
+byte-identical (`^{tree}` comparison); all 20 final trailers re-verified against fresh `git
+rev-parse` — 0 mismatches (full table in `SCORE-7l-replay-batch-4l.md`).
+
+**Disposition: COMPLETE.** All 20 steps (#361–#380) landed, tree clean at `f769abb19`
+(`REPLAY(grok-rete #380)`), not pushed. `origin/replay/grok-rete` (`0b660cfec`) remains the
+published tip (the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. See
+`SCORE-7l-replay-batch-4l.md` for the full row-by-row account against all 23 rows.
+
