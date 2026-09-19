@@ -423,7 +423,10 @@ macro_rules! assert_startup_error {
     }};
 }
 
-pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
+pub use resolve::{
+    is_reserved_prefix, is_unquote_escape, quote_boundary, resolve_references, Boundary,
+    ResolveError, UnresolvedReference,
+};
 pub use runtime::{
     eval, register_aggregate_methods, register_defines, register_struct_methods,
 };

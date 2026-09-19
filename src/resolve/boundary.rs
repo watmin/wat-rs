@@ -40,7 +40,7 @@
 /// rewritten) and which are **data** (to be left untouched). The doc on each
 /// variant is the single specification of that form's boundary; the passes
 /// implement the traversal, but neither re-decides the classification.
-pub(crate) enum Boundary {
+pub enum Boundary {
     /// `:wat::core::quote` / `:wat::core::forms` / `:wat::holon::literal` — every
     /// argument is captured as data; no child is code.
     AllData,
@@ -76,7 +76,12 @@ pub(crate) enum Boundary {
 ///
 /// This is the ONE place the boundary-head set is encoded. Both the call-head
 /// resolution walk and the symbol-ref normalization pass route through it.
-pub(crate) fn quote_boundary(head: &str) -> Boundary {
+///
+/// `pub`, not `pub(crate)`: the Tier B evaluated-position census
+/// (`tests/function/probe_tier_b_stdlib_verdict_is_not_bake_fixed.rs`) must
+/// reuse this classifier rather than mint a fifth copy. Visibility only —
+/// the match arms are unchanged.
+pub fn quote_boundary(head: &str) -> Boundary {
     match head {
         // Arc 294.b — body is data (same as quote); no symbol resolution inside.
         ":wat::core::quote" | ":wat::core::forms" | ":wat::holon::literal" => Boundary::AllData,
@@ -99,7 +104,11 @@ pub(crate) fn quote_boundary(head: &str) -> Boundary {
 /// Arc 278 — widened `pub(super)` → `pub(crate)`: `crate::closure_extract`'s free-symbol
 /// walk is a THIRD quasiquote-template descent and must use the same language fact, or it
 /// re-creates the drift this function exists to prevent.
-pub(crate) fn is_unquote_escape(head: &str) -> bool {
+///
+/// Widened again `pub(crate)` → `pub` with [`quote_boundary`]: the same census
+/// must see unquote escapes as evaluated, or it reopens the hole the quoted-mention
+/// stone closed.
+pub fn is_unquote_escape(head: &str) -> bool {
     head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing"
 }
 

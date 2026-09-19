@@ -91,6 +91,7 @@ mod walk;
 
 // Public API — re-exported for the external importers (freeze.rs, lib.rs,
 // macros/registry.rs, closure_extract.rs).
+pub use boundary::{is_unquote_escape, quote_boundary, Boundary};
 pub use error::{ResolveError, UnresolvedReference};
 pub use normalize::normalize_symbol_refs;
 pub use registration::{is_namespaced, register, Existing, Privilege, Registration, Rejection};
