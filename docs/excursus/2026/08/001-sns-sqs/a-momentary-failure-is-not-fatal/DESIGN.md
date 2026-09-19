@@ -153,3 +153,64 @@ is removed, because nothing conforming to it uses raise.
 3. **`Stopped` vs `Malformed` ordering.** Arms are tried in order (`runtime.rs:16296`); a
    codemod inserting after the last arm must not land after a `_` catch-all. TimedOut's codemod
    already handles the `_` case by leaving those matches untouched — keep that rule.
+
+---
+
+## ⭑ AUDITED 2026-09-19 — STONE 1b'S CENTRAL COMPLAINT HAS EXPIRED. Read this before striking it.
+
+This DESIGN was drawn 2026-09-10 and has governed the whole `001-sns-sqs` arc since. Its stones were
+audited today against the tree at `b8194cd3e`. **1a and 2 landed. 1b is mostly struck without anyone
+naming it, and the sentence it argued from is no longer true.**
+
+### What 1b said, and what is there now
+
+> *"`reply-failed-kw` appears at exactly two sites in `wat/service.wat` (`:2416`, `:2435`) and
+> **both construct it on the serve side. The macro never matches it anywhere.**"*
+>
+> *"⛔ And `service.wat:1231` records the behaviour that was never built: 'the generated client
+> method surfaces it as an unignorable raise carrying the cause's reason.' What ships is a bare
+> `PatternMatchFailed` with no cause at all — the exact opposite."*
+
+**Both halves are now false.** `wat/service.wat:2792`:
+
+```wat
+;; REPORT-FINAL, never retried: the bytes we sent are wrong, so re-sending
+;; them fails identically. This is why it is NOT mapped to Lost, which the
+;; redial path retries.
+((~reply-failed-kw cause)
+  (:wat::kernel::RecvOutcome::Malformed cause))
+```
+
+⭐ The generated client **matches** `Reply::Failed` and maps it to `RecvOutcome::Malformed` **carrying
+the cause** — which is exactly the conversion 1b was drawn to build, and exactly the "carrying the
+cause's reason" behaviour 1b said was never built. `RecvOutcome::Malformed` exists (1a) and is
+emitted at 6 sites.
+
+### What genuinely remains of 1b
+
+| 1b's claim | today |
+|---|---|
+| the failure becomes a transport frame convertible to `Malformed` | ✅ **done** — at the generated client, not in `recv_wire` |
+| the client carries the cause | ✅ **done** |
+| **`Failed` leaves the synthesized `Reply`** | ⛔ **not done** — `RESERVED_FAILURE_VARIANT` still guards the name (`src/types.rs:3941`) and the variant is still synthesized |
+| *"no op match can face it and none can forget it"* | ⚠ **partly moot** — the generated client now faces it; a HAND-WRITTEN op match can still omit it |
+
+Sites facing `Reply::Failed` today: **36** (`wat` 11 · `wat-scripts` 7 · `tests` 6 · `src` 12) — not
+a cascade.
+
+### ⛔ And the remaining rung is now ARGUED AGAINST at the site
+
+1b's rung was *"making an illegal state not representable"* — delete the variant so no match can
+forget it. But the arm that landed defends a deliberate wildcard, on grounds 1b did not consider:
+
+> *"THIS WILDCARD IS DELIBERATE. Unlike the nine `Status` matches (a FIXED six-variant enum, now all
+> named), `Reply`'s variant set is PER-SURFACE and generated: one variant per op plus `Failed`, so
+> 'name every variant' has no fixed meaning here. The `_` IS the detector — it catches a reply for a
+> DIFFERENT op (a desync)."*
+
+So a future 1b must answer that argument, not restate the original one: **if `Failed` leaves `Reply`,
+does the desync detector the wildcard provides survive?** That question did not exist when 1b was
+drawn.
+
+⚠ **Do not strike 1b from this DESIGN as written.** Re-draw it against these four rows, or close it.
+Its 287-arm cascade estimate belonged to 1a and is long spent.
