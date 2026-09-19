@@ -30,15 +30,28 @@ row first for days.
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ (in flight: solvere, purgare, struere, conferre) | 0 | 1 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ (in flight: struere, conferre; not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | 0 | 12 |
 
 ## Verified by the orchestrator, not taken
 
 Every row above was re-read against the disk before it was rowed; a ward's verdict is a hypothesis
 until a `file:line` confirms it.
 
+⛔ **A ✅ in the status column means I re-read the disk myself. A ⚠ means the row is the WARD's claim,
+carried unverified.** Both are rowed, because dropping the unverified ones would hide work; but only
+the ✅ rows may be cited as fact. This distinction is the whole reason the status column exists.
+
 - **I1** — CONFIRMED. `accumulate.rs:59` clears `pre_dispatched`, `:76` calls `dispatch_where_tests`,
   `:88` inserts into it. The second responsibility is real and the doc at `:18` does not name it.
+- **P1** — CONFIRMED. `grep -rn 'retain-supported'` over `wat/ wat-scripts/ wat-tests/ tests/ src/`
+  returns three hits, ALL inside `fire.wat`: the doc header `:231`, the `defn` `:242`, and a
+  self-reference `:327`. No call site anywhere. ⚠ And it is MY leftover — the factbag-one-owner
+  strike I drew this morning replaced it with `factbag::retain` and did not delete it.
+- **S5 ★** — CONFIRMED, and worse than the row alone conveys. All three sites carry the identical
+  `keyed_join_persistent` / `FilterJoinIdx` / `FireCtx` / `record_tokens` shape, and
+  `grep -rn left_activate_join src/rete/kernel/` finds ONE call (`filter_after_join.rs:75`). The
+  helper's doc header at `mod.rs:78` opens with the words **"ONE COPY."** The extraction described
+  in that header was never applied to the two sites it names.
 
 ## Runes weighed
 
