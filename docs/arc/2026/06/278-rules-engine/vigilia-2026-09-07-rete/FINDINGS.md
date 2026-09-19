@@ -58,12 +58,15 @@ row first for days.
 | **N1 ★** | cernere | 1 | `session.rs:754`, `:981`, `:1159` | ⭐ **A PHANTOM FORM IN USER-FACING ERROR TEXT.** The three transient-decode helpers set `const OP: &str = ":wat::rete::to_transient …"`. **`to_transient` is attested by NO authority** — not a `RETE_OPS` row, not a `check.rs` TypeScheme, not a `runtime.rs` dispatch arm, not a wat `defn`. It is a plain internal Rust fn, and the label is spelled in Rust `snake_case` inside a wat-namespaced string where every resolving sibling is kebab-case. A caller whose malformed `Session` trips this gets a `TypeMismatch` naming a form they cannot find in the language — the form they actually invoked was `fire-rules`/`insert`. ⚠ Same decode family as **F2**, different lens. | L2 | **OPEN** · ✅ I VERIFIED | I enumerated ALL 11 distinct `:wat::rete::` OP labels in target 1: **8 resolve** (`arm-session` 5 authorities, `fire-rules` 10, `insert` 21, …), **3 are phantom — all of them `to_transient`**. Closed when the label names the entry verb (e.g. `":wat::rete::fire-rules (session decode)"`), matching `arm.rs:1252`'s correct convention |
 | **R1 ★** | probare | 1 | `outcome.rs:22-25` | ⭐ **A DEFERRAL DECISION RESTING ON A COUNT AND A CITATION, ONE OF WHICH IS FLATLY WRONG.** The header declines to push the outcome enum into `fire_fixpoint_delta_armed` because *"it has three callers (`fire-once`, `fire-rules`, and the query path at `fire/rules.rs:425`)"*. **`fire/rules.rs:425` contains no call** — it is a session-field data literal; the query call is 8 lines later at `:433`. In-target call sites number **four**, not three: `fire/mod.rs:1177`, `fire/delta.rs:266`, `fire/rules.rs:193`, `fire/rules.rs:433` — `fire-rules` alone reaches it by TWO routes (stratified and unstratified). Nothing in `rete_header_claims_are_asserted.rs` covers `outcome.rs`. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `grep -rn 'fire_fixpoint_delta_armed(' src/ \| grep -v 'fn '` → 4 in-target + 2 in `tests/`; `sed -n '423,427p' fire/rules.rs` → data literal. ⚠ **The two halves are not equally strong** — see my note below. Closed by correcting the citation and stating the count in a form a gate can hold |
 | **R2** | probare | 1 | `mod.rs:15`; `arm.rs:706`; `wat/rete.wat:199-207` | *"Session stays 8 fields"* is called **THE ONE CONTRACT** of `DESIGN-STONE-intern-zero-mutex` — and nothing asserts it. It is TRUE today (I counted the `defrecord`: 8). But the sibling claim one door over, `FireCtx`'s field count, IS gated by `rete_header_claims_are_asserted::fire_ctx_field_count_matches_its_doc` — minted precisely because *"its doc said thirteen while the struct held fourteen."* The cure exists and this contract never received it. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '199,208p' wat/rete.wat` → exactly 8 fields; `grep -rn '8 fields' tests/` → **0**. Closed by a gate arm mirroring the `FireCtx` one |
+| **V1 ★** | perspicere | 1 | `pass.wat` (12 sites), `accum-pass.wat` (2) vs `fire.wat` (11) | ⭐ **THE ALIAS EXISTS AND ONE ORACLE FILE ADOPTED IT WHILE TWO DID NOT.** `wat/rete.wat:157-161` declares `:wat::rete::AlphaMemory` / `BetaMemory` / `ProductionMemory`. `fire.wat` uses those names **11 times**. `pass.wat` spells the longhand `(PersistentMap :- [i64 (PersistentVector :- [Element])])` **12 times and uses the alias zero times**; `accum-pass.wat` 2 and zero. ⛔ **I CORRECTED THE WARD HERE:** it reported the alias *"simply isn't being used"* — false, it is used 11×. The true shape is a **per-file split inside one corpus**, which is stronger: not an unminted noun but a migration that stopped halfway. | L2 | **OPEN** · ✅ I VERIFIED | `grep -c ':wat::rete::AlphaMemory\|BetaMemory\|ProductionMemory' wat/rete/oracle/*.wat` → `fire.wat:11`, others 0; `grep -c 'PersistentMap :- \[:wat::core::i64'` → `pass.wat:12`, `accum-pass.wat:2`. ⛔ Closed by a **wat-fix codemod**, never a hand-edit — `CLAUDE.md` mandates it for exactly this shape |
+| **V2** | perspicere | 1 | `census.rs:503` vs `:108,130,194,630,676,735,837` | ⛔ **I INVERTED THE WARD'S VERDICT ON THE FACTS, AND THE ROW IS THE INVERSION.** The ward called `census.rs:509` (`RefCell<Option<GatherKeyMap>>`) *"a real gap"* — an eighth TLS slot that should have been runed like its seven siblings. **It is the opposite.** `GatherKeyMap` is a typealias declared six lines above at `census.rs:503`; `:509` is therefore depth-2 **with the noun already named** — it is precisely the cure this ward prescribes, already applied. It needs no rune because it is not deep. The seven runed siblings are the ones that never got an alias. **So `census.rs` contains its own cure, applied once and not to the other seven.** | L2 | **OPEN** · ✅ I VERIFIED | `grep -rn 'type GatherKeyMap' src/` → `census.rs:503`. Closed by either aliasing the seven to match `:503`, or recording `:503` as the file's model form so the next hand copies it |
+| **V3** | perspicere | 1 | `filter.rs:237`, `filter_after_join.rs:130`, `:256`; and 9 further shapes | Eleven repeated nested-generic shapes with no alias, the strongest being `Option<std::sync::Arc<[Value]>>` at three sites across two files **carrying the identical local name `hoisted_keys` at all three** — the noun is already agreed, just never written as a type. Others: `Result<Arc<InternedNetwork>, EvalBreak>` ×3 in `arm.rs`; `impl Iterator<Item = Result<i64, EvalBreak>>` ×3 in `acc.rs`; `Result<HashMap<String, i64>, EvalBreak>` ×2 in `stratify.rs`, which the ORACLE already names `type-strata` in prose at `stratify.wat:41`. | L2 | **OPEN** · ⚠ ward-reported (I verified only the `hoisted_keys` and `GatherKeyMap` claims myself) | ward's own whole-repo greps per shape; closed shape-by-shape, not as one sweep |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | RETURNED (12): cernere · probare · intueri · purgare · solvere · struere · conferre · sequi **CONV** · temperare · excusare · exigere **CONV** · conformare — **STILL TO CAST (2): perspicere · then circumspicere LAST** | **5** | 19 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | RETURNED (13): cernere · probare · perspicere · intueri · purgare · solvere · struere · conferre · sequi **CONV** · temperare · excusare · exigere **CONV** · conformare — **STILL TO CAST (1): circumspicere — LAST, and it needs the aggregate** | **5** | 22 |
 
 ## Verified by the orchestrator, not taken
 
@@ -108,6 +111,7 @@ the ✅ rows may be cited as fact. This distinction is the whole reason the stat
 | conformare | ⚠ **THE WARD'S OWN VERDICT AND ITS OWN FINDINGS DISAGREE.** `reports/conformare.md:59` ends **"CONVERGED."** — yet the same report returns F1 and F2, both rowed L2 above and both verified by me. `vigilia` forbids the aggregator re-classifying a child, so BOTH stand as returned. Read it as *"the analysis converged"*, not *"the target is clean"* — but it is recorded, not smoothed, because a report whose last line contradicts its own body is exactly the shape that gets quoted later without its findings |
 | cernere | 1 L2 — **DIVERGES**, narrowly. ⭐ But its headline is the CLEAN half: ~130 distinct `:wat::rete::` names across the six oracle files, **all resolve**; 44 distinct `:wat::` tokens across the 22 Rust files, all resolve but one. The live question — *is `wat/rete/oracle/**` covered by anything, given the name-resolution gate scans `wat-scripts/` only?* — came back **measured, not assumed**: every oracle fn is on a forced entry path, so no unforced-`def` phantom exists there today |
 | probare | 2 (1 L1 + 1 L2) — **DIVERGES**. ⭐ Notable for refusing its own headline metric: told the target is deliberately comment-dense and that the spell exempts doc-comment-rich code, it ran the 28-file ratio table anyway, marked every exemption explicitly instead of dropping rows, and declined to verdict on the Rust declaration-count measure because it *"produces nonsense ratios like 1:57"* here. Third independent re-derivation of the zero TODO/FIXME count |
+| perspicere | 3 L2 — **DIVERGES**. ⭐ Its headline is the adjudication, not the findings: told seven of ten runes are near-identical boilerplate and warned off a block verdict, it grepped each of the seven exact type strings whole-repo and found **each genuinely unique** — seven distinct instruments, not one template. **All 10 runes CLEAR.** ⚠ Two of its three findings I had to correct on the facts (V1, V2) — in opposite directions, both ending stronger. ⛔ It also closed a divergent report with the word CONVERGED, as `conformare` did: a defect in the brief's wording, not the ward's judgment |
 
 - **C1 ★★** — CONFIRMED, and the falsified claim is my own. Oracle `stratify.wat:150` tests
   `hd = ":wat::rete::not"` on the TOP-LEVEL head and returns `acc` unchanged for anything else —
@@ -250,3 +254,37 @@ are one large function with heavy rationale, so it declined to verdict on it. It
 re-derived the zero TODO/FIXME count — the **third** separate measurement of that zero this cast,
 by a third method. Three wards agreeing from three sweeps is evidence; one inheriting another's
 number is an echo.
+
+- **V1 ★ / V2** — CONFIRMED, **and I had to correct the ward on both, in opposite directions.**
+  Its hypotheses were directionally right and factually off, and in each case the true fact is the
+  stronger finding. That is the weighing earning its keep: a report credited on sight would have
+  shipped two wrong sentences into the record.
+  · **V1** — the ward said the `AlphaMemory`/`BetaMemory`/`ProductionMemory` aliases *"simply
+    aren't being used."* They are: `fire.wat` uses them **11 times**. What is actually true is a
+    per-file split — `fire.wat` adopted the alias, `pass.wat` (12 longhand, 0 alias) and
+    `accum-pass.wat` (2, 0) did not. A migration that stopped halfway inside one corpus is a
+    sharper finding than a noun nobody minted, and it names its own cure: a codemod.
+  · **V2** — the ward called `census.rs:509` *"a real gap"*, an eighth TLS slot missing the rune its
+    seven siblings carry. **The fact inverts it.** `type GatherKeyMap` is declared at
+    `census.rs:503`, six lines above; `:509` reads `RefCell<Option<GatherKeyMap>>` — depth 2 with
+    the noun named. It carries no `rune:perspicere` because **it does not need one**: it is the
+    cure, not the gap. The seven are the sites that never got an alias. The file holds its own
+    model form, applied once.
+
+⭐ **perspicere did the thing the brief most asked for, and it is worth recording.** Told that seven
+of the ten runes are near-identical boilerplate — all `read-once`, all *"alias would be a mumble"* —
+and warned NOT to issue a block verdict, it checked each of the seven exact type strings against a
+whole-repo grep and found **each genuinely unique**. Seven distinct instrumentation shapes, not one
+template stamped seven times. All ten runes pass. It also separated the two halves of each reason
+unprompted: the `read-once` half is checkable and true; the *"alias would be a mumble"* half is
+subjective and weaker. That is the honest reading, and it is the answer to *"prove the others don't
+find anything instead of assuming they won't"* — the boilerplate LOOKED like the failure and was not.
+
+⚠ **AND A SECOND WARD CLOSED A DIVERGENT REPORT WITH "CONVERGED."** `perspicere`'s final section is
+headed **CONVERGED** and its very next sentence reads *"The result is not 'clean': there are 13
+genuine findings."* `conformare` did the same thing (`reports/conformare.md:59`). Two of twelve.
+⛔ **This is a defect in MY BRIEF, not in the wards.** Every brief carried the clause *"If you
+converge, say CONVERGED — and say what you looked at."* Read one way that means *the target is
+clean*; read another it means *my sweep converged / I was exhaustive*, and both wards took the
+second reading. **The wording must be fixed before targets 2–4 are cast** — see the README's resume
+protocol. A ward is not wrong to answer the question it was asked.
