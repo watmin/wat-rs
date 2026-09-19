@@ -470,7 +470,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **7** — conferre · conformare · purgare · solvere · excusare · struere · intueri | sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 15 (+1 ward-split, 2X2) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **8** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** | temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 15 (+1 ward-split, 2X2) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -683,3 +683,47 @@ The count is now re-derived per row, by matching the severity LABEL rather than 
 paragraph:** a number that recomputes is right; a number retyped rots. The cast log should carry a
 command, not a total — and until it does, this note is the evidence that its totals cannot be
 trusted on sight.
+
+⭐⭐ **`sequi` RETURNS CLEAN ON TARGET 2 — AND IT IS THE FIRST WARD TO USE THE CORRECTED VOCABULARY.**
+No rows. The value is entirely in what it says it looked at, and **I re-ran every grep it reported**:
+
+| its claim | my re-run |
+|---|---|
+| `set!` in the 5 wat files | **0** |
+| `Atom` in the 5 wat files | **0** |
+| `Mutex`/`RwLock` in the 20 `.rs` | **0** |
+| `Atomic` in the 20 `.rs` | **0** |
+| `thread_local!` in the 20 `.rs` | **1** (`eval.rs:87`) |
+| `unsafe` in the 20 `.rs` | **0** |
+| `rune:sequi` in the target | **2** |
+
+Every figure reproduces exactly. **This is the first return this cast where a handed measurement and a
+re-derived one agreed on every line** — and it is the ward's own numbers, not mine, which is the point:
+a CLEAN whose method is reproducible is evidence; a CLEAN without one is silence.
+
+⭐ **It also closed the corrected-clause loop.** The convergence clause was rewritten this session
+after `conformare` and `perspicere` both ended divergent reports with the word CONVERGED. `sequi` is
+the first ward cast under the new wording, and it ended with **CLEAN**, unambiguously, having found
+nothing. The fix works.
+
+**The two `rune:sequi` sites I handed it — both stand, and I verified both readings:**
+· **`EXEC_ARENA`** (`eval.rs:85`) — `with_exec_frame` zeroes `*slot = None` across `[0,len)` on entry,
+  and a live nested borrow takes an `Err(_)` arm that allocates a **fresh** `vec![None; len]` rather
+  than aliasing. Nothing survives one call into another. A reused allocation, not accumulated state.
+· **`KINDS`** (`eval.rs:896`) — `RETE_OPS.iter().map(…).collect()` inside `get_or_init`. Derived once
+  from a compile-time constant, never mutated.
+
+⚠ **AND IT DECLINED TO MANUFACTURE A THIRD WARD-SPLIT, WHICH IS THE RIGHT CALL.** It observed that
+`EXEC_ARENA`'s category `ambient-context` *"undersells what it actually is"* — the rune's own prose
+(*"so … do not allocate per token"*) describes a `performance-counter` case, and that category
+requires a cited measurement this rune does not carry. `excusare` passed the same rune as HOLDS this
+cast. **`sequi` did not row it**, naming it *"a labeling/taxonomy nit, not a composition break"* —
+its concern is whether the chain holds, and it does. **That is a ward refusing a finding outside its
+own remit**, the same discipline `conformare` showed declining a `.ok()` discard as a `solvere`
+question. Recorded here as a nit, not as 2X2's sibling.
+
+⭐ **One fact it established that is worth keeping beyond this cast:** `reachability.rs` — 2,180 lines
+— is `#[cfg(test)]`-gated via an `include!` at `mod.rs:86-89`. **It never compiles into the
+production binary.** I confirmed it. That is the second independent reason to leave it alone (the
+first being its DISCONFIRMING-PROBE header), and it means its size does not bear on the compile
+side's shipped surface at all.
