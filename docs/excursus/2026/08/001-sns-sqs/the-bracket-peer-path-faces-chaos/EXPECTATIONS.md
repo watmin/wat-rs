@@ -13,7 +13,7 @@ a fix already committed (`c4026f99e`) as correct-but-latent. Say it plainly if i
 
 | # | what | how it is judged |
 |---|---|---|
-| 1 | ⭐ **The measurement, before any build** | One probe each for slow / oversize / die. For each: **which `ServiceEvent` reaches `collect-loop`**, and which arm runs. ⛔ "The run survived" does not score — name the arm. |
+| 1 | ⭐ **The measurement, before any build** | One probe each for slow / oversize / die. For each, THREE facts: **which `ServiceEvent` reaches `collect-loop`**, **which arm runs**, and — per the DoS amendment — **did the bracket survive, and was the cost bounded (by what, to what)**. ⛔ Naming the arm alone no longer scores: an unbounded wait is a DoS even when nothing crashes, and a death is a worker taking down its coordinator. |
 | 2 | **Oversize is not Malformed** | An oversized reply is `RecvError::FrameTooLarge` on the process-spawn branch, not a decode failure. Report the actual variant. ⛔ Conflating them fails this row. |
 | 3 | ⭐ **`Malformed` reachability, answered** | Reachable or not, with the reason. If not: my `Malformed` re-dispatch stays source-pinned and the SCORE says so. ⛔ Do **not** invent a corruption injector to make a committed fix look exercised. |
 | 4 | ⭐ **The bound fires for the first time** | A runner stalls past `collect-deadline-ms`; `collect-gave-up!` produces its wall-clock report. Injectable deadline via the `the-handshake-deadline-is-injectable` shape — **one home for the value**, production default unchanged. |

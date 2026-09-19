@@ -52,6 +52,36 @@ is `RecvError::FrameTooLarge`, which that branch maps through `classify_peer_err
 correct-but-latent, guarded by a source pin, and that is the honest state — not a failure of the
 fix, and not something to paper over by inventing a corruption injector to justify it.
 
+## ⭑ AMENDED MID-STRIKE — THE LENS IS DoS, NOT JUST REACHABILITY
+
+Builder, on being shown the three-primitive table: *"sounds like we need to make brackets safe…
+it can be dos'd by its worker fleet with IPC… just like with services."*
+
+Measured, and the asymmetry is explicit in the code:
+
+| | service | bracket |
+|---|---|---|
+| per-op caps | `:max-request-bytes 2048` on surface methods (`wat/cache.wat`) | **zero, anywhere** |
+| frame-cap plumbing | `max-frame-bytes`, 7 sites in `wat/service.wat` | none |
+| collection caps | `:max-entries`, 3 sites | none |
+| an oversized frame | `Rejected` — *"a 400-class CLIENT error, NOT a 500-class internal crash"* | `assertion-failed!` |
+| how a reply is decoded | — | **`decode_trusted_wire`** |
+
+⭐ **A service treats its clients as untrusted and survives their misbehaviour as a client error. A
+bracket treats its fleet as trusted and dies.** The decode function names the premise out loud —
+and once the fleet is remote, which is the stated target, that premise is false.
+
+⛔ **So row 1 reports two things per fault, not one.** "Which arm ran" is necessary and not
+sufficient. Also report:
+
+1. **Did the bracket survive?** — and if it died, that is a worker taking down its coordinator.
+2. **Was the cost bounded?** — by what, and to what. An unbounded wait is a DoS even when nothing
+   crashes.
+
+This does not change the work in rows 1–4; it changes what the SCORE must say about each result.
+**Hardening** — caps on the runner wire, a 400-class disposition for an oversized reply, and
+retiring the trusted-wire premise for a remote fleet — is the stone this one feeds, not this one.
+
 ## The work
 
 ### 1. The measurement — what a chaos work-fn already reaches
