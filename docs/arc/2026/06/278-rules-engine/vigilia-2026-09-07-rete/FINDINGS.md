@@ -1144,3 +1144,49 @@ but that is a **different population** (sources mentioning a field, not recorded
 it), and it is the exact mention-vs-thing trap above. **I am recording all three numbers and
 adjudicating none**, because settling it needs the recorded-output corpus enumerated, which nobody
 has done.
+
+⭐⭐ **`mora` RETURNS CLEAN — the only ward in this vigilia whose trigger fires on target 3 and
+NOWHERE ELSE.** It measured **0** on the fire path and **0** on the compile side, both recorded as
+facts about those targets. Here it fires on exactly two lines, and its verdict is that **its own
+discipline does not reach them.** No row is filed.
+
+**I re-ran all three of its greps: zero `sleep` in the 20 shell scripts, zero readiness-snapshot
+surface, exactly two `timeout` sites — both in `run-axis.sh`.** No delta.
+
+⛔ **The judgment is the result, and it is argued rather than asserted.** Both sites are the shell
+`timeout(1)` used as a kill-guard, one paired with `ulimit -v` in the same breath. The ward walked
+the four questions and landed on *out of domain*: **a coordination wait needs an event to wait FOR,
+and what is being bounded here is the ABSENCE of a terminating event** — a hang or a runaway
+allocation — which no select can wait on. I confirmed the guard's provenance: `run-axis.sh:124-137`
+is headed **"THE BLAST DOOR"** and records the incident that produced it — *"2026-07-30:
+`run-axis.sh node-share …` **CRASHED THE BUILDER'S MACHINE**. The N=50 point consumed the box's
+43 GiB of available RAM and the OOM killer took the desktop."*
+
+⭐ **And it refused a rune rather than force one.** Its spell offers four categories
+(`calibration`/`external-api`/`no-kernel`/`no-reactor`) and it judged that **none fits a
+runaway-process safety net**, saying that forcing one *"would misuse the taxonomy rather than honour
+it."* A ward that declines an exemption it is entitled to reach for is worth more than one that
+files a tidy rune.
+
+⭐ **It also did the work reading 3 demanded and reported the timeout path fails LOUD.** `WAT_RC` is
+captured outside `set -e` so `pipefail` cannot swallow it; RC `124` and `137` get distinct
+diagnostics; a missing result line hard-exits 1 rather than feeding a partial sample into the
+mean/spread; and `run-all.sh:139-144` propagates the failure with a nonzero sweep exit. **The
+instrument holds itself to the doctrine its sibling states** — *"unreadable is a HARD FAILURE — never
+a skip."*
+
+⚠ **The honest boundary it named and deliberately did NOT file** is the most useful sentence in the
+return: `WAT_RC` is consulted only inside the `-z "$WAT_LINE"` branch, so a process killed *after*
+flushing a complete result line but before exiting would keep its result, never have its RC
+inspected, and fold the hung time into `:wat-wall-ms`. It has **no evidence that binary hangs
+post-print**, said so, and classified it as *"an RC-scoping completeness question"* rather than a
+mora finding. **Naming the limit of what you confirmed, and refusing to file it as what you did not,
+is the discipline this whole vigilia runs on.**
+
+⛔ **AND IT CORRECTED A COUNT OF MINE IN A WAY THE OTHER EIGHT WERE NOT: I INVALIDATED IT MYSELF.**
+I handed it *"19 `.sh`"*. It measured **20**. Both are right — **I committed
+`peragrare-census.sh` into that very directory two commits earlier**, so the population I quoted was
+accurate when measured and stale by my own hand by the time it was read. ⚠ This is a *new* failure
+mode, distinct from the eight prose-vs-thing and reachability errors before it: **a measurement can
+be invalidated by the measurer's own subsequent action.** A handed-down number needs the commit it
+was taken at, not just the command.
