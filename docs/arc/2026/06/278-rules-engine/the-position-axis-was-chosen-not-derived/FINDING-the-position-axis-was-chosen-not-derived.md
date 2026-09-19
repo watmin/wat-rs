@@ -3,6 +3,40 @@
 **Measured 2026-09-10 at `07eba8226`.** Every row below driven against `./target/release/wat`, not
 read.
 
+> # ⛔ AMENDED WITHIN THE HOUR — THE TITLE'S CLAIM IS STRUCK. THE COVERAGE TABLE STANDS.
+>
+> **"The position axis was chosen, not derived" is WRONG as a criticism, and I filed it without
+> reading the record.** The axis was chosen **with an argument, at the site, and it is tracked.**
+>
+> `src/rete/reachability.rs:78-85`, verbatim: a `:from` clause *"its operand is the accumulated
+> COLLECTION rather than a field, and its evidence is a differential against the wrapped control
+> rather than a hit/miss discrimination. Stretching `Cell` over it would have made `synth` render a
+> shape it cannot hold."* And: *"`:then` … remains deliberately unmodelled, with its own separate
+> defect. An un-calibrated position would add a column of findings nobody can trust."*
+>
+> `docs/arc/2026/06/278-rules-engine/RETE-OPEN-WORK.md:432`: *"The `:then` position and the user
+> accumulator fold — the other two call sites the vocabulary's module doc names — are deliberately
+> NOT modelled yet… Each new position needs its own known-answer control first."*
+>
+> ⛔ **And the "eleven variants" framing is struck too.** `ReteClauseShape`'s variants are clause
+> SHAPES (`Bind`, `And`, `Unrecognized`…), not places an OP can sit. The vocabulary module doc names
+> **four** call sites; the ledger models two and tracks the other two. **2-of-4-with-a-tracker**,
+> not 2-of-11-blind. Deriving `CallSite` from `ReteClauseShape` would be a category error.
+>
+> **⭐ WHAT SURVIVES, AND IT IS A DIFFERENT INSTRUMENT ANSWERING A DIFFERENT QUESTION.** The
+> coverage table below is correct and driven. `accumulate`'s `:from` clauses are not
+> **type-checked by the VALIDATOR** — which is the D10/D11/fence class, not the ledger's
+> reachability question at all. **My finding conflated two instruments.** Grepped: that validator
+> hole is tracked NOWHERE. That is the whole live finding, and it is one stone.
+>
+> **⭐⭐ THE LESSON, AND IT IS THE SECOND TIME TODAY.** Hours earlier I filed stone 251.8d's
+> deliberate mid-campaign boundary as a "gap," and was corrected. Then I did it again, to an
+> argued exclusion carrying its reason in a doc comment eight lines long. **A narrow instrument is
+> not evidence of an oversight; the record says which it is, and the record is cheap to read.**
+> Both times I measured carefully and read no design docs. Sibling of
+> `[[an-inherited-work-list-is-a-claim]]` inverted: a *deliberate* scope cut also reads exactly
+> like an omission from the code alone.
+
 ## The coverage table
 
 One ill-typed predicate — `(:wat::rete::core::string::= ?k "nope")` where `?k` is bound to an

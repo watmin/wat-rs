@@ -1,4 +1,4 @@
-# the position axis was chosen, not derived
+# the position axis was chosen, not derived — ⛔ TITLE STRUCK, see the FINDING's amendment
 
 **Opened 2026-09-10**, out of the chain that began with the `where` fence's type hole.
 
