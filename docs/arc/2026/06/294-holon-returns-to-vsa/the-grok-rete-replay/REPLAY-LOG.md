@@ -4449,3 +4449,142 @@ fixed before that step's own commit; no `mcp__pulsare__*` tool called. `lint-sub
 #607, +1 at #610, +1 at #613) — predicted **5882 run, 22 skipped** for the orchestrator's own
 floor re-measurement (corrected from the brief's 5883, per #613's test-count correction). See
 `SCORE-7x-replay-batch-4x.md` for the full row-by-row account against all rows (E1–E16).
+
+# REPLAY-LOG — grok-rete #621–#640 onto `replay/grok-rete` (BRIEF-7y, batch 4y)
+
+Anchor `/home/john/work/holon/wat-rs`, branch `replay/grok-rete`; `/home/john/work/holon/` FROZEN,
+untouched. Start tip `afa61cee7` (batch 4x CLOSED at 620, 4y briefed). 20 REPLAY commits,
+#621–#640, 11 docs-only + 9 code steps (#621, #627, #628, #630, #633, #635, #636, #638, #639),
+matching the brief exactly.
+
+## #621 — LANDED, 3 files (2 `.sh`, grid: run-all.sh records its instrument). Clean cherry-pick, no
+divergence. No census/nested-program-gate/lint-subset/kind(lib)/doctest required (`.sh` only).
+
+## #622–#626 — docs-only, clean cherry-picks, byte-identical.
+
+## #627 — ⚠ R21 Phase 1 codemod DRAWN and dry-run, nothing applied. Grok's new
+`wat-scripts/fixes/hoist-where-into-condition.wat` is authored in retired syntax (`::`-separated
+positional variants, positional `assertion-failed!`, pre-rehome numerics/string spellings, the
+OLD `fix-text-apply` edit-tuple shape). Repaired via `scripts/replay/convert.sh`'s full recorded
+chain plus 3 hand-fixes to residual retired forms the chain doesn't cover (a brand-new file no
+recorded migration has ever seen) — per SCORE-7o's own precedent (repair the tool, never the
+corpus). Verified behaviorally against a synthetic fixture matching grok's own documented example.
+
+## #628 — ⚠ R21 whitespace refinement (`backward-trim`) LANDS; the 32-file real corpus application
+grok's floor found broken is REVERTED — no `tests/` file appears in this diff at all. Applied
+grok's semantic delta onto our already-repaired tool, rehoming the two new functions' calls to
+this tree's live spellings. Idempotent, verified against the multi-`where` merge-bug case.
+
+## #629 — docs-only, clean cherry-pick.
+
+## #630 — ⚠⚠⚠ R21 APPLIED, corpus-wide, derived from THIS tree (56 files/159 rules vs grok's
+17/42). THREE EXCLUSION CLASSES at first landing (10 files — a new backward-trim comment-adjacency
+bug; 1 file — `to-faithful-clojure-net.wat`, grok's own precedent; 16 files — a new alpha-compile
+regression, enum-equality hoisted into alpha). Final applied at first landing: 29 files/86 rules.
+
+**TWO POST-HOC FOLDS, both discovered while landing #638** (this executor's own `wat --grep`-based
+compile probe is silently vacuous on any file lacking `:user::grep` — most of the corpus outside
+`wat-scripts/grep/`): fold 1 excluded 2 more files (`rules-corpus-03-source-to-facts.wat`,
+`probe-grep-driver.wat`); fold 2 excluded 10 more (`wat-scripts/fmt/rules/*.wat`, all but
+`cond`/`if`/`match`). Both landed via detach + soft-reset + re-commit + rebuild #631–#637 forward,
+proven inert each time. One file (`277-width-fixpoint-probe.wat`) was checked and found to fail
+identically hoisted or reverted — a pre-existing defect, not a fold; its real disposition became
+Ruling 2 at #638. **Final applied after both folds: 17 files/~57 rules.** Also repaired during
+these re-landing cycles: a missing literal `nested-program-gate: PASS` line at #627/#628 (verified
+by actually re-running that gate at those historical tree states) and two wrapped verdict lines at
+#630/#635 itself (finding-31's own trap, self-inflicted by this executor's repeated message edits).
+
+## #631–#632 — docs-only / one clean auto-merge (breadcrumb churn), byte-identical in substance.
+
+## #633 — LANDED, 4 files (probe: the where fence's interior is not type-checked, banked). Clean
+cherry-pick, retired `:wat::rete::core::{i64,string}::*` spellings in the new fixtures rehomed to
+this tree's live `:wat::rete::{i64,string}::*`. Self-caught and fixed before commit: `binary_id
+(wat::lint)` first came back RED on `no_bare_is_err` (a MAIN-ONLY gate absent from grok's tree) —
+per-site `rune:lint(bare-is-err)` added, re-verified green. Both controls pass; the banked arm run
+deliberately (`--run-ignored all`) fails on exactly the documented gap.
+
+## #634 — docs-only, clean cherry-pick.
+
+## #635 — LANDED WITH A REAL CONFLICT, 8 files (fix(rete): type-check the fence interior, 3 sites
+found). `to-faithful-clojure-net.wat` conflicted for real: grok's semantic delta (string::=→i64::=
+at 2 sites) applied onto this tree's already-rehomed spellings. The new scratch probe was
+pre-migration (era match-arm/variant syntax); cured via `convert.sh`, driven directly — output
+matches grok's own documented answer to the BRIEF's open question exactly. Own #633 rune comments
+needed a follow-up (the cure they were written against had just landed) — updated, re-verified.
+
+## #636 — LANDED, 2 files (FINDING: loading is not compiling). Clean cherry-pick, byte-identical.
+Ran the shipped census instrument on this tree per the brief's own standing warning and confirmed
+it independently: uniform `compiles: 0 · cannot compile: 177`, reproduced to the exact mechanism —
+the script's OWN embedded driver uses retired positional match-arm/variant syntax (finding 33's
+class, inside the instrument itself). Disclosed, not fixed here — the brief assigns the repair to
+#639.
+
+## #637 — docs-only, clean cherry-pick.
+
+## #638 — ⛔⛔⛔ THE BATCH'S DECIDING STEP, LANDED IN TWO SITTINGS ACROSS AN ORCHESTRATOR RULING.
+First sitting: built `tests/lint/rete_compile_gate.rs` (one import-path repair needed), proved the
+instrument sound (5/16 shards passed outright; every failure named a different file/mechanism —
+nothing like #636's uniform false failure), landed grok's own 9 deletions + 2 repairs + the
+`runtime.rs` re-grounding, then discovered — after both #630 folds — exactly 3 genuine failures
+outside grok's own 11-file disposition table. STOPPED and reported per the brief's own explicit
+STOP-3 instruction (`BRIEF-7y-ADDENDUM-638-three-genuine-out-of-scope-compile-failures.md`).
+
+Second sitting, after the orchestrator's ruling (`BRIEF-7y-ADDENDUM-638-the-three-disposals.md`,
+4-YES both): **Ruling 1** — deleted `then-match-{paren,bare}-arm.wat` (they probe `match` inside a
+`:then`, refused by this tree's fence since `250162a0e`, ruled 4-YES at `#324`; grok's own #638
+deletes two siblings from the same directory; the finding is already pinned by main's own live
+test). **Ruling 2** — relocated `277-width-fixpoint-probe.wat` to
+`docs/arc/2026/06/277-wat-lint-fix-fmt/probes/` (its refusal to compile IS the disconfirming result
+a 2026-09-05 NOTE already harvested; repairing it would erase the finding); measured, not assumed,
+that the docs-side gate needs no rune (the file loads fine; its refusal is at compile, one phase
+later, which that gate's own contract exempts). Self-caught and fixed before this commit: a
+MAIN-ONLY `one_variant_separator` red on 4 sites inside this step's own new gate file, classified
+against the gate's closed category list and runed (3× `not-a-name`, 1× `display`). Final: gate
+43/43, zero exemption categories, zero runes on the compile gate itself.
+
+## #639 — LANDED, 2 files (fix(census): synthesize the anchor). Grok's own fix applied verbatim.
+Our-tree adaptation, exactly where the brief said it belongs: the script's own embedded driver
+carried the SAME retired match-arm/variant syntax #636 found — hand-fixed (finding 33's class,
+codemods do not reach a `.sh` string). Result: `compiles: 163 · cannot compile: 3 · declares no
+rules: 9`, no longer uniform. The residual 3 are a separate script-packaging artifact (a flattened
+temp-dir filename breaks a same-directory `load-file!` sibling reference), confirmed NOT among
+#638's own gate's failures — disclosed, not chased further.
+
+## #640 — docs-only, the last, clean cherry-pick.
+
+⛔ ONE MID-BATCH STOP (at #638, per the brief's own explicit instruction — not a lapse), resumed on
+the orchestrator's ruling. THREE POST-HOC FOLDS into #630/#627 (two for compile exposure — this
+executor's own compile-probe methodology failing silently, found only by #638's stronger real gate
+— and a third, into #627, for the recorded-migration fixture #438's own class, found by the
+orchestrator's OWN floor after this SCORE first reported the batch complete). ONE MAIN-ONLY GATE
+RED self-caught and repaired at each of #633 and #638. THREE RECORD-GATE WORDING DEFECTS
+self-caught and repaired. Every subject and trailer was built by piping `git log -1 --format=%s <C>`
+and `git rev-parse <C>` into the commit heredoc, never retyped, and verified two-sided
+programmatically after landing (20/20, see `SCORE-7y-replay-batch-4y.md`'s table).
+
+## ⚠⚠⚠⚠ POST-FOLD (the orchestrator's own floor at `4047f387f`, RED 1/5908)
+
+`every_recorded_migration_replays::every_recorded_migration_is_fixtured_or_runed` — the SAME class
+as batch 4o's own #438 (this tree gates every recorded migration; grok's tree does not), recurring
+because the orchestrator's own prior warning lived in `SEAM`'s rotating header rather than a
+durable ledger row. Folded into #627 (`hoist-where-into-condition.wat`'s own first appearance): a
+`;; SCOPE: corpus` line and a replay fixture whose `before.pre` is a JOIN case (grok's own `#630`,
+`bare-variant-constructors.wat`'s `:bv::head`), so #630's later join-only narrowing never excludes
+it. Verified across every step where the tool's output could move: it genuinely differs at `#628`
+(not `#630` as the addendum guessed — `backward-trim` removes a whitespace artifact), so `#628`
+carries its own legitimate fixture update, disclosed there; `#630` onward unchanged.
+`-E 'test(every_recorded_migration_replays)'` → 18/18 at #627, #628, #630, and the tip. #629–#640
+plus this SCORE rebuilt on top, proven inert (`git diff <old-tip> <new-tip>` names only the
+fixture files, the `;; SCOPE:` line, and the docs).
+
+**Disposition: COMPLETE (post-fold).** All 20 steps (#621–#640) still landed, tree clean at
+`bfe7f4235` (`REPLAY(grok-rete #640)`), not pushed. `origin/replay/grok-rete` remains the published
+tip, an ancestor of HEAD throughout. No knowingly-red commit at any point. `lint-subset` (332 →
+355, +23), `kind(lib)` (1524 throughout) and `doctest` (8 throughout), all UNCHANGED by the fold (a
+fixture is data an existing shard test reads, not a new `#[test]` fn). `#[test]` delta **+26
+registered** (+3 at #633, +23 at #638; net ignored +0) — **measured 5908 run, 22 skipped**,
+disagreeing with the orchestrator's own 5893/22 forecast by +15, entirely attributable to #638's
+real (macro-expanded) test count vs. the brief's source-grep-based estimate — see
+`SCORE-7y-replay-batch-4y.md`'s E11 for
+the full reconciliation. See that SCORE for the complete row-by-row account against all rows
+(E1–E16).
