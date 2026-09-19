@@ -82,12 +82,21 @@ clippy 0, census `no STOP-8`.
   brief's standing clause — *"if this brief contradicts grok's diff or the runner, they win"* — is what
   made that safe to say out loud.
 
-## ⭐ WHAT REMAINS (orchestrator/builder work, not a replay batch)
+## ⭐ WHAT REMAINS
 
-1. **Attribute the 49 rete content deltas** against grok's tip — each to main's own work or to a named
-   ruling. The one claim this stamp deliberately does NOT make.
-2. **The merge to `main`** — the replay branch is green and complete; landing it is the builder's call.
-3. `merge/grok-rete` can be retired once (1) is done; it has served as the crib.
+1. ✅ **DONE — the 49 rete deltas are attributed** (`SCORE-8-rete-delta-attribution.md` + the
+   orchestrator's appended correction). **D = 0, E = 0**: zero grok content dropped, zero unexplained.
+   27 files pure main-side rehome, 20 involving main's own rete work, 2 carrying ruled divergences.
+   ⚠ The SCORE's `82↔82` vocabulary count was inflated (a struct field and an assert message counted as
+   rows); the true counts are **79↔80**, re-verified: **every one of grok's 79 rows pairs to a
+   counterpart, zero unpaired**, one addition (`variant-name`).
+2. ⭐ **THE MERGE TO `main` IS THE BUILDER'S CALL, AND IT IS A FAST-FORWARD.** `main` (`a3218644d`) has
+   not moved in 9 days, equals `origin/main`, and **is an ancestor of this branch** — so landing it is
+   `git merge --ff-only`, **840 commits, no merge commit, no conflict possible.** Nothing is outstanding.
+3. `merge/grok-rete` can be retired; it served as the crib and the cross-check.
+4. **`docs/arc/2026/06/294-holon-returns-to-vsa/REPLAY-PLAYBOOK.md` is written** — the method distilled
+   for the next branch: invariants, the batch loop, the tooling, a pre-flight checklist, and the six
+   failure modes that actually bit.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
