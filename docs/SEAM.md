@@ -209,8 +209,13 @@ everything that exists; the ruling defines the pathological case that is current
 ⚠ A first count said 3,984 and would have made this look large — it was matching file paths in
 **comments**. Strip comments, restrict to code, read the survivors.
 
-⭐ **UNBLOCKED — 8c landed.** It was held only to keep two hands out of the identifier/resolve
-neighbourhood at once. **Its own small stone; can go before or after 8d, builder's call.**
+✅ **STRUCK AND LANDED 2026-09-19 (`261476098`).** Floor 5920/5920, clippy 0, census `no STOP-8`.
+⭐ **Measurement moved the justification:** this was not an undefined question — `wat-edn`'s
+`split_namespaced` was **already** first-slash and `wat-edn/src/value.rs` already named
+`clojure.core//` as the exception. The wat surface was **the outlier**, so the ruling makes it agree
+with the layer that owns EDN compliance. ⛔ And `receiver`/`method` had to move with it: they are the
+**namespace splitter** on `normalize.rs`'s path, so flipping `bare` alone would have left one process
+with two namespaces for one string. `wat.core//` now **resolves, to division**. Score in the ruling doc.
 
 ### The scale of 8d, measured
 
