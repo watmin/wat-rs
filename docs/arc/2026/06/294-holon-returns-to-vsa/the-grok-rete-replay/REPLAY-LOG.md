@@ -4588,3 +4588,100 @@ real (macro-expanded) test count vs. the brief's source-grep-based estimate — 
 `SCORE-7y-replay-batch-4y.md`'s E11 for
 the full reconciliation. See that SCORE for the complete row-by-row account against all rows
 (E1–E16).
+
+# REPLAY-LOG — grok-rete #641–#651 onto `replay/grok-rete` (BRIEF-7z, batch 4z) — THE LAST ELEVEN
+
+Anchor `/home/john/work/holon/wat-rs`, branch `replay/grok-rete`; `/home/john/work/holon/` FROZEN,
+untouched. Start tip `487e40fd1` (batch 4y CLOSED at 640, 4z briefed). 11 REPLAY commits,
+#641–#651, 7 docs-only + 4 code steps (#644, #646, #647, #651), matching the brief exactly.
+**#651 is grok's tip (`37528f6e0`) — the replay is complete.**
+
+## #641–#643 — docs-only, clean cherry-picks, byte-identical.
+
+## #644 — LANDED, COMPOSED, 6 files (2 modified src, 4 new tests: 1 .rs, 1 .wat, 2 .wat.bad).
+Auto-merged clean on `src/rete/validate/{mod,typing}.rs`, delta-vs-delta IDENTICAL against grok's
+own diff on both. The new fixtures needed real composition: `use wat::load::InMemoryLoader`
+rehomed to `wat::load::loader::InMemoryLoader` (arc 255 HOME #6's no-re-export ruling); retired
+`:wat::rete::core::{i64,string}::{=,>}` (this tree's own earlier-landed numerics rehome, grok's
+branch never saw it) cured in the `.wat` via `scripts/replay/convert.sh 6ddccec63` and by hand in
+the `.rs`'s embedded wat strings (finding 33's class, 8 sites, `:wat::rete::core::cond` correctly
+left untouched); paren+bare-variant match arms in the `.rs`'s embedded `InsertOutcome`/
+`CompileOutcome`/`FireOutcome` matches rehomed to the live bracket-map-pattern/dot-variant/kwargs
+idiom already used by `probe_arc278_8custom_native_differential.rs`. Two MAIN-ONLY gates
+self-caught and repaired before commit: `no_bare_is_err` (2 sites, per-site rune, precedent #633)
+and `no_inlined_edn` (1 site — the gate's own placeholder-stripper mis-split an adjacent `{{…}}`
+pair; restructured per the gate's own instruction, not runed — diagnosed via a throwaway `#[test]`
+reproducing the exact `MalformedBraceLiteral`). `census: files=2186; --diff no STOP-8`.
+`nested-program-gate: PASS (3/3, 5934 skipped)`. `lint-subset: 355 passed`. `kind(lib): 1524
+passed`. `doctest: 8 passed`.
+
+## #645 — docs-only, new file, 1 file. Clean cherry-pick, byte-identical.
+
+## #646 — LANDED, COMPOSED, ⚠⚠ A FINDING #648 LATER WITHDRAWS, 3 files (1 new doc, 1 modified
+.wat, 1 new wat-scripts/ .wat). ONE REAL CONFLICT: `tests/rete/probe_arc278_fence_interior_types.wat`
+row 3 — grok's semantic delta (rebuild the not-knowable operand on `core::cond`) composed onto this
+tree's already-rehomed numerics spelling. ONE CHAIN CONVERSION:
+`wat-scripts/scratch-pad/arc278-acc-count-unused-bind/probe-acc-count-unused-bind.wat`, `--check`
+101 on arrival exactly as predicted (positional `assertion-failed!`), declares 2 `defrule` + 2
+`defquery` → in scope for #638's zero-exemption `rete_compile_gate`. Cured via
+`scripts/replay/convert.sh 8d102ad84`, rc=0: 5 positional `assertion-failed!` → kwargs, 2
+`:wat::core::PersistentMap/get` → `:wat::map::get`, 1 `:wat::core::i64::-` → `:wat::i64::-` —
+exactly the range's predicted totals. Both loader gates green AND `-E 'test(rete_compile_gate)'`
+green, N=21 shards, zero runes, zero rules deleted. **The finding lands unsoftened** — "acc::count
+returns a WRONG COUNT", word for word, despite #648 withdrawing it two steps later. `census:
+files=2187; --diff no STOP-8`. `nested-program-gate: PASS (3/3, 5934 skipped)`.
+
+## #647 — LANDED, 5 files (1 .rs, 1 .wat, 3 .md — 2-of-2 code files diverge, step-relative
+pre-image since #644 already touched both this batch). Clean auto-merge, NO conflict markers:
+grok's comment-only correction ("accumulate has zero corpus uses" was false — it was the grep)
+applied onto this tree's already-composed #644 content; delta-vs-delta IDENTICAL against grok's own
+diff on both files. `census: files=2187; --diff no STOP-8`. `nested-program-gate: PASS (3/3, 5934
+skipped)`. `lint-subset: 355 passed`. `kind(lib): 1524 passed`. `doctest: 8 passed`.
+
+## #648 — docs-only, 1 file. Clean cherry-pick, delta-vs-delta IDENTICAL. **Lands the withdrawal AS
+WRITTEN**, unsoftened, after #646 — #646's finding stays visible above it with the strike-through,
+per this arc's own convention; nothing edits or removes #646's landed text.
+
+## #649–#650 — docs-only, clean cherry-picks (1 new file, then 3 new files). Byte-identical.
+
+## #651 — ⭐ LANDED, COMPOSED, GROK'S TIP, THE LAST STEP, 8 files (3 existing + 5 new: 1 doc, 1 .rs,
+1 .wat, 2 .wat.bad, 1 wat-scripts/ .wat). Auto-merged clean on `src/rete/validate/{error,typing}.rs`,
+delta-vs-delta IDENTICAL once `@@` hunk-header line numbers are stripped. +3 tests. Both NEW `.wat`
+files failed on arrival exactly as predicted: `tests/rete/probe_arc278_fence_binder_shadow.wat`
+(retired `:wat::rete::core::i64::{+,>,<}` plus a bare-variant match arm) and
+`wat-scripts/scratch-pad/arc278-fence-binder-shadow/census-fence-binders.wat` (`--check` rc=1 —
+`HashSet`/`Vector` missing param-spec, `:wat::core::HashMap/get` retired, bare-variant match arms;
+**declares NO rules of its own** — the 7 `defrule`/`defquery` substrings a grep finds are
+test-corpus path string literals this census tool reads, confirmed by reading each site — so
+`rete_compile_gate` correctly skips it). One `convert.sh 37528f6e0` call cured both; `--check` rc=0
+after on both (stronger than the brief's own prediction of a lingering rc=1 on the wat-scripts
+file). Both loader gates green AND the compile gate green, N=21 shards, zero runes, zero rules
+deleted. The two `.wat.bad` fixtures carried the same retired `core::string::=`, hand-fixed
+(outside `convert.sh`'s corpus scope). MAIN-ONLY gate, third instance this batch: `no_bare_is_err`
+red on 2 sites, both naming `FenceBinderShadowsReteVar` (verified via `--check`) in a per-site
+rune. `census: files=2189; --diff no STOP-8`. `nested-program-gate: PASS (3/3, 5937 skipped)`.
+`lint-subset: 355 passed`. `kind(lib): 1524 passed`. `doctest: 8 passed`.
+
+⛔ NO MID-BATCH STOP. NO POST-HOC FOLD. THREE MAIN-ONLY GATE REDS (`no_bare_is_err` ×2 at #644,
+`no_bare_is_err` ×2 at #651, `no_inlined_edn` ×1 at #644), all self-caught and repaired at their own
+step, none anticipated by name in the brief though the CLASS is precedented (#633/#638). ONE REAL
+HAND-COMPOSED CONFLICT git could not auto-merge (#646's `probe_arc278_fence_interior_types.wat`).
+TWO CHAIN CONVERSIONS via `scripts/replay/convert.sh`, never hand-edited (#646's
+`probe-acc-count-unused-bind.wat`, #651's `probe_arc278_fence_binder_shadow.wat` +
+`census-fence-binders.wat` batched in one call). Every subject and trailer was built by piping
+`git log -1 --format=%s <C>` and `git rev-parse <C>` into the commit heredoc, never retyped, and
+verified two-sided programmatically after landing (11/11, see `SCORE-7z-replay-batch-4z.md`'s
+table).
+
+**Disposition: COMPLETE — THE REPLAY IS COMPLETE.** All 11 steps (#641–#651) landed, tree clean at
+`0bc5fa804` (`REPLAY(grok-rete #651)`, grok's tip `37528f6e0`), not pushed. `origin/replay/grok-rete`
+remains the published tip, an ancestor of HEAD throughout. `lint-subset` (355 throughout, +0),
+`kind(lib)` (1524 throughout, +0) and `doctest` (8 throughout, +0). `#[test]` delta **+10
+registered** (+7 at #644, +3 at #651), ignored/mismatch count unchanged at 22 — **measured 5918
+run, 22 skipped via `cargo nextest list --message-format json`'s `filter-match` accounting**,
+AGREEING with the orchestrator's own 5918/22 forecast exactly. The whole-replay record gate
+(`scripts/replay/verify-step-record.sh 8a5b7eb20 HEAD 1 651`) does NOT come back clean — 324
+`MISSING`/`WRONG-SOURCE` lines across roughly steps #1–#151, entirely attributable to this gate's
+own wording evolving over the ~7-month campaign, NONE inside this batch's own #641–651 range
+(verified by explicit grep, zero matches). **Total REPLAY commit count: 651 of 651.** See
+`SCORE-7z-replay-batch-4z.md` for the complete row-by-row account against all rows (E1–E17).
