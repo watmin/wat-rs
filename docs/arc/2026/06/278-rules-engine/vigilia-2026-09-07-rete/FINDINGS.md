@@ -45,12 +45,14 @@ row first for days.
 | **C1 ★★** | conferre | 1 | `stratify.wat:138-160` vs `stratify.rs:88-94,103-122`; claim at `stratify.rs:26-27` | ⭐ **L1 — AND IT FALSIFIES A CLAIM I WROTE TODAY.** The oracle's `rule-negates` recognises negation ONLY when `:not` is the top-level head; Rust's `negate_types` recurses through `And`/`Or` and finds a nested `:not`. On `(or A (and B (not C)))` the oracle contributes nothing and Rust pushes `C` → different stratum numbers. `stratify.rs:26-27`, dated **2026-09-07** by `66a24d288`, asserts every other listed fn *"DOES mirror"*. | **L1** | **OPEN** · ✅ I VERIFIED | oracle `:150` tests `hd = ":wat::rete::not"` and returns `acc` otherwise; Rust `:108-112` recurses `And\|Or` passing `under_not`. Closed when the semantics is decided and one side fixed, or the claim is scoped |
 | **C2** | conferre | 1 | `stratify.rs:35-37` | `fact_type_head`'s doc says it mirrors *"the inline `ast-name` + colon-strip done identically in both `rule-produces` and `rule-negates`"*. After today's cure, `rule-produces` no longer colon-strips — it resolves via `return-type-of`. Only `rule-negates` still does. | L2 | **OPEN** · ⚠ ward-reported | `stratify.wat:52-60` says there is no colon-strip fallback; closed when the comment names only `rule-negates` |
 | **C3** | conferre | 1 | `fire/mod.rs:262` | *"Mirrors seed-token (wat:544-551)"* — but `pass.wat:535-551` is inside `binding-extensions`, an unrelated fn. `seed-token` is at `:76-90`. The ALGORITHMIC claim holds; the citation drifted. | L2 | **OPEN** · ⚠ ward-reported | `grep -n 'seed-token' wat/rete/oracle/pass.wat` → 76/81/134. Closed by fixing the range or dropping line numbers as every sibling comment does |
+| **Q1** | sequi | 1 | `session.rs:1778-1788` | `session_ceiling_breach` reads the global `alloc_counter::session_bytes` and its result decides a hard `Err` in the fire loop — an unmarked hidden-state read, while sibling global reads in the same crate (`arm.rs:705`, `census.rs`) ARE runed. ~30 lines of prose at `:1759-1777` already read like a rune's reason. | L2 | **OPEN** · ✅ I VERIFIED | `grep -c 'rune:sequi' ` over `session.rs:1770-1790` → **0**; `arm.rs:705` → tagged. Closed by adding the rune citing the existing rationale |
+| **Q2** | sequi | 1 | `arm.rs:705` + `:710` | `rune:sequi(ambient-context)` on `ARM_TABLE`, whose OWN adjacent comment says it *"holds DOMAIN state (the armed network + its lease count)"* — and that category is defined as *"doesn't carry domain state."* The rune's category contradicts its own prose. ⚠ Ward judged the CHAIN clean (the table is an upstream build cache, threaded downstream as an explicit `arm:` param); this is a vocabulary defect, not a break. | L3 | **OPEN** · ✅ I VERIFIED | both strings present at the cited lines. Closed by re-categorising; `excusare` may reach the same site independently |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ (not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ sequi ✓ **CONVERGED** (in flight: excusare, temperare; not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
 
 ## Verified by the orchestrator, not taken
 
@@ -93,3 +95,13 @@ the ✅ rows may be cited as fact. This distinction is the whole reason the stat
   ⚠ **The ward correctly WITHDREW the stronger claim** — no `defrule` exercises this today, so no
   observed stratum difference is asserted. That withdrawal is the grounding clause working, and it
   is also a `peragrare` cell in waiting: a legal shape no fixture visits.
+
+- **Q1 / Q2** — CONFIRMED. `session.rs:1770-1790` contains zero `rune:sequi`; `arm.rs:705` carries
+  `rune:sequi(ambient-context)` while `:710` says the table *"holds DOMAIN state"*. The category is
+  defined as the absence of exactly that.
+
+⭐ **sequi is the first ward to CONVERGE**, and that is a result, not an absence. It followed the
+whole fire round chain — `fire_fixpoint_delta_armed` through all seven passes — and found the state
+threaded explicitly end to end, with `production_delta` returning its delta rather than writing an
+out-parameter. It also grepped the oracle for `set!`/atoms/globals and found **zero**. A ward that
+comes back clean having said what it looked at is the evidence the full guard was worth casting.
