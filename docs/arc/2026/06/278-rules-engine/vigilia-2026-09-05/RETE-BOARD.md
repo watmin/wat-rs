@@ -7,6 +7,48 @@
 > is rete.** Everything not listed here belongs to main. Every row below was grounded at HEAD
 > `5924f664b` when this file was written.
 
+## ⛔ RE-GROUNDED 2026-09-07 at HEAD `b6ffdff1d` — SEVEN ROWS SAID **OPEN** AND ALL SEVEN WERE CURED
+
+Every DRIVEN and CLASS A row was re-checked against the source this session, one at a time. **F1,
+F2, D3, D2p, D1, A8, A3 were all cured; A4 was cured on its rete half.** Not one had been closed
+here. A recovering instance reading this board on the morning of 2026-09-07 — and the *Recommended
+order* below told it to start with F1 — would have gone to strike a corpse.
+
+**The mechanism, and it is the one the recovery file catalogs as FM 30: a row's status was written
+in TWO places and re-derived in NEITHER.** `WORK-LIST.md` carries the same rows, also OPEN
+(`:100` A8, `:153` D3, `:188` F1). Both files are hand-maintained claims; nothing re-runs them.
+The cures were real, landed, floored and scored — the *record* is what rotted, and it rotted
+silently because a markdown cell has no failure mode.
+
+**Why the existing gates could not see it.** `no_stale_path_in_doc.rs` checks that a cited *path*
+resolves — but every one of these seven paths still exists; what vanished was the **symbol**
+(`any_mixed` deleted, `beta_written`'s four bypass sites gone, `PersistentMap/keys` replaced by
+`topological-node-ids`). `rete_citation_resolves.rs` does resolve symbols, but its population is
+comments under `src/rete/` — `docs/` is walked by nothing. The class is blind to both **by
+construction**, which is the same argument `rete_citation_resolves.rs:13-28` makes about itself.
+
+### ⭐ AND THE RULE AGAINST THIS WAS ALREADY WRITTEN DOWN — ONE FILE AWAY, FOUR DAYS EARLIER
+
+`WORK-LIST.md:10-13`, in this same directory:
+
+> *"⛔ **STATUS IS EDITED HERE, IN PLACE. Never append a closure below a row.** A row's status living
+> in two places IS the defect — `exigere` found exactly that in this arc's TRACKED DECISIONS.
+> **One row, one place.**"*
+
+This board shipped with its own `status` column anyway — **the second place its neighbour forbids** —
+and both copies then rotted in lockstep, which is precisely the failure that rule predicts. It is
+**the arc's signature shape for the tenth time, and the first time in the RECORD rather than the
+code**: the tree had already written the correct rule down and applied it in exactly one place.
+
+**So status is now collapsed, not merely corrected.** Every TABLE ROW below points at
+`WORK-LIST.md`, which is the sole authority; the closure citations live there. **This file declares
+SCOPE and holds DRIVEN EVIDENCE — its tables do not carry status**, so there is no second copy left
+to rot. ⚠ The prose sections *after* the tables (census, cost, spec-vs-code) summarise GROUPS of
+rows and still read `✅ CLOSED`; they are narrative, their per-row authority is likewise
+`WORK-LIST.md`, and collapsing them is the remaining half of this cure. A rung-1 fix would
+have been to rewrite these cells truthfully and date them; that only resets the clock.
+`[[an-inherited-work-list-is-a-claim]]`
+
 ## Out of scope — do not work these here
 
 CLASS Ω (CLI / `distribution/`), CLASS B (doc-comment enumerations, mostly `runtime.rs`/`check.rs`),
@@ -22,24 +64,24 @@ Already landed this session and outside scope, kept because reverting green work
 
 ## DRIVEN — reproduced by execution, not read
 
-| id | site | what | status |
+| id | site | what | status → the one authority |
 |---|---|---|---|
-| **F1 ★** | `wat/rete/oracle/explain.wat:10-49`, doc at `:53` | **`fire-rules-explain$oracle` is NONDETERMINISTIC.** 8 samples, 8 producing rules: native stable `vex::aaa` 8/8; oracle returns **four** distinct rules, agreeing 2/8. Single-producer control stable on both. `harvest-support` folds `(:wat::core::PersistentMap/keys network)` — HAMT order, **no sort** — while its own doc claims *"First-producer-wins, matching the native index."* The sibling `wat/rete/oracle/fire.wat` has four **sorted-ids** walkers and states the law. **The referee for explain is not a function**, and the differential compares only `PersistentMap/length`. | OPEN |
-| **F2** | `wat/rete/oracle/insert.wat:100` | `retract` removes **every** equal fact; `insert` stages one. Driven: 2 identical inserts → 3 facts; 1 retract → 1; the derived consequence vanishes. Documented as "by value equality", so an asymmetry the code states — but the multiplicity loss is real. | OPEN |
-| **D3** | `fire/pass/mod.rs:152`; `fire/mod.rs:2090`, `:2100`, `:2124` | **Four `beta_written` sites still bypass `record_token`/`record_tokens`**, and `pass/mod.rs:24-28` claims *"a future site cannot push without counting."* **Mutation-proved invisible**: dropping the census at a bypass → 100 tests, 100 passed; dropping it inside the door → RED. No census world contains a `:where`. A1 did not touch these. | OPEN |
-| **D2p** | `src/rete/reachability.rs:1659-1665` | A discrimination row that has **never executed** — the rewrite targets the miss face of a constant, so `replacen` no-ops and the `if` is never entered. Driven: swapping in the `assert_ne!` its two siblings use goes RED on the first iteration. Note `src/rete/mod.rs:86` wraps the file in `#[cfg(test)]`. | OPEN |
-| **D1** | `src/rete/kernel/tests/right_index_counter_invariant.rs` | The D2 acceptance test is a **tautology** — `indexed_n[J] == Σ\|buckets[J]\|` holds by construction; verified by grep that nothing mutates those fields outside `session.rs`. One possible outcome. **A1's cure gives the left side the same shape, so this now under-guards both.** | OPEN |
+| **F1 ★** | `wat/rete/oracle/explain.wat:10-49`, doc at `:53` | **`fire-rules-explain$oracle` is NONDETERMINISTIC.** 8 samples, 8 producing rules: native stable `vex::aaa` 8/8; oracle returns **four** distinct rules, agreeing 2/8. Single-producer control stable on both. `harvest-support` folds `(:wat::core::PersistentMap/keys network)` — HAMT order, **no sort** — while its own doc claims *"First-producer-wins, matching the native index."* The sibling `wat/rete/oracle/fire.wat` has four **sorted-ids** walkers and states the law. **The referee for explain is not a function**, and the differential compares only `PersistentMap/length`. | → **`WORK-LIST.md` F1** |
+| **F2** | `wat/rete/oracle/insert.wat:100` | `retract` removes **every** equal fact; `insert` stages one. Driven: 2 identical inserts → 3 facts; 1 retract → 1; the derived consequence vanishes. Documented as "by value equality", so an asymmetry the code states — but the multiplicity loss is real. | → **`WORK-LIST.md` F2** |
+| **D3** | `fire/pass/mod.rs:152`; `fire/mod.rs:2090`, `:2100`, `:2124` | **Four `beta_written` sites still bypass `record_token`/`record_tokens`**, and `pass/mod.rs:24-28` claims *"a future site cannot push without counting."* **Mutation-proved invisible**: dropping the census at a bypass → 100 tests, 100 passed; dropping it inside the door → RED. No census world contains a `:where`. A1 did not touch these. | → **`WORK-LIST.md` D3** |
+| **D2p** | `src/rete/reachability.rs:1659-1665` | A discrimination row that has **never executed** — the rewrite targets the miss face of a constant, so `replacen` no-ops and the `if` is never entered. Driven: swapping in the `assert_ne!` its two siblings use goes RED on the first iteration. Note `src/rete/mod.rs:86` wraps the file in `#[cfg(test)]`. | → **`WORK-LIST.md` D2** |
+| **D1** | `src/rete/kernel/tests/right_index_counter_invariant.rs` | The D2 acceptance test is a **tautology** — `indexed_n[J] == Σ\|buckets[J]\|` holds by construction; verified by grep that nothing mutates those fields outside `session.rs`. One possible outcome. **A1's cure gives the left side the same shape, so this now under-guards both.** | → **`WORK-LIST.md` D1** |
 
 ## CLASS A remnants — the D2 shape, still in rete
 
 A1 is CURED (`0ee56325f`) and proved the pattern: **at least some CLASS A rows are unfinished halves
 of cures we already shipped.** Check each against that lens before treating it as fresh.
 
-| id | site | pair | consequence |
-|---|---|---|---|
-| A8 | `fire/pass/alpha.rs:85`, `:139-145`, `:217` | `class_ids` `(Vec<u32>, bool)` + `any_mixed`, two disjoint `&mut` arms | **fact loss**, not duplication. Header says *"THE CURE IS THE `bool` BELOW"* — a bool cure maintained by convention |
-| A3 | `rete/compiled_cond.rs:219-234`; `export.rs:1415` | `slot_keys` / `output_slots` parallel arrays, hand-checked at one of two writers | a rule silently stops matching; the guard returns `None`, indistinguishable from "did not match" |
-| A4 | `value/value.rs:848-857`, `:1031-1047`; `fire/delta.rs:188-196` | `identity` memo vs a walk computing a **different function** on miss; `seen_ids`/`seen_rest` are two halves of one set | fixpoint dedup breaks if any cross-variant `eq` arm is added |
+| id | site | pair | consequence | status → the one authority |
+|---|---|---|---|---|
+| A8 | `fire/pass/alpha.rs:85`, `:139-145`, `:217` | `class_ids` `(Vec<u32>, bool)` + `any_mixed`, two disjoint `&mut` arms | **fact loss**, not duplication. Header says *"THE CURE IS THE `bool` BELOW"* — a bool cure maintained by convention | → **`WORK-LIST.md` A8** |
+| A3 | `rete/compiled_cond.rs:219-234`; `export.rs:1415` | `slot_keys` / `output_slots` parallel arrays, hand-checked at one of two writers | a rule silently stops matching; the guard returns `None`, indistinguishable from "did not match" | → **`WORK-LIST.md` A3** |
+| A4 | `value/value.rs:848-857`, `:1031-1047`; `fire/delta.rs:188-196` | `identity` memo vs a walk computing a **different function** on miss; `seen_ids`/`seen_rest` are two halves of one set | fixpoint dedup breaks if any cross-variant `eq` arm is added | → **`WORK-LIST.md` A4** |
 
 ## Cost — `temperare`, all five in the fire path
 
@@ -54,6 +96,13 @@ an `entry` per derived fact with the identical hoist documented 100 lines away
 (`pass/production.rs:124-127`) · `key_of_el`'s `col_field_of` hoisted in two places and in none of
 the three `hash_join.rs` per-element loops · `ensure_gather` re-deriving its own cache key per token.
 
+✅ **ALL FIVE SCORED — CLOSED 2026-09-07.** `strike-join-extend-hoist` · `strike-root-join-batch` ·
+`strike-production-entry-hoist` · `strike-col-field-of-measure` · `strike-combinator-inner-is-it-rare`,
+each with a `SCORE.md`. ⭐ The fifth landed **no code**: it was a measurement, and it upheld the
+rune it was drawn to challenge — the combinator-inner path runs 206 of 245583 times (0.084%), so
+the rune's premise holds and is now **dated** rather than assumed. A strike that changes nothing
+and dates a premise is a strike that succeeded. `[[a-metric-without-its-instrument-cannot-be-rechecked]]`
+
 ## Instruments — the census names its own quantities wrong
 
 The `recon/census-name-audit.md` sweep returned **13 sections (A–M)** of *the counter's name says X,
@@ -62,12 +111,32 @@ the quantity is Y*, all in the rete census: `filter:test-pass` counting passes �
 `dbeta:alloc` a 0/1 flag under an allocation name · `seed:mixed-class-activate` class-shaped, per-FACT.
 **Every performance claim in this arc rests on these.** Unrowed until now.
 
+✅ **CLOSED 2026-09-07 — the census was worked to completion, A through M.** The useful axis turned
+out not to be *"is the name wrong"* but **what, if anything, is watching the number**, which
+produced four renames, one split, one deletion, one armed tripwire, one gate, one no-op, and two
+strikes that correctly produced no mutation proof and said so. Two of the thirteen audit rows did
+**not** survive contact (K/L's *"neither can emit a 0 row"* — CATCHUP can; M's `filter:test-pass`
+second key — no such call exists); eleven did. ⚠ One row from this section is deferred, not closed:
+census G's **`emitted ⇒ ever read`** gate. The census-name lint enforces read ⇒ emitted; the reverse
+is enforced by nothing, which is how three `prod:` counters reached HEAD unobserved.
+
 ## Spec-vs-code, rete only
 
 `conferre` L2-1..3: a leading accumulate re-seeds every round into a cumulative beta while leading
-`:not`/`:exists` does not · `insert-all`'s hardcoded `OP` defeats the stated reason its checker is
-parameterised · stratify's `+1` for `:exists` / accumulate-`:from` over a derived type diverges
+`:not`/`:exists` does not · ~~`insert-all`'s hardcoded `OP` defeats the stated reason its checker is
+parameterised~~ · stratify's `+1` for `:exists` / accumulate-`:from` over a derived type diverges
 between native and oracle.
+
+- **L2-2** ✅ **CLOSED 2026-09-07** (`e95b5ba33`) — `insert_facts_on_session` now takes
+  `op: &'static str` and each entry point passes its own verb. ★ The arc's signature shape for the
+  ninth time: *the checker took `op` **specifically** so it would report the verb the user wrote,
+  and its one caller fed it a constant.* Both arms gated by
+  `tests/rete/probe_arc278_insert_reports_the_verb.rs`, which reads the structured
+  `RuntimeErrorKind::TypeMismatch { op, .. }` field. ⛔ The single-arm version of that test
+  **passed over the live defect** — `insert_all_reports_insert_all` was green before the fix.
+- **L2-1** and **L2-3** remain OPEN, and neither may be drawn as a defect yet: L2-1's own report
+  forbids it until someone fires a leading accumulate into a HashJoin across ≥2 rounds and counts
+  rows; L2-3 has **no instrument at all** — nothing in the tree compares strata.
 
 ## Carried from A1, deliberately cut there
 
@@ -86,10 +155,21 @@ computing a different list would be hidden rather than surfaced. A `debug_assert
 
 ## Recommended order
 
-**F1 first.** It is driven, it is the *referee* for explain being nondeterministic, and the fix is
-one `sort` at the check rung with a shared `topological-node-ids` verb at the shape rung — the law
-is already written down in the sibling file. Then **D3** (the false structural claim, mutation-proved
-invisible), then **A8** (fact loss), then the census names, which everything else's numbers depend on.
+⛔ **THE ORDER BELOW IS SPENT — every row it names is CURED.** Kept verbatim as the record of what
+this board recommended, and as the evidence for why a recommendation must be re-derived against the
+tree before it is followed. A recovering instance that trusted it on 2026-09-07 would have opened
+`explain.wat` to add a `sort` that has been there since the F1 cure.
+
+> ~~**F1 first.** It is driven, it is the *referee* for explain being nondeterministic, and the fix is
+> one `sort` at the check rung with a shared `topological-node-ids` verb at the shape rung — the law
+> is already written down in the sibling file. Then **D3** (the false structural claim, mutation-proved
+> invisible), then **A8** (fact loss), then the census names, which everything else's numbers depend on.~~
+
+**What is actually open is the STILL OPEN block of the breadcrumb**
+(`../CURRENT-STATE-annihilate-interpretation.md`), which is re-derived every session:
+`conferre` L2-1 · `conferre` L2-3 · census G's deferred `emitted ⇒ ever read` gate · Stone K's
+`benches/` relocation. **L2-1 and L2-3 both need a MEASUREMENT before a cure can be drawn** — each
+row's own report says so.
 
 ---
 

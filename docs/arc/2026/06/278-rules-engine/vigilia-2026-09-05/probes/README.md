@@ -1,6 +1,21 @@
 # `experiri` probe files — vigilia 2026-09-05
 
-**These are NOT wired into the build.** They live here as the preserved evidence for the three
+> ⛔ **CORRECTED 2026-09-07 — "NOT wired into the build" is NO LONGER TRUE, and it was the sentence
+> that made this directory look inert.** Three of the five have since landed, two of them under
+> different names than the files here, so a grep for the probe's own filename reports *absent* and
+> a reader concludes the evidence was dropped:
+>
+> | probe here | landed as | note |
+> |---|---|---|
+> | `probe_vig_explain_order.{rs,wat}` | `tests/rete/probe_arc278_explain_order.rs` | live |
+> | `probe_vig_left_idx_latch.{rs,wat}` | `tests/rete/probe_arc278_left_idx_latch.rs` | live |
+> | `probe_vig_retract_multiplicity.{rs,wat}` | the **`retract-multiplicity` grid axis**, `tests/rete/wat_scripts_grid_port_check.rs:168-175` | ⭐ landed as an *axis*, not as this probe — a better instrument than the one drafted here |
+> | `probe_vig_phantom_head.rs` + `p0`–`p6` | **partially** — `tests/lint/rete_names_in_wat_scripts_resolve.rs` covers `:wat::rete::` names in `wat-scripts/` only | the remaining hole (other namespaces, unforced `def` bodies) is stated in `wat-rs/CLAUDE.md` |
+> | `probe_vig_value_hash_collision.rs` | **not landed, and correctly so** — `src/value/` is outside `src/rete/`; handed to main as `docs/arc/2026/04/109-kill-std/NOTE-value-hash-has-two-functions-selected-by-a-flag.md` | out of rete scope |
+>
+> The three warnings below still apply to anything landed FROM here.
+
+**These were not wired into the build when written.** They live here as the preserved evidence for the three
 driven L1s, and as the landable halves of three gates. Copied verbatim from the ward's scratchpad.
 
 ## ⛔ Before landing any of these
