@@ -336,4 +336,6 @@ re-run before its mechanism was named, fixed, and independently verified by the 
 
 ## Commit
 
-(recorded after this file is committed)
+`a8c233eb3` on branch `grok-rete` — "rete: five small L1s in the test corpus — allow reason, two
+deferral cures, ten expects, one rune". 6 files changed (the 5 touched source files + this
+`SCORE.md`), 378 insertions(+), 21 deletions(-).
