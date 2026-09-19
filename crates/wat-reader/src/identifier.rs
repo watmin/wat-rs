@@ -7,7 +7,30 @@
 //! An [`Identifier`] is a `(namespace, name)` tuple with a scope set
 //! riding alongside (Racket sets-of-scopes hygiene — not a third
 //! member of the name). `wat.core/+` is `[wat.core, +]`; `foo` is
-//! `[$bound, foo]`. Two identifiers are "the same" iff both their
+//! `[$bound, foo]`.
+//!
+//! # ⭐ THE SPLIT RULE — the first slash separates namespace from name
+//!
+//! Builder's ruling, 2026-09-19. One sentence, and it is TOTAL: every
+//! spelling has a first `/` or none, and neither case yields an empty name.
+//!
+//! ```text
+//! wat.core/+                →  [wat.core, +]
+//! wat.core//                →  [wat.core, /]          (Clojure's own `clojure.core//`)
+//! user/whatever/name/here/  →  [user, whatever/name/here/]
+//! foo                       →  [$bound, foo]
+//! ```
+//!
+//! A pathological name is tolerated GRACEFULLY: it stays a weird *name*
+//! instead of corrupting the *namespace*. The rule this replaced took the
+//! LAST `/`, which answered both multi-slash cases above with an empty name
+//! and a namespace that had swallowed the path — not a tolerated name, a
+//! silently malformed one that rendered as the unspellable `:wat::core/::`.
+//!
+//! ⚠ The rule lives HERE and nowhere else. `tests/lint/one_name_grammar.rs`
+//! fails any second implementation of it (`rfind('/')`, `rsplit_once('/')`,
+//! …) elsewhere in the tree — which is why changing it is a four-line edit
+//! in one file rather than a corpus census. Two identifiers are "the same" iff both their
 //! spellings AND their scope sets are equal. Lexical scope lookups
 //! therefore distinguish `tmp` the user wrote from `tmp` a macro
 //! introduced — same name, different scope sets, different identity.
@@ -145,9 +168,21 @@ impl Identifier {
             "Identifier name must not contain U+0001 (env-key separator); got {:?}",
             flat
         );
-        // The tuple is derived ONCE, here, from today's split (last `/`).
+        // The tuple is derived ONCE, here, from THE FIRST `/` — the builder's
+        // ruling, 2026-09-19: *"the first slash separates namespace from name."*
         // Accessors return the stored fields; they do not re-split.
-        let (ns, name) = match flat.rfind('/') {
+        //
+        // This was `rfind` (the LAST `/`) until the ruling. Last-slash answered a
+        // multi-slash spelling with an EMPTY name and a namespace that had eaten
+        // the path (`user/whatever/name/here/` → `["user/whatever/name/here", ""]`,
+        // rendering as the unspellable `:user/whatever/name/here::`). First-slash
+        // is total: every spelling has a first `/` or none, and neither case is
+        // empty. It also makes this agree with `wat-edn`'s `split_namespaced`,
+        // which has always used `find` — the wat surface was the OUTLIER, not the
+        // definition. (`wat-edn`'s EDN-TEXT parser separately rejects 2+ slashes
+        // per the EDN spec; that stays, and is a different question from how a
+        // name that reaches us anyway is split.)
+        let (ns, name) = match flat.find('/') {
             Some(slash) => (flat[..slash].to_string(), flat[slash + 1..].to_string()),
             None => (BOUND_NAMESPACE.to_string(), flat.clone()),
         };
@@ -294,20 +329,30 @@ pub fn path(name: &str) -> &str {
     }
 }
 
-/// Everything before the `/` of a surface-method call head (`:S/mk` → `:S`).
-/// No `/` present → `""` — there is no receiver on a name with no method call.
+/// Everything before the FIRST `/` of a surface-method call head
+/// (`:S/mk` → `:S`). No `/` present → `""` — there is no receiver on a name
+/// with no method call.
+///
+/// ⛔ **First, not last — and this is load-bearing beyond method dispatch.**
+/// `resolve/normalize.rs` calls `receiver`/`method` to compute a symbol's
+/// (namespace, local_name), so these two ARE the namespace splitter on that
+/// path. Were they to keep the last-`/` rule while `Identifier::bare` took
+/// the first, one process would hold two different namespaces for the same
+/// string. They move with the ruling for that reason, measured — not because
+/// method dispatch and namespacing are the same concept.
 pub fn receiver(name: &str) -> &str {
-    match name.rfind('/') {
+    match name.find('/') {
         Some(idx) => &name[..idx],
         None => "",
     }
 }
 
-/// Everything after the `/` of a surface-method call head (`:S/mk` → `mk`).
-/// No `/` present → the WHOLE string — a bare name is its own method with no
-/// receiver.
+/// Everything after the FIRST `/` of a surface-method call head
+/// (`:S/mk` → `mk`). No `/` present → the WHOLE string — a bare name is its
+/// own method with no receiver. See [`receiver`] for why this is the first
+/// `/` and not the last.
 pub fn method(name: &str) -> &str {
-    match name.rfind('/') {
+    match name.find('/') {
         Some(idx) => &name[idx + 1..],
         None => name,
     }
@@ -510,17 +555,66 @@ mod tests {
         );
     }
 
-    /// Row 10 — today's split, not the builder's model. `wat.core//` reads
-    /// as `["wat.core/", ""]` (last `/`), not `[wat.core, /]`. Reported,
-    /// not fixed.
+    /// ⭐ THE BUILDER'S RULING, 2026-09-19 — *"the first slash separates
+    /// namespace from name."* Both of the builder's own examples, pinned as
+    /// LITERALS. This test previously asserted the opposite
+    /// (`wat.core//` → `["wat.core/", ""]`) under the name
+    /// `..._is_the_current_last_slash_split`, with the docstring "Reported,
+    /// not fixed."
+    ///
+    /// ⛔ The expectations below are written out, never derived from the
+    /// implementation. A test that recomputes the split it is checking
+    /// passes under EITHER rule and so checks nothing
+    /// (`[[feedback_a_derived_structure_makes_every_reader_guess]]`).
     #[test]
-    fn wat_core_double_slash_is_the_current_last_slash_split() {
+    fn the_first_slash_separates_namespace_from_name() {
+        // Example 1 — `wat.core//`. The name is `/` (Clojure's own
+        // `clojure.core//`), NOT the empty string.
         let id = Identifier::bare("wat.core//");
-        assert_eq!(id.namespace(), "wat.core/");
-        assert_eq!(id.method(), "");
-        assert_eq!(id.receiver(), "wat.core/");
+        assert_eq!(id.namespace(), "wat.core");
+        assert_eq!(id.name, "/");
+        assert_eq!(id.receiver(), "wat.core");
+        assert_eq!(id.method(), "/");
         assert_eq!(id.as_str(), "wat.core//");
         assert!(id.is_reference());
+
+        // Example 2 — a pathological name is TOLERATED: it stays a weird
+        // NAME instead of corrupting the NAMESPACE.
+        let id = Identifier::bare("user/whatever/name/here/");
+        assert_eq!(id.namespace(), "user");
+        assert_eq!(id.name, "whatever/name/here/");
+        assert_eq!(id.receiver(), "user");
+        assert_eq!(id.method(), "whatever/name/here/");
+        assert_eq!(id.as_str(), "user/whatever/name/here/");
+        assert!(id.is_reference());
+    }
+
+    /// ⛔ NON-VACUITY CONTROL for the ruling. Single-slash spellings are
+    /// every real identifier in this tree, and the two rules AGREE on all of
+    /// them — so the test above could pass while the ordinary case silently
+    /// broke. These rows must be unchanged by the flip; revert `bare` to
+    /// `rfind` and the test above goes red while THIS one stays green, which
+    /// is exactly the discrimination it exists to provide.
+    #[test]
+    fn the_ruling_leaves_every_single_slash_spelling_untouched() {
+        for (spelling, ns, name) in [
+            ("wat.core/+", "wat.core", "+"),
+            ("wat.map/get", "wat.map", "get"),
+            (":S/mk", ":S", "mk"),
+            (":sort'/apply", ":sort'", "apply"),
+            ("$bound/foo", "$bound", "foo"),
+        ] {
+            let id = Identifier::bare(spelling);
+            assert_eq!(id.namespace(), ns, "namespace {spelling}");
+            assert_eq!(id.name, name, "name {spelling}");
+            assert_eq!(id.receiver(), ns, "receiver {spelling}");
+            assert_eq!(id.method(), name, "method {spelling}");
+        }
+        // And a name with NO slash is still bound, under either rule.
+        let id = Identifier::bare("foo");
+        assert_eq!(id.namespace(), BOUND_NAMESPACE);
+        assert_eq!(id.name, "foo");
+        assert!(!id.is_reference());
     }
 
     #[test]
@@ -539,7 +633,11 @@ mod tests {
         for spelling in spellings {
             let id = Identifier::bare(spelling);
             assert_eq!(id.as_str(), spelling, "as_str {spelling}");
-            let expected_ns = match spelling.rfind('/') {
+            // ⛔ Derived from the RULE (first `/`), deliberately NOT from
+            // `Identifier::bare`'s own code path — this row exists to catch
+            // an accessor drifting from the rule, so it must not recompute
+            // whatever the accessor happens to do.
+            let expected_ns = match spelling.find('/') {
                 Some(i) => &spelling[..i],
                 None => BOUND_NAMESPACE,
             };

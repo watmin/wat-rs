@@ -495,7 +495,10 @@ fn resolve_namespaced_symbol(
     macros: &MacroRegistry,
     also_accept_type: bool,
 ) -> Result<WatAST, UnresolvedReference> {
-    // Split on the LAST `/` → (namespace, local_name).
+    // Split on the FIRST `/` → (namespace, local_name) — the builder's
+    // ruling, 2026-09-19. `receiver`/`method` ARE the namespace splitter on
+    // this path, which is why the ruling governs them too and not only
+    // `Identifier::bare`.
     assert!(symbol_text.contains('/'), "caller guarantees '/' present");
     let namespace = wat_reader::identifier::receiver(symbol_text);
     let local_name = wat_reader::identifier::method(symbol_text);

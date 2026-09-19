@@ -1,7 +1,9 @@
 # RULING — the first slash separates namespace from name
 
-**Builder's ruling, 2026-09-19.** Recorded with the measurements that make it cheap. **Not yet
-implemented** — see *When* below; stone 251.8c is in flight with the counterpart.
+**Builder's ruling, 2026-09-19. ✅ STRUCK AND LANDED the same day, after 8c closed.**
+Floor **5920/5920** (predicted +1, confirmed), clippy 0, census `no STOP-8`.
+**The score is at the bottom of this document** — including the two things that measurement changed
+about the ruling's own framing.
 
 > *"everything to the left of the first `/` is the namespace, everything to the right is the name…
 > pathological names are tolerated gracefully… the rule is simple: **the first slash separates
@@ -115,3 +117,99 @@ identifier/resolve neighbourhood at once is how the 7h desync happened. Queue it
 4. The `receiver`/`method` question answered explicitly in the score — governed by the ruling, or
    deliberately not, with the reason.
 5. Floor green, clippy 0, census `no STOP-8` — the orchestrator's row.
+
+
+---
+
+# ⭐ SCORE — struck 2026-09-19
+
+Floor **5920/5920** (predicted +1 from the diff, confirmed by `cargo nextest list`), clippy
+`-D warnings --all-targets --workspace` **0**, census **`no STOP-8`**.
+
+## ⛔ TWO THINGS MEASUREMENT CHANGED ABOUT THIS DOCUMENT'S OWN FRAMING
+
+Recorded because the brief above was written from reading, and both corrections came from running.
+
+### 1. This was NOT "a question nobody had defined" — the tree already answered it, twice, the ruled way
+
+The section *"What the code does TODAY — the opposite"* implied one rule existed and it was
+last-slash. **Three different answers were live for `a/b/c`:**
+
+| layer | `a/b/c` | ruled rule? |
+|---|---|---|
+| `crates/wat-edn/src/parser.rs:409` — EDN **text** | **illegal**: `more than one / in a/b/c` | n/a — the EDN spec, correct as-is and left alone |
+| `crates/wat-edn/src/vocab.rs:179` `split_namespaced` — the JSON bridge | `body.find('/')` → `(a, b/c)` | ✅ **already first-slash** |
+| `crates/wat-reader/src/identifier.rs:150` — the wat surface | `flat.rfind('/')` → `(a/b, c)` | ❌ **the outlier** |
+
+⭐ So the ruling is not the adoption of a new convention. It makes **the wat surface agree with the
+data layer that owns EDN compliance** — which is precisely the campaign 251 is running. That is a
+strictly stronger justification than the one this document was written with.
+
+`crates/wat-edn/src/value.rs:308` goes further and names the builder's first example in its own
+comment: *"The name `/` itself (division, Clojure `clojure.core//`) is the one exception."* The EDN
+layer had already ruled `wat.core//` → `[wat.core, /]`. Only the surface disagreed.
+
+### 2. Acceptance row 4 (`receiver`/`method`) was answered by MEASUREMENT, not preference
+
+This document called them *"a different concept — method dispatch"* and left the question open.
+**They are not only method dispatch.** `src/resolve/normalize.rs:500` reads:
+
+```rust
+// Split on the LAST `/` → (namespace, local_name).
+let namespace = wat_reader::identifier::receiver(symbol_text);
+let local_name = wat_reader::identifier::method(symbol_text);
+```
+
+⛔ **`receiver`/`method` ARE the namespace splitter on the normalizer's path.** Flipping
+`Identifier::bare` alone would have left **one process holding two different namespaces for the same
+string** — the stored tuple's and the normalizer's. **They move with the ruling**, and the reason is
+that collision, not a view about whether dispatch and namespacing are the same concept. The doc
+comment on `receiver` now says exactly this, so the next reader does not re-open it.
+
+## The change — 4 sites, all in one file, plus one stale comment
+
+| file | what |
+|---|---|
+| `crates/wat-reader/src/identifier.rs:150` `bare` | `rfind('/')` → `find('/')`; the comment now states the rule and why last-slash was wrong |
+| `identifier.rs` `receiver()` | `rfind` → `find`; doc records the `normalize.rs` collision that forced it |
+| `identifier.rs` `method()` | `rfind` → `find` |
+| `identifier.rs` module doc | ⭐ the rule is stated ONCE, with all four cases, where it lives |
+| `src/resolve/normalize.rs:499` | comment said *"Split on the LAST `/`"* — it now states the rule it actually follows |
+
+⭐ **Why a 4-site edit and not a corpus census:** `tests/lint/one_name_grammar.rs` fails any second
+implementation of the split (`rfind('/')`, `rsplit_once('/')`, …) anywhere in the tree. The one-door
+gate is what made changing the rule cheap. A sweep confirmed **zero** other real sites.
+
+## Acceptance, row by row
+
+| # | row | result |
+|---|---|---|
+| 1 | `bare` splits on the first slash; the test at `:542` mirrors it | ✅ — and the mirror was **fixed**: it derived `expected_ns` with `rfind`, so it passed under **either** rule and checked nothing. It now derives from the **rule**, not from the implementation |
+| 2 | the builder's two examples pinned | ✅ `the_first_slash_separates_namespace_from_name`, written as **literals**, replacing `wat_core_double_slash_is_the_current_last_slash_split` (whose own docstring read *"not the builder's model… Reported, not fixed"*) |
+| 3 | a non-vacuity control | ✅ `the_ruling_leaves_every_single_slash_spelling_untouched` — 5 single-slash spellings plus a bare name. Revert `bare` to `rfind` and row 2 reds while this stays green, which is the discrimination it exists to give |
+| 4 | the `receiver`/`method` question answered explicitly | ✅ **governed by the ruling** — see §2 above; forced by `normalize.rs`, measured |
+| 5 | floor green, clippy 0, census `no STOP-8` | ✅ 5920/5920, 0, `no STOP-8` |
+
+## Behaviour confirmed on the built binary, not inferred
+
+| probe | before | after |
+|---|---|---|
+| `wat.core//` | `:wat::core/::` — **unresolved**, empty name, unspellable | **rc=0, resolves** — namespace `wat.core`, name `/`, i.e. **division**, exactly `clojure.core//` |
+| `:wat::core::/` (control, same name) | rc=0 | rc=0 — **agrees** |
+| `wat.core/nope-not-real` (negative control) | rc=1 | rc=1 `:path ":wat::core::nope-not-real"` — **the resolution is not vacuous** |
+| `user/whatever/name/here/` | `:user/whatever/name/here::` — empty name | `:user::whatever/name/here/` — the builder's example |
+| `a/b` | `:a::b` | `:a::b` — **unchanged** |
+| `a/b/c` | `:a/b::c` | `:a::b/c` |
+
+⚠ **Two probes on the way to this table were mis-aimed and did not count** — a bare `(println …)`
+with no `main` hit the entry-point gate, and a malformed `defn` return annotation hit a Doctrine-1
+type-keyword error. Both returned non-zero *for reasons unrelated to the split*, which is
+`[[feedback_a_green_from_a_mis_aimed_probe_is_indistinguishable_from_a_working_gate]]` — the class
+that produced the wrong 8c brief hours earlier. **Each row above was read for WHICH error fired.**
+
+## What this did NOT change
+
+- **The EDN text parser still rejects 2+ slashes** per the EDN spec. "Tolerated gracefully" governs
+  how a name that reaches us **is split**, not whether the strict data notation must accept it.
+  Those are different questions and conflating them would be finding 40's shape.
+- **No corpus migration.** Re-confirmed: 0 real identifiers in the tree carry more than one slash.
