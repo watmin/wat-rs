@@ -86,6 +86,7 @@ declare -A SIZES=(
   [retract-multiplicity]="3"
   [strat-neg]="3 50"
   [user-reduce]="5 20"
+  [userfn-head]="5"
 )
 
 # The oracle verb every sized axis must still call. A source that no longer calls it cannot produce

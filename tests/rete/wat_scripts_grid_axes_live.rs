@@ -163,6 +163,13 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
         "size=[locs reads]; every location gets `reads` readings and sum-of-squares over a \
          non-empty PV is always emitted as one Agg fact per location — 2 locs is non-empty.",
     ),
+    (
+        "userfn-head",
+        &[2],
+        "size=[items]; Src(k) for k in [0,items); Rate via user-fn :then, Out :- Rate. items=2 \
+         derives 2*items=4 facts (2 Rate + 2 Out) — non-empty. The correctness size is 5; this \
+         is liveness. Bad matches k=-1, which no seeded key can take.",
+    ),
 ];
 
 /// The known `where-*.wat` expressivity-corpus stems. Asserted EXACTLY (not merely `<=` or
