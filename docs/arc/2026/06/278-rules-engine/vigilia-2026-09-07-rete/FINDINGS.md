@@ -470,7 +470,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **7** — conferre · conformare · purgare · solvere · excusare · struere · intueri | sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 16 |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **7** — conferre · conformare · purgare · solvere · excusare · struere · intueri | sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 15 (+1 ward-split, 2X2) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -661,3 +661,25 @@ what it discarded is a ward whose clean findings are worth more**, not less.
 
 ⭐ It also re-derived the handed line count and reported **delta 0** — the first of my measurements
 this cast to survive a re-derivation intact.
+
+⛔⛔ **AND I COMMITTED THE DEFECT `2I1` DESCRIBES, IN THE COMMIT THAT ROWED IT.**
+Rowing *"four numbers describe one array and only one is gated"*, I then typed **16 L2** into the
+cast log by hand. My verification `awk` said **14**. The truth is **15** (+1 ward-split row whose
+severity cell holds a disagreement rather than a level). **Three numbers, one population, within one
+commit.**
+
+Both wrong numbers have causes worth keeping:
+· **16** was a hand-carry — I incremented my previous figure instead of recounting. Exactly what the
+  module header in `vocabulary.rs` did.
+· **14** was an *instrument* failure, and a subtle one: `awk -F'|'` splits a markdown table on the
+  same character the table uses, so row **2T2** — whose finding text contains an escaped `\|` inside
+  a code span — shifted every field after it and put prose in the severity column. **The counting
+  tool and the data shared a delimiter.**
+  `[[a-throwaway-sweep-is-an-instrument]]` — this is the third instrument error of this session, and
+  the second inside a verification of a finding *about* miscounting.
+
+The count is now re-derived per row, by matching the severity LABEL rather than by field position:
+**19 rows = 3 L1 + 15 L2 + 1 ward-split.** ⚠ **The lesson `2I1` states is the cure for this
+paragraph:** a number that recomputes is right; a number retyped rots. The cast log should carry a
+command, not a total — and until it does, this note is the evidence that its totals cannot be
+trusted on sight.
