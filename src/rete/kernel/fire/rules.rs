@@ -808,7 +808,10 @@ fn merge_facts(
     };
     #[cfg(test)]
     {
-        census_count_n("merge:pv-owners", pv.array_owners() as u64);
+        // Sum of `array_owners` across calls, not a count of owners. `0` on a call
+        // means the Tree arm, not zero owners (`array_owners` is Arc strong_count
+        // for Array and 0 for Tree).
+        census_count_n("merge:pv-owners-sum", pv.array_owners() as u64);
         census_count_n("merge:pv-calls", 1);
     }
     for fact in derived {
