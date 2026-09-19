@@ -53,6 +53,16 @@
    name   <- :wat::core::String])
 
 ;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────
+;; ⛔ REPAIRED (strike-no-rule-that-cannot-compile) — two user-fn fences below.
+;; `:fix::head-keyword-str?` is textually identical to `to-faithful-clojure-net.wat`'s
+;; `:fix::has-ns?`; `:fix::type-shaped-keyword-str?` is textually identical to that file's
+;; `:fix::type-shaped?`. Inlined the same way, with the same equivalence table (SCORE.md) —
+;; driving one probe covers all four names, since the bodies do not differ.
+;;
+;; A SECOND call site of `:fix::type-shaped-keyword-str?` (the `:fix::type-keyword->conv` rule
+;; below) is NOT one of the BRIEF's three named fences either — `compile-all` aborts on the
+;; FIRST failing condition per rule, so the census's one-hand measurement of this file never
+;; got past THIS rule's first fence to see either its own second fence or the next rule's.
 (:wat::rete::defrule :fix::head-keyword->conv
   :when
   [(:fix::Node

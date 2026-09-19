@@ -16,7 +16,10 @@ driven it:
 
 ## ⛔ THE ENGINE REFUSES IT
 
-`wat-scripts/scratch-pad/277-width-fixpoint-probe.wat`, run on one file:
+`docs/arc/2026/06/277-wat-lint-fix-fmt/probes/277-width-fixpoint-probe.wat`
+(moved here by replay `#638`, arc 294 — `wat-scripts/`'s new rete-compile gate scopes that tree to
+rules that COMPILE, and this probe's refusal to compile is its whole result, not rot; repairing it
+to compile would erase the finding this NOTE records), run on one file:
 
 ```
 stratify: negation cycle detected — rule set is not stratifiable
