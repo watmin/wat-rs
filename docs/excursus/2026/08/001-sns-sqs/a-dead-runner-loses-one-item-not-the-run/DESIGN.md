@@ -1,5 +1,12 @@
 # A dead runner loses one item, not the run
 
+> ⏸⏸ **PARKED 2026-09-19, behind `../one-selectable-set-primitive/`.** Builder's ruling: bracket's
+> `select` and the service's `poll` are the 1:N and N:1 faces of one waiting discipline and do not
+> warrant two implementations. This stone's RETRY arm is written against a `Lost` that today means
+> **both** "the runner died" and "the runner sent garbage" — a drift between the two copies, not a
+> design. Land the unification first and this stone's `Lost` means one thing. **Do not strike this
+> until that one is scored.**
+
 **The crusade's real target in `bracket.wat`.** Excursus `001-sns-sqs`. Read first:
 
 - `../a-momentary-failure-is-not-fatal/DESIGN.md` — **drawn 2026-09-10, still UNSTRUCK.** The
