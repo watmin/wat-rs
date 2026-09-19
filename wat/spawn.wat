@@ -244,6 +244,12 @@
   :Malformed  [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
   :Rejected   [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])   ;; arc 278 Stone 1a: over-FOO (400-class) — reply cause (non-blocking) + EVICT + keep serving
 
+;; select-by-deadline wraps ServiceEvent rather than adding TimedOut to it.
+;; Exhaustive matches on ServiceEvent stay valid. Unbounded `select` is unchanged.
+(:wat::core::defenum :wat::spawn::SelectDeadline :- [I O A] :wat::enum::Impure
+  :Event    [event <- (:wat::spawn::ServiceEvent :- [I O A])]
+  :TimedOut)
+
 ;; ── (PoolMsg :- [D I]) — the universal pool wire message (arc 170 M1-pool) ──
 ;;
 ;; Every bracket pool runner recv's (PoolMsg :- [D I]), never a raw (i64,I) pair, so the

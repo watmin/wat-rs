@@ -704,31 +704,109 @@
         :w waited :l last :b budget-ms)
       :wat::core::None :wat::core::None)))
 
-;; 1-peer wait. `select` of spawned Thread/Process cannot mix `after`'s unified
-;; Peer (STOP-1 of the-owner-wait-has-a-deadline). `recv-by-deadline` is the
-;; primitive that bounds a spawned runner. N-way `select` stays unbounded —
-;; a stall of every runner in a pool of 2+ still hangs. The stall probe is 1
-;; runner so this path is the one that can fire `collect-gave-up!`.
-(:wat::core::defn :wat::bracket::collect-wait-one :- [D I O]
-  [peer <- (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])
-   remaining-ms <- :wat::core::i64
-   t0-ns <- :wat::core::i64
+;; Per-assignment deadlines sit beside `holding`. 0 = idle; else expiry epoch-ns.
+;; Stamp when a runner is handed work; clear on Done / idle / expiry.
+;; The wait's timeout is min(wall remaining, min positive assignment remaining):
+;; N deadlines, one wakeup. A timed-out runner is re-queued via collect-requeue,
+;; marked idle, and left in `alive` — a late reply is the RST hazard the
+;; `already` guard on Message answers.
+
+(:wat::core::defn :wat::bracket::collect-already? :- [O]
+  [pairs <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
+   idx   <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [found <- :wat::core::bool  pr <- (:wat::core::Tuple :- [:wat::core::i64 O])]
+      -> :wat::core::bool
+      (:wat::core::if found true (:wat::core::= (:wat::core::first pr) idx)))
+    false
+    pairs))
+
+(:wat::core::defn :wat::bracket::pending-without
+  [pending <- (:wat::core::Vector :- [:wat::core::i64])
+   idx     <- :wat::core::i64]
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::i64])  i <- :wat::core::i64]
+      -> (:wat::core::Vector :- [:wat::core::i64])
+      (:wat::core::if (:wat::core::= i idx) acc (:wat::core::conj acc i)))
+    (:wat::core::Vector :- [:wat::core::i64])
+    pending))
+
+(:wat::core::defn :wat::bracket::collect-restamp
+  [holding0  <- (:wat::core::Vector :- [:wat::core::i64])
+   holding1  <- (:wat::core::Vector :- [:wat::core::i64])
+   deadlines <- (:wat::core::Vector :- [:wat::core::i64])
    budget-ms <- :wat::core::i64]
-  -> (:wat::spawn::ServiceEvent :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O]) :wat::core::nil])
-  (:wat::core::match (:wat::kernel::recv-by-deadline peer remaining-ms)
-    ((:wat::kernel::RecvOutcome::Message m)
-      (:wat::spawn::ServiceEvent::Message 0 m))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::spawn::ServiceEvent::Closed 0))
-    ((:wat::kernel::RecvOutcome::Lost c)
-      (:wat::spawn::ServiceEvent::Lost 0
-        (:wat::kernel::message-only-failure (:wat::kernel::LociDiedError/message c))))
-    (:wat::kernel::RecvOutcome::TimedOut
-      (:wat::bracket::collect-gave-up! t0-ns budget-ms "TimedOut"))
-    (:wat::kernel::RecvOutcome::Stopped
-      :wat::spawn::ServiceEvent::Shutdown)
-    ((:wat::kernel::RecvOutcome::Malformed c)
-      (:wat::spawn::ServiceEvent::Malformed 0 c))))
+  -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::let
+    [now   (:wat::time::epoch-nanos (:wat::time::now))
+     delta (:wat::i64::* budget-ms 1000000)]
+    (:wat::core::mapv
+      (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::if (:wat::core::= (:wat::core::nth holding0 i) (:wat::core::nth holding1 i))
+          (:wat::core::nth deadlines i)
+          (:wat::core::if (:wat::core::= (:wat::core::nth holding1 i) -1)
+            0
+            (:wat::i64::+ now delta))))
+      (:wat::core::range 0 (:wat::core::length holding1)))))
+
+(:wat::core::defn :wat::bracket::collect-wait-ms
+  [alive          <- (:wat::core::Vector :- [:wat::core::i64])
+   deadlines      <- (:wat::core::Vector :- [:wat::core::i64])
+   now-ns         <- :wat::core::i64
+   wall-remaining <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::let
+    [wall0 (:wat::core::if (:wat::core::< wall-remaining 0) 0 wall-remaining)
+     min-asgn
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+           (:wat::core::let
+             [d (:wat::core::nth deadlines i)]
+             (:wat::core::if (:wat::core::= d 0)
+               acc
+               (:wat::core::let
+                 [rem  (:wat::i64::/ (:wat::i64::- d now-ns) 1000000)
+                  rem0 (:wat::core::if (:wat::core::< rem 0) 0 rem)]
+                 (:wat::core::if (:wat::core::< acc 0)
+                   rem0
+                   (:wat::core::if (:wat::core::< rem0 acc) rem0 acc))))))
+         -1
+         alive)]
+    (:wat::core::if (:wat::core::< min-asgn 0)
+      wall0
+      (:wat::core::if (:wat::core::< min-asgn wall0) min-asgn wall0))))
+
+(:wat::core::defn :wat::bracket::collect-expire :- [O]
+  [alive     <- (:wat::core::Vector :- [:wat::core::i64])
+   holding   <- (:wat::core::Vector :- [:wat::core::i64])
+   deadlines <- (:wat::core::Vector :- [:wat::core::i64])
+   pairs     <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
+   pending   <- (:wat::core::Vector :- [:wat::core::i64])
+   now-ns    <- :wat::core::i64]
+  -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::i64]) (:wat::core::Vector :- [:wat::core::i64])]) (:wat::core::Vector :- [:wat::core::i64])])
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- (:wat::core::Tuple :- [(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::i64]) (:wat::core::Vector :- [:wat::core::i64])]) (:wat::core::Vector :- [:wat::core::i64])])
+                    orig <- :wat::core::i64]
+      -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::i64]) (:wat::core::Vector :- [:wat::core::i64])]) (:wat::core::Vector :- [:wat::core::i64])])
+      (:wat::core::let
+        [hp         (:wat::core::first acc)
+         holding1   (:wat::core::first hp)
+         pending1   (:wat::core::second hp)
+         deadlines1 (:wat::core::second acc)
+         d          (:wat::core::nth deadlines1 orig)]
+        (:wat::core::if (:wat::core::= d 0)
+          acc
+          (:wat::core::if (:wat::core::not (:wat::i64::>= now-ns d))
+            acc
+            (:wat::core::Tuple
+              (:wat::core::Tuple
+                (:wat::bracket::holding-set holding1 orig -1)
+                (:wat::bracket::collect-requeue holding1 orig pairs pending1))
+              (:wat::bracket::holding-set deadlines1 orig 0))))))
+    (:wat::core::Tuple (:wat::core::Tuple holding pending) deadlines)
+    alive))
 
 ;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
 ;;
@@ -747,12 +825,13 @@
 ;; that had no item sent to them (when M < N) are simply never select'ed —
 ;; the channel-drain RAII at scope exit joins them cleanly.
 ;;
-;; Closed/Lost are RETRY: the held item goes to a survivor. `select` collapses
-;; a decode failure into Lost; both "runner died" and "runner sent garbage"
-;; mean the item's result did not arrive, and both are answered by re-running
-;; the work. The wall-clock bound is the only stop on a deterministic encode
-;; bug reproducing the same undecodable reply. Splitting that collapse is a
-;; SUBSTRATE stone (11 select callers) — out of scope here.
+;; Closed/Lost are RETRY: the held item goes to a survivor. Malformed keeps
+;; the runner in `alive`. Per-assignment deadlines bound the wait via
+;; `select-by-deadline` (N deadlines, one wakeup). On expiry the item is
+;; re-queued, the runner marked idle, and a late reply is discarded if its
+;; idx is already in `pairs-acc` (the RST guard). The wall-clock bound is
+;; the stop on a deterministic encode bug reproducing the same undecodable
+;; reply. Unbounded `select` is unchanged; all 11 callers stay on it.
 
 ;; Arc 170 C2 Strike 1c — generalized `Address` (bare) to `D`. Purely a WIDENING of the
 ;; declared type (this fn's own logic never touches the Setup/D payload — it only ever
@@ -776,7 +855,8 @@
    alive     <- (:wat::core::Vector :- [:wat::core::i64])
    pending   <- (:wat::core::Vector :- [:wat::core::i64])
    t0-ns     <- :wat::core::i64
-   budget-ms <- :wat::core::i64]
+   budget-ms <- :wat::core::i64
+   deadlines <- (:wat::core::Vector :- [:wat::core::i64])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
   (:wat::core::if (:wat::core::= collected m)
     pairs-acc
@@ -785,58 +865,83 @@
       (:wat::core::let
         [elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t0-ns) 1000000)]
         (:wat::core::if (:wat::i64::>= elapsed budget-ms)
-          (:wat::bracket::collect-gave-up! t0-ns budget-ms "wall-clock")
+          (:wat::bracket::collect-gave-up! t0-ns budget-ms "TimedOut")
           (:wat::core::let
             [fed      (:wat::bracket::collect-feed-idle peers items alive holding pending)
              holding1 (:wat::core::first fed)
              pending1 (:wat::core::second fed)
+             deadlines1 (:wat::bracket::collect-restamp holding holding1 deadlines budget-ms)
              live-peers (:wat::core::mapv
                           (:wat::core::fn [i <- :wat::core::i64]
                               -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])
                             (:wat::core::nth peers i))
                           alive)
              remaining (:wat::i64::- budget-ms elapsed)
-             event (:wat::core::if (:wat::i64::= (:wat::core::length alive) 1)
-                     (:wat::bracket::collect-wait-one
-                       (:wat::core::nth peers (:wat::core::first alive))
-                       remaining t0-ns budget-ms)
-                     (:wat::kernel::select live-peers))]
-            (:wat::core::match event
-         
+             now-ns (:wat::time::epoch-nanos (:wat::time::now))
+             wait-ms (:wat::bracket::collect-wait-ms alive deadlines1 now-ns remaining)
+             deadline-event (:wat::kernel::select-by-deadline live-peers wait-ms)]
+            (:wat::core::match deadline-event
+              ((:wat::spawn::SelectDeadline::Event event)
+                (:wat::core::match event
+
               ((:wat::spawn::ServiceEvent::Message live-idx pair)
                 (:wat::core::let
                   [orig (:wat::core::nth alive live-idx)
-                   pairs' (:wat::core::conj pairs-acc pair)
-                   collected' (:wat::core::+ collected 1)
-                   from-pending (:wat::core::not (:wat::core::empty? pending1))
-                   nxt (:wat::core::if from-pending
-                         (:wat::core::first pending1)
-                         (:wat::core::if (:wat::core::< cursor m) cursor -1))
-                   pending-rest (:wat::core::if from-pending
-                                  (:wat::core::rest pending1)
-                                  pending1)
-                   cursor-taken (:wat::core::if from-pending cursor
-                                  (:wat::core::if (:wat::core::< cursor m) (:wat::core::+ cursor 1) cursor))]
-                  (:wat::core::if (:wat::core::= nxt -1)
-                    (:wat::bracket::collect-loop peers items pairs' cursor-taken collected' m
-                      (:wat::bracket::holding-set holding1 orig -1) alive pending-rest t0-ns budget-ms)
+                   pair-idx (:wat::core::first pair)
+                   held (:wat::core::nth holding1 orig)
+                   already (:wat::bracket::collect-already? pairs-acc pair-idx)]
+                  (:wat::core::if already
                     (:wat::core::let
-                      [send-out (:wat::core::match (:wat::kernel::send
-                                                     (:wat::core::nth peers orig)
-                                                     (:wat::bracket::PoolMsg::Work
-                                                       (:wat::core::Tuple nxt (:wat::core::nth items nxt))))
-                                   (:wat::kernel::SendOutcome::Sent   nxt)
-                                   (:wat::kernel::SendOutcome::Stopped -1)
-                                   (:wat::kernel::SendOutcome::Closed -1)
-                                   ((:wat::kernel::SendOutcome::Lost _c) -1))
-                       pending' (:wat::core::if (:wat::core::= send-out -1)
-                                   (:wat::core::if (:wat::bracket::pending-has? pending-rest nxt)
-                                     pending-rest
-                                     (:wat::core::conj pending-rest nxt))
-                                   pending-rest)
-                       holding' (:wat::bracket::holding-set holding1 orig send-out)]
-                      (:wat::bracket::collect-loop peers items pairs' cursor-taken collected' m
-                        holding' alive pending' t0-ns budget-ms)))))
+                      [holding' (:wat::core::if (:wat::core::= held pair-idx)
+                                   (:wat::bracket::holding-set holding1 orig -1)
+                                   (:wat::core::if (:wat::core::= held -1)
+                                     (:wat::bracket::holding-set holding1 orig -1)
+                                     holding1))]
+                      (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
+                        holding' alive pending1 t0-ns budget-ms
+                        (:wat::bracket::collect-restamp holding1 holding' deadlines1 budget-ms)))
+                    (:wat::core::if (:wat::core::not (:wat::core::= held pair-idx))
+                      (:wat::bracket::collect-loop peers items
+                        (:wat::core::conj pairs-acc pair) cursor (:wat::core::+ collected 1) m
+                        holding1 alive
+                        (:wat::bracket::pending-without pending1 pair-idx)
+                        t0-ns budget-ms deadlines1)
+                      (:wat::core::let
+                        [pairs' (:wat::core::conj pairs-acc pair)
+                         collected' (:wat::core::+ collected 1)
+                         from-pending (:wat::core::not (:wat::core::empty? pending1))
+                         nxt (:wat::core::if from-pending
+                               (:wat::core::first pending1)
+                               (:wat::core::if (:wat::core::< cursor m) cursor -1))
+                         pending-rest (:wat::core::if from-pending
+                                        (:wat::core::rest pending1)
+                                        pending1)
+                         cursor-taken (:wat::core::if from-pending cursor
+                                        (:wat::core::if (:wat::core::< cursor m) (:wat::core::+ cursor 1) cursor))]
+                        (:wat::core::if (:wat::core::= nxt -1)
+                          (:wat::core::let
+                            [holding' (:wat::bracket::holding-set holding1 orig -1)]
+                            (:wat::bracket::collect-loop peers items pairs' cursor-taken collected' m
+                              holding' alive pending-rest t0-ns budget-ms
+                              (:wat::bracket::collect-restamp holding1 holding' deadlines1 budget-ms)))
+                          (:wat::core::let
+                            [send-out (:wat::core::match (:wat::kernel::send
+                                                           (:wat::core::nth peers orig)
+                                                           (:wat::bracket::PoolMsg::Work
+                                                             (:wat::core::Tuple nxt (:wat::core::nth items nxt))))
+                                         (:wat::kernel::SendOutcome::Sent   nxt)
+                                         (:wat::kernel::SendOutcome::Stopped -1)
+                                         (:wat::kernel::SendOutcome::Closed -1)
+                                         ((:wat::kernel::SendOutcome::Lost _c) -1))
+                             pending' (:wat::core::if (:wat::core::= send-out -1)
+                                         (:wat::core::if (:wat::bracket::pending-has? pending-rest nxt)
+                                           pending-rest
+                                           (:wat::core::conj pending-rest nxt))
+                                         pending-rest)
+                             holding' (:wat::bracket::holding-set holding1 orig send-out)]
+                            (:wat::bracket::collect-loop peers items pairs' cursor-taken collected' m
+                              holding' alive pending' t0-ns budget-ms
+                              (:wat::bracket::collect-restamp holding1 holding' deadlines1 budget-ms)))))))))
 
               ;; RETRY — runner gone, item known. Re-queue holding[orig] unless it
               ;; already produced an O (Message beat Closed) or is idle.
@@ -849,7 +954,8 @@
                     (:wat::bracket::collect-report-gone! orig
                       (:wat::bracket::holding-phrase holding1 orig) "Closed")
                     (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
-                      holding1 alive' pending' t0-ns budget-ms))))
+                      holding1 alive' pending' t0-ns budget-ms
+                      (:wat::bracket::holding-set deadlines1 orig 0)))))
 
               ;; RETRY — same act as Closed. Lost means crash AND decode_trusted_wire
               ;; failure; both are "result did not arrive". The bound stops a
@@ -864,7 +970,8 @@
                       (:wat::bracket::holding-phrase holding1 orig)
                       (:wat::kernel::Failure/message cause))
                     (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
-                      holding1 alive' pending' t0-ns budget-ms))))
+                      holding1 alive' pending' t0-ns budget-ms
+                      (:wat::bracket::holding-set deadlines1 orig 0)))))
         ;; ⭐ RETRY — the runner is ALIVE and its result was unreadable.
         ;;
         ;; ⛔ THIS ARM WAS A PANIC UNTIL 2026-09-19, AND THE COMMENT THAT STOOD HERE IS NOW FALSE.
@@ -893,8 +1000,11 @@
           (:wat::core::let
             [orig (:wat::core::nth alive live-idx)
              pending' (:wat::bracket::collect-requeue holding1 orig pairs-acc pending1)]
-            (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
-              (:wat::bracket::holding-set holding1 orig -1) alive pending' t0-ns budget-ms)))
+            (:wat::core::let
+              [holding' (:wat::bracket::holding-set holding1 orig -1)]
+              (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
+                holding' alive pending' t0-ns budget-ms
+                (:wat::bracket::collect-restamp holding1 holding' deadlines1 budget-ms)))))
         ;; POLL-ONLY (FrameTooLarge on untrusted client). Same too-wide enum.
         ((:wat::spawn::ServiceEvent::Rejected idx cause)
           (:wat::kernel::assertion-failed!
@@ -918,7 +1028,22 @@
         ((:wat::spawn::ServiceEvent::Admin _msg)
           (:wat::kernel::assertion-failed!
             "bracket collect-loop: PROTOCOL Admin — a runner peer is not an owner-lineage socket"
-            :wat::core::None :wat::core::None)))))))))
+            :wat::core::None :wat::core::None))))
+              (:wat::spawn::SelectDeadline::TimedOut
+                (:wat::core::if (:wat::i64::>= wait-ms remaining)
+                  (:wat::bracket::collect-gave-up! t0-ns budget-ms "TimedOut")
+                  (:wat::core::let
+                    [now-exp (:wat::time::epoch-nanos (:wat::time::now))
+                     expired (:wat::bracket::collect-expire alive holding1 deadlines1 pairs-acc pending1 now-exp)
+                     hp (:wat::core::first expired)
+                     holding' (:wat::core::first hp)
+                     pending' (:wat::core::second hp)
+                     deadlines' (:wat::core::second expired)
+                     elapsed' (:wat::i64::/ (:wat::i64::- now-exp t0-ns) 1000000)]
+                    (:wat::core::if (:wat::i64::>= elapsed' budget-ms)
+                      (:wat::bracket::collect-gave-up! t0-ns budget-ms "TimedOut")
+                      (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
+                        holding' alive pending' t0-ns budget-ms deadlines'))))))))))))
 
 ;; ── queue-backed runner (the-bracket-runs-on-the-queue, step 3) ────────────────
 ;;
@@ -1556,7 +1681,14 @@
                 (:wat::core::range 0 n))
               (:wat::core::Vector :- [:wat::core::i64])
               (:wat::time::epoch-nanos (:wat::time::now))
-              (:wat::program::collect-deadline-ms))
+              (:wat::program::collect-deadline-ms)
+              (:wat::core::mapv
+                (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+                  (:wat::i64::+
+                    (:wat::time::epoch-nanos (:wat::time::now))
+                    (:wat::i64::* (:wat::program::collect-deadline-ms)
+                      (:wat::core::if (:wat::core::< i 0) 0 1000000))))
+                (:wat::core::range 0 n)))
      ;; REVOKE-SHUTDOWN: the drain is complete but the peers are still alive (still in scope,
      ;; still hold their Pidfd → peer-pid still Some). For each process peer, revoke its pid
      ;; (a no-op for a plain pool) — the grant a worker held cannot outlive its reaping. A

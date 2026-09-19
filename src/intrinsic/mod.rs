@@ -768,6 +768,7 @@ mod tests {
         ":wat::kernel::require-wire-address",
         ":wat::kernel::retag-op",
         ":wat::kernel::select",
+        ":wat::kernel::select-by-deadline",
         ":wat::kernel::send",
         ":wat::kernel::serve-dispatch-op",
         ":wat::kernel::signal",

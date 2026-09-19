@@ -1,5 +1,5 @@
-;; A work-fn that stalls past collect-deadline-ms. select-by-deadline fires
-;; TimedOut for n≥1. Inject WAT_COLLECT_DEADLINE_MS=200. Nap 2000.
+;; N runners all stalling. select-by-deadline must GaveUp, not hang.
+;; Inject WAT_COLLECT_DEADLINE_MS=200. Nap 2000. Pool of 3.
 (:wat::core::defn :user::nap
   [ms <- :wat::core::i64]
   -> :wat::core::nil
@@ -22,8 +22,8 @@
     (:wat::core::+ x 1)))
 
 (:wat::core::defn :user::compute [] -> (:wat::core::Vector :- [:wat::core::i64])
-  (:wat::bracket::map (:wat::spawn::thread/runner-count 1)
-    (:wat::core::Vector :- [:wat::core::i64] 0)
+  (:wat::bracket::map (:wat::spawn::thread/runner-count 3)
+    (:wat::core::Vector :- [:wat::core::i64] 0 1 2)
     :user::work))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

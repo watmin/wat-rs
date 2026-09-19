@@ -32,8 +32,8 @@
 //! the tripwire those placeholders are waiting for.**
 //!
 //! ⛔⛔ AND THE DESIGN MISSED THE ARM THAT IS ACTUALLY LIVE — corrected here rather than left to
-//! be rediscovered. `bracket.wat` DOES call `:wat::kernel::select` once (collect-loop), but that
-//! yields a `:wat::spawn::ServiceEvent`, a different enum. `ServiceEvent::Malformed` IS emitted
+//! be rediscovered. `bracket.wat` waits with `:wat::kernel::select-by-deadline` (collect-loop),
+//! which wraps a `:wat::spawn::ServiceEvent`. `ServiceEvent::Malformed` IS emitted
 //! (`src/runtime.rs`, on a real decode failure: "poll (process tier): client message decode
 //! failed"), and bracket's arm for it calls `assertion-failed!` — "runner {idx} sent an undecodable
 //! result". THAT is the live ungraceful site: a deterministic decode failure killing the whole
@@ -179,10 +179,10 @@ fn bracket_recvoutcome_matches_are_fed_by_bare_recv() {
     );
     let deadline = code.matches(":wat::kernel::recv-by-deadline").count();
     assert_eq!(
-        deadline, 1,
-        "collect-wait-one is the one recv-by-deadline (1-peer stall bound). Found {deadline}. \
+        deadline, 0,
+        "bracket.wat has no recv-by-deadline (collect-loop waits via select-by-deadline). Found {deadline}. \
          The five runner loops must stay on bare recv — their placeholder TimedOut/Malformed \
-         arms remain unreachable there. Do not add more deadline recvs without placing those arms."
+         arms remain unreachable there. Do not add deadline recvs without placing those arms."
     );
 }
 
@@ -194,7 +194,7 @@ fn bracket_recvoutcome_matches_are_fed_by_bare_recv() {
 #[test]
 fn kernel_select_builds_only_four_serviceevent_variants() {
     let src = runtime_src();
-    let sel = fn_body(&src, "eval_peer_select_values");
+    let sel = fn_body(&src, "eval_peer_select_wait");
     let poll = fn_body(&src, "eval_poll_prime");
     let fan = fn_body(&src, "fan_in_unified_peer_set");
 
@@ -236,7 +236,7 @@ fn select_and_poll_share_decode_classification() {
     let src = runtime_src();
     let helper = fn_body(&src, "classify_trusted_wire_recv");
     let fan = fn_body(&src, "fan_in_unified_peer_set");
-    let sel = fn_body(&src, "eval_peer_select_values");
+    let sel = fn_body(&src, "eval_peer_select_wait");
     let poll = fn_body(&src, "eval_poll_prime");
     assert!(
         // rune:lint(loose-assert) — presence of the shared decode door.
@@ -277,8 +277,8 @@ fn brackets_four_unreachable_serviceevent_arms_are_counted() {
         .matches(":wat::spawn::ServiceEvent::Malformed")
         .count();
     assert_eq!(
-        malformed, 2,
-        "Malformed is collect-loop's arm plus collect-wait-one's constructor; found {malformed}"
+        malformed, 1,
+        "Malformed is collect-loop's arm only (collect-wait-one is gone); found {malformed}"
     );
 }
 

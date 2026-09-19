@@ -112,6 +112,7 @@
 (:wat::core::defn :census::primitive-of
   [h <- :wat::core::String] -> :wat::core::String
   (:wat::core::if (:wat::core::= h ":wat::kernel::recv-by-deadline") "recv-by-deadline"
+    (:wat::core::if (:wat::core::= h ":wat::kernel::select-by-deadline") "select-by-deadline"
     (:wat::core::if (:wat::core::= h ":wat::kernel::recv") "recv"
       (:wat::core::if (:wat::core::= h ":wat::kernel::select") "select"
         (:wat::core::if (:wat::core::= h ":wat::kernel::poll") "poll"
@@ -120,7 +121,7 @@
               (:wat::core::if (:wat::core::= h ":wat::kernel::send") "send"
                 (:wat::core::if (:wat::string::contains? h "readln")
                   "readln"
-                  "")))))))))
+                  ""))))))))))
 
 (:wat::core::defn :census::tree-has-after?
   [node <- :wat::WatAST] -> :wat::core::bool
@@ -229,6 +230,8 @@
   -> (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
   (:wat::core::if (:wat::core::= prim "recv-by-deadline")
     (:wat::core::Tuple "yes" "deadline-arg")
+    (:wat::core::if (:wat::core::= prim "select-by-deadline")
+      (:wat::core::Tuple "yes" "deadline-arg")
     (:wat::core::if (:wat::core::= prim "try-send")
       (:wat::core::Tuple "yes" "try-send")
       (:wat::core::if (:wat::core::= prim "select")
@@ -241,7 +244,7 @@
             (:wat::core::if (:wat::core::< (:wat::core::length ch) 4)
               (:wat::core::Tuple "UNKNOWN" "poll-no-peers-arg")
               (:census::select-bound (:wat::core::nth ch 3) env)))
-          (:wat::core::Tuple "no" "none"))))))
+          (:wat::core::Tuple "no" "none")))))))
 
 (:wat::core::defn :census::let-binds-from
   [ch <- (:wat::core::Vector :- [:wat::WatAST])

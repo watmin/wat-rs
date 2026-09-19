@@ -442,6 +442,52 @@ impl<'a, T: Send + 'static> Select<'a, T> {
         }
 
         let selected_op = inner.select();
+        self.finish_selected(selected_op, shutdown_rx, shutdown_arm_idx, user_arm_start)
+    }
+
+    /// Bounded analogue of [`Select::select`]. Returns `Err(SelectTimeout)`
+    /// when `dur` elapses with no user arm and no shutdown. Does **not** add
+    /// a TimedOut variant to [`SelectOutcome`] — exhaustive matches on that
+    /// enum stay valid. A zero duration is an immediate timeout.
+    pub fn select_timeout(
+        &mut self,
+        dur: std::time::Duration,
+    ) -> Result<SelectOutcome<T>, SelectTimeout> {
+        if dur.is_zero() {
+            return Err(SelectTimeout);
+        }
+        let shutdown_rx = crate::runtime::shutdown_rx();
+        if self.user_arms.is_empty() && shutdown_rx.is_none() {
+            panic!(
+                "thread::Select::select_timeout() called with zero registered receivers \
+                 and SHUTDOWN_RX uninitialized — crossbeam would panic; register \
+                 at least one receiver or initialize the shutdown signal first"
+            );
+        }
+        let mut inner = crossbeam_channel::Select::new();
+        let shutdown_arm_idx: Option<usize> = shutdown_rx.map(|srx| inner.recv(srx));
+        let user_arm_start = shutdown_arm_idx.map_or(0, |sa| sa + 1);
+        for rx in self.user_arms.iter() {
+            match &rx.inner {
+                ReceiverKind::Channel(ch) => {
+                    inner.recv(ch);
+                }
+                ReceiverKind::Timer { instant_rx, .. } => {
+                    inner.recv(instant_rx);
+                }
+            }
+        }
+        let selected_op = inner.select_timeout(dur).map_err(|_| SelectTimeout)?;
+        Ok(self.finish_selected(selected_op, shutdown_rx, shutdown_arm_idx, user_arm_start))
+    }
+
+    fn finish_selected(
+        &self,
+        selected_op: crossbeam_channel::SelectedOperation<'_>,
+        shutdown_rx: Option<&crossbeam_channel::Receiver<()>>,
+        shutdown_arm_idx: Option<usize>,
+        user_arm_start: usize,
+    ) -> SelectOutcome<T> {
         let arm_idx = selected_op.index();
 
         // Shutdown arm takes priority.
@@ -479,6 +525,11 @@ impl<'a, T: Send + 'static> Select<'a, T> {
         }
     }
 }
+
+/// `select_timeout` elapsed with no arm firing. Not a [`SelectOutcome`]
+/// variant — adding TimedOut there would break every exhaustive match.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectTimeout;
 
 // ─── Factories ───────────────────────────────────────────────────────────────
 

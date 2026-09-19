@@ -74,9 +74,15 @@ fn collect_deadline_has_one_home() {
         "map-worker no longer calls the injectable collect deadline"
     );
     assert!(
-        // rune:lint(loose-assert) — 1-peer wait is recv-by-deadline, not unbounded select.
-        code.contains("collect-wait-one"),
-        "1-peer collect wait (recv-by-deadline) is gone — a stall cannot fire GaveUp"
+        // rune:lint(loose-assert) — N-way wait is the bounded verb, not unbounded select.
+        code.contains("select-by-deadline"),
+        "collect-loop no longer calls select-by-deadline — a stall cannot fire GaveUp"
+    );
+    assert!(
+        // rune:lint(loose-assert) — targeted ABSENCE: unbounded select must not be the wait.
+        !code.contains(":wat::kernel::select live-peers")
+            && !code.contains("collect-wait-one"),
+        "collect-loop wait fell back to unbounded select or collect-wait-one"
     );
 }
 
@@ -168,6 +174,6 @@ fn chaos_stall_fires_collect_gave_up() {
     assert!(
         // rune:lint(loose-assert) — last=TimedOut names the recv-by-deadline arm, not a golden.
         blob.contains("last=TimedOut"),
-        "1-peer stall fires via recv-by-deadline TimedOut; got {blob}"
+        "1-peer stall fires via select-by-deadline TimedOut; got {blob}"
     );
 }

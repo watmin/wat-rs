@@ -5090,6 +5090,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Excursus 001 every-worker-races-its-own-timer — bounded select.
+            // Same peer-vector projection as `select`; extra `ms : i64`; returns
+            // `(SelectDeadline :- [I O A])` wrapping ServiceEvent + TimedOut.
+            ":wat::kernel::select-by-deadline" => {
+                let (val, mut errs) = infer_select_by_deadline(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 209 Stone C0b.2e-i-c — poll intrinsic (3-arg service multiplexer).
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
             // I,O flow from (Vector :- [(Peer :- [I O])])'s element peer type into (ServiceEvent :- [I O]).
@@ -13221,6 +13232,110 @@ fn infer_select_prime(
         head: "wat::spawn::ServiceEvent".into(),
         args: vec![i_resolved, o_resolved, a_fresh],
     };
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+/// Type-check `(:wat::kernel::select-by-deadline peers ms)` — the bounded form
+/// of `select`. Same peer-vector projection as [`infer_select_prime`]; `ms` is
+/// i64 milliseconds. Returns `(SelectDeadline :- [I O A])` wrapping
+/// `ServiceEvent` rather than adding TimedOut to that enum.
+fn infer_select_by_deadline(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::select-by-deadline";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "select-by-deadline takes a peer vector and a millisecond deadline; got {} args. \
+                     Unbounded fan-in is select.",
+                    args.len()
+                ),
+                remedies: vec![],
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let fb = TypeExpr::Parametric {
+            head: "wat::spawn::SelectDeadline".into(),
+            args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
+        };
+        return CheckResult::partial_with(fb, local_errors);
+    }
+
+    let ev = match infer_select_prime(
+        std::slice::from_ref(&args[0]),
+        head_span,
+        env,
+        locals,
+        fresh,
+        subst,
+    )
+    .drain_errors_into(&mut local_errors)
+    {
+        Some(t) => t,
+        None => {
+            let fb = TypeExpr::Parametric {
+                head: "wat::spawn::SelectDeadline".into(),
+                args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
+            };
+            return CheckResult::partial_with(fb, local_errors);
+        }
+    };
+    let ev_reduced = reduce(&apply_subst(&ev, subst), subst, env.types());
+    let ret = match &ev_reduced {
+        TypeExpr::Parametric { head, args: targs }
+            if head == "wat::spawn::ServiceEvent" && targs.len() == 3 =>
+        {
+            TypeExpr::Parametric {
+                head: "wat::spawn::SelectDeadline".into(),
+                args: targs.clone(),
+            }
+        }
+        _ => TypeExpr::Parametric {
+            head: "wat::spawn::SelectDeadline".into(),
+            args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
+        },
+    };
+
+    let ms_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors)
+    {
+        Some(t) => t,
+        None => return CheckResult::partial_with(ret, local_errors),
+    };
+    let ms_reduced = reduce(&apply_subst(&ms_ty, subst), subst, env.types());
+    if unify(
+        &ms_reduced,
+        &TypeExpr::Path(":wat::core::i64".into()),
+        subst,
+        env.types(),
+    )
+    .is_err()
+    {
+        local_errors.push(CheckError {
+            span: args[1].span().clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "ms".into(),
+                expected: "i64".into(),
+                got: format_type(&ms_reduced),
+            },
+        });
+    }
     if local_errors.is_empty() {
         CheckResult::ok(ret)
     } else {

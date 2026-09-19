@@ -235,6 +235,34 @@ pub(crate) fn eval_peer_select_prime(
     crate::runtime::eval_peer_select_prime(std::slice::from_ref(peers), list_span, env, sym)
 }
 
+/// `(:wat::kernel::select-by-deadline peers ms)` → `:wat::spawn::SelectDeadline<I,O,A>`.
+/// Bounded fan-in: waits until ONE peer in the (non-empty, same-tier) `peers`
+/// vector is ready, or `ms` milliseconds elapse. Returns `Event` wrapping the
+/// same `ServiceEvent` unbounded `select` would have produced, or `TimedOut`
+/// when the deadline fires with every peer still silent. Does **not** add
+/// `TimedOut` to `ServiceEvent` — exhaustive matches on that enum stay valid.
+/// Unbounded `select` is unchanged.
+///
+/// @added         1.0.0
+/// @Purity        Effectful
+/// @Determinism   Nondeterministic
+/// @Total         Unreviewed
+/// @Category      Message
+/// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) non-empty, same-tier peers to fan in over
+/// @arg     ms :wat::core::i64 deadline in milliseconds
+/// @ret     (:wat::spawn::SelectDeadline :- [I O A]) Event[ServiceEvent] / TimedOut
+/// @example-norun (:wat::kernel::select-by-deadline [peer-a peer-b] 200)
+#[wat_intrinsic(":wat::kernel::select-by-deadline")]
+pub(crate) fn eval_peer_select_by_deadline(
+    peers: &WatAST,
+    ms: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_peer_select_by_deadline(&[peers.clone(), ms.clone()], list_span, env, sym)
+}
+
 /// `(:wat::kernel::poll self-peer listener peers)` → `:wat::spawn::ServiceEvent<I,O,A>`.
 /// The 3-arg service multiplexer: blocks on the owner/admin link
 /// (`self-peer`), the connection listener, AND every connected client peer

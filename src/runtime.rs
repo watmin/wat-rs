@@ -18791,6 +18791,12 @@ pub(crate) fn no_field_names() -> Arc<Vec<String>> {
     ":wat::spawn::ServiceEvent",
     "Rejected"
 );
+::wat_source_derive::wat_enum_field_names_from!(
+    SELECT_DEADLINE_EVENT_FIELDS,
+    "wat/spawn.wat",
+    ":wat::spawn::SelectDeadline",
+    "Event"
+);
 
 // Arc 296 G′ — `:wat::sqlite::Cell`'s tagged-variant field names, same reasoning, read from
 // `wat/sqlite.wat`. `Nil` needs no const: `parse_defenum`'s one-token lookahead makes even
@@ -18856,6 +18862,10 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
         (":wat::spawn::ServiceEvent", "Rejected") => {
             return crate::value::value::names_arc_from_static(SERVICE_EVENT_REJECTED_FIELDS)
         }
+        (":wat::spawn::SelectDeadline", "Event") => {
+            return crate::value::value::names_arc_from_static(SELECT_DEADLINE_EVENT_FIELDS)
+        }
+        (":wat::spawn::SelectDeadline", "TimedOut") => return no_field_names(),
         (":wat::sqlite::Cell", "I64") => {
             return crate::value::value::names_arc_from_static(CELL_I64_FIELDS)
         }
@@ -22231,6 +22241,42 @@ fn recv_outcome_timedout() -> Value {
         names: no_field_names(),
         fields: vec![],
     }))
+}
+
+const SELECT_DEADLINE_TYPE: &str = ":wat::spawn::SelectDeadline";
+
+fn select_deadline_event(ev: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SELECT_DEADLINE_TYPE.into(),
+        variant_name: "Event".into(),
+        names: builtin_enum_variant_names(SELECT_DEADLINE_TYPE, "Event"),
+        fields: vec![ev],
+    }))
+}
+
+fn select_deadline_timedout() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SELECT_DEADLINE_TYPE.into(),
+        variant_name: "TimedOut".into(),
+        names: no_field_names(),
+        fields: vec![],
+    }))
+}
+
+fn select_deadline_idx(ev: &Value) -> Option<i64> {
+    let Value::Enum(e) = ev else {
+        return None;
+    };
+    if e.type_path.as_str() != ":wat::spawn::ServiceEvent" {
+        return None;
+    }
+    match e.variant_name.as_str() {
+        "Message" | "Closed" | "Lost" | "Malformed" | "Rejected" => match e.fields.first() {
+            Some(Value::i64(n)) => Some(*n),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// `RecvOutcome::Malformed [cause <- Failure]` — the peer could not decode
@@ -27089,7 +27135,31 @@ fn eval_peer_select_values(
     list_span: &Span,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    match eval_peer_select_wait(peers_vec, list_span, sym, None)? {
+        Some(v) => Ok(v),
+        None => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::kernel::select".into(),
+                reason: "unbounded select returned TimedOut".into(),
+            },
+        )
+        .into()),
+    }
+}
+
+/// Bounded or unbounded fan-in. `None` timeout is unbounded `select`.
+/// `Some(dur)` is `select-by-deadline`: `Ok(None)` means the deadline fired.
+fn eval_peer_select_wait(
+    peers_vec: Arc<Vec<Value>>,
+    list_span: &Span,
+    sym: &SymbolTable,
+    timeout: Option<std::time::Duration>,
+) -> Result<Option<Value>, EvalBreak> {
     const OP: &str = ":wat::kernel::select";
+    if matches!(timeout, Some(d) if d.is_zero()) {
+        return Ok(None);
+    }
     if peers_vec.is_empty() {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -27204,7 +27274,14 @@ fn eval_peer_select_values(
 
         // Block until ready; demux EOF via the crash channel (mirrors Thread::recv).
         const SELECT_EVENT_TYPE_THREAD: &str = ":wat::spawn::ServiceEvent";
-        match sel.select() {
+        let thread_outcome = match timeout {
+            None => sel.select(),
+            Some(d) => match sel.select_timeout(d) {
+                Ok(o) => o,
+                Err(_) => return Ok(None),
+            },
+        };
+        Ok(Some(match thread_outcome {
             crate::comms::SelectOutcome::Recv { index, result } => {
                 let peer_idx = index.0 as i64;
                 match result {
@@ -27214,7 +27291,7 @@ fn eval_peer_select_values(
                             peer_idx,
                             &msg,
                         ) {
-                            return Ok(lost);
+                            return Ok(Some(lost));
                         }
                         // excursus 001 — the Reply::Failed pre-check, sibling of the death-notice one above.
                         if let Some(m) = select_malformed_if_reply_failed(
@@ -27222,19 +27299,19 @@ fn eval_peer_select_values(
                             peer_idx,
                             &msg,
                         ) {
-                            return Ok(m);
+                            return Ok(Some(m));
                         }
-                        Ok(Value::Enum(Arc::new(EnumValue {
+                        Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE_THREAD.into(),
                             variant_name: "Message".into(),
                             names: builtin_enum_variant_names(SELECT_EVENT_TYPE_THREAD, "Message"),
                             fields: vec![Value::i64(peer_idx), msg],
-                        })))
+                        }))
                     }
                     Err(_) => {
                         // Output EOF — classify death via the shared helper.
                         use crate::kernel::spawn::{classify_peer_death, PeerDeath};
-                        let event = match classify_peer_death(crash_rxs[index.0].recv()) {
+                        match classify_peer_death(crash_rxs[index.0].recv()) {
                             PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE_THREAD.into(),
                                 variant_name: "Lost".into(),
@@ -27262,21 +27339,20 @@ fn eval_peer_select_values(
                                 names: no_field_names(),
                                 fields: vec![],
                             })),
-                        };
-                        Ok(event)
+                        }
                     }
                 }
             }
-            crate::comms::SelectOutcome::Shutdown => Ok(Value::Enum(Arc::new(EnumValue {
+            crate::comms::SelectOutcome::Shutdown => Value::Enum(Arc::new(EnumValue {
                 type_path: SELECT_EVENT_TYPE_THREAD.into(),
                 variant_name: "Shutdown".into(),
                 names: no_field_names(),
                 fields: vec![],
-            }))),
+            })),
             crate::comms::SelectOutcome::Listener => {
                 unreachable!("thread-tier Select has no listener arm")
             }
-        }
+        }))
     } else if first_type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH {
         // ── Process tier ───────────────────────────────────────────────────────
         type ProcessCell = std::sync::Arc<
@@ -27369,13 +27445,33 @@ fn eval_peer_select_values(
         for rx in &output_rxs {
             sel.recv(*rx);
         }
+        let process_timer = match timeout {
+            Some(d) => Some(
+                crate::comms::process::timer::<String>(d, b":deadline\n".to_vec()).map_err(
+                    |e| {
+                        EvalBreak::from(RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("select-by-deadline: timerfd failed: {e}"),
+                            },
+                        ))
+                    },
+                )?,
+            ),
+            None => None,
+        };
+        if let Some(ref tmr) = process_timer {
+            sel.recv(tmr);
+        }
+        let timer_idx = process_timer.as_ref().map(|_| output_rxs.len());
 
         // Block until ready; demux EOF via the err channel (mirrors ProcessPeerBundle::recv).
-        match sel.select() {
+        Ok(Some(match sel.select() {
             Err(_io_err) => {
                 // Ring-level failure: no peer index. Lost requires idx; 0 is the
                 // select itself. Cause is reason-free (arc 294 — do not leak io_err).
-                Ok(Value::Enum(Arc::new(EnumValue {
+                Value::Enum(Arc::new(EnumValue {
                     type_path: SELECT_EVENT_TYPE.into(),
                     variant_name: "Lost".into(),
                     names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Lost"),
@@ -27383,10 +27479,13 @@ fn eval_peer_select_values(
                         Value::i64(0),
                         message_only_failure("select io_uring error".into()),
                     ],
-                })))
+                }))
             }
             Ok(outcome) => match outcome {
             crate::comms::SelectOutcome::Recv { index, result } => {
+                if timer_idx == Some(index.0) {
+                    return Ok(None);
+                }
                 match result {
                     // The ONE door (annihilation of the two-door deadlock):
                     // classify_peer_error owns the FrameTooLarge teardown (no err
@@ -27398,7 +27497,7 @@ fn eval_peer_select_values(
                     Err(e) => {
                         use crate::kernel::spawn::{classify_peer_error, PeerDeath};
                         let peer_idx = index.0 as i64;
-                        let event = match err_rxs[index.0] {
+                        match err_rxs[index.0] {
                             Some(err_rx) => match classify_peer_error(&e, err_rx) {
                                 PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
@@ -27431,35 +27530,34 @@ fn eval_peer_select_values(
                                 names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
                                 fields: vec![Value::i64(peer_idx)],
                             })),
-                        };
-                        Ok(event)
+                        }
                     }
                     Ok(edn_str) => {
                         // Same door as poll's client arm: decode failure is Malformed
                         // (alive, sent garbage), not Lost. Cause is reason-free (arc 294).
                         let peer_idx = index.0 as i64;
-                        Ok(classify_trusted_wire_recv(
+                        classify_trusted_wire_recv(
                             SELECT_EVENT_TYPE,
                             peer_idx,
                             &edn_str,
                             sym.types().map(|a| a.as_ref()),
                             sym.encoding_ctx().map(|a| a.as_ref()),
                             |_| "select EDN decode failed".into(),
-                        ))
+                        )
                     }
                 }
             }
-            crate::comms::SelectOutcome::Shutdown => Ok(Value::Enum(Arc::new(EnumValue {
+            crate::comms::SelectOutcome::Shutdown => Value::Enum(Arc::new(EnumValue {
                 type_path: SELECT_EVENT_TYPE.into(),
                 variant_name: "Shutdown".into(),
                 names: no_field_names(),
                 fields: vec![],
-            }))),
+            })),
             crate::comms::SelectOutcome::Listener => {
                 unreachable!("process-tier 1-arg select has no listener arm")
             }
             }
-        }
+        }))
     } else if first_type_path == crate::kernel::spawn::PEER_TYPE_PATH {
         // select(peers) is poll(∅, ∅, peers) on the unified Peer set.
         let mut peer_arcs: Vec<crate::kernel::spawn::PeerCell> = Vec::with_capacity(peers_vec.len());
@@ -27493,7 +27591,63 @@ fn eval_peer_select_values(
                 }
             }
         }
-        fan_in_unified_peer_set(OP, None, None, &peer_arcs, list_span, sym)
+        if let Some(d) = timeout {
+            let is_thread = match peer_arcs[0]
+                .with_ref(OP, |opt| opt.as_ref().map(|p| !p.is_socket_tier()))
+                .map_err(EvalBreak::from)?
+            {
+                None => {
+                    return Err(RuntimeError::new(
+                        list_span.clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "peer already closed (index 0)".into(),
+                        },
+                    )
+                    .into());
+                }
+                Some(t) => t,
+            };
+            let inert = Value::wat__core__keyword(Arc::new(
+                RECV_BY_DEADLINE_TIMER_SENTINEL.to_string(),
+            ));
+            let tmr = after_timer_peer(is_thread, d, inert, list_span, sym)?;
+            let tmr_cell: &crate::kernel::spawn::PeerCell =
+                match &tmr {
+                    Value::RustOpaque(inner)
+                        if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH =>
+                    {
+                        crate::rust_deps::marshal::downcast_ref_opaque(
+                            inner,
+                            crate::kernel::spawn::PEER_TYPE_PATH,
+                            OP,
+                            list_span.clone(),
+                        )?
+                    }
+                    other => {
+                        return Err(RuntimeError::new(
+                            list_span.clone(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: OP.into(),
+                                expected: "timer Peer",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into())
+                    }
+                };
+            let n = peer_arcs.len() as i64;
+            let mut with_timer = peer_arcs.clone();
+            with_timer.push(tmr_cell.clone());
+            let ev = fan_in_unified_peer_set(OP, None, None, &with_timer, list_span, sym)?;
+            if select_deadline_idx(&ev) == Some(n) {
+                return Ok(None);
+            }
+            return Ok(Some(ev));
+        }
+        Ok(Some(fan_in_unified_peer_set(
+            OP, None, None, &peer_arcs, list_span, sym,
+        )?))
     } else {
         Err(RuntimeError::new(
             list_span.clone(),
@@ -27504,6 +27658,67 @@ fn eval_peer_select_values(
             },
         )
         .into())
+    }
+}
+
+/// `(:wat::kernel::select-by-deadline peers ms)` — bounded fan-in.
+/// Returns `SelectDeadline::Event` wrapping the same ServiceEvent unbounded
+/// `select` would have produced, or `SelectDeadline::TimedOut`.
+pub(crate) fn eval_peer_select_by_deadline(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::select-by-deadline";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let peers_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peers_vec = match peers_val {
+        Value::Vec(ref v) => v.clone(),
+        other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vector of peers",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into())
+        }
+    };
+    let ms_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let ms = match ms_val {
+        Value::i64(n) => n,
+        other => {
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::i64",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            )
+            .into())
+        }
+    };
+    if ms <= 0 {
+        return Ok(select_deadline_timedout());
+    }
+    let dur = std::time::Duration::from_millis(ms as u64);
+    match eval_peer_select_wait(peers_vec, list_span, sym, Some(dur))? {
+        Some(ev) => Ok(select_deadline_event(ev)),
+        None => Ok(select_deadline_timedout()),
     }
 }
 
