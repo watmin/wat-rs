@@ -72,3 +72,44 @@ or `export.rs` change.
 
 No parser depth budget. No `EXPANSION_DEPTH_LIMIT` change. No `export.rs`. The
 2 MiB abort remains a parse-stack problem; a bound in `LowerCx` cannot catch it.
+
+---
+
+# ⚖ ORCHESTRATOR CLOSING — STOP-3 IS REAL BUT NOT A HAZARD HERE. NO PARSER STRIKE.
+
+I verified the STOP-3 control myself (deep quote in an **unused** defn, `lower` never called, still
+`rc=134` at 2 MiB) and bisected the parse-only abort at **last-ok 2805 / first-abort 2824**. I was
+about to draw a parser-depth strike off that. **The builder asked whether the stack had already been
+raised for exactly this reason. It had, and that ends the strike.**
+
+`.cargo/config.toml:19` — `RUST_MIN_STACK = "8388608"` (8 MiB), mirrored at `.github/workflows/ci.yml:9`.
+Its comment is honest and already names this whole class: the evaluator *"is recursive — one Rust
+`eval` frame per nested wat form — and is NOT yet stack-safe (arc 261 … is a STUB)"*, calls the rung
+a **stopgap**, says *"it will creep as the stdlib grows"*, and names the durable fix.
+
+**Measured against that, at the conditions this repo actually runs in:**
+
+| question | answer |
+|---|---|
+| does parse abort at the configured 8 MiB? | **No.** Plain source at 10,000 / 20,000 / **40,000** deep → `rc=3`, clean `ExpansionDepthExceeded` every time |
+| are test threads at risk? | **No.** `RUST_MIN_STACK` covers libtest's threads, which is exactly what the comment claims |
+| does `RUST_MIN_STACK` protect the CLI? | ⚠ **No — and it does not claim to.** With it set to 8 MiB *and* `ulimit -s 2048`, `./target/release/wat` still aborts: `thread 'main' has overflowed its stack`. It sizes **spawned** threads; the main thread's stack is the OS's |
+
+⭐ **So the 2 MiB abort is reachable only where the MAIN-thread stack is small** — a low-ulimit
+container, a musl target, an embedding host — and the existing mitigation cannot reach there by
+construction. That is a **deployment** note, not a test-suite defect, and the durable fix is already
+tracked as **arc 261 (stack-safe CEK)**. **No guard is being added to the parser.**
+
+⛔ **AND MY OWN NUMBER WAS MIS-ATTRIBUTED TWICE OVER.** I first reported the 2 MiB abort as `lower`'s
+(it was parse + lower on one stack — the executor's control separated them), and then reached for a
+parser strike without checking whether the stack had already been raised. **Both errors are the same
+shape: measuring a composed condition and naming the component I happened to be thinking about.**
+The cures are a control that removes the suspected component, and reading the config that governs
+the condition before treating the condition as given.
+
+## What this strike actually delivered
+
+✅ The quote door into `lower` is closed and proven by the two-binary comparison (pre-guard `rc=0`
+silently accepting a 3000-deep tree; post-guard `rc=1` refusing at depth 513). ✅ 4/4 probe green,
+floor 5484. ⛔ **`2W1`'s abort claim is withdrawn for every door**: no path aborts under this repo's
+configured stack.
