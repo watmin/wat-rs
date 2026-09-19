@@ -4291,3 +4291,161 @@ published tip, an ancestor of HEAD throughout. No mid-batch STOP; no test ever w
 (8 throughout). `#[test]` delta **+5** (+4 at #581, +1 at #586) — predicted **5877 run, 22 skipped**
 for the orchestrator's own floor re-measurement. See `SCORE-7w-replay-batch-4w.md` for the full
 row-by-row account against all rows (E1–E16).
+
+# REPLAY-LOG — grok-rete #601–#620 onto `replay/grok-rete` (BRIEF-7x, batch 4x)
+
+Anchor `/home/john/work/holon/wat-rs`, branch `replay/grok-rete`; `/home/john/work/holon/` FROZEN,
+untouched. Start tip `a0cd9bf2a` (batch 4w CLOSED at 600, 4x briefed). 20 REPLAY commits,
+#601–#620, 13 docs-only + 7 code steps (#602, #603, #607, #610, #613, #616, #619), range 18 `.md`
++ 11 `.rs` + 10 `.sh` + 7 `.wat` + 5 `.clj`, matching the brief exactly.
+
+## #601 — docs-only, new file, 1 file (strike: draw four grid scripts that do not do what their
+headers say). Clean cherry-pick.
+
+## #602 — LANDED, 4 files (`.sh` only, grid: ROWS_TOTAL non-vacuity guard (3Q2) + Clara stderr
+capture in run-axis.sh (3F1)). 1-of-4 (`run-axis.sh`) diverged here; composed as a CLEAN
+auto-merge, verified by delta-vs-delta: IDENTICAL (14/14 lines). No census/nested-program-gate/
+lint-subset/kind(lib)/doctest required (`.sh` only).
+
+## #603 — LANDED, 2 files (`.sh` only, grid: build the promised run-all.sh tally (3T2) + correct
+the JVM-tax claim (3M2)). Clean, byte-identical to grok's post-image (its one shared file,
+`check-where-shapes.sh`, composed cleanly with #602's own edit already in place). No record line
+required.
+
+## #604 — docs-only, new file, 1 file (docs: SCORE.md for the grid-says-what-it-does strike).
+Clean cherry-pick.
+
+## #605 — docs-only, 1 file (vigilia(rete): four grid rows closed — and 3Q2, which was mine, is
+refuted). Clean cherry-pick.
+
+## #606 — docs-only, new file, 1 file (strike: draw the header-count class — gate them or cut
+them, per the gate that already exists). Clean cherry-pick.
+
+## #607 — ⚠⚠ LANDED WITH COMPOSITION AND A SELF-CAUGHT RED, 6 files (5 `.rs`, strike: gate the
+four rotted rete header counts, cut the fifth). 3-of-5 touched `.rs` diverged, per the brief:
+`export.rs` and `vocabulary.rs` composed as CLEAN auto-merges (delta-vs-delta IDENTICAL, 5/5 and
+15/15 lines); `matcher.rs` needed a REAL hand-composed conflict — main's local doc-comment
+rewrite (`decompose_variant`, replacing `rsplit_once`) collided with grok's own THREE→FOUR
+site-count bump on the exact same lines; resolved by keeping main's phrasing and applying grok's
+semantic delta on top. Adds 3 new tests (`session_record_field_count_matches_its_doc`,
+`export_lossy_fields_are_still_the_four_the_header_names`,
+`enum_variant_ctor_still_has_exactly_the_four_documented_callers`), 9/9 named-family green.
+⚠ SELF-CAUGHT AND FIXED BEFORE THE COMMIT: the lint-subset gate first came back RED —
+`one_variant_separator::only_identifier_rs_spells_the_variant_separator`, flagging a
+pre-existing, unrelated `let p = e.path();` directory-walk helper as a stale variant-separator
+site, because grok's own 129-line addition (heavy with "variant" prose) newly pulled the file
+into that gate's scope. Confirmed the gate is MAIN-ONLY (its introducing commit is not an
+ancestor of grok's #607 source). Cured per the house convention (`src/host/test_runner.rs:579`,
+`src/rete/purity.rs:2732`): added `// rune:lint(one-variant-separator, not-a-name) — …`.
+Re-verified green (330 passed). `census: files=2186; --diff no STOP-8`. `nested-program-gate:
+PASS (3/3, 5899 skipped)`. `lint-subset: 330 passed`. `kind(lib): 1523 passed`. `doctest: 8
+passed`.
+
+## #608 — docs-only, 1 file (vigilia(rete): five header-count rows closed — three gated, one
+cut, one already right). Clean cherry-pick.
+
+## #609 — docs-only, new file, 1 file (strike: draw the oracle-negation divergence — C1, and the
+shape is already in the corpus). Clean cherry-pick.
+
+## #610 — ⛔⛔ LANDED WITH A REAL STDLIB HAND-MERGE, 4 files (2 `.wat`, 1 `.rs`, oracle:
+rule-negates recurses through and/or, matching negate_types). Adds `rule-negates-in` (recurses
+through `:and`/`:or` unconditionally, mirroring native `negate_types`) and rewrites
+`rule-negates` to delegate to it, closing a real divergence from native stratification.
+`wat/rete/oracle/stratify.wat` conflicted for real (git could not auto-merge): main's tree
+already used `:wat::vector::conj` at the one call site this diff touches (the
+`rename-core-vectors-to-their-homes.wat` corpus migration, landed earlier in this replay); grok's
+diff introduces `:wat::core::PersistentVector/conj` at 2 sites. Composed by hand: grok's semantic
+delta landed, translated to the tree's current spelling at both sites. Verified via `cargo build
+--release` (the correct instrument — `wat/` is `include_str!`-embedded, so a standalone `wat
+--check` on a stdlib file errors on the reserved `:wat::` prefix), the oracle's own tests (`-E
+'test(oracle)'`, 57/57), and the named family (`-E 'test(stratify)'`, 2/2, including grok's own
+new mutation-proven probe `native_stratify_numbers_nested_or_and_not_against_the_oracle`).
+`census: files=2186; --diff no STOP-8`. `nested-program-gate: PASS (3/3, 5900 skipped)`.
+`lint-subset: 330 passed`. `kind(lib): 1524 passed`. `doctest: 8 passed`.
+
+## #611 — docs-only, 1 file (vigilia(rete): C1 resolved — the oracle recurses, and the obvious
+cure was rejected by driving it). Clean cherry-pick.
+
+## #612 — docs-only, new file, 1 file (strike: draw the .wat.bad gate composition gap — and
+refute most of 4P1). Clean cherry-pick.
+
+## #613 — ⛔ LANDED, CORRECTS THE BRIEF, 2 files (1 `.rs`, strike: compose-test the .wat.bad
+gate's exemption wiring, not just its predicates). Clean, no divergence. Adds exactly ONE new
+test (`check_shard_composition_drives_every_exemption_state`) — the brief's table said "+2
+tests"; measured directly off the source diff (10 old `#[test]` fn names → 11 new) and the
+actual run (lint-subset 330 → 331, +1), the other apparent `#[test]` substrings the diff
+introduces are inside synthetic fixture string literals, not real tests. 27/27 named-family
+green. No census/nested-program-gate required (no `.wat`/`src` touched). `lint-subset: 331
+passed`. `kind(lib): 1524 passed`. `doctest: 8 passed`.
+
+## #614 — docs-only, 1 file (vigilia(rete): 4P1 resolved — the row was wrong, my refutation was
+wrong, and the executor caught both). Clean cherry-pick.
+
+## #615 — docs-only, new file, 1 file (strike: draw ONE compound grid cell — 3P1, scoped to a
+single fixture on purpose). Clean cherry-pick.
+
+## #616 — ⛔ LANDED WITH A CHAIN CONVERSION, 7 files (1 new `.wat`, strike: close compound cell
+(record, absent, derived, leading, na) — accum-lead-derived). `tests/rete/wat_scripts_grid_axes_live.rs`
+diverged here, composed as a CLEAN auto-merge, delta-vs-delta IDENTICAL (10/10 lines). The new
+`wat-scripts/perf/grid/accum-lead-derived.wat` is PRE-MIGRATION exactly as the brief predicted
+(positional `assertion-failed!` on arrival). Cured through
+`scripts/replay/convert.sh 22d96739b /tmp/convert616 wat-scripts/perf/grid/accum-lead-derived.wat`,
+rc=0, never hand-edited: positional `assertion-failed!` → kwargs (8 sites), bare-variant match
+arms → bracket-map patterns, `:wat::core::i64::*` → `:wat::i64::*` (9 sites), `:wat::core::
+PersistentVector/conj` → `:wat::vector::conj` (2 sites), `:wat::core::PersistentMap/get` →
+`:wat::map::get`, a `Vector` type-reference bracket fix. Post-conversion `--check` rc=0; both
+loader gates green; the grid family (`-E 'test(wat_scripts_grid)'`) 3/3 green, including the new
+axis running end-to-end and matching its own oracle. `census: files=2187; --diff no STOP-8`.
+`nested-program-gate: PASS (3/3, 5901 skipped)`. `lint-subset: 331 passed`. `kind(lib): 1524
+passed`. `doctest: 8 passed`.
+
+## #617 — docs-only, new file, 1 file (strike: draw the four remaining compound grid cells, cost
+now measured). Clean cherry-pick.
+
+## #618 — docs-only, new file, 1 file (strike: draw the grid JDK provenance — the floors are
+unfalsifiable, not wrong). Clean cherry-pick.
+
+## #619 — ⛔⛔ LANDED WITH A FOUR-FILE CHAIN CONVERSION, THE BATCH'S LARGEST, 13 files (4 new
+`.wat`, grid: close the four remaining compound cells (peragrare 3P1)). 4-of-4 relevant existing
+files diverged (all four ALSO touched by our own #616 earlier this batch, so the STEP-RELATIVE
+pre-image was required and applied correctly on the first attempt): `wat_scripts_grid_axes_live.rs`
+(40/40), `wat_scripts_grid_port_check.rs` (52/52), `check-grid-three-way.sh` (4/4),
+`peragrare-census.sh` (30/30) — all IDENTICAL by delta-vs-delta, git auto-merged cleanly, zero
+conflict markers. All FOUR new `.wat` files (`leading-neg-consumer.wat`,
+`retract-accum-derived.wat`, `retract-lead-accum.wat`, `userfn-accum-derived.wat`) are
+PRE-MIGRATION exactly as the brief predicted. Cured in ONE `convert.sh` invocation covering all
+four:
+`scripts/replay/convert.sh b4801eb5f /tmp/convert619 <the four paths>`, rc=0, never hand-edited —
+the same five rewrite classes as #616 fired on each. This executor's own per-file counts
+(42 positional `assertion-failed!` total across all five files including #616's, matching the
+brief exactly; 18 `PersistentVector/conj` and 34–38 `i64::*` sites, both lower than the brief's
+25/51 — disclosed as a counting-method discrepancy, not reconciled). Post-conversion `--check`
+rc=0 on all four; both loader gates green; the grid family 3/3 green, all four new axes running
+end-to-end against their own oracle. `census: files=2191; --diff no STOP-8`.
+`nested-program-gate: PASS (3/3, 5901 skipped)`. `lint-subset: 331 passed`. `kind(lib): 1524
+passed`. `doctest: 8 passed`.
+
+## #620 — docs-only, the last, 1 file (vigilia(rete): 3P1 resolved — five compound cells built,
+five agreements, one instrument bug found). Clean cherry-pick.
+
+⛔ ONE SELF-CAUGHT AND SELF-FIXED-BEFORE-COMMIT RED (#607's `one_variant_separator` gate, cured
+at the step per the fold rule, with a disclosed process deviation — a second run of the same
+filtered command before the full verbatim capture was taken, though the failure reproduced
+identically both times and no evidence was lost). ONE REAL HAND-COMPOSED CONFLICT git could not
+auto-merge (#607's `matcher.rs`). ONE REAL STDLIB SEMANTIC CHANGE, hand-composed and gated
+(#610's `stratify.wat`). FIVE PRE-MIGRATION `.wat` FILES, all cured through the recorded
+`convert.sh` chain, never hand-edited, all verified `--check` rc=0 and running correctly against
+their own oracle (#616's one file, #619's four). ONE BRIEF CORRECTION DISCLOSED (#613's test
+count, +1 not +2, moving the batch total from +6 to +5). Every subject and trailer was built by
+piping `git log -1 --format=%s <C>` and `git rev-parse <C>` into the commit heredoc, never
+retyped, and verified two-sided programmatically after landing (20/20, see
+`SCORE-7x-replay-batch-4x.md`'s table).
+
+**Disposition: COMPLETE.** All 20 steps (#601–#620) landed, tree clean at `512734dc6`
+(`REPLAY(grok-rete #620)`), not pushed. `origin/replay/grok-rete` remains the published tip, an
+ancestor of HEAD throughout. No mid-batch STOP; no test ever went red without being found and
+fixed before that step's own commit; no `mcp__pulsare__*` tool called. `lint-subset` (327 → 331,
++4), `kind(lib)` (1523 → 1524, +1) and `doctest` (8 throughout). `#[test]` delta **+5** (+3 at
+#607, +1 at #610, +1 at #613) — predicted **5882 run, 22 skipped** for the orchestrator's own
+floor re-measurement (corrected from the brief's 5883, per #613's test-count correction). See
+`SCORE-7x-replay-batch-4x.md` for the full row-by-row account against all rows (E1–E16).
