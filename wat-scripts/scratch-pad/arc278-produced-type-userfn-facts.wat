@@ -91,7 +91,12 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println "COMPILE: Compiled")
+;; ⛔ THERE IS NO "COMPILE: Compiled" PRINT, DELIBERATELY. One stood here and was struck
+;; 2026-09-07: it was a LITERAL, printed unconditionally BEFORE anything compiled, so a
+;; failing compile produced the line "COMPILE: Compiled" and then aborted. Checking it
+;; proved nothing about compilation. The real evidence that the constructing rete defn
+;; `:a2::mk-rate` is admitted is that this program REACHES the output below: the genuine
+;; CompileOutcome match above assertion-fails on MayNotTerminate, so completion is the proof.
     (:wat::kernel::println "ORACLE STRATA:")
     (:wat::kernel::println (:wat::rete::stratify (:wat::core::PersistentVector (:a2::bad) (:a2::via) (:a2::out))))
     (:wat::kernel::println "ORACLE rule-produces via:")
