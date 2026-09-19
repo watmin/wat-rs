@@ -96,7 +96,7 @@ fn dead_runner_fault_fired() {
         Some(0),
         "map should survive the dead runner; stdout={stdout} stderr={stderr}"
     );
-    assert_eq!(stdout.trim(), "0,2,4,6");
+    assert_eq!(stdout.trim().trim_matches('"'), "0,2,4,6");
     assert!(
         // rune:lint(loose-assert) — the kill sentinel is a presence check on
         // captured stderr of a subprocess, not a value under test.

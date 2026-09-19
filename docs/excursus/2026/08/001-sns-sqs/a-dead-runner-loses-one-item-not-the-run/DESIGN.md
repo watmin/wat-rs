@@ -76,6 +76,46 @@ Sort the seven on that axis, with evidence:
 ⚠ Emitted-somewhere ≠ reachable-here still holds as a caution against the previous stone's error —
 but the fix is not to narrow to today's transport, it is to classify by **why** an arm can occur.
 
+### 1b. ⛔ MEASURED AFTER THE FIRST CORRECTION — bracket can receive FOUR of the eight, and
+### `select` COLLAPSES A DECODE FAILURE INTO `Lost`
+
+`ServiceEvent` is ONE enum serving TWO select verbs with disjoint variant sets:
+
+| verb | impl | builds |
+|---|---|---|
+| `:wat::kernel::select` — **bracket's** | `eval_peer_select_values` | `Message` `Closed` `Lost` `Shutdown` |
+| the service `poll` — bracket calls it **0** times | `eval_poll_prime` | + `Admin` `Connection` `Malformed` `Rejected` |
+
+So **four** of bracket's eight arms are dead, not two — `Malformed` and `Rejected` among them. ⛔ The
+first draft of this stone called `ServiceEvent::Malformed` "the live ungraceful arm"; **it is not
+live for bracket either.** Pinned now by `kernel_select_builds_only_four_serviceevent_variants`.
+
+⭐ **And here is why only the service has `Malformed`, which is the builder's question and the
+answer matters more than the classification:** the two verbs make different TRUST assumptions.
+`select` calls `decode_trusted_wire`, and on a decode failure emits **`Lost`** —
+`src/runtime.rs:27309` says it outright:
+
+> *"A peer whose frame will not decode is **dead** (recv:25047), not a live reason-free"*
+
+`poll` decodes **untrusted client** messages, so it keeps "alive but sent garbage" (`Malformed`)
+separate from "gone" (`Lost`). **`select` has no such concept — it collapses garbled into dead.**
+
+⛔⛔ **THAT COLLAPSE POISONS ROW 2, AND IT IS AN ORDERING CONSTRAINT ON THIS STONE.** Over IPC a
+trusted wire is near enough. Over a network it is false: a healthy remote runner that emits one
+corrupt frame is reported **dead**. So a naive RETRY-on-`Lost` would re-dispatch on decode failures
+too — and for a deterministic encode bug that is **re-dispatch until the wall clock expires**,
+violating the governing DESIGN's one contract decision (*"`Malformed` is never retried"*) — violated
+not by the handler but by the transport collapsing the distinction **before the handler can see
+it**.
+
+**So row 2's RETRY cannot be graded correct on `Lost` alone.** Either establish that `Lost` here
+cannot carry a decode failure, or treat splitting that collapse as a PREREQUISITE and report it as
+such. ⛔ Do not build re-dispatch on top of a `Lost` that means two different things — that is the
+exact defect `a-momentary-failure-is-not-fatal` exists to undo, one tier lower.
+
+⚠ The `Malformed`-is-two-facts note in row 2 applies to `poll`'s `Malformed`. `select` has a
+THIRD problem: it has no `Malformed` at all.
+
 ### 2. Place each reachable arm in the taxonomy
 
 | | |

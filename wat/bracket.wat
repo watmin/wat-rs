@@ -701,12 +701,13 @@
    t0-ns     <- :wat::core::i64
    budget-ms <- :wat::core::i64]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
-  ;; Row 1 (a-dead-runner-loses-one-item-not-the-run): collect-loop calls
-  ;; `(:wat::kernel::select peers)` — eval_peer_select_values, peers-only, no
-  ;; listener, no self-peer. Reachable here: Closed, Lost, Shutdown, Message.
-  ;; Structurally impossible here (constructed only by poll, or by a Reply::Failed
-  ;; pre-check that a Tuple-typed runner cannot satisfy): Malformed, Rejected,
-  ;; Connection, Admin. Those four keep assertion-failed! as substrate violations.
+  ;; Row 1 (a-dead-runner-loses-one-item-not-the-run), CORRECTED: classify by
+  ;; PROTOCOL SHAPE, never by today's local IPC. A runner peer is a spawned
+  ;; worker's data channel. `select` here is that vector, nothing else.
+  ;;   protocol-impossible (assert is honest at any distance): Connection, Admin
+  ;;     — a runner is not a listener and not an owner-lineage socket.
+  ;;   transport facts (a network produces these; IPC is the stand-in):
+  ;;     Closed, Lost, Malformed, Rejected, Shutdown.
   (:wat::core::if (:wat::core::= collected m)
     pairs-acc
     (:wat::core::if (:wat::core::empty? alive)
@@ -787,45 +788,48 @@
                     (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
                       holding alive' pending' t0-ns budget-ms))))
 
-              ;; Substrate violation in a bracket pool: ServiceEvent::Malformed is built by
-              ;; poll (process-tier decode failure) and by select_malformed_if_reply_failed
-              ;; (a `::Reply::Failed` value). collect-loop selects runner peers whose wire
-              ;; type is (Tuple i64 O), never a Reply; process-tier *select* maps a decode
-              ;; failure to Lost ("select EDN decode failed"), not Malformed.
-              ((:wat::spawn::ServiceEvent::Malformed idx cause)
-                (:wat::kernel::assertion-failed!
-                  (:wat::string::interpolate
-                    "bracket collect-loop: SUBSTRATE Malformed on a peers-only select (runner {idx} {held}: {cause})"
-                    :idx idx
-                    :held (:wat::bracket::holding-phrase holding idx)
-                    :cause (:wat::kernel::Failure/message cause))
-                  :wat::core::None :wat::core::None))
-              ;; Substrate violation: ServiceEvent::Rejected is poll-only (FrameTooLarge).
-              ;; Process-tier select classifies a cap violation as Lost.
-              ((:wat::spawn::ServiceEvent::Rejected idx cause)
-                (:wat::kernel::assertion-failed!
-                  (:wat::string::interpolate
-                    "bracket collect-loop: SUBSTRATE Rejected on a peers-only select (runner {idx} {held}: {cause})"
-                    :idx idx
-                    :held (:wat::bracket::holding-phrase holding idx)
-                    :cause (:wat::kernel::Failure/message cause))
-                  :wat::core::None :wat::core::None))
-              ;; REACHABLE — the world is stopping (SelectOutcome::Shutdown / PeerDeath::Shutdown).
-              ;; Not a per-runner death: there is nothing to re-dispatch to. Surface is
-              ;; (Vector :- [O]); REPORT-GONE as a named raise.
+              ;; TRANSPORT FACT. Today's constructors (poll decode-fail; select's
+              ;; Reply::Failed pre-check) do not tag *sender encoded garbage* vs *the
+              ;; wire damaged the frame*. a-momentary-failure-is-not-fatal folds both
+              ;; into REPORT-FINAL; a network makes the second RETRY. Do not pick.
+              ;; Surface is (Vector :- [O]) so this stays a named raise, not a retry.
+              ((:wat::spawn::ServiceEvent::Malformed live-idx cause)
+                (:wat::core::let [orig (:wat::core::nth alive live-idx)]
+                  (:wat::kernel::assertion-failed!
+                    (:wat::string::interpolate
+                      "bracket collect-loop: Malformed UNCLASSIFIED (sender-garbage vs wire-damage) runner {idx} {held}: {cause}"
+                      :idx orig
+                      :held (:wat::bracket::holding-phrase holding orig)
+                      :cause (:wat::kernel::Failure/message cause))
+                    :wat::core::None :wat::core::None)))
+              ;; TRANSPORT FACT. Over-budget is the sender's frame size — retrying the
+              ;; same bytes fails identically even on a network (corruption is Malformed,
+              ;; not Rejected). REPORT-FINAL. Surface has no per-item slot.
+              ((:wat::spawn::ServiceEvent::Rejected live-idx cause)
+                (:wat::core::let [orig (:wat::core::nth alive live-idx)]
+                  (:wat::kernel::assertion-failed!
+                    (:wat::string::interpolate
+                      "bracket collect-loop: REPORT-FINAL Rejected over-budget runner {idx} {held}: {cause}"
+                      :idx orig
+                      :held (:wat::bracket::holding-phrase holding orig)
+                      :cause (:wat::kernel::Failure/message cause))
+                    :wat::core::None :wat::core::None)))
+              ;; TRANSPORT FACT — the world is stopping. Not a per-runner death.
+              ;; Surface is (Vector :- [O]); REPORT-GONE as a named raise.
               (:wat::spawn::ServiceEvent::Shutdown
                 (:wat::bracket::collect-report-gone! -1 "idle (holding no item)" "Shutdown"))
-              ;; Substrate violation: Connection is poll's listener arm. select has
-              ;; unreachable!("… no listener arm") at both tiers.
+              ;; PROTOCOL-IMPOSSIBLE at any distance: a runner peer is a spawned
+              ;; worker's data channel, not a Listener. Connection is poll's accept arm.
               ((:wat::spawn::ServiceEvent::Connection _peer)
                 (:wat::kernel::assertion-failed!
-                  "bracket collect-loop: SUBSTRATE Connection — select is peers-only, no listener"
+                  "bracket collect-loop: PROTOCOL Connection — a runner peer is not a listener"
                   :wat::core::None :wat::core::None))
-              ;; Substrate violation: Admin is poll's self-peer arm. select has no self-peer.
+              ;; PROTOCOL-IMPOSSIBLE at any distance: a runner peer is not the
+              ;; owner-lineage socket. Admin is poll's self-peer arm.
               ((:wat::spawn::ServiceEvent::Admin _msg)
                 (:wat::kernel::assertion-failed!
-                  "bracket collect-loop: SUBSTRATE Admin — select is peers-only, no self-peer"
-                  :wat::core::None :wat::core::None))))))))
+                  "bracket collect-loop: PROTOCOL Admin — a runner peer is not an owner-lineage socket"
+                  :wat::core::None :wat::core::None)))))))))
 
 ;; ── queue-backed runner (the-bracket-runs-on-the-queue, step 3) ────────────────
 ;;
@@ -1463,7 +1467,7 @@
                 (:wat::core::range 0 n))
               (:wat::core::Vector :- [:wat::core::i64])
               (:wat::time::epoch-nanos (:wat::time::now))
-              :wat::bracket::COLLECT-DEADLINE-MS))
+              :wat::bracket::COLLECT-DEADLINE-MS)
      ;; REVOKE-SHUTDOWN: the drain is complete but the peers are still alive (still in scope,
      ;; still hold their Pidfd → peer-pid still Some). For each process peer, revoke its pid
      ;; (a no-op for a plain pool) — the grant a worker held cannot outlive its reaping. A

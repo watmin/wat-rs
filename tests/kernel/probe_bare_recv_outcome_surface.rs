@@ -186,46 +186,88 @@ fn bracket_recvoutcome_matches_are_fed_by_bare_recv() {
     );
 }
 
-/// ⭐ ROW 4 — THE ARM THAT IS ACTUALLY LIVE, and which the step-3 DESIGN never named.
+/// ⭐ ROW 4 — WHICH `ServiceEvent` ARMS BRACKET CAN ACTUALLY RECEIVE. Four of eight.
 ///
-/// `(:wat::kernel::select peers)` yields a `ServiceEvent`, and `ServiceEvent::Malformed` IS emitted
-/// — `src/runtime.rs` builds it on a real decode failure ("poll (process tier): client message
-/// decode failed"). `wat/bracket.wat`'s collect-loop matches it and calls `assertion-failed!`
-/// ("runner {idx} sent an undecodable result"). **That is a deterministic decode failure killing
-/// the whole bracket run** — REPORT-FINAL in the governing taxonomy, a raise today.
+/// ⛔ CORRECTED 2026-09-19. This row first claimed `ServiceEvent::Malformed` was "the live
+/// ungraceful arm" bracket's DESIGN had missed. **It is not live for bracket either.** `ServiceEvent`
+/// is ONE enum serving TWO different select verbs, and they build disjoint variant sets:
 ///
-/// This pin does NOT bless it. It records that the live arm is known and counted, so the number
-/// cannot grow silently and so a future migration has a starting point that is measured rather
-/// than assumed. ⛔ The ten `RecvOutcome` arms are NOT the crusade target here; this one is.
+///   `:wat::kernel::select`  → `eval_peer_select_values` → Message, Closed, Lost, Shutdown  (4)
+///   the service `poll`      → `eval_poll_prime`         → + Admin, Connection, Malformed,
+///                                                           Rejected                       (7)
+///
+/// `bracket.wat` calls `select` and calls `poll` ZERO times. So its `Admin` / `Connection` /
+/// `Malformed` / `Rejected` arms are arms for events its own verb cannot construct — and the only
+/// thing a match can honestly write there is a panic.
+///
+/// ⭐ THAT IS THE REAL DEFECT, and it is a tier confusion in a TYPE — the same shape
+/// `a-momentary-failure-is-not-fatal` names for `Reply::Failed` ("a transport fact wearing an op
+/// type"), mirrored: SERVICE-shaped events in a POOL-shaped select. The rung that fixes it is a
+/// narrower event type for the peer-vector select ("making an illegal state not representable"),
+/// not four hand-written panics. Filed, not fixed here.
+///
+/// What this pin holds: the two impls' variant sets, so the moment `select` gains a variant —
+/// making one of bracket's four dead arms live — this reddens and the arm must be placed in
+/// RETRY / REPORT-FINAL / REPORT-GONE before it can go green.
 #[test]
-fn the_live_ungraceful_arm_is_serviceevent_malformed_and_it_is_counted() {
+fn kernel_select_builds_only_four_serviceevent_variants() {
     let src = runtime_src();
+    let sel = fn_body(&src, "eval_peer_select_values");
+    let poll = fn_body(&src, "eval_poll_prime");
+
+    // NON-VACUITY — both slices must really be the impls, not empty finds.
     assert!(
-        // rune:lint(loose-assert) — a targeted PRESENCE over a large output, same reason as row 1:
-        // two needles located anywhere in src/runtime.rs prove the ServiceEvent::Malformed emitter
-        // still exists. What is being asserted is EXISTENCE, not a value, so there is no
-        // structured value to capture in an .edn golden.
-        src.contains("variant_name: \"Malformed\".into(),")
-            && src.contains("client message decode failed"),
-        "the ServiceEvent::Malformed emitter moved — re-derive which of bracket's arms are live \
-         before trusting this file's reachability claims"
+        sel.contains("SELECT_EVENT_TYPE") && poll.contains("SELECT_EVENT_TYPE"),
+        "one of the two select impls no longer builds a ServiceEvent — re-derive this pin"
     );
 
-    let code = bracket_code();
-    let raising: usize = code
-        .split(":wat::spawn::ServiceEvent::")
-        .skip(1)
-        .filter(|seg| {
-            let head = &seg[..seg.len().min(400)];
-            head.starts_with("Malformed") && head.contains("assertion-failed!")
-        })
-        .count();
+    let built = |body: &str| -> std::collections::BTreeSet<String> {
+        body.split("variant_name: \"")
+            .skip(1)
+            .filter_map(|seg| seg.split('"').next().map(str::to_string))
+            .collect()
+    };
+    let sel_set = built(sel);
+    let poll_set = built(poll);
+
     assert_eq!(
-        raising, 1,
-        "expected exactly ONE raising ServiceEvent::Malformed arm in wat/bracket.wat (collect-loop, \
-         \"sent an undecodable result\"); found {raising}. A second one is a new ungraceful site of \
-         the same class — place it in RETRY / REPORT-FINAL / REPORT-GONE rather than copying the raise."
+        sel_set.iter().cloned().collect::<Vec<_>>(),
+        vec!["Closed", "Lost", "Message", "Shutdown"],
+        "⛔ `:wat::kernel::select` (bracket's verb) now builds a different ServiceEvent set. Any \
+         ADDED variant makes one of bracket.wat's dead collect-loop arms LIVE — place it in \
+         RETRY / REPORT-FINAL / REPORT-GONE before making this green. See \
+         docs/excursus/2026/08/001-sns-sqs/a-dead-runner-loses-one-item-not-the-run/."
     );
+
+    // The service poll is the one that owns the other four; pinned so the SPLIT is the fact on
+    // record, not just bracket's half of it.
+    for service_only in ["Admin", "Connection", "Malformed", "Rejected"] {
+        assert!(
+            poll_set.contains(service_only),
+            "{service_only} left the service poll's set — the two-verb split this file documents \
+             has moved"
+        );
+        assert!(
+            !sel_set.contains(service_only),
+            "⛔ `select` now builds {service_only}; bracket's arm for it is no longer dead"
+        );
+    }
+}
+
+/// ⚠ The four dead arms are COUNTED so they cannot multiply quietly while unreachable.
+#[test]
+fn brackets_four_unreachable_serviceevent_arms_are_counted() {
+    let code = bracket_code();
+    for dead in ["Admin", "Connection", "Malformed", "Rejected"] {
+        let n = code
+            .matches(&format!(":wat::spawn::ServiceEvent::{dead}"))
+            .count();
+        assert_eq!(
+            n, 1,
+            "expected exactly ONE collect-loop arm for the poll-only variant {dead} (it cannot \
+             reach a `select`-driven pool); found {n}"
+        );
+    }
 }
 
 fn bracket_code() -> String {
