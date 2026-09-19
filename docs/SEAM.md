@@ -181,6 +181,26 @@ skipped when nothing downstream constrains the call's result type. **8c still co
 unchecked shape is an unchecked shape, and 8d must not run over one — but it is a smaller stone than the
 design implies, and its brief says so rather than inheriting the 2026-08 framing.
 
+### ⭐ QUEUED BEHIND 8c — the builder's namespace ruling (2026-09-19)
+
+> *"everything to the left of the first `/` is the namespace, everything to the right is the name…
+> pathological names are tolerated gracefully… **the first slash separates namespace from name**."*
+
+`RULING-the-first-slash-separates-namespace-from-name.md`. **Today the code does the opposite** —
+`Identifier::bare` splits on `rfind('/')`, the LAST slash, and its own comment calls that *"today's
+split"*. On `wat.core//` that yields `["wat.core/", ""]`, an **empty name**; the ruling yields
+`["wat.core", "/"]`.
+
+⭐ **Measured, and it migrates NOTHING: of 6,292 slashed identifiers in code positions, 15 have 2+
+slashes, and all 15 are file paths in string literals — ZERO real identifiers.** The rules agree on
+everything that exists; the ruling defines the pathological case that is currently accidental.
+⚠ A first count said 3,984 and would have made this look large — it was matching file paths in
+**comments**. Strip comments, restrict to code, read the survivors.
+
+⛔ **Do not strike while 8c is open.** Measured as non-colliding (different files; `is_reference()`
+returns the same answer for every input that exists), but two hands in the identifier/resolve
+neighbourhood at once is how the 7h desync happened. **Its own small stone, after 8c.**
+
 ### The scale of 8d, measured
 
 **169,845 `::` occurrences across 2,440 of 2,483 tracked `.wat` files**, plus 826 Rust files carrying
