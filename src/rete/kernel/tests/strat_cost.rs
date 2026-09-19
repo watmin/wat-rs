@@ -413,7 +413,7 @@ fn strat_neg_stratum_split() {
         fire = fire.min(FIRE_PHASES.iter().map(|n| of(n).0).sum::<u64>() as f64);
         for (i, name) in STRAT_PHASES.iter().enumerate() {
             let (ns, k) = of(name);
-            net[i] = net[i].min(ns as f64 - k as f64 * cal);
+            net[i] = net[i].min(net_ns(ns as f64, k, cal));
             pairs[i] = k;
         }
     }

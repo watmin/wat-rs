@@ -422,9 +422,9 @@ fn fanout_production_leftover_split() {
         rhs_pairs = r_k;
         dedup_pairs = d_k;
     }
-    let prod_net = prod_raw - prod_pairs as f64 * cal;
-    let rhs_net = rhs_raw - rhs_pairs as f64 * cal;
-    let dedup_net = dedup_raw - dedup_pairs as f64 * cal;
+    let prod_net = net_ns(prod_raw, prod_pairs, cal);
+    let rhs_net = net_ns(rhs_raw, rhs_pairs, cal);
+    let dedup_net = net_ns(dedup_raw, dedup_pairs, cal);
     let remainder_raw = prod_raw - rhs_raw - dedup_raw;
     let tax_in_parent = (rhs_pairs + dedup_pairs) as f64 * cal;
     let naive = prod_net - rhs_net - dedup_net;
@@ -555,7 +555,7 @@ fn fanout_three_leftover_split() {
         };
         let fire: u64 = FIRE_PHASES.iter().map(|n| of(n).0).sum();
         let (rhs_raw, rhs_pairs) = of(RHS);
-        let rhs_net = rhs_raw as f64 - rhs_pairs as f64 * cal;
+        let rhs_net = net_ns(rhs_raw as f64, rhs_pairs, cal);
         Shot {
             wall,
             fire: fire as f64,
@@ -727,9 +727,9 @@ fn fanout_honest_fire_rank() {
         dedup_pairs = d_k;
         probe_pairs = pr_k;
     }
-    let rhs_net = rhs_raw - rhs_pairs as f64 * cal;
-    let dedup_net = dedup_raw - dedup_pairs as f64 * cal;
-    let probe_net = probe_raw - probe_pairs as f64 * cal;
+    let rhs_net = net_ns(rhs_raw, rhs_pairs, cal);
+    let dedup_net = net_ns(dedup_raw, dedup_pairs, cal);
+    let probe_net = net_ns(probe_raw, probe_pairs, cal);
     let remainder_raw = prod_raw - rhs_raw - dedup_raw;
     let tax_in_parent = (rhs_pairs + dedup_pairs) as f64 * cal;
     let honest_prod = rhs_net + dedup_net;
@@ -825,7 +825,7 @@ fn fanout_phase_dump() {
         wall = wall.min(t0.elapsed().as_nanos() as f64);
         for (name, ns, k) in rows {
             let e = acc.entry(name.to_string()).or_insert((f64::INFINITY, 0));
-            e.0 = e.0.min(ns as f64 - k as f64 * cal);
+            e.0 = e.0.min(net_ns(ns as f64, k, cal));
             e.1 = k;
         }
     }

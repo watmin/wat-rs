@@ -470,6 +470,19 @@ fn calibrate_mark_ns() -> f64 {
     best
 }
 
+/// Instrument-subtracted nanoseconds: a raw reading less what its own mark pairs cost.
+///
+/// Lifted 2026-09-08 (arc 278, `strike-instrument-subtraction-one-place`) out of two private
+/// closures that could not be shared — `render_phase_table`'s own `net_of`, twenty lines below,
+/// and an independently-invented twin in `accum_cost.rs`. `render_phase_table`'s doc says why one
+/// copy matters: "two copies is how one of them silently stops subtracting."
+///
+/// A FREE fn, not a method and not a closure — callers keep whatever fold (e.g. `.min(...)`) or
+/// key-lookup shape they had; only the arithmetic itself moves here.
+pub(super) fn net_ns(raw: f64, pairs: u64, cal_ns_per_pair: f64) -> f64 {
+    raw - pairs as f64 * cal_ns_per_pair
+}
+
 /// Render an instrument-subtracted phase table for ANY axis.
 ///
 /// Extracted 2026-08-01 when node-share needed the same table accum already had. Copying it
@@ -544,7 +557,7 @@ fn render_phase_table(
             )
         };
         let net_of = |k: &str, xs: &[u64]| -> f64 {
-            stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair
+            net_ns(stat(xs).0, *pairs.get(k).unwrap_or(&0), cal_ns_per_pair)
         };
         let total_min: f64 = top
             .iter()
