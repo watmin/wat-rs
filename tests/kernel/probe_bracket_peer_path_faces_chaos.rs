@@ -10,6 +10,11 @@ use std::process::Command;
 use wat::freeze::startup_from_file;
 use wat::runtime::{apply_function, Value};
 
+fn spawn_src() -> String {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/kernel/spawn.rs");
+    std::fs::read_to_string(p).expect("src/kernel/spawn.rs must be readable")
+}
+
 fn bracket_code() -> String {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("wat/bracket.wat");
     let src = std::fs::read_to_string(p).expect("wat/bracket.wat must be readable");
@@ -105,11 +110,61 @@ fn chaos_slow_is_message_and_survives() {
     );
 }
 
-/// Oversize work-fn: FrameTooLarge → Lost → REPORT-GONE. Not Malformed, not
-/// Rejected. The bracket dies — a worker taking down its coordinator.
+/// Re-dispatch must not block. collect-feed-idle uses try-send; a wedged
+/// runner (write_all after FrameTooLarge) WouldBlock instead of hanging send.
 #[test]
-fn chaos_oversize_is_lost_report_gone_not_malformed() {
+fn collect_feed_idle_uses_try_send() {
+    let code = bracket_code();
+    let start = code
+        .find(":wat::bracket::collect-feed-idle")
+        .expect("collect-feed-idle missing");
+    let body = &code[start..];
+    let end = body
+        .find(":wat::bracket::collect-report-gone!")
+        .unwrap_or(body.len());
+    let door = &body[..end];
+    assert!(
+        // rune:lint(loose-assert) — the dispatch bound.
+        door.contains(":wat::kernel::try-send"),
+        "collect-feed-idle no longer try-sends — a blocked send is outside every deadline"
+    );
+    assert!(
+        // rune:lint(loose-assert) — WouldBlock names the wedge.
+        door.contains("TrySendOutcome::WouldBlock"),
+        "collect-feed-idle does not face WouldBlock"
+    );
+}
+
+/// ⭐ Mutation: FrameTooLarge at classify_peer_error is Rejected, not Lost.
+/// Put Lost back and the oversize probe kills the coordinator again.
+#[test]
+fn classify_peer_error_frame_too_large_is_rejected() {
+    let src = spawn_src();
+    let start = src
+        .find("pub fn classify_peer_error")
+        .expect("classify_peer_error missing");
+    let body = &src[start..];
+    let end = body.find("pub struct ProcessPeerBundle").unwrap_or(body.len());
+    let door = &body[..end];
+    assert!(
+        // rune:lint(loose-assert) — the reclassification at the one door.
+        door.contains("RecvError::FrameTooLarge => PeerDeath::Rejected"),
+        "FrameTooLarge no longer maps to PeerDeath::Rejected in classify_peer_error"
+    );
+    assert!(
+        // rune:lint(loose-assert) — targeted ABSENCE of the death classification.
+        !door.contains("RecvError::FrameTooLarge => PeerDeath::Lost"),
+        "FrameTooLarge is death again — the DoS this stone closes"
+    );
+}
+
+/// Oversize: FrameTooLarge → Rejected → drop wedged runner → REPORT-GONE.
+/// Bound 2000 ms is above the RETRY deadlock cliff; this must finish promptly,
+/// not hang. Cap reason named. Not the old Rejected panic. Not Malformed.
+#[test]
+fn chaos_oversize_does_not_deadlock_above_the_cliff() {
     let output = wat_cmd()
+        .env("WAT_COLLECT_DEADLINE_MS", "2000")
         .arg("tests/kernel/probe_bracket_chaos_oversize.wat")
         .output()
         .expect("spawn wat");
@@ -120,27 +175,32 @@ fn chaos_oversize_is_lost_report_gone_not_malformed() {
     assert_eq!(
         output.status.code(),
         Some(2),
-        "oversize must take down the coordinator; stdout={stdout} stderr={stderr}"
+        "1-runner oversize must REPORT-GONE (runner unusable); stdout={stdout} stderr={stderr}"
     );
     assert!(
-        // rune:lint(loose-assert) — AssertionFailure blob carries location/frames; the arm name is the claim.
+        // rune:lint(loose-assert) — last runner dropped, no survivor.
         blob.contains("REPORT-GONE"),
-        "oversize must hit the Lost empty-alive arm (REPORT-GONE); got {blob}"
+        "oversize last-runner must REPORT-GONE; got {blob}"
     );
     assert!(
-        // rune:lint(loose-assert) — non-vacuity of the frame cap inside the same blob.
+        // rune:lint(loose-assert) — non-vacuity: the cap named in the raise.
         blob.contains("frame exceeded cap"),
         "oversize non-vacuity: the cap must have fired; got {blob}"
     );
     assert!(
-        // rune:lint(loose-assert) — targeted ABSENCE of the Rejected-arm wording.
+        // rune:lint(loose-assert) — targeted ABSENCE of the old Rejected-arm panic.
         !blob.contains("over-budget frame"),
-        "oversize must not be the Rejected arm; got {blob}"
+        "oversize must not be the old Rejected panic; got {blob}"
     );
     assert!(
-        // rune:lint(loose-assert) — targeted ABSENCE of Malformed in the raise.
+        // rune:lint(loose-assert) — not Malformed; different fact.
         !blob.contains("ServiceEvent::Malformed"),
         "oversize is not Malformed; got {blob}"
+    );
+    assert!(
+        // rune:lint(loose-assert) — the RETRY deadlock was GaveUp-or-hang; this is prompt.
+        !blob.contains("GaveUp"),
+        "oversize must not wait the wall (RETRY deadlock); got {blob}"
     );
 }
 

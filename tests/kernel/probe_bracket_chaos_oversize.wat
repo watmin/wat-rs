@@ -1,5 +1,6 @@
 ;; A work-fn that returns an O above DEFAULT-MAX-MESSAGE-BYTES. Process tier.
-;; 1 runner, 1 item: no survivor. Report the collect-loop arm that raises.
+;; 1 runner, 1 item: Rejected drops the wedged runner → REPORT-GONE. Bound 2000
+;; is above the RETRY-deadlock cliff; this must finish promptly.
 (:wat::core::defn :user::double-n
   [s <- :wat::core::String  n <- :wat::core::i64]
   -> :wat::core::String

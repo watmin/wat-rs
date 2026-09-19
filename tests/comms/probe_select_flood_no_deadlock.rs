@@ -1,5 +1,5 @@
 //! Stone — `select'` over a process child that floods stdout with > 512 KiB
-//! of un-terminated data must return `ServiceEvent::Lost` without deadlocking.
+//! of un-terminated data must return `ServiceEvent::Rejected` without deadlocking.
 //!
 //! ## The bug (unfixed HEAD)
 //!
@@ -23,7 +23,7 @@
 //!
 //! Before the `Err(_)` path that calls `err_rxs[index.0].recv()`, check for
 //! `RecvError::FrameTooLarge` distinctly. On FrameTooLarge, return
-//! `ServiceEvent::Lost { idx, cause }` IMMEDIATELY without reading the err
+//! `ServiceEvent::Rejected { idx, cause }` IMMEDIATELY without reading the err
 //! channel (the peer is torn down via RAII drop when the guards drop).
 //!
 //! ## Why WAT-level (not Rust-level like probe_overcap_no_deadlock)?
@@ -59,7 +59,7 @@ use wat::runtime::Value;
 /// Watchdog fires → exit 124 → FAIL.
 ///
 /// After fix: `FrameTooLarge` is handled before the `Err(_)` path; `select'`
-/// returns `ServiceEvent::Lost { idx: 0, cause }` immediately → PASS.
+/// returns `ServiceEvent::Rejected { idx: 0, cause }` immediately → PASS.
 #[test]
 fn select_prime_flood_no_deadlock() {
     // Arm the watchdog: deadlock → _exit(124) → test FAIL.
@@ -87,12 +87,12 @@ fn select_prime_flood_no_deadlock() {
                         ev.type_path
                     );
                     assert_eq!(
-                        ev.variant_name, "Lost",
-                        "flood child must yield ServiceEvent::Lost (FrameTooLarge); got variant {:?}",
+                        ev.variant_name, "Rejected",
+                        "flood child must yield ServiceEvent::Rejected (FrameTooLarge); got variant {:?}",
                         ev.variant_name
                     );
                     // fields[0] = idx (i64)
-                    assert!(!ev.fields.is_empty(), "Lost must have idx field");
+                    assert!(!ev.fields.is_empty(), "Rejected must have idx field");
                     assert_eq!(
                         ev.fields[0],
                         Value::i64(0),
@@ -131,7 +131,7 @@ fn select_prime_flood_no_deadlock() {
                                 }
                             }
                             other => panic!(
-                                "Lost.cause (field 1) must be Failure struct; got {:?}",
+                                "Rejected.cause (field 1) must be Failure struct; got {:?}",
                                 other
                             ),
                         }
@@ -147,8 +147,8 @@ fn select_prime_flood_no_deadlock() {
             // At HEAD with the deadlock: the watchdog fires first (_exit(124)).
             // If we somehow get here without deadlock (e.g. some other error path):
             panic!(
-                "select' raised instead of returning ServiceEvent::Lost \
-                 (expected ServiceEvent::Lost for FrameTooLarge flood): {}",
+                "select' raised instead of returning ServiceEvent::Rejected \
+                 (expected ServiceEvent::Rejected for FrameTooLarge flood): {}",
                 e
             );
         }

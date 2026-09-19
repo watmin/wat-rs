@@ -673,16 +673,18 @@
         (:wat::core::let
           [nxt (:wat::core::first pending)
            rest (:wat::core::rest pending)]
-          (:wat::core::match (:wat::kernel::send
+          (:wat::core::match (:wat::kernel::try-send
                                (:wat::core::nth peers idle)
                                (:wat::bracket::PoolMsg::Work
                                  (:wat::core::Tuple nxt (:wat::core::nth items nxt))))
-            (:wat::kernel::SendOutcome::Sent
+            (:wat::kernel::TrySendOutcome::Sent
               (:wat::bracket::collect-feed-idle peers items alive
                 (:wat::bracket::holding-set holding idle nxt) rest))
-            (:wat::kernel::SendOutcome::Stopped (:wat::core::Tuple holding pending))
-            (:wat::kernel::SendOutcome::Closed  (:wat::core::Tuple holding pending))
-            ((:wat::kernel::SendOutcome::Lost _c) (:wat::core::Tuple holding pending))))))))
+            ;; WouldBlock: the idle runner is not draining — wedged in write_all
+            ;; (FrameTooLarge) or otherwise. Do not block. Leave the item pending.
+            (:wat::kernel::TrySendOutcome::WouldBlock (:wat::core::Tuple holding pending))
+            (:wat::kernel::TrySendOutcome::Closed  (:wat::core::Tuple holding pending))
+            ((:wat::kernel::TrySendOutcome::Lost _c) (:wat::core::Tuple holding pending))))))))
 
 (:wat::core::defn :wat::bracket::collect-report-gone! :- [T]
   [orig <- :wat::core::i64  held <- :wat::core::String  why <- :wat::core::String]
@@ -1005,15 +1007,25 @@
               (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
                 holding' alive pending' t0-ns budget-ms
                 (:wat::bracket::collect-restamp holding1 holding' deadlines1 budget-ms)))))
-        ;; POLL-ONLY (FrameTooLarge on untrusted client). Same too-wide enum.
-        ((:wat::spawn::ServiceEvent::Rejected idx cause)
-          (:wat::kernel::assertion-failed!
-            (:wat::string::interpolate
-              "bracket collect-loop: runner {idx} sent an over-budget frame {held}: {cause}"
-              :idx idx
-              :held (:wat::bracket::holding-phrase holding1 idx)
-              :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None))
+        ;; ⭐ FrameTooLarge. The peer is ALIVE and blocked in write_all — the
+        ;; cap refused the frame. ⛔ NOT the Malformed act: a Malformed runner
+        ;; is idle and readable; this one is wedged. Re-dispatching to it
+        ;; deadlocks (send waits, runner never recvs). Drop it from `alive`.
+        ;; Re-queue the item for a survivor. Last runner: REPORT-GONE, cause
+        ;; names the cap. Retrying the payload on anyone reproduces it; the
+        ;; wall is the stop if survivors also wedge. (b) still needs a slot.
+        ((:wat::spawn::ServiceEvent::Rejected live-idx cause)
+          (:wat::core::let
+            [orig (:wat::core::nth alive live-idx)
+             pending' (:wat::bracket::collect-requeue holding1 orig pairs-acc pending1)
+             alive' (:wat::bracket::alive-without alive orig)]
+            (:wat::core::if (:wat::core::empty? alive')
+              (:wat::bracket::collect-report-gone! orig
+                (:wat::bracket::holding-phrase holding1 orig)
+                (:wat::kernel::Failure/message cause))
+              (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
+                holding1 alive' pending' t0-ns budget-ms
+                (:wat::bracket::holding-set deadlines1 orig 0)))))
         ;; TRANSPORT FACT — world stopping. Named raise; surface has no GaveUp slot.
         (:wat::spawn::ServiceEvent::Shutdown
           (:wat::bracket::collect-report-gone! -1 "idle (holding no item)" "Shutdown"))

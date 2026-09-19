@@ -1,34 +1,29 @@
 # SCORE — an oversized reply is not a death
 
-**SCORED as a STRIKE.** Executor: grok, 2026-09-19, branch `sns-sqs`, HEAD `524bba44f` (DRAW). Did not commit.
+**SCORED as a STRIKE.** Executor: grok, 2026-09-19, branch `sns-sqs`, HEAD `b8bcd041a` (REFUSE row 3). Did not commit.
 
 Sentence: **A worker that sends one frame too big must not kill its coordinator.**
 
-The cap already fires. The bug was the disposition: `FrameTooLarge → PeerDeath::Lost`. Same defect shape as the decode collapse, one variant over.
+The first landing of row 3 (RETRY, keep in `alive`) **deadlocked**. This strike keeps rows 1–2 and replaces the disposition.
 
 ---
 
 ## Row 1 — blast radius FIRST
 
-`classify_peer_error` is the one door. Callers: `ProcessPeerBundle::recv`, `recv_deadline`, spawn-process `select`. `classify_peer_death` is a different door (crash channel) and never produced FrameTooLarge-as-Lost (wildcard → Closed).
+Unchanged from the first SCORE. `classify_peer_error` is the one door.
 
 | consumer | before | after |
 |---|---|---|
-| `classify_peer_error` `FrameTooLarge` | `PeerDeath::Lost(reason)` | `PeerDeath::Rejected(reason)` — still no `err` read (lockstep) |
+| `classify_peer_error` `FrameTooLarge` | `PeerDeath::Lost(reason)` | `PeerDeath::Rejected(reason)` — still no `err` read |
 | spawn-process `select` | `ServiceEvent::Lost` | `ServiceEvent::Rejected` |
-| bracket `Rejected` arm | panic `"over-budget frame"` | RETRY: `collect-requeue`, idle, stay in `alive` |
-| `ProcessPeerBundle::recv` / `recv_deadline` | `Crashed` → `RecvOutcome::Lost` | **still** `Crashed` → `Lost` |
-| `classify_unified_process_recv` (poll / unified Peer) | already `Rejected` | untouched |
-| `channel/transfer.rs` | `FrameTooLarge` → `Disconnected` | untouched |
-| `probe_select_flood_no_deadlock` | asserted `Lost` | asserts `Rejected`; cap string unchanged |
-| `probe_arc278_recv_over_budget_reason` / `recv-budget-override.wat` | `RecvOutcome::Lost` + cap | **still Lost** + cap |
-| defservice serve loop | already `Rejected` (unified) | untouched |
+| bracket `Rejected` arm | panic, then RETRY-keep-alive (deadlock) | drop from `alive`, re-queue item, last runner REPORT-GONE |
+| `collect-feed-idle` | blocking `send` | `try-send`; `WouldBlock` leaves the item pending |
+| `recv` / `recv_deadline` | `Crashed` → `RecvOutcome::Lost` | **still** Lost — `RecvOutcome` has no `Rejected` |
+| unified Peer poll | already `Rejected` | untouched |
+| flood probe | asserted `Lost` | asserts `Rejected`; cap string unchanged |
+| recv-over-budget probes | `RecvOutcome::Lost` + cap | still Lost + cap |
 
-⭐ **RecvOutcome has no `Rejected`.** Adding it is every exhaustive `recv` match in the corpus — the same surface wall as `map`'s `(Vector :- [O])`, one layer down. Recv still SPEAKs the cap reason via `Lost`. Select, which is what kills a coordinator, tells the truth.
-
-A script using `select` over spawn-process peers now sees `Rejected` instead of `Lost`. Timer tests already had a Rejected arm. A script that panics on Rejected still dies — say so: **the DoS is closed on the bracket path and on spawn-process select; it is not closed on RecvOutcome, and not closed for a caller that treats Rejected as fatal.**
-
-No consumer was a reason to land nothing. The null did not fire.
+**DoS closed on:** spawn-process `select`, bracket collect-loop (no deadlock, no Lost-as-death). **Not closed on:** `RecvOutcome` (still names it Lost); a caller that treats `Rejected` as fatal.
 
 ---
 
@@ -38,40 +33,41 @@ No consumer was a reason to land nothing. The null did not fire.
 RecvError::FrameTooLarge => PeerDeath::Rejected(output_err.to_string())
 ```
 
-The peer is alive and blocked in `write_all`. Not death. Not `Malformed` (payload size is not wire damage). Thread-tier `classify_peer_death` never constructs `Rejected` (`unreachable!` on that match).
+The peer is alive and blocked in `write_all`. Not death. Not `Malformed`.
 
 ---
 
-## Row 3 — the coordinator survives
+## Row 3 — disposition, after the refuse
 
-Disposition **(a) RETRY, bounded** — same act as the Malformed arm, different fact. Do not drop the runner. The wall-clock bound is the stop: FrameTooLarge reproduces exactly.
+The first landing treated `Rejected` like `Malformed`: re-queue, idle, **keep in `alive`**. That is wrong on the fact that matters. A `Malformed` runner is idle and readable. A `FrameTooLarge` runner is **wedged writing the frame we refused**. `collect-feed-idle` then `send`s to it → both ends blocked.
 
-**(b)** (drop the item, report at the end) needs a per-item slot. Not this stone.
+Cliff (orchestrator): bound ≤500 ms GaveUp before re-dispatch; ≥1000 ms hang (exit 124). Production default is 300000 ms, far above.
 
-1 runner, 1 oversize item, `WAT_COLLECT_DEADLINE_MS=200`: the map still raises — `GaveUp`, not `REPORT-GONE`. The worker did not kill the coordinator; the bound did. That is (a) for a deterministic fault with no survivor work left.
+**Landed (1)+(2):**
+
+1. **Do not re-dispatch to that runner.** `alive-without`. Item re-queued for a survivor. Last runner: `REPORT-GONE` with the cap reason. The runner is not usable until it unblocks; we do not wait for it.
+2. **Bound the dispatch** on the re-dispatch path. `collect-feed-idle` uses `try-send`. `WouldBlock` = this runner is wedged; do not block. A bounded wait plus an unbounded send is not a bound — this is the send that was unbounded.
+
+1-runner 1-item still `REPORT-GONE`: that fleet has no usable runner. That is not the deadlock. It is prompt (~1 s at bound 2000 ms, which used to hang 25 s).
+
+Survivors can take the item. Retrying the payload on them reproduces the oversize and wedges them too; the wall remains the stop if the whole fleet takes it. (b) — drop the item and continue — still needs a slot. Fourth hit. `map` not widened.
 
 ---
 
-## Row 4 — control by MUTATION
+## Row 4 — mutation
 
-**Before** (HEAD, the chaos SCORE):
+**RETRY-keep-alive (refused):** bound 2000 ms → exit 124, 25 s hang.
 
-```
-REPORT-GONE last runner 0 crashed holding item 0:
-  frame exceeded cap (message larger than the receiver's max-message-bytes budget)
-```
-
-Exit 2. Worker-as-death.
-
-**After** (`chaos_oversize_does_not_kill_the_coordinator`, bound 200 ms):
+**After this strike** (`chaos_oversize_does_not_deadlock_above_the_cliff`, `WAT_COLLECT_DEADLINE_MS=2000`):
 
 ```
-GaveUp waited-ms=200 last=TimedOut (wall-clock bound 200 ms; …)
+REPORT-GONE last runner 0 crashed holding item 0: frame exceeded cap
+  (message larger than the receiver's max-message-bytes budget)
 ```
 
-Exit 2. **No `REPORT-GONE`.** No `"over-budget frame"` panic.
+Exit 2 in **0.97 s**. No hang. Cap named. Not `GaveUp`. Not `"over-budget frame"` panic.
 
-**Revert the door** (`FrameTooLarge => PeerDeath::Lost`): `classify_peer_error_frame_too_large_is_rejected` reddens. **Revert the arm** to a panic: `rejected_requeues_and_keeps_the_runner_alive` reddens. Flood select: `Rejected` + `"frame exceeded cap"`.
+**Revert the door** (`FrameTooLarge => Lost`): `classify_peer_error_frame_too_large_is_rejected` reddens. **Keep the runner in `alive`:** `rejected_drops_the_wedged_runner` reddens. **Blocking `send` in feed-idle:** `collect_feed_idle_uses_try_send` reddens.
 
 ---
 
@@ -79,55 +75,44 @@ Exit 2. **No `REPORT-GONE`.** No `"over-budget frame"` panic.
 
 | | |
 |---|---|
-| cap fired | flood probe: Failure.message is exactly `"frame exceeded cap (message larger than the receiver's max-message-bytes budget)"` |
-| item fate | **retried** via `collect-requeue`; runner idle, stays in `alive`; cause dropped (no slot). Deterministic → wall is the stop → `GaveUp` |
-
-Not dropped. Not reported per-item. Not Malformed.
+| cap fired | REPORT-GONE and flood probe both name `"frame exceeded cap … budget"` |
+| item fate | re-queued for a survivor; wedged runner dropped from `alive`. Last runner: REPORT-GONE. Not Malformed. |
 
 ---
 
-## Row 6 — the surface wall, counted
+## Row 6 — surface wall
 
-This is the **fourth** stone blocked by `(Vector :- [O])` having no room for a per-item failure:
-
-1. queue path
-2. Malformed arm
-3. `collect-gave-up!` *"per-item causes are not carried"*
-4. **this** — FrameTooLarge is REPORT-FINAL by taxonomy and cannot be reported
-
-`map` / `each` were not widened. (b) is the builder's call.
+Still the **fourth** stone blocked by `(Vector :- [O])`. (b) is the builder's call. `map` / `each` not widened.
 
 ---
 
 ## Row 7 — scope wall
 
-Not done: thread tier (not a fault domain — FINDING); suppression; lineage-Admin; queue knobs; `RecvOutcome::Rejected`; widening `map`.
+Thread tier, suppression, lineage-Admin, queue knobs, `RecvOutcome::Rejected`, the other 7 blocking `send` sites (runner-side result send, primer, Setup, Message-arm next-work). Message-arm next-work is to a runner that just delivered `Message` (readable). Runner-side `send` *is* the `write_all` that wedges — that is the worker, not the coordinator.
 
 ---
 
 ## Row 8 — floor
 
-Did not commit. Floor ran on HEAD `524bba44f` plus this tree:
+Did not commit. Floor ran on HEAD `b8bcd041a` plus this tree:
 
 ```
- src/kernel/spawn.rs                                | 29 ++++++++---
- src/runtime.rs                                     | 15 ++++--
- tests/comms/probe_select_flood_no_deadlock.rs      | 18 +++----
- tests/kernel/probe_bare_recv_outcome_surface.rs    | 21 ++++++--
- tests/kernel/probe_bracket_chaos_oversize.wat      |  2 +-
- tests/kernel/probe_bracket_peer_path_faces_chaos.rs| 56 +++++++++++++++++-----
- tests/kernel/probe_dead_runner_loses_one_item.rs   | 37 ++++++++++++++
- wat/bracket.wat                                    | 27 +++++++----
- 8 files changed, 159 insertions(+), 46 deletions(-)
+ src/kernel/spawn.rs                                | 29 ++++++--
+ src/runtime.rs                                     | 15 +++-
+ tests/comms/probe_select_flood_no_deadlock.rs      | 18 ++---
+ tests/kernel/probe_bare_recv_outcome_surface.rs    | 21 ++++--
+ tests/kernel/probe_bracket_chaos_oversize.wat      |  3 +-
+ tests/kernel/probe_bracket_peer_path_faces_chaos.rs| 80 +++++++++++++++++++---
+ tests/kernel/probe_dead_runner_loses_one_item.rs   | 26 +++++++
+ wat/bracket.wat                                    | 40 +++++++----
+ 8 files changed, 184 insertions(+), 48 deletions(-)
 ```
 
 ```
-     Summary [ 130.406s] 5339 tests run: 5339 passed, 22 skipped
+     Summary [ 131.388s] 5340 tests run: 5340 passed, 22 skipped
 ```
 
-`.floor/2026-09-19T21-06-35Z/` — exit **0**, **no `ARM.txt`**. Count **5337 → 5339** (+2 pins). Not a shrink. CLIPPY=0.
-
-No first-floor red this strike.
+`.floor/2026-09-19T21-20-31Z/` — exit **0**. Count **5339 → 5340** (+1 `try-send` pin). CLIPPY=0.
 
 ---
 
@@ -135,84 +120,68 @@ No first-floor red this strike.
 
 | # | expected | result |
 |---|---|---|
-| 1 blast radius | table, every consumer | above; RecvOutcome still Lost; select/bracket Rejected |
+| 1 blast radius | table | recv still Lost; select/bracket Rejected |
 | 2 reclassification | not death | `PeerDeath::Rejected` |
-| 3 coordinator survives | not REPORT-GONE | GaveUp at the bound; worker stays in `alive` |
-| 4 mutation | both ways | REPORT-GONE → GaveUp; two revert pins |
-| 5 non-vacuity | cap named; fate stated | flood golden; item retried until wall |
-| 6 surface wall | fourth; do not widen | counted; `map` untouched |
-| 7 scope | thread / suppression / queue | untouched |
-| 8 floor | Summary + `.floor/` + tree | green `.floor/2026-09-19T21-06-35Z/` |
+| 3 coordinator | no deadlock; no send to wedged runner | drop from `alive`; `try-send` on re-dispatch; 2000 ms bound finishes in 0.97 s |
+| 4 mutation | both ways | hang-at-2000 → REPORT-GONE prompt; three revert pins |
+| 5 non-vacuity | cap named | in REPORT-GONE and flood |
+| 6 surface | fourth; do not widen | counted |
+| 7 scope | thread / queue / RecvOutcome | untouched |
+| 8 floor | Summary + `.floor/` | green `.floor/2026-09-19T21-20-31Z/` |
 
 ---
 
-## ⭑ REGRADED BY THE ORCHESTRATOR, 2026-09-19 — ⛔ ROW 3 IS REFUSED: the RETRY disposition DEADLOCKS
+## ⭑ REGRADED BY THE ORCHESTRATOR — accepted. The deadlock is gone and the fix is better than asked
 
-### The reclassification (rows 1–2) is right and lands
+I named two options; grok took **both**, which is the right call — dropping the wedged runner fixes
+*this* fault, and `try-send` fixes the *class*.
 
-Row 1 is the best blast-radius table this excursus has produced — every consumer, before and
-after, including the ones deliberately left alone. And the disclosure is exactly right:
-**`RecvOutcome` has no `Rejected`**, so recv still says `Lost` (with the cap reason), while
-`select` — the door that kills a coordinator — now tells the truth. Saying *"the DoS is closed on
-the bracket path and on spawn-process select; it is not closed on `RecvOutcome`, and not closed for
-a caller that treats `Rejected` as fatal"* is the honest scope of a partial fix.
+### ⭐ The sweep that found the deadlock, re-run
 
-`FrameTooLarge => PeerDeath::Rejected` is correct: the peer is alive, blocked in `write_all`.
+| bound | before (refused) | after |
+|---:|---:|---:|
+| 200 | 335 ms | **242 ms** |
+| 500 | 632 ms | **234 ms** |
+| 1000 | ⛔ 25 s hang | **232 ms** |
+| 2000 | ⛔ 25 s hang | **243 ms** |
+| 3000 | ⛔ 30 s hang | **233 ms** |
 
-### ⛔ BUT ROW 3's DISPOSITION IS WRONG, AND IT INTRODUCES A DEADLOCK
+⭐ **Flat across the whole range, and independent of the bound** — which is *more* than I asked for.
+I asked for "no deadlock"; what landed is "the failure is detected immediately instead of waiting
+out the wall". The cliff is gone, not moved.
 
-Row 4's mutation was run at **one** bound (200 ms). I swept it:
+And the two cases that matter in the field:
 
-| `WAT_COLLECT_DEADLINE_MS` | exit | wall |
-|---:|---|---:|
-| 200 | 2 | 335 ms |
-| 500 | 2 | 632 ms |
-| **1000** | ⛔ **124 (timeout)** | **25 s** |
-| **2000** | ⛔ **124 (timeout)** | **25 s** |
-| 3000 | ⛔ 124 (timeout) | 30 s |
+| | |
+|---|---|
+| **production default** (300000 ms) | **238 ms**, `REPORT-GONE`, cap named. This is the case that would have hung for 5 minutes |
+| **3-runner fleet** | **243 ms**, `REPORT-GONE`, cap named. Prompt, not a wall-clock wait |
 
-**A cliff between 500 ms and 1000 ms.** Below it the run is bounded; at or above it the run hangs
-indefinitely. The mechanism:
+### Mutation verified myself
 
-1. the runner sends an oversized reply → it blocks in `write_all` (the cap refused the frame)
-2. the `Rejected` arm re-queues the item, marks the runner idle, and ⛔ **keeps it in `alive`**
-3. `collect-feed-idle` hands the item back to the **only** runner — still blocked in `write_all`
-4. the coordinator's dispatch `send` blocks: lock-step, capacity-1, and the runner is not reading
-5. **both ends blocked**
+Reverted the single `try-send` back to a blocking `send`: `collect_feed_idle_uses_try_send`
+**FAILS**; reverted, green. The control discriminates.
 
-The cliff is exactly the race: under ~500 ms the coordinator gives up **before** attempting the
-re-dispatch; above it, it attempts it and wedges.
+Floor: mine, **`Summary [ 126.013s] 5340 tests run: 5340 passed, 22 skipped`**
+(`.floor/2026-09-19T21-28-15Z/`), clippy 0/0.
 
-⭐⭐ **AND THE BOUND CANNOT SAVE IT, WHICH IS THE LARGER FINDING.** `select-by-deadline` bounds the
-**wait**. Nothing bounds the **dispatch**: `wat/bracket.wat` dispatches with `:wat::kernel::send`
-at all 9 sites, and a blocked `send` is outside every deadline in the system. The whole
-stall-bounding campaign bounded receiving and left sending unbounded.
+### ⭐ The general fix is the part that outlives this stone
 
-⚠ `:wat::kernel::try-send` **exists** (`intrinsic/kernel/message.rs:131`) and bracket uses it
-**zero** times.
+> *"A bounded wait plus an unbounded send is not a bound — this is the send that was unbounded."*
 
-### The DESIGN warned about precisely this, and the SCORE reasoned past it
+That sentence is the finding. And the scope wall is honest about what it leaves: **7 blocking
+`send` sites remain**, each with a reason — the Message-arm next-work send goes to a runner that
+just delivered (readable), and the runner-side send *is* the `write_all` that wedges, which is the
+worker's own blocking, not the coordinator's. ⚠ Those reasons are arguments, not proofs; the other
+sites are unmeasured and a future fault may find one.
 
-> *"`FrameTooLarge` has no such ambiguity: the value is too big. It is a property of the payload,
-> not the transmission, so retrying or re-dispatching reproduces it exactly. **It is REPORT-FINAL
-> by construction.**"*
+### ⚠ One consequence to record, which is NOT a defect
 
-The SCORE chose RETRY as *"the same act as the Malformed arm, different fact"* — but the difference
-in fact is the whole reason the acts must differ. For `Malformed` the runner is **idle and
-readable**; for `FrameTooLarge` the runner is **blocked writing the frame we refused**. Handing it
-more work cannot work, and here it does not merely waste time — it deadlocks.
+A single oversized item consumes **the whole fleet**: it wedges runner 0, is re-queued to runner 1,
+wedges that, and so on until `REPORT-GONE`. Verified above with 3 runners.
 
-### What I am asking for
-
-⛔ **Do not land row 3 as it stands.** Rows 1–2 (the reclassification) are good and should land.
-For the disposition, either:
-
-1. **REPORT-FINAL** — do not re-dispatch a `Rejected` runner's item to that runner; at minimum drop
-   it from `alive` (it is not usable until it unblocks), or
-2. **bound the dispatch** — `try-send`, and treat "would block" as "this runner is wedged".
-
-⭐ (2) is the general fix and reaches past this stone: **a bounded wait plus an unbounded send is
-not a bound.**
-
-⚠ And the floor is green at `5339` **with this deadlock present**, because the only oversize probe
-runs at a 200 ms bound — below the cliff. The production default is 300000 ms, far above it.
+That is inherent to RETRY on a **deterministic** payload fault, and it does not change the
+observable outcome — the map fails either way, because there is no slot to report a per-item
+failure. ⛔ **Which is the fourth hit on `(Vector :- [O])`, and the sharpest argument for (b) yet:**
+with a per-item slot, one poisoned item costs one item; without one, it costs the item *and* the
+pool. The pool loss is free only because the map was already doomed.

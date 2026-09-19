@@ -224,6 +224,11 @@ fn kernel_select_builds_only_four_serviceevent_variants() {
         );
     }
     assert!(
+        // rune:lint(loose-assert) — FrameTooLarge is Rejected, not Lost.
+        sel.contains("PeerDeath::Rejected") && sel.contains("service_event_rejected"),
+        "spawn-process select no longer maps FrameTooLarge to ServiceEvent::Rejected"
+    );
+    assert!(
         // rune:lint(loose-assert) — Admin is built only on the self-peer role in the engine.
         fan.contains("service_event_admin") && fan.contains("service_event_connection"),
         "fan_in lost Admin/Connection constructors"
@@ -257,14 +262,13 @@ fn select_and_poll_share_decode_classification() {
     );
 }
 
-/// ⚠ The four collect-loop arms are COUNTED so they cannot multiply quietly.
-/// Malformed is now live for process-tier select (shared helper); the arm still
-/// panics until the parked stone places it. Admin/Connection/Rejected stay
-/// unreachable from a peers-only call.
+/// ⚠ Collect-loop arms that a peers-only select cannot construct are COUNTED
+/// so they cannot multiply quietly. Rejected is live (spawn-process
+/// FrameTooLarge); Admin/Connection stay unreachable.
 #[test]
 fn brackets_four_unreachable_serviceevent_arms_are_counted() {
     let code = bracket_code();
-    for dead in ["Admin", "Connection", "Rejected"] {
+    for dead in ["Admin", "Connection"] {
         let n = code
             .matches(&format!(":wat::spawn::ServiceEvent::{dead}"))
             .count();
@@ -273,6 +277,13 @@ fn brackets_four_unreachable_serviceevent_arms_are_counted() {
             "expected exactly ONE collect-loop arm for {dead}; found {n}"
         );
     }
+    let rejected = code
+        .matches(":wat::spawn::ServiceEvent::Rejected")
+        .count();
+    assert_eq!(
+        rejected, 1,
+        "Rejected is collect-loop's FrameTooLarge RETRY arm; found {rejected}"
+    );
     let malformed = code
         .matches(":wat::spawn::ServiceEvent::Malformed")
         .count();

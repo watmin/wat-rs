@@ -167,3 +167,29 @@ fn malformed_requeues_and_keeps_the_runner_alive() {
          hand it the item it just re-queued"
     );
 }
+
+/// ⭐ FrameTooLarge is Rejected, not Lost. The runner is wedged in write_all —
+/// re-dispatching to it deadlocks. Drop it from `alive` (Closed/Lost shape),
+/// re-queue the item for a survivor. Keep it in `alive` and the 2000 ms bound hangs.
+#[test]
+fn rejected_drops_the_wedged_runner() {
+    let code = bracket_code();
+    let body = collect_loop_arm_body(&code, ":wat::spawn::ServiceEvent::Rejected");
+    assert!(
+        body.len() > 80 && body.len() < 1600,
+        "Rejected arm sliced to {} bytes — the terminator moved and the window is wrong; \
+         re-derive it before trusting the assertions below",
+        body.len()
+    );
+    assert!(
+        // rune:lint(loose-assert) — item still known; re-queue for a survivor.
+        body.contains("collect-requeue"),
+        "Rejected must re-queue the held item via collect-requeue"
+    );
+    assert!(
+        // rune:lint(loose-assert) — the runner is not readable; drop it.
+        body.contains("alive-without"),
+        "⛔ Rejected keeps the wedged runner in `alive`. Handing it work deadlocks \
+         (send waits, runner blocked in write_all)."
+    );
+}

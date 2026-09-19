@@ -27339,6 +27339,11 @@ fn eval_peer_select_wait(
                                 names: no_field_names(),
                                 fields: vec![],
                             })),
+                            // FrameTooLarge is a process-output fact (`classify_peer_error`),
+                            // never a crash-channel fact (`classify_peer_death`).
+                            PeerDeath::Rejected(_) => unreachable!(
+                                "classify_peer_death does not construct Rejected"
+                            ),
                         }
                     }
                 }
@@ -27489,9 +27494,8 @@ fn eval_peer_select_wait(
                 match result {
                     // The ONE door (annihilation of the two-door deadlock):
                     // classify_peer_error owns the FrameTooLarge teardown (no err
-                    // read → no deadlock) AND the true-EOF err read. recv
-                    // (ProcessPeerBundle::recv) routes through the SAME fn — a
-                    // cap-violation surfaces as Lost{cap reason} consistently.
+                    // read → no deadlock) AND the true-EOF err read. A cap-violation
+                    // is Rejected (peer alive, payload too big), not Lost.
                     // arc 292 L3 — timer peers have no err channel (err_rxs[i] = None);
                     // EOF on a timer rx always means Closed (the timer fired and is done).
                     Err(e) => {
@@ -27522,6 +27526,11 @@ fn eval_peer_select_wait(
                                     names: no_field_names(),
                                     fields: vec![],
                                 })),
+                                PeerDeath::Rejected(reason) => service_event_rejected(
+                                    SELECT_EVENT_TYPE,
+                                    peer_idx,
+                                    reason,
+                                ),
                             },
                             // Timer peer: no err channel; EOF always means clean Closed.
                             None => Value::Enum(Arc::new(EnumValue {

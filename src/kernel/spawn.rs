@@ -220,6 +220,14 @@ pub enum PeerDeath {
     /// and this variant is not a death; that mismatch is the point — it is the
     /// last place the fact survives before the wat boundary gives it a home.
     Shutdown,
+    /// The output channel refused a frame that exceeded the receiver's
+    /// max-message-bytes budget. **Nothing died.** The peer is ALIVE and
+    /// blocked in `write_all` (the parent stopped draining at the cap).
+    /// This used to fold into [`PeerDeath::Lost`] — the same defect
+    /// `one-selectable-set-primitive` fixed for decode failure, one
+    /// variant over. A 400-class client error, not a 500-class crash.
+    /// Excursus 001 `an-oversized-reply-is-not-a-death`.
+    Rejected(String),
 }
 
 /// Classify a spawned peer's death from the result of reading its crash / err
@@ -262,10 +270,10 @@ pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) 
 ///
 /// Lockstep invariant: on `FrameTooLarge` the child is ALIVE and blocked in
 /// `write_all` (the parent stopped draining after the cap fired) — reading `err`
-/// would DEADLOCK. The cap-violation IS the cause, so surface it as `Lost`
-/// WITHOUT touching `err`; the caller tears the peer down via RAII. Only a true
-/// EOF/shutdown (`Err(_)`) reads `err` — there the child has exited, so the read
-/// returns promptly (buffered reason → `Lost`, or EOF → `Closed`).
+/// would DEADLOCK. The cap-violation IS the cause, so surface it as `Rejected`
+/// WITHOUT touching `err`. Only a true EOF/shutdown (`Err(_)`) reads `err` —
+/// there the child has exited, so the read returns promptly (buffered reason →
+/// `Lost`, or EOF → `Closed`).
 ///
 /// Arc 278 no-hidden-failures (transport-tier twin): `RecvError::Failed(reason)`
 /// on the OUTPUT channel is handled the same way as `FrameTooLarge` — it is
@@ -279,7 +287,7 @@ pub fn classify_peer_error(
     err: &crate::comms::process::Receiver<String>,
 ) -> PeerDeath {
     match output_err {
-        crate::comms::RecvError::FrameTooLarge => PeerDeath::Lost(output_err.to_string()),
+        crate::comms::RecvError::FrameTooLarge => PeerDeath::Rejected(output_err.to_string()),
         crate::comms::RecvError::Failed(reason) => PeerDeath::Lost(reason.clone()),
         // Arc 278 #73 — a stop woke this parked read. The child is ALIVE, exactly as
         // it is under `FrameTooLarge`, so reading `err` here is both unfounded (nothing
@@ -383,7 +391,8 @@ impl ProcessPeerBundle {
             Ok(value) => Ok(value),
             // The ONE door: classify_peer_error owns the FrameTooLarge-teardown
             // (no err read → no deadlock) AND the true-EOF err read. A cap-violation
-            // surfaces as Crashed with the cap reason — consistent with select.
+            // is Rejected at the door; recv maps it to Crashed so RecvOutcome::Lost
+            // still SPEAKs the cap reason (RecvOutcome has no Rejected).
             Err(e) => match classify_peer_error(&e, &self.err) {
                 PeerDeath::Lost(reason) => Err(PeerRecvError::Crashed(reason)),
                 PeerDeath::Closed => Err(PeerRecvError::Disconnected),
@@ -392,6 +401,11 @@ impl ProcessPeerBundle {
                 // the stop into `Closed` here, so a process peer reported a clean EOF
                 // for a stop while a thread peer reported the truth.
                 PeerDeath::Shutdown => Err(PeerRecvError::Shutdown),
+                // RecvOutcome has no Rejected. The cap reason still SPEAKs
+                // (Crashed → Lost[Failure]); naming it death at recv is the
+                // RecvOutcome surface wall, not this stone. Select maps
+                // Rejected to ServiceEvent::Rejected.
+                PeerDeath::Rejected(reason) => Err(PeerRecvError::Crashed(reason)),
             },
         }
     }
@@ -428,6 +442,9 @@ impl ProcessPeerBundle {
                     PeerDeath::Lost(reason) => DeadlineRecv::Failed(PeerRecvError::Crashed(reason)),
                     PeerDeath::Closed => DeadlineRecv::Failed(PeerRecvError::Disconnected),
                     PeerDeath::Shutdown => DeadlineRecv::Failed(PeerRecvError::Shutdown),
+                    PeerDeath::Rejected(reason) => {
+                        DeadlineRecv::Failed(PeerRecvError::Crashed(reason))
+                    }
                 },
             },
         }
