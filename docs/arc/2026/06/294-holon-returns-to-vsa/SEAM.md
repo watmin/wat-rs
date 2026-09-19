@@ -21,35 +21,42 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `a55a292e0` (batch 4u's records, pushed). **560 of 651 replayed. 91 remain.**
+Stamp: written on top of `474322258` (batch 4v's records, pushed). **580 of 651 replayed. 71 remain.**
 In flight: nothing.
 
-**Batch 4u (#541–#560) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
-census `no STOP-8`, 20/20 subjects and trailers. Twenty docs-only steps, 22 distinct `.md`, no code.
-★ **THE NINE SHARED-DOC TOUCHES ALL AUTO-MERGED** — my brief predicted conflicts and was wrong, in the
-safe direction. The reason is structural: main's `PARKED 2026-09-13` annotation occupies the first seven
-lines while every one of grok's nine edits lands below the STAMP paragraph, so the hunks never share a
-line. **The executor verified after EACH of the nine anyway** — annotation present, grok's text landed,
-zero markers — and reported my wrong prediction as a deviation rather than pocketing the easy path.
-Verified here at the tip: the delta against grok's final blob is exactly the 12-line annotation block.
+**Batch 4v (#561–#580) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
+census `no STOP-8`, 20/20 subjects and trailers.
+★ **#576's three diverged files ALL auto-merged** — my brief predicted conflicts at all three and was
+wrong, the same safe-direction error as 4u. The executor proved grok's change landed unchanged
+**delta-vs-delta** (`git diff -U1` on both sides, headers stripped, content-identical) rather than by
+blob comparison, and reported my wrong forecast as a deviation.
+★ **The vocabulary gate stayed green (9/9)** after #576's `"shape-contract"` addition, **despite this
+tree's 7 excusare runes against grok's floor of 5** — because those runes belong to a *different ward's*
+vocabulary. A divergence that looks like a collision until you check which set the gate counts.
 
-Next is **batch 4v (#561–#580)**: censused — **18 docs-only, 2 code (#565, #576)**. The range is **62
-`.md` + 3 `.rs` + 2 `.sh` + 1 `.wat`**. **ZERO hazard rows, ZERO new gates, ZERO test delta** — floor
-prediction **unchanged at 5872 run / 22 skipped**.
+⚠ **A KNOWN, DISCLOSED, DELIBERATELY UNREPAIRED STALENESS** — `tests/lint/peragrare-bad-census.sh:225`
+(landed at #565) embeds `(:wat::core::i64::+ 1 2)` as its `axis1-err` self-test input. That spelling is
+RETIRED here, so the probe now errs via the retirement diagnostic rather than grok's intended cause.
+**Weighed and left as-is, 4-YES:** the probe still DISCRIMINATES (it fails if the classifier breaks, so
+it is not a vacuous green), **no `.rs` drives the script**, and grok never revisits it — so editing
+grok's own audit instrument, and rebuilding 16 commits to do it, would cost more than it buys.
+⛔ **The trigger to revisit:** if the retirement diagnostic for `:wat::core::i64::+` is ever changed or
+removed, that probe's meaning shifts silently and it must be re-spelled then.
 
-⚠ **#576 is the only real code step** and it is small: `src/rete/clause.rs` (+6/−4) and
-`src/rete/eval_test.rs` (+2/−1), one **comments-only** edit to `wat/rete/oracle/fire.wat` (3 lines, the
-range's only `wat/` path, `stdlib-touch`), a `.sh`, and **one word added to the rune vocabulary gate**:
-`"shape-contract"` in `tests/lint/no_unknown_ward_rune.rs`. ⛔ **Our copy of that gate is byte-identical
-to grok's pre-image**, so it composes — but we carry **7 excusare runes** against grok's floor of 5, so
-read the gate's verdict rather than assuming.
-⚠ **Conflicts expected at `clause.rs`, `eval_test.rs` and `fire.wat`** — all three already differ from
-grok's pre-image here. Compare **deltas, not blobs**.
+Next is **batch 4w (#581–#600)**: censused — **15 docs-only, 5 code (#581 #586 #591 #594 #598)**, and it
+is back to real code: **24 `.md` + 20 `.rs`**, **+5 tests** (4 at #581, 1 at #586), no `.wat`, no `wat/`,
+**ZERO hazard rows, ZERO new gates**. Floor prediction **5877 run / 22 skipped**.
 
-⚠ **#565 adds `tests/lint/peragrare-bad-census.sh`** — a standalone census instrument. Measured: **no
-`.rs` drives it**, so it gates nothing; it cites `every_wat_bad_fixture_actually_fails.rs:242-301`, and
-`no_stale_path_in_doc` does not scan `.sh`. It is prose-with-a-shebang. Finding 33 still applies to its
-string literals — sweep and say so.
+⚠ **HIGH DIVERGENCE — EXPECT COMPOSITION, NOT CHERRY-PICKS.** Measured against grok's pre-image:
+**#591 5-of-5, #586 3-of-3, #598 2-of-5** touched `.rs` already differ here. **#594 is 0-of-5** — the one
+clean step. Compare **deltas, not blobs**.
+
+⚠⚠ **#594 REMOVES A CLIPPY ALLOW, AND CLIPPY IS THE ORCHESTRATOR'S ROW.** It drops
+`#[allow(clippy::too_many_arguments)]` from `activate_deferred_mixed_classes` — safe **only because the
+same step bundles 9 arguments into a new `AlphaActivateCx`, taking the fn from 11 args to 3** (measured;
+our `clippy.toml` is byte-identical to grok's and sets no threshold override, so the default 7 applies).
+⛔ **If the struct does not land with the removal, clippy reds at MY checkpoint and costs a fold.** The
+executor cannot run clippy — so it must verify the arg count fell and the struct landed, at the step.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -104,7 +111,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4s #501–#520 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4t #521–#540 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4u #541–#560 (CLOSED; floor 5872/5872, clippy 0, pushed)
-                              ⇒ 560 of 651 replayed. NEXT: batch 4v #561–#580.
+                              + batch 4v #561–#580 (CLOSED; floor 5872/5872, clippy 0, pushed)
+                              ⇒ 580 of 651 replayed. NEXT: batch 4w #581–#600.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -161,6 +169,14 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4v #561–#580 is CLOSED and PUSHED** (records at `474322258`; SCORE-7v, REPLAY-LOG). 20 steps,
+  18 docs-only. Floor **5872/5872, 22 skipped — unchanged**, clippy 0, census `no STOP-8`.
+  ★ **#576 composed cleanly across three diverged files**, proven delta-vs-delta; its `wat/` edit stayed
+  3 comment lines / 0 code as measured; the vocabulary gate 9/9 at the step and the tip.
+  ★ **Nine more shared-doc touches auto-merged** (#562–#570), each verified individually.
+  ⚠ **The `.sh` staleness at #565 is DISCLOSED AND UNREPAIRED by ruling** — see the header for the
+  reasoning and the trigger that would reopen it.
+  ⚠ **Zero self-caught defects, zero repairs, zero `--amend` refusals** — the second such batch running.
 - **Batch 4u #541–#560 is CLOSED and PUSHED** (records at `a55a292e0`; SCORE-7u, REPLAY-LOG). 20 steps,
   ALL docs-only — the first all-prose batch of the campaign. Floor **5872/5872, 22 skipped — unchanged**,
   clippy 0, census `no STOP-8`.
