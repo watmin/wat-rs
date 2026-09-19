@@ -217,6 +217,9 @@ fn kernel_select_builds_only_four_serviceevent_variants() {
 
     // NON-VACUITY — both slices must really be the impls, not empty finds.
     assert!(
+        // rune:lint(loose-assert) — targeted PRESENCE over a large function body sliced
+        // out of src/runtime.rs. The claim is "this constructor name is referenced here",
+        // not a value equality. Same reason as row 1 of this file.
         sel.contains("SELECT_EVENT_TYPE") && poll.contains("SELECT_EVENT_TYPE"),
         "one of the two select impls no longer builds a ServiceEvent — re-derive this pin"
     );

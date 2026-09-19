@@ -108,10 +108,42 @@ violating the governing DESIGN's one contract decision (*"`Malformed` is never r
 not by the handler but by the transport collapsing the distinction **before the handler can see
 it**.
 
-**So row 2's RETRY cannot be graded correct on `Lost` alone.** Either establish that `Lost` here
-cannot carry a decode failure, or treat splitting that collapse as a PREREQUISITE and report it as
-such. ⛔ Do not build re-dispatch on top of a `Lost` that means two different things — that is the
-exact defect `a-momentary-failure-is-not-fatal` exists to undo, one tier lower.
+#### ⛔ CORRECTED AGAIN — I OVERSTATED THIS. Builder: *"why is bracket special here? if the wire
+#### screws up a transmission they cannot be made to retry."*
+
+Two things I had wrong.
+
+**1. Bracket is not special as a VICTIM.** The collapse is in `select`, one tier below, and every
+consumer inherits it: `:wat::kernel::select` has **11 call sites — 2 in the stdlib**
+(`wat/service.wat`, `wat/bracket.wat`) and 9 in `wat-scripts/`; `ServiceEvent::Lost` is matched
+across **12 files**. Writing this up as bracket's problem pointed the fix at the wrong tier.
+**`select` needs the `Malformed` that `poll` already has** — that is a substrate stone, the
+`a-momentary-failure-is-not-fatal` 1a/1b shape applied to `ServiceEvent` instead of `RecvOutcome`,
+and it is the one that serves all 11 callers.
+
+**2. A corrupted transmission CANNOT be retried by anyone — and that is why re-dispatch is a
+different act.** The frame is gone and the sender has moved on; there is nothing to re-send. The
+only recovery is **re-running the work that produced it**, which is not a transport retry at all.
+
+⭐ **And THAT is the one sense in which bracket IS special — as the RECOVERER, not the victim.** It
+owns the work queue, so `holding[idx]` tells it which task to re-run. A generic `select` consumer
+has no such handle and can only report. So:
+
+| | can retry the transmission | can re-run the work |
+|---|---|---|
+| any `select` consumer | **no** — the frame is gone | **no** — it does not know what produced it |
+| **bracket** | no | ⭐ **yes** — `holding[idx]` |
+
+**Which softens my "do not build re-dispatch on a collapsed `Lost`" to something narrower and
+true:** for bracket the collapse does not block the ACT, because *runner died* and *runner sent
+garbage* both mean "this item's result did not arrive" and both are answered by re-dispatch. What
+the collapse costs is (a) the REPORT — bracket cannot tell the caller which happened — and (b) the
+protection against a **deterministic** encode fault, where every runner reproduces the same
+undecodable reply and re-dispatch spins until the bound.
+
+⛔ **So the wall-clock bound is not a nicety here, it is the only thing standing between a
+deterministic encode bug and an infinite re-dispatch loop.** Grade it as load-bearing, and make the
+give-up report name that it could not tell death from garbling.
 
 ⚠ The `Malformed`-is-two-facts note in row 2 applies to `poll`'s `Malformed`. `select` has a
 THIRD problem: it has no `Malformed` at all.
