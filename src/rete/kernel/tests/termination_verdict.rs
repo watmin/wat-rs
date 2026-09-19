@@ -1,11 +1,12 @@
 //! The termination verdict — one probe per state the verifier can be in.
 //!
 //! ⛔ WHY THESE LIVE IN RUST AND NOT IN `tests/rete/*.wat`. `TerminationVerdict::NotAnalysable` is
-//! deliberately NOT wire-visible: surfacing it would need a new `(:wat::rete::CompileOutcome)`
-//! variant behind the outcome wall, which is affirmatively out of scope for the strike that split
-//! this type. From wat, `NotAnalysable` and `Proven` both answer `Compiled` — which is precisely
-//! the behaviour these probes must NOT disturb — so the only place the distinction is observable
-//! is at the `pub(crate)` boundary, here.
+//! deliberately NOT wire-visible: the invariant is that `NotAnalysable` and `Proven` are
+//! indistinguishable to a wat caller, both answering `Compiled` behind the outcome wall — a new
+//! `(:wat::rete::CompileOutcome)` variant would break that identity, not merely extend it. From
+//! wat, `NotAnalysable` and `Proven` both answer `Compiled` — which is precisely the behaviour
+//! these probes must NOT disturb — so the only place the distinction is observable is at the
+//! `pub(crate)` boundary, here.
 //!
 //! ⚠ AND WHY A MIXED RULE SET IS THE INTERESTING ONE. If EVERY rule in the set lacks an AST,
 //! `edges` is empty, so `edges.iter().all(|e| e.computed.is_none())` is vacuously true and the

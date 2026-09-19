@@ -175,9 +175,14 @@ fn import_refuses_a_node_count_past_the_cap() {
 /// `alloc_counter::mark_session_origin_at` and this goes red.
 #[test]
 fn an_origin_already_filed_is_never_re_based() {
-    // A key no `PMap` will ever mint: `next_intern()` is a monotonic counter from 0 and this test
-    // process mints nothing near it. Colliding with a live session would make the reading below
-    // measure that session instead.
+    // rune:sequi(ambient-context) — `thread_bytes`/`mark_session_origin_at`/`session_bytes` below
+    // all read and write the same per-thread `THREAD_LIVE`/`SESSION_ORIGINS`/`LAST_ORIGIN` cells in
+    // `alloc_counter.rs`, invisibly to every one of these signatures. The invariant this test's
+    // ordering depends on: nothing else touching this thread's byte counter runs between the reads
+    // below — no other session's `mark_session_origin*`/`session_bytes` call interleaves with this
+    // test's own on the SAME thread. A key no `PMap` will ever mint: `next_intern()` is a monotonic
+    // counter from 0 and this test process mints nothing near it. Colliding with a live session
+    // would make the reading below measure that session instead.
     let key: wat::alloc_counter::SessionOriginKey = Some(u64::MAX - 1);
 
     // A megabyte held LIVE, so the two candidate origins are separated by a figure no allocator

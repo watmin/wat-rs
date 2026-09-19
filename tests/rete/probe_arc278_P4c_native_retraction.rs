@@ -5,9 +5,10 @@
 //! (`fire-rules`, P4b) re-derives the closure from the reduced input, so a retracted fact's consequences
 //! simply are not re-derived — transitively and precisely. P4b already made that replay LINEAR. So there is
 //! NO separate "incremental support-store retract cascade" to build in the value-semantics surface (each
-//! `fire` rebuilds from facts; the support store only buys O(delta) retract for a PERSISTENT cross-fire
-//! streaming engine, a deferred surface). This probe is the proof: native TM == oracle TM, scenario for
-//! scenario. The differential is the gate; there is no new engine code.
+//! `fire` rebuilds from facts; the support store's O(delta) retract is a benefit that belongs to a
+//! PERSISTENT cross-fire streaming engine, which this value-semantics surface architecturally is not).
+//! This probe is the proof: native TM == oracle TM, scenario for scenario. The differential is the gate;
+//! there is no new engine code.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P4c_native_retraction
 
