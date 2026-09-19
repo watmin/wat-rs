@@ -1,0 +1,13 @@
+;; Fixture for hoist-where-into-condition — a JOIN case (>=2 ordinary fact conditions), so #630's
+;; join-only gate (targets < 2 -> no edits) leaves this fixture's expected output unchanged at
+;; every step from #627 through the tip.
+;; history: wat-scripts/grep/bare-variant-constructors.wat at feb5fae91 (grok's own #630)
+
+(:wat::core::defrecord :bv::Head [id <- :wat::core::i64  name <- :wat::core::String])
+
+(:wat::rete::defrule :bv::head
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index) (:wat::rete::core::string::= ?k "keyword") (:wat::rete::core::i64::= ?i 0))
+         (:wat::grep::Named (?id <- :id) (?n <- :name))
+         
+         ]
+  :then [(:bv::Head :id ?id :name ?n)])
