@@ -161,6 +161,14 @@
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
     :runner-count n))
 
+;; Thin spawn-program door for a thread thunk. `spawn-program` is restricted to
+;; `:wat::spawn::` / `:wat::test::`; bracket's queue runner is not a Locus and
+;; cannot call it directly. Homed here so the whitelist stays the two prefixes.
+(:wat::core::defn :wat::spawn::spawn-thread :- [S R]
+  [prog <- [(:wat::kernel::ThreadSelfPeer :- [S R]) :-> :wat::core::nil]]
+  -> (:wat::kernel::Peer :- [R S])
+  (:wat::kernel::spawn-program (:wat::spawn::thread) prog))
+
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)

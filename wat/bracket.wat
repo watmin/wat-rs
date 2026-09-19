@@ -703,6 +703,530 @@
             "bracket collect-loop: unexpected Admin event (select' has no self-peer)"
             :wat::core::None :wat::core::None))))))
 
+;; ── queue-backed runner (the-bracket-runs-on-the-queue, step 3) ────────────────
+;;
+;; Row 1 decided (b), not a third Locus satisfier. Locus/launch's six parameters
+;; besides `self` cannot honestly describe a queue (a rendezvous, not a child):
+;;
+;;   ship          — no child to ship an admin/down type to
+;;   init          — no child :init keyword to apply
+;;   serve         — no child serve loop
+;;   service-forms — never spawned; a Vector of WatAST that would be a lie
+;;   lu-addr-kw    — no lineage-up handshake, nothing to extract an address from
+;;   lu-mk-kw      — nothing to construct (no Status::Started)
+;;
+;; `Locus/spawn-runner` returning a Peer of PoolMsg would also lie: a queue is
+;; not that peer. QueueOpts is a defstruct, not a Locus, not a defservice (the
+;; Tier B quoted `:user::spawn::service-locus` pin stays at 11).
+;;
+;; The ten TimedOut/Malformed panics on the PEER path (runner-loop :54 :100
+;; :154 :222 :508 and process-dial-runner) stay. This path faces the same
+;; RecvOutcome/CallOutcome variants as VALUES and places them:
+;;   TimedOut · Closed-then-redial-ok · Lost-then-redial-ok  → RETRY
+;;   Malformed · RequestMalformed                            → REPORT-FINAL (never retried)
+;;   Lost/Closed-then-redial-failed                          → REPORT-GONE
+;; Bound is wall clock, never an attempt count. Every report names the outcome
+;; and which bound it hit. The surface `(map locus items work-fn)` is unchanged;
+;; the macro's no-tail arm dispatches on a QueueOpts constructor the same way
+;; process-door already inspects a ProcessOpts constructor.
+
+(:wat::core::defstruct :wat::bracket::QueueOpts
+  [queue         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   queue-addr    <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   name          <- :wat::core::String
+   workers       <- :wat::core::i64
+   visibility-ns <- :wat::core::i64
+   deadline-ms   <- :wat::core::i64])
+
+(:wat::core::defn :wat::bracket::queue-opts
+  [queue         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   queue-addr    <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   name          <- :wat::core::String
+   workers       <- :wat::core::i64
+   visibility-ns <- :wat::core::i64
+   deadline-ms   <- :wat::core::i64]
+  -> :wat::bracket::QueueOpts
+  (:wat::bracket::QueueOpts
+    :queue queue :queue-addr queue-addr :name name
+    :workers workers :visibility-ns visibility-ns :deadline-ms deadline-ms))
+
+;; Wire payload: idx plus the item's own EDN. A Tuple writes as a vector (`[7 "x"]`)
+;; and would round-trip as the wrong type; a record has a tag.
+(:wat::core::defrecord :wat::bracket::Indexed
+  [idx     <- :wat::core::i64
+   payload <- :wat::core::String])
+
+(:wat::core::defn :wat::bracket::wall-remaining-ms
+  [t0-ns <- :wat::core::i64  budget-ms <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::let
+    [elapsed (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t0-ns) 1000000)]
+    (:wat::core::if (:wat::i64::<= budget-ms elapsed)
+      0
+      (:wat::i64::- budget-ms elapsed))))
+
+;; A SLICE of the wall clock, not an attempt bound. Caps one call-by-deadline so a
+;; drop-recv does not wait the whole remaining budget on a single try. Retrying
+;; TimedOut still runs until remaining-ms hits 0.
+(:wat::core::defn :wat::bracket::wall-slice-ms
+  [t0-ns <- :wat::core::i64  budget-ms <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::let
+    [rem (:wat::bracket::wall-remaining-ms t0-ns budget-ms)]
+    (:wat::core::if (:wat::i64::<= rem 0)
+      0
+      (:wat::core::if (:wat::i64::< rem 250) rem 250))))
+
+(:wat::core::defn :wat::bracket::queue-gave-up! :- [T]
+  [t0-ns <- :wat::core::i64  budget-ms <- :wat::core::i64  last <- :wat::core::String]
+  -> :T
+  (:wat::core::let
+    [waited (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t0-ns) 1000000)]
+    (:wat::kernel::assertion-failed!
+      (:wat::string::interpolate
+        "bracket queue path: GaveUp waited-ms={w} last={l} (wall-clock bound {b} ms)"
+        :w waited :l last :b budget-ms)
+      :wat::core::None :wat::core::None)))
+
+(:wat::core::defn :wat::bracket::queue-report-final! :- [T]
+  [what <- :wat::core::String  detail <- :wat::core::String] -> :T
+  (:wat::kernel::assertion-failed!
+    (:wat::string::interpolate
+      "bracket queue path: REPORT-FINAL {what}: {detail}"
+      :what what :detail detail)
+    :wat::core::None :wat::core::None))
+
+(:wat::core::defn :wat::bracket::queue-report-gone! :- [T]
+  [what <- :wat::core::String  detail <- :wat::core::String] -> :T
+  (:wat::kernel::assertion-failed!
+    (:wat::string::interpolate
+      "bracket queue path: REPORT-GONE {what}: {detail}"
+      :what what :detail detail)
+    :wat::core::None :wat::core::None))
+
+(:wat::core::defn :wat::bracket::queue-redial
+  [addr <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   site <- :wat::core::String]
+  -> (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+  (:wat::core::match (:wat::kernel::connect addr)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)
+      (:wat::bracket::queue-report-gone!
+        (:wat::string::interpolate "{site}: Lost-then-redial-failed REFUSED" :site site)
+        (:wat::kernel::Failure/message c)))
+    ((:wat::kernel::ConnectOutcome::Rejected c)
+      (:wat::bracket::queue-report-gone!
+        (:wat::string::interpolate "{site}: Lost-then-redial-failed REJECTED" :site site)
+        (:wat::kernel::Failure/message c)))
+    ((:wat::kernel::ConnectOutcome::Failed c)
+      (:wat::bracket::queue-report-gone!
+        (:wat::string::interpolate "{site}: Lost-then-redial-failed FAILED" :site site)
+        (:wat::kernel::Failure/message c)))))
+
+(:wat::core::defn :wat::bracket::encode-indexed :- [I]
+  [idx <- :wat::core::i64  item <- :I] -> :wat::core::String
+  (:wat::edn::write
+    (:wat::bracket::Indexed :idx idx :payload (:wat::edn::write item))))
+
+(:wat::core::defn :wat::bracket::acc-has-idx? :- [O]
+  [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
+   idx <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::foldl
+    (:wat::core::fn [found <- :wat::core::bool  pr <- (:wat::core::Tuple :- [:wat::core::i64 O])]
+      -> :wat::core::bool
+      (:wat::core::if found true (:wat::core::= (:wat::core::first pr) idx)))
+    false
+    acc))
+
+(:wat::core::defn :wat::bracket::queue-enqueue :- [I]
+  [q         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   addr      <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   name      <- :wat::core::String
+   items     <- (:wat::core::Vector :- [I])
+   t0-ns     <- :wat::core::i64
+   budget-ms <- :wat::core::i64
+   cursor    <- :wat::core::i64]
+  -> (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+  (:wat::core::let
+    [m (:wat::core::length items)]
+    (:wat::core::if (:wat::core::>= cursor m)
+      q
+      (:wat::core::let
+        [slice (:wat::bracket::wall-slice-ms t0-ns budget-ms)]
+        (:wat::core::if (:wat::i64::<= slice 0)
+          (:wat::bracket::queue-gave-up! t0-ns budget-ms "TimedOut")
+          (:wat::core::let
+            [end     (:wat::core::if (:wat::core::< (:wat::i64::+ cursor 64) m)
+                       (:wat::i64::+ cursor 64) m)
+             bodies  (:wat::core::mapv
+                       (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::String
+                         (:wat::bracket::encode-indexed i (:wat::core::nth items i)))
+                       (:wat::core::range cursor end))
+             inert   (:wat::queue::Queue::Reply::Send
+                       (:wat::queue::Queue::SendResponse::RequestTooLarge 0 0))
+             req     (:wat::queue::Queue::SendRequest
+                       :queue name :bodies bodies
+                       :now-ns (:wat::time::epoch-nanos (:wat::time::now)))]
+            (:wat::core::match
+              (:wat::service::call-by-deadline q (:wat::queue::Queue::Op::Send req) slice inert)
+              ((:wat::service::CallOutcome::Answered r)
+                (:wat::core::match r
+                  ((:wat::queue::Queue::Reply::Send resp)
+                    (:wat::core::match resp
+                      ((:wat::queue::Queue::SendResponse::Accepted _n)
+                        (:wat::bracket::queue-enqueue q addr name items t0-ns budget-ms end))
+                      ((:wat::queue::Queue::SendResponse::RequestTooLarge bytes cap)
+                        (:wat::bracket::queue-report-final! "RequestTooLarge"
+                          (:wat::string::interpolate "send bytes={b} cap={c}" :b bytes :c cap)))
+                      ((:wat::queue::Queue::SendResponse::RequestTooManyEntries entries cap)
+                        (:wat::bracket::queue-report-final! "RequestTooManyEntries"
+                          (:wat::string::interpolate "send entries={e} cap={c}" :e entries :c cap)))
+                      ((:wat::queue::Queue::SendResponse::RequestMalformed path expected got)
+                        (:wat::bracket::queue-report-final! "RequestMalformed"
+                          (:wat::string::interpolate "send path={p} expected={e} got={g}"
+                            :p (:wat::edn::write path) :e expected :g got)))))
+                  ((:wat::queue::Queue::Reply::Failed cause)
+                    (:wat::bracket::queue-report-final! "Malformed"
+                      (:wat::kernel::Failure/message cause)))
+                  (_ (:wat::bracket::queue-report-final! "misrouted-reply" "send"))))
+              ((:wat::service::CallOutcome::DeadlineFired)
+                (:wat::bracket::queue-enqueue q addr name items t0-ns budget-ms cursor))
+              ((:wat::service::CallOutcome::Lost _c)
+                (:wat::bracket::queue-enqueue
+                  (:wat::bracket::queue-redial addr "enqueue") addr name items t0-ns budget-ms cursor))
+              ((:wat::service::CallOutcome::Closed)
+                (:wat::bracket::queue-enqueue
+                  (:wat::bracket::queue-redial addr "enqueue") addr name items t0-ns budget-ms cursor))
+              ((:wat::service::CallOutcome::Malformed cause)
+                (:wat::bracket::queue-report-final! "Malformed"
+                  (:wat::kernel::Failure/message cause))))))))))
+
+(:wat::core::defn :wat::bracket::queue-send-result :- [O]
+  [q         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   addr      <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   out-name  <- :wat::core::String
+   idx       <- :wat::core::i64
+   out       <- :O
+   t0-ns     <- :wat::core::i64
+   budget-ms <- :wat::core::i64]
+  -> (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+  (:wat::core::let
+    [slice (:wat::bracket::wall-slice-ms t0-ns budget-ms)]
+    (:wat::core::if (:wat::i64::<= slice 0)
+      (:wat::bracket::queue-gave-up! t0-ns budget-ms "TimedOut")
+      (:wat::core::let
+        [body  (:wat::bracket::encode-indexed idx out)
+         inert (:wat::queue::Queue::Reply::Send
+                 (:wat::queue::Queue::SendResponse::RequestTooLarge 0 0))
+         req   (:wat::queue::Queue::SendRequest
+                 :queue out-name
+                 :bodies (:wat::core::Vector :- [:wat::core::String] body)
+                 :now-ns (:wat::time::epoch-nanos (:wat::time::now)))]
+        (:wat::core::match
+          (:wat::service::call-by-deadline q (:wat::queue::Queue::Op::Send req) slice inert)
+          ((:wat::service::CallOutcome::Answered r)
+            (:wat::core::match r
+              ((:wat::queue::Queue::Reply::Send resp)
+                (:wat::core::match resp
+                  ((:wat::queue::Queue::SendResponse::Accepted _n) q)
+                  ((:wat::queue::Queue::SendResponse::RequestTooLarge bytes cap)
+                    (:wat::bracket::queue-report-final! "RequestTooLarge"
+                      (:wat::string::interpolate "result-send bytes={b} cap={c}" :b bytes :c cap)))
+                  ((:wat::queue::Queue::SendResponse::RequestTooManyEntries entries cap)
+                    (:wat::bracket::queue-report-final! "RequestTooManyEntries"
+                      (:wat::string::interpolate "result-send entries={e} cap={c}" :e entries :c cap)))
+                  ((:wat::queue::Queue::SendResponse::RequestMalformed path expected got)
+                    (:wat::bracket::queue-report-final! "RequestMalformed"
+                      (:wat::string::interpolate "result-send path={p} expected={e} got={g}"
+                        :p (:wat::edn::write path) :e expected :g got)))))
+              ((:wat::queue::Queue::Reply::Failed cause)
+                (:wat::bracket::queue-report-final! "Malformed"
+                  (:wat::kernel::Failure/message cause)))
+              (_ (:wat::bracket::queue-report-final! "misrouted-reply" "result-send"))))
+          ((:wat::service::CallOutcome::DeadlineFired)
+            (:wat::bracket::queue-send-result q addr out-name idx out t0-ns budget-ms))
+          ((:wat::service::CallOutcome::Lost _c)
+            (:wat::bracket::queue-send-result
+              (:wat::bracket::queue-redial addr "result-send") addr out-name idx out t0-ns budget-ms))
+          ((:wat::service::CallOutcome::Closed)
+            (:wat::bracket::queue-send-result
+              (:wat::bracket::queue-redial addr "result-send") addr out-name idx out t0-ns budget-ms))
+          ((:wat::service::CallOutcome::Malformed cause)
+            (:wat::bracket::queue-report-final! "Malformed"
+              (:wat::kernel::Failure/message cause))))))))
+
+(:wat::core::defn :wat::bracket::queue-ack
+  [q         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   addr      <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   name      <- :wat::core::String
+   id        <- :wat::core::String
+   t0-ns     <- :wat::core::i64
+   budget-ms <- :wat::core::i64]
+  -> (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+  (:wat::core::let
+    [slice (:wat::bracket::wall-slice-ms t0-ns budget-ms)]
+    (:wat::core::if (:wat::i64::<= slice 0)
+      (:wat::bracket::queue-gave-up! t0-ns budget-ms "TimedOut")
+      (:wat::core::let
+        [inert (:wat::queue::Queue::Reply::Ack (:wat::queue::Queue::AckResponse::Ok))
+         req   (:wat::queue::Queue::AckRequest
+                 :queue name :ids (:wat::core::Vector :- [:wat::core::String] id))]
+        (:wat::core::match
+          (:wat::service::call-by-deadline q (:wat::queue::Queue::Op::Ack req) slice inert)
+          ((:wat::service::CallOutcome::Answered r)
+            (:wat::core::match r
+              ((:wat::queue::Queue::Reply::Ack resp)
+                (:wat::core::match resp
+                  ((:wat::queue::Queue::AckResponse::Ok) q)
+                  ((:wat::queue::Queue::AckResponse::RequestTooLarge bytes cap)
+                    (:wat::bracket::queue-report-final! "RequestTooLarge"
+                      (:wat::string::interpolate "ack bytes={b} cap={c}" :b bytes :c cap)))
+                  ((:wat::queue::Queue::AckResponse::RequestMalformed path expected got)
+                    (:wat::bracket::queue-report-final! "RequestMalformed"
+                      (:wat::string::interpolate "ack path={p} expected={e} got={g}"
+                        :p (:wat::edn::write path) :e expected :g got)))))
+              ((:wat::queue::Queue::Reply::Failed cause)
+                (:wat::bracket::queue-report-final! "Malformed"
+                  (:wat::kernel::Failure/message cause)))
+              (_ (:wat::bracket::queue-report-final! "misrouted-reply" "ack"))))
+          ((:wat::service::CallOutcome::DeadlineFired)
+            (:wat::bracket::queue-ack q addr name id t0-ns budget-ms))
+          ((:wat::service::CallOutcome::Lost _c)
+            (:wat::bracket::queue-ack
+              (:wat::bracket::queue-redial addr "ack") addr name id t0-ns budget-ms))
+          ((:wat::service::CallOutcome::Closed)
+            (:wat::bracket::queue-ack
+              (:wat::bracket::queue-redial addr "ack") addr name id t0-ns budget-ms))
+          ((:wat::service::CallOutcome::Malformed cause)
+            (:wat::bracket::queue-report-final! "Malformed"
+              (:wat::kernel::Failure/message cause))))))))
+
+(:wat::core::defn :wat::bracket::queue-worker-loop :- [I O]
+  [q         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   addr      <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   work-name <- :wat::core::String
+   out-name  <- :wat::core::String
+   vis-ns    <- :wat::core::i64
+   t0-ns     <- :wat::core::i64
+   budget-ms <- :wat::core::i64
+   work-fn   <- [I :-> O]]
+  -> :wat::core::nil
+  (:wat::core::let
+    [slice (:wat::bracket::wall-slice-ms t0-ns budget-ms)]
+    (:wat::core::if (:wat::i64::<= slice 0)
+      nil
+      (:wat::core::let
+        [empty (:wat::core::Vector :- [:wat::queue::Envelope])
+         inert (:wat::queue::Queue::Reply::Receive
+                 (:wat::queue::Queue::ReceiveResponse::Ok empty))
+         req   (:wat::queue::Queue::ReceiveRequest
+                 :queue work-name
+                 :now-ns (:wat::time::epoch-nanos (:wat::time::now))
+                 :visibility-ns vis-ns
+                 :limit 1
+                 :wait (:wat::queue::Queue::Wait::UpTo (:wat::time::Milliseconds slice)))]
+        (:wat::core::match
+          (:wat::service::call-by-deadline q (:wat::queue::Queue::Op::Receive req) slice inert)
+          ((:wat::service::CallOutcome::Answered r)
+            (:wat::core::match r
+              ((:wat::queue::Queue::Reply::Receive resp)
+                (:wat::core::match resp
+                  ((:wat::queue::Queue::ReceiveResponse::Ok envs)
+                    (:wat::core::if (:wat::core::empty? envs)
+                      (:wat::bracket::queue-worker-loop q addr work-name out-name vis-ns t0-ns budget-ms work-fn)
+                      (:wat::core::let
+                        [e    (:wat::core::first envs)
+                         body (:wat::queue::Envelope/body e)
+                         eid  (:wat::queue::Envelope/id e)]
+                        (:wat::core::if (:wat::core::= body "STOP")
+                          (:wat::core::do
+                            (:wat::bracket::queue-ack q addr work-name eid t0-ns budget-ms)
+                            nil)
+                          (:wat::core::let
+                            [idxd (:wat::edn::read body)
+                             idx  (:wat::bracket::Indexed/idx idxd)
+                             item (:wat::edn::read (:wat::bracket::Indexed/payload idxd))
+                             out  (work-fn item)
+                             q1   (:wat::bracket::queue-send-result q addr out-name idx out t0-ns budget-ms)
+                             q2   (:wat::bracket::queue-ack q1 addr work-name eid t0-ns budget-ms)]
+                            (:wat::bracket::queue-worker-loop q2 addr work-name out-name vis-ns t0-ns budget-ms work-fn))))))
+                  ((:wat::queue::Queue::ReceiveResponse::RequestTooLarge bytes cap)
+                    (:wat::bracket::queue-report-final! "RequestTooLarge"
+                      (:wat::string::interpolate "receive bytes={b} cap={c}" :b bytes :c cap)))
+                  ((:wat::queue::Queue::ReceiveResponse::RequestMalformed path expected got)
+                    (:wat::bracket::queue-report-final! "RequestMalformed"
+                      (:wat::string::interpolate "receive path={p} expected={e} got={g}"
+                        :p (:wat::edn::write path) :e expected :g got)))))
+              ((:wat::queue::Queue::Reply::Failed cause)
+                (:wat::bracket::queue-report-final! "Malformed"
+                  (:wat::kernel::Failure/message cause)))
+              (_ (:wat::bracket::queue-report-final! "misrouted-reply" "receive"))))
+          ((:wat::service::CallOutcome::DeadlineFired)
+            (:wat::bracket::queue-worker-loop q addr work-name out-name vis-ns t0-ns budget-ms work-fn))
+          ((:wat::service::CallOutcome::Lost _c)
+            (:wat::bracket::queue-worker-loop
+              (:wat::bracket::queue-redial addr "worker-recv") addr work-name out-name vis-ns t0-ns budget-ms work-fn))
+          ((:wat::service::CallOutcome::Closed)
+            (:wat::bracket::queue-worker-loop
+              (:wat::bracket::queue-redial addr "worker-recv") addr work-name out-name vis-ns t0-ns budget-ms work-fn))
+          ((:wat::service::CallOutcome::Malformed cause)
+            (:wat::bracket::queue-report-final! "Malformed"
+              (:wat::kernel::Failure/message cause))))))))
+
+(:wat::core::defn :wat::bracket::queue-collect :- [O]
+  [q         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   addr      <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   out-name  <- :wat::core::String
+   vis-ns    <- :wat::core::i64
+   t0-ns     <- :wat::core::i64
+   budget-ms <- :wat::core::i64
+   m         <- :wat::core::i64
+   acc       <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])
+  (:wat::core::if (:wat::core::= (:wat::core::length acc) m)
+    acc
+    (:wat::core::let
+      [slice (:wat::bracket::wall-slice-ms t0-ns budget-ms)]
+      (:wat::core::if (:wat::i64::<= slice 0)
+        (:wat::bracket::queue-gave-up! t0-ns budget-ms "TimedOut")
+        (:wat::core::let
+          [empty (:wat::core::Vector :- [:wat::queue::Envelope])
+           inert (:wat::queue::Queue::Reply::Receive
+                   (:wat::queue::Queue::ReceiveResponse::Ok empty))
+           req   (:wat::queue::Queue::ReceiveRequest
+                   :queue out-name
+                   :now-ns (:wat::time::epoch-nanos (:wat::time::now))
+                   :visibility-ns vis-ns
+                   :limit 10
+                   :wait (:wat::queue::Queue::Wait::UpTo (:wat::time::Milliseconds slice)))]
+          (:wat::core::match
+            (:wat::service::call-by-deadline q (:wat::queue::Queue::Op::Receive req) slice inert)
+            ((:wat::service::CallOutcome::Answered r)
+              (:wat::core::match r
+                ((:wat::queue::Queue::Reply::Receive resp)
+                  (:wat::core::match resp
+                    ((:wat::queue::Queue::ReceiveResponse::Ok envs)
+                      (:wat::core::if (:wat::core::empty? envs)
+                        (:wat::bracket::queue-collect q addr out-name vis-ns t0-ns budget-ms m acc)
+                        (:wat::core::let
+                          [pair (:wat::core::foldl
+                                   (:wat::core::fn [st <- (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+                                                                                 (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])])
+                                                    e  <- :wat::queue::Envelope]
+                                     -> (:wat::core::Tuple :- [(:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+                                                               (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])])])
+                                     (:wat::core::let
+                                       [q0   (:wat::core::first st)
+                                        acc0 (:wat::core::second st)
+                                        idxd (:wat::edn::read (:wat::queue::Envelope/body e))
+                                        idx  (:wat::bracket::Indexed/idx idxd)
+                                        out  (:wat::edn::read (:wat::bracket::Indexed/payload idxd))
+                                        q1   (:wat::bracket::queue-ack q0 addr out-name (:wat::queue::Envelope/id e) t0-ns budget-ms)
+                                        acc1 (:wat::core::if (:wat::bracket::acc-has-idx? acc0 idx)
+                                               acc0
+                                               (:wat::core::conj acc0 (:wat::core::Tuple idx out)))]
+                                       (:wat::core::Tuple q1 acc1)))
+                                   (:wat::core::Tuple q acc)
+                                   envs)]
+                          (:wat::bracket::queue-collect
+                            (:wat::core::first pair) addr out-name vis-ns t0-ns budget-ms m
+                            (:wat::core::second pair)))))
+                    ((:wat::queue::Queue::ReceiveResponse::RequestTooLarge bytes cap)
+                      (:wat::bracket::queue-report-final! "RequestTooLarge"
+                        (:wat::string::interpolate "collect bytes={b} cap={c}" :b bytes :c cap)))
+                    ((:wat::queue::Queue::ReceiveResponse::RequestMalformed path expected got)
+                      (:wat::bracket::queue-report-final! "RequestMalformed"
+                        (:wat::string::interpolate "collect path={p} expected={e} got={g}"
+                          :p (:wat::edn::write path) :e expected :g got)))))
+                ((:wat::queue::Queue::Reply::Failed cause)
+                  (:wat::bracket::queue-report-final! "Malformed"
+                    (:wat::kernel::Failure/message cause)))
+                (_ (:wat::bracket::queue-report-final! "misrouted-reply" "collect"))))
+            ((:wat::service::CallOutcome::DeadlineFired)
+              (:wat::bracket::queue-collect q addr out-name vis-ns t0-ns budget-ms m acc))
+            ((:wat::service::CallOutcome::Lost _c)
+              (:wat::bracket::queue-collect
+                (:wat::bracket::queue-redial addr "collect") addr out-name vis-ns t0-ns budget-ms m acc))
+            ((:wat::service::CallOutcome::Closed)
+              (:wat::bracket::queue-collect
+                (:wat::bracket::queue-redial addr "collect") addr out-name vis-ns t0-ns budget-ms m acc))
+            ((:wat::service::CallOutcome::Malformed cause)
+              (:wat::bracket::queue-report-final! "Malformed"
+                (:wat::kernel::Failure/message cause)))))))))
+
+(:wat::core::defn :wat::bracket::queue-send-stops
+  [q         <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   addr      <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
+   work-name <- :wat::core::String
+   n         <- :wat::core::i64
+   t0-ns     <- :wat::core::i64
+   budget-ms <- :wat::core::i64]
+  -> :wat::core::nil
+  (:wat::core::let
+    [slice (:wat::bracket::wall-slice-ms t0-ns budget-ms)
+     bodies (:wat::core::mapv
+              (:wat::core::fn [_i <- :wat::core::i64] -> :wat::core::String "STOP")
+              (:wat::core::range 0 n))]
+    (:wat::core::if (:wat::i64::<= slice 0)
+      nil
+      (:wat::core::let
+        [inert (:wat::queue::Queue::Reply::Send
+                 (:wat::queue::Queue::SendResponse::RequestTooLarge 0 0))
+         req   (:wat::queue::Queue::SendRequest
+                 :queue work-name :bodies bodies
+                 :now-ns (:wat::time::epoch-nanos (:wat::time::now)))]
+        (:wat::core::match
+          (:wat::service::call-by-deadline q (:wat::queue::Queue::Op::Send req) slice inert)
+          ((:wat::service::CallOutcome::Answered _r) nil)
+          ((:wat::service::CallOutcome::DeadlineFired) nil)
+          ((:wat::service::CallOutcome::Lost _c) nil)
+          ((:wat::service::CallOutcome::Closed) nil)
+          ((:wat::service::CallOutcome::Malformed _c) nil))))))
+
+(:wat::core::defn :wat::bracket::map-on-queue :- [I O]
+  [opts    <- :wat::bracket::QueueOpts
+   items   <- (:wat::core::Vector :- [I])
+   work-fn <- [I :-> O]]
+  -> (:wat::core::Vector :- [O])
+  (:wat::core::let
+    [m  (:wat::core::length items)]
+    (:wat::core::if (:wat::core::= m 0)
+      (:wat::core::Vector :- [O])
+      (:wat::core::let
+        [q         (:wat::bracket::QueueOpts/queue opts)
+         addr      (:wat::bracket::QueueOpts/queue-addr opts)
+         work-name (:wat::bracket::QueueOpts/name opts)
+         out-name  (:wat::core::format "{n}/out" :n work-name)
+         vis-ns    (:wat::bracket::QueueOpts/visibility-ns opts)
+         budget-ms (:wat::bracket::QueueOpts/deadline-ms opts)
+         rc        (:wat::bracket::QueueOpts/workers opts)
+         n0        (:wat::core::if (:wat::core::< rc m) rc m)
+         n         (:wat::core::if (:wat::core::< n0 1) 1 n0)
+         t0-ns     (:wat::time::epoch-nanos (:wat::time::now))
+         q1        (:wat::bracket::queue-enqueue q addr work-name items t0-ns budget-ms 0)
+         ;; N thread workers pull the work queue so the path does not serialise.
+         workers   (:wat::core::mapv
+                     (:wat::core::fn [_i <- :wat::core::i64]
+                         -> (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
+                       (:wat::spawn::spawn-thread
+                         (:wat::core::fn [_sp <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])]
+                           -> :wat::core::nil
+                           (:wat::bracket::queue-worker-loop
+                             (:wat::bracket::queue-redial addr "worker")
+                             addr work-name out-name vis-ns t0-ns budget-ms work-fn))))
+                     (:wat::core::range 0 n))
+         pairs     (:wat::bracket::queue-collect q1 addr out-name vis-ns t0-ns budget-ms m
+                     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 O])]))
+         _stops    (:wat::bracket::queue-send-stops q1 addr work-name n t0-ns budget-ms)
+         _keep     workers
+         sorted    (:wat::core::sort-by
+                     (:wat::core::fn [pr <- (:wat::core::Tuple :- [:wat::core::i64 O])] -> :wat::core::i64
+                       (:wat::core::first pr))
+                     pairs)]
+        (:wat::core::mapv
+          (:wat::core::fn [pr <- (:wat::core::Tuple :- [:wat::core::i64 O])] -> :O
+            (:wat::core::second pr))
+          sorted)))))
+
 ;; ── map-worker — the ONE carrier-generic pool coordinator (arc 170 gap J unification) ──
 ;;
 ;; Each runner i is built from `(worker-init i)`: the OUTER call is per-runner
@@ -917,13 +1441,24 @@
       [g1-sym   (:wat::core::fresh-symbol "g")
        pid1-sym (:wat::core::fresh-symbol "pid")
        g2-sym   (:wat::core::fresh-symbol "g")
-       pid2-sym (:wat::core::fresh-symbol "pid")]
-      `(:wat::bracket::map-worker ~locus ~items
-         (:wat::bracket::const-worker-init ~work-fn)
-         nil
-         (:wat::core::fn [~g1-sym <- :wat::core::nil ~pid1-sym <- :wat::core::i64] -> :wat::core::nil nil)
-         (:wat::core::fn [~g2-sym <- :wat::core::nil ~pid2-sym <- :wat::core::i64] -> :wat::core::nil nil)
-         (:wat::core::Vector :- [:wat::core::nil])))
+       pid2-sym (:wat::core::fresh-symbol "pid")
+       ;; Queue door — same AST-head inspection as process-door below. A bound
+       ;; QueueOpts value (not a constructor form) does not take this door.
+       locus-head  (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus) "list")
+                     (:wat::core::let [lch (:wat::core::ast->children locus)]
+                       (:wat::core::if (:wat::core::empty? lch) "" (:wat::core::ast-name (:wat::core::first lch))))
+                     "")
+       queue-door? (:wat::core::if (:wat::string::starts-with? locus-head ":wat::bracket::queue-opts")
+                     true
+                     (:wat::string::starts-with? locus-head ":wat::bracket::QueueOpts"))]
+      (:wat::core::if queue-door?
+        `(:wat::bracket::map-on-queue ~locus ~items ~work-fn)
+        `(:wat::bracket::map-worker ~locus ~items
+           (:wat::bracket::const-worker-init ~work-fn)
+           nil
+           (:wat::core::fn [~g1-sym <- :wat::core::nil ~pid1-sym <- :wat::core::i64] -> :wat::core::nil nil)
+           (:wat::core::fn [~g2-sym <- :wat::core::nil ~pid2-sym <- :wat::core::i64] -> :wat::core::nil nil)
+           (:wat::core::Vector :- [:wat::core::nil]))))
     (:wat::core::let
       [work-fn-name  (:wat::core::ast-name work-fn)
        base-str      (:wat::string::subs work-fn-name 1 (:wat::string::length work-fn-name))
@@ -1001,13 +1536,22 @@
       [g1-sym   (:wat::core::fresh-symbol "g")
        pid1-sym (:wat::core::fresh-symbol "pid")
        g2-sym   (:wat::core::fresh-symbol "g")
-       pid2-sym (:wat::core::fresh-symbol "pid")]
-      `(:wat::bracket::each-worker ~locus ~items
-         (:wat::bracket::const-worker-init ~work-fn)
-         nil
-         (:wat::core::fn [~g1-sym <- :wat::core::nil ~pid1-sym <- :wat::core::i64] -> :wat::core::nil nil)
-         (:wat::core::fn [~g2-sym <- :wat::core::nil ~pid2-sym <- :wat::core::i64] -> :wat::core::nil nil)
-         (:wat::core::Vector :- [:wat::core::nil])))
+       pid2-sym (:wat::core::fresh-symbol "pid")
+       locus-head  (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus) "list")
+                     (:wat::core::let [lch (:wat::core::ast->children locus)]
+                       (:wat::core::if (:wat::core::empty? lch) "" (:wat::core::ast-name (:wat::core::first lch))))
+                     "")
+       queue-door? (:wat::core::if (:wat::string::starts-with? locus-head ":wat::bracket::queue-opts")
+                     true
+                     (:wat::string::starts-with? locus-head ":wat::bracket::QueueOpts"))]
+      (:wat::core::if queue-door?
+        `(:wat::core::do (:wat::bracket::map-on-queue ~locus ~items ~work-fn) nil)
+        `(:wat::bracket::each-worker ~locus ~items
+           (:wat::bracket::const-worker-init ~work-fn)
+           nil
+           (:wat::core::fn [~g1-sym <- :wat::core::nil ~pid1-sym <- :wat::core::i64] -> :wat::core::nil nil)
+           (:wat::core::fn [~g2-sym <- :wat::core::nil ~pid2-sym <- :wat::core::i64] -> :wat::core::nil nil)
+           (:wat::core::Vector :- [:wat::core::nil]))))
     (:wat::core::let
       [work-fn-name  (:wat::core::ast-name work-fn)
        base-str      (:wat::string::subs work-fn-name 1 (:wat::string::length work-fn-name))
