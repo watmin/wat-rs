@@ -1,5 +1,40 @@
 # FINDING — `GaveUp` bounds the wait, not the work
 
+> ⛔⛔ **CORRECTED SAME DAY — THIS WAS A CATEGORY ERROR, AND THE SUBSTRATE IS RIGHT.**
+> Builder: *"this problem does not exist for threads — they are a completely different beast. The
+> partition line is 'do you use shared memory or not?' The IPC is the first non-shared memory; the
+> remotes when we create them (loopback tcp, loopback mtls, loopback dtls, actual remote hosts)
+> will be the next non-shared memory locus. Threads don't have this problem as they are in a
+> completely different fault domain."*
+>
+> **Measured on BOTH loci, same bound, same fixture, `WAT_COLLECT_DEADLINE_MS=200`:**
+>
+> | locus | nap 1000 | nap 10000 | nap 30000 |
+> |---|---:|---:|---:|
+> | **process** — first non-shared memory | **387 ms** | **343 ms** | **362 ms** |
+> | **thread** — shared memory | 1136 ms | 10144 ms | (30126 ms) |
+>
+> ⭐ **The process tier is already bounded.** Wall time is flat at ~350–390 ms across a 30× spread
+> of abandoned work: the coordinator gives up at 200 ms and exits. The child is a separate fault
+> domain and is reaped.
+>
+> **So the original framing below is wrong on the point that matters.** The thread numbers are not
+> a DoS and not a defect: a thread worker shares the coordinator's address space and fault domain,
+> so *"my work-fn naps 30 s and my process takes 30 s"* is the program the author wrote, not a
+> worker holding a coordinator hostage. **No trust boundary is crossed inside shared memory.** The
+> S2b drain-then-join analysis below is still an accurate description of the thread-tier mechanism
+> — it is just not evidence of a hazard.
+>
+> ⚠ **What survives:** the partition itself, now measured rather than asserted —
+> **shared memory / not** is the line, IPC is the first crossing, and the bound is real exactly
+> where a separate fault domain exists. That is a property to *hold* as the remote loci arrive
+> (loopback TCP, mTLS, DTLS, real hosts), not a bug to fix.
+>
+> ⚠ **And a method failure of mine, recorded:** my first process-tier runs at nap 1000/10000/30000
+> appeared to track the nap — because I dropped `WAT_COLLECT_DEADLINE_MS` from those invocations,
+> so the 300 s default applied and the bracket never gave up. The table above is the corrected run.
+> A measurement whose knob is not armed measures the default.
+
 **Measured 2026-09-19, HEAD `923732e27`** (immediately after `select-by-deadline` landed). Census
 and diagnosis only; nothing changed.
 
