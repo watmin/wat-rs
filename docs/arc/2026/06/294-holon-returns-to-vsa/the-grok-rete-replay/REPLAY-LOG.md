@@ -3753,3 +3753,97 @@ change. Five self-caught defects (finding 5 in the SCORE), all repaired pre-yiel
 correction to the orchestrator's own test-count forecast (5872 run / 22 skipped, not 5867/21 — net
 +6, not +3). See `SCORE-7r-replay-batch-4r.md` for the full row-by-row account against all 20 rows
 (E1–E20).
+
+## #501 — LANDED (fix(scratch): strike a printed constant that claimed a compile it never
+observed). Clean auto-merge, 1 file (`wat-scripts/scratch-pad/arc278-produced-type-userfn-facts.wat`).
+One code line removed (the unconditional `println "COMPILE: Compiled"`), six `;;` comment lines
+added — no other non-comment hits over the cached diff. `--check` rc=0. `census: files=2177;
+--diff no STOP-8` (vs #500's own census). `nested-program-gate: PASS (3/3, 5891 skipped)`.
+`loader-gate: every_wat_scripts_file_loads_on_the_current_runtime PASS (1/1, 5893 skipped)`.
+
+## #502 — docs-only, 2 files (curare: the rete vigilia scope is worked to completion — stamp,
+repin, prune). ⚠ Self-caught: the first commit's cherry-pick trailer was typed from memory and did
+not match the real SHA; caught immediately by a routine post-commit `git rev-parse` audit and
+repaired via `reset --soft HEAD^` + recommit built from a shell variable (tip commit, no
+descendants).
+
+## #503 — docs-only, 2 files, both new (vigilia(rete): open the 2026-09-07 cast — scoped to rete,
+tracked against the last cast's rot).
+
+## #504 — docs-only, 2 files (vigilia(rete): intueri returns — 1 L2, confirmed against the disk).
+
+## #505 — docs-only, 3 files (vigilia(rete): purgare + solvere return — 12 rows, 3 verified by me).
+
+## #506 — docs-only, 1 file, new (vigilia(rete): struere returns — 6 L2, and two wards land on the
+same site).
+
+## #507 — docs-only, 1 file (vigilia(rete): row all 18 findings — and correct TWO commits whose
+messages claimed them).
+
+## #508 — docs-only, 2 files (vigilia(rete): conferre returns the cast's first L1 — and it
+falsifies a claim I wrote today).
+
+## #509 — docs-only, 2 files (vigilia(rete): sequi CONVERGES — the first clean ward, and a clean
+ward is a result).
+
+## #510 — docs-only, 2 files (vigilia(rete): temperare returns 2 L2 — and upholds every rune it
+weighed).
+
+## #511 — docs-only, 2 files (vigilia(rete): excusare weighs all 65 exemptions — 59 hold, 6
+struck, and 3 wards disagree). ⚠ THE TRAP ROW: landed grok's own count verbatim, not corrected. A
+bounded spot-check (`rune:` + `too_many_arguments` grepped over `src/rete/kernel`, excluding
+`tests/`) found 56 + 9 = 65, agreeing with grok's sub-counts — but this is not grok's own exhaustive
+28-file enumeration with its two documented exclusions, so it is reported as "not found false," not
+as independent confirmation.
+
+## #512 — docs-only, 2 files (vigilia(rete): exigere CONVERGES — and three wards now count the
+same runes differently).
+
+## #513 — docs-only, 2 files (vigilia(rete): conformare returns 2 L2 — a user error raised with a
+Rust file:line).
+
+## #514 — docs-only, 1 file (vigilia(rete): write the RESUME protocol — the cast is mid-flight
+across the wall).
+
+## #515 — docs-only (by path — 0 `src/`/`.rs`/`.wat`), 2 files, REAL CONFLICT (curare: stamp the
+wall — a vigilia is mid-flight and must survive it). `commits.tsv` flagged this step `shared=1`.
+`docs/COMPACTION-AMNESIA-RECOVERY.md` carries two independent lineages on one base paragraph: our
+tree's own 2026-09-13 orchestrator annotation (parking `CURRENT-STATE-annihilate-interpretation.md`,
+unrelated in subject to which vigilia is narrated) and grok's own stamp superseding the same base
+paragraph's arc-278 pointer (09-05 WORK-LIST/RETE-BOARD → 09-07 vigilia). Resolved by keeping our
+annotation in place and applying grok's full supersession text in the paragraph below it — neither
+lineage's content was dropped. The sibling file in the same commit,
+`CURRENT-STATE-annihilate-interpretation.md`, auto-merged clean.
+
+## #516 — docs-only, 1 file (vigilia(rete): the only status home had rotted in three places —
+found by recolligere).
+
+## #517 — docs-only, 2 files (vigilia(rete): cernere returns — a phantom form inside user-facing
+error text).
+
+## #518 — docs-only, 2 files (vigilia(rete): probare returns 1 L1 + 1 L2 — a deferral resting on a
+wrong citation).
+
+## #519 — docs-only, 2 files (vigilia(rete): perspicere returns — and I corrected it on two facts,
+in opposite directions).
+
+## #520 — docs-only, 1 file (vigilia(rete): rewrite the convergence clause — the old wording split
+two of twelve reports).
+
+⛔ ONE SELF-CAUGHT FABRICATED TRAILER (#502) AND ONE REAL MERGE CONFLICT (#515) THIS BATCH, both
+disclosed and repaired before yield. The trailer class is the one findings 36/39 already name — a
+SHA typed from memory rather than copied — self-caught by the mandated post-commit `git rev-parse`
+audit and repaired via `reset --soft HEAD^` + recommit (never `--amend`, never `git replace`, never
+`filter-branch`); every step from #503 onward built its trailer from a shell variable read straight
+off `git rev-parse`, never retyped. #515's conflict is the `shared=1` class `commits.tsv` predicted:
+a file both grok's replayed history and this replay's own real housekeeping independently edit for
+the same practical purpose (session-recovery), resolved by keeping both lineages' non-overlapping
+content rather than picking one side.
+
+**Disposition: COMPLETE.** All 20 steps (#501–#520) landed, tree clean at `cf7a4ae89`
+(`REPLAY(grok-rete #520)`), not pushed. `origin/replay/grok-rete` (`3af3d0a75`) remains the
+published tip, an ancestor of HEAD throughout. No mid-batch STOP; no test ever went red. Grok's own
+measured figures (notably #511's "all 65 exemptions") landed exactly as written and were not
+"corrected." Zero `src/`, zero hazard rows, zero new gates, zero `wat-scripts/fixes/` edits, zero
+`wat/` paths, zero test-count delta (no `.rs` file touched anywhere in the range). See
+`SCORE-7s-replay-batch-4s.md` for the full row-by-row account against all rows (E1–E16).
