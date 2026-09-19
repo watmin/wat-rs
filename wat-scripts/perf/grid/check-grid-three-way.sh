@@ -73,6 +73,7 @@ WAT_BIN="${WAT_BIN:-$REPO_ROOT/target/release/wat}"
 # element count each one predicts is documented there, beside the shape formula it comes from.
 declare -A SIZES=(
   [accum]="10 20"
+  [accum-lead-derived]="9"
   [accum-lead-rule-cascade]="3 2 3"
   [accum-over-derived]="9"
   [asym-join]="100"
