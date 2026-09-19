@@ -143,7 +143,7 @@ fn bind_key_construction_vs_map_operation() {
 ///
 /// Diagnostic. Read with `--no-capture`.
 #[test]
-#[ignore = "diagnostic microbenchmark: measured effect (1.0-1.9x) is too small to gate without flaking"]
+#[ignore = "rune:excusare(below-resolution) — lookup 1.0–1.1× / build 1.1–1.9× (three runs 2026-08-30); this floor's rete-cohort contention band is 3.5×–4.4× (.config/nextest.toml: 8.13s→35.39s, 7.98s→29.42s, 13.77s→48.72s). A 1.9× ceiling sits inside that band, so any floor tight enough to catch a regression is a threshold inside the noise."]
 fn binding_key_cost() {
     use std::hint::black_box;
     use std::time::Instant;
@@ -261,7 +261,7 @@ fn binding_key_cost() {
 ///
 /// Diagnostic, not a gate. Read with `--no-capture`.
 #[test]
-#[ignore = "diagnostic microbenchmark: five-way comparison with no single assertable ordering"]
+#[ignore = "rune:excusare(no-falsifier) — five operations (build/lookup/clone/extend/drop) across two representations at four cardinalities. A single ordering (array-wins-all, trie-wins-all, a named crossover) is one cell of that grid and leaves the rest untested; a conjunction of orderings is a threshold tuned from this corpus, which R60 refuses. Nothing achievable fails the check without inventing the constant the probe exists not to pick."]
 fn binding_repr_microbench() {
     use std::hint::black_box;
     use std::time::Instant;
@@ -576,6 +576,20 @@ fn kv(i: usize) -> (Value, Value) {
     )
 }
 
+// ⛔ #472 RULING (4-YES, 2026-09-18, option B) — grok's own diff at this site adds
+// `#[ignore = "rune:excusare(below-resolution) — captured red …"]` plus a doc comment
+// claiming "there is no hard timing assertion" and "the four ordering assertions … are
+// gone". NEITHER LANDS HERE. The rune's premise is the two LARGE-END assertions grok
+// still carries at this step; this tree struck exactly those two at the 4i strike
+// (`4d5287a53`, 2026-09-16, ruled 4-YES on finding 32's precedent) — 152 steps before
+// grok reaches the same conclusion (`ac07be72b` #472 here; the fn is deleted outright
+// at grok's #498/`bb306bd3c`). What SURVIVES on this tree and grok's rune does not
+// mention: a NON-VACUITY check (`extend_array_wins + get_array_wins > 0`) and ONE
+// ordering assertion — the SMALL-END GET check below, margin 4.53–10.15x across the
+// 2026-09-02 drives, carrying `fire/delta.rs:725-726`'s premise. This is NOT `#[ignore]`d
+// and has been green in twenty consecutive floors (#452→#471, every code step's own
+// re-run plus every batch checkpoint). DO NOT "helpfully" restore grok's ignore or its
+// doc comment — they describe a function this tree does not have.
 #[test]
 fn token_bindings_representation_dominance() {
     use std::hint::black_box;
@@ -701,14 +715,10 @@ fn token_bindings_representation_dominance() {
     ));
     println!("{table}");
 
-    // ── What must hold ──────────────────────────────────────────────────────────────────
-    //
-    // The assertion that stood here was `extend_array_wins + get_array_wins < usize::MAX`,
-    // message `"unreachable"` — true for every pair of `usize`, under a comment declaring the
-    // check it did not make. Below is the check that comment declares, plus the three orderings
-    // the printed verdict rests on. Every failure interpolates the WHOLE table, so a red arrives
-    // carrying the measurement that produced it and nobody has to re-run to see what happened —
-    // a re-run being the one move that destroys the evidence.
+    // Structural: the table is the population the counters were taken over.
+    // Timing-ordering assertions are gone — they cannot separate the hypotheses
+    // under this floor's contention band. Faithfulness, above the loop, is the
+    // remaining gate.
     assert_eq!(
         rows.len(),
         cards.len(),
@@ -717,11 +727,6 @@ fn token_bindings_representation_dominance() {
         rows.len(),
         cards.len()
     );
-
-    // (1) NON-VACUITY — the check the comment above the old assertion always declared. A zero
-    //     here means the probe timed nothing: on a working clock the array cannot lose EVERY
-    //     cell, because at the smallest cardinality it is one compare against a hash plus a
-    //     trie descent.
     assert!(
         extend_array_wins + get_array_wins > 0,
         "the probe measured NOTHING — across {} cardinalities and both operations the array \

@@ -1,12 +1,13 @@
-//! THE `rune:perspicere` AND `rune:purgare` CATEGORIES ARE CLOSED SETS — an invented one is a red
-//! build.
+//! THE `rune:perspicere`, `rune:purgare`, AND `rune:excusare` CATEGORIES ARE CLOSED SETS — an
+//! invented one is a red build.
 //!
-//! Both wards exempt a site by rune. `perspicere` exempts a type expression too deeply nested to
+//! Three wards exempt a site by rune. `perspicere` exempts a type expression too deeply nested to
 //! read, declaring that no typealias can fix it; `purgare` exempts a defined thing with no visible
-//! consumer, declaring that it is alive at an end the compiler cannot see. In each case the
-//! category carries the WHY, and the vocabularies with their discriminating questions live in
-//! `docs/CONVENTIONS.md` — "The `rune:perspicere` vocabulary" and "The `rune:purgare` vocabulary".
-//! The tables are the definition; this is the gate.
+//! consumer, declaring that it is alive at an end the compiler cannot see; `excusare` exempts a
+//! checker-override, declaring why the override is warranted. In each case the category carries
+//! the WHY, and the vocabularies with their discriminating questions live in
+//! `docs/CONVENTIONS.md` — "The `rune:perspicere` vocabulary", "The `rune:purgare` vocabulary",
+//! and "The `rune:excusare` vocabulary". The tables are the definition; this is the gate.
 //!
 //! ## THE ORDER THIS FILE WAS WRITTEN IN IS LOAD-BEARING
 //!
@@ -63,6 +64,10 @@ const WARD_VOCABULARIES: &[(&str, &[&str])] = &[
             "safety-margin",
         ],
     ),
+    (
+        "excusare",
+        &["perennial", "below-resolution", "no-falsifier"],
+    ),
 ];
 
 /// Every root that holds runed code. Wider than `no_unknown_sequi_rune.rs`'s `src`-only walk on
@@ -81,9 +86,10 @@ const RUNED_EXTENSIONS: &[&str] = &["rs", "wat"];
 /// The file that must come back reached and runed, or the walk and the extractor are unproven.
 ///
 /// `src/comms/process.rs` is the positive control because it is the one file carrying runes from
-/// BOTH wards — a `perspicere` pair (the `pair<T>()` return shape and `Sender::send`'s
-/// `SendError`) and a `purgare` pair (the two manual `Debug` impls). A count alone cannot see an
-/// extractor that has stopped extracting; this can.
+/// all three wards — a `perspicere` pair (the `pair<T>()` return shape and `Sender::send`'s
+/// `SendError`), a `purgare` pair (the two manual `Debug` impls), and `excusare(perennial)`
+/// (the withheld `is_empty` / `Default`). A count alone cannot see an extractor that has stopped
+/// extracting; this can.
 const POSITIVE_CONTROL: &str = "src/comms/process.rs";
 
 fn collect(dir: &Path, specimens: &Path, out: &mut Vec<PathBuf>) {
@@ -193,12 +199,21 @@ fn every_ward_rune_names_a_known_category() {
         }
     }
 
-    // NON-VACUITY, second half: per-ward floors, so retiring one vocabulary cannot leave the other
-    // vouching for it. Driven 2026-09-01 — 46 `perspicere` runes and 11 `purgare` runes across the
-    // six roots. A ward that falls to zero is a convention that was retired without its gate.
+    // NON-VACUITY, second half: per-ward floors, so retiring one vocabulary cannot leave the
+    // others vouching for it. Driven 2026-09-01 — 46 `perspicere` and 11 `purgare`; 2026-09-07
+    // added `excusare` (5 `perennial` already in `src/comms/`, plus the three timing
+    // diagnostics). A ward that falls to zero is a convention that was retired without its gate.
+    // The slice MUST match `WARD_VOCABULARIES.len()` — a zip that silently drops a new ward
+    // would leave that ward's count depending on nothing.
+    let floors: &[usize] = &[34, 8, 5];
+    assert_eq!(
+        floors.len(),
+        WARD_VOCABULARIES.len(),
+        "each WARD_VOCABULARIES row needs a non-vacuity floor"
+    );
     let blind: Vec<String> = seen
         .iter()
-        .zip([34usize, 8])
+        .zip(floors)
         .filter(|((_, n), floor)| n < floor)
         .map(|((ward, n), floor)| format!("  rune:{ward} — found {n}, floor {floor}"))
         .collect();
