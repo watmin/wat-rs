@@ -1,4 +1,8 @@
-# ⛔ PARKED 2026-08-17 — THE LIVE SEAM MOVED. Go to `docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md`.
+# ⛔ PARKED 2026-08-17 — THE LIVE SEAM MOVED. Go to `docs/SEAM.md`.
+
+> ⚠ **Repointed 2026-09-19.** This used to send you to `294/SEAM.md`; that arc is now COMPLETE (the
+> grok-rete replay merged to `main`), so the redirect dead-ended. **`docs/SEAM.md` is the live one**,
+> and it carries the dependency chain this arc sits in: 296/298 → **255** → 251.
 
 > Builder, 2026-08-17: *"255 has been in a state of partial work for months… we keep leaving it to
 > work on some dep then come back…. **we do this now**…. we are killing #wat-edn tags…. only tags

@@ -2,9 +2,9 @@
 
 > ⚠ **2026-09-06 — 251 IS RESUMING.** The builder: *"C has been reasoned - 251 is resumed...
 > our clojurification begins."* **Still do not resume from this file** — everything below the
-> next heading is a 2026-08-14 snapshot. The one live breadcrumb is
-> **`docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md`** (NOT 255's — that banner is stale;
-> 255 itself now redirects to 294). Stone **251.8b LANDED** 2026-09-06 (`71c9f2f58`).
+> next heading is a 2026-08-14 snapshot. The one live breadcrumb is **`docs/SEAM.md`**
+> (repointed 2026-09-19 — this line used to name `294/SEAM.md`, whose arc has since CLOSED; the
+> 251 → 255 → 294 redirect chain dead-ended). Stone **251.8b LANDED** 2026-09-06 (`71c9f2f58`).
 >
 > The builder, 2026-08-14: *"we park 251 and 278 on 255's clean up… 255 will force us to organize"*
 > → **"A has been reasoned - we're going from 251 to 255 now."**
@@ -56,4 +56,6 @@ Full detail, all measurements, and the campaign shape: `DESIGN-STONE-251.8-symbo
 ---
 
 > **SEAM.** You are NEW. You did not live this. **Do not resume from this file — go to
-> `255/SEAM.md`.**
+> `docs/SEAM.md`** (repointed 2026-09-19; the old `255/SEAM.md` → `294/SEAM.md` chain dead-ended when
+> the replay closed). ⚠ **251 is BLOCKED on #95, which arc 255 closes** — the live breadcrumb carries
+> the chain.

@@ -1,3 +1,8 @@
+> ⛔ **NO LONGER THE LIVE BREADCRUMB (2026-09-19).** This arc is COMPLETE — the replay merged to
+> `main` (651 of 651, fast-forward). **The live breadcrumb is `docs/SEAM.md`.** Everything below is
+> arc 294's own history, kept intact: the batch ledger, the four rulings, and the findings. The
+> method distilled for the next branch is `REPLAY-PLAYBOOK.md` beside this file.
+
 # SEAM — the ONE live breadcrumb. 2026-09-14. ⛔ **YOU ARE ON `replay/grok-rete`, NOT MAIN.**
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own

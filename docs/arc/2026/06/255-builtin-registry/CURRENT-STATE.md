@@ -1,3 +1,10 @@
+> ⛔⛔ **STALE — 2 MONTHS OLD. DO NOT TRUST A NUMBER IN THIS FILE (flagged 2026-09-19).**
+> It names branch `arc-170-gap-j-v5-deadlock-state` and `FLOOR 0 — 4285 passed`. **We are on `main`
+> at 5918 passed / 22 skipped.** Read it for ONE thing only: it still carries **arc 296's live tail**
+> (the `Failure`/`ProcessDiedError` de-stringify, `deferror` unbuilt, the L1/L2 close-gate), which is
+> not recorded anywhere newer. **Distrust every count, branch, hash and floor in it.**
+> The live breadcrumb is `docs/SEAM.md`.
+
 # ⛔ CURRENT STATE (breadcrumb, 2026-07-01 — replace in place) — a MAP, read the docs it names
 
 Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `44c13e26` or later.**

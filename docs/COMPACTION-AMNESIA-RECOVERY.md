@@ -115,7 +115,11 @@ action you took THIS session:
 
 **THE LIVE BREADCRUMB — there is exactly ONE, and this is its path:**
 
-> `docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md`
+> `docs/SEAM.md`
+
+(It moved there 2026-09-19. It is NOT arc-scoped on purpose: the grok-rete replay
+closed, `294` is a finished record, and no arc is ruled live yet. The old path
+`docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md` is now that arc's own history.)
 
 Its top stamp supersedes every dated block below it, and it carries the
 **freshness probe**: the HEAD it was written against. Check that against
