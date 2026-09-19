@@ -904,8 +904,11 @@ impl From<StdlibError> for StartupError {
 /// 5. Register type declarations ([`register_types`]).
 /// 6. Register function definitions ([`register_defines`]).
 /// 7. Name resolution — normalize namespaced symbol refs ([`normalize_symbol_refs`]),
-///    THEN validate all call-head references ([`resolve_references`]). Order matters:
-///    the resolver only validates keyword heads, so normalize must precede it.
+///    THEN the same rewrite over stored `FunctionBody::Wat` snapshots
+///    ([`normalize_stored_function_bodies`], stone 251.8c — `check_program` type-checks
+///    those snapshots, not the residue), THEN validate call-head references
+///    ([`resolve_references`]). Order matters: the resolver only validates keyword
+///    heads, so normalize must precede it.
 /// 8. Type check ([`check_program`]).
 /// 9. Freeze into a [`FrozenWorld`] and return.
 ///

@@ -25184,4 +25184,117 @@ comparison, cast explicitly first."
             other => panic!("expected a located MalformedForm naming the enum-only rule; got {other:?}"),
         }
     }
+
+    /// STONE 251.8c — slashed and colon-quoted call heads take the same check path.
+    ///
+    /// Colon rows are the non-vacuity control: they must be exactly this TypeMismatch.
+    /// Slash rows must equal the colon row of the same shape. Pairing alone would pass
+    /// if both broke the same wrong way; the control distinguishes that from agreement
+    /// on the real refusal. Nested rows wrap in `do`+`nil` so a ReturnTypeMismatch
+    /// cannot masquerade as a catch. Spans differ (source lengths differ) so the
+    /// compared value is the TypeMismatch fields, not the whole rendered error.
+    #[test]
+    fn stone_251_8c_slash_and_colon_heads_share_the_call_path() {
+        fn probe(body: &str) -> Result<(), crate::freeze::StartupError> {
+            let src = format!(
+                "(:wat::core::defn :user::f [n <- :wat::core::i64] -> :wat::core::i64 n)\n\
+                 (:wat::core::defn :user::g [x <- :wat::core::i64] -> :wat::core::i64 x)\n\
+                 (:wat::core::defn :user::main [] -> :wat::core::nil\n  {body})\n"
+            );
+            crate::freeze::startup_from_source(
+                &src,
+                None,
+                std::sync::Arc::new(crate::load::loader::InMemoryLoader::new()),
+            )
+            .map(|_| ())
+        }
+        /// `(callee, param, expected, got)` of the TypeMismatch on `:user::f`.
+        /// A shape may emit other errors too (`assertion-failed!` kwargs); those are
+        /// not the stone. Selecting by the callee field is exact, not a substring.
+        fn type_mismatch_on_f(
+            err: crate::freeze::StartupError,
+        ) -> (String, String, String, String) {
+            match err {
+                crate::freeze::StartupError::Check(CheckErrors(errs)) => {
+                    let hits: Vec<_> = errs
+                        .iter()
+                        .filter_map(|e| match &e.kind {
+                            CheckErrorKind::TypeMismatch {
+                                callee,
+                                param,
+                                expected,
+                                got,
+                            } if callee == ":user::f" => Some((
+                                callee.clone(),
+                                param.clone(),
+                                expected.clone(),
+                                got.clone(),
+                            )),
+                            _ => None,
+                        })
+                        .collect();
+                    assert_eq!(
+                        hits.len(),
+                        1,
+                        "expected one TypeMismatch on :user::f, got {errs:?}"
+                    );
+                    hits.into_iter().next().expect("len==1")
+                }
+                other => panic!("expected StartupError::Check, got {other:?}"),
+            }
+        }
+        const WANT: (&str, &str, &str, &str) = (
+            ":user::f",
+            "#1",
+            ":wat::core::i64",
+            ":wat::core::String",
+        );
+        fn pair(label: &str, colon_body: &str, slash_body: &str) {
+            let colon = type_mismatch_on_f(probe(colon_body).expect_err(label));
+            let slash = type_mismatch_on_f(probe(slash_body).expect_err(label));
+            assert_eq!(
+                (colon.0.as_str(), colon.1.as_str(), colon.2.as_str(), colon.3.as_str()),
+                WANT,
+                "{label}: colon row is the control and must be f's String-vs-i64 TypeMismatch"
+            );
+            assert_eq!(slash, colon, "{label}: slash must share colon's TypeMismatch fields");
+        }
+
+        pair(
+            "stmt",
+            r#"(:wat::core::do (:user::f "boom") nil)"#,
+            r#"(:wat::core::do (user/f "boom") nil)"#,
+        );
+        pair(
+            "let",
+            r#"(:wat::core::let [x (:user::f "boom")] nil)"#,
+            r#"(:wat::core::let [x (user/f "boom")] nil)"#,
+        );
+        pair(
+            "nest",
+            r#"(:wat::core::do (:user::g (:user::f "boom")) nil)"#,
+            r#"(:wat::core::do (:user::g (user/f "boom")) nil)"#,
+        );
+        pair(
+            "kwarg",
+            r#"(:wat::kernel::assertion-failed! :actual (:user::f "boom") :message "x")"#,
+            r#"(:wat::kernel::assertion-failed! :actual (user/f "boom") :message "x")"#,
+        );
+        pair(
+            "fmt",
+            r#"(:wat::core::do (:wat::core::format "{v}" :v (:user::f "boom")) nil)"#,
+            r#"(:wat::core::do (:wat::core::format "{v}" :v (user/f "boom")) nil)"#,
+        );
+
+        let nope = probe(r#"(:wat::core::do (user/nope 1) nil)"#).expect_err("unresolvable");
+        match nope {
+            crate::freeze::StartupError::Resolve(
+                crate::resolve::ResolveError::UnresolvedReferences(refs),
+            ) => {
+                assert_eq!(refs.len(), 1, "expected one unresolved ref, got {refs:?}");
+                assert_eq!(refs[0].path, ":user::nope");
+            }
+            other => panic!("expected UnresolvedReferences :user::nope, got {other:?}"),
+        }
+    }
 }

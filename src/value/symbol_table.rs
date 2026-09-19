@@ -10,7 +10,7 @@ use crate::macros::MacroRegistry;
 use crate::value::{EnumValue, Value};
 use crate::holon::sigma::SigmaFn;
 use crate::types::TypeEnv;
-use crate::value::{EncodingCtx, Function};
+use crate::value::{EncodingCtx, Function, FunctionBody};
 
 /// Per-binding metadata: FQDN -> metadata-key -> raw AST value.
 pub(crate) type BindingMetadata = HashMap<String, HashMap<String, WatAST>>;
@@ -325,6 +325,18 @@ impl SymbolTable {
 
     pub fn register_function(&mut self, path: String, f: Arc<Function>) {
         self.functions.insert(path, f);
+    }
+
+    /// Stone 251.8c — replace a stored wat function body in place.
+    ///
+    /// `register_defines` snapshots bodies BEFORE `normalize_symbol_refs` rewrites
+    /// residue. `check_program` type-checks these snapshots, not the residue, so a
+    /// namespaced Symbol head would otherwise skip the Keyword call-inference path.
+    pub(crate) fn replace_wat_body(&mut self, path: &str, body: WatAST) {
+        if let Some(func) = self.functions.get_mut(path) {
+            let f = Arc::make_mut(func);
+            f.body = FunctionBody::Wat(Arc::new(body));
+        }
     }
 
     pub fn remove_function(&mut self, path: &str) -> Option<Arc<Function>> {

@@ -38,6 +38,7 @@ use crate::ast::WatAST;
 use crate::edn::render::ns_to_wat_path;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
+use crate::value::FunctionBody;
 use super::boundary::{is_unquote_escape, is_where_form, quote_boundary, Boundary};
 use super::error::{ResolveError, UnresolvedReference};
 use super::walk::is_resolvable_call_head;
@@ -64,6 +65,43 @@ pub fn normalize_symbol_refs(
         .collect();
     if errors.is_empty() {
         Ok(out)
+    } else {
+        Err(ResolveError::UnresolvedReferences(errors))
+    }
+}
+
+/// Stone 251.8c — run the same Symbol→Keyword rewrite over function bodies
+/// stored on the symbol table.
+///
+/// `normalize_symbol_refs` rewrites the program residue. `check_program` type-checks
+/// `FunctionBody::Wat` snapshots taken at `register_defines` (step 6), which is
+/// BEFORE that rewrite (step 7). A namespaced Symbol call head in a function body
+/// therefore never reaches `infer_list`'s Keyword path — args/arity are skipped.
+/// Applying the existing no-form pass to the AST check actually walks makes one
+/// path; it does not teach `infer_list` to accept Symbols.
+pub fn normalize_stored_function_bodies(
+    symbols: &mut SymbolTable,
+    macros: &MacroRegistry,
+) -> Result<(), ResolveError> {
+    let mut errors: Vec<UnresolvedReference> = Vec::new();
+    let paths: Vec<String> = symbols
+        .functions_iter()
+        .filter(|(_, f)| matches!(f.body, FunctionBody::Wat(_)))
+        .map(|(p, _)| p.clone())
+        .collect();
+    for path in paths {
+        let body = match symbols.get(&path) {
+            Some(f) => match &f.body {
+                FunctionBody::Wat(b) => (**b).clone(),
+                FunctionBody::Native => continue,
+            },
+            None => continue,
+        };
+        let new = normalize_form(body, symbols, macros, &mut errors);
+        symbols.replace_wat_body(&path, new);
+    }
+    if errors.is_empty() {
+        Ok(())
     } else {
         Err(ResolveError::UnresolvedReferences(errors))
     }

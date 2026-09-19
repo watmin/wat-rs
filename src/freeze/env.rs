@@ -34,7 +34,9 @@ use crate::declare::register::{
     register_stdlib_defines, register_stdlib_runtime_defs, register_struct_methods,
     register_type_predicates,
 };
-use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
+use crate::resolve::{
+    normalize_stored_function_bodies, normalize_symbol_refs, resolve_references, ResolveError,
+};
 use crate::runtime::{Environment, EvalBreak, SymbolTable};
 use crate::load::stdlib::stdlib_forms;
 use crate::span::Span;
@@ -552,6 +554,10 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // Stone 251.1b — normalize before resolve so rewritten AST flows
     // through check + eval with keyword heads.
     residue = normalize_symbol_refs(residue, &symbols, &macros)?;
+    // Stone 251.8c — check_program type-checks FunctionBody snapshots from
+    // register_defines, not this residue. Normalize those copies too so a
+    // namespaced Symbol call head is a Keyword before infer_list.
+    normalize_stored_function_bodies(&mut symbols, &macros)?;
     // DEFERRED, not swallowed: an unresolved reference is very often the SYMPTOM of a
     // malformed definition that failed to register. Running `check_program` first lets the
     // located cause be reported; if check is clean, this error is re-raised unchanged.

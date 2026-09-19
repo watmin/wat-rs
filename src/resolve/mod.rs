@@ -92,7 +92,7 @@ mod walk;
 // Public API — re-exported for the external importers (freeze.rs, lib.rs,
 // macros/registry.rs, closure_extract.rs).
 pub use error::{ResolveError, UnresolvedReference};
-pub use normalize::normalize_symbol_refs;
+pub use normalize::{normalize_stored_function_bodies, normalize_symbol_refs};
 pub use registration::{
     is_namespaced, register, register_variant, register_replayed, Existing, Privilege, Registration, Rejection,
 };
