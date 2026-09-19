@@ -11,7 +11,7 @@
 ;; hook onto the handle's own addr). This lets a HETEROGENEOUS `(Vector :- [:wat::capability::
 ;; Capability])` of different services' Handles be grant/revoke'd UNIFORMLY, AND dialed
 ;; uniformly — `coordinate` hands back the handle's dial address as a bare
-;; :wat::kernel::Address', so ONE vector of handles carries both grant and dial. grant/revoke
+;; :wat::kernel::Address, so ONE vector of handles carries both grant and dial. grant/revoke
 ;; return :wat::service::GateOutcome (Rust-registered so this file can name it despite
 ;; loading before service.wat). coordinate returns the bare address.
 (:wat::core::defsurface :wat::capability::Capability :nature :wat::core::Struct
@@ -31,10 +31,10 @@
 ;; Dialable :- [S R] (arc 170 W1) — a SECOND, PARAMETRIC surface every service's `<fqdn>::Handle`
 ;; also satisfies (via a second auto-emitted extend-type, wat/service.wat's dialable-extend,
 ;; beside grantable-extend). Where Capability/coordinate deliberately erases the service type
-;; (bare :wat::kernel::Address', for the uniform heterogeneous (Vector :- [Capability]) grant/revoke
-;; path), Dialable/coord returns the handle's own TYPED `(:wat::kernel::Address' :- [S R])` — so
+;; (bare :wat::kernel::Address, for the uniform heterogeneous (Vector :- [Capability]) grant/revoke
+;; path), Dialable/coord returns the handle's own TYPED `(:wat::kernel::Address :- [S R])` — so
 ;; `(Dialable/coord handle)` resolves per-satisfier to the concrete service address
-;; ((Address' :- [Echo::Op Echo::Reply]) vs (Address' :- [Kv::Op Kv::Reply])), and a wrong-service dial is
+;; ((Address :- [Echo::Op Echo::Reply]) vs (Address :- [Kv::Op Kv::Reply])), and a wrong-service dial is
 ;; a compile-time discrimination error. Proven by hand in
 ;; scratchpad/probe-c2-typed-coordinate.wat (pre-auto-emit); this bakes the surface so
 ;; defservice can auto-emit satisfaction without a hand-written extend-type per service.

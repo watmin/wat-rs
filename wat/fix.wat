@@ -954,7 +954,7 @@
 ;;  lifted, and two of them said so in their own headers ("mirrored from …"):
 ;;    wrap-client-method-match-in-recvoutcome · wrap-connect-prime-in-connectoutcome
 ;;    read-string-to-outcome · readln-to-outcome
-;;  Every outcome wall this substrate has built (recv'/send'/close'/accept'/connect'/
+;;  Every outcome wall this substrate has built (recv/send/close/accept/connect/
 ;;  read-string/readln) ends in the SAME corpus migration: a verb that used to RAISE now
 ;;  returns a matchable outcome, so every call site must face it. That migration is one
 ;;  shape, and it belongs in the toolkit, not copied into the next codemod.

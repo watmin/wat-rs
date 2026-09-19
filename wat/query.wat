@@ -2,7 +2,7 @@
 ;; SERVICES-AS-SURFACES operation model.
 ;;
 ;; Ratified in docs/arc/2026/06/278-rules-engine/DESIGN-store-contract.md (S0), migrated to the
-;; operation model at S4 per arc 293 Path B (`823b20ac`): `Store` is now a `:nature :wat::kernel::Peer'`
+;; operation model at S4 per arc 293 Path B (`823b20ac`): `Store` is now a `:nature :wat::kernel::Peer`
 ;; surface — a DIALED PEER of a `:satisfies Store` service IS a Store, intrinsically (no wrapper
 ;; struct, no `extend-type`). The narrow waist is still DynamoDB's (pk, sk, data) + named-GSI
 ;; (ipk, isk) shape: all keys are EDN-form STRINGS the consumer serializes/hydrates; `data` is
@@ -18,8 +18,8 @@
 ;; [message <- String]` is the concrete default a backend with nothing more structured reaches for).
 ;;
 ;; Only outward refs: `:wat::core::*` (String/i64/keyword/nil/Vector/Option/HashMap/Struct) +
-;; `:wat::enum::Pure` + `:wat::kernel::Peer'`. Loads after `wat/core.wat` (defrecord/defenum/
-;; defsurface + those primitives) and `wat/service.wat` (the `Peer'` nature + `:satisfies`
+;; `:wat::enum::Pure` + `:wat::kernel::Peer`. Loads after `wat/core.wat` (defrecord/defenum/
+;; defsurface + those primitives) and `wat/service.wat` (the `Peer` nature + `:satisfies`
 ;; machinery); placed near the rete sources — this is the query engine's vocabulary.
 
 ;; ─── the write input ─────────────────────────────────────────────────────────────────────────
@@ -385,8 +385,8 @@
                  [~record-sym <- ~record-ty-kw
                   ~jaddr-sym  <- (:wat::kernel::Address :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
                  -> ~state-ty-kw
-                 ;; arc 278 the connect'-outcome wall — the generated :init dial faces all
-                 ;; four arms; ::Connected → the journal Peer'; failure arms →
+                 ;; arc 278 the connect-outcome wall — the generated :init dial faces all
+                 ;; four arms; ::Connected → the journal Peer; failure arms →
                  ;; assertion-failed! (fatal, preserving the pre-wall raise-unwind: a sift
                  ;; service whose journal dial fails at :init cannot start).
                  (~state-ty-kw
@@ -488,8 +488,8 @@
               (:wat::core::Vector :- [(:wat::service::Alarm :- [~svc-op-kw])])))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
-;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed
-;; `(Peer' :- [Store::Op Store::Reply])` IS a Store INTRINSICALLY (arc 293 Path B) — no wrapper struct,
+;; :nature :wat::kernel::Peer — a satisfier is a `:satisfies Store` defservice; a dialed
+;; `(Peer :- [Store::Op Store::Reply])` IS a Store INTRINSICALLY (arc 293 Path B) — no wrapper struct,
 ;; no extend-type. `ReadStore` (the S0 read-only narrowing) is DELETED here: no live consumer, and
 ;; its only satisfiers were the wrapper structs this stone removes; reintroduce as a Store-peer
 ;; read-only narrowing when a real read-only consumer needs it.

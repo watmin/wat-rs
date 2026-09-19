@@ -1291,7 +1291,7 @@
                               `(:wat::core::do nil))
          ;; ── <fqdn>::assemble — typed Coords → Kwargs (thread bracket Setup).
          ;; Same field fold as process-work-forms' generated dial-runner: Peer
-         ;; fields connect', data fields copy. Minted HERE so the thread locus
+         ;; fields connect, data fields copy. Minted HERE so the thread locus
          ;; can apply a companion that already lives in this universe (service
          ;; thread launch applies init/serve the same way). Process still
          ;; generates its own assemble into shipped source — separate memory.

@@ -18,7 +18,7 @@
 ;; (2) [arc 170 CULMINATION — the :wat::test::run / run-in-scope / run-ast
 ;;     sandbox-entry wrappers over the annihilated :wat::kernel::run-sandboxed
 ;;     family are DELETED; inner programs spawn directly on the primed peer
-;;     wire (spawn-program + recv'), so this witness invariant is retired];
+;;     wire (spawn-program + recv), so this witness invariant is retired];
 ;; (3) the 15 retired-form bombs inside the arc-170-ignored proof files are
 ;;     DEFUSED — no value-position :wat::core::nil or :wat::core::struct-restricted
 ;;     survives anywhere in the corpus (contained un-ignore verification on
@@ -33,8 +33,8 @@
 ;;
 ;; Pure wat. An assertion that fails raises internally; the enclosing
 ;; run (a deftest thread via run-thread', or a spawned peer via
-;; spawn-program + recv') surfaces the failure as a RunResult / a
-;; recv' Lost carrying the LociDiedError. Arc 170 CULMINATION: the old
+;; spawn-program + recv) surfaces the failure as a RunResult / a
+;; recv Lost carrying the LociDiedError. Arc 170 CULMINATION: the old
 ;; :wat::kernel::run-sandboxed family (manual spawn + pipe-drain +
 ;; stderr-scrape) is annihilated; the primed peer wire subsumes it.
 ;; Plus the string/regex basics from :wat::core::string::* and
@@ -164,7 +164,7 @@
 ;;
 ;; These read the DROPPED :wat::kernel::RunResult/stdout and /stderr
 ;; capture fields. The capture model is gone — the peer wire delivers a
-;; child's output via `recv'`, and RunResult is now a two-shape outcome enum.
+;; child's output via `recv`, and RunResult is now a two-shape outcome enum.
 ;; The helpers (and their `any-line-matches` fold) are deleted; there is
 ;; no stdout/stderr to assert over.
 
@@ -175,7 +175,7 @@
 ;; `:wat::kernel::run-sandboxed` family are DELETED. Hand-written tests
 ;; that need to run an inner program spawn it directly on the primed
 ;; peer wire — `(:wat::kernel::spawn-program (:wat::spawn::process) <fn>)`
-;; + `recv'`. `:wat::test::program` survives as the ergonomic
+;; + `recv`. `:wat::test::program` survives as the ergonomic
 ;; forms-capture helper: it expands to `:wat::core::forms` (the
 ;; variadic-quote substrate), capturing each top-level form as
 ;; `:wat::WatAST` into a `(:wat::core::Vector :- [wat::WatAST])`.
@@ -294,10 +294,10 @@
 ;; ── run-thread' / deftest' — the test layer on the NEW substrate (the pipe model) ──
 ;;
 ;; Arc 259 S3.5a. A test is a ONE-SHOT computation with an OUTCOME — not a streaming
-;; self-peer. With the thread-peer crash-reason IPC fix (S3.5a-0) in place, `recv'`
+;; self-peer. With the thread-peer crash-reason IPC fix (S3.5a-0) in place, `recv`
 ;; surfaces a crashed peer's reason over the pipe, so the harness is PURE user surface:
-;; `spawn-program` + `recv'`. The body runs in a self-peer and `send'`s a completion
-;; signal (0) on success; a failing assertion crashes the peer; `recv'` delivers the
+;; `spawn-program` + `recv`. The body runs in a self-peer and `send`s a completion
+;; signal (0) on success; a failing assertion crashes the peer; `recv` delivers the
 ;; reason. NO outcome-capture side-channel, NO internal forms, NO test privilege — the
 ;; harness dogfoods exactly what users use.
 ;;
@@ -306,7 +306,7 @@
 ;; structured assertion → the runner reports that Failure. Arc 278 the vacuous-gate
 ;; wall made RunResult an ENUM, so a failure can no longer be read as a pass.
 ;; Siblings of the legacy `run-thread`/`deftest` (which ride spawn-thread +
-;; Thread/join-result); these ride spawn-program + recv'. The legacy retires in
+;; Thread/join-result); these ride spawn-program + recv. The legacy retires in
 ;; S3.5's back-half.
 
 ;; ── The capability holders (arc 170 #13) ────────────────────────────────────
@@ -359,7 +359,7 @@
 ;; symptom, not the disease.
 ;;
 ;; These two close that gap: same capability, same namespace, but the PEER is
-;; returned so the caller keeps its own send'/recv'. The locus is a parameter,
+;; returned so the caller keeps its own send/recv. The locus is a parameter,
 ;; so `(thread/init f)`, `(process/env s)`, `(process/max-message-bytes n)` and
 ;; friends all reach through unchanged — constructing a locus was never
 ;; restricted; only spawning on one is.
@@ -385,24 +385,24 @@
 (:wat::core::defmacro :wat::test::run-thread
   [body <- :wat::WatAST]
   -> :wat::WatAST
-  ;; arc 278 the recv'-outcome wall reaches the harness: recv' RETURNS RecvOutcome (a VALUE), never
-  ;; raises. The child's failing assertion crashes it → recv' returns `Lost[cause]`. We do NOT re-raise
+  ;; arc 278 the recv-outcome wall reaches the harness: recv RETURNS RecvOutcome (a VALUE), never
+  ;; raises. The child's failing assertion crashes it → recv returns `Lost[cause]`. We do NOT re-raise
   ;; (that would bend the value back into a control-flow raise); we RETURN the outcome — the Lost cause
   ;; (a Failure) becomes `RunResult::Failed[failure]`, which the runner matches and reports.
   ;; A passing child sends its pass-marker → Message → `RunResult::Passed`. Value-based end to end: a failing
-  ;; test is a VALUE, never a swallowed `_ (recv' p)` (the masking this arc annihilates).
+  ;; test is a VALUE, never a swallowed `_ (recv p)` (the masking this arc annihilates).
   ;; The macro no longer emits `spawn-program` — it hands the program to
   ;; `:wat::test::spawn-thread-program`, which holds the capability (see above).
   `(:wat::test::spawn-thread-program
      (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
-       ;; arc 278 the send'-outcome wall — the PARENT faces the outcome via its own
-       ;; `recv' p` in the holder fn (Message/Lost/Closed all become a RunResult); the
-       ;; child's completion-signal send' just needs to proceed regardless.
+       ;; arc 278 the send-outcome wall — the PARENT faces the outcome via its own
+       ;; `recv p` in the holder fn (Message/Lost/Closed all become a RunResult); the
+       ;; child's completion-signal send just needs to proceed regardless.
        (:wat::core::do ~body
          (:wat::core::match (:wat::kernel::send self 0)
            (:wat::kernel::SendOutcome::Sent   nil)
-           (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces a gone self-peer
-           (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same: the holder's recv' faces the stop
+           (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv already faces a gone self-peer
+           (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same: the holder's recv faces the stop
            ((:wat::kernel::SendOutcome::Lost _c) nil))))))
 
 (:wat::core::defmacro :wat::test::deftest
@@ -414,20 +414,20 @@
 ;; ── run-hermetic' / deftest-hermetic' — the PROCESS-tier pipe-model siblings ──
 ;;
 ;; Arc 259 S3.5a. The forms siblings of run-thread'/deftest' (the thread pipe-model
-;; pair). Same caller — spawn-program + recv' — different body PACKAGING: a thread
+;; pair). Same caller — spawn-program + recv — different body PACKAGING: a thread
 ;; shares memory and ships a CLOSURE; a process/remote has SEPARATE memory and ships
 ;; FORMS (program over the wire). "Separate memory" = same-host-process OR remote-host;
 ;; this forms interface is the SHARED one with the future deftest-remote — do NOT
 ;; special-case "process" in a way that would block a (remote) host.
 ;;
 ;; CONTRACT (pass-or-raise): the child runs body via :user::main, then
-;; (:wat::kernel::println 0) — the pass-marker on fd 1. The parent recv's it.
+;; (:wat::kernel::println 0) — the pass-marker on fd 1. The parent recvs it.
 ;; A failing assertion crashes the child → the reason travels over the process Err
-;; channel (fd 2) → recv' raises with it (the process tier surfaces crashes over
+;; channel (fd 2) → recv raises with it (the process tier surfaces crashes over
 ;; the pipe, which is precisely why the process tier was the WORKING model that
 ;; exposed the thread gap). Passing → returns `:wat::kernel::RunResult::Passed`.
 ;;
-;; Pass-marker mechanics: println writes EDN "0\n" to fd 1; recv' (permissive
+;; Pass-marker mechanics: println writes EDN "0\n" to fd 1; recv (permissive
 ;; read_edn path) decodes it to i64(0); the result is discarded (_). No -> :T
 ;; ascription is needed for the discard — read_edn handles the raw i64 EDN correctly.
 ;;
@@ -464,7 +464,7 @@
 (:wat::core::defmacro :wat::test::run-hermetic
   [body <- :wat::WatAST]
   -> :wat::WatAST
-  ;; arc 278 the recv'-outcome wall reaches the harness (see run-thread' above): recv' RETURNS the
+  ;; arc 278 the recv-outcome wall reaches the harness (see run-thread' above): recv RETURNS the
   ;; outcome. A failing child crashes → Lost[cause] → RETURNED as RunResult::Failed (not re-raised, not
   ;; swallowed as `_`). A passing child prints its pass-marker → Message → RunResult::Passed.
   ;; The macro no longer emits `spawn-program` — it hands the forms to

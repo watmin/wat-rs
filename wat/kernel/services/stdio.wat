@@ -13,7 +13,7 @@
 ;; `:init` takes the PURE fd NUMBER (an i64, rides Admin::Init clean) and materializes the handle in
 ;; its body via the kernel-restricted `(:wat::io::IOWriter/from-fd fd)` / `IOReader/from-fd`
 ;; (dup-then-own — the service owns a dup, never the real fd 0/1/2). This mirrors the sift service's
-;; connect'-inside-init pattern (query.wat): the live resource is BORN inside init from a pure seed.
+;; connect-inside-init pattern (query.wat): the live resource is BORN inside init from a pure seed.
 ;;
 ;; The per-op message records are convention-named `<Surface>::<PascalOp>Request/Response` — the
 ;; `defservice :satisfies` macro synthesizes req-ty/resp-ty from the OP name (write-line → WriteLine…,
@@ -128,7 +128,7 @@
 ;; tuple. The three `<svc>/start` KWARGS-DEFN macros expand at NORMAL freeze time — inside this plain
 ;; defn body — which sidesteps the kwargs-defn-via-`eval_in_frozen` macro-eval gap (that path
 ;; mis-resolves the companion's `$impl` keyword to a live fn). Rust holds the returned tuple (keeping
-;; each admin lineage Peer' — hence each service — alive for the process lifetime) and extracts each
+;; each admin lineage Peer — hence each service — alive for the process lifetime) and extracts each
 ;; Handle's `addr` into the `PrimedStdio` carrier for Strike 2's verb flip.
 (:wat::core::defn :wat::kernel::start-primed-stdio
   [stdin-fd  <- :wat::core::i64
@@ -142,13 +142,13 @@
 
 ;; ─── Strike 3 client-side helpers (arc 170 PHASE 2 — the verb flip) ──────────────────────────────
 ;; The five caller verbs (eval_kernel_{println,pprintln,eprintln,epprintln,readln}, src/services/verbs.rs)
-;; now route THROUGH the primed defservices. Rust caches a per-thread client Peer' (connect' once), then
-;; drives these thin helpers via apply_function. The connect'/send'/recv' + typed-response match live
+;; now route THROUGH the primed defservices. Rust caches a per-thread client Peer (connect once), then
+;; drives these thin helpers via apply_function. The connect/send/recv + typed-response match live
 ;; in wat (kernel-namespaced — the from-fd restriction et al. stay satisfied); Rust keeps only the EDN
 ;; formatting, the cache, the readln decode, and the eprintln terminate. Contracts are preserved exactly
 ;; (see the verb docs). COEXIST: the old spawn_service_peer path stays bootstrapped-but-idle.
 
-;; connect' the shared Address' → this thread's OWN client Peer' (raise on any failure arm — a stdio
+;; connect the shared Address → this thread's OWN client Peer (raise on any failure arm — a stdio
 ;; service that cannot be dialed is fatal, mirroring the old path's ChannelDisconnected).
 (:wat::core::defn :wat::kernel::stdio-connect-out
   [addr <- (:wat::kernel::Address :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply])]
@@ -325,7 +325,7 @@
           (:wat::kernel::assertion-failed! "read-frame: stdin request framing rejected (RequestMalformed) — unreachable for a kernel-built request" :wat::core::None :wat::core::None))))
     ;; ★ arc 278 #73 — THIS SITE IS THE WHOLE STONE, VISIBLE IN ONE PLACE.
     ;;
-    ;; Arc 170 already knew a stop is not a death: the client's `recv'` wakes on the
+    ;; Arc 170 already knew a stop is not a death: the client's `recv` wakes on the
     ;; shutdown broadcast before the service's own read does, so the stop arrived HERE
     ;; first — and, having nowhere else to ride, it arrived wearing `Lost`. This code
     ;; was therefore written to receive a DEATH and then open the death report to ask
@@ -346,10 +346,10 @@
 ;; ─── write-fd-raw (arc 170) — the RAW, un-terminated write-side sibling of `from-fd`: emit `payload`
 ;;     verbatim to a whitelisted fd (no framing, no newline, no op budget), returning the byte count. ─
 ;;
-;; The one and only caller today is the `select'`-flood deadlock probe
+;; The one and only caller today is the `select`-flood deadlock probe
 ;; (tests/comms/probe_select_flood_no_deadlock): after the Strike-3 verb flip, `println` is BOUNDED by
 ;; StdOut's `:max-request-bytes` op budget, so a conforming peer can no longer flood the wire past the
-;; frame cap (correct — that is the whole point). The parent-side guard (`select'` FrameTooLarge → Lost,
+;; frame cap (correct — that is the whole point). The parent-side guard (`select` FrameTooLarge → Lost,
 ;; no deadlock) must still be exercised, which needs a NON-CONFORMING peer.
 ;;
 ;; GATED (arbitrary-fd danger sealed): `{:restricted-to [:wat::kernel:: :wat::test::]}` — an arbitrary-fd
@@ -369,7 +369,7 @@
 ;; `write-fd-raw`). ALSO gated `[:wat::kernel:: :wat::test::]` (builder ruling: users cannot flood —
 ;; the tooling forbids it structurally; there is NO user-callable raw-write escape hatch). Its own
 ;; enclosing fn is `:wat::kernel::`, so its call to the gated write-fd-raw passes. Reached only from
-;; kernel/test code; the select'-flood probe's child reaches it through a `:wat::test::` flood body.
+;; kernel/test code; the select-flood probe's child reaches it through a `:wat::test::` flood body.
 ;; (Lives in stdio.wat — not wat/test.wat, which loads BEFORE this file — so the defn→defn
 ;; eval-dep on write-fd-raw stays intra-file / correctly ordered.)
 (:wat::core::defn :wat::kernel::flood-stdout-raw
@@ -396,7 +396,7 @@
 ;; (payload), `write-fd-raw` (fd) — is kernel/test-gated, so a `:user::` form can reach NONE of them
 ;; directly; this zero-arg fixed action is the entire user-reachable surface. The composition passes
 ;; the gates because this fn's enclosing scope is `:wat::test::` (matches every helper's whitelist).
-;; The select'-flood deadlock probe's `:user::` child calls `(:wat::test::flood-own-stdout)` to
+;; The select-flood deadlock probe's `:user::` child calls `(:wat::test::flood-own-stdout)` to
 ;; simulate a non-conforming peer.
 ;;
 ;; (Lives in stdio.wat, not wat/test.wat: test.wat loads earlier, so a defn there would

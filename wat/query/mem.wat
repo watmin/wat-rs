@@ -20,18 +20,18 @@
 ;; The sanctioned answer is `:wat::service::defservice` (wat/service.wat, arc 209/291): a spawned
 ;; actor holds durable state in its own tail-recursive `serve` loop parameter (rete's own
 ;; Session-threading convention — `Outcome::Reply new-state reply` rebinds `state` for the next
-;; iteration; no mutable cell anywhere), and callers talk to it over a connected `(Peer' :- [Op Reply])`.
+;; iteration; no mutable cell anywhere), and callers talk to it over a connected `(Peer :- [Op Reply])`.
 ;; `put`/`scan`/`scan-index` become client RPCs; the actor's loop is the ONE place mutation
 ;; "happens" (by rebinding, not by mutating memory).
 ;;
 ;; ── a real substrate finding: `start` cannot be factored into a reusable constructor fn ────────
 ;; `(:wat::spawn::thread)` ties the spawned service thread's lifetime to the LEXICAL SCOPE of the
-;; `start` call — if `start` + `connect'` run inside a separate constructor-style helper function
+;; `start` call — if `start` + `connect` run inside a separate constructor-style helper function
 ;; and the peer is returned to the caller, the connection is already dead by the time the caller
-;; uses it (`recv'`/`send'` report "channel disconnected"), even though the `Peer'` value itself
-;; is still held (confirmed empirically by isolating the exact reproduction: a bare `Peer'`
+;; uses it (`recv`/`send` report "channel disconnected"), even though the `Peer` value itself
+;; is still held (confirmed empirically by isolating the exact reproduction: a bare `Peer`
 ;; returned from a helper function fails identically to the wrapped-struct case; the SAME
-;; construction inlined in the caller's own `let` succeeds). So: `start` + `connect'` + every call
+;; construction inlined in the caller's own `let` succeeds). So: `start` + `connect` + every call
 ;; through the resulting peer must share one lexical scope (or an ancestor block that outlives all
 ;; of them) — see `probes/../deftest'` gate, which inlines construction for exactly this reason.
 ;; A convenience constructor is future work once/if the substrate grows a scope-detach primitive.

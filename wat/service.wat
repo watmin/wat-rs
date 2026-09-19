@@ -49,7 +49,7 @@
 ;; service's concrete Op type — the synthesized `<service>::Op` superset). Only the
 ;; arm-carrying variants use it (phantom for Reply/Stop/NoReply/ReplyTo). A handler schedules a
 ;; self-message by emitting `Alarm`s (a delay and an op — armed into the service's
-;; own `select'` set as a `(Peer :- [Never O])` timer).
+;; own `select` set as a `(Peer :- [Never O])` timer).
 ;;   :NoReply       — a cast / a fired self-op with no client to reply to (OTP {noreply,S}).
 ;;   :ReplyAndArm   — reply to the client AND arm one/more timers.
 ;;   :NoReplyAndArm — no reply, arm one/more timers (a re-arming heartbeat).
@@ -462,7 +462,7 @@
      ;; helper as `fqdn-base`/`fqdn-tp-syms` above — one spelling, two sides.
      ;;
      ;; `proto-base` (params STRIPPED) is the identity a NAME keys on: the acronym registry, the
-     ;; runtime `retag-op'` discriminator, every ctor/accessor/variant keyword, and `derive`
+     ;; runtime `retag-op` discriminator, every ctor/accessor/variant keyword, and `derive`
      ;; (subtype edges are registered between BASE names). `proto-args` (the raw arg-node list)
      ;; re-attaches in TYPE positions only — STONE-defservice-emits-the-binder retired the `<…>`
      ;; suffix-string mint (`proto-tp`/`proto-args-str`) in favour of minting the reference FORM
@@ -489,7 +489,7 @@
      ;; It is what gives the derivation below a representation for a message's type arguments —
      ;; the surface's own params — where before there was none, and it is what keeps the
      ;; surface's `<S>::Op` and this service's `<fqdn>::Op` superset field-for-field identical
-     ;; (the `derive` edge and `retag-op'` both require that).
+     ;; (the `derive` edge and `retag-op` both require that).
      ;; STOP-3 fix (an earlier stone): the old derivation rendered `surface-node` to a string and
      ;; split on `"<"`/`","` — dead the moment `surface-node` is a form. Read head/args
      ;; structurally instead: `surface-form` is a bare Keyword (non-parametric) or a List
@@ -571,7 +571,7 @@
 
      ;; ── Arc 278 Stone 1: :max-frame-bytes — the per-service hard frame limit `FOO` ──
      ;; Optional; default DEFAULT_MAX_FRAME_BYTES (512 KiB = 524288). The declared value
-     ;; (a bare i64 literal node) is threaded into the process child-main's `listener'`
+     ;; (a bare i64 literal node) is threaded into the process child-main's `listener`
      ;; call as the 4th arg, so the accepted-connection receivers read client requests at
      ;; this budget. A frame over it → RecvError::FrameTooLarge → ServiceEvent::Lost (a
      ;; reasoned close), never a mute clean-hangup. Thread tier has no byte frames → no-op.
@@ -1344,8 +1344,8 @@
      ;;
      ;; Arc 278 the parametric protocol — enum-name / reply-name stay at the BASE. They are the
      ;; NAME-identity spellings, not type positions: `derive` registers a subtype edge between
-     ;; base names, `retag-op'` compares them against a runtime value's `type_path` (which is the
-     ;; base), and the child-main `listener'` re-resolves them in a freshly-started child. The
+     ;; base names, `retag-op` compares them against a runtime value's `type_path` (which is the
+     ;; base), and the child-main `listener` re-resolves them in a freshly-started child. The
      ;; TYPE-position spellings are `proto-op-ty-ann` / `proto-reply-ty-ann` below. Their
      ;; NAME-embedded `<a,b,…>` siblings (`proto-op-ty-str`/`proto-reply-ty-str`) are
      ;; RETIRED, STONE-exactly-one-call-position — `launch-head-kw` was their one
@@ -1447,9 +1447,9 @@
      ;; (Vector :- [(Peer :- [proto::Reply proto::Op])])
      ;; (Address :- [proto::Op proto::Reply T]) — T is Handle/Status's transport marker (293.W.2f).
      addr-ty       `(:wat::kernel::Address :- [~proto-op-ty-ann ~proto-reply-ty-ann ~(:wat::core::symbol-node transport-param)])
-     ;; Client (Peer :- [proto::Op proto::Reply]) — connect'((Address :- [Op Reply])) → (Peer :- [Op Reply]).
+     ;; Client (Peer :- [proto::Op proto::Reply]) — connect((Address :- [Op Reply])) → (Peer :- [Op Reply]).
      ;; This is the client-side peer (sends Op, receives Reply); distinct from
-     ;; peer-ty ((Peer :- [Reply Op])) which is the server-side peer (accepts via listener').
+     ;; peer-ty ((Peer :- [Reply Op])) which is the server-side peer (accepts via listener).
      client-peer-ty `(:wat::kernel::Peer :- [~proto-op-ty-ann ~proto-reply-ty-ann])
 
      ;; ── arc 291 3a-ii-α: lineage protocol types ──────────────────────────────
@@ -1544,7 +1544,7 @@
                            (:wat::string::interpolate "{b}::Admin::AllowPeer" :b fqdn-base))
      status-peers-allowed-kw (:wat::keyword::from-string
                                (:wat::string::interpolate "{b}::Status::PeersAllowed" :b fqdn-base))
-     ;; arc 278: fold binders for the serve AllowPeer arm's (allow' l pid) sweep — synthetic
+     ;; arc 278: fold binders for the serve AllowPeer arm's (allow l pid) sweep — synthetic
      ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
      allow-acc-sym (:wat::core::symbol-node "acc")
      allow-pid-sym (:wat::core::symbol-node "pid")
@@ -1558,7 +1558,7 @@
      ;; D1-a: Status::Faulted — owner is told when a public op handler raises.
      status-faulted-kw (:wat::keyword::from-string
                           (:wat::string::interpolate "{b}::Status::Faulted" :b fqdn-base))
-     ;; arc 293: fold binders for the serve DenyPeer arm's (deny' l pid) sweep — synthetic
+     ;; arc 293: fold binders for the serve DenyPeer arm's (deny l pid) sweep — synthetic
      ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
      deny-acc-sym (:wat::core::symbol-node "acc")
      deny-pid-sym (:wat::core::symbol-node "pid")
@@ -1695,16 +1695,16 @@
 
      ;; ── Arc 278 Stone 2-A (self-scheduling): the <service>::Op SUPERSET (Option A) ──────
      ;; The serve loop dispatches over :<fqdn>::Op = the surface's <proto>::Op variants
-     ;; (field-for-field, so `retag-op'` embeds them) PLUS the service's internal leading-dash
+     ;; (field-for-field, so `retag-op` embeds them) PLUS the service's internal leading-dash
      ;; ops (nullary). The WIRE stays <proto>::Op — a client can only construct surface ops; a
      ;; client op is RE-TAGGED into its <service>::Op counterpart at the Message arm. selectables
-     ;; (the poll' set) is typed with the superset O; the O flows into `(Outcome :- [S R O])`/`(Alarm :- [O])`.
+     ;; (the poll set) is typed with the superset O; the O flows into `(Outcome :- [S R O])`/`(Alarm :- [O])`.
      service-op-str  (:wat::string::interpolate "{b}::Op" :b fqdn-base)
      service-op-kw   (:wat::keyword::from-string service-op-str)
      ;; Arc 278 the parametric protocol — the SUPERSET enum's DECLARED name carries the service's
      ;; own params (its variant fields name the surface's parametric messages, so the binders must
      ;; be in scope), and every TYPE-position reference below instantiates it at those params.
-     ;; `service-op-str` stays BASE: it is the ctor/variant namespace, the `retag-op'` runtime
+     ;; `service-op-str` stays BASE: it is the ctor/variant namespace, the `retag-op` runtime
      ;; target, and the `derive` edge's child. Monomorphic ⇒ fqdn-tp-syms is empty ⇒ the two coincide.
      ;;
      ;; Arc 109 ③ — angle brackets are ILLEGAL for types; `service-op-ty-str`'s old `<…>`-suffixed
@@ -1719,7 +1719,7 @@
                          `(~service-op-kw :- [~@fqdn-tp-syms]))
      service-op-decl-kw-decl service-op-kw
      service-op-decl-kw-runtime service-op-ty-ann
-     ;; selectable-peer-ty: (Peer :- [proto::Reply service::Op]) (the poll' element — superset O).
+     ;; selectable-peer-ty: (Peer :- [proto::Reply service::Op]) (the poll element — superset O).
      ;; Arc 109 ③ — reference FORM, structurally off `proto-reply-ty-ann` / `service-op-ty-ann`.
      selectable-peer-ty `(:wat::kernel::Peer :- [~proto-reply-ty-ann ~service-op-ty-ann])
      ;; selectable-vec-ty: (Vector :- [(Peer :- [proto::Reply service::Op])]) — the BARE peer vector, the
@@ -1740,7 +1740,7 @@
      ;; coupled by construction (never a second vector keyed by position: `remove-at` drops both
      ;; together, always, because there is only ever one vector). selectable-entry-vec-ty is
      ;; `selectables`' REAL declared type from here down; `selectable-vec-ty`/`selectable-peer-ty`
-     ;; above survive only as the bare-peer PROJECTION poll'/serve-dispatch-op still need.
+     ;; above survive only as the bare-peer PROJECTION poll/serve-dispatch-op still need.
      ;;
      ;; identity 2c had split CTOR-ARG vs ANNOTATION into `-ctor`/`-ann` aliases of a `-raw`
      ;; base, because the OLD Keyword-only `Vector` ctor-arg check couldn't accept a reference
@@ -1770,7 +1770,7 @@
      alarm-o-ty      `(:wat::service::Alarm :- [~service-op-ty-ann])
      ;; The superset variant items: a flat [variant-kw field-vec …] (Vector :- [WatAST]) spliced into
      ;; the defenum. A surface op → `:Pascal [req <- :<proto>::<Pascal>Request]` (mirrors the
-     ;; surface Op variant's field, so `retag-op'` embeds field-for-field); an internal `-op` →
+     ;; surface Op variant's field, so `retag-op` embeds field-for-field); an internal `-op` →
      ;; `:-Pascal []` (nullary). Dash preserved SCOPED here (strip `-`, kebab->pascal, re-prepend
      ;; `-`) — NOT the global `kebab_to_pascal_with_acronyms`.
      service-op-variant-items
@@ -1797,7 +1797,7 @@
                               ;; src/types.rs) instead of guessing the message's type name by
                               ;; concatenation. The alias's type ARGS re-attach (`p`), mirroring
                               ;; the surface Op variant's field EXACTLY (the `derive` edge +
-                              ;; `retag-op'` both require field-for-field identity). Monomorphic
+                              ;; `retag-op` both require field-for-field identity). Monomorphic
                               ;; ⇒ proto-args is `[]` ⇒ `(Head :- [])` IS the bare alias name.
                               ;; identity 2c: ANNOTATION-only (this variant's own field type) —
                               ;; mints the reference FORM. Arc 109 ③ — structurally off
@@ -1826,9 +1826,9 @@
      ;; caller-constructed `(Peer :- [proto::Reply proto::Op])` must be assignable into the
      ;; superset-O `(Vector :- [(Peer :- [proto::Reply service::Op])])`. `service::Op` is a genuine
      ;; superset (every surface variant embedded field-for-field + the internal `-op`s), and
-     ;; `retag-op'` (wat/service.wat:1080) re-tags a client's surface op into its service-Op
+     ;; `retag-op` (wat/service.wat:1080) re-tags a client's surface op into its service-Op
      ;; counterpart at dispatch — so a surface-Op peer soundly satisfies a superset-Op slot
-     ;; (covariant widening in Peer's received-Op position, one-directional). We register
+     ;; (covariant widening in Peers received-Op position, one-directional). We register
      ;; the check-time edge via the ordinary `derive` mechanism: `assignable`'s per-arg
      ;; subtype-lattice flow (Arc 278 Stone 2, src/check.rs) then relaxes ONLY the Op slot
      ;; (Reply has no edge → stays exact). Guarded on `proto-str /= fqdn-str` so a
@@ -1883,8 +1883,8 @@
      ;; Each impl is `(<op> [s req] body)` — `s` = the :State (server self), `req` = the WHOLE
      ;; request record (bound straight from the <S>::Op::<Op> variant's `req` field). The arm:
      ;;   ((<S>::Op::<Op> req) (match (let [s state] body) -> nil
-     ;;      ((Outcome::Reply new-state resp) (do (send' … (<S>::Reply::<Op> resp)) (serve …)))
-     ;;      ((Outcome::Stop  final    resp) (do (send' … (<S>::Reply::<Op> resp)) nil))))
+     ;;      ((Outcome::Reply new-state resp) (do (send … (<S>::Reply::<Op> resp)) (serve …)))
+     ;;      ((Outcome::Stop  final    resp) (do (send … (<S>::Reply::<Op> resp)) nil))))
      ;; COVERAGE IS FREE: this match is over <S>::Op (S1's enum); a missing :impl leaves a
      ;; variant unhandled → non-exhaustive match → compile error (no coverage check to write).
      ;; Hygiene: `req` in the pattern comes from ~req-binder (the impl's own binder, unquoted →
@@ -1999,7 +1999,7 @@
                           let-bindings  (:wat::core::with-children param-vec binding-items)
                           ;; the ARM fn — folds each Alarm into `selectables` as an `after` timer at
                           ;; the service's OWN tier (env-grab own-kind → both loci). alarm.op is a
-                          ;; concrete <service>::Op value → the timer is (Peer :- [Never O]), joins poll'.
+                          ;; concrete <service>::Op value → the timer is (Peer :- [Never O]), joins poll.
                           ;; arc 278 the call context — `selectables`' element is now
                           ;; (Tuple :- [i64 (Peer :- [R O])]) (STOP-2: id travels WITH its peer, one vector,
                           ;; never a second one keyed by position), so a timer needs an id slot
@@ -2035,7 +2035,7 @@
                           ;; timer peer through a one-element `(Vector :- [(Peer :- [Reply O])])` first — THAT
                           ;; conj DOES hit the working bare-Peer widening — then `first` it back out;
                           ;; the checker now reads it at `(Peer :- [Reply O])` before it ever reaches the
-                          ;; Tuple ctor. Values are unaffected: Peer's type params are erased at
+                          ;; Tuple ctor. Values are unaffected: Peers type params are erased at
                           ;; runtime (this file's own comment elsewhere: "params are erased in a
                           ;; runtime type_path") — this is a check-time-only detour.
                           arm-fn        `(:wat::core::fn [~arm-acc-sym <- ~selectable-entry-vec-ty  ~arm-alarm-sym <- ~alarm-o-ty]
@@ -2184,7 +2184,7 @@
                               outcome-match `(:wat::core::match
                                                   (:wat::kernel::serve-dispatch-op ~peers-only-expr
                                                     (:wat::core::let ~arm-let-bindings ~body))
-                                                ;; arc 278 the send'-outcome wall — a reply to a gone
+                                                ;; arc 278 the send-outcome wall — a reply to a gone
                                                 ;; client is NOT a service error (the client left); every
                                                 ;; arm's continuation is the SAME regardless of outcome.
                                                 ;;
@@ -2301,7 +2301,7 @@
                               ;; value). So `#dos.Bag/PutRequest {:items [1 2 3]}` against
                               ;; `items <- (Vector :- [String])` was accepted verbatim on BOTH tiers, the
                               ;; handler used the field at its declared type, and the service DIED FOR
-                              ;; EVERYONE — a second, innocent client could not even `connect'`. That is
+                              ;; EVERYONE — a second, innocent client could not even `connect`. That is
                               ;; a denial of service, and it is what this guard pulls out by the root:
                               ;; a bad caller, malicious or dumb, cannot crash anything.
                               ;;
@@ -2390,7 +2390,7 @@
                                                  ~outcome-match))
                               shape-guarded `(:wat::core::match (:wat::edn::validate ~req-binder ~req-ty-kw)
                                                (:wat::edn::Validation::Valid ~page-clamped)
-                                               ;; arc 278 the send'-outcome wall — refuse, then RECURSE
+                                               ;; arc 278 the send-outcome wall — refuse, then RECURSE
                                                ;; INTO SERVE with state UNCHANGED (the handler never ran).
                                                ;; A gone client is not fatal either; every arm keeps serving.
                                                ((:wat::edn::Validation::Invalid ~mpath-sym ~mexp-sym ~mgot-sym)
@@ -2408,7 +2408,7 @@
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::string::length (:wat::edn::write ~req-binder))]
                                                (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
-                                                 ;; arc 278 the send'-outcome wall — a gone client here is
+                                                 ;; arc 278 the send-outcome wall — a gone client here is
                                                  ;; not fatal either; every arm keeps serving the rest.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
                                                      (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
@@ -2457,7 +2457,7 @@
                     next-id     <- :wat::core::i64
                     state       <- ~state-ty-ann]
 
-     ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
+     ;; ── serve body: the poll/ServiceEvent dispatch loop ─────────────────────────
      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
      ;; or value positions — the checker only fires for let/fn binder Vectors.
      ;; arc 291 3a-ii-β: Admin::Stop arm — sends Status::Stopped(state) back up the
@@ -2468,7 +2468,7 @@
      ;;   Hibernate → send Hibernated(full-state) up + terminate
      ;;   Init(_)   → assertion-failed! (startup-only message)
      ;;   Resume(_) → assertion-failed! (startup-only message)
-     ;; arc 278 the call context — `poll'`/`serve-dispatch-op'` are Rust intrinsics that
+     ;; arc 278 the call context — `poll`/`serve-dispatch-op` are Rust intrinsics that
      ;; downcast every Vector element to a real Peer opaque; `selectables` is now the
      ;; Tuple-wrapped canonical vector, so BOTH calls receive `~peers-only-expr` — the
      ;; bare-peer projection built fresh from `selectables` this iteration — never
@@ -2484,22 +2484,22 @@
                        (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::i64::+ next-id 1) state))
                      ((:wat::spawn::ServiceEvent::Admin admin-msg)
                        (:wat::core::match admin-msg 
-                         ;; arc 278 the send'-outcome wall — the owner's `recv'` (the `/stop`
-                         ;; method's own recv') faces a gone-owner outcome on its side; this
-                         ;; send' terminates the loop regardless (all arms → nil).
+                         ;; arc 278 the send-outcome wall — the owner's `recv` (the `/stop`
+                         ;; method's own recv) faces a gone-owner outcome on its side; this
+                         ;; send terminates the loop regardless (all arms → nil).
                          (~admin-stop-kw
                            (:wat::core::match (:wat::kernel::send self (~status-stopped-kw (~stop-project-name state)))
                              (:wat::kernel::SendOutcome::Sent   nil)
-                             (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv' already faces this
-                             (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
+                             (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv already faces this
+                             (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same, and the owner's recv faces the stop too
                              ((:wat::kernel::SendOutcome::Lost _c) nil)))
                          (~admin-hibernate-kw
                            (:wat::core::match (:wat::kernel::send self (~status-hibernated-kw (~hibernate-project-name state)))
                              (:wat::kernel::SendOutcome::Sent   nil)
-                             (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv' already faces this
-                             (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same, and the owner's recv' faces the stop too
+                             (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv already faces this
+                             (:wat::kernel::SendOutcome::Stopped nil)  ;; arc 278 #73 — same, and the owner's recv faces the stop too
                              ((:wat::kernel::SendOutcome::Lost _c) nil)))
-                         ;; arc 278: AllowPeer[pids] — fold (allow' l pid) over the vec on the
+                         ;; arc 278: AllowPeer[pids] — fold (allow l pid) over the vec on the
                          ;; serve loop's OWN listener l (process-tier gate), ack PeersAllowed up
                          ;; the lineage peer (request/reply — owner blocks so grant-before-dial
                          ;; ordering holds), then CONTINUE serving (recur — no state change).
@@ -2511,15 +2511,15 @@
                                  (:wat::kernel::allow l ~allow-pid-sym))
                                nil
                                pids)
-                             ;; arc 278 the send'-outcome wall — the owner's `/grant` recv'
+                             ;; arc 278 the send-outcome wall — the owner's `/grant` recv
                              ;; faces a gone-owner outcome on its side; the serve loop always
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-allowed-kw)
                                (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
-                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; owner's recv' already faces this
+                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; owner's recv already faces this
                                (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
                                ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))))
-                         ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
+                         ;; arc 293: DenyPeer[pids] — mirror, fold (deny l pid) over the vec on
                          ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
                          ;; the lineage peer (request/reply — owner blocks so revoke-before-return
                          ;; ordering holds), then CONTINUE serving (recur — no state change).
@@ -2531,12 +2531,12 @@
                                  (:wat::kernel::deny l ~deny-pid-sym))
                                nil
                                pids)
-                             ;; arc 278 the send'-outcome wall — the owner's `/revoke` recv'
+                             ;; arc 278 the send-outcome wall — the owner's `/revoke` recv
                              ;; faces a gone-owner outcome on its side; the serve loop always
                              ;; continues serving regardless of this ack's outcome.
                              (:wat::core::match (:wat::kernel::send self ~status-peers-denied-kw)
                                (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
-                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; owner's recv' already faces this
+                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables next-id state))   ;; owner's recv already faces this
                                (:wat::kernel::SendOutcome::Stopped nil)                                     ;; arc 278 #73 — the WORLD is stopping → return
                                ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))))
                          ((~admin-init-kw ~@init-arg-names)
@@ -2570,7 +2570,7 @@
                      ;; is no reply target (the peer is dead) and the lineage peer is a
                      ;; request/reply admin channel we must not desync, so surface the reason on
                      ;; the honest loud sink (stderr) BEFORE evicting + continuing to serve. The
-                     ;; RICHER client-facing recv'-EOF crash-reason surfacing is a separate
+                     ;; RICHER client-facing recv-EOF crash-reason surfacing is a separate
                      ;; follow-on strike; this arm's contract here is simply: do not DROP it.
                      ((:wat::spawn::ServiceEvent::Lost idx cause)
                        (:wat::core::do
@@ -2583,7 +2583,7 @@
                      ;; serving (recur; do NOT remove-at — one client's garbage must never kill a
                      ;; shared service, the DoS this arc pulls out by the root).
                      ((:wat::spawn::ServiceEvent::Malformed idx cause)
-                       ;; arc 278 the send'-outcome wall — a gone client here is not fatal
+                       ;; arc 278 the send-outcome wall — a gone client here is not fatal
                        ;; either (same "reply to a gone client" doctrine); keep serving.
                        (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx)) (~reply-failed-kw cause))
                          (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables next-id state))
@@ -2597,9 +2597,9 @@
                      ;; connection (discarding the un-read oversized residual that would otherwise
                      ;; desync the wire — this is why Malformed, which KEEPS the client, is wrong
                      ;; here), then KEEP SERVING everyone else. The reply is a NON-BLOCKING
-                     ;; `try-send'` (the deadlock guard): a client blocked mid-send on an extreme
-                     ;; oversized frame is not reading its reply side, so a blocking send' could
-                     ;; wedge the serve loop — try-send' skips a non-draining client and we still
+                     ;; `try-send` (the deadlock guard): a client blocked mid-send on an extreme
+                     ;; oversized frame is not reading its reply side, so a blocking send could
+                     ;; wedge the serve loop — try-send skips a non-draining client and we still
                      ;; evict (it learns via EPIPE on its own send). NO eprintln (that is wat's
                      ;; panic — a client-triggerable crash / DoS).
                      ((:wat::spawn::ServiceEvent::Rejected idx cause)
@@ -2638,7 +2638,7 @@
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- (Peer :- [S::Op S::Reply])  req <- <S>::<Op>Request] -> <S>::<Op>Response
-     ;;    (let [_ (send' c (<S>::Op::<Op> req))  r (recv' c)]
+     ;;    (let [_ (send c (<S>::Op::<Op> req))  r (recv c)]
      ;;      (match r ((<S>::Reply::<Op> resp) resp) …)))
      ;; The client fn is SERVICE-namespaced (<fqdn>/<op>) — the SURFACE-namespaced name <S>/<op>
      ;; is already the surface's method-dispatch stub (defsurface registers it; receiver = a Store
@@ -2697,7 +2697,7 @@
                                               (:wat::string::interpolate "{b}::{op-str}/Response"
                                                 :b proto-base :op-str op-str)))
                           client-resp-ty  `(~client-resp-base-kw :- [~@proto-args])
-                          ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
+                          ;; arc 278 the recv-outcome wall — the CLIENT-FACING return type is
                           ;; `(RecvOutcome :- [<Op>Response])` (a matchable value, never a raise).
                           ;; identity 2c: ANNOTATION-only (client method's return type) — mints
                           ;; the reference FORM, structurally off `client-resp-ty` above.
@@ -2732,7 +2732,7 @@
                           rtl-ctor-kw     (:wat::keyword::from-string
                                             (:wat::string::concat proto-base
                                               (:wat::string::interpolate "::{op-pascal}Response::RequestTooLarge" :op-pascal op-pascal)))
-                          ;; arc 278 the recv'-outcome wall — recv' returns a matchable
+                          ;; arc 278 the recv-outcome wall — recv returns a matchable
                           ;; (RecvOutcome :- [Reply]), never a raise. This client method RE-WRAPS it into a
                           ;; `(RecvOutcome :- [<Op>Response])` the caller faces as a VALUE (we are ADT; no
                           ;; try/catch, no raise). CLIENT role: on ::Message, unwrap the reply variant
@@ -2743,11 +2743,11 @@
                           ;; internal reason; the full cause is the owner's, on its crash channel), a
                           ;; fresh reason-free Failure (mirrors runtime::message_only_failure's shape).
                           ;; The reserved protocol-tier `Reply::Failed` (a decode failure) arrives as
-                          ;; ::Lost too (recv' maps it), so it never reaches the inner reply match.
+                          ;; ::Lost too (recv maps it), so it never reaches the inner reply match.
                           ;; On ::Closed, pass the reason-free terminal through.
                           ;;
-                          ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
-                          ;; below faces Lost/Closed as a real outcome, so this send' just needs to
+                          ;; arc 278 the send-outcome wall — a send-then-recv: the recv right
+                          ;; below faces Lost/Closed as a real outcome, so this send just needs to
                           ;; proceed regardless (faced, not `_`-swallowed). UNDER budget (or no wire
                           ;; to measure against — STOP-3) reaches this form, and ONLY this form.
                           send-recv-form  `(:wat::core::let
@@ -2776,8 +2776,8 @@
                                                ;; for a non-Response was a raise. The protocol-tier
                                                ;; `Reply::Failed` (the peer could not decode what we
                                                ;; sent) therefore had NO honest home: `service.wat`
-                                               ;; claimed above that it "arrives as ::Lost (recv' maps
-                                               ;; it)", which is true of the recv' path and FALSE of
+                                               ;; claimed above that it "arrives as ::Lost (recv maps
+                                               ;; it)", which is true of the recv path and FALSE of
                                                ;; this `call-by-deadline` one — measured, by a 1 %
                                                ;; transport fault that killed two processes.
                                                ;; Lifted, a Failed can leave as a DIFFERENT outcome.
@@ -3174,7 +3174,7 @@
      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
      ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)
      ;; Takes the Handle (unforgeable; never handed to clients); sends Admin::Stop down the
-     ;; lineage peer (Handle/handle h); recv's Status::Stopped → extracts and returns state.
+     ;; lineage peer (Handle/handle h); recvs Status::Stopped → extracts and returns state.
      ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
      stop-discard-sym  (:wat::core::symbol-node "_")
      stop-r-sym        (:wat::core::symbol-node "r")
@@ -3316,7 +3316,7 @@
 
      ;; ── arc 291 4a: owner-only hibernate method (mirror of stop) ─────────────────
      ;; Method: (defn <fqdn>/hibernate [h <- Handle] -> state-ty ...)
-     ;; Sends Admin::Hibernate (bare unit kw) down the lineage peer; recv's Status::Hibernated
+     ;; Sends Admin::Hibernate (bare unit kw) down the lineage peer; recvs Status::Hibernated
      ;; which carries the WHOLE State (not a projection — that's what distinguishes hibernate from stop).
      ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
      hib-discard-sym   (:wat::core::symbol-node "_")
@@ -3441,7 +3441,7 @@
      ;; Method: (defn <fqdn>/grant [h <- Handle  pids <- (Vector i64)] -> GateOutcome ...)
      ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
      ;; Peer, so a client has NO grant path). Sends Admin::AllowPeer[pids] down the lineage
-     ;; peer; recv's Status::PeersAllowed → the grant is applied before this returns (so the
+     ;; peer; recvs Status::PeersAllowed → the grant is applied before this returns (so the
      ;; circuit builder's post-spawn grant lands before the caller dials). Callable any time,
      ;; repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote at def time).
      grant-discard-sym (:wat::core::symbol-node "_")
@@ -3553,7 +3553,7 @@
      ;; Method: (defn <fqdn>/revoke [h <- Handle  pids <- (Vector i64)] -> GateOutcome ...)
      ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
      ;; Peer, so a client has NO revoke path). Sends Admin::DenyPeer[pids] down the lineage
-     ;; peer; recv's Status::PeersDenied → the revoke is applied before this returns. Callable
+     ;; peer; recvs Status::PeersDenied → the revoke is applied before this returns. Callable
      ;; any time, repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote
      ;; at def time).
      revoke-discard-sym (:wat::core::symbol-node "_")
@@ -3654,7 +3654,7 @@
 
      ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
      ;; (defn <fqdn>/start [locus <- :wat::spawn::Locus  state0 <- <state-ty>] -> <fqdn>::Handle
-     ;;   (let [b    (listener' locus Op Reply)              ; listener' accepts an abstract :Locus
+     ;;   (let [b    (listener locus Op Reply)              ; listener accepts an abstract :Locus
      ;;         l    (Bound/listener b)
      ;;         addr (Bound/address b)
      ;;         svc  (:wat::spawn::Locus/launch locus l (Vector (Peer :- [Reply Op])) state0
@@ -3675,7 +3675,7 @@
      ;;
      ;; arc 272 6b-ii-β: listener-minting moved INTO Locus/launch (child-mints for process tier).
      ;; start calls `(Locus/launch :- [Op Reply …] …)` with EXPLICIT type-args (arc-232 dep) so
-     ;; the impl's (listener' self :S :R) resolves S=Op, R=Reply. STONE-exactly-one-call-position —
+     ;; the impl's (listener self :S :R) resolves S=Op, R=Reply. STONE-exactly-one-call-position —
      ;; the head is the bare keyword; the binder rides as a call-site sibling, not name-embedded.
      ;; launch returns (Launched :- [Op Reply]){handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
@@ -3720,8 +3720,8 @@
      cm-self-sym (:wat::core::symbol-node "self")
      cm-und-sym  (:wat::core::symbol-node "_")
      cm-ship-sym (:wat::core::symbol-node "ship")
-     ;; arc 278 the recv'-outcome wall — hygienic binders for the child-main startup
-     ;; recv' RecvOutcome match (a :user::main body → the ProgramBodyIntroducesName gate
+     ;; arc 278 the recv-outcome wall — hygienic binders for the child-main startup
+     ;; recv RecvOutcome match (a :user::main body → the ProgramBodyIntroducesName gate
      ;; forbids bare-Symbol binders; symbol-node + unquote appear as Unquote nodes).
      cm-shipmsg-sym   (:wat::core::symbol-node "shipmsg")
      cm-shipcause-sym (:wat::core::symbol-node "shipcause")
@@ -3729,18 +3729,18 @@
      ;; arc 291 3a-ii-α: child-main-form uses the lineage protocol.
      ;; self-peer: (Peer :- [Status Admin])
      ;;   child sends Status::Started(addr) UP, receives Admin DOWN.
-     ;; The send' wraps addr in Status::Started (was: raw addr).
-     ;; The recv' gets Admin; dispatch-admin applies to it (was: init applied to raw ship).
+     ;; The send wraps addr in Status::Started (was: raw addr).
+     ;; The recv gets Admin; dispatch-admin applies to it (was: init applied to raw ship).
      child-main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                         (:wat::core::let
                           ;; arc 278 startup-crash parity: recv ship → run :init → send Started
                           ;; (was: send Started → recv ship → run :init). :init now runs BEFORE
                           ;; Status::Started, so an :init crash dies before the send → the parent's
-                          ;; crash-aware `recv' svc` (spawn.wat ProcessOpts, reordered to send-ship-
+                          ;; crash-aware `recv svc` (spawn.wat ProcessOpts, reordered to send-ship-
                           ;; then-recv-Started) RAISES the child's reason instead of /start
-                          ;; succeeding and the owner's later connect' getting a bare ECONNREFUSED.
+                          ;; succeeding and the owner's later connect getting a bare ECONNREFUSED.
                           ;; Arc 278 the parametric protocol — the TYPE-position spellings.
-                          ;; `listener'` types the `Bound`, whose `Address` flows into
+                          ;; `listener` types the `Bound`, whose `Address` flows into
                           ;; `Status::Started` — a `(Status :- [K V])` variant, so its addr slot is
                           ;; `(Address :- [(Op :- [K V]) (Reply :- [K V])])` and a BARE `(Address :- [Op Reply])` does
                           ;; not unify with it. In this generated child `:user::main` the params
@@ -3762,7 +3762,7 @@
                            ;; DESIGN closed. One value, both ends, each end reading it where it runs.
                            ~cm-ship-sym (:wat::core::match (:wat::kernel::recv-by-deadline ~cm-self-sym (:wat::program::startup-handshake-deadline-ms))
                                             ((:wat::kernel::RecvOutcome::Message ~cm-shipmsg-sym) ~cm-shipmsg-sym)
-                                            ;; arc 278 the recv'-outcome wall — the child lost/closed its
+                                            ;; arc 278 the recv-outcome wall — the child lost/closed its
                                             ;; owner link before the startup ship arrived: eprintln is the
                                             ;; terminal dying declaration (loud, exits non-zero).
                                             ((:wat::kernel::RecvOutcome::Lost ~cm-shipcause-sym)
@@ -3778,17 +3778,17 @@
                            ~cm-st-sym   (:wat::core::apply
                                             (:wat::keyword::from-string ~dispatch-admin-name-str)
                                             ~cm-ship-sym [])
-                           ;; arc 278 the send'-outcome wall — the owner's crash-aware `recv' svc`
+                           ;; arc 278 the send-outcome wall — the owner's crash-aware `recv svc`
                            ;; (spawn.wat ProcessOpts) faces a gone-owner outcome on its side; this
-                           ;; send' proceeds into serve regardless (faced, not `_`-swallowed).
+                           ;; send proceeds into serve regardless (faced, not `_`-swallowed).
                            ~cm-und-sym  (:wat::core::match (:wat::kernel::send ~cm-self-sym
                                             (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
                                           (:wat::kernel::SendOutcome::Sent   nil)
                                           (:wat::kernel::SendOutcome::Closed nil)
                                           ;; arc 278 #73 — a stop arrived as the child announced
                                           ;; readiness. Same body, and the precondition is that the
-                                          ;; child proceeds into `serve`, whose poll' faces the stop
-                                          ;; as its own event; the owner's recv' faces it too.
+                                          ;; child proceeds into `serve`, whose poll faces the stop
+                                          ;; as its own event; the owner's recv faces it too.
                                           (:wat::kernel::SendOutcome::Stopped nil)
                                           ((:wat::kernel::SendOutcome::Lost _c) nil))]
                           ;; arc 278 the call context — the process-tier child's OWN initial
@@ -4173,8 +4173,8 @@
      ;; arc 291 3a-ii-β: handle is the owner-only lineage peer (admin channel).
      ;; (Peer :- [Admin Status]) — owner sends Admin (down), receives Status (up).
      ;; (Thread :- [Admin Status]) and (Process :- [Admin Status]) both satisfy this field
-     ;; (send'/recv' intrinsics accept Thread|Process|Peer uniformly).
-     ;; addr carries the typed (Address :- [Op Reply]) for client connect'.
+     ;; (send/recv intrinsics accept Thread|Process|Peer uniformly).
+     ;; addr carries the typed (Address :- [Op Reply]) for client connect.
      ;;
      ;; ★ A STRUCT, NOT A RECORD — arc 278 2026-08-03, builder-ruled: "they are
      ;; resources - they are not pure." BOTH fields are live: `handle` is a peer
