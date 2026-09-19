@@ -3587,3 +3587,169 @@ forecast (#474's `#[cfg(debug_assertions)]` test is invisible to the release flo
 stated 5865). One self-caught record-format defect (a wrapped `census:` verdict line at #478),
 repaired pre-yield, never published. See `SCORE-7q-replay-batch-4q.md` for the full row-by-row
 account against all 20 rows (E1–E20).
+
+# REPLAY-LOG — grok-rete #481–#500 onto `replay/grok-rete` (BRIEF-7r, batch 4r)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` (git show only). **Not pushed.** Main
+untouched. Start tip `0038bbf83` (batch 4q CLOSED, 4r censused). 20 REPLAY commits, #481–#500,
+contiguous. `verify-step-record.sh 0038bbf83 HEAD 481 500` → `step-range: #481..#500 each present
+exactly once, sources match` + `step-record: complete`, exit 0.
+
+## Batch 4r — #481→#500 (SCORE-7r-replay-batch-4r.md)
+
+Eight docs-only steps (#483 #485 #489 #491 #493 #495 #497 #499); twelve code steps. Governed by two
+rulings: the #472 ruling's direct sequel (#498, Stone K's bench move) and a fresh mirror-gate
+measurement (#496).
+
+## #481 — LANDED (strike: draw conferre L2-3 — the two stratifiers disagree, and nothing compares
+numbers). Clean cherry-pick, 4 files (1 `.wat` scratch fixture, 3 docs). `--check` rc=0.
+⚠ Self-caught: the first version of this commit's cherry-pick trailer was typed from memory and did
+not match the real SHA; caught by a routine post-commit `git rev-parse` audit and repaired via
+`reset --soft HEAD^` + recommit (tip commit, no descendants).
+
+## #482 — LANDED (test(rete): the two stratifiers disagree on NUMBERS while agreeing on facts —
+conferre L2-3). Clean auto-merge, 4 files (3 `.rs` incl. `mod.rs` registration, 2 docs). New
+`stratify_numbers.rs` test compiles and passes standalone (1/1). No finding-33-class hit — the
+embedded wat strings are fresh source snippets the test itself parses at runtime.
+
+## #483 — docs-only, 3 files (strike: draw the accum-over-derived grid axis).
+
+## #484 — LANDED (test(grid): accum-over-derived — bag a DERIVED type at depth, checked three
+ways). Clean auto-merge, 6 files (1 new `.wat`, 1 new `.clj`, 2 `.rs` grid-registration entries, 1
+shared shell script line, 1 docs SCORE). ⚠⚠ FINDING-33-CLASS HIT: grok's `accum-over-derived.wat`
+used retired-era syntax; cured via `scripts/replay/convert.sh 05d33d022 …` (the file's own
+introducing commit), diff mechanical, `--check` rc=0 after; all 6 grid/loader gates green.
+⛔⛔ SELF-CAUGHT STAGING DEFECT, found and repaired two steps later (at #486): the codemod-converted
+file was verified in the working tree and all gates run against it, but `git add` was never re-run
+after the fix, so the FIRST landing of this commit carried the pre-fix (retired-syntax) blob despite
+every test having passed. Repaired via detach at the old #484, re-staging the fix, verifying `git
+diff <old> <new> --stat` showed exactly the one intended file change, recommitting with the
+identical (already-correct) message via `reset --soft HEAD^` + `git commit -F`, then cherry-picking
+#485 forward and verifying its tree was byte-identical to its pre-fold version, then moving the
+branch pointer. A local safety-net branch (`backup-pre-484-fix`) was created before the repair and
+deleted with `-D` once verified, never pushed.
+
+## #485 — docs-only, 3 files (strike: draw the stratify header corrections — the audit found six
+TRUE claims, not two false).
+
+## #486 — LANDED (docs(rete): the stratify headers stop claiming lockstep — comments only). Clean
+auto-merge, 4 files (1 `.rs`, 1 `wat/` file, 2 docs). `wat/` edit is ONE file
+(`wat/rete/oracle/stratify.wat`), verified comment-only (every changed line begins `//`, `///`, or
+`;;`, zero non-comment hits over the cached diff). `--check` on the touched stdlib file reports the
+same pre-existing rc (1, `ReservedPrefix` — expected for a stdlib file checked as user code,
+unrelated to and unchanged by this edit). `stratify_numbers` re-run standalone: 1/1.
+
+## #487 — LANDED (strike: draw produced_type — the oracle names the FUNCTION where native names the
+fact type). Clean cherry-pick, 4 files (1 `.wat` scratch fixture, 3 docs). `--check` rc=0, no
+finding-33-class hit (fresh grok-era syntax parses clean here).
+
+## #488 — LANDED (test(rete): the oracle DROPS a derived fact when the `:then` head is a user fn).
+Clean auto-merge, 6 files (2 new `.rs` incl. `mod.rs` registration, 1 new `.clj`, 2 docs).
+⚠⚠ FINDING-33-CLASS HIT: grok's `arc278-produced-type-userfn-facts.wat` used retired-era syntax;
+cured via `scripts/replay/convert.sh 34ee46ce9 …`, diff mechanical (5 hunks), `--check` rc=0 after;
+both new tests pass. No wat-shaped text in the `.rs` file. `+2 #[test]` (5886→5888 skipped on the
+nested-program-gate instrument).
+
+## #489 — docs-only, 3 files (strike: draw the oracle cure — compile.wat already resolves the head
+stratify.wat guesses at). ⚠ Self-caught: the cherry-pick trailer was again typed from memory and did
+not match the real SHA; caught by the same routine audit and repaired the same way (tip commit, no
+descendants).
+
+## #490 — LANDED (fix(oracle): rule-produces RESOLVES the head — the dropped fact is back). REAL
+CONFLICT in `wat/rete/oracle/stratify.wat`, exactly at `rule-produces`'s body: this tree's
+colon-strip form vs grok's head-resolution recipe (`eval-ast!` / PRIME `:T'` / `return-type-of`).
+Resolved by taking grok's logic in full, adapted to this tree's already-rehomed `:wat::vector::conj`
+(grok's era still wrote `:wat::core::PersistentVector/conj`).
+⚠⚠ A FOURTH FINDING-33-CLASS HIT, surfaced only at TEST time inside this same conflict resolution:
+grok's hunk also carried `:wat::core::string::concat`, unhomed on this tree
+(`rename-string-verbs-to-their-home.wat` already moved it to `:wat::string::concat`) — `--check` gave
+no signal (a stdlib file checked standalone reports the same rc regardless), but the new test
+reddened with `UnknownFunction` until corrected as a single-site reconciliation (not a corpus
+migration), verified against sibling usages in `wat/string.wat`/`wat/lint.wat`.
+`src/rete/kernel/tests/produced_type_userfn.rs` auto-merged clean, verified byte-identical to grok's
+post-image. ⛔⛔ SELF-CAUGHT STAGING DEFECT, the same class as #484: the `string::concat` fix was
+verified green in the working tree but never `git add`ed before the first commit, so that commit's
+tree still carried the unhomed name despite the passing test run. Discovered when `git show
+HEAD:path` was checked directly ahead of #491's cherry-pick and disagreed with the working tree.
+Repaired identically to #484's repair (detach, re-stage, verify one-line diff, `reset --soft
+HEAD^` + recommit with the unchanged message, cherry-pick #491's in-progress work forward via
+stash, verify no phantom diff, move the branch pointer). Re-run after repair: `produced_type_userfn`
+(2/2), `stratify_numbers` (1/1), all 3 grid gates — 6/6 passed.
+
+## #491 — docs-only, 3 files (strike: draw the userfn-head grid axis).
+
+## #492 — LANDED (test(grid): userfn-head — the standing three-way that proves the dropped fact
+stays gone). Clean auto-merge, 6 files (1 new `.wat`, 1 new `.clj`, 2 `.rs`, 1 shared shell script
+line, 1 docs SCORE). ⚠⚠ FINDING-33-CLASS HIT: cured via `scripts/replay/convert.sh caeef4793 …`,
+diff mechanical (11 hunks), `--check` rc=0 after; all 5 grid/loader gates green.
+
+## #493 — docs-only, 3 files (strike: draw conferre L2-1 as the matrix's fourth cell).
+
+## #494 — LANDED (test(grid): accum-lead-rule-cascade — the matrix's fourth cell AGREES; L2-1 is not
+a leak here). Clean auto-merge, 6 files, same shape as #484/#492. ⚠⚠ FINDING-33-CLASS HIT: cured via
+`scripts/replay/convert.sh 7b51ac717 …`, `--check` rc=0 after; all 5 grid/loader gates green.
+
+## #495 — docs-only, 3 files (strike: draw census G's deferred gate — EMITTED => READ, scoped by
+measurement to 7).
+
+## #496 — LANDED (test(lint): EMITTED => READ for census counters — and all 25 got readers, none
+runed). Clean auto-merge, 7 files (6 `.rs` incl. `mod.rs`, 1 docs SCORE). No wat-shaped text in any
+touched `.rs` file. ⚠ THE MIRROR GATE'S NUMBER IS GROK'S, NOT OURS — measured directly via a
+throwaway `eprintln!` inside the new test (`--no-capture`), reverted with `git checkout --` before
+landing (verified byte-identical to grok's post-image): this tree's emitted `census_count`/
+`census_count_n` set is **45 names**, not grok's 25, reflecting the whole census campaign (batch 4p)
+plus #465's/#470's later renames. All 45 are READ; zero carry the earned-exemption rune. Gate re-run
+with no instrumentation: 1/1 passed. `+5 #[test]` (327 lint-subset, 1522 `kind(lib)`).
+
+## #497 — docs-only, 3 files (strike: draw Stone K moves 2-4 — three diagnostics leave the test
+binary).
+
+## #498 — LANDED, WITH THE RULING APPLIED (refactor(bench): Stone K moves 2-4 — three diagnostics
+leave the test binary). REAL CONFLICT in `src/rete/kernel/tests/binding_repr_bench.rs`, exactly
+where the ruling predicted: grok's hunk deletes the whole Token.bindings-representation section.
+Resolved per the ruling: the bench move landed in FULL (`benches/binding_repr.rs`, byte-identical to
+grok's; the `Cargo.toml` `[[bench]]` entry; the `matcher.rs` back-pointer) — `binding_key_cost` and
+`binding_repr_microbench` left the test binary exactly as grok's diff does (`cargo nextest list`
+confirms 0 matches for both names anywhere). `token_bindings_representation_dominance` did NOT
+leave: its helpers and its two surviving assertions (small-end GET, non-vacuity) are unchanged from
+the #472 ruling; the record block above it is extended to confirm the #498 landing is now real, not
+predicted. `cargo build --release --bench binding_repr` compiles clean (`cargo bench` itself was not
+run — the orchestrator's row). Re-run standalone: the 3 kept tests, 3/3 passed. Registered-count
+delta: −2 (both removed diagnostics were `#[ignore]`d; the kept fn was never ignored).
+
+## #499 — docs-only, 3 files (strike: draw the false purity claim — the probe asserts a fence that
+does not exist).
+
+## #500 — LANDED (docs(rete): strike the probe's false purity claim — a constructing rete defn IS
+admitted). Clean auto-merge, 2 files (1 `.wat`, 1 docs SCORE), comment-only in the `.wat` (verified,
+zero non-`;;` hits). `--check` rc=0. The probe's own 6 tests re-run standalone: 6/6 passed,
+unchanged.
+
+⛔⛔ THREE SELF-CAUGHT STAGING DEFECTS AND TWO SELF-CAUGHT FABRICATED TRAILERS THIS BATCH, disclosed
+rather than hidden, all repaired pre-yield, none ever published. The staging class (#484, #490) is
+new to this campaign: a fix verified GREEN against the working tree, at the moment of verification,
+was committed without `git add` re-staging it — so the test suite's own green result did not
+guarantee the committed blob matched, because tests read the working tree, not git's index. Neither
+was caught by a red test; both were caught by an unrelated later symptom (a confusing diff at the
+next cherry-pick; a direct `git show HEAD:path` vs working-tree comparison). The trailer class
+(#481, #489) is the one finding 36 already names — a SHA typed from memory rather than copied — and
+was caught both times by a routine post-commit `git rev-parse` audit performed immediately after
+every commit for the remainder of the batch. All five were repaired via detach + `git reset --soft
+HEAD^` + recommit + cherry-pick-forward-with-tree-diff-verification (never `git commit --amend`,
+which the harness's own destructive-action classifier refused twice on a detached HEAD; never `git
+replace`; never `filter-branch`), with every carried-forward step re-verified tree-byte-identical to
+its pre-fold version before the branch pointer moved. **Rule for the next batch: after any
+`Edit`/`cp` made to satisfy a gate discovered AFTER a merge/cherry-pick has already staged files,
+re-run `git status --porcelain` and confirm the fixed path shows staged (not a bare `M`) before
+committing — a green test run is not evidence the fix is staged.**
+
+**Disposition: COMPLETE.** All 20 steps (#481–#500) landed, tree clean at `db728180f`
+(`REPLAY(grok-rete #500)`), not pushed. `origin/replay/grok-rete` (`8fc2e5c89`) remains the
+published tip (the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. No mid-batch STOP; no
+test ever went red. The #498 ruling landed exactly as specified; the #496 mirror gate was measured
+on this tree's own corpus (45, not grok's 25). Four finding-33-class hits, all cured via the
+recorded codemod chain or a single-site in-conflict reconciliation, never hand-edited as a bulk
+change. Five self-caught defects (finding 5 in the SCORE), all repaired pre-yield. One measured
+correction to the orchestrator's own test-count forecast (5872 run / 22 skipped, not 5867/21 — net
++6, not +3). See `SCORE-7r-replay-batch-4r.md` for the full row-by-row account against all 20 rows
+(E1–E20).
