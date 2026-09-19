@@ -103,7 +103,11 @@ const NOT_EMIT: &str = "src/rete/kernel/tests";
 const SUBJECT: &str = "src/rete/kernel/tests";
 
 /// The three functions that put a name into the census (`src/rete/kernel/census.rs`).
-const EMITTERS: [&str; 3] = ["phase_end", "census_count", "census_count_n"];
+pub(crate) const EMITTERS: [&str; 3] = ["phase_end", "census_count", "census_count_n"];
+
+/// The two emitters this file's mirror (`census_emitted_name_is_read_or_declared`)
+/// covers. A `phase_end` name is a region; a `census_count` name asserts what is counted.
+const COUNT_EMITTERS: [&str; 2] = ["census_count", "census_count_n"];
 
 /// Box-drawing glyphs the census table uses to nest a child row under its parent. A string literal
 /// in this corpus contains one only if it is a census row name.
@@ -448,16 +452,19 @@ fn rel(p: &Path) -> String {
 }
 
 /// The names the engine can put into the census, and how many came from each half.
-struct Emitted {
-    names: BTreeSet<String>,
-    from_literals: usize,
-    from_computed: usize,
-    computed_helpers: BTreeSet<String>,
+pub(crate) struct Emitted {
+    pub names: BTreeSet<String>,
+    /// Subset of [`Self::names`] emitted by `census_count` / `census_count_n` (not `phase_end`).
+    pub count_names: BTreeSet<String>,
+    pub from_literals: usize,
+    pub from_computed: usize,
+    pub computed_helpers: BTreeSet<String>,
 }
 
-fn emitted() -> Emitted {
+pub(crate) fn emitted() -> Emitted {
     let skip = root().join(NOT_EMIT);
     let mut names = BTreeSet::new();
+    let mut count_names = BTreeSet::new();
     let mut computed_helpers = BTreeSet::new();
     let mut from_computed_names = BTreeSet::new();
     for p in rs_under(EMIT_ROOT) {
@@ -468,12 +475,14 @@ fn emitted() -> Emitted {
             continue;
         };
         for lit in literals(&src) {
-            if lit
-                .callee
-                .as_deref()
-                .is_some_and(|c| EMITTERS.contains(&c))
-            {
-                names.insert(lit.text);
+            let Some(c) = lit.callee.as_deref() else {
+                continue;
+            };
+            if EMITTERS.contains(&c) {
+                names.insert(lit.text.clone());
+            }
+            if COUNT_EMITTERS.contains(&c) {
+                count_names.insert(lit.text);
             }
         }
         for helper in computed_emitter_args(&src) {
@@ -485,8 +494,11 @@ fn emitted() -> Emitted {
     }
     let from_literals = names.len();
     names.extend(from_computed_names.iter().cloned());
+    // Computed families (`ebucket`/`tbucket`) are invoked as `census_count(helper(n))`.
+    count_names.extend(from_computed_names.iter().cloned());
     Emitted {
         names,
+        count_names,
         from_literals,
         from_computed: from_computed_names.len(),
         computed_helpers,
@@ -495,17 +507,17 @@ fn emitted() -> Emitted {
 
 /// One census name read by a cost test.
 #[derive(Debug, Clone)]
-struct Read {
-    name: String,
-    file: String,
-    line: usize,
+pub(crate) struct Read {
+    pub name: String,
+    pub file: String,
+    pub line: usize,
     /// The literal's own source line preceded by the one above it, so a co-located rune can be
     /// seen. Both are accepted because a name held in a `const [&str; N]` has no room for a
     /// trailing comment that rustfmt will leave alone — the rune goes on the line above instead.
     raw: String,
 }
 
-fn reads() -> Vec<Read> {
+pub(crate) fn reads() -> Vec<Read> {
     let mut out = Vec::new();
     for p in rs_under(SUBJECT) {
         let Ok(src) = std::fs::read_to_string(&p) else {

@@ -484,4 +484,47 @@ fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
         "compiled loop made {calls} calls, interpreter loop made {interp_calls} — the two loops \
              do not share a corpus, so the two counters are not comparable"
     );
+
+    // EMITTED ⇒ READ: these three fire only on the interpreter walk above, which is why
+    // a whole-fire census reads them at zero (compiled step 1). Asserted NONZERO here.
+    // Single-arg `of` so sibling READ sees the literals; two-arg `get(&rows, "name")`
+    // is not an argument of a discovered reader (`let of = |name: &str|`).
+    let of_interp = |name: &str| -> u64 { get(&interp_rows, name) };
+    let match_clause = of_interp("match:clause");
+    let match_bind = of_interp("match:bind-insert");
+    assert!(
+        match_clause > 0,
+        "match:clause is 0 over {interp_calls} interpreter calls — the counter is not on this path"
+    );
+    assert!(
+        match_bind > 0,
+        "match:bind-insert is 0 over {interp_calls} interpreter calls — the bind arm is not live"
+    );
+
+    let wrong_class = "zz::NoSuchType";
+    let (_, miss_rows) = super::with_count_census(|| {
+        let Some(fact) = facts.iter().find_map(|fact| match fact {
+            Value::Aggregate(a) if a.nature != Nature::Struct => Some(a),
+            _ => None,
+        }) else {
+            return;
+        };
+        let Some(cond) = alpha_cond.values().next() else {
+            return;
+        };
+        let field_names = class_field_names(sym, fact.class.as_ref());
+        let _ = crate::rete::matcher::alpha_match_inner(
+            Some(crate::rete::compiled_cond::test_sym()),
+            cond,
+            wrong_class,
+            fact.fields.as_slice(),
+            &field_names,
+        );
+    });
+    let of_miss = |name: &str| -> u64 { get(&miss_rows, name) };
+    let head_miss = of_miss("match:head-miss");
+    assert!(
+        head_miss > 0,
+        "match:head-miss is 0 on a deliberate type-head mismatch — the counter is not wired"
+    );
 }
