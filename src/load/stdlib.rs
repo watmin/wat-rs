@@ -171,12 +171,6 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/spawn.wat",
         source: include_str!("../../wat/spawn.wat"),
     },
-    // Arc 259 S3.2a — the brackets layer runner server-loop.  Loaded AFTER
-    // spawn.wat which provides :wat::kernel::Peer, recv', send'.
-    WatSource {
-        path: "wat/bracket.wat",
-        source: include_str!("../../wat/bracket.wat"),
-    },
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../../wat/holon.wat"),
@@ -461,6 +455,23 @@ const STDLIB_FILES: &[WatSource] = &[
     WatSource {
         path: "wat/queue.wat",
         source: include_str!("../../wat/queue.wat"),
+    },
+    // wat/bracket.wat — Arc 259 S3.2a, the brackets layer runner server-loop. RELOCATED here
+    // (from slot 23,
+    // between wat/spawn.wat and wat/holon.wat) by excursus 001 so it loads AFTER wat/queue.wat
+    // and can be built on the queue, which is the whole reason queue was promoted.
+    // ⛔ WHY THIS MOVE IS LEGAL AND THE INVERSE IS NOT: bracket.wat is a LEAF — nothing in the
+    // stdlib eval-depends on it. A census of `:wat::bracket::` over stdlib code finds 82 refs
+    // inside this file and 2 in wat/spawn.wat, and BOTH of those are spawn DEFINING
+    // `:wat::bracket::PoolMsg` (spawn.wat:269, a defenum) and using it locally at :454 — the
+    // namespace is split across two files, spawn does not consume bracket. A leaf can always
+    // move LATER, because its own dependencies are earlier by construction. Hoisting the query
+    // family ABOVE 23 instead would have been ~27 files and a cascade (queue names
+    // `:wat::query::` at ~180 code sites; query names rete 38-47 and string 29).
+    // Enforced, not asserted, by `:wat::deporder::verify-stdlib`.
+    WatSource {
+        path: "wat/bracket.wat",
+        source: include_str!("../../wat/bracket.wat"),
     },
     // wat/query/mem.wat — `:wat::query::mem-store`, the FIRST `:wat::query::Store` satisfier (a
     // `:wat::service::defservice :satisfies :wat::query::Store` holding a
