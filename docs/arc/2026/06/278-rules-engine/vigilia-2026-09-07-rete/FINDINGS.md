@@ -353,6 +353,8 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2S3** | solvere | `wat/rete/compile.wat:1079-1100` + `:1103-1124` | `compile-rule` and `compile-query` run the identical pipeline — `sort-lhs` → `CondFoldAcc` → `foldl compile-condition` → destructure → build terminal → `assoc` → `wire-parents` → bump `next-id` — differing only in the RHS fence and the terminal node type. ⛔ **Self-diagnosed:** the comment at `:1102` reads *"compile-query — same LHS fold as compile-rule; terminal is a QueryNode."* Named, never extracted. | L2 · structural | **OPEN** · ✅ I VERIFIED | `sed -n '1102p' compile.wat` → the comment, verbatim. Closed by one `compile-terminal` helper parameterised by the terminal constructor |
 | **2X1 ★** | excusare | `compiled_cond.rs:245-246` | ⭐ **AN EXEMPTION WHOSE OWN COMMENT DOCUMENTS THE CHANGE THAT MADE IT INERT.** `#[allow(clippy::too_many_arguments)]` sits on `from_parts`, which takes **exactly 7 parameters** — I counted them. Clippy's default `too-many-arguments-threshold` is 7 and the lint fires only when the count **exceeds** it; `clippy.toml` sets no override (read in full — it configures only `ignore-interior-mutability`). And the line directly above the attribute reads: *"7 args since A3 (was 8: two arrays became the zip)."* The refactor that comment records is what took it below the threshold; the suppression stayed. | L2 · **STALE-GUARD (candidate)** | **OPEN** · ✅ I VERIFIED the arithmetic; ⚠ lint liveness UNVERIFIED by design | 7 params confirmed; `cat clippy.toml` → no threshold key. ⛔ **Settle it by MUTATION, not by reading:** delete the `#[allow]`, run `cargo clippy --all-targets --release -- -D warnings`. Silent → STALE-GUARD, remove it. Fires → HOLDS, and the threshold is not what we think |
 | **2X2 ★★** | excusare | `clause.rs:72-76` | ⭐⭐ **TWO WARDS, ONE RUNE, TWO VERDICTS — the second such split of this cast.** `purgare` rowed this (2P2) as mis-categorised: `trait-contract` on a plain enum field no trait bound mandates. `excusare` — whose entire remit is weighing exemptions — returns **HOLDS**, and gives its ground explicitly: category fit is *"a check another ward can decide"* and therefore outside its remit; its own question is only whether the reason earns the `#[allow(dead_code)]`, and it independently confirmed the reason is TRUE (`acc_form` written once at `clause.rs:354`, never read as this field; fire reads `node_named_ast(node, "acc-form")` in `kernel/arm.rs`). **Both stand as returned.** `vigilia` forbids me re-classifying a child's verdict — so this is a decision for the builder. | 2P2 says mis-categorised · 2X1 says HOLDS | **OPEN — NEEDS A DECISION** · ✅ I VERIFIED both readings | the reason's truth and the category's fit are **separable**, and the two wards each judged a different one. Closed when the builder rules whether a true reason under a wrong category is a defect |
+| **2T1 ★** | struere | `where_tree.rs:271-272` vs `:299` | ⭐ **THE DOC NAMES A DOWNGRADE THE CODE DOES NOT DO.** `walk`'s header: *"The moment the walk takes a wildcard **or a range edge** — a guard, not a proof — everything below it is `maybe`."* The wildcard arm (`:316`) passes `false` — matches. The range arm's `Some(true)` (`:299`) passes **`proven` unchanged**. ⚠ The code is nonetheless SAFE, for a reason the doc never states: the sole caller gates on `proven.contains(&tid) && sink.where_tree.is_pure_cmp(tid)` (`kernel/fire/mod.rs:2284`), and for a pure-cmp id `DimCon` permits one constraint per dim, so a held range edge really does prove its dim. **Half the contract lives in another file.** | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `:299` → `walk(child, …, proven, …)`; `:316` → `walk(wc, …, false, …)`; `:301` (`None`) → `false`. ⛔ **The hazard is a plausible "fix":** forcing `proven=false` on any range edge would match the doc and silently kill the pure-cmp fast path for every range-typed clause — a pessimization no test would redden. Closed by stating the real invariant on `walk` |
+| **2T2 ★★** | struere | `compiled_cond.rs:1567-1614`; doc at `:95-96` and `:1538-1539` | ⭐⭐ **A TEST NAMED `every_op_variant_lands_in_core_or_driver` THAT DOES NOT COVER EVERY OP VARIANT.** `lands()` (`:1550-1565`) is a genuine compiler-enforced exhaustive match over `Op`'s **8** variants and classifies `Bind \| Eval → Driver`. The test drives it from a **hand-typed array of 7** — `Op::Eval` is absent — and then asserts `driver.len() == 1, "driver must be exactly Bind"`. **That assertion passes only because of the omission.** Three sources now disagree: the module doc (`:95-96`, *"Driver = slot population (`Bind` only)"*), the `Lands` doc (`:1538-1539`, same), and `lands()` itself (`Bind \| Eval`). The test freezes the two stale ones. | L2 (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `Op` has 8 variants (`enum Op` at `:102`, bounded read); array lists 7; `:1557` maps `Bind \| Eval → Driver`; `:1608-1612` asserts `driver.len() == 1`. ⛔ **See my note — completing the array REDDENS the test, and the red points at the wrong file.** Closed by deriving `variants` exhaustively and fixing both stale docs |
 
 ## Verified by the orchestrator — target 2
 
@@ -465,7 +467,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **5** — conferre · conformare · purgare · solvere · excusare | intueri · struere · sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | 0 | 14 |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **6** — conferre · conformare · purgare · solvere · excusare · struere | intueri · sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **1** | 15 |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -569,3 +571,44 @@ tables for `sequi`, `perspicere`, `purgare` and `excusare` — but **`solvere`, 
 `temperare` have no closed-set gate anywhere in this tree**. Each of those three is in use in this
 target. That is the same shape `sequi` had before its 2026-08-25 incident, and it is a finding about
 the guard rather than about the code.
+
+- **2T1 ★** — CONFIRMED on all four arms. `:299` (`Some(true)`) passes `proven` through; `:301`
+  (`None`) passes `false`; `:316` (wildcard) passes `false`. So the doc's *"or a range edge"* is
+  false for exactly the held-range case, and true for the other two. ⚠ **The ward did the harder
+  half**: rather than stopping at "doc wrong", it traced WHY the code is sound anyway — the caller's
+  second gate at `kernel/fire/mod.rs:2284` — and named that the real contract is split across two
+  files. **The hazard it identifies is the sharp part and I want it on the record:** a maintainer
+  reading only this doc would "fix" `:299` to force `proven=false`, matching the stated contract and
+  silently killing the pure-cmp fast path for every range-typed clause. That is a pessimization, not
+  a wrong answer — **no test would go red.** A doc that invites a correct-looking change into a
+  silent regression is worse than one that merely mumbles.
+
+- **2T2 ★★** — CONFIRMED, **and it is sharper than the ward graded it.**
+  · `Op` has exactly **8** variants — I anchored this, because my first extraction was WRONG: an
+    unbounded `awk` swept in `OperandLowering`'s variants from `:633` and reported 11. Re-run with
+    the enum's real bounds: `Bind, BindCheck, Cmp, SeedCmp, Eval, Or, Not, Fail`.
+    `[[a-throwaway-sweep-is-an-instrument]]`, again, in the middle of verifying a finding *about* a
+    miscount.
+  · The array lists **7**. `Op::Eval` is absent. `lands()` maps `Bind | Eval → Driver`. The test
+    asserts `driver.len() == 1` **and** `matches!(driver[0], Op::Bind { .. })`.
+  · So the test's two assertions encode *"Driver is exactly Bind"* — which the live classifier
+    directly contradicts — and they pass **only** because the input omits the counter-example.
+  ⛔ **THIS IS NOT MERELY VACUOUS; IT IS A TRAP.** The obvious repair — add `Op::Eval` to the array,
+  completing the coverage the test's NAME already claims — makes it go **RED**. And the red does not
+  point at the array: it points at `driver.len() == 1`, i.e. at the live, correct `lands()`. A
+  maintainer following the failure would be led to "fix" the classifier back to `Bind`-only, which
+  is the stale taxonomy two doc comments still assert. **The fixture actively defends the wrong
+  answer against its own repair.**
+  ⚠ The ward graded this **L2** and `vigilia` forbids me re-classifying a child's verdict, so L2
+  stands as returned. My reading is that a test whose *name* claims coverage it does not have, and
+  whose assertions pin a taxonomy its own subject contradicts, is closer to L1. **That disagreement
+  is the builder's to settle, not mine.**
+
+⭐ **AND THE CLEAN HALF IS A REAL RESULT ABOUT THIS TARGET.** `struere` swept every
+`panic!`/`.unwrap()`/`.expect()` in all 25 files, classified each against its file's `#[cfg(test)]`
+boundary, and found **ZERO production sites reachable from user rule text** — against target 1's
+**eleven** join-key `panic!` sites, which were its own sharpest row there (T1). The two non-test
+hits (`export.rs:1985,1997`) are same-map lookups where the key was just collected from the map.
+It also traced ~30 `-> bool` classifiers to their callers hunting the `ClassPlan::observe` shape it
+found on target 1 — **none found.** Two of its target-1 signature defects are simply absent here,
+and it said so with the method. That is the answer to *"prove the others don't find anything."*
