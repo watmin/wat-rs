@@ -121,9 +121,43 @@ across **12 files**. Writing this up as bracket's problem pointed the fix at the
 `a-momentary-failure-is-not-fatal` 1a/1b shape applied to `ServiceEvent` instead of `RecvOutcome`,
 and it is the one that serves all 11 callers.
 
-**2. A corrupted transmission CANNOT be retried by anyone — and that is why re-dispatch is a
-different act.** The frame is gone and the sender has moved on; there is nothing to re-send. The
-only recovery is **re-running the work that produced it**, which is not a transport retry at all.
+**2. ⛔ MY CLAIM THAT A CORRUPTED TRANSMISSION CANNOT BE RE-SENT IS WRONG.** Builder:
+
+> *"there's zero reason why a network can't implement such a thing via a network protocol — we can
+> observe something is wrong and have the caller resend it. everything is lock step in wat. the
+> producer will not produce until it's been told the receiver can receive it. the threads do this,
+> the processes do it, the network will too — it doesn't exist yet, that doesn't mean it can't be
+> made lockstep too."*
+
+**Verified in the substrate, and it is a designed invariant rather than an accident:**
+
+```
+src/comms/mod.rs:54     Thread tier: crossbeam `bounded(1)` — structurally capacity-1
+src/comms/mod.rs:68     There is no `bounded(N)` factory at any tier
+src/comms/thread.rs:27  no `bounded(N)` factory (retired by four-questions)
+src/comms/thread.rs:44  backpressure shape is the same: substrate refuses to absorb work
+```
+
+Capacity-1 everywhere. **The sender is blocked *inside* the send until the receiver takes the
+value — it has not moved on, and it still holds the value.** So on a decode failure the receiver
+can ask for a resend, and a remote tier that keeps the same discipline can do the same. I imported
+a fire-and-forget model that this substrate explicitly refuses.
+
+⭐⭐ **AND THAT RESOLVES THE TAXONOMY HOLE I RAISED IN ROW 2 — I had the retry at the wrong layer.**
+Put the resend in the TRANSPORT, where lock-step makes it possible, and the layering comes out
+clean:
+
+| fault | who handles it | what the consumer sees |
+|---|---|---|
+| wire corrupted the frame | **the transport** — receiver observes the bad decode, asks the still-blocked sender to resend | nothing; it never surfaces |
+| the sender encoded garbage | nobody can fix it — a resend reproduces it byte for byte | `Malformed` — genuinely **REPORT-FINAL** |
+| the peer died | the transport cannot help | `Closed` / `Lost` → bracket re-dispatches the work |
+
+So `a-momentary-failure-is-not-fatal`'s contract — *"`Malformed` is never retried"* — is **not** a
+statement that networking breaks. It becomes **true by construction**, once the transient half is
+absorbed below by a resend. ⚠ My earlier note that "`Malformed` is two facts wearing one name" was
+right about the ambiguity and wrong about the remedy: the fix is not a richer variant at the
+consumer, it is a resend at the transport so only the deterministic fact ever gets there.
 
 ⭐ **And THAT is the one sense in which bracket IS special — as the RECOVERER, not the victim.** It
 owns the work queue, so `holding[idx]` tells it which task to re-run. A generic `select` consumer
@@ -144,6 +178,13 @@ undecodable reply and re-dispatch spins until the bound.
 ⛔ **So the wall-clock bound is not a nicety here, it is the only thing standing between a
 deterministic encode bug and an infinite re-dispatch loop.** Grade it as load-bearing, and make the
 give-up report name that it could not tell death from garbling.
+
+⚠ **And note what the lock-step finding does NOT change for this stone:** a transport-level resend
+does not exist yet, so today a wire fault still reaches bracket as `Lost`. The bound stays
+load-bearing until the resend lands. What changes is the ORDER of the fix — the substrate stone
+(`select` gains `Malformed`, and the transport resends the transient half) is the one that makes
+bracket's `Malformed` handling honest, and it should be drawn as the lock-step design it is, not
+as a richer enum bolted onto a fire-and-forget assumption.
 
 ⚠ The `Malformed`-is-two-facts note in row 2 applies to `poll`'s `Malformed`. `select` has a
 THIRD problem: it has no `Malformed` at all.
