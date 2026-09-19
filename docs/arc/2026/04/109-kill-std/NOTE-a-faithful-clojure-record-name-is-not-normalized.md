@@ -3,6 +3,49 @@
 **Filed 2026-09-10, arc 278 (`strike-no-rule-that-cannot-compile`), grounded here in arc 109
 because this is the faithful/colon-mode surface. Measured, not fixed.**
 
+> # ⛔ AMENDED THE SAME DAY, AND THE CORRECTION MATTERS MORE THAN THE FILING
+>
+> **THE FRAMING BELOW IS STRUCK. This is not a gap, a defect, or a "pre-existing hole" — it is
+> the CURRENT BOUNDARY OF A DRAWN, TRACKED CAMPAIGN, and it is exactly where that campaign says
+> it should be.** The builder, on reading the original: *"oh - your whole complaint is just that
+> we aren't symbol heads yet?.... we have been working on this path for months..."* Correct, and
+> I had not read the record before filing.
+>
+> **The owning work is `docs/arc/2026/06/251-types-as-forms/DESIGN-STONE-251.8-symbol-proper.md`**,
+> drawn 2026-08-13 on the builder's ruling *"i think we need to implement symbol proper... that's
+> been missing since the beginning as we've been using 'colon-quoted symbols'."* Its status line:
+> **8a strike-ready; 8b–d are the campaign shape, not yet briefed.** And its fourth stone is this
+> NOTE's entire subject:
+>
+> > **`251.8d — THE READER/PRINTER FLIP.`** *"`::` retires as a reference spelling; a colon means
+> > keyword, full stop. The 1392-file corpus flip lands here, as a spelling change over a
+> > substrate that already type-checks both."*
+>
+> So `wat.source/File` failing in the record-NAME position is **not rot**: the two
+> `to-faithful-clojure-*` codemods are the migration tools built FOR 8d, emitting its target
+> syntax against a substrate that has reached 8a. Their output not reading back is the expected
+> state of a campaign three stones from that flip. 251.8 even cuts the adjacent case
+> affirmatively — *"the corpus flip is NOT in this stone… it must not begin while a dotted call
+> head is unchecked."*
+>
+> **⭐ THE LESSON, AND IT IS THE ONE WORTH KEEPING.** This arc has spent a week finding claims
+> that were true when written and rotted silently — *"no ward is aimed at 'this was right when it
+> was written.'"* Here I ran that exact error **in reverse**: I aimed a defect-shaped filing at
+> work that is deliberate, tracked, in-flight, and correct. **A measurement of an unfinished
+> campaign is a PROGRESS reading, not a finding — and which one it is cannot be determined from
+> the code, only from the record.** I measured five variants carefully and read zero design docs.
+>
+> **What survives, and why this NOTE is kept rather than deleted:** the five-variant isolation
+> below is a good measurement, and as a *progress reading* it is genuinely useful — it says
+> precisely how far the normalizer has come toward 8d (head: done; type position: done;
+> definition-site name: not yet). Re-run it to see the campaign move. Read it as a milestone
+> marker, never as a bug report.
+>
+> **⚠ One thing I still do not know, stated as a question rather than a finding:** both codemods'
+> headers say *"Gate = round-trip parse of the output"* in the present tense, for a gate that
+> cannot hold until 8d lands. Whether that wants a forward-looking word added is a judgement for
+> whoever owns 251.8 — it is not a defect I am asserting.
+
 ## What was actually measured
 
 The two `to-faithful-clojure-*` codemods ran for the first time ever at `2a9de244a` and both emit,
