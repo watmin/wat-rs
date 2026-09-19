@@ -21,42 +21,39 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `f6e619888` (batch 4r's records, pushed). **500 of 651 replayed. 151 remain.**
+Stamp: written on top of `4a39f254c` (batch 4s's records, pushed). **520 of 651 replayed. 131 remain.**
 In flight: nothing.
 
-**Batch 4r (#481–#500) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped**, clippy 0, census
-`no STOP-8`, 20/20 subjects and trailers verified.
+**Batch 4s (#501–#520) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
+census `no STOP-8`, 20/20 subjects and trailers. The range touched **zero `.rs`** (22 `.md` + 1 `.wat`),
+which is why the count could not move.
+★ **THE RESTRAINT HELD.** #511 lands grok's *"all 65 exemptions — 59 hold, 6 struck"* **verbatim**. The
+executor spot-checked it here, got 65 by a different route, and reported **"not found false"** rather
+than claiming confirmation its method could not support. **Grok's prose keeps grok's words; our
+divergent numbers live in our SCORE.**
+⚠ **#515 hit a REAL conflict in a shared doc** (`docs/COMPACTION-AMNESIA-RECOVERY.md`, `shared=1`): our
+2026-09-13 annotation sits on the paragraph grok's stamp supersedes. Both were kept — verified at the
+tip, no markers, neither side's content dropped.
 
-★★ **#498 DID NOT UNDO #472.** Grok's Stone K moved three diagnostics into `benches/binding_repr.rs`
-(`harness = false`) and deleted `token_bindings_representation_dominance`. We landed the bench move in
-full and **kept the surviving small-end GET assertion on the floor** — verified: `-E
-'test(token_bindings_representation_dominance)'` → 1 passed at the tip, and the two `#[ignore]`d
-diagnostics are gone from the test binary. A bench never runs on our floor, so grok's deletion would have
-removed a live 4.53–10.15x gate silently.
-★ **#496's mirror gate proved the corpus divergence**: grok's body says *"all 25 got readers"*; **this
-tree emits 45** after the census campaign. All 45 read, none runed, nothing deleted for green. **Grok's
-counts are never ours.**
+Next is **batch 4t (#521–#540)**: censused — **18 docs-only, 2 code (#537, #540)**; the vigilia
+continues. The range is **39 `.md` + 9 `.wat` + 1 `.sh`**. **ZERO `src/`, ZERO hazard rows, ZERO new
+gates, ZERO test delta** — floor prediction **unchanged at 5872 run / 22 skipped**.
 
-⛔⛔ **THE EXECUTOR HAS NOW CORRECTED MY FLOOR PREDICTION TWICE RUNNING, AND I WAS WRONG BOTH TIMES.**
-At 4q I missed a `#[cfg(all(test, debug_assertions))]` module; at 4r I **double-counted** — my census
-line `NET tests: +5` was already net of #498's removals, and E12 subtracted them a second time. **Five
-batches running my pre-flight has been short.** The cure is instrumental, not arithmetical:
-**derive every set from the data over the whole range, exclude comments when counting code, and net
-ONCE.** The 4s census below was built that way and its totals line shows the derivation.
+⚠⚠ **#537 WILL GO RED WITHOUT CONVERSION — THIS IS MEASURED, NOT FEARED.** It adds **9 new `.wat` under
+`wat-scripts/scratch-pad/experiri-then/`**, and **every one of the nine** carries two forms this tree
+retired:
+- the **positional `assertion-failed!`** (kwargs `:message`/`:actual`/`:expected` are required now — the
+  checker says so by name), and
+- **`:wat::core::i64::+`** (9 occurrences; the live spelling is `:wat::i64::+`).
 
-Next is **batch 4s (#501–#520)**: censused — **19 docs-only, 1 code (#501)**, and it is by far the
-lightest batch of the campaign. The whole range is **34 `.md` + 1 `.wat`**: grok's 2026-09-07 *vigilia*,
-an audit cast recorded as prose. **ZERO `src/`, ZERO hazard rows, ZERO new gates, ZERO test delta** — so
-the floor prediction is **unchanged at 5872 run / 22 skipped**.
-- **#501** is the only code step: one comment-only fix to `wat-scripts/scratch-pad/…userfn-facts.wat`,
-  striking a `println` literal that claimed a compile it never observed.
-- ⚠ **72 `path:line` citations are added**, and **all 72 resolve in range here** (measured). But
-  `no_stale_path_in_doc` checks **existence and range only** — it cannot see that a line number now
-  points at different content than grok meant. That drift is invisible and is not a defect to chase.
-- ⛔ **THE VIGILIA DOCS RECORD GROK'S MEASUREMENTS, NOT OURS** — "65 exemptions", "18 findings", "all 25".
-  They are the historical record of grok's own audit, exactly like a SCORE. **Do NOT "helpfully" correct
-  them to this tree's numbers**; that would falsify the record being replayed. Our divergent counts
-  belong in our SCORE, never inside grok's prose.
+⛔ **Two gates walk `wat-scripts/` RECURSIVELY** (`every_wat_scripts_file_loads_on_the_current_runtime`
+and `every_rete_name_in_wat_scripts_code_resolves`), so scratch-pad is **not** a quiet corner. **Cure at
+#537 via `scripts/replay/convert.sh <introducing-commit>`** — the recorded chain, the 4o/4q/4r precedent
+— **never by hand.** This is finding 33's class and it has now fired in five consecutive code-bearing
+batches.
+
+⚠ **#540 adds `wat-scripts/perf/grid/peragrare-census.sh`** — a shell script that may itself contain wat
+in string literals. Grep that side; finding 33 reaches `.sh` too.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -108,7 +105,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4p #441–#460 (CLOSED; floor 5856/5856, clippy 0, pushed)
                               + batch 4q #461–#480 (CLOSED; floor 5864/5864, clippy 0, pushed)
                               + batch 4r #481–#500 (CLOSED; floor 5872/5872, clippy 0, pushed)
-                              ⇒ 500 of 651 replayed. NEXT: batch 4s #501–#520.
+                              + batch 4s #501–#520 (CLOSED; floor 5872/5872, clippy 0, pushed)
+                              ⇒ 520 of 651 replayed. NEXT: batch 4t #521–#540.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -165,6 +163,14 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4s #501–#520 is CLOSED and PUSHED** (records at `4a39f254c`; SCORE-7s, REPLAY-LOG). 20 steps,
+  19 docs-only — the lightest batch of the campaign, grok's 2026-09-07 vigilia recorded as prose. Floor
+  **5872/5872, 22 skipped — unchanged**, clippy 0, census `no STOP-8`.
+  ★ **Grok's measurements landed unedited** (see the header). #501, the only code step, struck a
+  `println` literal that claimed a compile it never observed.
+  ⚠ **A sixth fabricated trailer** (#502), self-caught by the executor's own post-commit `rev-parse`
+  re-check before any descendant existed, and repaired by reset --soft + recommit. Every later message
+  was then built by piping `rev-parse` output straight in. **Six across three batches: type nothing.**
 - **Batch 4r #481–#500 is CLOSED and PUSHED** (records at `f6e619888`; SCORE-7r, REPLAY-LOG). 20 steps,
   8 docs-only — the densest batch of the campaign. Floor **5872/5872, 22 skipped** — the EXECUTOR's
   corrected figure — clippy 0, census `no STOP-8`.
