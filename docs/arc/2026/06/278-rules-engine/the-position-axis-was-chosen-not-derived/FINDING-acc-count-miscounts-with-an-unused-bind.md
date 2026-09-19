@@ -1,83 +1,73 @@
-# FINDING — ⛔ `acc::count` returns a WRONG COUNT when the `:from` inner carries a bind nothing consumes
+# FINDING — ⛔ ~~`acc::count` returns a WRONG COUNT~~ — STRUCK. Clara agrees. The real divergence is duplicate DERIVED FACTS.
 
-**Driven 2026-09-10 at `dfd883886`.** Repro committed beside this finding at
-`wat-scripts/scratch-pad/arc278-acc-count-unused-bind/probe-acc-count-unused-bind.wat` — both arms
-
-> # ⛔ CORRECTED 2026-09-10 — "ACCUMULATE HAS ZERO CORPUS USES" IS FALSE. IT WAS MY GREP.
+> # ⛔⛔ THE TITLE'S CLAIM IS FALSE AND THE WHOLE ORIGINAL FINDING IS WITHDRAWN.
 >
-> I grepped for `rete::accumulate`. **The form has no `accumulate` keyword.** It is spelled
-> `(?result <- (<acc-form>) :from (<inner>))` — and `src/rete/clause.rs:67` states that spelling
-> verbatim, in a line I had already read and quoted. Measured properly: **37 `.wat` files carry a
-> `:from` accumulate condition — 24 under `wat-scripts/`, 9 under `tests/`, 4 under `wat/`, and
-> nineteen of them are GRID CELLS** (`accum.wat`, `accum-lead-derived.wat`, `accum-over-derived.wat`
-> and siblings, each with a `.clj` Clara twin).
->
-> **⭐ THIS MAKES THE QUESTION BETTER, NOT SMALLER.** The old framing — *"nothing was looking
-> because nothing uses it"* — was a comfortable non-explanation. The truth is harder and more
-> useful: **the grid HAS accumulate cells, compared three ways against Clara, and this defect
-> survived them.** So the live question is not *why was nobody looking* but **what SHAPE does this
-> defect need that no existing cell has** — an inert bind in the `:from` inner. That is `peragrare`
-> exactly: the instrument was never asked this question, and a green from an instrument that was
-> never asked is silence, not proof.
->
-> ⛔ Fourth instrument error in one day, and the most consequential: this claim was load-bearing in
-> two findings, a DESIGN, a probe header and two commit messages before it was checked. The others
-> cost a re-run; this one shipped. `[[a-throwaway-sweep-is-an-instrument]]` — and the anchor I
-> failed to build was the cheapest possible one: grep the corpus for the form's REAL spelling,
-> which the type's own doc comment had given me.
+> **I filed an engine-defect finding before measuring the reference.** The builder's ruling —
+> *"as we find these flaws, we must grow the grid to confirm how clara handles these, then we fix
+> the wat-oracle then the wat-native"* — is exactly the discipline that caught it, and I had
+> committed the finding before following it.
 
-in one file, so the number can be interpreted.
+**Re-measured 2026-09-10 at `2d3f4b40e`**, all three engines, same inputs.
 
+## 1. The accumulate behaviour is CORRECT. Clara does the identical thing.
+
+Binding `?v` in an accumulate's `:from` source is **not an inert bind** — it is a **grouping
+variable**, in both engines. Three inputs, three engines:
+
+| readings | Clara rows / `n` | wat-oracle rows | wat-native rows |
+|---|---|---|---|
+| `10 20 30` (all distinct) | 3 → `(1 1 1)` | 1 | 1 |
+| `7 7 7` (all equal) | 1 → `(3)` | 1 | 1 |
+| `10 20 20` (two equal) | 2 → `(1 2)` | 2 | 2 |
+
+`plain` (no extra bind) is **3** in every engine, every row. ⭐ **The partitioning matches Clara
+exactly.** The original "3 readings → n=1" was me reading `first` of a multi-row result and calling
+it a count.
+
+## 2. The real divergence, isolated to four lines and NOT about accumulate
+
+```wat
+(:wat::rete::defrule :dd::r :when [(:dd::In (?k <- :k))] :then [(:dd::Out :n 1)])
+;; insert In{1}, In{2} — the rule derives the SAME Out{n:1} twice
 ```
-3 readings inserted -> plain=3  with-unused-bind=1   (both must be 3)
-```
 
-| rule | `:from` inner | derived `n` |
-|---|---|---|
-| `plain` | `(:Reading (?loc <- :location))` | **3** ✅ |
-| `with-unused-bind` | `(:Reading (?loc <- :location) (?v <- :value))` | ⛔ **1** |
+| engine | `Out` rows |
+|---|---|
+| **wat-native** | **1** |
+| **Clara** | **2** |
 
-The **only** difference is `(?v <- :value)` — a binding **nothing reads**: not the acc-form, not a
-constraint, not the `:then`. Adding it silently changes the engine's answer from 3 to 1.
+No accumulate, no binding, no grouping. **wat collapses identical derived facts; Clara keeps
+both.** Every row of the table in §1 falls out of this: three partitions each deriving
+`Extra{n:1}` are three identical facts, and wat shows one.
 
-## Why this is the most serious thing in this chain
+## 3. It is already documented — as a MASKING property, not as intended semantics
 
-Everything else this arc has found is a **missing check** — a program that should have been refused
-and was not. This is a **wrong value**: a well-formed, fully-checked, legal rule that compiles,
-fires, and returns the wrong number, with no diagnostic anywhere. A rules engine's whole contract
-is the answer it returns.
+`wat-scripts/perf/grid/CLARA-TRANSLATIONS.md:179`, on why an earlier defect hid:
 
-## Scope, measured not assumed
+> *"Three properties must ALL hold or the defect hides again: … it must be observed **through a
+> query** (`production_delta` dedups derived facts by value and masks token multiplicity)"*
 
-- **`acc::sum` over the SAME two binds is unaffected** — `10+20+30` sums correctly, and filtered
-  sums are correct too. So this is specific to the **count** fold's handling of the inner's binding
-  set, not to having two binds.
-- **Independent of any constraint.** The repro's `:from` carries no predicate at all.
-- **Not a type-checking question**, and explicitly outside the `:from` validator strike
-  (`6ddccec63`), whose DESIGN excludes the engine/reducer body.
+So the collapse is known and is described as something that **hides defects**. ⚠ That is a
+different claim from *"wat intends set semantics for derived facts."* Which of the two it is,
+this finding does not establish.
 
-**Suspected home, not confirmed:** `src/rete/kernel/fire/acc.rs` / `fire/pass/accumulate.rs`. ⚠ I
-have not read either. The mechanism is unmeasured — knowing a number is wrong does not license a
-fix, and the diagnosis needs its own measurement.
+## ⛔ What is NOT measured
 
-## How it was found, and why nothing was looking
+- **Whether the FACT STORE or the QUERY collapses.** Both observations above went through a query,
+  and `production_delta` is a query-side dedup. There may be two `Out{n:1}` facts in memory with
+  the query showing one. **Until that is separated, "wat collapses derived facts" is a statement
+  about what a query returns, not about what the engine stores.** That is the first measurement.
+- **Whether the divergence is intended.** See §3.
+- **Blast radius.** Any rule that can derive one fact from two activations is affected — which is
+  a large class, not an accumulate corner.
 
-By accident, during the `accumulate :from` strike: an executor wrote a positive fixture asserting
-an exact count, the count came back wrong, and the first assumption was that the fixture or the new
-validator was at fault. It was neither. The fixtures were switched to `acc::sum` to get past it.
+## ⭐ What the grid needs, now precisely specified
 
-⭐ **`:wat::rete::accumulate` has ZERO uses in the entire `.wat` corpus.** Nothing has ever driven
-this fold outside the tests, so nothing could have noticed. The same property that hid the
-`:from` validator hole hid this — and this one is worse, because a type hole needs someone to write
-a wrong program before it bites, while this bites a correct one.
+Not an accumulate cell. **A cell whose rule derives the SAME fact from two activations** — the
+four-line program in §2. The A5 axis already carries `count`-with-one-bind and `sum`-with-two-binds;
+what no cell in the grid has ever produced is a **duplicate derived fact**, which is why 19
+accumulate cells compared three ways against Clara have never seen this.
 
-## What is NOT established
-
-- **The mechanism.** Unread, unmeasured.
-- **The blast radius.** Only `acc::count` vs `acc::sum` were compared, with one inert bind, at one
-  arity. Whether other acc-forms miscount, whether two inert binds differ from one, and whether a
-  *consumed* second bind is also affected are all unmeasured.
-- **Whether the oracle agrees.** The wat oracle (`wat/rete/oracle/`) was not run against this. A
-  differential would say whether this is a native-only defect or shared — and per
-  `[[when-two-engines-disagree-neither-is-the-referee]]`, that is the first thing to measure, not
-  the last.
+⭐ And by `check-grid-three-way.sh`'s own diagnosis table, `oracle == native != clara` reads as
+**the SPEC diverges from Clara** — the pairing its header calls *"the pairing NOTHING has ever
+run."*
