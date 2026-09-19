@@ -34,11 +34,38 @@
 # ratios legitimately span 8.5x-59x. Raise one only with a new recorded grid to cite, and never
 # lower one to make a red go away — a ratio that fell by half is the finding this exists to
 # report.
+#
+# ── THE CAPTURE'S JDK — KNOWN, EVIDENCE, AND WHAT SUPERSEDES IT (`3W1`) ────────────────────────
+#
+# KNOWN: `GRID-native-vs-clara-2026-08-27T07-15-56Z.txt` — the grid the FLOOR array below derives
+# from — names no JDK and no Clojure CLI version anywhere in the file. Neither does any other
+# recorded `GRID-*.txt` in this directory (29 of 29, checked 2026-09-09; `grep -il
+# 'jdk|temurin|openjdk|java '` over all of them returns nothing). CI pins `distribution: temurin`,
+# `java-version: "21"`. Whether the 2026-08-27 capture ran under that JDK, a different major
+# version, or a different distribution entirely was never recorded, so it cannot be re-derived,
+# defended, or refuted from the file cited above.
+#
+# EVIDENCE, NOT PROOF: the box this capture was measured on runs, TODAY (checked 2026-09-09, not
+# at capture time), `Temurin-21.0.12+8` via `JAVA_HOME=$HOME/opt/jdk-21` — the same distribution
+# and major version CI pins, reached through the ordinary `$HOME/opt/jdk-*` discovery this box
+# still uses. That makes it PLAUSIBLE the capture ran under the JDK CI now pins. It is NOT proof:
+# a box's JDK today is not evidence of that same box's JDK on 2026-08-27, and nothing ties the two
+# together. Read this floor as "measured on an unrecorded JDK, on a box that currently happens to
+# run the one CI pins" — never as "measured on Temurin 21."
+#
+# WHAT SUPERSEDES THIS: `run-all.sh` now emits a `#grid/Capture` header (java -version, Clojure
+# CLI version, the pinned Clara version, capture timestamp) as the first line of its stdout, so
+# the next full grid recorded through the ordinary `bash run-all.sh > GRID-....txt` capture is
+# self-describing by construction. THAT grid — not this comment, not a fresh read of the box's
+# CURRENT `java -version` — becomes the provenance-bearing baseline once it exists. Re-deriving
+# these floor numbers under it is deliberately NOT done here: it is a performance act needing six
+# samples, a quiet box, and its own scorecard, not a recording-mechanism fix.
 set -euo pipefail
 
 GRID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# axis : floor (~50% of that axis's minimum ratio in the 2026-08-27 grid)
+# axis : floor (~50% of that axis's minimum ratio in the 2026-08-27 grid — a grid whose own JDK
+# was never recorded; see "THE CAPTURE'S JDK" above)
 declare -A FLOOR=(
   [accum]=6.3          [asym-join]=8.2      [deep-cascade]=6.6
   [fanout]=4.2         [leading-exists]=14.9 [min-finding]=26.6
