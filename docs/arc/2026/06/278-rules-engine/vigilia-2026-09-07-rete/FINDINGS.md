@@ -351,6 +351,8 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2S1 ★** | solvere | `matcher.rs:733-741` + `compiled_cond.rs:1403-1412` | ⭐ **THE `CmpKind → bool` TABLE IS HAND-WRITTEN TWICE.** Six arms, same semantics, in the interpreted path and the compiled path. `clause.rs:119-126` defines `CmpKind` and implements **no method on it**; there is no `cmp_holds` anywhere. ⚠ The compiled site's own doc reasons about drift one level too shallow: *"`compare_values` is REUSED from `matcher.rs`… so an ordering definition can never drift"* — true, and it protects the `Ordering` computation while leaving the dispatch table **on top of it** duplicated. | L2 · structural, low blast radius | **OPEN** · ✅ I VERIFIED | both bodies read: 6 arms each, `?`-propagation vs `matches!`; `grep -rn 'impl CmpKind\|fn cmp_holds\|fn holds' src/rete/` → **0**. Closed by one `cmp_holds` in `clause.rs` beside the type |
 | **2S2 ★★** | solvere | `export.rs:751-754` vs `:834-839`, `:1106`; ten `pack_X`/`unpack_X` pairs | ⭐⭐ **ONE FILE HOLDS BOTH ENDS OF THE LADDER.** `pack_expr` is a bare `match` with no catch-all — a new variant **cannot compile** without its arm. `unpack_expr` matches a runtime **string tag** with `other => Err(malformed(…))`, so the same new variant compiles clean and fails at runtime. Ten pairs, same asymmetry. ⛔ **The file DIAGNOSES ITSELF** — `:751-754` says the packer is *"the one whose exhaustiveness the compiler enforces for you… Its inverse cannot get that guarantee"* — and names the mitigant as a **test corpus a human must remember to extend**. | L2 · structural | **OPEN** · ✅ I VERIFIED | `pack_expr` has no catch-all; `unpack_expr:1106` is `other => Err(...)`; `:838` names the corpus as the catcher. Closed by a per-variant table or a macro emitting both arms |
 | **2S3** | solvere | `wat/rete/compile.wat:1079-1100` + `:1103-1124` | `compile-rule` and `compile-query` run the identical pipeline — `sort-lhs` → `CondFoldAcc` → `foldl compile-condition` → destructure → build terminal → `assoc` → `wire-parents` → bump `next-id` — differing only in the RHS fence and the terminal node type. ⛔ **Self-diagnosed:** the comment at `:1102` reads *"compile-query — same LHS fold as compile-rule; terminal is a QueryNode."* Named, never extracted. | L2 · structural | **OPEN** · ✅ I VERIFIED | `sed -n '1102p' compile.wat` → the comment, verbatim. Closed by one `compile-terminal` helper parameterised by the terminal constructor |
+| **2X1 ★** | excusare | `compiled_cond.rs:245-246` | ⭐ **AN EXEMPTION WHOSE OWN COMMENT DOCUMENTS THE CHANGE THAT MADE IT INERT.** `#[allow(clippy::too_many_arguments)]` sits on `from_parts`, which takes **exactly 7 parameters** — I counted them. Clippy's default `too-many-arguments-threshold` is 7 and the lint fires only when the count **exceeds** it; `clippy.toml` sets no override (read in full — it configures only `ignore-interior-mutability`). And the line directly above the attribute reads: *"7 args since A3 (was 8: two arrays became the zip)."* The refactor that comment records is what took it below the threshold; the suppression stayed. | L2 · **STALE-GUARD (candidate)** | **OPEN** · ✅ I VERIFIED the arithmetic; ⚠ lint liveness UNVERIFIED by design | 7 params confirmed; `cat clippy.toml` → no threshold key. ⛔ **Settle it by MUTATION, not by reading:** delete the `#[allow]`, run `cargo clippy --all-targets --release -- -D warnings`. Silent → STALE-GUARD, remove it. Fires → HOLDS, and the threshold is not what we think |
+| **2X2 ★★** | excusare | `clause.rs:72-76` | ⭐⭐ **TWO WARDS, ONE RUNE, TWO VERDICTS — the second such split of this cast.** `purgare` rowed this (2P2) as mis-categorised: `trait-contract` on a plain enum field no trait bound mandates. `excusare` — whose entire remit is weighing exemptions — returns **HOLDS**, and gives its ground explicitly: category fit is *"a check another ward can decide"* and therefore outside its remit; its own question is only whether the reason earns the `#[allow(dead_code)]`, and it independently confirmed the reason is TRUE (`acc_form` written once at `clause.rs:354`, never read as this field; fire reads `node_named_ast(node, "acc-form")` in `kernel/arm.rs`). **Both stand as returned.** `vigilia` forbids me re-classifying a child's verdict — so this is a decision for the builder. | 2P2 says mis-categorised · 2X1 says HOLDS | **OPEN — NEEDS A DECISION** · ✅ I VERIFIED both readings | the reason's truth and the category's fit are **separable**, and the two wards each judged a different one. Closed when the builder rules whether a true reason under a wrong category is a defect |
 
 ## Verified by the orchestrator — target 2
 
@@ -463,7 +465,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **4** — conferre · conformare · purgare · solvere | intueri · struere · sequi · temperare · exigere · cernere · probare · perspicere · excusare, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | 0 | 12 |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **5** — conferre · conformare · purgare · solvere · excusare | intueri · struere · sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | 0 | 14 |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -512,3 +514,58 @@ clause-classification axis, already cured. It then found the real duplication on
 comparison table those walkers each evaluate. **And it declined `where_tree.rs`'s range family with
 a reason**: that code is the *product* of a prior consolidation whose own doc records the fifth
 hand-match it replaced. A ward that can tell a cure from a defect is worth casting.
+
+- **2X1 ★** — CONFIRMED on the arithmetic, and the ward's restraint is what makes it citable.
+  `from_parts` takes `ops, zip, n_slots, seed_reads, fact_bind, span, slot_names` — **7**.
+  `clippy.toml` configures only `ignore-interior-mutability`; there is no threshold key. And the
+  comment at `:245` is the tell, in the exemption's own hand: *"7 args since A3 (was 8: two arrays
+  became the zip)."*
+  ⭐ **It refused to assert what it could not run.** Told READ-ONLY, it did not run clippy, and said
+  in its own report that the lint's inertness is *unverified* — asserting only the arithmetic and
+  the absence of an override. That is why the row can carry a mutation as its re-derivation instead
+  of a claim. `[[a-reading-cannot-see-an-execution-defect]]` — the reading is sound and the reading
+  is not the proof.
+
+- **2X2 ★★** — CONFIRMED, and it is **the second ward-disagreement of this cast.** X3 on target 1
+  was three wards on one rune; this is two wards on one rune, and the axis of disagreement is
+  cleaner: **a rune has a REASON and a CATEGORY, and they are separately judgeable.** `purgare`
+  judged the category (wrong for a plain enum field). `excusare` judged the reason (true, and
+  independently re-verified) and explicitly declined the category as another ward's business. Both
+  are correct on their own axis. Whether a true reason under a wrong category is a defect is not
+  mine to rule — `vigilia` forbids the aggregator re-classifying a child.
+  ⚠ Note this makes **2P1/2P2 a matched pair once more**, from a second direction: on `var` the two
+  wards AGREE (excusare independently reached ILLEGITIMATE-AT-BIRTH), on `acc_form` they SPLIT. The
+  rune whose reason is false draws unanimity; the rune whose reason is true does not.
+
+⛔⛔ **AND EXCUSARE CORRECTED MY ENUMERATION — IN BOTH DIRECTIONS. THAT IS TWO FOR TWO.**
+I handed it "33 runes, 5 allows". Both were wrong:
+· **My 33 was Rust-only.** The wat spec half carries one more — `wat/rete.wat:524`,
+  `rune:exigere(scope-affirmative)` — and my target list explicitly includes those five files.
+  Re-derived: **33 Rust + 1 wat = 34.**
+· **My 5 allows were 4.** My pattern `#\[allow\(` matched a **prose mention inside a doc comment**:
+  `validate/mod.rs:392` reads *"an alternative here was an `#[allow(clippy::too_many_arguments)]`,
+  which silences the signal"* — a note about what they deliberately did NOT do. ⚠ Precision, because
+  the ward slightly overstated: it named *two* prose sites, but only that one matched my pattern
+  (`typing.rs:44` writes `` `#[allow]` `` with no paren). The substantive correction — **4 real
+  attributes** — is exactly right.
+
+**Every pre-measured list I have handed a ward this cast has contained an error.** `conferre` found
+one (a seventh `Mirrors` claim I called a continuation without looking). `excusare` found two.
+Three errors, two lists, one session — and in all three cases the *only* thing that surfaced them
+was the clause instructing the ward to re-derive and report the delta.
+⭐ **That clause is now the most load-bearing sentence in the casting procedure**, and it is cheap:
+one sentence buys an independent check on every number the orchestrator hands down. A measurement
+handed to a worker is a claim wearing a measurement's clothes
+(`[[a-throwaway-sweep-is-an-instrument]]`, `[[an-example-in-a-brief-is-a-claim-too]]`).
+
+⭐ **Its method deserves the credit too: it weighed mechanically, not for plausibility.** All 16
+`cited-name-absent` runes were checked by grepping the repo for each cited name and confirming
+**zero code positions** — the rune's exact claim. It found the repo's own gates behind several
+categories (`rete_citation_resolves`, `no_loose_string_assert`, `retired_name_justified`,
+`no_unknown_ward_rune`) and used their source as corroboration, noting correctly that reading a
+gate is not running it.
+⚠ **And it surfaced a gap nobody asked about:** `docs/CONVENTIONS.md` carries closed-set vocabulary
+tables for `sequi`, `perspicere`, `purgare` and `excusare` — but **`solvere`, `exigere` and
+`temperare` have no closed-set gate anywhere in this tree**. Each of those three is in use in this
+target. That is the same shape `sequi` had before its 2026-08-25 incident, and it is a finding about
+the guard rather than about the code.
