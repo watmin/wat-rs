@@ -25340,7 +25340,8 @@ pub(crate) fn eval_peer_send_prime(
 /// `(:wat::kernel::try-send peer payload)` — Arc 278 Stone 1a / Phase 3a
 /// (`BRIEF-send-wall-3a-try-send-outcome.md`).
 ///
-/// Best-effort, NON-BLOCKING twin of `send` for the unified `(Peer :- [S R])`. Same
+/// Best-effort, NON-BLOCKING twin of `send` for Thread, Process, and the
+/// unified `(Peer :- [S R])`. Same
 /// type contract for the payload (unifies with the peer's I) but the write NEVER
 /// blocks: a full kernel buffer (peer not draining) or a gone peer is a
 /// **silent skip** at the transport level — but unlike Phase-1 `send`, the
@@ -25373,6 +25374,88 @@ pub(crate) fn eval_peer_try_send_prime(
     let payload_val = eval_inner(&args[1], env, sym)?.value_owned();
 
     match &peer_val {
+        // Thread spawn-runner handle. Same cell as `send`; non-blocking.
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<
+                crate::rust_deps::custodia::ThreadOwnedCell<
+                    Option<crate::kernel::peer::Thread<Value, Value>>,
+                >,
+            > = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let outcome = cell
+                .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                    Ok(match opt_peer {
+                        None => try_send_outcome_closed(),
+                        Some(peer) => match peer.try_send(payload_val.clone()) {
+                            Ok(()) => try_send_outcome_sent(),
+                            Err(crate::comms::TrySendError::Full(_)) => {
+                                try_send_outcome_would_block()
+                            }
+                            Err(crate::comms::TrySendError::Disconnected(_)) => {
+                                try_send_outcome_lost(loci_died_disconnected())
+                            }
+                        },
+                    })
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(outcome)
+        }
+        // Process spawn-runner handle. Same cell as `send`; non-blocking.
+        // collect-feed-idle try-sends on this path (FrameTooLarge is process).
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<
+                crate::rust_deps::custodia::ThreadOwnedCell<
+                    Option<crate::kernel::spawn::ProcessSelectable>,
+                >,
+            > = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let edn_str = wat_edn::write(&crate::edn::render::value_to_edn_with(
+                &payload_val,
+                sym.types().map(|a| a.as_ref()),
+            ));
+            let outcome = cell
+                .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
+                    match opt_bundle {
+                        None => Ok(try_send_outcome_closed()),
+                        Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
+                            Ok(match bundle.peer.try_send(edn_str.clone()) {
+                                Ok(()) => try_send_outcome_sent(),
+                                Err(crate::comms::TrySendError::Full(_)) => {
+                                    try_send_outcome_would_block()
+                                }
+                                Err(crate::comms::TrySendError::Disconnected(_)) => {
+                                    try_send_outcome_lost(loci_died_disconnected())
+                                }
+                            })
+                        }
+                        Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => {
+                            Err(RuntimeError::new(
+                                list_span.clone(),
+                                RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "cannot try-send to a timer peer (timers are select-only)"
+                                        .into(),
+                                },
+                            )
+                            .into())
+                        }
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(outcome)
+        }
         // Unified Peer arm (the serve loop's `clients` are PEER_TYPE_PATH — socket
         // tier on process, thread tier on thread). Best-effort: any failure is a
         // faced TrySendOutcome value, never a raise.
@@ -25422,7 +25505,7 @@ pub(crate) fn eval_peer_try_send_prime(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (unified (Peer :- [S R]))",
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )

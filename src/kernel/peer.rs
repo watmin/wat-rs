@@ -108,6 +108,18 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
         }
     }
 
+    /// Non-blocking twin of [`send`](Self::send). Same drain unreachable.
+    pub fn try_send(&self, value: I) -> Result<(), TrySendError<I>> {
+        match self.input.as_ref() {
+            Some(tx) => tx.try_send(value),
+            None => unreachable!(
+                "Thread::try_send on a drained peer — `close` takes the peer OUT of the cell \
+                 before draining, so a drained-but-cellular peer cannot exist; the outer \
+                 `None => try_send_outcome_closed()` answers first"
+            ),
+        }
+    }
+
     /// Blocking recv from the spawned thread.
     ///
     /// Mirrors `ProcessPeerBundle::recv` (arc 259 S3.5a-0). Reads the output
@@ -727,6 +739,13 @@ impl<I: EdnRepresentable, O: EdnRepresentable> Process<I, O> {
     /// `comms::process::Sender::send`.
     pub fn send(&self, value: I) -> Result<(), SendError<I>> {
         self.input.send(value)
+    }
+
+    /// Non-blocking twin of [`send`](Self::send). Pipe-buffer full is
+    /// `TrySendError::Full` (live peer); any other write failure is
+    /// `Disconnected`.
+    pub fn try_send(&self, value: I) -> Result<(), TrySendError<I>> {
+        self.input.try_send(value)
     }
 
     /// Blocking recv from the child process.

@@ -263,8 +263,9 @@ fn select_and_poll_share_decode_classification() {
 }
 
 /// ⚠ Collect-loop arms that a peers-only select cannot construct are COUNTED
-/// so they cannot multiply quietly. Rejected is live (spawn-process
-/// FrameTooLarge); Admin/Connection stay unreachable.
+/// so they cannot multiply quietly. Two collectors (collect-loop and
+/// collect-loop-reported) each face every ServiceEvent. Rejected is live
+/// (spawn-process FrameTooLarge); Admin/Connection stay unreachable.
 #[test]
 fn brackets_four_unreachable_serviceevent_arms_are_counted() {
     let code = bracket_code();
@@ -273,23 +274,23 @@ fn brackets_four_unreachable_serviceevent_arms_are_counted() {
             .matches(&format!(":wat::spawn::ServiceEvent::{dead}"))
             .count();
         assert_eq!(
-            n, 1,
-            "expected exactly ONE collect-loop arm for {dead}; found {n}"
+            n, 2,
+            "expected exactly TWO arms for {dead} (collect-loop + collect-loop-reported); found {n}"
         );
     }
     let rejected = code
         .matches(":wat::spawn::ServiceEvent::Rejected")
         .count();
     assert_eq!(
-        rejected, 1,
-        "Rejected is collect-loop's FrameTooLarge RETRY arm; found {rejected}"
+        rejected, 2,
+        "Rejected is one arm per collector (map drops the runner; map-by-outcome records); found {rejected}"
     );
     let malformed = code
         .matches(":wat::spawn::ServiceEvent::Malformed")
         .count();
     assert_eq!(
-        malformed, 1,
-        "Malformed is collect-loop's arm only (collect-wait-one is gone); found {malformed}"
+        malformed, 2,
+        "Malformed is one arm per collector (map retries; map-by-outcome records); found {malformed}"
     );
 }
 
