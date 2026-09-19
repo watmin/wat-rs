@@ -71,8 +71,11 @@ between native and oracle.
 
 ## Carried from A1, deliberately cut there
 
-`sequi` L2-a — the catch-up's right-index walk pushes the **whole** alpha memory rather than
-`right[already..]`, unlike `keyed_join_persistent`. D2's protection is now `is_keyed` on the left
+✅ **`sequi` L2-a — CLOSED 2026-09-07, and the row was stale, not open.** It read: *"the catch-up's
+right-index walk pushes the **whole** alpha memory rather than `right[already..]`."* At HEAD
+`hash_join.rs` reads `let tail = right.get(already..).unwrap_or(&[]);` and walks `tail`, with the
+comment crediting **D1's cure** — *"the mark is a prefix length. Index `right[already..]`."* D1 took
+this row with it and nobody closed it. **An inherited work list is a claim; audit before drawing.** D2's protection is now `is_keyed` on the left
 type rather than a detached cache, so this is safe to revisit on its own.
 
 `key_and_index` uses `keys.entry().or_insert()`: a second call keeps the original key list while
