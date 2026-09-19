@@ -360,7 +360,9 @@ fn activate_deferred_mixed_classes(
         if !plan.is_mixed(a.class.as_ref()) {
             continue;
         }
-        census_count("seed:mixed-class-activate");
+        // Per FACT of a mixed class. The `seed:batch-class-uniform` /
+        // `seed:batch-class-mixed` pair increments once per CLASS.
+        census_count("seed:mixed-fact-activate");
         alpha_activate_fact(
             fact,
             i as u32,
