@@ -21,40 +21,53 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `c9658b43d` (batch 4w's records, pushed). **600 of 651 replayed. 51 remain —
-TWO BATCHES LEFT** (4x = #601–#620, then #621–#651: 18 docs-only + 13 code). In flight: nothing.
+Stamp: written on top of `8098907b9` (batch 4x's records, pushed). **620 of 651 replayed. 31 remain —
+TWO BATCHES LEFT** (4y = #621–#640, 4z = #641–#651). In flight: nothing.
 
-**Batch 4w (#581–#600) is CLOSED and PUSHED.** Floor **5877/5877, 22 skipped**, **clippy 0** — the row
-#594 put at risk — census `no STOP-8`, 20/20 subjects and trailers.
-★ **#594's allow removal landed WITH its cure**: `activate_deferred_mixed_classes` is **3 parameters**,
-not 11, and the `#[allow(clippy::too_many_arguments)]` is gone. (`AlphaActivateCx` turned out to be
-PRE-EXISTING in `delta.rs`, not new — a small correction to my brief.)
+**Batch 4x (#601–#620) is CLOSED and PUSHED.** Floor **5882/5882, 22 skipped**, clippy 0, census
+`no STOP-8`, 20/20 subjects and trailers.
+★ **The five pre-migration `.wat` were cured by the chain** and it fixed FOUR migrations, not the three
+I measured. The executor then drove the grid family to prove the converted axes **run and match their
+oracle**, not merely type-check.
+★ **#610's stdlib change hit a REAL conflict**: grok's diff reintroduces `PersistentVector/conj`, a
+spelling main already migrated to `:wat::vector::conj`. Composed by hand into our current spelling and
+verified by `cargo build --release` — the correct instrument, since an `include_str!`-embedded stdlib
+file errors on the reserved prefix when `--check`ed directly.
 
-⛔⛔ **MY BRIEF FACTUALLY MISDESCRIBED #598, AND THE EXECUTOR CAUGHT IT BY READING THE CODE.** I wrote
-that grok "removes an `#[allow(unused_variables)]` with the binding it covered". **Grok does the
-opposite** — it KEEPS the allow and adds an 11-line justification, because deleting it reddened
-`rete_citation_resolves` (grok's own #600 says so). **The mechanism of my error:** I grepped `^[-+]` over
-grok's WHOLE commit and read `+` lines out of its **prose** — the `.md` SCORE narrating a deletion grok
-tried and REVERTED — then reported that discarded plan as the code change. Verified: grok's `.rs` diff
-contains **no deletion at all**, only an added comment line.
-⛔ **THE RULE: to state what a step DOES to code, diff the code paths only** (`git show <C> -- '*.rs'`).
-A commit that documents its own reasoning will hand you the opposite of the truth otherwise.
+⛔⛔ **A THIRD EXECUTOR CORRECTION TO MY COUNT, AND THE SHARPEST.** I predicted +6 tests; it measured
+**+5**. My census matched two `+#[test]` at #613 — **one of them is INSIDE A RUST STRING LITERAL**
+(`"…#[test]\nfn synth_live_owner() {}\n"`), fixture text, not a test. **The class, now three variants
+deep:** my instruments keep counting code-SHAPED TEXT as code — comments (7 ignores where 2 exist),
+**prose** (#598's phantom `#[allow]` deletion), and now a **string literal**. ⛔ **Exclude comments AND
+string literals when counting code.**
 
-Next is **batch 4x (#601–#620)**: censused — **13 docs-only, 7 code (#602 #603 #607 #610 #613 #616
-#619)**. The range is **18 `.md` + 11 `.rs` + 10 `.sh` + 7 `.wat` + 5 `.clj`**, **+6 tests** (3 at #607,
-1 at #610, 2 at #613), **ZERO hazard rows, ZERO new gates**. Floor prediction **5883 run / 22 skipped**.
+Next is **batch 4y (#621–#640)** — **the heaviest batch since the FactBag migration**: **11 docs-only, 9
+code (#621 #627 #628 #630 #633 #635 #636 #638 #639)**, **35 `.wat` + 25 `.md` + 8 `.rs` + 4 `.sh` + 3
+`.wat.bad`**, **+11 tests / net 0 ignores** → floor prediction **5893 run / 22 skipped**.
+**R21 IS LIVE**: a new recorded codemod `wat-scripts/fixes/hoist-where-into-condition.wat` (drawn #627,
+refined #628, applied #630 to 18 files), plus three more `fixes/` edits at #635/#638.
 
-⚠⚠ **FIVE NEW `.wat` ARE PRE-MIGRATION AND WILL RED — MEASURED.** #616 adds one and #619 adds four;
-**all five fail `--check` here**. Across them: **42 positional `assertion-failed!`**, **25
-`:wat::core::PersistentVector/conj`**, and **51 `:wat::core::i64::*`** occurrences — every one a form
-this tree retired. ⛔ **Cure AT the step with `scripts/replay/convert.sh <introducing-commit>`**, the
-#537 precedent, **never by hand**. This is finding 33's class in its sixth consecutive code-bearing batch.
+★ **THE CODEMOD GATES ITSELF — measured from its own header.** *"a rule whose `:when` carries FEWER
+THAN TWO ordinary fact conditions … returns NO edits at all … so a single run over the whole corpus
+cannot touch a rule outside that scope."* So our larger corpus is **not** a hazard for the hoist: run it
+over our own derived path list, as 4o did.
+⚠ **OUR CORPUS DWARFS GROK'S HERE**: grok's #630 covers "38 of 42 in-scope rules" across 18 files; **we
+carry 157 files / 1008 `:wat::rete::where` sites / 715 `defrule` sites.** Derive OUR list; 2 of grok's
+18 paths do not exist here.
 
-⚠⚠ **#610 IS A REAL STDLIB CODE CHANGE, NOT A COMMENT SWEEP.** It edits `wat/rete/oracle/stratify.wat`
-by **45 code lines** (14 comment, 1 blank) — `rule-negates` recursing through `and`/`or` to match
-`negate_types`. It is the range's only `wat/` path and its only `stdlib-touch` row. **R21 is NOT
-triggered** (one file's semantics, not a corpus-wide rewrite), so compose it by hand — but **run the
-loader gates after it** and record their verdicts.
+⚠⚠⚠ **#638 LANDS A ZERO-EXEMPTION GATE AND OUR EXPOSURE IS UNMEASURED — I TRIED AND THE INSTRUMENT
+FAILED.** `tests/lint/rete_compile_gate.rs` requires every `.wat` under `wat-scripts/` that declares a
+rete rule to **COMPILE**, not merely load (the four-axis fence lives in `wat/rete/compile.wat`, which
+loading never reaches). Its own words: **"ZERO EXEMPTION CATEGORIES … no `red-by-design` rune."** Grok
+measured 136 declaring / 125 compiling / **11 failing** and drove its corpus to zero.
+⛔ **I ran grok's own census instrument (`tests/lint/rete-compile-census.sh`, from #639 — already its
+anchor-fixed version) against our tree: it reported `compiles: 0 · cannot compile: 176`, a UNIFORM
+"3 type-check errors" on every file — including live recorded codemods that provably pass
+`every_wat_scripts_file_loads`.** That is the instrument failing on our syntax, not 176 defects.
+**A UNIFORM FAILURE ACROSS AN ENTIRE CORPUS IS AN INSTRUMENT DEFECT UNTIL PROVEN OTHERWISE** — the
+script's own header records it reporting a false 136/136 the first time, for the mirror reason.
+**So: our true exposure is unknown, the executor must adapt the instrument at #639, and a red at #638 is
+a finding to REPORT, never a rune — the gate forbids runes.**
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -111,7 +124,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4u #541–#560 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4v #561–#580 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4w #581–#600 (CLOSED; floor 5877/5877, clippy 0, pushed)
-                              ⇒ 600 of 651 replayed. NEXT: batch 4x #601–#620.
+                              + batch 4x #601–#620 (CLOSED; floor 5882/5882, clippy 0, pushed)
+                              ⇒ 620 of 651 replayed. NEXT: batch 4y #621–#640, then 4z #641–#651.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -168,6 +182,17 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4x #601–#620 is CLOSED and PUSHED** (records at `8098907b9`; SCORE-7x, REPLAY-LOG). 20 steps,
+  13 docs-only. Floor **5882/5882, 22 skipped** — the EXECUTOR's corrected figure — clippy 0, census
+  `no STOP-8`.
+  ★ Five pre-migration `.wat` cured by the chain; #610's stdlib conflict composed into main's spelling.
+  ⚠ **#607 self-caught a RED before committing**: the main-only `one_variant_separator` gate flagged a
+  pre-existing helper once grok's new prose pulled the file into its scope — cured at the step.
+  ⚠ **A disclosed process deviation**: on that red the executor viewed the failure through `tail -8`,
+  then **re-ran** the same filtered command to capture it whole — against the letter of "never re-run a
+  red". It reported this rather than hiding it, and the failure reproduced identically so no evidence
+  was lost. **The rule stands: capture whole the FIRST time; `scripts/floor.sh` already keeps the full
+  log.**
 - **Batch 4w #581–#600 is CLOSED and PUSHED** (records at `c9658b43d`; SCORE-7w, REPLAY-LOG). 20 steps,
   15 docs-only, 20 `.rs`. Floor **5877/5877, 22 skipped**, clippy 0, census `no STOP-8`.
   ★ **#594's clippy risk cleared** — see the header.
