@@ -4146,3 +4146,148 @@ tool called. The vocabulary gate (`no_unknown_ward_rune`) green at #576 and the 
 `lint-subset` (327), `kind(lib)` (1522) and `doctest` (8) all unchanged from #537. Zero
 `#[test]`/`#[ignore]` delta anywhere in the range — predicted **5872 run, 22 skipped, unchanged**.
 See `SCORE-7v-replay-batch-4v.md` for the full row-by-row account against all rows (E1–E16).
+
+# REPLAY-LOG — grok-rete #581–#600 onto `replay/grok-rete` (BRIEF-7w, batch 4w)
+
+Anchor `/home/john/work/holon/wat-rs`, branch `replay/grok-rete`; `/home/john/work/holon/` FROZEN,
+untouched. Start tip `474322258` (batch 4v CLOSED, 4w briefed at `fd6f5bb64`). 20 REPLAY commits,
+#581–#600, 15 docs-only + 5 code steps (#581, #586, #591, #594, #598), range 24 `.md` + 20 `.rs`
+(touch-sums), matching the brief exactly.
+
+## #581 — LANDED WITH COMPOSITION, 3 files (2 `.rs`), fix(rete): close the quote door into `lower` —
+and STOP-3 finds the abort is the parser, not us. Not flagged as diverged by the brief, but three
+real fixes were needed: a genuine one-line import-block merge conflict in `src/rete/expr_ir/mod.rs`
+(resolved by keeping both imports, verified content-identical by delta-vs-delta); the new test's
+`wat::load::InMemoryLoader` import path does not exist on this tree (corrected to
+`wat::load::loader::InMemoryLoader`, the tree-wide convention); a finding-33-class hit
+(`:wat::rete::core::i64::+`, the pre-#238-rehome spelling, 2 sites, hand-fixed to
+`:wat::rete::i64::+`); and `no_error_flattening_helper` (a main-only house gate) flagged
+`startup`/`eval_go`'s `Result<_, String>` (re-derived as `StartupError`, the true chained type). ⚠
+SELF-CAUGHT: the first commit landed before all four fixes were staged (the merge-resolution `git
+add` predated the later edits) — caught by the mandated post-commit status check, repaired via
+`reset --soft HEAD^` + re-stage + rebuild + re-verify + recommit before any descendant existed. All
+4 new tests green after every fix. `census: files=2186; --diff no STOP-8`.
+`nested-program-gate: PASS (3/3, 5895 skipped)`. `lint-subset: 327 passed`. `kind(lib): 1522
+passed`. `doctest: 8 passed`.
+
+## #582 — docs-only, 1 file (score(closing): the parser strike is cancelled — the stack was already
+raised for this). Clean cherry-pick, byte-identical to grok's post-image.
+
+## #583 — docs-only, 1 file, new (score(rete-cohort-budget): measured all nine — none earn the
+budget). Clean cherry-pick, byte-identical.
+
+## #584 — docs-only, 1 file (vigilia(rete): 4W1 RESOLVED by measurement — and the band it was
+projected from is stale). Clean cherry-pick, byte-identical.
+
+## #585 — docs-only, 3 files, new (strike: draw ARM_BUILDS thread-ownership — collapses 4D1 and 4Q2
+into one cure). Clean cherry-pick, all byte-identical.
+
+## #586 — LANDED, 4 files (3 `.rs`), rete: ARM_BUILDS thread-owned, matching ARM_TABLE (arc 278,
+4D1/4Q2). ⚠ 3-of-3 touched `.rs` diverged here, per the brief — all three composed as CLEAN
+auto-merges, zero conflict markers, verified by delta-vs-delta: `arm.rs` (23/23), `arm_lease.rs`
+(137/137), `cascade_cost.rs` (4/4), all IDENTICAL. Adds
+`arm_builds_is_thread_owned_not_process_global` (+1 test, mutation-proven per grok's own commit
+message); re-run standalone and with its 16 arm_lease/cascade_cost siblings, 17/17 green.
+Finding-33 sweep on grok's actual delta: zero wat-shaped strings — NOT APPLICABLE. `census:
+files=2186; --diff no STOP-8`. `nested-program-gate: PASS (3/3, 5896 skipped)`. `lint-subset: 327
+passed`. `kind(lib): 1523 passed`. `doctest: 8 passed`.
+
+## #587 — docs-only, 1 file (docs: record the commit hash in the arm-builds-thread-owned SCORE).
+Clean cherry-pick, byte-identical.
+
+## #588 — docs-only, 1 file, SHARED (docs(conventions): strike ARM_BUILDS as the performance-counter
+example — it is the counter-example). Flagged shared=1 in commits.tsv; landed as a clean auto-merge
+— grok's one-line edit sits far from this tree's own unrelated local divergence (a Harness → Guest
+rename) elsewhere in the same file. Verified by delta-vs-delta: IDENTICAL.
+
+## #589 — docs-only, 3 files, new (strike: draw the instrument-subtraction extraction — the formula
+was never lifted, only imprisoned). Clean cherry-pick, all byte-identical.
+
+## #590 — docs-only, 1 file, new (strike: draw the too_many_arguments cluster — eleven sites, and
+validate/mod.rs already wrote the answer). Clean cherry-pick, byte-identical. Foreshadows #594.
+
+## #591 — LANDED, 6 files (5 `.rs`), rete: lift instrument-subtraction arithmetic into one fn (arc
+278, strike-instrument-subtraction-one-place). ⚠⚠ 5-of-5 touched `.rs` diverged here — the batch's
+heaviest, per the brief. All five composed as CLEAN auto-merges, zero conflict markers, verified by
+delta-vs-delta: `accum_cost.rs` (13/13), `fanout_cost.rs` (16/16), `mod.rs` (15/15), `strat_cost.rs`
+(2/2) — IDENTICAL against the batch-start blob. `cascade_cost.rs` needed the STEP-RELATIVE
+pre-image (also touched by #586 earlier in this same batch) — a first attempt against the
+batch-start blob produced a false 8-line discrepancy, self-caught before being reported (finding
+36's own class); re-diffed against the tree's own state immediately before #591: 4/4 IDENTICAL.
+Named test family `-E 'test(cost)'` → 75/75, matching grok's own reported figure exactly.
+Finding-33 sweep: zero — NOT APPLICABLE. `census: files=2186; --diff no STOP-8`.
+`nested-program-gate: PASS (3/3, 5896 skipped)`. `lint-subset: 327 passed`. `kind(lib): 1523
+passed`. `doctest: 8 passed`.
+
+## #592 — docs-only, 1 file (docs: record the actual commit hash in SCORE.md
+(strike-instrument-subtraction-one-place)). Clean cherry-pick, byte-identical.
+
+## #593 — docs-only, 1 file (vigilia(rete): mark six rows resolved — the ledger was under-reporting
+its own progress). Clean cherry-pick, byte-identical.
+
+## #594 — ⛔⛔ LANDED, 6 files (5 `.rs`), rete: eleven too_many_arguments allows — reasons or
+ClauseCtx (arc 278) — THE BATCH'S DECIDING STEP. 0-of-5 touched `.rs` diverged, confirmed; all 6
+files byte-identical to grok's post-image. E4 verified at the mechanism, not inferred: pre-existing
+`AlphaActivateCx` (`fire/delta.rs:23`) is newly USED as `activate_deferred_mixed_classes`'s
+parameter type; the function's signature measured directly off the diff, 11 parameters (pre-image)
+→ 3 (post: `cx: &mut AlphaActivateCx<'_>`, `input_facts`, `plan`); `#[allow(too_many_arguments)]`
+present before, absent after; the ONE call site (`alpha.rs:297`) passes the fully-populated struct;
+`clippy.toml` carries no `too-many-arguments-threshold` override (default 7 applies: 11 > 7, 3 < 7).
+The allow removal and the struct-bundling are one change, verified landed together. Finding-33
+sweep: zero — NOT APPLICABLE. `census: files=2186; --diff no STOP-8`. `nested-program-gate: PASS
+(3/3, 5896 skipped)`. `lint-subset: 327 passed`. `kind(lib): 1523 passed`. `doctest: 8 passed`.
+
+## #595 — docs-only, 1 file (docs: fill in commit hash in strike SCORE.md). Clean cherry-pick,
+byte-identical.
+
+## #596 — docs-only, 1 file (vigilia(rete): X1 and X2 resolved — the bare allow is gone, and the
+struct already existed). Clean cherry-pick, byte-identical.
+
+## #597 — docs-only, 1 file, new (strike: draw five small target-4 L1s — one tree, one floor). Clean
+cherry-pick, byte-identical.
+
+## #598 — ⚠ LANDED, 6 files (5 `.rs`), rete: five small L1s in the test corpus — allow reason, two
+deferral cures, ten expects, one rune. ⛔ CORRECTS THE BRIEF: BRIEF-7w said this step "removes an
+`#[allow(unused_variables)]` with the binding it covered" — grok's own landed commit does the
+OPPOSITE, KEEPING the allow and adding an 11-line justification comment, because deleting it (grok's
+own original DESIGN plan) reddened the unrelated `rete_citation_resolves` gate (its only
+code-position referent for the identifier `unused_variables`). Confirmed independently by #600's own
+FINDINGS.md entry, landed later in this same batch ("deleting an allow made a comment's citation
+dangle"). 2-of-5 touched `.rs` diverged, per the brief: `fanout_cost.rs` and
+`termination_verdict.rs`, both clean auto-merges — `fanout_cost.rs` also touched by our own #591
+earlier this batch, so the step-relative pre-image was used (finding 36's class, applied correctly
+this time on the first attempt); both IDENTICAL (11/11 lines each) by delta-vs-delta. The other 3
+files landed byte-identical to grok's post-image. Ward-vocabulary gate run and quoted (E5): `-E
+'test(no_unknown_ward_rune)'` → 9 tests run: 9 passed, 5890 skipped, including the mutation-proof
+test — `rune:sequi(ambient-context)` is a known category. Finding-33 sweep: one hit, a doc-comment
+reword naming a live spelling (`:wat::rete::CompileOutcome`), prose only — not a stale reference.
+All 25 named tests across the five touched files re-run green. `census: files=2186; --diff no
+STOP-8`. `nested-program-gate: PASS (3/3, 5896 skipped)`. `lint-subset: 327 passed`. `kind(lib):
+1523 passed`. `doctest: 8 passed`.
+
+## #599 — docs-only, 1 file (docs: fill in commit hash in strike SCORE.md). Clean cherry-pick,
+byte-identical.
+
+## #600 — docs-only, 1 file, the last (vigilia(rete): five more L1s resolved — and deleting an allow
+made a comment's citation dangle). Clean cherry-pick, byte-identical. Grok's own text here
+independently confirms this batch's #598 correction (finding 3 in the SCORE): 4X1's DESIGN
+originally planned deleting the unused binding, then reverted after driving the floor showed it
+reddened `rete_citation_resolves`.
+
+⛔ ONE SELF-CAUGHT AND SELF-REPAIRED COMMIT DEFECT (#581), ONE BRIEF FACTUAL CORRECTION DISCLOSED
+(#598), AND ONE FINDING-36-CLASS NEAR-MISS CAUGHT BEFORE REPORTING (#591's `cascade_cost.rs`) THIS
+BATCH — all disclosed and repaired/corrected before yield. Every subject and trailer was built by
+piping `git log -1 --format=%s <C>` and `git rev-parse <C>` into the commit heredoc, never retyped,
+and verified two-sided immediately after each commit (20/20, see `SCORE-7w-replay-batch-4w.md`'s
+table). The batch's real work — #581 (composition + self-repair), #586/#591/#598 (diverged-file
+composition by delta-vs-delta), #594 (the deciding clippy-allow mechanism verification) — all
+landed correctly; the ward-vocabulary gate green after #598.
+
+**Disposition: COMPLETE.** All 20 steps (#581–#600) landed, tree clean at `6f5b0a6c9`
+(`REPLAY(grok-rete #600)`), not pushed. `origin/replay/grok-rete` (`fd6f5bb64`) remains the
+published tip, an ancestor of HEAD throughout. No mid-batch STOP; no test ever went red; no
+`mcp__pulsare__*` tool called. The ward-vocabulary gate (`no_unknown_ward_rune`) green after #598
+(9/9, N > 0). `lint-subset` (327 throughout), `kind(lib)` (1522 → 1523 at #586, held) and `doctest`
+(8 throughout). `#[test]` delta **+5** (+4 at #581, +1 at #586) — predicted **5877 run, 22 skipped**
+for the orchestrator's own floor re-measurement. See `SCORE-7w-replay-batch-4w.md` for the full
+row-by-row account against all rows (E1–E16).
