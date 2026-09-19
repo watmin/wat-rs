@@ -21,53 +21,58 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `8098907b9` (batch 4x's records, pushed). **620 of 651 replayed. 31 remain —
-TWO BATCHES LEFT** (4y = #621–#640, 4z = #641–#651). In flight: nothing.
+Stamp: written on top of `b5777affb` (batch 4y's records, pushed). **640 of 651 replayed. ELEVEN
+STEPS REMAIN — batch 4z (#641–#651) is the LAST.** In flight: nothing.
 
-**Batch 4x (#601–#620) is CLOSED and PUSHED.** Floor **5882/5882, 22 skipped**, clippy 0, census
-`no STOP-8`, 20/20 subjects and trailers.
-★ **The five pre-migration `.wat` were cured by the chain** and it fixed FOUR migrations, not the three
-I measured. The executor then drove the grid family to prove the converted axes **run and match their
-oracle**, not merely type-check.
-★ **#610's stdlib change hit a REAL conflict**: grok's diff reintroduces `PersistentVector/conj`, a
-spelling main already migrated to `:wat::vector::conj`. Composed by hand into our current spelling and
-verified by `cargo build --release` — the correct instrument, since an `include_str!`-embedded stdlib
-file errors on the reserved prefix when `--check`ed directly.
+**Batch 4y (#621–#640) is CLOSED and PUSHED.** Floor **5908/5908, 22 skipped**, clippy 0, census
+`no STOP-8`, 20/20 subjects and trailers. It took a genuine mid-batch STOP and two folds.
+★ **THE THREE OUT-OF-SCOPE COMPILE FAILURES WERE RULED (4-YES) AND LANDED.** The two `then-match-*`
+probes were DELETED — they probe `match` in a `:then`, which our fence refuses by `250162a0e` under the
+builder's **#324** ruling, and **grok's own #638 deletes two siblings from that same directory**; the
+finding is already pinned by `tests/rete/probe_then_match_is_refused.wat`. `277-width-fixpoint-probe.wat`
+was **RELOCATED, not deleted or repaired**: it is main-only and **already harvested** —
+`NOTE-width-is-a-fact-not-a-rule.md` records *"rete CANNOT derive width"* and cites that exact path,
+**so its refusal IS the result**. Repairing it to compile would erase the finding. It now lives under
+`docs/arc/2026/06/277-wat-lint-fix-fmt/probes/`, and the executor MEASURED that the docs gate needs no
+rune rather than assuming one.
+★ **#638's zero-exemption compile gate is live and carries ZERO exemptions.** (My own "6 runes" reading
+was wrong: 4 belong to the main-only `one_variant_separator` gate, 1 to the inlined-wat gate, and 1 is
+the gate's own code reading OTHER files' runes inside a string literal.)
 
-⛔⛔ **A THIRD EXECUTOR CORRECTION TO MY COUNT, AND THE SHARPEST.** I predicted +6 tests; it measured
-**+5**. My census matched two `+#[test]` at #613 — **one of them is INSIDE A RUST STRING LITERAL**
-(`"…#[test]\nfn synth_live_owner() {}\n"`), fixture text, not a test. **The class, now three variants
-deep:** my instruments keep counting code-SHAPED TEXT as code — comments (7 ignores where 2 exist),
-**prose** (#598's phantom `#[allow]` deletion), and now a **string literal**. ⛔ **Exclude comments AND
-string literals when counting code.**
+⛔⛔ **THE #438 CLASS RECURRED AND MY WARNING HAD EVAPORATED.** #627's new codemod landed unfixtured and
+reddened `every_recorded_migration_is_fixtured_or_runed` — byte-for-byte batch 4o's red. **At 4o I wrote
+"expect this for every future migration grok lands" INTO THIS ROTATING HEADER, which is replaced
+wholesale every batch.** It was gone by 4p. ⛔ **A DURABLE WARNING BELONGS IN THE LEDGER ROW OR
+`FINDINGS-composition.md`, NEVER IN THE PART THAT ROTATES.** Folded into #627 with a join-case fixture;
+the executor then measured that the tool's output shifts at **#628** (a whitespace trim), not #630 as I
+guessed, and gave #628 its own legitimate fixture update.
 
-Next is **batch 4y (#621–#640)** — **the heaviest batch since the FactBag migration**: **11 docs-only, 9
-code (#621 #627 #628 #630 #633 #635 #636 #638 #639)**, **35 `.wat` + 25 `.md` + 8 `.rs` + 4 `.sh` + 3
-`.wat.bad`**, **+11 tests / net 0 ignores** → floor prediction **5893 run / 22 skipped**.
-**R21 IS LIVE**: a new recorded codemod `wat-scripts/fixes/hoist-where-into-condition.wat` (drawn #627,
-refined #628, applied #630 to 18 files), plus three more `fixes/` edits at #635/#638.
+⛔⛔ **MY INSTRUMENTS COUNT CODE-SHAPED TEXT AS CODE — SIX VARIANTS THIS CAMPAIGN.** Comments (7 ignores
+where 2 exist) · prose (#598's phantom `#[allow]` deletion) · string literals (#613's `#[test]` inside a
+fixture string) · **macro-expanded tests (#638: literal 8, registered 23 — a `shards!` pattern I had
+MEASURED CORRECTLY AT 4k and did not check for)** · another gate's runes · hunk headers and a malformed
+regex. **THE CURE: ask the tool that OWNS the fact.** Test counts → `cargo nextest list`. Deltas →
+`git diff` with `index` AND `@@` stripped. Never hand-roll a pattern for a structural fact.
 
-★ **THE CODEMOD GATES ITSELF — measured from its own header.** *"a rule whose `:when` carries FEWER
-THAN TWO ordinary fact conditions … returns NO edits at all … so a single run over the whole corpus
-cannot touch a rule outside that scope."* So our larger corpus is **not** a hazard for the hoist: run it
-over our own derived path list, as 4o did.
-⚠ **OUR CORPUS DWARFS GROK'S HERE**: grok's #630 covers "38 of 42 in-scope rules" across 18 files; **we
-carry 157 files / 1008 `:wat::rete::where` sites / 715 `defrule` sites.** Derive OUR list; 2 of grok's
-18 paths do not exist here.
+Next is **batch 4z (#641–#651) — THE LAST ELEVEN STEPS.** Censused: **7 docs-only, 4 code (#644 #646
+#647 #651)**; **19 `.md` + 7 `.rs` + 6 `.wat` + 4 `.wat.bad`**; **+10 tests** (7 at #644, 3 at #651),
+**no macro expansion** (checked), zero hazard rows, zero `wat/` paths, zero new gates. Floor prediction
+**5918 run / 22 skipped**. ⭐ **#651 IS GROK'S TIP** (`37528f6e0`).
 
-⚠⚠⚠ **#638 LANDS A ZERO-EXEMPTION GATE AND OUR EXPOSURE IS UNMEASURED — I TRIED AND THE INSTRUMENT
-FAILED.** `tests/lint/rete_compile_gate.rs` requires every `.wat` under `wat-scripts/` that declares a
-rete rule to **COMPILE**, not merely load (the four-axis fence lives in `wat/rete/compile.wat`, which
-loading never reaches). Its own words: **"ZERO EXEMPTION CATEGORIES … no `red-by-design` rune."** Grok
-measured 136 declaring / 125 compiling / **11 failing** and drove its corpus to zero.
-⛔ **I ran grok's own census instrument (`tests/lint/rete-compile-census.sh`, from #639 — already its
-anchor-fixed version) against our tree: it reported `compiles: 0 · cannot compile: 176`, a UNIFORM
-"3 type-check errors" on every file — including live recorded codemods that provably pass
-`every_wat_scripts_file_loads`.** That is the instrument failing on our syntax, not 176 defects.
-**A UNIFORM FAILURE ACROSS AN ENTIRE CORPUS IS AN INSTRUMENT DEFECT UNTIL PROVEN OTHERWISE** — the
-script's own header records it reporting a false 136/136 the first time, for the mirror reason.
-**So: our true exposure is unknown, the executor must adapt the instrument at #639, and a red at #638 is
-a finding to REPORT, never a rune — the gate forbids runes.**
+⚠ **TWO `wat-scripts/` FILES NEED CONVERSION, AND ONE MEETS THE NEW COMPILE GATE:**
+- **#646 `scratch-pad/arc278-acc-count-unused-bind/probe-acc-count-unused-bind.wat`** — `--check` **101**
+  (retired syntax), and it **declares 2 `defrule` + 2 `defquery`**, so after conversion it must also
+  satisfy **#638's zero-exemption compile gate**, which is now live. ⚠ Note #646 lands a FINDING that
+  **#648 WITHDRAWS** ("Clara agrees") — land both as grok wrote them.
+- **#651 `scratch-pad/arc278-fence-binder-shadow/census-fence-binders.wat`** — `--check` **1**, but it
+  **declares no rules**, so the compile gate skips it; the loader gate still walks it.
+- Retired forms across the range's `.wat`: **5 positional `assertion-failed!`, 2
+  `:wat::core::PersistentMap/get`, 1 `:wat::core::i64::-`** — finding 33's **seventh** consecutive
+  code-bearing batch. Cure with `scripts/replay/convert.sh`, never by hand.
+
+⭐ **AFTER #651 THE REPLAY IS COMPLETE.** `merge/grok-rete` (`102fe3afd`) is the REFERENCE — the first,
+rejected whole-merge — kept for **the end cross-check**. That comparison, and the close-out, are the
+orchestrator's work after 4z lands.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -125,7 +130,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4v #561–#580 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4w #581–#600 (CLOSED; floor 5877/5877, clippy 0, pushed)
                               + batch 4x #601–#620 (CLOSED; floor 5882/5882, clippy 0, pushed)
-                              ⇒ 620 of 651 replayed. NEXT: batch 4y #621–#640, then 4z #641–#651.
+                              + batch 4y #621–#640 (CLOSED; floor 5908/5908, clippy 0, pushed)
+                              ⇒ 640 of 651 replayed. NEXT: batch 4z #641–#651 — THE LAST ELEVEN.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -182,6 +188,20 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4y #621–#640 is CLOSED and PUSHED** (records at `b5777affb`; SCORE-7y, three ADDENDA,
+  REPLAY-LOG). 20 steps, 11 docs-only, 35 `.wat`, an R21 corpus migration and a zero-exemption gate.
+  Floor **5908/5908, 22 skipped**, clippy 0, census `no STOP-8`.
+  ⛔ **EVERY FUTURE GROK CODEMOD WILL RED `every_recorded_migration_is_fixtured_or_runed` UNTIL IT IS
+  GIVEN A REPLAY FIXTURE.** Second instance (#438 at 4o, #627 here). **This line lives in the LEDGER, not
+  the header, precisely because the header rotates and the 4o warning was lost.**
+  ★ Three out-of-scope compile failures ruled 4-YES — see the header.
+  ★ **The #630 migration took TWO self-caught folds**, both from the executor's own `--grep` compile
+  probe being **silently vacuous on any file without a `:user::grep`** — the real gate caught what its
+  instrument missed. Final: 17 files / ~57 rules applied, from a derived population of 56 files / 159
+  in-scope rules (grok's own: 17/42).
+  ★ **#639's census instrument needed an our-tree repair** — its embedded driver carried retired
+  match-arm syntax, which is why it reported a false `0 of 176` to me. Fixed: **163 compile, 3 fail** for
+  a separate script-packaging artifact, disclosed and left.
 - **Batch 4x #601–#620 is CLOSED and PUSHED** (records at `8098907b9`; SCORE-7x, REPLAY-LOG). 20 steps,
   13 docs-only. Floor **5882/5882, 22 skipped** — the EXECUTOR's corrected figure — clippy 0, census
   `no STOP-8`.
