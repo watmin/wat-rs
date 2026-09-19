@@ -47,12 +47,14 @@ row first for days.
 | **C3** | conferre | 1 | `fire/mod.rs:262` | *"Mirrors seed-token (wat:544-551)"* — but `pass.wat:535-551` is inside `binding-extensions`, an unrelated fn. `seed-token` is at `:76-90`. The ALGORITHMIC claim holds; the citation drifted. | L2 | **OPEN** · ⚠ ward-reported | `grep -n 'seed-token' wat/rete/oracle/pass.wat` → 76/81/134. Closed by fixing the range or dropping line numbers as every sibling comment does |
 | **Q1** | sequi | 1 | `session.rs:1778-1788` | `session_ceiling_breach` reads the global `alloc_counter::session_bytes` and its result decides a hard `Err` in the fire loop — an unmarked hidden-state read, while sibling global reads in the same crate (`arm.rs:705`, `census.rs`) ARE runed. ~30 lines of prose at `:1759-1777` already read like a rune's reason. | L2 | **OPEN** · ✅ I VERIFIED | `grep -c 'rune:sequi' ` over `session.rs:1770-1790` → **0**; `arm.rs:705` → tagged. Closed by adding the rune citing the existing rationale |
 | **Q2** | sequi | 1 | `arm.rs:705` + `:710` | `rune:sequi(ambient-context)` on `ARM_TABLE`, whose OWN adjacent comment says it *"holds DOMAIN state (the armed network + its lease count)"* — and that category is defined as *"doesn't carry domain state."* The rune's category contradicts its own prose. ⚠ Ward judged the CHAIN clean (the table is an upstream build cache, threaded downstream as an explicit `arm:` param); this is a vocabulary defect, not a break. | L3 | **OPEN** · ✅ I VERIFIED | both strings present at the cited lines. Closed by re-categorising; `excusare` may reach the same site independently |
+| **M1** | temperare | 1 | `filter_after_join.rs:71` + `:98` | Both branches re-fetch and clone `d_beta[hj_id]` INSIDE the `for filter_id in filter_kids` loop (opened `:59`) — keyed on the OUTER `hj_id`. The structurally identical sibling `join_after_filter.rs:62` binds it ONCE above its child loop. Dimension: filter fan-out per join × tokens in that delta. | L2 | **OPEN** · ✅ I VERIFIED | `:59` opens the loop; `:71` and `:98` both `d_beta.get(&hj_id)`; `join_after_filter.rs:62` hoists. Closed by hoisting to match the sibling |
+| **M2** | temperare | 1 | `round_census.rs:103` + `:109` | `right_idx.per_join_marks()` called twice building one `RoundCensus` — same receiver, no args, same round. `#[cfg(test)]`-gated, but the file's own header stresses its numbers back real cost claims, so a duplicated rebuild skews the instrument. | L2 | **OPEN** · ⚠ ward-reported | bind once, reuse for both fields |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ sequi ✓ **CONVERGED** (in flight: excusare, temperare; not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ sequi ✓ **CONV** temperare ✓ (in flight: excusare; not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
 
 ## Verified by the orchestrator, not taken
 
@@ -105,3 +107,13 @@ whole fire round chain — `fire_fixpoint_delta_armed` through all seven passes 
 threaded explicitly end to end, with `production_delta` returning its delta rather than writing an
 out-parameter. It also grepped the oracle for `set!`/atoms/globals and found **zero**. A ward that
 comes back clean having said what it looked at is the evidence the full guard was worth casting.
+
+- **M1** — CONFIRMED. `filter_after_join.rs:59` opens `for filter_id in filter_kids`; `:71` and
+  `:98` each call `d_beta.get(&hj_id)` inside it, keyed on the OUTER variable. `join_after_filter.rs:62`
+  binds the same fetch ABOVE its child loop. Same shape, one hoisted, one not.
+
+⭐ **temperare upheld 5 of 5 runes and skipped 5 of 5 prior-closed rows** rather than re-reporting
+settled work — the outcome the briefing's prior-art list exists to produce. It also singled out
+`fire/mod.rs:494` as the model form for a `rune:temperare` reason: dated, naming its floor run, and
+carrying a MEASURED ratio (206 / 245583 = 0.084%) rather than an estimate. That rune came out of
+this session's own combinator-inner strike.
