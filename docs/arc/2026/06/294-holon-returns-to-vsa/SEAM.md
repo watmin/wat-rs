@@ -21,46 +21,46 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `366d566b3` (batch 4n's records, pushed). **420 of 651 replayed. 231 remain.**
+Stamp: written on top of `74a3ef546` (batch 4o's records, pushed). **440 of 651 replayed. 211 remain.**
 In flight: nothing.
 
-**Batch 4n (#401–#420) is CLOSED and PUSHED.** Floor **5847/5847, 24 skipped** — the count predicted from
-the diff before running, **eighteenth consecutive exact match** — clippy 0, range gate exit 0, 20/20
-subjects byte-identical, 20/20 trailers two-sided. Detail in the ledger row below and `SCORE-7n`.
+**Batch 4o (#421–#440) is CLOSED and PUSHED.** Floor **5856/5856, 24 skipped** — the count predicted from
+the diff before running, **nineteenth consecutive exact match** — clippy 0, census `no STOP-8`, range gate
+exit 0, 20/20 subjects and trailers verified. Detail in the ledger row below, `SCORE-7o` and
+`BRIEF-7o-ADDENDUM-438-the-migration-needs-its-fixture.md`.
 
-⛔ **PRE-FLIGHT A GATE BY READING ITS OWN CONSTANTS, NOT BY RECALLING MODULE NAMES.** My 4n brief put our
-exposure to #410's gate at **3** raw-walk sites. It was **12**. I hand-listed the files to grep — naming
-two modules that do not exist here — and never read the gate's own `SUBJECTS`, and my pattern could not
-see a site split across two lines. The executor measured it properly and reported the gap (finding 37's
-row). **Read the gate's constants; normalise whitespace the way the gate does.**
+★★ **#438 WAS THE FACTBAG MIGRATION AND R21 HELD.** 26 `.wat`, 153 code lines under `wat/`, migrated **by
+grok's own recorded codemod**, not by hand — after the tool itself needed four repairs to run here (grok
+wrote it in syntax this tree retired, including an edit-tuple shape change). Dry-run, diffed, applied to a
+**path list derived HERE (25 files, not my brief's 23** — my scan saw only one of the tool's two rewrite
+shapes, and one file it missed, `wat/rete/compile.wat`, sits inside the new gate's own scope), then re-run
+to a fixed point. The new `no_raw_factbag_access` gate is green with **zero runes** — its own text says
+the exemption list is empty.
+⛔ **A RECORDED MIGRATION MUST SHIP ITS REPLAY FIXTURE HERE, AND GROK'S DOES NOT** — the floor's one red.
+`every_recorded_migration_replays` demands `wat-scripts/fixes/replay/<stem>/{before.pre,after.post,ORACLE}`
+plus one `;; SCOPE:` line, with provenance from HISTORY, never the tool. **100 of our 106 migrations carry
+one.** Folded into #438: the fixture's two changed lines come verbatim from two files grok's own #438
+rewrote, chosen because their whole diff there is pure tool output. **Expect this for every future
+migration grok lands.**
 
-Next is **batch 4o (#421–#440)**: censused — **14 docs-only, 6 code (#421 #423 #426 #429 #438 #440)**.
-Light on top, heavy at the end: #421 is two perf `.txt` captures, #423/#426 are rete perf, #429 touches
-`src/rete/reachability.rs`. Both M-status-absent docs are created earlier in the range (#425→#426,
-#428→#429).
+Next is **batch 4p (#441–#460)**: censused — **11 docs-only, 9 code (#442 #444 #446 #450 #451 #453 #455
+#457 #459)**, and it is the cleanest batch in months: **ZERO `.wat`, ZERO `wat/`, ZERO hazard rows, no new
+lint gate, no `wat-scripts/fixes/` edit, and every touched path exists here.** It is one campaign —
+grok auditing its own phase census (B, D, E, F, G, H, I).
 
-⚠⚠⚠ **#438 IS THE FACTBAG MIGRATION — R21 IS LIVE FOR THE FIRST TIME IN SIX BATCHES.** 33 files, **26
-`.wat`**, 6 under `wat/`, **153 CODE lines** under `wat/` (not a prose sweep), plus a new lint gate, plus
-a hazard row. Measured here before release:
-- **It ships its own recorded codemod**, `wat-scripts/fixes/wrap-session-facts-in-factbag.wat` (added at
-  #438, refined at #440). ⛔ **R21: run the tool over OUR path list — never hand-edit 26 `.wat`.**
-- **Our corpus is not grok's.** We carry **23 `.wat` with CODE-position `Session/facts`/`FactBag/items`**;
-  grok rewrote 26, of which **24 exist here and 2 do not**. **Two of ours are outside grok's set entirely**
-  — `tests/rete/probe_then_match_is_refused.wat` and
-  `wat-scripts/scratch-pad/probe-reland10-session-in-struct.wat` — and both must go through the codemod.
-- **The new gate `tests/lint/no_raw_factbag_access.rs` has NO exemption list** — its own words: *"the
-  exemption list is empty. A rune does not save a raw access."* It bans those two accessors in code
-  position anywhere under `wat/` except `wat/rete/factbag.wat`, and the string `"facts"` in `src/rete/`
-  outside `session.rs`'s two doors. It strips comments first, so prose mentions are safe.
-- **Our `wat/` exposure is exactly the three files grok converts** (`oracle/explain.wat` 1,
-  `oracle/fire.wat` 7, `oracle/insert.wat` 2). **Our `src/rete/` exposure is exactly the two files grok
-  converts** (`fire/rules.rs` 4, `insert.rs` 2), and **both doors already exist here**
-  (`session_facts`, `session_with_facts` in `src/rete/kernel/session.rs`).
-- ⚠ **HAZARD ROW**: grok edits `src/stdlib.rs` to register `wat/rete/factbag.wat`; this tree renamed that
-  file to **`src/load/stdlib.rs`** (`R092`, `f0cd8bed1`). Re-point the edit; do not recreate the old path.
+⚠ **NET TEST DELTA IS ZERO** — measured off the diff, no `#[test]` added or removed anywhere in the range.
+The floor prediction is therefore **unchanged at 5856**, which is itself the claim to check.
 
-⚠ **#440 refines the codemod and `wat/rete/factbag.wat`** (retract removes ONE occurrence) and adds a
-`retract-multiplicity` grid axis. It re-runs the same R21 discipline.
+⚠ **CENSUS NAMES MOVE, AND NAMES ARE WHAT OUR COST TESTS READ.** #455 **deletes** `prod:record-alloc` and
+`prod:vec-alloc`; #459 **renames** `seed:mixed-class-activate` → `seed:mixed-fact-activate`; #442/#444/
+#453 add `compiled:exec`, `compiled:span-elided`, `bindkey:alloc`, `dbeta:nonempty`. Our exposure is
+`src/` and prose, not tests — and **our copy of `census_name_read_by_a_cost_test_is_emitted.rs` is
+byte-identical to grok's pre-image**, so the gate is shared and grok's own #442 updates it. A name a cost
+test reads but nothing emits is a zero wearing a measurement's clothes; that gate is the wall.
+
+⚠ **THE WALL-CLOCK NEIGHBOURHOOD AGAIN**: `accum_alpha_cost.rs` 27 sites, `node_share_cost.rs` 25,
+`gather_probe_cost.rs` 24, `accum_cost.rs` 23, `fanout_cost.rs` 6. The 4i precedent stands — a timing red
+is captured and reported, never re-run.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -108,7 +108,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4l #361–#380 (CLOSED; floor 5808/5808, clippy 0, pushed)
                               + batch 4m #381–#400 (CLOSED; floor 5828/5828, clippy 0, pushed)
                               + batch 4n #401–#420 (CLOSED; floor 5847/5847, clippy 0, pushed)
-                              ⇒ 420 of 651 replayed. NEXT: batch 4o #421–#440.
+                              + batch 4o #421–#440 (CLOSED; floor 5856/5856, clippy 0, pushed)
+                              ⇒ 440 of 651 replayed. NEXT: batch 4p #441–#460.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -165,6 +166,19 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4o #421–#440 is CLOSED and PUSHED** (records at `74a3ef546`; SCORE-7o, ADDENDUM-438,
+  REPLAY-LOG). 20 steps, 14 docs-only. Floor **5856/5856, 24 skipped** — the count PREDICTED from the diff
+  for the **nineteenth consecutive batch** — clippy 0, census `no STOP-8`.
+  ★ **The FactBag migration went through the tool** — see the header. Idempotence proven twice (`/tmp`
+  copies and `md5sum` on all 15 applied files); 9 files took grok's own diff cleanly, 1 needed a real
+  conflict resolution, 15 went through the repaired codemod.
+  ★ **The stdlib hazard row landed correctly** in `src/load/stdlib.rs` after `wat/rete.wat` — and git's
+  own auto-merge had copied grok's shallower `include_str!` depth, caught before the first build.
+  ⛔ **One red at the orchestrator's floor**: our recorded-migration gate, folded into #438 with a real
+  fixture (see the header). The rebuild touched 7 files; #439's delta unchanged, #440's content identical
+  with one hunk header shifted by the added `;; SCOPE:` line.
+  ⚠ **Four self-caught executor defects**: a typed trailer at #422, a staging omission at #429, a false
+  alarm from a stale `target/release/wat`, and four repairs the codemod itself needed to run here.
 - **Batch 4n #401–#420 is CLOSED and PUSHED** (records at `366d566b3`; SCORE-7n, REPLAY-LOG). 20 steps,
   10 docs-only, entirely `src/rete/kernel`. Floor **5847/5847, 24 skipped** — the count PREDICTED from the
   diff for the **eighteenth consecutive batch** — clippy 0.
