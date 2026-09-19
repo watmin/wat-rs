@@ -1207,7 +1207,10 @@
          workers   (:wat::core::mapv
                      (:wat::core::fn [_i <- :wat::core::i64]
                          -> (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
-                       (:wat::spawn::spawn-thread
+                       ;; ⛔ THE ONE SPAWN POINT. `spawn-program` is the only door onto a
+                       ;; locus and stays restricted; `:wat::bracket::` is a named member of
+                       ;; its whitelist (wat/spawn.wat) rather than a public door fronting it.
+                       (:wat::kernel::spawn-program (:wat::spawn::thread)
                          (:wat::core::fn [_sp <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])]
                            -> :wat::core::nil
                            (:wat::bracket::queue-worker-loop

@@ -161,14 +161,6 @@
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
     :runner-count n))
 
-;; Thin spawn-program door for a thread thunk. `spawn-program` is restricted to
-;; `:wat::spawn::` / `:wat::test::`; bracket's queue runner is not a Locus and
-;; cannot call it directly. Homed here so the whitelist stays the two prefixes.
-(:wat::core::defn :wat::spawn::spawn-thread :- [S R]
-  [prog <- [(:wat::kernel::ThreadSelfPeer :- [S R]) :-> :wat::core::nil]]
-  -> (:wat::kernel::Peer :- [R S])
-  (:wat::kernel::spawn-program (:wat::spawn::thread) prog))
-
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
@@ -377,6 +369,21 @@
   ;;                   the impls that live in wat/bracket.wat)
   ;;   :wat::test::  — the harness capability holders (spawn-thread-program /
   ;;                   spawn-hermetic-program in wat/test.wat)
+  ;;   :wat::bracket:: — the queue-backed bracket runner (the-bracket-runs-on-the-queue).
+  ;;                   Its worker pullers are ordinary threads, but the runner is NOT a
+  ;;                   Locus (see that stone's row 1: `launch` is spawn-a-peer-and-
+  ;;                   handshake and a queue has no child to ship), so it does not reach
+  ;;                   the whitelist via the `:wat::spawn::<T>/<method>` route the impls
+  ;;                   in wat/bracket.wat use. ⛔ ADDED AS A NAME, DELIBERATELY: the
+  ;;                   first attempt was a thin public `:wat::spawn::spawn-thread` door
+  ;;                   fronting this call, which carried no `:restricted-to` of its own
+  ;;                   and so handed thread-spawning to EVERY caller, user programs
+  ;;                   included — the capability laundering the paragraph below names,
+  ;;                   wearing a whitelisted prefix. One explicit name on this list is
+  ;;                   auditable; an open door is not. Builder's ruling 2026-09-19:
+  ;;                   "there needs to be one spawn point who access a locus — we do not
+  ;;                   allow users to call these directly as we do it correctly to
+  ;;                   ensure they cannot deadlock."
   ;; NOT :wat::kernel:: — that is where spawn-program is DEFINED, not called from.
   ;; The tier primitives below it (spawn-thread / spawn-process) are separately
   ;; walled in Rust via #[restricted_to] + the inventory drain.
@@ -385,7 +392,7 @@
   ;; call that is the EXPANSION SITE — so a macro may not emit this call into
   ;; user code (capability laundering); it must route through a named fn inside
   ;; the whitelist. wat/test.wat's run-thread/run-hermetic do exactly that.
-  {:restricted-to [:wat::spawn:: :wat::test::]}
+  {:restricted-to [:wat::spawn:: :wat::test:: :wat::bracket::]}
   ;; thread — the ONE true form (self-peer; apply-loop is the annihilated heresy).
   ;; The locus's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
   ;; The locus's post-spawn-fn (extracted via ThreadOpts/post-spawn-fn) runs owner-side
