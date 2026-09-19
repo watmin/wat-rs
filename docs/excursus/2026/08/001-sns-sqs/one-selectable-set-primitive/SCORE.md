@@ -218,3 +218,12 @@ to show.
 ⚠ **Resolution, stated so the null is honest:** ~1330 ms of the run is round-trip work (~33 µs per
 trip, covering 2 sends + 2 recvs + 1 poll). Run-to-run spread is ~3–5%. This instrument would
 catch a ~10% poll regression; it would not catch a 1% one.
+
+⛔ **CORRECTION TO THE FLOOR CITED ABOVE.** `.floor/2026-09-19T09-32-26Z/` ran against the WORKING
+TREE, not the commit: `git checkout c4026f99e -- src/runtime.rs` (the BEFORE half of the
+measurement) had **staged** the pre-merge file, and the row-5 commit carried that revert while the
+floor tested the restored working tree. The engine merge was silently undone and pushed. Restored
+at `65e168bcb`, and the floor that corresponds to the committed code is
+**`.floor/2026-09-19T09-37-37Z/` — `Summary [ 121.992s] 5326 tests run: 5326 passed, 22 skipped`,
+working tree byte-identical to HEAD.** The measurement itself is unaffected: both builds were made
+and timed before any of this, and both returned `"4200000"`.
