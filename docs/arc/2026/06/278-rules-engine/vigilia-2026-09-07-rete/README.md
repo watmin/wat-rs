@@ -25,7 +25,7 @@ strikes to run — the failure this scoping exists to prevent.
 | # | target | files | lines | status |
 |---|---|---|---|---|
 | 1 | `src/rete/kernel/` + `wat/rete/oracle/` — the fire path and the spec it must mirror | 28 | 15,771 (measured) | ✅ **CAST COMPLETE** — 14/14 wards, 38 rows |
-| 2 | `src/rete/*.rs` — the compile side | 15 | ~15.7k | PENDING |
+| 2 | `src/rete/**` minus `kernel/` + `wat/rete*.wat` — the compile side and its spec (⛔ WIDENED — see below) | 25 | 23,886 (measured) | CASTING |
 | 3 | `wat-scripts/perf/grid/` — the load-bearing instrument and its corpus | 54 | ~8.7k | PENDING |
 | 4 | `tests/rete/` + `src/rete/kernel/tests/` — the probe corpus | 264 | ~36k | PENDING |
 
@@ -48,6 +48,60 @@ Cast 1, `src/rete/kernel/` + `wat/rete/oracle/`:
 | circumspicere | always, last | **muster, last** |
 
 Later targets get their own derivation block, written before that cast.
+
+## Muster for target 2 — derived and MEASURED 2026-09-07, before the cast
+
+⛔ **FIRST: THE TARGET AS ORIGINALLY SCOPED HAD A HOLE, AND IT IS FIXED HERE.** The table above
+said target 2 was `src/rete/*.rs` — **top level only**, 15 files / 15,687 lines (both figures
+confirmed exactly). But `src/rete/` has two subdirectories that are not `kernel/`:
+
+    src/rete/expr_ir/   2 files, 2,689 lines
+    src/rete/validate/  3 files, 3,147 lines
+
+**Neither is in ANY of the four targets.** Target 1 was `kernel/` (minus tests), target 2 was the
+top-level glob, target 3 is the grid, target 4 is the test corpus. **5,836 lines of rete code would
+have been swept by nothing**, in a cast whose entire purpose is to make this subsystem an exemplar.
+
+**And target 1's own return is what proves the hole was costly.** `conformare` reported — honestly,
+and I credited it — that *"this target defines no error type of its own, and has no `From` conversion
+impls to audit."* True. The rete error types are `ReteCheckErrorKind`, `ReteCheckError` and
+`ReteCheckErrors`, and they live at **`src/rete/validate/error.rs:23,435,457`** — inside one of the
+two uncovered directories. A ward answered "not here" correctly and pointed straight at ground the
+scoping had left out. **Target 2 is therefore widened to `src/rete/**/*.rs` minus `kernel/`.**
+
+⛔ **SECOND: TARGET 2 GETS ITS SPEC HALF, BY THE SAME PAIRING TARGET 1 USED.** Target 1 was the fire
+path *plus the oracle it must mirror*. The compile side has its own spec half — `wat/rete.wat` and
+`wat/rete/{compile,syntax,acc,factbag}.wat`, 5 files / 2,363 lines — and without it `conferre`,
+`cernere` and `probare` have nothing to compare against. It is also live and load-bearing: the
+`rule-produces` cure this session came from `compile.wat`'s own recipe. **7 `Mirrors <fn>` claims**
+exist on the Rust side (`eval_test.rs:12`, `compiled_cond.rs:136,1399`, `validate/mod.rs:708,757`,
+`vocabulary.rs:1291`) — each a spec claim, and that shape is exactly how this cast's only earlier
+L1 was found.
+
+**TARGET 2, FINAL: 25 files, 23,886 lines.**
+
+| ward | rule | verdict — with the measurement |
+|---|---|---|
+| intueri · solvere · conformare · purgare · struere · sequi · temperare | universal code | **muster** |
+| exigere | universal, every kind | **muster** |
+| cernere · probare · conferre | spec / language / DSL | **muster** — the spec half is the 5 `wat/rete*.wat` files; 7 `Mirrors` claims to check |
+| conformare | error types | **muster, and it FIRES here** — 3 error types at `validate/error.rs`; it measured **zero** on target 1 |
+| perspicere | 2+ `<` in a type | **muster** — **16 of 20** `.rs` files; `reachability.rs` 27, `validate/mod.rs` 15, `expr_ir/eval.rs` 15. Only 2 files carry an existing `rune:perspicere` |
+| excusare | runes / inline suppressions | **muster** — 33 `rune:` lines + 5 `#[allow(…)]`, across **15 of 20** files |
+| experiri | declares a callable surface | ⭐ **MUSTER — and this is the target it was waiting for.** `RETE_OPS` is declared at `vocabulary.rs:307` with **108 rows**. It did NOT fire on target 1; that was recorded then and is discharged now |
+| secare | parallel primitives | **NO — 0 files.** `grep -lE 'rayon\|par_iter\|thread::spawn\|std::sync::(Mutex\|RwLock)'` over all 20 → empty. A measured fact about the compile side |
+| mora | a wait by chosen duration | **NO — 0 files.** `grep -lE 'sleep\|Duration::from\|timeout'` → empty |
+| peragrare | a load-bearing instrument AND its corpus | **NO here** — fires on target 3 |
+| partire | downstream of `solvere` reporting braiding at 2+ conflicting sites | evaluated after `solvere` returns |
+| circumspicere | always, last | **muster, LAST** — target 1 proved why: cast last with the aggregate, it found the sharpest L1 on ground another ward had cleared |
+
+⛔ **`experiri` IS SEQUENCED SEPARATELY, AND THIS IS ORDERING, NOT ROSTER-PICKING.** It is the one
+ward whose evidence is an **event** rather than a source — it synthesizes and DRIVES each advertised
+form. So (a) it cannot be briefed READ-ONLY like the other fourteen, and (b) driving wat needs a
+build, and this repo's rule is one cargo build at a time. It is therefore cast in its own serialized
+slot after the read-only wards return, not folded into a parallel wave. **Recording it here so a
+later reader can tell a deliberate sequence from a quietly dropped ward** — the distinction this
+whole README is built on.
 
 ## ⛔ How this directory is built against the last one's rot
 
