@@ -52,8 +52,11 @@ FINDING.
 
 ## ⛔⛔ THE TRAP THAT MAKES THIS BIGGER THAN THE FENCE CURE
 
-**`:wat::rete::accumulate` has ZERO uses in the entire `.wat` corpus.** Grepped every `.wat`
-outside `docs/`: nothing.
+⛔ **CORRECTED 2026-09-10 — THIS CLAIM WAS FALSE, AND IT WAS MY GREP.** I searched for
+`rete::accumulate`; the form has no such keyword (`clause.rs:67`: `(?result <- (<acc-form>) :from
+(<inner>))`). Measured properly: **37 `.wat` files carry a `:from` accumulate condition, nineteen
+of them GRID CELLS with Clara twins.** The trap below still holds for a different and better
+reason — see the FINDINGs — but "no users" was never the reason.
 
 The fence cure had `legal_fences_still_compile` — an over-rejection guard built from forms the
 corpus already proved legal. **Here no such corpus exists.** Widening validation on a surface with
