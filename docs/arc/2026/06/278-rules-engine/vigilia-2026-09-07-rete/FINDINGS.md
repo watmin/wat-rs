@@ -56,12 +56,14 @@ row first for days.
 | **F1 ★** | conformare | 1 | `stratify.rs:288-294`; caller `fire/rules.rs:648`,`:707`,`:880` | A NEGATION CYCLE is a user rule-authoring mistake, and it is raised with `rust_caller_span!()` — while `fire_rules_on_session`, ONE FRAME UP, holds `span: &Span` and its own doc says *"a refusal a user can reach must name the line the user wrote, not a line in this file."* The span was available and discarded at the boundary. | L2 | **OPEN** · ✅ I VERIFIED | `stratify.rs:288-294` uses `rust_caller_span!()`; `fire/rules.rs:648` has `span: &Span`. Closed by threading it through `native_stratify`/`fire_rules_from_deps` |
 | **F2** | conformare | 1 | `session.rs` `pm_to_*` / `to_transient_*` — 28 raise sites | The whole decode family takes no `span` and raises every `TypeMismatch` with `rust_caller_span!()`, reached from two span-bearing entry points that don't forward it. ⚠ Ward explicitly could NOT resolve whether a malformed Session-memory shape is user-reachable at all — if it is not, the fix is 28 `rune:conformare(spanless-by-domain)` marks, not code. None carries a rune today. | L2 | **OPEN** · ⚠ ward-reported, domain question unresolved | `grep -c rust_caller_span session.rs` → **27**; `insert.rs` → **0** |
 | **N1 ★** | cernere | 1 | `session.rs:754`, `:981`, `:1159` | ⭐ **A PHANTOM FORM IN USER-FACING ERROR TEXT.** The three transient-decode helpers set `const OP: &str = ":wat::rete::to_transient …"`. **`to_transient` is attested by NO authority** — not a `RETE_OPS` row, not a `check.rs` TypeScheme, not a `runtime.rs` dispatch arm, not a wat `defn`. It is a plain internal Rust fn, and the label is spelled in Rust `snake_case` inside a wat-namespaced string where every resolving sibling is kebab-case. A caller whose malformed `Session` trips this gets a `TypeMismatch` naming a form they cannot find in the language — the form they actually invoked was `fire-rules`/`insert`. ⚠ Same decode family as **F2**, different lens. | L2 | **OPEN** · ✅ I VERIFIED | I enumerated ALL 11 distinct `:wat::rete::` OP labels in target 1: **8 resolve** (`arm-session` 5 authorities, `fire-rules` 10, `insert` 21, …), **3 are phantom — all of them `to_transient`**. Closed when the label names the entry verb (e.g. `":wat::rete::fire-rules (session decode)"`), matching `arm.rs:1252`'s correct convention |
+| **R1 ★** | probare | 1 | `outcome.rs:22-25` | ⭐ **A DEFERRAL DECISION RESTING ON A COUNT AND A CITATION, ONE OF WHICH IS FLATLY WRONG.** The header declines to push the outcome enum into `fire_fixpoint_delta_armed` because *"it has three callers (`fire-once`, `fire-rules`, and the query path at `fire/rules.rs:425`)"*. **`fire/rules.rs:425` contains no call** — it is a session-field data literal; the query call is 8 lines later at `:433`. In-target call sites number **four**, not three: `fire/mod.rs:1177`, `fire/delta.rs:266`, `fire/rules.rs:193`, `fire/rules.rs:433` — `fire-rules` alone reaches it by TWO routes (stratified and unstratified). Nothing in `rete_header_claims_are_asserted.rs` covers `outcome.rs`. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `grep -rn 'fire_fixpoint_delta_armed(' src/ \| grep -v 'fn '` → 4 in-target + 2 in `tests/`; `sed -n '423,427p' fire/rules.rs` → data literal. ⚠ **The two halves are not equally strong** — see my note below. Closed by correcting the citation and stating the count in a form a gate can hold |
+| **R2** | probare | 1 | `mod.rs:15`; `arm.rs:706`; `wat/rete.wat:199-207` | *"Session stays 8 fields"* is called **THE ONE CONTRACT** of `DESIGN-STONE-intern-zero-mutex` — and nothing asserts it. It is TRUE today (I counted the `defrecord`: 8). But the sibling claim one door over, `FireCtx`'s field count, IS gated by `rete_header_claims_are_asserted::fire_ctx_field_count_matches_its_doc` — minted precisely because *"its doc said thirteen while the struct held fourteen."* The cure exists and this contract never received it. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '199,208p' wat/rete.wat` → exactly 8 fields; `grep -rn '8 fields' tests/` → **0**. Closed by a gate arm mirroring the `FireCtx` one |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | RETURNED (11): cernere · intueri · purgare · solvere · struere · conferre · sequi **CONV** · temperare · excusare · exigere **CONV** · conformare — **STILL TO CAST (3): probare · perspicere · then circumspicere LAST** | **4** | 18 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | RETURNED (12): cernere · probare · intueri · purgare · solvere · struere · conferre · sequi **CONV** · temperare · excusare · exigere **CONV** · conformare — **STILL TO CAST (2): perspicere · then circumspicere LAST** | **5** | 19 |
 
 ## Verified by the orchestrator, not taken
 
@@ -105,6 +107,7 @@ the ✅ rows may be cited as fact. This distinction is the whole reason the stat
 | exigere | ⭐ **CONVERGED** — TODO-family zero re-derived independently, not inherited (`reports/exigere.md:42`); E1 is wording-staleness, not an open deferral |
 | conformare | ⚠ **THE WARD'S OWN VERDICT AND ITS OWN FINDINGS DISAGREE.** `reports/conformare.md:59` ends **"CONVERGED."** — yet the same report returns F1 and F2, both rowed L2 above and both verified by me. `vigilia` forbids the aggregator re-classifying a child, so BOTH stand as returned. Read it as *"the analysis converged"*, not *"the target is clean"* — but it is recorded, not smoothed, because a report whose last line contradicts its own body is exactly the shape that gets quoted later without its findings |
 | cernere | 1 L2 — **DIVERGES**, narrowly. ⭐ But its headline is the CLEAN half: ~130 distinct `:wat::rete::` names across the six oracle files, **all resolve**; 44 distinct `:wat::` tokens across the 22 Rust files, all resolve but one. The live question — *is `wat/rete/oracle/**` covered by anything, given the name-resolution gate scans `wat-scripts/` only?* — came back **measured, not assumed**: every oracle fn is on a forced entry path, so no unforced-`def` phantom exists there today |
+| probare | 2 (1 L1 + 1 L2) — **DIVERGES**. ⭐ Notable for refusing its own headline metric: told the target is deliberately comment-dense and that the spell exempts doc-comment-rich code, it ran the 28-file ratio table anyway, marked every exemption explicitly instead of dropping rows, and declined to verdict on the Rust declaration-count measure because it *"produces nonsense ratios like 1:57"* here. Third independent re-derivation of the zero TODO/FIXME count |
 
 - **C1 ★★** — CONFIRMED, and the falsified claim is my own. Oracle `stratify.wat:150` tests
   `hd = ":wat::rete::not"` on the TOP-LEVEL head and returns `acc` unchanged for anything else —
@@ -212,3 +215,38 @@ It said so instead of guessing — and that honesty is why the row is actionable
   `RuntimeError::new(rust_caller_span!(), TypeMismatch { op: OP, … })` — the same decode family
   F2 rowed for discarding the caller's span. Two wards, two lenses, one site: F2 says the error
   cannot name the user's line; N1 says it cannot name a real form either. Neither alone shows that.
+
+- **R1 ★** — CONFIRMED, but **the two halves of this finding are NOT equally strong, and I will not
+  let the strong half vouch for the weak one.**
+  · **The citation is simply wrong, and that half is not arguable.** `fire/rules.rs:425` is inside a
+    session-field data literal (`("network", q_net), ("rules", empty_rules), …`). The query-path
+    call to `fire_fixpoint_delta_armed` is at `:433`. I read both.
+  · **The count is arguable.** The header says *"three callers"* and then names them as verbs —
+    `fire-once`, `fire-rules`, the query path — and its next clause reasons about *"the second
+    door"*, which is door-language, not call-site language. Read as VERBS the three is defensible;
+    read as CALL SITES it is four, because `fire-rules` dispatches to two distinct routes
+    (`fire_unstratified` → `delta.rs:266`, and `fire_rules_stratified` → `rules.rs:193`). The ward
+    graded the whole finding **L1**; `vigilia` forbids me re-classifying a child's verdict, so L1
+    stands as returned — but the L1 rests on the citation, not on the count.
+  ⭐ **AND THE CURE ALREADY EXISTS IN THIS REPO.** `rete_header_claims_are_asserted.rs` carries an
+  arm named `the_termination_verifier_still_has_exactly_one_call_site` — a caller-count claim,
+  mechanically held. The gate already knows how to pin exactly this kind of assertion. `outcome.rs`
+  simply never got one. That is the arc's signature shape again: the fix is driven, proven and
+  shipped on a sibling path that never received it.
+
+- **R2** — CONFIRMED. `wat/rete.wat:199-207` declares `Session` with exactly eight fields
+  (`network`, `rules`, `alpha-memory`, `beta-memory`, `production-memory`, `facts`, `next-id`,
+  `query-memory`). `grep -rn '8 fields' tests/` returns **zero**. The claim is true and unheld,
+  while its sibling — `FireCtx`'s field count — is gated by an arm minted after that doc said
+  thirteen and the struct held fourteen. ⚠ Note the asymmetry that makes this worth a row rather
+  than a shrug: `arm.rs:706` calls it **"THE ONE CONTRACT."** A claim carrying that weight with no
+  gate is the exact shape this arc keeps paying for.
+
+⭐ **probare's most valuable act was refusing the metric it was sent to apply.** Told that this
+target is deliberately comment-dense and that its own spell exempts doc-comment-rich code, it ran
+the ratio table anyway, marked every exemption explicitly rather than dropping rows, and then said
+so: the literal Rust declaration-count measure *"produces nonsense ratios like 1:57"* for files that
+are one large function with heavy rationale, so it declined to verdict on it. It also independently
+re-derived the zero TODO/FIXME count — the **third** separate measurement of that zero this cast,
+by a third method. Three wards agreeing from three sweeps is evidence; one inheriting another's
+number is an echo.
