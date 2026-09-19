@@ -72,6 +72,13 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          is already non-empty.",
     ),
     (
+        "accum-over-derived",
+        &[4],
+        "size=[depth]; Step(k):-Step(k-1) for k in [1,depth] plus one Tally. depth=4 is past \
+         the probe's two intermediate states and derives depth+1=5 facts (4 Step levels + 1 \
+         Tally) — non-empty. The correctness size is 9; this is liveness.",
+    ),
+    (
         "asym-join",
         &[5],
         "size=[items]; every inserted A(k) derives B(k) unconditionally (R1), then the \
