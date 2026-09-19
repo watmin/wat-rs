@@ -173,3 +173,48 @@ before the engine merge."* The same number is quoted as both sides, with cold/wa
 only in prose. EXPECTATIONS asked for before/after; this is one number twice. Not a blocker for a
 change that adds an indirection to an already-decoding path — but it is not measured, and it must
 not read as if it were.
+
+---
+
+## ⭑ ROW 5 DISCHARGED BY THE ORCHESTRATOR, 2026-09-19 — a real before/after
+
+⛔ **THE INSTRUMENT BOTH SCORES USED CANNOT SEE THE THING IT WAS QUOTED FOR.**
+`process_service_loop_polls_serves_and_terminates_on_owner_drop` does **one** round trip (send 5 →
+reply 105) around a process spawn and teardown. Essentially all of its 220 ms is fork/exec. It
+drives one or two `poll` iterations, so it cannot resolve a per-poll-event cost at any magnitude.
+Quoting `0.220s` as "no regression" measured the harness and reported it as the system — twice,
+and I let the first one past.
+
+### The instrument
+
+`wat-scripts/scratch-pad/bench-poll-loop-roundtrips.wat` — **derived from that same fixture with
+one delta**: the client's single send+recv becomes N round trips. The service, the spawn, the
+listener handshake and every match arm are byte-identical, so the only thing that scales with N is
+the `poll` loop the engine merge rewrote. At N=40000 the spawn cost is ~220 ms of a ~1550 ms run,
+i.e. amortised to ~14%.
+
+⚠ **A first attempt failed and is worth recording**: I hoisted the child program into a function
+(`(:user::service-forms)`) instead of an inline `(:wat::core::forms …)` at the spawn site, and it
+died with `"io_uring read failed"` at N=1. Deriving from the known-good fixture with a minimal
+delta is what made it work — the general lesson being that a benchmark that does not first
+reproduce the known-good result is measuring its own bug.
+
+### The measurement — `wat <bench>`, release, N=40000 (4.2 M via 40000 trips), sorted ms
+
+| | min | median | samples |
+|---|---:|---:|---:|
+| **BEFORE** — `src/runtime.rs` at `c4026f99e`, two constructions | 1547 | **1555** | 7 |
+| **AFTER** — HEAD `62004135c`, one engine | **1520** | **1555** | 11 |
+
+**Medians identical. AFTER's min is 1.7% faster.** No regression.
+
+⚠ Method: `src/runtime.rs` is the only file the merge touched, so BEFORE was produced by checking
+out that one file at `c4026f99e` and rebuilding — everything else held constant. Both builds
+returned `"4200000"`, so neither was measuring a broken run. A first 7-sample AFTER set showed a
++2.8% median; **11 samples collapsed it to zero**, which is why the small set is reported here
+rather than hidden — its spread (1540–1714, 11%) was always wider than the difference it appeared
+to show.
+
+⚠ **Resolution, stated so the null is honest:** ~1330 ms of the run is round-trip work (~33 µs per
+trip, covering 2 sends + 2 recvs + 1 poll). Run-to-run spread is ~3–5%. This instrument would
+catch a ~10% poll regression; it would not catch a 1% one.

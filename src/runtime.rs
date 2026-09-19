@@ -22068,97 +22068,6 @@ fn classify_trusted_wire_recv(
     }
 }
 
-const SERVICE_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
-
-fn service_event_shutdown() -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: SERVICE_EVENT_TYPE.into(),
-        variant_name: "Shutdown".into(),
-        names: no_field_names(),
-        fields: vec![],
-    }))
-}
-
-fn service_event_closed(type_path: &str, peer_idx: i64) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: type_path.into(),
-        variant_name: "Closed".into(),
-        names: builtin_enum_variant_names(type_path, "Closed"),
-        fields: vec![Value::i64(peer_idx)],
-    }))
-}
-
-fn service_event_admin(msg: Value) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: SERVICE_EVENT_TYPE.into(),
-        variant_name: "Admin".into(),
-        names: builtin_enum_variant_names(SERVICE_EVENT_TYPE, "Admin"),
-        fields: vec![msg],
-    }))
-}
-
-fn service_event_connection(peer: Value) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: SERVICE_EVENT_TYPE.into(),
-        variant_name: "Connection".into(),
-        names: builtin_enum_variant_names(SERVICE_EVENT_TYPE, "Connection"),
-        fields: vec![peer],
-    }))
-}
-
-fn service_event_rejected(type_path: &str, peer_idx: i64, class: impl Into<String>) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: type_path.into(),
-        variant_name: "Rejected".into(),
-        names: builtin_enum_variant_names(type_path, "Rejected"),
-        fields: vec![Value::i64(peer_idx), message_only_failure(class.into())],
-    }))
-}
-
-/// Thread-tier unified-Peer Recv: death-notice / Failed / Message, or Closed on EOF.
-/// No crash channel on a connection peer.
-fn classify_unified_thread_recv(
-    type_path: &str,
-    peer_idx: i64,
-    result: Result<Value, crate::comms::RecvError>,
-) -> Value {
-    match result {
-        Ok(msg) => {
-            if let Some(lost) = select_lost_if_death_notice(type_path, peer_idx, &msg) {
-                return lost;
-            }
-            select_malformed_if_reply_failed(type_path, peer_idx, &msg)
-                .unwrap_or_else(|| service_event_message(type_path, peer_idx, msg))
-        }
-        Err(_) => service_event_closed(type_path, peer_idx),
-    }
-}
-
-/// Process-tier unified-Peer Recv on raw bytes. FrameTooLarge → Rejected (poll's
-/// 400-class). Other EOF → Closed. Ok → classify_trusted_wire_recv.
-fn classify_unified_process_recv(
-    type_path: &str,
-    peer_idx: i64,
-    result: Result<Vec<u8>, crate::comms::RecvError>,
-    types: Option<&crate::types::TypeEnv>,
-    ctx: Option<&crate::value::EncodingCtx>,
-    decode_fail: impl FnOnce(&str) -> String,
-    utf8_fail: &str,
-) -> Value {
-    match result {
-        Ok(raw) => match std::str::from_utf8(&raw) {
-            Err(_) => service_event_malformed(type_path, peer_idx, utf8_fail),
-            Ok(wire) => classify_trusted_wire_recv(type_path, peer_idx, wire, types, ctx, decode_fail),
-        },
-        Err(crate::comms::RecvError::FrameTooLarge) => service_event_rejected(
-            type_path,
-            peer_idx,
-            "request too large — exceeded this service's max-frame-bytes limit; request rejected, connection closed",
-        ),
-        Err(_) => service_event_closed(type_path, peer_idx),
-    }
-}
-
 /// Arc 278 the recv-outcome wall — the type path of the matchable `recv` outcome
 /// enum (`(:wat::kernel::RecvOutcome :- [O])`, registered in `types.rs`).
 const RECV_OUTCOME_TYPE: &str = ":wat::kernel::RecvOutcome";
@@ -27461,8 +27370,12 @@ fn eval_peer_select_values(
             }
         }
     } else if first_type_path == crate::kernel::spawn::PEER_TYPE_PATH {
-        // select(peers) is poll(∅, ∅, peers) on the unified Peer set.
-        let mut peer_arcs: Vec<crate::kernel::spawn::PeerCell> = Vec::with_capacity(peers_vec.len());
+        // ── Bare Peer (a provisioned connection — no spawned worker behind it) ──
+        // Arc 209 Stone C0 / C0b.2e-i-b — a service select's over the server ends of the
+        // peer-pair' connections it has provisioned.  The unified `Peer` boxes its rx
+        // endpoint; recover the concrete `&thread::Receiver<Value>` via `as_any` (i-a
+        // foundation).  Socket-backed connection peers in `select` are C0b.3a-ii.
+        let mut arcs: Vec<&crate::kernel::spawn::PeerCell> = Vec::with_capacity(peers_vec.len());
         for (i, peer) in peers_vec.iter().enumerate() {
             match peer {
                 Value::RustOpaque(inner)
@@ -27475,7 +27388,7 @@ fn eval_peer_select_values(
                             OP,
                             list_span.clone(),
                         )?;
-                    peer_arcs.push(cell.clone());
+                    arcs.push(cell);
                 }
                 other => {
                     return Err(RuntimeError::new(
@@ -27493,7 +27406,234 @@ fn eval_peer_select_values(
                 }
             }
         }
-        fan_in_unified_peer_set(OP, None, None, &peer_arcs, list_span, sym)
+
+        let mut guards: Vec<
+            crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::peer::Peer>>,
+        > = Vec::with_capacity(arcs.len());
+        for arc in &arcs {
+            guards.push(
+                arc.ref_guard(OP, list_span.clone())
+                    .map_err(EvalBreak::from)?,
+            );
+        }
+
+        // Bare Peer has no crash channel (it is a connection peer, not a spawned worker).
+        // EOF = clean disconnect only → :Closed. :Lost is for spawned workers.
+        const SELECT_EVENT_TYPE_PEER: &str = ":wat::spawn::ServiceEvent";
+
+        // ── Dispatch on the reactor class of the (homogeneous) peer set ───────────
+        // arc 278 Stone 1 — a unified `Peer` timer (from `after`) is a real `Peer`, so
+        // `select` must accept it at BOTH tiers (a process-tier `after` yields a socket-
+        // backed `Peer`). This closes the C0b.3a-ii deferral for `select`, mirroring
+        // `poll`'s already-shipped Fd client arm (`select_raw` + `decode_trusted_wire`).
+        let first_class = match &*guards[0] {
+            Some(peer) => peer.rx.reactor_class(),
+            None => {
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "peer already closed (index 0)".into(),
+                    },
+                )
+                .into())
+            }
+        };
+
+        match first_class {
+            crate::comms::ReactorClass::InMemory => {
+                // ── Thread tier: crossbeam Select over &thread::Receiver<Value> ──────
+                let mut receivers: Vec<&crate::comms::thread::Receiver<Value>> =
+                    Vec::with_capacity(guards.len());
+                for (i, guard) in guards.iter().enumerate() {
+                    match &**guard {
+                        None => {
+                            return Err(RuntimeError::new(
+                                list_span.clone(),
+                                RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: format!("peer already closed (index {})", i),
+                                },
+                            )
+                            .into())
+                        }
+                        Some(peer) => {
+                            match peer.rx.as_any().downcast_ref::<crate::comms::thread::Receiver<Value>>() {
+                                Some(rx) => receivers.push(rx),
+                                None => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: format!(
+                                            "peers[{}]: mixed-tier select set (a non-crossbeam peer \
+                                             among crossbeam peers) is not a representable-good state",
+                                            i
+                                        ),
+                                    }).into()),
+                            }
+                        }
+                    }
+                }
+
+                let mut sel = crate::comms::thread::Select::new();
+                for rx in &receivers {
+                    sel.recv(*rx);
+                }
+                match sel.select() {
+                    crate::comms::SelectOutcome::Recv { index, result } => {
+                        let peer_idx = index.0 as i64;
+                        match result {
+                            Ok(msg) => {
+                                if let Some(lost) = select_lost_if_death_notice(
+                                    SELECT_EVENT_TYPE_PEER,
+                                    peer_idx,
+                                    &msg,
+                                ) {
+                                    return Ok(lost);
+                                }
+                                // excursus 001 — the Reply::Failed pre-check, sibling of the death-notice one above.
+                                if let Some(m) = select_malformed_if_reply_failed(
+                                    SELECT_EVENT_TYPE_PEER,
+                                    peer_idx,
+                                    &msg,
+                                ) {
+                                    return Ok(m);
+                                }
+                                Ok(Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                    variant_name: "Message".into(),
+                                    names: builtin_enum_variant_names(
+                                        SELECT_EVENT_TYPE_PEER,
+                                        "Message",
+                                    ),
+                                    fields: vec![Value::i64(peer_idx), msg],
+                                })))
+                            }
+                            // EOF — bare connection peer left gracefully (no crash channel).
+                            Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Closed"),
+                                fields: vec![Value::i64(peer_idx)],
+                            }))),
+                        }
+                    }
+                    crate::comms::SelectOutcome::Shutdown => Ok(Value::Enum(Arc::new(EnumValue {
+                        type_path: SELECT_EVENT_TYPE_PEER.into(),
+                        variant_name: "Shutdown".into(),
+                        names: no_field_names(),
+                        fields: vec![],
+                    }))),
+                    crate::comms::SelectOutcome::Listener => {
+                        unreachable!("thread-tier Peer Select has no listener arm")
+                    }
+                }
+            }
+            crate::comms::ReactorClass::Fd => {
+                // ── Process tier: process::Select over ONE io_uring ring ────────────
+                // Recover &process::Receiver<Value> from each unified Peer (mirrors the
+                // poll Fd client arm). No self-peer / listener — select is peers-only.
+                let mut receivers: Vec<&crate::comms::process::Receiver<Value>> =
+                    Vec::with_capacity(guards.len());
+                for (i, guard) in guards.iter().enumerate() {
+                    match &**guard {
+                        None => {
+                            return Err(RuntimeError::new(
+                                list_span.clone(),
+                                RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: format!("peer already closed (index {})", i),
+                                },
+                            )
+                            .into())
+                        }
+                        Some(peer) => {
+                            match peer
+                                .rx
+                                .as_any()
+                                .downcast_ref::<crate::comms::process::Receiver<Value>>()
+                            {
+                                Some(rx) => receivers.push(rx),
+                                None => {
+                                    return Err(RuntimeError::new(
+                                        list_span.clone(),
+                                        RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: format!(
+                                            "peers[{}]: mixed-tier select set (a non-socket peer \
+                                             among socket peers) is not a representable-good state",
+                                            i
+                                        ),
+                                        },
+                                    )
+                                    .into())
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let mut sel = crate::comms::process::Select::<Value>::new();
+                for rx in &receivers {
+                    sel.recv(*rx);
+                }
+                // select_raw() → raw wire bytes (select() would call Value::from_wire with
+                // NO type registry and fail on user enum/record payloads); decode with the
+                // full registry via decode_trusted_wire — same as the poll client arm.
+                match sel.select_raw() {
+                    Err(_io_err) => Ok(Value::Enum(Arc::new(EnumValue {
+                        type_path: SELECT_EVENT_TYPE_PEER.into(),
+                        variant_name: "Lost".into(),
+                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Lost"),
+                        fields: vec![
+                            Value::i64(0),
+                            message_only_failure("select io_uring error".into()),
+                        ],
+                    }))),
+                    Ok(crate::comms::SelectOutcome::Recv { index, result }) => {
+                        let peer_idx = index.0 as i64;
+                        match result {
+                            Ok(raw_bytes) => {
+                                let wire_str = match std::str::from_utf8(&raw_bytes) {
+                                    Ok(s) => s,
+                                    Err(_) => {
+                                        return Ok(service_event_malformed(
+                                            SELECT_EVENT_TYPE_PEER,
+                                            peer_idx,
+                                            "select (process tier): peer message is not valid UTF-8",
+                                        ));
+                                    }
+                                };
+                                Ok(classify_trusted_wire_recv(
+                                    SELECT_EVENT_TYPE_PEER,
+                                    peer_idx,
+                                    wire_str,
+                                    sym.types().map(|a| a.as_ref()),
+                                    sym.encoding_ctx().map(|a| a.as_ref()),
+                                    |_| "select EDN decode failed".into(),
+                                ))
+                            }
+                            // EOF — bare connection peer left gracefully (no crash channel).
+                            Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE_PEER, "Closed"),
+                                fields: vec![Value::i64(peer_idx)],
+                            }))),
+                        }
+                    }
+                    Ok(crate::comms::SelectOutcome::Shutdown) => {
+                        Ok(Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE_PEER.into(),
+                            variant_name: "Shutdown".into(),
+                            names: no_field_names(),
+                            fields: vec![],
+                        })))
+                    }
+                    Ok(crate::comms::SelectOutcome::Listener) => {
+                        unreachable!("process-tier peers-only select has no listener arm")
+                    }
+                }
+            }
+        }
     } else {
         Err(RuntimeError::new(
             list_span.clone(),
@@ -27818,406 +27958,6 @@ fn serve_dispatch_op_caught_panic(
 // delegate is the correct (and only safe) choice to preserve `serve`'s TCO when reached
 // through the registry's generic fallback path.
 
-/// One waiting discipline for a set of unified `Peer`s. `select(peers)` is
-/// this function with `self_peer` and `listener` both `None`. `poll` supplies
-/// both. Admin / Connection exist only when those two are in the set — not
-/// via `unreachable!()`.
-fn fan_in_unified_peer_set(
-    op: &'static str,
-    self_peer: Option<&crate::kernel::spawn::PeerCell>,
-    listener: Option<&crate::kernel::listener::Listener>,
-    peer_arcs: &[crate::kernel::spawn::PeerCell],
-    list_span: &Span,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    use crate::comms::ReactorClass;
-
-    let self_guard = match self_peer {
-        Some(cell) => Some(cell.ref_guard(op, list_span.clone()).map_err(EvalBreak::from)?),
-        None => None,
-    };
-    let mut peer_guards: Vec<
-        crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::peer::Peer>>,
-    > = Vec::with_capacity(peer_arcs.len());
-    for cell in peer_arcs {
-        peer_guards.push(cell.ref_guard(op, list_span.clone()).map_err(EvalBreak::from)?);
-    }
-
-    let class: ReactorClass = if let Some(g) = self_guard.as_ref() {
-        match &**g {
-            None => {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: "poll: self-peer already closed".into(),
-                    },
-                )
-                .into());
-            }
-            Some(peer) => peer.rx.reactor_class(),
-        }
-    } else if let Some(g) = peer_guards.first() {
-        match &**g {
-            None => {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: "peer already closed (index 0)".into(),
-                    },
-                )
-                .into());
-            }
-            Some(peer) => peer.rx.reactor_class(),
-        }
-    } else if let Some(l) = listener {
-        l.inner.reactor_class()
-    } else {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: "select over an empty vector would block forever".into(),
-            },
-        )
-        .into());
-    };
-
-    if let Some(l) = listener {
-        if l.inner.reactor_class() != class {
-            return Err(RuntimeError::new(
-                list_span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: op.into(),
-                    reason: format!(
-                        "poll: listener tier ({:?}) does not match set tier ({:?})",
-                        l.inner.reactor_class(),
-                        class
-                    ),
-                },
-            )
-            .into());
-        }
-    }
-    for (i, g) in peer_guards.iter().enumerate() {
-        match &**g {
-            None => {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: format!("peer already closed (index {i})"),
-                    },
-                )
-                .into());
-            }
-            Some(peer) if peer.rx.reactor_class() != class => {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: format!(
-                            "peers[{i}] tier ({:?}) does not match set tier ({:?})",
-                            peer.rx.reactor_class(),
-                            class
-                        ),
-                    },
-                )
-                .into());
-            }
-            Some(_) => {}
-        }
-    }
-
-    match class {
-        ReactorClass::InMemory => {
-            let self_rx = self_guard.as_ref().map(|g| {
-                g.as_ref()
-                    .expect("closed check done")
-                    .rx
-                    .as_any()
-                    .downcast_ref::<crate::comms::thread::Receiver<Value>>()
-                    .expect("reactor_class InMemory implies thread::Receiver")
-            });
-            let listener_rx = listener.map(|l| {
-                &l.inner
-                    .as_any_ref()
-                    .downcast_ref::<crate::kernel::listener::CrossbeamListener>()
-                    .expect("reactor_class InMemory implies CrossbeamListener")
-                    .rx
-            });
-            let mut peer_rxs: Vec<&crate::comms::thread::Receiver<Value>> =
-                Vec::with_capacity(peer_guards.len());
-            for g in &peer_guards {
-                peer_rxs.push(
-                    g.as_ref()
-                        .expect("closed check done")
-                        .rx
-                        .as_any()
-                        .downcast_ref::<crate::comms::thread::Receiver<Value>>()
-                        .expect("reactor_class InMemory implies thread::Receiver"),
-                );
-            }
-            let mut sel = crate::comms::thread::Select::new();
-            let mut roles: Vec<u8> = Vec::new(); // 0=self, 1=listener-recv, 2=client
-            if let Some(rx) = self_rx {
-                sel.recv(rx);
-                roles.push(0);
-            }
-            if let Some(rx) = listener_rx {
-                sel.recv(rx);
-                roles.push(1);
-            }
-            for rx in &peer_rxs {
-                sel.recv(*rx);
-                roles.push(2);
-            }
-            match sel.select() {
-                crate::comms::SelectOutcome::Shutdown => Ok(service_event_shutdown()),
-                crate::comms::SelectOutcome::Listener => Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: "listener arm fired but no listener was in the set".into(),
-                    },
-                )
-                .into()),
-                crate::comms::SelectOutcome::Recv { index, result } => {
-                    match roles.get(index.0) {
-                        Some(0) => match result {
-                            Ok(msg) => Ok(service_event_admin(msg)),
-                            Err(_) => {
-                                crate::kernel::peer::broadcast_peer_severed_best_effort(peer_arcs);
-                                Ok(service_event_shutdown())
-                            }
-                        },
-                        Some(1) => {
-                            let cr = result.map_err(|_| {
-                                EvalBreak::from(RuntimeError::new(
-                                    list_span.clone(),
-                                    RuntimeErrorKind::MalformedForm {
-                                        head: op.into(),
-                                        reason: "poll: listener recv failed — address was dropped"
-                                            .into(),
-                                    },
-                                ))
-                            })?;
-                            Ok(service_event_connection(wrap_connect_request(cr, list_span)?))
-                        }
-                        Some(2) => {
-                            let client_i = index.0
-                                - usize::from(self_rx.is_some())
-                                - usize::from(listener_rx.is_some());
-                            Ok(classify_unified_thread_recv(
-                                SERVICE_EVENT_TYPE,
-                                client_i as i64,
-                                result,
-                            ))
-                        }
-                        _ => Err(RuntimeError::new(
-                            list_span.clone(),
-                            RuntimeErrorKind::MalformedForm {
-                                head: op.into(),
-                                reason: format!("select index {} is not in the registered set", index.0),
-                            },
-                        )
-                        .into()),
-                    }
-                }
-            }
-        }
-        ReactorClass::Fd => {
-            let self_proc_rx = self_guard.as_ref().map(|g| {
-                g.as_ref()
-                    .expect("closed check done")
-                    .rx
-                    .as_any()
-                    .downcast_ref::<crate::comms::process::Receiver<Value>>()
-                    .expect("reactor_class Fd implies process::Receiver")
-            });
-            let mut client_proc_rxs: Vec<&crate::comms::process::Receiver<Value>> =
-                Vec::with_capacity(peer_guards.len());
-            for g in &peer_guards {
-                client_proc_rxs.push(
-                    g.as_ref()
-                        .expect("closed check done")
-                        .rx
-                        .as_any()
-                        .downcast_ref::<crate::comms::process::Receiver<Value>>()
-                        .expect("reactor_class Fd implies process::Receiver"),
-                );
-            }
-            let socket_listener = listener.map(|l| {
-                l.inner
-                    .as_any_ref()
-                    .downcast_ref::<crate::kernel::listener::SocketListener>()
-                    .expect("reactor_class Fd implies SocketListener")
-            });
-            let mut sel = crate::comms::process::Select::<Value>::new();
-            if let Some(rx) = self_proc_rx {
-                sel.recv(rx);
-            }
-            for rx in &client_proc_rxs {
-                sel.recv(*rx);
-            }
-            if let Some(sl) = socket_listener {
-                use std::os::fd::AsRawFd;
-                sel.listener(sl.listener.as_raw_fd());
-            }
-            let types = sym.types().map(|a| a.as_ref());
-            let ctx = sym.encoding_ctx().map(|a| a.as_ref());
-            let decode_fail = |e: &str| {
-                format!("poll (process tier): client message decode failed: {e}")
-            };
-            match sel.select_raw() {
-                Err(_io_err) => Ok(select_event_lost(
-                    SERVICE_EVENT_TYPE,
-                    0,
-                    "select io_uring error",
-                )),
-                Ok(crate::comms::SelectOutcome::Shutdown) => Ok(service_event_shutdown()),
-                Ok(crate::comms::SelectOutcome::Listener) => {
-                    let Some(sl) = socket_listener else {
-                        return Err(RuntimeError::new(
-                            list_span.clone(),
-                            RuntimeErrorKind::MalformedForm {
-                                head: op.into(),
-                                reason: "listener arm fired but no listener was in the set".into(),
-                            },
-                        )
-                        .into());
-                    };
-                    match fan_in_accept_connection(sl, list_span)? {
-                        Some(ev) => Ok(ev),
-                        None => fan_in_unified_peer_set(
-                            op,
-                            self_peer,
-                            listener,
-                            peer_arcs,
-                            list_span,
-                            sym,
-                        ),
-                    }
-                }
-                Ok(crate::comms::SelectOutcome::Recv { index, result }) => {
-                    if self_proc_rx.is_some() && index.0 == 0 {
-                        match result {
-                            Ok(raw) => {
-                                let wire = std::str::from_utf8(&raw).map_err(|_| {
-                                    EvalBreak::from(RuntimeError::new(
-                                        list_span.clone(),
-                                        RuntimeErrorKind::MalformedForm {
-                                            head: op.into(),
-                                            reason: "poll (process tier): admin message is not valid UTF-8".into(),
-                                        },
-                                    ))
-                                })?;
-                                let msg = crate::edn::render::decode_trusted_wire(wire, types, ctx)
-                                    .map_err(|e| {
-                                        EvalBreak::from(RuntimeError::new(
-                                            list_span.clone(),
-                                            RuntimeErrorKind::MalformedForm {
-                                                head: op.into(),
-                                                reason: format!(
-                                                    "poll (process tier): admin message decode failed: {e}"
-                                                ),
-                                            },
-                                        ))
-                                    })?;
-                                Ok(service_event_admin(msg))
-                            }
-                            Err(_) => {
-                                crate::kernel::peer::broadcast_peer_severed_best_effort(peer_arcs);
-                                Ok(service_event_shutdown())
-                            }
-                        }
-                    } else {
-                        let client_i = index.0 - usize::from(self_proc_rx.is_some());
-                        Ok(classify_unified_process_recv(
-                            SERVICE_EVENT_TYPE,
-                            client_i as i64,
-                            result,
-                            types,
-                            ctx,
-                            decode_fail,
-                            "poll (process tier): client message is not valid UTF-8",
-                        ))
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// `Ok(Some(Connection))` — accepted. `Ok(None)` — spurious POLLIN, caller re-waits.
-fn fan_in_accept_connection(
-    socket_listener: &crate::kernel::listener::SocketListener,
-    list_span: &Span,
-) -> Result<Option<Value>, EvalBreak> {
-    use std::os::fd::{AsRawFd, OwnedFd};
-    loop {
-        match socket_listener.listener.accept() {
-            Ok((stream, _addr)) => {
-                let cred = crate::comms::process::peer_cred(stream.as_raw_fd()).map_err(|e| {
-                    RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::MalformedForm {
-                            head: ":wat::kernel::poll".into(),
-                            reason: format!(
-                                "poll (process tier): peer_cred on accepted socket: {e}"
-                            ),
-                        },
-                    )
-                })?;
-                if !socket_listener.authorizes(&cred) {
-                    drop(stream);
-                    continue;
-                }
-                let (tx, rx) = crate::comms::process::sender_receiver_from_fd_with_budget::<Value>(
-                    OwnedFd::from(stream),
-                    socket_listener.max_frame_bytes,
-                )
-                .map_err(|e| {
-                    RuntimeError::new(
-                        list_span.clone(),
-                        RuntimeErrorKind::MalformedForm {
-                            head: ":wat::kernel::poll".into(),
-                            reason: format!("poll (process tier): wrap socket stream failed: {e}"),
-                        },
-                    )
-                })?;
-                use crate::kernel::peer::Peer;
-                use crate::kernel::spawn::PEER_TYPE_PATH;
-                use crate::rust_deps::custodia::ThreadOwnedCell;
-                use crate::rust_deps::marshal::make_rust_opaque;
-                let peer_value = make_rust_opaque(
-                    PEER_TYPE_PATH,
-                    Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(
-                        tx.reinterpret::<String>(),
-                        rx,
-                        None,
-                    )))),
-                );
-                return Ok(Some(service_event_connection(peer_value)));
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                return Ok(None);
-            }
-            Err(e) => {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::kernel::poll".into(),
-                        reason: format!("poll (process tier): non-blocking accept failed: {e}"),
-                    },
-                )
-                .into());
-            }
-        }
-    }
-}
-
 pub(crate) fn eval_poll_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -28225,6 +27965,7 @@ pub(crate) fn eval_poll_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::poll";
+    const SELECT_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
 
     // ── arg 0: self-peer → PEER_TYPE_PATH opaque ──────────────────────────────
     // The self-peer is the spawned worker's own (Peer :- [O I]) (tx=output_tx, rx=input_rx).
@@ -28254,6 +27995,24 @@ pub(crate) fn eval_poll_prime(
             .into());
         }
     };
+    let self_guard = self_peer_cell
+        .ref_guard(OP, list_span.clone())
+        .map_err(EvalBreak::from)?;
+    // Determine self-peer's reactor class (thread vs process) for tier dispatch.
+    // The concrete receiver type is recovered below after the class is confirmed.
+    let self_peer_class: crate::comms::ReactorClass = match &*self_guard {
+        None => {
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "poll: self-peer already closed".into(),
+                },
+            )
+            .into());
+        }
+        Some(peer) => peer.rx.reactor_class(),
+    };
 
     // ── arg 1: listener → Listener' (unified Listener entity, arc 209 C0b.2e-ii) ─
     let listener_val = eval_inner(&args[1], env, sym)?.value_owned();
@@ -28278,6 +28037,7 @@ pub(crate) fn eval_poll_prime(
             .into());
         }
     };
+    let listener_class = listener_opaque.inner.reactor_class();
 
     // ── arg 2: peers → Vec of PEER_TYPE_PATH opaques ──────────────────────────
     let peers_val = eval_inner(&args[2], env, sym)?.value_owned();
@@ -28328,14 +28088,627 @@ pub(crate) fn eval_poll_prime(
         }
     }
 
-    fan_in_unified_peer_set(
-        OP,
-        Some(&self_peer_cell),
-        Some(listener_opaque),
-        &peer_arcs,
-        list_span,
-        sym,
-    )
+    // Acquire RefGuard for each peer cell (needed for both tiers).
+    let mut peer_guards: Vec<
+        crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::peer::Peer>>,
+    > = Vec::with_capacity(peer_arcs.len());
+    for arc in &peer_arcs {
+        peer_guards.push(
+            arc.ref_guard(OP, list_span.clone())
+                .map_err(EvalBreak::from)?,
+        );
+    }
+
+    // ── Verify reactor_class homogeneity across self-peer + listener + all clients ──
+    // self_peer_class already computed above; listener_class just computed.
+    // Check client peers match the self-peer class.
+    if listener_class != self_peer_class {
+        return Err(RuntimeError::new(
+            args[1].span().clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "poll: listener tier ({:?}) does not match self-peer tier ({:?}) — \
+                     mixed-tier service is not a representable-good state",
+                    listener_class, self_peer_class
+                ),
+            },
+        )
+        .into());
+    }
+    for (i, guard) in peer_guards.iter().enumerate() {
+        match &**guard {
+            None => {
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("poll: client peer already closed (index {})", i),
+                    },
+                )
+                .into());
+            }
+            Some(peer) => {
+                let client_class = peer.rx.reactor_class();
+                if client_class != self_peer_class {
+                    return Err(RuntimeError::new(
+                        list_span.clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "poll: peers[{}] tier ({:?}) does not match self-peer tier \
+                                 ({:?}) — mixed-tier service is not a representable-good state",
+                                i, client_class, self_peer_class
+                            ),
+                        },
+                    )
+                    .into());
+                }
+            }
+        }
+    }
+
+    // ── Dispatch to tier-specific Select ──────────────────────────────────────
+    use crate::comms::ReactorClass;
+    match self_peer_class {
+        ReactorClass::InMemory => {
+            // ── Thread tier: crossbeam Select ─────────────────────────────────
+            // Extract &thread::Receiver<Value> from each peer via as_any (i-a).
+            let self_rx: &crate::comms::thread::Receiver<Value> = match &*self_guard {
+                Some(peer) => peer
+                    .rx
+                    .as_any()
+                    .downcast_ref::<crate::comms::thread::Receiver<Value>>()
+                    .expect("reactor_class InMemory implies thread::Receiver"),
+                None => unreachable!("closed check done above"),
+            };
+            let listener_rx: &crate::comms::thread::Receiver<Value> = &listener_opaque
+                .inner
+                .as_any_ref()
+                .downcast_ref::<crate::kernel::listener::CrossbeamListener>()
+                .expect("reactor_class InMemory implies CrossbeamListener")
+                .rx;
+            let mut peer_rxs: Vec<&crate::comms::thread::Receiver<Value>> =
+                Vec::with_capacity(peer_guards.len());
+            for guard in &peer_guards {
+                match &**guard {
+                    Some(peer) => peer_rxs.push(
+                        peer.rx
+                            .as_any()
+                            .downcast_ref::<crate::comms::thread::Receiver<Value>>()
+                            .expect("reactor_class InMemory implies thread::Receiver"),
+                    ),
+                    None => unreachable!("closed check done above"),
+                }
+            }
+            // ── Build Select: self-peer at index 0, listener at 1, clients at 2..=N+1 ──
+            let mut sel = crate::comms::thread::Select::new();
+            sel.recv(self_rx); // index 0 = self-peer (owner link — RAII drain wakes this)
+            sel.recv(listener_rx); // index 1 = listener
+            for rx in &peer_rxs {
+                sel.recv(*rx); // indices 2..=N+1 = peers[0..N-1]
+            }
+            // ── Block until one fires ──────────────────────────────────────────
+            let event_value = match sel.select() {
+                crate::comms::SelectOutcome::Shutdown => {
+                    return Err(RuntimeError::new(
+                        list_span.clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "select interrupted by shutdown".into(),
+                        },
+                    )
+                    .into());
+                }
+                crate::comms::SelectOutcome::Recv { index, result } => {
+                    if index.0 == 0 {
+                        // ── Self-peer arm (index 0): owner↔service lineage channel ──────
+                        // Arc 291 3a-i: inspect `result`.
+                        //   Ok(msg)  → ServiceEvent::Admin{msg}  (owner sent an admin op)
+                        //   Err(_)   → ServiceEvent::Shutdown     (owner dropped handle — RAII drain)
+                        // Previously this arm always returned :Shutdown without inspecting
+                        // `result` — that discarded messages the owner sent before dropping.
+                        // [[arc-291-3a-i: admin/data facet split foundation]]
+                        match result {
+                            Ok(msg) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Admin".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Admin"),
+                                fields: vec![msg],
+                            })),
+                            Err(_) => {
+                                // The owner dropped the handle, so this serve loop is
+                                // about to exit and every peer below is about to read a
+                                // bare EOF — `RecvOutcome::Closed`, a clean-close label on
+                                // a service that did not close cleanly. `:Shutdown`'s own
+                                // declaration names the cause ("owner dropped the handle");
+                                // emit it here, where it is known, so the client gets
+                                // `Lost` with a reason. Best-effort and non-blocking: a
+                                // client that is not draining is skipped, never waited on.
+                                crate::kernel::peer::broadcast_peer_severed_best_effort(
+                                    &peer_arcs,
+                                );
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Shutdown".into(),
+                                    names: no_field_names(),
+                                    fields: vec![],
+                                }))
+                            }
+                        }
+                    } else if index.0 == 1 {
+                        // ── Listener arm: a client is dialing ─────────────────────────
+                        let cr = result.map_err(|_| {
+                            EvalBreak::from(RuntimeError::new(
+                                list_span.clone(),
+                                RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "poll: listener recv failed — address was dropped"
+                                        .into(),
+                                },
+                            ))
+                        })?;
+                        let peer_value = wrap_connect_request(cr, list_span)?;
+                        // ServiceEvent::Connection [peer <- (Peer :- [I O])]
+                        Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE.into(),
+                            variant_name: "Connection".into(),
+                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Connection"),
+                            fields: vec![peer_value],
+                        }))
+                    } else {
+                        // ── Client peer arm: peers[k-2] fired ─────────────────────────
+                        // index 0 = self-peer, index 1 = listener → subtract 2 for peer idx.
+                        let peer_idx = (index.0 - 2) as i64;
+                        match result {
+                            Ok(msg) => {
+                                // ServiceEvent::Message [idx <- i64  msg <- O]
+                                if let Some(m) = select_malformed_if_reply_failed(
+                                    SELECT_EVENT_TYPE, peer_idx, &msg) { m } else {
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Message".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
+                                    fields: vec![Value::i64(peer_idx), msg],
+                                })) }
+                            }
+                            Err(_) => {
+                                // Output EOF — bare Peer has no crash channel, so there
+                                // is no abnormal-exit distinction here.  The canonical
+                                // Lost-vs-Closed classifier is
+                                // `crate::kernel::spawn::classify_peer_death`; poll keeps
+                                // emitting :Closed because bare peers carry no crash
+                                // channel.  Upgrading poll to emit :Lost requires adding
+                                // a crash channel to `Peer` (peer.rs) — the next slice.
+                                // ServiceEvent::Closed [idx <- i64]
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Closed".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
+                                    fields: vec![Value::i64(peer_idx)],
+                                }))
+                            }
+                        }
+                    }
+                }
+                crate::comms::SelectOutcome::Listener => {
+                    unreachable!("thread-tier poll Select has no listener arm")
+                }
+            };
+            Ok(event_value)
+        }
+
+        ReactorClass::Fd => {
+            // ── Process tier: process::Select over ONE io_uring ring ──────────
+            // Arc 209 C0b.3a-ii — DEADLOCK-SURFACE: the self-peer is index 0.
+            // The owner dropping the spawn-program handle → the child's input
+            // pipe (fd0) closes → the self-peer's process::Receiver sees EOF →
+            // process::Select fires Recv{0} → we return ServiceEvent::Shutdown →
+            // the loop exits → RAII reaps. The RAII drain the runtime already
+            // runs on owner-drop IS the wake. NO cooperative Stop, NO shutdown
+            // channel. [[feedback_vended_primitives_never_deadlock]]
+
+            // Extract &process::Receiver<Value> from self-peer via as_any (i-a).
+            let self_proc_rx: &crate::comms::process::Receiver<Value> = match &*self_guard {
+                Some(peer) => peer
+                    .rx
+                    .as_any()
+                    .downcast_ref::<crate::comms::process::Receiver<Value>>()
+                    .expect("reactor_class Fd implies process::Receiver"),
+                None => unreachable!("closed check done above"),
+            };
+
+            // Extract the socket listener's raw fd for the accept-arm.
+            use std::os::fd::AsRawFd;
+            let socket_listener: &crate::kernel::listener::SocketListener = listener_opaque
+                .inner
+                .as_any_ref()
+                .downcast_ref::<crate::kernel::listener::SocketListener>()
+                .expect("reactor_class Fd implies SocketListener");
+            let listen_raw_fd = socket_listener.listener.as_raw_fd();
+
+            // Extract &process::Receiver<Value> for each client peer.
+            let mut client_proc_rxs: Vec<&crate::comms::process::Receiver<Value>> =
+                Vec::with_capacity(peer_guards.len());
+            for guard in &peer_guards {
+                match &**guard {
+                    Some(peer) => client_proc_rxs.push(
+                        peer.rx
+                            .as_any()
+                            .downcast_ref::<crate::comms::process::Receiver<Value>>()
+                            .expect("reactor_class Fd implies process::Receiver"),
+                    ),
+                    None => unreachable!("closed check done above"),
+                }
+            }
+
+            // ── Build process::Select ──────────────────────────────────────────
+            // index 0 = self-peer (owner link — self-peer EOF IS the termination wake)
+            // indices 1..=N = clients[0..N-1]  (NB: NOT +2; listener is the accept-arm)
+            // listener arm = SelectOutcome::Listener  (no recv index)
+            let mut sel = crate::comms::process::Select::<Value>::new();
+            sel.recv(self_proc_rx); // index 0
+            for rx in &client_proc_rxs {
+                sel.recv(*rx); // indices 1..=N
+            }
+            sel.listener(listen_raw_fd);
+
+            // ── Block until one fires ──────────────────────────────────────────
+            // Arc 272 6b-ii-β: use select_raw() to get raw frame bytes for Recv
+            // outcomes. select() calls Value::from_wire (no type registry) which
+            // fails for user-defined enum/record types (e.g. Op::Increment).
+            // select_raw() returns Vec<u8>; the client arm decodes with
+            // decode_trusted_wire(wire, sym.types()) to reconstruct user values.
+            let event_value = match sel.select_raw().map_err(|io_err| {
+                EvalBreak::from(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("poll (process tier) io_uring error: {}", io_err),
+                    },
+                ))
+            })? {
+                crate::comms::SelectOutcome::Shutdown => {
+                    return Err(RuntimeError::new(
+                        list_span.clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "poll interrupted by substrate shutdown".into(),
+                        },
+                    )
+                    .into());
+                }
+                crate::comms::SelectOutcome::Recv { index, result } => {
+                    if index.0 == 0 {
+                        // ── Self-peer arm (index 0): owner↔service lineage channel ──────
+                        // Arc 291 3a-i: inspect `result`.
+                        //   Ok(raw_bytes) → decode → ServiceEvent::Admin{msg}  (owner sent admin op)
+                        //   Err(_)        → ServiceEvent::Shutdown              (owner dropped handle)
+                        // Previously always returned :Shutdown without inspecting `result`.
+                        // [[arc-291-3a-i: admin/data facet split foundation]]
+                        match result {
+                            Ok(raw_bytes) => {
+                                let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
+                                    EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: "poll (process tier): admin message is not valid UTF-8".into(),
+                                        }))
+                                })?;
+                                let msg = crate::edn::render::decode_trusted_wire(
+                                    wire_str,
+                                    sym.types().map(|a| a.as_ref()),
+                                    sym.encoding_ctx().map(|a| a.as_ref()),
+                                )
+                                .map_err(|e| {
+                                    EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: format!(
+                                                "poll (process tier): admin message decode failed: {}",
+                                                e
+                                            ),
+                                        }))
+                                })?;
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Admin".into(),
+                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Admin"),
+                                    fields: vec![msg],
+                                }))
+                            }
+                            Err(_) => {
+                                // The owner dropped the handle, so this serve loop is
+                                // about to exit and every peer below is about to read a
+                                // bare EOF — `RecvOutcome::Closed`, a clean-close label on
+                                // a service that did not close cleanly. `:Shutdown`'s own
+                                // declaration names the cause ("owner dropped the handle");
+                                // emit it here, where it is known, so the client gets
+                                // `Lost` with a reason. Best-effort and non-blocking: a
+                                // client that is not draining is skipped, never waited on.
+                                crate::kernel::peer::broadcast_peer_severed_best_effort(
+                                    &peer_arcs,
+                                );
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Shutdown".into(),
+                                    names: no_field_names(),
+                                    fields: vec![],
+                                }))
+                            }
+                        }
+                    } else {
+                        // ── Client peer arm: clients[k-1] fired (k = index, k ≥ 1) ──
+                        // NB: process layout is 0=self-peer, 1..=N=clients (the listener
+                        // is the accept-arm, NOT a recv index) → peer_idx = index - 1.
+                        let peer_idx = (index.0 - 1) as i64;
+                        match result {
+                            Ok(raw_bytes) => {
+                                // Arc 272 6b-ii-β: decode the raw wire bytes with
+                                // decode_trusted_wire so user-defined enum/record values
+                                // (e.g. Op::Increment(IncrementRequest{n:5})) are
+                                // reconstructed correctly via the type registry.
+                                // UTF-8 failure is the same class as a decode failure: the
+                                // peer is ALIVE. Raising here was the DoS Malformed undoes.
+                                match std::str::from_utf8(&raw_bytes) {
+                                    Err(_) => service_event_malformed(
+                                        SELECT_EVENT_TYPE,
+                                        peer_idx,
+                                        "poll (process tier): client message is not valid UTF-8",
+                                    ),
+                                    Ok(wire_str) => classify_trusted_wire_recv(
+                                        SELECT_EVENT_TYPE,
+                                        peer_idx,
+                                        wire_str,
+                                        sym.types().map(|a| a.as_ref()),
+                                        sym.encoding_ctx().map(|a| a.as_ref()),
+                                        |e| format!(
+                                            "poll (process tier): client message decode failed: {e}"
+                                        ),
+                                    ),
+                                }
+                            }
+                            // Arc 278 Stone 1a — over-FOO is a 400-class CLIENT error, NOT a
+                            // 500-class internal crash. A frame exceeding THIS service's declared
+                            // hard frame limit `FOO` (RecvError::FrameTooLarge) routes to
+                            // ServiceEvent::Rejected{idx, cause}: the serve loop TELLS that client
+                            // (`Reply::Failed{cause}` via a non-blocking try-send), EVICTS just that
+                            // connection (discarding the un-read oversized residual that would desync
+                            // the wire), and KEEPS SERVING everyone else. NOT the reason-free `Closed`
+                            // (mute), NOT the terminal `Lost` (whose `eprintln` is wat's panic — a
+                            // client-triggerable service crash = DoS). `message_only_failure` mirrors
+                            // the Malformed construction above.
+                            Err(crate::comms::RecvError::FrameTooLarge) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Rejected".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Rejected"),
+                                fields: vec![
+                                    Value::i64(peer_idx),
+                                    message_only_failure("request too large — exceeded this service's \
+                                         max-frame-bytes limit; request rejected, connection closed".to_string()),
+                                ],
+                            })),
+                            // Genuine clean EOF (Disconnected / Shutdown), a reason-free abnormal
+                            // reset (PeerCrashed — administrative, owner-crash-channel only), or a
+                            // raw transport Failed(reason) (kept at the HEAD `Closed` path — its
+                            // reason-surfacing is a separate stone, NOT this over-FOO disposition).
+                            // A bare Peer has no crash channel here → clean `Closed`.
+                            // ServiceEvent::Closed [idx <- i64]
+                            Err(_) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Closed".into(),
+                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
+                                fields: vec![Value::i64(peer_idx)],
+                            })),
+                        }
+                    }
+                }
+                crate::comms::SelectOutcome::Listener => {
+                    // ── Accept-arm: a client is dialing over the socket ────────
+                    // Non-blocking accept loop (C0b.3a-i invariant: the listener fd
+                    // is non-blocking; a spurious POLLIN → EWOULDBLOCK → re-accept).
+                    // Mirrors SocketListener::accept but returns ServiceEvent::Connection.
+                    use std::os::fd::OwnedFd;
+                    loop {
+                        match socket_listener.listener.accept() {
+                            Ok((stream, _addr)) => {
+                                // Arc 209 C0b.3b-b — THE GATE: the kernel vouches for the
+                                // connector's {pid,uid,gid}; serve only an authorized one,
+                                // else bounce the stranger (drop + re-accept).
+                                let cred = crate::comms::process::peer_cred(stream.as_raw_fd())
+                                    .map_err(|e| {
+                                        RuntimeError::new(
+                                            list_span.clone(),
+                                            RuntimeErrorKind::MalformedForm {
+                                                head: OP.into(),
+                                                reason: format!(
+                                            "poll (process tier): peer_cred on accepted socket: {}",
+                                            e
+                                        ),
+                                            },
+                                        )
+                                    })?;
+                                if !socket_listener.authorizes(&cred) {
+                                    drop(stream); // bounce the stranger — close the accepted fd
+                                    continue; // back to socket_listener.listener.accept()
+                                }
+                                let peer_value = {
+                                    // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String>.
+                                    // Arc 278 Stone 1: the accepted receiver reads client requests
+                                    // at the service's declared hard frame limit `FOO`
+                                    // (socket_listener.max_frame_bytes), NOT the global default.
+                                    let (tx, rx) = crate::comms::process::sender_receiver_from_fd_with_budget::<
+                                        Value,
+                                    >(
+                                        OwnedFd::from(stream),
+                                        socket_listener.max_frame_bytes,
+                                    )
+                                    .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: format!(
+                                                "poll (process tier): wrap socket stream \
+                                                 failed: {}",
+                                                e
+                                            ),
+                                        }))?;
+                                    use crate::kernel::peer::Peer;
+                                    use crate::kernel::spawn::PEER_TYPE_PATH;
+                                    use crate::rust_deps::custodia::ThreadOwnedCell;
+                                    use crate::rust_deps::marshal::make_rust_opaque;
+                                    make_rust_opaque(
+                                        PEER_TYPE_PATH,
+                                        // ⛔ POLL-ACCEPT — same class as listener.rs accept.
+                                        // None: the remote bound no listener.
+                                        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(
+                                            tx.reinterpret::<String>(),
+                                            rx,
+                                            None,
+                                        )))),
+                                    )
+                                };
+                                // ServiceEvent::Connection [peer <- (Peer :- [I O])]
+                                break Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Connection".into(),
+                                    names: builtin_enum_variant_names(
+                                        SELECT_EVENT_TYPE,
+                                        "Connection",
+                                    ),
+                                    fields: vec![peer_value],
+                                }));
+                            }
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                // Spurious POLLIN — re-poll via another select iteration.
+                                // Rebuild the Select with the same arms and retry.
+                                // Arc 272 6b-ii-β: use select_raw() here too so client
+                                // messages are decoded with decode_trusted_wire.
+                                let mut sel2 = crate::comms::process::Select::<Value>::new();
+                                sel2.recv(self_proc_rx);
+                                for rx in &client_proc_rxs {
+                                    sel2.recv(*rx);
+                                }
+                                sel2.listener(listen_raw_fd);
+                                match sel2.select_raw().map_err(|io_err| {
+                                    EvalBreak::from(RuntimeError::new(
+                                        list_span.clone(),
+                                        RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: format!(
+                                                "poll (process tier) re-poll after \
+                                                 WouldBlock: {}",
+                                                io_err
+                                            ),
+                                        },
+                                    ))
+                                })? {
+                                    crate::comms::SelectOutcome::Listener => continue,
+                                    other => {
+                                        // Another arm fired during re-poll — recurse via
+                                        // returning the event: re-enter on next call.
+                                        // This is conservative: hand back a non-Listener
+                                        // outcome by converting it to an event value.
+                                        // Actually we need to handle the non-listener arm
+                                        // here. But this path is hit extremely rarely
+                                        // (spurious POLLIN on a non-blocking UDS listener);
+                                        // return the fired event properly.
+                                        let ev = match other {
+                                            crate::comms::SelectOutcome::Shutdown => {
+                                                return Err(RuntimeError::new(
+                                                    list_span.clone(),
+                                                    RuntimeErrorKind::MalformedForm {
+                                                        head: OP.into(),
+                                                        reason: "poll interrupted by substrate \
+                                                                 shutdown (re-poll)"
+                                                            .into(),
+                                                    },
+                                                )
+                                                .into());
+                                            }
+                                            crate::comms::SelectOutcome::Recv {
+                                                index: idx2,
+                                                result: res2,
+                                            } => {
+                                                if idx2.0 == 0 {
+                                                    Value::Enum(Arc::new(EnumValue {
+                                                        type_path: SELECT_EVENT_TYPE.into(),
+                                                        variant_name: "Shutdown".into(),
+                                                        names: no_field_names(),
+                                                        fields: vec![],
+                                                    }))
+                                                } else {
+                                                    let pidx = (idx2.0 - 1) as i64;
+                                                    match res2 {
+                                                        Ok(raw_bytes2) => {
+                                                            match std::str::from_utf8(&raw_bytes2) {
+                                                                Err(_) => service_event_malformed(
+                                                                    SELECT_EVENT_TYPE,
+                                                                    pidx,
+                                                                    "poll (process tier re-poll): client message is not valid UTF-8",
+                                                                ),
+                                                                Ok(ws2) => classify_trusted_wire_recv(
+                                                                    SELECT_EVENT_TYPE,
+                                                                    pidx,
+                                                                    ws2,
+                                                                    sym.types().map(|a| a.as_ref()),
+                                                                    sym.encoding_ctx().map(|a| a.as_ref()),
+                                                                    |e| format!(
+                                                                        "poll (process tier re-poll): client message decode failed: {e}"
+                                                                    ),
+                                                                ),
+                                                            }
+                                                        }
+                                                        // Arc 278 Stone 1a — over-FOO → Rejected
+                                                        // here too (parity with the main client
+                                                        // arm), so an over-budget frame is never
+                                                        // muted even on the rare re-poll path.
+                                                        Err(crate::comms::RecvError::FrameTooLarge) => Value::Enum(Arc::new(EnumValue {
+                                                            type_path: SELECT_EVENT_TYPE.into(),
+                                                            variant_name: "Rejected".into(),
+                                                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Rejected"),
+                                                            fields: vec![
+                                                                Value::i64(pidx),
+                                                                message_only_failure("request too large — exceeded this service's max-frame-bytes limit; request rejected, connection closed".to_string()),
+                                                            ],
+                                                        })),
+                                                        Err(_) => Value::Enum(Arc::new(
+                                                            EnumValue {
+                                                                type_path: SELECT_EVENT_TYPE
+                                                                    .into(),
+                                                                variant_name: "Closed".into(),
+                                                                names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Closed"),
+                                                                fields: vec![Value::i64(pidx)],
+                                                            },
+                                                        )),
+                                                    }
+                                                }
+                                            }
+                                            crate::comms::SelectOutcome::Listener => {
+                                                unreachable!()
+                                            }
+                                        };
+                                        break ev;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                return Err(RuntimeError::new(
+                                    list_span.clone(),
+                                    RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: format!(
+                                            "poll (process tier): non-blocking accept \
+                                             failed: {}",
+                                            e
+                                        ),
+                                    },
+                                )
+                                .into());
+                            }
+                        }
+                    }
+                }
+            };
+            Ok(event_value)
+        }
+    }
 }
 
 #[cfg(test)]
