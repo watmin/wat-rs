@@ -3,6 +3,10 @@
 //! `partire` verified this region names ZERO symbols from its host module — no `super::`, no
 //! `FireSession`, no `to_transient`, no `eval_in`. It builds `Value`/`Arc`/`HashTrieMapSync`
 //! directly, which is why it is its own module rather than part of the census.
+//!
+//! Three diagnostics that used that property (`binding_key_cost`, `binding_repr_microbench`,
+//! `token_bindings_representation_dominance`) moved to `benches/binding_repr.rs` (296 Stone K,
+//! moves 2–4). Behaviour unchanged; only the harness. The two live gates stay.
 
 
 use super::*;
@@ -110,282 +114,6 @@ fn bind_key_construction_vs_map_operation() {
             "\nbind cost apportioned — {N} iterations each (RATIOS, not absolutes)\n                 (a) fresh key   Value::String(Arc::new(var.to_string()))  {fresh_ns:>6.1} ns\n                 (b) interned    an Arc refcount bump                      {interned_ns:>6.1} ns\n                 (c) map         get + insert, key supplied                {map_ns:>6.1} ns\n                 ---------------------------------------------------------------\n                 interning would save (a)-(b) = {:>5.1} ns per bind; the map itself is\n                 {:>5.1} ns and is untouched by interning — the RATIO is the finding.\n                 (No in-engine anchor: `alpha_match_cost_per_binding` now measures a\n                  NEGATIVE per-binding cost, so there is no total to apportion into.)\n",
             fresh_ns - interned_ns, map_ns
         );
-}
-
-/// Microbenchmark — how much of a binding-map operation is the STRING KEY?
-///
-/// Binding keys are `Value::String(Arc<String>)` — a fresh heap String per
-/// bind, hashed and memcmp'd on every lookup. **Clara's are interned Clojure keywords**
-/// (`engine.cljc:23` "a map of keyword-to-values"; `compiler.clj:293` assoc's `(keyword var)`),
-/// which carry a CACHED hash and compare by pointer.
-///
-/// `9448f012` measured "interning the bind key saves 8% — the MAP is 85% of it" and concluded
-/// interning was not worth a stone. That split may be an artifact: if the map operation's cost
-/// is largely *hashing the string key*, then "the map" and "the key" are not separable and the
-/// 85% already contains the thing the 8% was measuring. This isolates it by changing ONLY the
-/// key type on an otherwise identical map.
-///
-/// `Value::i64` stands in for an interned symbol id (hash of an i64, compare by value) — the
-/// floor an interning scheme could reach, not a proposal for the key type itself.
-///
-/// ⛔ NOT ON THE RELEASE FLOOR — `#[ignore]`, and the reason is measured, not assumed.
-///
-/// To gate this we would have to assert the direction it exists to show: that an interned-id
-/// key beats a fresh `String` key. Measured over three runs (2026-08-30), the effect is too
-/// small to carry a threshold — **lookup ratio 1.0–1.1x, build ratio 1.1–1.9x, with the
-/// minimum touching 1.0**. Any floor tight enough to catch a regression sits inside the noise,
-/// and this repo bans known flakes absolutely; a threshold here would manufacture the very
-/// thing that ban exists to prevent.
-///
-/// So it stays a diagnostic and leaves the floor, rather than being counted as a passing test
-/// that cannot fail. Run it with:
-///     cargo nextest run --release --run-ignored=only --no-capture -E 'test(binding_key_cost)'
-///
-/// Diagnostic. Read with `--no-capture`.
-#[test]
-#[ignore = "rune:excusare(below-resolution) — lookup 1.0–1.1× / build 1.1–1.9× (three runs 2026-08-30); this floor's rete-cohort contention band is 3.5×–4.4× (.config/nextest.toml: 8.13s→35.39s, 7.98s→29.42s, 13.77s→48.72s). A 1.9× ceiling sits inside that band, so any floor tight enough to catch a regression is a threshold inside the noise."]
-fn binding_key_cost() {
-    use std::hint::black_box;
-    use std::time::Instant;
-    const N: usize = 50_000;
-
-    println!("\nBINDING KEY COST — Value::String (today) vs Value::i64 (an interned-id floor)");
-    println!(
-        "  {N} iterations; rpds::HashTrieMapSync in BOTH columns — only the KEY type differs\n"
-    );
-    println!(
-        "  {:>4}  {:>21}  {:>21}",
-        "n", "build (str / i64)", "lookup (str / i64)"
-    );
-
-    for n in [1usize, 2, 3, 5, 8] {
-        let sk: Vec<(Value, Value)> = (0..n)
-            .map(|i| {
-                (
-                    Value::String(Arc::new(format!("?v{i}"))),
-                    Value::i64(i as i64),
-                )
-            })
-            .collect();
-        let ik: Vec<(Value, Value)> = (0..n)
-            .map(|i| (Value::i64(i as i64), Value::i64(i as i64)))
-            .collect();
-
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            let mut m = rpds::HashTrieMapSync::new_sync();
-            for (k, v) in &sk {
-                m.insert_mut(k.clone(), v.clone());
-            }
-            sink.push(m);
-        }
-        let bs = t.elapsed().as_nanos() as f64 / N as f64;
-        let ms = sink[0].clone();
-        drop(sink);
-
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            let mut m = rpds::HashTrieMapSync::new_sync();
-            for (k, v) in &ik {
-                m.insert_mut(k.clone(), v.clone());
-            }
-            sink.push(m);
-        }
-        let bi = t.elapsed().as_nanos() as f64 / N as f64;
-        let mi = sink[0].clone();
-        drop(sink);
-
-        let ps = sk[n / 2].0.clone();
-        let pi = ik[n / 2].0.clone();
-        let t = Instant::now();
-        for _ in 0..N {
-            black_box(ms.get(black_box(&ps)));
-        }
-        let ls = t.elapsed().as_nanos() as f64 / N as f64;
-        let t = Instant::now();
-        for _ in 0..N {
-            black_box(mi.get(black_box(&pi)));
-        }
-        let li = t.elapsed().as_nanos() as f64 / N as f64;
-
-        println!(
-            "  {:>4}  {:>9.1} /{:>9.1}  {:>9.1} /{:>9.1}   build {:>4.1}x  lookup {:>4.1}x",
-            n,
-            bs,
-            bi,
-            ls,
-            li,
-            bs / bi,
-            ls / li
-        );
-    }
-    println!();
-}
-
-/// Microbenchmark — rpds HAMT vs a persistent ARRAY map, at binding-map sizes.
-///
-/// The follow-on stone's claim is "an rpds trie pays HAMT prices on a 1-3 entry map, and
-/// Clojure/Clara get an array representation for free below 8." That claim was PREDICTED, never
-/// measured. This measures it, before any stone is drawn.
-///
-/// The comparison must be the HONEST analogue. Clojure's PersistentArrayMap is not a bare Vec —
-/// it is an IMMUTABLE array behind a reference, so `clone` is a refcount bump exactly as the
-/// HAMT's is, and only the LOOKUP differs (linear scan vs hash+trie descent). A bare `Vec`
-/// would lose catastrophically on clone and prove nothing about the real design.
-///   A = rpds::HashTrieMapSync<Value,Value>   (today)
-///   B = Arc<Vec<(Value,Value)>>              (PersistentArrayMap's shape)
-///
-/// Five operations, chosen because they are what the kernel actually does to a binding map:
-///   build   — alpha match constructs one per fact
-///   lookup  — accum:fold (94 ns/element) and token_element_compatible
-///   clone   — alpha:push (this REGRESSED when Element went native)
-///   extend  — extend_token: clone + insert one binding (rpds shares structurally; the array copies)
-///   drop    — round:drop-memories (41 ms)
-///
-/// Keys are real `Value::String(Arc<str>)` — hashing/comparing a wat String is the actual cost,
-/// and an integer-keyed benchmark would flatter the HAMT.
-///
-/// ⛔ NOT ON THE RELEASE FLOOR — `#[ignore]`. Its own doc already said "not a gate"; it was on
-/// the floor anyway, counted among the passing tests while asserting nothing at all.
-///
-/// It compares FIVE operations across two representations at four cardinalities, so there is no
-/// single ordering to assert — and the sibling `binding_key_cost` measurement showed effects in
-/// this family run at 1.0–1.9x, which is inside runner noise. Gating it would mean inventing a
-/// threshold for a comparison nobody currently depends on.
-///
-///     cargo nextest run --release --run-ignored=only --no-capture -E 'test(binding_repr_microbench)'
-///
-/// Diagnostic, not a gate. Read with `--no-capture`.
-#[test]
-#[ignore = "rune:excusare(no-falsifier) — tried asserting array-wins-extend at every cardinality (the dominance question): the sibling token_bindings_representation_dominance already prints DOMINANCE: NO on that exact question, so the assert would be a known-false gate. Tried a single-cell ordering: one cell of a 5×2×4 grid, and a green is not evidence about the table. The test sat on the floor asserting nothing, counted as a passing test that cannot fail. Nothing achievable reds the rest of the grid without inventing a crossover N, which R60 refuses."]
-fn binding_repr_microbench() {
-    use std::hint::black_box;
-    use std::time::Instant;
-
-    const SIZES: [usize; 8] = [1, 2, 3, 4, 5, 8, 12, 16];
-    const N: usize = 20_000;
-
-    fn keys(n: usize) -> Vec<(Value, Value)> {
-        (0..n)
-            .map(|i| {
-                (
-                    Value::String(Arc::new(format!("?v{i}"))),
-                    Value::i64(i as i64),
-                )
-            })
-            .collect()
-    }
-
-    println!("\nBINDING REPRESENTATION — rpds HAMT (A) vs persistent array map (B)");
-    println!("  {N} iterations per cell; ns/op; keys are real Value::String\n");
-    println!(
-        "  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
-        "n", "build", "lookup", "clone", "extend", "drop"
-    );
-    println!(
-        "  {:>4}  {:>19}  {:>19}  {:>19}  {:>19}  {:>19}",
-        "", "A / B", "A / B", "A / B", "A / B", "A / B"
-    );
-
-    for n in SIZES {
-        let kv = keys(n);
-        let probe = kv[n / 2].0.clone();
-        let extra = (Value::String(Arc::new("?zz".to_string())), Value::i64(99));
-
-        // ── build (construct into a reserved Vec; drop timed separately) ──
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut sink_a: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            let mut m = rpds::HashTrieMapSync::new_sync();
-            for (k, v) in &kv {
-                m.insert_mut(k.clone(), v.clone());
-            }
-            sink_a.push(m);
-        }
-        let build_a = t.elapsed().as_nanos() as f64 / N as f64;
-
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut sink_b: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            let mut v = Vec::with_capacity(n);
-            for (k, val) in &kv {
-                v.push((k.clone(), val.clone()));
-            }
-            sink_b.push(Arc::new(v));
-        }
-        let build_b = t.elapsed().as_nanos() as f64 / N as f64;
-
-        let ma = sink_a[0].clone();
-        let mb = sink_b[0].clone();
-
-        // ── lookup (hit, mid-map) ──
-        let t = Instant::now();
-        for _ in 0..N {
-            black_box(ma.get(black_box(&probe)));
-        }
-        let look_a = t.elapsed().as_nanos() as f64 / N as f64;
-        let t = Instant::now();
-        for _ in 0..N {
-            black_box(Bindings::get(mb.as_slice(), black_box(&probe)));
-        }
-        let look_b = t.elapsed().as_nanos() as f64 / N as f64;
-
-        // ── clone ──
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut ca: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            ca.push(ma.clone());
-        }
-        let clone_a = t.elapsed().as_nanos() as f64 / N as f64;
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut cb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            cb.push(Arc::clone(&mb));
-        }
-        let clone_b = t.elapsed().as_nanos() as f64 / N as f64;
-        drop(ca);
-        drop(cb);
-
-        // ── extend (extend_token: derive a new map with one more binding) ──
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut ea: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            ea.push(ma.insert(extra.0.clone(), extra.1.clone()));
-        }
-        let ext_a = t.elapsed().as_nanos() as f64 / N as f64;
-        // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
-        let mut eb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
-        let t = Instant::now();
-        for _ in 0..N {
-            let mut v = (*mb).clone();
-            v.push(extra.clone());
-            eb.push(Arc::new(v));
-        }
-        let ext_b = t.elapsed().as_nanos() as f64 / N as f64;
-        drop(ea);
-        drop(eb);
-
-        // ── drop (the sinks built above) ──
-        let t = Instant::now();
-        drop(sink_a);
-        let drop_a = t.elapsed().as_nanos() as f64 / N as f64;
-        let t = Instant::now();
-        drop(sink_b);
-        let drop_b = t.elapsed().as_nanos() as f64 / N as f64;
-
-        println!("  {:>4}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}",
-                     n, build_a, build_b, look_a, look_b, clone_a, clone_b, ext_a, ext_b, drop_a, drop_b);
-    }
-    println!("\n  A = rpds::HashTrieMapSync (today)   B = Arc<Vec<(Value,Value)>>\n"); // rune:lint(no-angle-type-in-diagnostic) — RUST types in a bench header, not wat
 }
 
 /// Diagnostic — the binding-cardinality distribution, the PREMISE under the
@@ -576,20 +304,36 @@ fn kv(i: usize) -> (Value, Value) {
     )
 }
 
-// ⛔ #472 RULING (4-YES, 2026-09-18, option B) — grok's own diff at this site adds
+// ⛔⛔ #498 RULING (4-YES, 2026-09-18, option B) — grok's Stone K moves `binding_key_cost`
+// and `binding_repr_microbench` to `benches/binding_repr.rs` (`harness = false`) AND
+// DELETES this fn (`token_bindings_representation_dominance`) outright, on the rule
+// that a benchmark does not belong in the test binary. The bench move landed HERE IN
+// FULL — `benches/binding_repr.rs`, the `Cargo.toml` `[[bench]]` entry, the
+// `matcher.rs` back-pointer comment — and the two `#[ignore]`d diagnostics left the
+// test binary with it, exactly as grok did. THIS FN DID NOT LEAVE.
+//
+// `harness = false` means a bench never runs on our floor. Landing grok's deletion of
+// this fn verbatim would silently delete a live, wide-margin floor gate this tree chose
+// to keep twenty steps earlier (the #472 ruling, immediately below), because a bench
+// target compiles but is never exercised by `cargo nextest run`. So this fn STAYS, as a
+// slim floor test, reusing the same helpers (`bindings_extend_trie`,
+// `bindings_extend_array`, `kv`) rather than re-deriving them — the smallest change that
+// keeps the surviving assertions honest.
+//
+// ⛔ #472 RULING (4-YES, 2026-09-18, option B) — grok's own diff at #472 adds
 // `#[ignore = "rune:excusare(below-resolution) — captured red …"]` plus a doc comment
 // claiming "there is no hard timing assertion" and "the four ordering assertions … are
-// gone". NEITHER LANDS HERE. The rune's premise is the two LARGE-END assertions grok
-// still carries at this step; this tree struck exactly those two at the 4i strike
+// gone". NEITHER LANDED THERE. The rune's premise is the two LARGE-END assertions grok
+// still carried at that step; this tree struck exactly those two at the 4i strike
 // (`4d5287a53`, 2026-09-16, ruled 4-YES on finding 32's precedent) — 152 steps before
-// grok reaches the same conclusion (`ac07be72b` #472 here; the fn is deleted outright
-// at grok's #498/`bb306bd3c`). What SURVIVES on this tree and grok's rune does not
+// grok reaches the same conclusion (`ac07be72b` #472; the fn is deleted outright at
+// grok's #498/`bb306bd3c`, above). What SURVIVES on this tree and grok's rune does not
 // mention: a NON-VACUITY check (`extend_array_wins + get_array_wins > 0`) and ONE
 // ordering assertion — the SMALL-END GET check below, margin 4.53–10.15x across the
 // 2026-09-02 drives, carrying `fire/delta.rs:725-726`'s premise. This is NOT `#[ignore]`d
-// and has been green in twenty consecutive floors (#452→#471, every code step's own
-// re-run plus every batch checkpoint). DO NOT "helpfully" restore grok's ignore or its
-// doc comment — they describe a function this tree does not have.
+// and has been green in every floor since #452. DO NOT "helpfully" restore grok's ignore,
+// its doc comment, or its #498 deletion — they describe a function this tree does not
+// carry that shape of, and a bench target this fn is deliberately NOT part of.
 #[test]
 fn token_bindings_representation_dominance() {
     use std::hint::black_box;
