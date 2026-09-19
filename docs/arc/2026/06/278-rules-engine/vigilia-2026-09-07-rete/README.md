@@ -214,12 +214,11 @@ the only copy. **Read it before casting anything.**
 |---|---|---|---|---|
 | 1 | `src/rete/kernel/**` + `wat/rete/oracle/**` (28 files, 15,771 lines) | **14 / 14** | **38** | ✅ CLOSED |
 | 2 | `src/rete/**` − `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | **15 / 15** | **36** | ✅ CLOSED |
-| 3 | `wat-scripts/perf/grid/` (147 files, 16,616 lines) | **6 cast** | **9** | ⏳ MID-FLIGHT |
+| 3 | `wat-scripts/perf/grid/` (147 files, 16,616 lines) | **6 cast** | **10** | ⏳ MID-FLIGHT |
 | 4 | `tests/rete/` + `src/rete/kernel/tests/` | **0** | 0 | ⛔ NOT CAST — **and its "264 files, ~36k" figure has NEVER been re-derived. MEASURE IT FIRST.** |
 
-**Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6),
-`conferre` (2). ⚠ **`purgare` WAS CAST AND ITS RETURN MAY BE LOST TO THE COMPACTION** — if
-`reports-target3/purgare.md` does not exist, it never landed: **re-cast it.**
+**Target 3 — cast so far:** `peragrare` (5 L1), `mora` **CLEAN**, `exigere` **CLEAN**, `solvere` (6), `purgare` (1),
+`conferre` (2). ⭐ **`purgare` LANDED before the wall** (1 row, `3G1`) — it is in `reports-target3/purgare.md`.
 
 **Target 3 — still to cast:** `intueri` · `struere` · `sequi` · `temperare` · `conformare` ·
 `probare` · `cernere`, then **`circumspicere` LAST**. Muster with measured triggers is above in this
