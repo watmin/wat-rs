@@ -3127,3 +3127,193 @@ check reds (#412, #420), both repaired without re-running into green; two self-c
 message authoring defects (#406, #420), both repaired by amend before any descendant existed. See
 `SCORE-7n-replay-batch-4n.md` for the full row-by-row account against all 25 rows.
 
+
+---
+
+# REPLAY-LOG — grok-rete #421–#440 onto `replay/grok-rete` (BRIEF-7o, batch 4o)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` (git show only). **Not pushed.** Main
+untouched. Start tip `33b717322` (batch 4n CLOSED, 4o censused). 20 REPLAY commits, #421–#440,
+contiguous. `verify-step-record.sh 33b717322 HEAD 421 440` → `step-range: #421..#440 each present
+exactly once, sources match` + `step-record: complete`, exit 0.
+
+## Batch 4o — #421→#440 (SCORE-7o-replay-batch-4o.md)
+
+## #421 — LANDED (perf(grid): two passes at HEAD — node-share is real, and the noise floor says
+## so). Two new `.txt` grid captures under `wat-scripts/perf/grid/`; no `.wat`/`.rs`/`src/`
+## touched. Clean, no conflicts.
+
+## #422 — docs-only, 3 files (temperare §2 strike draw). ⛔ SELF-CAUGHT: a fabricated
+## (typed, not computed) cherry-pick trailer, repaired via `git commit --amend -F` before any
+## descendant existed.
+
+## #423 — LANDED (perf(rete): root_join_delta buffers per child and hoists its span lookups).
+## Clean auto-merge, 4 files (3 `.rs`), no conflict markers — `census.rs`/`fire/pass/
+## root_join.rs` applied against byte-identical pre-image context; `tests/rank_and_instrument.rs`
+## auto-merged (pre-existing divergence, syntax evolution).
+## ⛔⛔ FINDING 33'S CLASS: the new `fire_root_join` driver carried grok's retired syntax
+## (`::Variant` positional match arms, positional `assertion-failed!`), matching `fire_col_field`'s
+## already-fixed sibling shape. Re-spelled; added the sibling's own `rune:lint(
+## one-variant-separator, namespace)` escape for the same `{ns}::seed` composition. Driven: both
+## new tests pass, full `wat::rete` binary 495/495, lint-subset 316/316 unchanged.
+
+## #424 — docs-only, 3 files (temperare §5 strike draw).
+
+## #425 — docs-only, 2 files (REVIEW + the SCORE.md scaffold #426 will modify).
+
+## #426 — LANDED (perf(rete): hoist gather key derivation — after PROVING key-set stability).
+## Clean auto-merge, 7 files (6 `.rs`), no conflict markers — 5 files byte-identical pre-image
+## (after #423's own alignment); `tests/rank_and_instrument.rs` auto-merged.
+## ⛔⛔ FINDING 33'S CLASS, TWICE: `fire_gather_keys_world`/`fire_gather_keys_rule` carried the
+## same retired syntax, matching `fire_col_field`/`fire_root_join`/`one_rule_fold_ns` byte-for-byte
+## in shape. Re-spelled both; the `{ns}`-composing one carries the sibling rune, the
+## statically-spelled one does not (confirmed rune-free by direct sibling comparison). Driven:
+## both new tests pass, full `wat::rete` binary 495/495, lint-subset 316/316 unchanged.
+
+## #427 — docs-only, 3 files (D2p strike draw).
+
+## #428 — docs-only, 2 files (REVIEW + the SCORE.md scaffold #429 will modify).
+
+## #429 — LANDED (test(rete): D2p — the discrimination row runs for the first time, and
+## discriminates). ONE real conflict in `src/rete/reachability.rs`: this tree's own copy of the
+## test's for-loop header differed from grok's pre-image ONLY in enum-separator spelling (`.` vs
+## `::`); the surrounding 641-line file-wide divergence is unrelated, pervasive syntax evolution.
+## Resolved by taking grok's real fix (the four-tuple rewrite target, the third enum face `.C`)
+## while keeping this tree's dot-separator convention throughout, including a stale prose comment
+## grok's own patch introduced. No finding-33-class hit (a syntax-convention conflict, not a new
+## retired-form site). Driven: the fixed test prints `keyword`/`enum` discrimination raw_count =
+## Ok(0)/Ok(0), both now genuinely discriminating; full `wat::rete` binary 495/495; lint-subset
+## 316/316 unchanged.
+## ⛔ SELF-CAUGHT STAGING-OMISSION (same class as batch 4b's #167/#168): a follow-up hand-fix to a
+## stale prose comment, made after `git add`, was never re-staged before #429's commit. Caught at
+## #430 via a residual `git diff` against committed HEAD; repaired via `git commit --amend` on
+## #429 (stashing #430's own already-staged doc file first), logged in #430's own commit body.
+
+## #430 — docs-only, 1 file (F2 board resolution). Carries the #429 staging-omission repair note.
+
+## #431 — docs-only, 3 files (retract-multiplicity-proof strike draw).
+
+## #432 — docs-only, 1 file (board: why three instruments are blind to the retract defect).
+
+## #433 — docs-only, 1 file (curare breadcrumb stamp; clean auto-merge).
+
+## #434 — docs-only, 1 file (`docs/COMPACTION-AMNESIA-RECOVERY.md`). ONE real conflict: this
+## tree's own already-evolved "replayed, not live work" framing vs grok's WORK-LIST pointer repin
+## (08-30 cast → 09-05 cast). Resolved by keeping this tree's framing and taking grok's updated
+## fact (the 09-05 WORK-LIST, its Class A guidance, the superseded-pointer caution), re-worded at
+## one sentence to keep the framing consistent.
+
+## #435 — docs-only, 1 file (new NOTE under arc 109 — a record's :restricted-to is never
+## enforced).
+
+## #436 — docs-only, 3 files (the FactBag strike's own BRIEF/DESIGN/EXPECTATIONS, landing before
+## #438's code).
+
+## #437 — docs-only, 1 file (REVIEW: the retract proof axis cannot see the defect it was drawn
+## for).
+
+## #438 — LANDED (refactor(rete): FactBag is the one owner of the fact base). ⚠⚠⚠ THE FACTBAG
+## MIGRATION — R21. Derived our own path census: **23** files by the exact substring census
+## (`Session/facts`/`FactBag/items` in code position), matching the brief's pre-flight exactly,
+## PLUS **2 more** found by a direct `(:wat::rete::Session` constructor scan that the substring
+## census cannot see (`tests/rete/probe_arc278_1a_data_model.wat`, `wat/rete/compile.wat`, both
+## needing the codemod's SECOND uniform wrap — a raw `:facts` constructor field with no
+## `Session/facts` substring to grep) — **25 files total**, a RESULT against the brief's 23.
+## Applying grok's own codemod required repairing it first, in FOUR independent ways: retired
+## `assertion-failed!`/`::Variant` forms, a parametric-value-construction convention change
+## (`(:wat::core::Vector :- [T] …)`, not `(:wat::core::Vector T …)`), `fix-text-apply`'s edit-tuple
+## shape change (`old-len:i64`→`old-text:String`, per `edits-carry-the-old-text.wat`'s own RULE 2),
+## and retired vector/string/i64 verb spellings baked into grok's own shipped `factbag.wat`/
+## `fire.wat`. Dry-run on `/tmp/factbag_dry` first, diffed (exactly the two documented uniform
+## wraps, nothing else), idempotence proven TWICE (the `/tmp` copies, then the real tree via
+## `md5sum` before/after). Of the 25, 9 auto-merged clean (grok's WHOLE diff, including the
+## semantic-door second pass, applied verbatim because those specific hunks' context matched);
+## ONE (`wat/rete/oracle/insert.wat`) needed manual resolution (grok's semantic fix composed with
+## this tree's own outcome-wrapping syntax); 15 run through the repaired codemod tool directly.
+## Hazard row: `src/stdlib.rs`→`src/load/stdlib.rs` (R092) — git's own rename-merge found the
+## right file and position but copied grok's `include_str!` DEPTH verbatim (wrong by one
+## directory); caught before the first build, repointed. Gate GREEN, zero runes: `-E
+## 'test(no_raw_factbag_access)'` → 5/5; `"facts"` outside `session.rs` → 0, inside → exactly 2.
+## Driven: full `wat::rete` binary 495/495 (incl. `exhaustive_match_in_then_is_refused`, confirming
+## the two outside-grok's-set files' own unrelated behavior is unaffected); loader/rete-name/
+## docs-wat gates all green; lint-subset 321/321 (+5, the new gate's own tests); registered total
+## +5 (5875→5880), matching the orchestrator's own pre-flight exactly.
+
+## #439 — docs-only, 6 files (retract-removes-one strike draw + a REVIEW correction + curare/board
+## updates). Clean auto-merge, no conflict markers.
+
+## #440 — LANDED (fix(rete): retract removes ONE occurrence — and the axis that proves it). The
+## codemod's own one-line refinement (`remove-every-equal`→`remove-one` in its recognizer)
+## cherry-picked onto our already-repaired tool. ONE conflict in `wat/rete/factbag.wat`:
+## `remove-one`'s renamed signature auto-merged clean but its OLD "remove every match" body did
+## not, because #438 had landed the old body under the old name via straight auto-merge; resolved
+## by taking grok's real fix (the new `FactBagDrop` fold-with-stop-flag) with the SAME
+## `PersistentVector/conj`→`:wat::vector::conj` retirement fix re-applied inside grok's new body
+## (grok's own diff still used the retired spelling there too). `wat/rete/oracle/insert.wat`
+## auto-merged clean. NEW FILE `wat-scripts/perf/grid/retract-multiplicity.wat` shipped in grok's
+## retired era syntax — NOT a corpus migration site, so brought current via `scripts/replay/
+## convert.sh`'s full recorded chain (not R21's codemod, not hand-spelled); `--check` green, driven
+## directly, `[0 1 2]` on both native and oracle engines matching the file's own documented
+## expectation. `wat-tests/rete/differential-fuzz-tms.wat` comment-only per grok's own commit body,
+## verified prose-only. 2 `.rs` const-array axis registrations and the `.sh`/`.clj` twins
+## auto-merged/landed clean, no finding-33 exposure.
+## ⛔ SELF-CAUGHT FALSE ALARM: running the new axis immediately after the `factbag.wat` conflict
+## resolution showed `[1 2]` (key 0 missing) against a STALE `target/release/wat` binary predating
+## the resolution; `cargo build --release` then re-running gave the correct `[0 1 2]` on both
+## engines. Reported because it is exactly the shape a wrong report would take. Driven: full
+## `wat::rete` binary 495/495 (incl. the new axis's port-accuracy/non-vacuity/oracle-accuracy
+## checks); `no_raw_factbag_access` re-verified green (5/5); registered total unchanged (+0, no new
+## `#[test]` fn — two existing const arrays extended).
+
+**Disposition: COMPLETE.** All 20 steps (#421–#440) landed, tree clean at
+`8ab8d0c386e95de750fbbbef73c07a208cb42ebb` (`REPLAY(grok-rete #440)`), not pushed.
+`origin/replay/grok-rete` (`488a8a3a973ab7ab5957534f57aa84cbf77009e0`) remains the published tip
+(the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. No mid-batch STOP. Finding 33's
+class recurred twice (#423, #426, both caught pre-landing); the FactBag migration (#438) required
+four independent classes of codemod-tool repair, none of them finding 33's class, all disclosed;
+one self-caught fabricated trailer (#422) and one self-caught staging omission (#429→#430), both
+repaired by amend before any descendant existed; one self-caught false alarm from a stale binary
+(#440), corrected before any commit. See `SCORE-7o-replay-batch-4o.md` for the full row-by-row
+account against all 24 rows (E1–E21 with sub-letters).
+
+## FOLD, post-yield — #438 gains its recorded-migration fixture
+
+The orchestrator's floor at the first SCORE commit (`e8f4d08a8`) came back **RED, 1 of 5856**:
+`every_recorded_migration_is_fixtured_or_runed` — this tree gates every recorded migration in
+`wat-scripts/fixes/*.wat` (a replay fixture XOR `rune:replay(unreadable-preimage)`, plus exactly one
+`;; SCOPE:` line) and grok's tree carries no such gate at all. Finding 38's family: a main-only GATE
+meets a file a replayed step legitimately adds; not this executor's error, not grok's.
+
+Full instructions: `BRIEF-7o-ADDENDUM-438-the-migration-needs-its-fixture.md`. Cure, folded into
+#438 (old `aa313d357` → new `623a1373c`; #439 `e56a039a4`→`965524d9b`; #440
+`8ab8d0c38`→`3479b8e5e`, cherry-picked forward, never rebased or filter-branched): added `;; SCOPE:
+corpus` to the codemod's header, and `wat-scripts/fixes/replay/wrap-session-facts-in-factbag/
+{before.pre,after.post,ORACLE}` — a fixture, not the rune, since this migration's pre-image is
+perfectly readable. The fixture is a small synthetic file exercising BOTH uniform wraps in one
+place, but every line it changes is grounded in real history, never the tool under test: both
+changed lines are copied verbatim from grok's own #438 (`09e3d912c`) at `tests/rete/
+probe_arc278_2b_insert_alpha.wat` (the read wrap) and `tests/rete/probe_arc278_1a_data_model.wat`
+(the constructor-field wrap) — both files whose ENTIRE diff at that commit is the codemod's pure
+mechanical output, never touched by the later hand-authored semantic-door second pass. `-E
+'test(every_recorded_migration_is_fixtured_or_runed)'` → 1/1; the whole `every_recorded_migration_
+replays` binary → 18/18, both at the amended #438 and re-verified at the final tip.
+
+**Proven inert**: `git diff <old-tip e8f4d08a8> <new-tip>` names only the fixture files, the `;;
+SCOPE:` line, and this documentation (SCORE, this log entry, the addendum) — #439's and #440's own
+deltas are byte-identical to their pre-fold versions (confirmed via `git diff <old #N> <new #N>`
+per step). Every gate this batch already ran once was re-run at the amended tip and confirmed
+UNCHANGED: census 2169→2170 files (no STOP-8, same as pre-fold), registered-test-total 5880
+(unchanged — a fixture is data an existing shard test reads, not a new `#[test]` fn), lint-subset
+321/321, `kind(lib)` 1515/1515, doctest 8/8, the full `wat::rete` binary 495/495, and
+`no_raw_factbag_access` 5/5 with zero runes.
+
+Two notes from the orchestrator's own verification, corrected onto the record here rather than
+silently left in the superseded first SCORE: the derived count of 25 (not the brief's 23) was
+right, and `wat/rete/compile.wat` sits inside the new gate's own scope so the gap mattered; the
+`.floor/2026-09-18T22-16-27Z` directory flagged as unattributed activity in the first report is the
+orchestrator's own batch-4n checkpoint, not foreign activity.
+
+**Disposition: COMPLETE (post-fold).** All 20 steps (#421–#440) still landed, tree clean at
+`3479b8e5e` prior to this documentation commit, not pushed. Record gate re-verified exit 0 at the
+amended tip; `refs/original/` empty; `git replace -l` empty; origin still an ancestor. See
+`SCORE-7o-replay-batch-4o.md`'s FOLD section for the full account.
