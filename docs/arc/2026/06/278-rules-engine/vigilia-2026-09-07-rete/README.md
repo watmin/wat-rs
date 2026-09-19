@@ -227,9 +227,13 @@ file; two triggers measured **NO** (`secare` 0 parallel primitives, `excusare` 0
 grid) and one measured **CLEAN-not-absent** (`exigere`: my "7 TODO hits" were all `"XXX"` as a
 deliberately-nonexistent location code — the true count is **0**, same as targets 1 and 2).
 
-**NOTHING IS DRIVEN TO RESOLUTION.** **93 rows open, 12 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 93, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 12. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. Two decisions the builder still owes:
-**X3** (three wards, one rune, two verdicts) and **2X2** (a rune's REASON is true, its CATEGORY is
-wrong — two wards split on which matters).
+**NOTHING IS DRIVEN TO RESOLUTION.** **93 rows open, 12 of them L1** (one, `3P1`, is itself L1×5). ⛔ **Do not copy those two numbers forward — re-derive them, because both were wrong here and a recolligere caught them 2026-09-08:** `grep -c '^| \*\*' FINDINGS.md` → 93, and `grep -c '^| \*\*.*\*\*L1\*\*' FINDINGS.md` → 12. The prose said **83 and 8** while the table three lines above it said 38+36+10; a total stated beside the table it could be derived from is the same defect this cast rows against the substrate. **THREE** decisions the builder still owes:
+**X3** (three wards, one rune, two verdicts), **2X2** (a rune's REASON is true, its CATEGORY is
+wrong — two wards split on which matters), and **3X1** — `exigere` and `intueri` both reached
+`run-all.sh:46`, ran the same cross-check, reached the same fact, and disposed of it oppositely:
+*"dismissed as historical context"* vs **L1**. ⭐ My own read is a third framing and I believe it is
+the operative one — *"RED **until** … is closed"* is present-tense and forward-looking, not
+narration — but that is evidence offered, **not** a re-classification of either child.
 
 ## ⛔⛔ THE LESSON THIS CAST PAID FOR ELEVEN TIMES: ANY UNRE-DERIVED MEASUREMENT IS A CLAIM
 
