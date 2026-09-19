@@ -239,4 +239,6 @@ red at any point in this strike.
 
 ## Commit
 
-(pending — committing after this SCORE.md is complete, on green, per house rules)
+`4d96c7534` on branch `grok-rete` — "rete: lift instrument-subtraction arithmetic into one fn
+(arc 278, strike-instrument-subtraction-one-place)". 6 files changed (the 5 touched source files
++ this `SCORE.md`), 273 insertions(+), 19 deletions(-).
