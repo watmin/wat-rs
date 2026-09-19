@@ -157,7 +157,7 @@ pub fn typed_recv(
                 // of collapsing into a mute Disconnected.
                 Err(crate::comms::RecvError::Failed(reason)) => RecvOutcome::DecodeError(reason),
                 // Arc 278 RST stone: `PeerCrashed` and its severed twin are
-                // `Peer'`-messaging-only signals (`kernel::peer`'s
+                // `Peer`-messaging-only signals (`kernel::peer`'s
                 // `notify_peer_crashed_best_effort` /
                 // `notify_peer_severed_best_effort` send the reserved sentinels;
                 // nothing else ever does) — a bare

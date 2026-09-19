@@ -401,7 +401,7 @@
        ;; ── arc 170 C2 Strike 1 (record redirect): the ::Kwargs fields, reconciled BY NAME ──
        ;; The coords carrier D is the `<base>::Coords` RECORD (minted at the kwargs-defn site,
        ;; wat/core.wat) — addressed by field NAME, so N has NO positional-accessor cap and DATA
-       ;; fields fall out for free. The runner recvs ONE `::Coords` record as the Setup payload,
+       ;; fields fall out for free. The runner recv's ONE `::Coords` record as the Setup payload,
        ;; reconciles it → `::Kwargs` by field name (Peer field → connect the Address; data field
        ;; → copy the value through, routed off `field-types-of`), holds the assembled `::Kwargs`,
        ;; and invokes `$impl` per Work item. `fnames`/`ftypes` are field-ordered + positionally
@@ -598,7 +598,7 @@
 ;; Dynamic balance: after select returns the ServiceEvent::Message{idx=peer-pos, msg=pair}
 ;; for whichever runner finished first, that runner's channel is empty again
 ;; and we immediately feed it the next pending item (if cursor < m).  Runners
-;; that had no item sent to them (when M < N) are simply never selected —
+;; that had no item sent to them (when M < N) are simply never select'ed —
 ;; the channel-drain RAII at scope exit joins them cleanly.
 ;;
 ;; select now returns (ServiceEvent :- [I O]) (Stone 259 Lost-locus).  :Message is

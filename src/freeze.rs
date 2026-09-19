@@ -136,7 +136,7 @@ pub struct ProcessRuntime {
     /// Use for `apply_function(fn, args, runtime.symbols(), ...)`.
     sym: SymbolTable,
     /// Arc 170 stdio-as-defservice — the three PRIMED stdio defservices, each carrying its admin
-    /// lineage `Peer'` (`:wat::kernel::{stdin,stdout,stderr}-svc`) and its resolved `/stop` caller.
+    /// lineage `Peer` (`:wat::kernel::{stdin,stdout,stderr}-svc`) and its resolved `/stop` caller.
     /// Held for the process lifetime so the services stay alive; each Handle drops with this
     /// struct's field teardown (after the Drop body), which signals the three idle serve loops to
     /// `:Shutdown` (wat-managed threads — no Rust join needed). Order: stdin, stdout, stderr —
@@ -159,7 +159,7 @@ impl ProcessRuntime {
     /// Arc 170 "stopping is a protocol", builder ruling: MAIN creates the stdio services
     /// (`bootstrap_wat_vm_process` → `start-primed-stdio` runs on whichever thread calls it), so
     /// MAIN stops them — `ThreadOwnedCell` (`src/rust_deps/custodia.rs`) binds each Handle's admin
-    /// `Peer'` to that construction thread; only it may legally `send'`/`recv'` on it. Called from
+    /// `Peer` to that construction thread; only it may legally `send`/`recv` on it. Called from
     /// `invoke_user_main_orchestrated`, on `:user::main`'s way out, ONLY when `KERNEL_STOPPED` is
     /// true, while `self` (hence the Handles) is still alive — i.e. on THIS SAME thread, which is
     /// exactly the one `ThreadOwnedCell` requires.
@@ -247,7 +247,7 @@ impl Drop for ProcessRuntime {
         // peers drop, disconnecting from the services. The primed defservice `Handle`s (admin peers)
         // then drop with this struct's fields (after this body), signaling `:Shutdown` to the three
         // idle serve loops (wat-managed threads; no Rust `JoinHandle` to join). The services are idle
-        // in `poll'`, so shutdown wakes them cleanly — no deadlock.
+        // in `poll`, so shutdown wakes them cleanly — no deadlock.
         let _ = crate::services::uninstall_thread_io();
         // No `ProcessRuntime` is alive anymore — see `STDIO_BOOTSTRAPPED`'s doc (`src/runtime.rs`).
         crate::runtime::clear_stdio_bootstrapped();
@@ -364,8 +364,8 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         }
     };
 
-    // Extract each Handle's `addr` field (record field order: [handle <- Peer', addr <- Address'],
-    // wat/service.wat) → the client-dial Address' the Strike-2 verbs will `connect'`. Stash the three
+    // Extract each Handle's `addr` field (record field order: [handle <- Peer, addr <- Address],
+    // wat/service.wat) → the client-dial Address the Strike-2 verbs will `connect`. Stash the three
     // on a `PrimedStdio` carrier set on the SymbolTable (mirrors `RuntimeServices`).
     let addr_of = |h: &Value, which: &str| -> Result<Value, RuntimeError> {
         match h {
@@ -392,7 +392,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // Arc 170 "stopping is a protocol", builder-corrected: MAIN creates these services
     // (`start-primed-stdio` above runs on THIS thread), so MAIN — and only main — may later ask
     // them to stop (`ThreadOwnedCell`, `src/rust_deps/custodia.rs`, binds a Handle's admin
-    // `Peer'` to whichever OS thread constructed it; `ProcessRuntime::ask_stop_and_collect_failures`
+    // `Peer` to whichever OS thread constructed it; `ProcessRuntime::ask_stop_and_collect_failures`
     // is what runs the ask, from `invoke_user_main_orchestrated`, on this SAME thread). Resolve
     // each `<fqdn>/stop` caller ONCE, here, against the augmented `sym` (it also serves the
     // `StopAccepted` announce, which needs `sym.primed_stdio()`) and stash it alongside its Handle
@@ -425,7 +425,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         },
     ];
 
-    // Install a fresh (empty) ThreadIO for this (main) thread so its stdio verbs can `connect'` + cache
+    // Install a fresh (empty) ThreadIO for this (main) thread so its stdio verbs can `connect` + cache
     // a client peer to the primed services. Done AFTER `set_primed_stdio` so the carrier is live.
     crate::services::install_thread_io(crate::services::new_thread_io());
 
@@ -1565,12 +1565,12 @@ fn invoke_user_main_orchestrated(
             crate::runtime::publish_stop_failures(failures);
         }
         // NOW it is safe: the ask-then-await is fully done, so severing `SHUTDOWN_TX_PTR` cannot
-        // race any of its `recv'`s anymore.
+        // race any of its `recv`s anymore.
         //
         // WHY THIS ORDERING IS IRREDUCIBLE (and not just tidier): the sever races the ask from
         // BOTH ends, so no amount of making the ASKER cascade-blind would fix it. The asker's
-        // `recv'` selecting the shutdown arm over a real reply is only half. The other half is
-        // that the sever kills the COUNTERPARTY: a service's serve loop blocks in `select'`, and
+        // `recv` selecting the shutdown arm over a real reply is only half. The other half is
+        // that the sever kills the COUNTERPARTY: a service's serve loop blocks in `select`, and
         // `comms::thread::Select::select` registers `shutdown_rx()` as an INTERNAL arm that
         // returns `Shutdown` *regardless of which user receivers are pending* — so a severed
         // service wakes and exits WITHOUT ever draining the `Admin::Stop` sitting in its queue,

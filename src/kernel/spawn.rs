@@ -1,16 +1,16 @@
 //! # Kernel spawn primitives — arc 259 S2c-i / S2c-ii-b
 //!
-//! Arc 259 S2c-ii-b: `spawn-program'` is a wat defclause (wat/spawn.wat)
-//! dispatching on the host type (ThreadOpts → `spawn-thread'`; ProcessOpts →
-//! `spawn-process'`). The 3-arg Rust monolith is RETIRED.
+//! Arc 259 S2c-ii-b: `spawn-program` is a wat defclause (wat/spawn.wat)
+//! dispatching on the host type (ThreadOpts → `spawn-thread`; ProcessOpts →
+//! `spawn-process`). The 3-arg Rust monolith is RETIRED.
 //!
 //! The per-tier primitives here are the defclause's targets:
 //!
-//! - `spawn-thread'` / `spawn_thread_peer` → creates a `comms::thread` channel
+//! - `spawn-thread` / `spawn_thread_peer` → creates a `comms::thread` channel
 //!   pair, spawns a `std::thread` that hands the prog its self-peer ONCE
 //!   (arc 259 S2c-ii-a), wraps in `kernel::peer::Thread<Value, Value>`,
 //!   returns as `Value::RustOpaque`.
-//! - `spawn-process'` / `spawn_process_peer` → validates fn captures for
+//! - `spawn-process` / `spawn_process_peer` → validates fn captures for
 //!   portability (sandbox walker), creates a `comms::process` channel pair,
 //!   forks via `spawn_lifelined_any` (the `!UnwindSafe`-compatible variant;
 //!   `src/process/clone.rs`), child runs the forms-server, wraps result as
@@ -20,7 +20,7 @@
 //!
 //! Both peer types are stored as `Value::RustOpaque` with distinct
 //! `type_path` sentinels (`":wat::kernel::Thread"` / `":wat::kernel::
-//! Process'"`). The inner payload is wrapped in `Arc<ThreadOwnedCell<...>>`:
+//! Process"`). The inner payload is wrapped in `Arc<ThreadOwnedCell<...>>`:
 //!
 //! - `ThreadOwnedCell<T>` makes any `T: Send` also `Sync` via the
 //!   thread-id guard (`src/rust_deps/custodia.rs`). This satisfies
@@ -33,8 +33,8 @@
 //! ### Thread tier
 //!
 //! `ThreadPeerCell` = `Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>` where
-//! `Thread` = `kernel::peer::Thread`. The `Option` lets `close'` take the peer
-//! while `send'`/`recv'` detect use-after-close via `.as_ref()`
+//! `Thread` = `kernel::peer::Thread`. The `Option` lets `close` take the peer
+//! while `send`/`recv` detect use-after-close via `.as_ref()`
 //! returning `None`. `Thread<Value,Value>` holds a `JoinHandle<()>` which is
 //! `Send` but not `Sync` — the `ThreadOwnedCell` wrapping makes it `Sync` via
 //! the thread-id guard.
@@ -43,8 +43,8 @@
 //!
 //! `ProcessPeerCell` = `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>` where
 //! `ProcessPeerBundle` packages `kernel::peer::Process<String, String>` plus
-//! the lifeline `OwnedFd`. The `Option` lets `close'` take the bundle while
-//! `send'`/`recv'` detect use-after-close. The wire type is
+//! the lifeline `OwnedFd`. The `Option` lets `close` take the bundle while
+//! `send`/`recv` detect use-after-close. The wire type is
 //! `String` (EDN-encoded Value) rather than `Value` directly, because the
 //! process tier crosses a fork boundary (a separate address space) — only
 //! EDN-serializable bytes cross, never live `Value` handles. (The child
@@ -94,21 +94,21 @@ use crate::value::Function;
 /// The thread-tier peer cell type — `Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>`.
 ///
 /// The Stone 4.6a-ii downcast sites in this kernel home already use this alias.
-/// runtime.rs defines its own local `ThreadCell` alias at the select' downcast
+/// runtime.rs defines its own local `ThreadCell` alias at the select downcast
 /// sites today; unifying the two under the runtime.rs flat-sea (Phoenix) warding
 /// is the structurally-right migration.
 // rune:exigere(scope-affirmative) — ThreadPeerCell adoption in runtime.rs
 // rides the runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home.
-/// The `Option` lets `close'` take the peer while `send'`/`recv'`
+/// The `Option` lets `close` take the peer while `send`/`recv`
 /// detect use-after-close via `.as_ref()` returning `None`.
 /// At downcast sites use `ThreadPeerCell` instead of spelling out the 4-level type.
 pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
 
 /// The process-tier peer cell type — `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>`.
 ///
-/// Mirrors `ThreadPeerCell` for the process tier. The `Option` lets `close'`
-/// take the bundle while `send'`/`recv'` detect use-after-close.
-/// runtime.rs defines its own local `ProcessCell` alias at the select' downcast
+/// Mirrors `ThreadPeerCell` for the process tier. The `Option` lets `close`
+/// take the bundle while `send`/`recv` detect use-after-close.
+/// runtime.rs defines its own local `ProcessCell` alias at the select downcast
 /// sites today; unifying the two under the runtime.rs flat-sea (Phoenix) warding
 /// is the structurally-right migration.
 // rune:exigere(scope-affirmative) — ProcessPeerCell adoption in runtime.rs
@@ -127,9 +127,9 @@ pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process";
 
 /// `RustOpaque.type_path` for the unified connection/self peer (arc 209 C0b.2e-i-b).
 ///
-/// `Peer'` is the single transport-blind opaque for both worker self-peers
+/// `Peer` is the single transport-blind opaque for both worker self-peers
 /// (handed to spawned threads/processes) and connection handles (from
-/// `peer-pair'`, `connect'`, `accept'`).  Thread-tier peers
+/// `peer-pair'`, `connect`, `accept`).  Thread-tier peers
 /// carry a crossbeam channel pair boxed as `Box<dyn CommSender/Receiver<Value>>`;
 /// socket-tier peers carry a `comms::process` io_uring pair through the same box.
 pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer";
@@ -137,7 +137,7 @@ pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer";
 /// The unified peer cell type — `Arc<ThreadOwnedCell<Option<Peer>>>`.
 ///
 /// Replaces both the old crossbeam self-peer cell and the retired socket connection
-/// peer cell.  The `Option` lets `close'`/use-after-close detection work the same
+/// peer cell.  The `Option` lets `close`/use-after-close detection work the same
 /// way across all peer kinds.
 pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer>>>;
 
@@ -146,7 +146,7 @@ pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer>>>;
 /// — thread and process tiers now share one `Listener` entity.
 pub const LISTENER_TYPE_PATH: &str = ":wat::kernel::Listener";
 
-/// `RustOpaque.type_path` for the unified transport-blind `Address'` entity
+/// `RustOpaque.type_path` for the unified transport-blind `Address` entity
 /// (arc 209 C0b.2e-iii). Replaces the former `SOCKET_ADDRESS_TYPE_PATH` —
 /// both thread and process tiers now produce the same `Address` entity.
 pub const ADDRESS_TYPE_PATH: &str = ":wat::kernel::Address";
@@ -196,12 +196,12 @@ pub enum DeadlineRecv<T> {
 /// Outcome of reading a crash / err channel after output-EOF on a spawned peer.
 ///
 /// This is the ONE place the Lost-vs-Closed decision lives.  Every consumer
-/// — `select'` thread arm, `select'` process arm, `ProcessPeerBundle::recv()` —
+/// — `select` thread arm, `select` process arm, `ProcessPeerBundle::recv()` —
 /// calls [`classify_peer_death`] and maps this enum to its own output type.
 ///
-/// `poll'` peers (bare `Peer`, no crash channel) always produce `Closed`: the
+/// `poll` peers (bare `Peer`, no crash channel) always produce `Closed`: the
 /// caller passes `Err(RecvError::Disconnected)` and the `Err(_)` arm fires.
-/// poll' keeps emitting `:Closed` without modification (no crash channel on
+/// poll keeps emitting `:Closed` without modification (no crash channel on
 /// `Peer`; adding one is the next slice).
 pub enum PeerDeath {
     /// The crash / err channel delivered a reason — abnormal exit.
@@ -255,7 +255,7 @@ pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) 
 
 /// THE ONE DOOR for a process peer's output-side error → death classification.
 ///
-/// Both `recv'` (`ProcessPeerBundle::recv`) and `select'` (the process arm of
+/// Both `recv` (`ProcessPeerBundle::recv`) and `select` (the process arm of
 /// `eval_peer_select_prime`) route through this — the over-cap deadlock had TWO
 /// doors (each independently deciding "FrameTooLarge → don't read err"); this is
 /// the annihilation of that duplication into one.
@@ -356,7 +356,7 @@ impl ProcessPeerBundle {
     /// with a buffered Err payload → `Crashed(reason)`. Clean exit / substrate
     /// shutdown (Ok EOF, Err EOF) → `Disconnected`. Both reads are cascade-aware
     /// io_uring `recv()` — no `poll`, no `Select`. (The 3-fd io_uring TCO-loop
-    /// dogfood lives where the concurrency is real — `select'` over N independent
+    /// dogfood lives where the concurrency is real — `select` over N independent
     /// peers — NOT here, where the two channels are mutually exclusive by
     /// construction.)
     ///
@@ -383,7 +383,7 @@ impl ProcessPeerBundle {
             Ok(value) => Ok(value),
             // The ONE door: classify_peer_error owns the FrameTooLarge-teardown
             // (no err read → no deadlock) AND the true-EOF err read. A cap-violation
-            // surfaces as Crashed with the cap reason — consistent with select'.
+            // surfaces as Crashed with the cap reason — consistent with select.
             Err(e) => match classify_peer_error(&e, &self.err) {
                 PeerDeath::Lost(reason) => Err(PeerRecvError::Crashed(reason)),
                 PeerDeath::Closed => Err(PeerRecvError::Disconnected),
@@ -434,7 +434,7 @@ impl ProcessPeerBundle {
     }
 }
 
-/// A process-tier select'-able. Today the only kind is a spawned child
+/// A process-tier select-able. Today the only kind is a spawned child
 /// (`Spawned`); arc 292 L3 adds `Timer` (a timerfd-backed one-shot, no child) as a
 /// second NAMED variant — identity is named, never inferred from a None. See
 /// docs/arc/2026/06/292-timer-peer-time-as-select/DESIGN.md (D5).
@@ -446,7 +446,7 @@ pub enum ProcessSelectable {
     /// embedded a persistent `RefCell<IoUring>` by value (Stone E-1 — the ring was
     /// kept alive so a `recv` did not pay setup), against a `Timer` arm of 336. An
     /// enum is as wide as its widest variant, and these are held one per entry in the
-    /// set `poll'` watches.
+    /// set `poll` watches.
     ///
     /// ⭐ **Arc 109's `one-ring-per-thread` stone removed those rings**: the ring is
     /// now per-THREAD, so (measured 2026-09-16) `Receiver<String>` is **56** bytes,
@@ -463,7 +463,7 @@ pub enum ProcessSelectable {
     Spawned(Box<ProcessPeerBundle>),
     /// arc 292 L3 — a one-shot timerfd-backed timer peer. No child process,
     /// no error channel. Fires exactly once after the duration, delivering the
-    /// encoded msg frame. Only valid in `select'`; send'/recv'/close' reject it.
+    /// encoded msg frame. Only valid in `select`; send/recv/close reject it.
     ///
     /// **Boxed for the same reason as `Spawned`, and boxing only one was not
     /// enough**: `large_enum_variant` fires on the DIFFERENCE between variants, and a
@@ -478,16 +478,16 @@ pub enum ProcessSelectable {
 
 // ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
 //
-// Arc 259 S2c-ii-b — the 3-arg `spawn-program'` MONOLITH (`eval_kernel_spawn_program_prime`)
-// is RETIRED. `spawn-program'` is now a wat defclause in `wat/spawn.wat` that dispatches
-// on the host type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process'). The
+// Arc 259 S2c-ii-b — the 3-arg `spawn-program` MONOLITH (`eval_kernel_spawn_program_prime`)
+// is RETIRED. `spawn-program` is now a wat defclause in `wat/spawn.wat` that dispatches
+// on the host type (ThreadOpts → spawn-thread; ProcessOpts → spawn-process). The
 // per-tier primitives below remain as the defclause's implementation targets.
 
 /// `(:wat::kernel::spawn-thread prog init-fn post-spawn-fn)` — arc 259 Stone S2c-i.
 ///
 /// Three positional args:
-/// - `args[0]` — program fn: `fn [self <- (Peer' :- [S R])] -> nil` (self-peer model,
-///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `(Thread' :- [R S])`.
+/// - `args[0]` — program fn: `fn [self <- (Peer :- [S R])] -> nil` (self-peer model,
+///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `(Thread :- [R S])`.
 /// - `args[1]` — init-fn: `fn [] -> :wat::core::Record` — runs at the peer's start,
 ///   its return value becomes `user-data` in the peer's env.
 /// - `args[2]` — post-spawn-fn: `fn [l <- ThreadLaunch] -> nil` — runs OWNER-side
@@ -495,7 +495,7 @@ pub enum ProcessSelectable {
 ///
 /// Delegates to the SAME `spawn_thread_peer` called by the monolith's `:thread`
 /// branch — no duplication.
-// Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program' defclause
+// Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program defclause
 // in wat/spawn.wat). A :user:: caller is a check error; enforce at check, not runtime.
 #[restricted_to(":wat::kernel::spawn-thread", ":wat::kernel::")]
 pub fn eval_kernel_spawn_thread_prime(
@@ -575,13 +575,13 @@ pub fn eval_kernel_spawn_thread_prime(
 ///
 /// Two positional args:
 /// - `args[0]` — program forms (a vec of WatAST): the forms-server program.
-///   Returns `(Process' :- [I O])`.
+///   Returns `(Process :- [I O])`.
 /// - `args[1]` — post-spawn-fn: `fn [l <- ProcessLaunch] -> nil` — runs OWNER-side
 ///   in the parent after the child is forked, with the child pid in ProcessLaunch.
 ///
 /// Delegates to the SAME `spawn_process_peer` called by the monolith's `:process`
 /// branch — no duplication.
-// Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program' defclause
+// Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program defclause
 // in wat/spawn.wat). A :user:: caller is a check error; enforce at check, not runtime.
 #[restricted_to(":wat::kernel::spawn-process", ":wat::kernel::")]
 pub fn eval_kernel_spawn_process_prime(
@@ -694,14 +694,14 @@ pub fn eval_kernel_spawn_process_prime(
 
 // ─── Thread tier ──────────────────────────────────────────────────────────────
 
-/// Spawn a thread-tier program peer. The backing impl for `spawn-thread'`
-/// (the S2c-i primitive) and the thread clause of the `spawn-program'` defclause
+/// Spawn a thread-tier program peer. The backing impl for `spawn-thread`
+/// (the S2c-i primitive) and the thread clause of the `spawn-program` defclause
 /// (S2c-ii-b). Exposed as `pub` for integration tests.
 ///
 /// Arc 259 S2c-ii-a — PURGE. The apply-loop model is annihilated; only the
-/// self-peer model remains. The prog MUST be `fn([self <- (Peer' :- [S R])]) -> nil`.
+/// self-peer model remains. The prog MUST be `fn([self <- (Peer :- [S R])]) -> nil`.
 /// The spawned closure constructs a `Peer` opaque inside the thread (owner-thread
-/// invariant) and calls the prog ONCE. The prog owns its own recv'/send' loop.
+/// invariant) and calls the prog ONCE. The prog owns its own recv/send loop.
 ///
 /// The `init_fn` is a 0-arg fn returning `:wat::core::Record`. It runs at the peer's
 /// start (inside the closure, at peer-start timing); its return value becomes
@@ -762,7 +762,7 @@ pub fn spawn_thread_peer(
                     Ok(record) => record,
                     // The init-fn is USER code; if it errors the peer cannot build an
                     // honest env. Exit the thread — `output_tx` (moved here) drops, the
-                    // parent's cascade-aware `recv'` raises (the peer died). NEVER smuggle
+                    // parent's cascade-aware `recv` raises (the peer died). NEVER smuggle
                     // a non-record fallback into the `:wat::core::Record` user-data slot.
                     Err(_) => return,
                 };
@@ -793,7 +793,7 @@ pub fn spawn_thread_peer(
             // the ThreadOwnedCell's owner-thread == this spawned thread (where the
             // prog runs). Raw endpoints are Send — they move here; the Peer + Arc
             // are constructed on this thread only.
-            // Worker is (Peer' :- [O I]): tx=output_tx (worker→parent), rx=input_rx (parent→worker).
+            // Worker is (Peer :- [O I]): tx=output_tx (worker→parent), rx=input_rx (parent→worker).
             let self_peer = make_rust_opaque(
                 PEER_TYPE_PATH,
                 // Self-peer: not a dial. None, deliberately.
@@ -802,7 +802,7 @@ pub fn spawn_thread_peer(
                 )))),
             );
             // Hand the prog its self-peer ONCE — no apply-loop.
-            // The prog owns its own recv'/send' loop if it wants one.
+            // The prog owns its own recv/send loop if it wants one.
             // Arc 259 S3.5a-0 + crash-reason PARITY (four-questions/Honest): the body's
             // terminating reason is sent over crash_tx — the crossbeam analog of the
             // process Err channel (fd 2). BOTH a Rust panic AND a wat RuntimeError out of
@@ -895,8 +895,8 @@ pub fn spawn_thread_peer(
         .value_owned();
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
-    // Wrapped in Option so close' can `.take()` the peer (consuming it for
-    // `close()+join`) while send'/recv' detect use-after-close via
+    // Wrapped in Option so close can `.take()` the peer (consuming it for
+    // `close()+join`) while send/recv detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
     let wrapped = Arc::new(ThreadOwnedCell::new(Some(peer)));
     Ok(make_rust_opaque(THREAD_PEER_TYPE_PATH, wrapped))
@@ -904,18 +904,18 @@ pub fn spawn_thread_peer(
 
 // ─── Process tier ─────────────────────────────────────────────────────────────
 
-/// Spawn a process-tier program peer (arc 214 β). The backing impl for `spawn-process'`
-/// (the S2c-i primitive) and the process clause of the `spawn-program'` defclause
+/// Spawn a process-tier program peer (arc 214 β). The backing impl for `spawn-process`
+/// (the S2c-i primitive) and the process clause of the `spawn-program` defclause
 /// (S2c-ii-b). Exposed as `pub` for integration tests.
 ///
 /// Takes a WAT PROGRAM (forms — a `Vec<WatAST>`) and runs it as a
-/// `readln`/`println` server child. The parent drives it with `send'`/`recv'`
+/// `readln`/`println` server child. The parent drives it with `send`/`recv`
 /// on the returned `ProcessPeerBundle`.
 ///
 /// The wire is plain line-EDN (`comms::process` β.0 fix, commit f358f7a6):
-/// the parent's `send'` encodes Value → EDN String; the child's `readln`
+/// the parent's `send` encodes Value → EDN String; the child's `readln`
 /// decodes EDN String → Value; the child's `println` encodes Value → EDN
-/// String back; the parent's `recv'` decodes. The comms ring is the transport;
+/// String back; the parent's `recv` decodes. The comms ring is the transport;
 /// the child reads fd 0 / writes fd 1 directly (the same fds dup2'd onto the
 /// comms pipe ends). No apply-loop; no fn captures; no sandbox walker.
 ///
@@ -1152,8 +1152,8 @@ pub fn spawn_process_peer(
         .value_owned();
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
-    // Wrapped in Option so close' can `.take()` the bundle (consuming it for
-    // `close()+wait`) while send'/recv' detect use-after-close via
+    // Wrapped in Option so close can `.take()` the bundle (consuming it for
+    // `close()+wait`) while send/recv detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
     let wrapped = Arc::new(ThreadOwnedCell::new(Some(ProcessSelectable::Spawned(
         Box::new(bundle),
@@ -1172,8 +1172,8 @@ mod tests {
     ///
     /// Arc 259 S2c-ii-a — apply-loop PURGE: the apply-loop echo fn
     /// `[input <- i64] -> i64 input` is replaced with the self-peer form
-    /// `[self <- (Peer' :- [i64 i64])] -> nil (send' self (recv' self))`.
-    /// The (Thread' :- [i64 i64]) type is preserved; round-trip behaviour is identical.
+    /// `[self <- (Peer :- [i64 i64])] -> nil (send self (recv self))`.
+    /// The (Thread :- [i64 i64]) type is preserved; round-trip behaviour is identical.
     ///
     /// Constructs the spawn by calling `spawn_thread_peer` directly (bypassing
     /// the WAT-level dispatcher) to stay lib-safe (no WatAST parsing required).
@@ -1191,7 +1191,7 @@ mod tests {
     /// we clone the Arc directly from the symbol table lookup.
     #[test]
     fn spawn_thread_peer_echo_round_trip() {
-        // Build a self-peer echo fn: recv' the input, send' it back — identity.
+        // Build a self-peer echo fn: recv the input, send it back — identity.
         // Use startup_from_source to get a real Arc<Function>.
         let world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::echo [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
@@ -1267,7 +1267,7 @@ mod tests {
 
         // Downcast the payload to the concrete thread-peer type.
         // downcast_ref_opaque takes (&RustOpaqueInner, expected_path, op, span).
-        // Stone 4.6a-ii: payload is now Option-wrapped so close' can take() it.
+        // Stone 4.6a-ii: payload is now Option-wrapped so close can take() it.
         let cell: &ThreadPeerCell =
             crate::rust_deps::marshal::downcast_ref_opaque(
                 &opaque_arc,
@@ -1321,11 +1321,11 @@ mod tests {
     }
 
     /// Arc 259 S2b (FM-2-bis, synchronization-class) — RAII Drop reaps a blocked
-    /// worker WITHOUT an explicit `close'`.
+    /// worker WITHOUT an explicit `close`.
     ///
-    /// A self-peer worker blocks on its `recv'` (the parent sends nothing). Dropping
+    /// A self-peer worker blocks on its `recv` (the parent sends nothing). Dropping
     /// the peer value must, via the peer's RAII `Drop`, **drain** (drop the input
-    /// Sender → the worker's `recv'` raises → the worker exits) then **join**. Because
+    /// Sender → the worker's `recv` raises → the worker exits) then **join**. Because
     /// `join` is synchronous, by the time `drop` returns the worker has fully exited,
     /// dropping its captured `program_fn` clone — so `Arc::strong_count` is back to its
     /// pre-spawn baseline. This is a DETERMINISTIC protocol verification of the fix (the
@@ -1334,9 +1334,9 @@ mod tests {
     #[test]
     fn s2b_drop_reaps_blocked_worker() {
         let world = crate::freeze::startup_from_source(
-            // arc 278 recv'-must-use: this blocker exits when the parent drops the peer (the channel
-            // disconnects → recv' returns → the do falls through to nil → the worker exits, then join).
-            // So EVERY recv' outcome means "reap me, exit cleanly" → all arms nil (NOT the client-call
+            // arc 278 recv-must-use: this blocker exits when the parent drops the peer (the channel
+            // disconnects → recv returns → the do falls through to nil → the worker exits, then join).
+            // So EVERY recv outcome means "reap me, exit cleanly" → all arms nil (NOT the client-call
             // surface-on-failure facing — an assertion-failed! here would crash the worker the test joins).
             "(:wat::core::defn :my::blocker [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
                (:wat::core::do \
@@ -1395,7 +1395,7 @@ mod tests {
         )
         .expect("spawn_thread_peer must succeed");
 
-        // The worker is now blocked on `recv'`. Drop the peer WITHOUT close'.
+        // The worker is now blocked on `recv`. Drop the peer WITHOUT close.
         drop(peer_val);
 
         assert_eq!(

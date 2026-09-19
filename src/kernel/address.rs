@@ -4,10 +4,10 @@
 //! and the `Address { inner: Box<dyn CommAddress> }` entity — a proper
 //! first-class type under `ADDRESS_TYPE_PATH`, replacing:
 //!
-//! - The thread-tier fiction of a raw `comms::thread::Sender` called "Address'"
-//! - The process-tier `SocketAddress'` opaque (a String name under its own path)
+//! - The thread-tier fiction of a raw `comms::thread::Sender` called "Address"
+//! - The process-tier `SocketAddress` opaque (a String name under its own path)
 //!
-//! Both tiers now produce the same `Address` entity; `connect'` collapses to
+//! Both tiers now produce the same `Address` entity; `connect` collapses to
 //! one arm that downcasts the opaque and calls `inner.connect(sym, span)`.
 //!
 //! ## Layering
@@ -36,8 +36,8 @@ use crate::span::Span;
 
 // ─── CommAddress trait ────────────────────────────────────────────────────────
 
-/// Arc 278 peer-lifecycle Strike 4 — the connect' OUTCOME WALL (the LAST peer wall). A
-/// `CommAddress::connect` distinguishes its *handleable* failures (the ones `connect'`
+/// Arc 278 peer-lifecycle Strike 4 — the connect OUTCOME WALL (the LAST peer wall). A
+/// `CommAddress::connect` distinguishes its *handleable* failures (the ones `connect`
 /// converts to a matchable `:wat::kernel::ConnectOutcome<S,R>` variant, never a raise)
 /// from the must-never-happen raises (which stay `EvalBreak`). `connect` returns
 /// `Result<Result<Peer, ConnectFail>, EvalBreak>`: the outer `Err` is an uncatchable raise
@@ -63,7 +63,7 @@ pub enum ConnectFail {
 ///
 /// Each impl preserves its transport's exact dial semantics:
 /// - Crossbeam (`ThreadAddress`): rendezvous `typed_send` (blocks until
-///   the server's `accept'` is ready to receive the connect-request).
+///   the server's `accept` is ready to receive the connect-request).
 /// - Socket (`SocketAddress`): non-blocking `UnixStream::connect_addr`
 ///   on the abstract-namespace UDS — returns immediately with the stream.
 ///
@@ -71,7 +71,7 @@ pub enum ConnectFail {
 pub trait CommAddress: Send + Sync {
     /// Dial this address; return the connected client-side Peer.
     ///
-    /// Arc 278 the connect' OUTCOME WALL: `Ok(Ok(peer))` = dialed + admitted;
+    /// Arc 278 the connect OUTCOME WALL: `Ok(Ok(peer))` = dialed + admitted;
     /// `Ok(Err(ConnectFail))` = a handleable failure (→ `Refused`/`Rejected`/`Failed`);
     /// `Err(EvalBreak)` = a must-never-happen raise (a malformed abstract-name substrate
     /// bug — the address's own name failed `from_abstract_name`).
@@ -80,18 +80,18 @@ pub trait CommAddress: Send + Sync {
 
     /// Return a `&dyn Any` reference for downcasting to the concrete impl.
     ///
-    /// Used by `listener'` (process tier) to extract the `SocketAddress`'s
+    /// Used by `listener` (process tier) to extract the `SocketAddress`'s
     /// abstract-namespace name for `UnixListener::bind_addr`.
     fn as_any_ref(&self) -> &dyn std::any::Any;
 }
 
 // ─── ThreadAddress ────────────────────────────────────────────────────────────
 
-/// Thread-tier `CommAddress`: the rendezvous sender from `listener'`.
+/// Thread-tier `CommAddress`: the rendezvous sender from `listener`.
 ///
-/// `connect` mints two crossbeam pairs (req/resp), wraps the client `Peer'`
+/// `connect` mints two crossbeam pairs (req/resp), wraps the client `Peer`
 /// end locally, then ships the server's raw halves `(req_rx, resp_tx)` over
-/// the rendezvous `tx` — blocking until the server's `accept'` is ready.
+/// the rendezvous `tx` — blocking until the server's `accept` is ready.
 ///
 /// Verbatim body from the former thread arm of `eval_connect_prime`.
 #[derive(Clone)]
@@ -153,7 +153,7 @@ impl CommAddress for ThreadAddress {
             span.clone(),
         ) {
             crate::channel::SendOutcome::Ok => {}
-            // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: the rendezvous is gone
+            // Arc 278 the connect OUTCOME WALL — HANDLEABLE: the rendezvous is gone
             // (the listener was dropped / never accepted). No listener → a RETRYABLE
             // transport refusal → ConnectOutcome::Refused, not a raise the dialer unwinds
             // past. The thread-tier twin of the process tier's ECONNREFUSED.
@@ -183,7 +183,7 @@ pub struct SocketAddress {
     /// annihilated in arc 272 step 5.
     pub(crate) name: Vec<u8>,
     /// Arc 272 6c.2 — the pid of the process that autobind-minted this address, stamped at
-    /// `listener'` time via `getpid()`. Rides the capability by value as a record field; the
+    /// `listener` time via `getpid()`. Rides the capability by value as a record field; the
     /// connect gate verifies the kernel-vouched `SO_PEERCRED` answerer pid against it.
     pub(crate) minter_pid: i32,
 }
@@ -199,18 +199,18 @@ impl CommAddress for SocketAddress {
         use std::os::fd::OwnedFd;
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixStream};
-        // Arc 278 the connect' OUTCOME WALL — MUST-NEVER-HAPPEN raise (STAYS a raise, the
+        // Arc 278 the connect OUTCOME WALL — MUST-NEVER-HAPPEN raise (STAYS a raise, the
         // outer `Err(EvalBreak)`). `self.name` is either kernel-minted (autobind, 5 random
         // bytes) or a wire-received `SocketAddressWire` already fully validated at decode to
         // the abstract-UDS constraint (non-empty, <=107 bytes, bytes 0..=255 —
         // `capability::registry::socket_address_wire_from_record`), so a `from_abstract_name`
         // failure here is an in-process substrate bug, NOT adversarial wire data (STOP-3,
-        // grounded — the accept' malformed-connect-request precedent).
+        // grounded — the accept malformed-connect-request precedent).
         let sa = SocketAddr::from_abstract_name(&self.name).map_err(|e| RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("abstract addr for connect: {}", e),
             }))?;
-        // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: ECONNREFUSED / no listener →
+        // Arc 278 the connect OUTCOME WALL — HANDLEABLE: ECONNREFUSED / no listener →
         // ConnectOutcome::Refused (RETRYABLE transport), not a raise the dialer unwinds past.
         let stream = match UnixStream::connect_addr(&sa) {
             Ok(s) => s,
@@ -227,7 +227,7 @@ impl CommAddress for SocketAddress {
         // peer_cred BEFORE `OwnedFd::from(stream)` consumes the stream.
         {
             use std::os::fd::AsRawFd;
-            // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: reading the server's
+            // Arc 278 the connect OUTCOME WALL — HANDLEABLE: reading the server's
             // peer-cred failed (io error) → ConnectOutcome::Failed[cause].
             let server = match crate::comms::process::peer_cred(stream.as_raw_fd()) {
                 Ok(c) => c,
@@ -240,10 +240,10 @@ impl CommAddress for SocketAddress {
             };
             // SAFETY: geteuid() is always-succeeds, no args, no memory effects.
             let me = unsafe { libc::geteuid() };
-            // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: the `OnlyThisPeer` identity
+            // Arc 278 the connect OUTCOME WALL — HANDLEABLE: the `OnlyThisPeer` identity
             // check failed (the answerer is not the exact process that minted this address)
             // → ConnectOutcome::Rejected[cause] (NOT retryable; wrong process, not a
-            // transport blip). This FIRES here (unlike accept', where the gate bounces the
+            // transport blip). This FIRES here (unlike accept, where the gate bounces the
             // stranger internally) — the client dials once and a server-identity mismatch
             // is a caller-visible outcome.
             if !connect_admits(&server, me, self.minter_pid) {
@@ -256,7 +256,7 @@ impl CommAddress for SocketAddress {
             }
         }
         // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String> — eval pre-encodes.
-        // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: wrapping the connected stream
+        // Arc 278 the connect OUTCOME WALL — HANDLEABLE: wrapping the connected stream
         // failed (io error) → ConnectOutcome::Failed[cause].
         let (tx, rx) =
             match crate::comms::process::sender_receiver_from_fd::<Value>(OwnedFd::from(stream)) {
@@ -308,12 +308,12 @@ pub(crate) fn connect_admits(
 ///
 /// Stored as a `RustOpaque` under `ADDRESS_TYPE_PATH` (`:wat::kernel::Address`).
 /// Produced by:
-/// - `listener'` (process): autobind via `Address::from_socket_name_bytes` — kernel-minted
+/// - `listener` (process): autobind via `Address::from_socket_name_bytes` — kernel-minted
 ///   abstract UDS name, never a user-chosen string (arc 272 step 5 annihilated `socket-address'`).
-/// - `listener'` (thread): `Address{ inner: Box::new(ThreadAddress{tx}) }` for
-///   the Address' tuple slot (was a bare `Sender` fiction).
+/// - `listener` (thread): `Address{ inner: Box::new(ThreadAddress{tx}) }` for
+///   the Address tuple slot (was a bare `Sender` fiction).
 ///
-/// `connect'` downcasts the opaque to `Address`, calls `inner.connect(sym, span)`,
+/// `connect` downcasts the opaque to `Address`, calls `inner.connect(sym, span)`,
 /// wraps the returned `Peer` as a `PEER_TYPE_PATH` opaque, and returns it.
 pub struct Address {
     pub(crate) inner: Box<dyn CommAddress>,
@@ -346,7 +346,7 @@ impl Address {
     }
 
     /// Dispatch connect to the concrete impl and build the matchable
-    /// `:wat::kernel::ConnectOutcome<S,R>` `Value` for the eval layer (Arc 278 the connect'
+    /// `:wat::kernel::ConnectOutcome<S,R>` `Value` for the eval layer (Arc 278 the connect
     /// OUTCOME WALL — the LAST peer wall). `Ok(peer)` → `Connected[peer]` (the `Peer`
     /// wrapped as a `PEER_TYPE_PATH` opaque); `Err(ConnectFail::Refused(reason))` →
     /// `Refused[cause]`; `Err(ConnectFail::Rejected(reason))` → `Rejected[cause]`;

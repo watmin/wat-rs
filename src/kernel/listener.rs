@@ -7,7 +7,7 @@
 //! - The thread-tier fiction of a raw `comms::thread::Receiver` called "Listener'"
 //! - The process-tier socket listener opaque (arc 209 C0b.2c, now retired)
 //!
-//! Both tiers now produce the same `Listener` entity; `accept'` collapses to
+//! Both tiers now produce the same `Listener` entity; `accept` collapses to
 //! one arm that downcasts the opaque and calls `inner.accept(sym, span)`.
 //!
 //! ## Layering
@@ -38,8 +38,8 @@ use crate::span::Span;
 
 // ─── CommListener trait ───────────────────────────────────────────────────────
 
-/// Arc 278 peer-lifecycle Strike 3 — the accept' OUTCOME WALL. A `CommListener::accept`
-/// distinguishes its *handleable* failures (the ones `accept'` converts to a matchable
+/// Arc 278 peer-lifecycle Strike 3 — the accept OUTCOME WALL. A `CommListener::accept`
+/// distinguishes its *handleable* failures (the ones `accept` converts to a matchable
 /// `:wat::kernel::AcceptOutcome<R,S>` variant, never a raise) from the must-never-happen
 /// raises (which stay `EvalBreak`). `accept` returns `Result<Result<Peer, AcceptFail>,
 /// EvalBreak>`: the outer `Err` is an uncatchable raise (an in-process substrate bug — a
@@ -60,7 +60,7 @@ pub enum AcceptFail {
 /// # Deadlock contract
 ///
 /// Each impl preserves its transport's exact accept semantics:
-/// - Crossbeam: rendezvous `recv` (blocks until a `connect'` client sends).
+/// - Crossbeam: rendezvous `recv` (blocks until a `connect` client sends).
 /// - Socket: poll-driven non-blocking accept (C0b.3a-i invariant — the fd
 ///   is non-blocking; a spurious POLLIN → EWOULDBLOCK → re-poll, never blocks).
 ///
@@ -68,15 +68,15 @@ pub enum AcceptFail {
 pub trait CommListener: Send + Sync {
     /// Block until a connection arrives; wrap + return the server-side Peer.
     ///
-    /// Arc 278 the accept' OUTCOME WALL: `Ok(Ok(peer))` = an authorized peer;
+    /// Arc 278 the accept OUTCOME WALL: `Ok(Ok(peer))` = an authorized peer;
     /// `Ok(Err(AcceptFail))` = a handleable failure (→ `Closed`/`Failed`);
     /// `Err(EvalBreak)` = a must-never-happen raise (a malformed connect-request
-    /// substrate bug — the crossbeam `connect'` built a bad request).
+    /// substrate bug — the crossbeam `connect` built a bad request).
     fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Result<Peer, AcceptFail>, EvalBreak>;
 
     /// Return a `&dyn Any` reference for downcasting to the concrete impl.
     ///
-    /// Used by `poll'` to extract the raw crossbeam `Receiver` (thread tier)
+    /// Used by `poll` to extract the raw crossbeam `Receiver` (thread tier)
     /// or the raw listen fd (process tier, C0b.3a-ii) from the concrete impl.
     fn as_any_ref(&self) -> &dyn std::any::Any;
 
@@ -92,10 +92,10 @@ pub trait CommListener: Send + Sync {
 
 // ─── CrossbeamListener ────────────────────────────────────────────────────────
 
-/// Thread-tier `CommListener`: the rendezvous receiver from `listener'`.
+/// Thread-tier `CommListener`: the rendezvous receiver from `listener`.
 ///
 /// `accept` blocks on the rendezvous until a connect-request arrives (sent by
-/// `connect'`), then unpacks the server's raw halves and wraps them as a
+/// `connect`), then unpacks the server's raw halves and wraps them as a
 /// unified `Peer` via `Peer::from_thread`.
 ///
 /// Verbatim body from the former thread arm of `eval_accept_prime`.
@@ -122,7 +122,7 @@ impl CommListener for CrossbeamListener {
             sym.encoding_ctx().map(|a| a.as_ref()),
         ) {
             crate::channel::RecvOutcome::Value(v) => v,
-            // Arc 278 the accept' OUTCOME WALL — HANDLEABLE: the rendezvous is gone
+            // Arc 278 the accept OUTCOME WALL — HANDLEABLE: the rendezvous is gone
             // (address dropped or shutdown). A clean terminal → AcceptOutcome::Closed,
             // not a raise the reader unwinds past.
             crate::channel::RecvOutcome::Disconnected
@@ -244,15 +244,15 @@ pub struct SocketListener {
     ///
     /// Arc 272 v4 — **ZERO-MUTEX**: a `ThreadOwnedCell`, not a `Mutex`. The listener is
     /// single-thread-owned — `Listener'` is never sendable across a peer wire (not in the
-    /// portable/cap path) and wat values cross programs only by `send'`, never by shared
-    /// reference, so the poll loop (`authorizes`) and the `allow'`/`deny'` verbs all run on
+    /// portable/cap path) and wat values cross programs only by `send`, never by shared
+    /// reference, so the poll loop (`authorizes`) and the `allow`/`deny` verbs all run on
     /// the one service eval thread. The `Sync` the trait demands is provided by ownership, not
     /// by a lock: a cross-thread touch is a `RuntimeError`, never a contended wait. The old
     /// `Mutex` was paying for contention that cannot occur. (`docs/ZERO-MUTEX.md`, tier 2.)
     pub(crate) allowed_pids: ThreadOwnedCell<HashSet<i32>>,
 
     /// Arc 278 Stone 1 — the per-service hard frame limit `FOO` (bytes-per-read),
-    /// DECLARED by the defservice and threaded here from `listener'`. Every
+    /// DECLARED by the defservice and threaded here from `listener`. Every
     /// ACCEPTED-connection receiver (the server side reading client requests) is
     /// constructed with THIS budget, so a frame over `FOO` is rejected
     /// (`RecvError::FrameTooLarge` → a reasoned `ServiceEvent::Lost`, never a
@@ -308,13 +308,13 @@ impl CommListener for SocketListener {
     fn accept(
         &self,
         _sym: &SymbolTable,
-        _span: &Span, // rune:lint(unused-span) — located elsewhere: every failure is an `AcceptFail` VALUE returned as `Ok(Err(…))`, located at the caller's match (the accept' OUTCOME WALL); no path raises here
+        _span: &Span, // rune:lint(unused-span) — located elsewhere: every failure is an `AcceptFail` VALUE returned as `Ok(Err(…))`, located at the caller's match (the accept OUTCOME WALL); no path raises here
     ) -> Result<Result<Peer, AcceptFail>, EvalBreak> {
         // Arc 209 C0b.3a-i — poll-driven non-blocking accept.
         // Build a Select with just the listener arm (one fd). Loop:
         //   Listener → non-blocking accept → Ok(stream) → wrap | WouldBlock → re-poll
         //   Shutdown → clean error; Recv impossible (no receivers registered).
-        // The listen fd is non-blocking (set at listener' bind time) so a spurious
+        // The listen fd is non-blocking (set at listener bind time) so a spurious
         // POLLIN wakeup → EWOULDBLOCK → re-poll, never blocks. Ring is reused across
         // iterations (same sel, not rebuilt per loop).
         use std::os::fd::AsRawFd;
@@ -322,7 +322,7 @@ impl CommListener for SocketListener {
         let mut sel = crate::comms::process::Select::<Value>::new();
         sel.listener(raw);
         loop {
-            // Arc 278 the accept' OUTCOME WALL — HANDLEABLE: a `select` io error →
+            // Arc 278 the accept OUTCOME WALL — HANDLEABLE: a `select` io error →
             // AcceptOutcome::Failed[cause], not a raise the server loop unwinds past.
             let outcome = match sel.select() {
                 Ok(o) => o,
@@ -332,12 +332,12 @@ impl CommListener for SocketListener {
                 crate::comms::SelectOutcome::Listener => {
                     match self.listener.accept() {
                         Ok((stream, _)) => {
-                            // Arc 272 v4 — THE GATE (parity with the poll' accept arm in
+                            // Arc 272 v4 — THE GATE (parity with the poll accept arm in
                             // runtime.rs): the kernel vouches for the connector's {pid,uid,gid};
                             // consult the powerbox and serve only an authorized peer, else bounce
-                            // the stranger (drop + re-poll). Without this, the BLOCKING accept'
+                            // the stranger (drop + re-poll). Without this, the BLOCKING accept
                             // verb was an ungated accept path: a service that accept's instead of
-                            // poll's would admit ANY peer, and a recv' on that Peer would
+                            // poll's would admit ANY peer, and a recv on that Peer would
                             // reconstruct capabilities off a channel that never passed the policy
                             // (the forge path the trusted-wire door's inheritance premise rests on
                             // being closed). Both accept paths now enforce `CommsPolicy`. Read
@@ -412,11 +412,11 @@ impl CommListener for SocketListener {
 /// The unified, transport-blind listener entity.
 ///
 /// Stored as a `RustOpaque` under `LISTENER_TYPE_PATH` (`:wat::kernel::Listener`).
-/// `listener'` wraps its mechanism here:
+/// `listener` wraps its mechanism here:
 /// - Thread tier: `CrossbeamListener { rx }` (the rendezvous receiver).
 /// - Process tier: `SocketListener { listener }` (the bound non-blocking UDS).
 ///
-/// `accept'` downcasts the opaque to `Listener`, calls `inner.accept(sym, span)`,
+/// `accept` downcasts the opaque to `Listener`, calls `inner.accept(sym, span)`,
 /// wraps the returned `Peer` as a `PEER_TYPE_PATH` opaque, and returns it.
 pub struct Listener {
     pub(crate) inner: Box<dyn CommListener>,
@@ -436,16 +436,16 @@ impl Listener {
     ///   `SO_PEERCRED` pid == ours is the same kernel process at the same euid (the strongest
     ///   possible peer identity, unforgeable). This admits the same-process connect→accept path (a
     ///   single-process service, or one thread dialing another's listener) through the gate, instead
-    ///   of the gate refusing self and a blocking `accept'` spinning forever.
+    ///   of the gate refusing self and a blocking `accept` spinning forever.
     /// - `getppid()` = the **owner/spawner**. A spawned `(process)` service is reached by its owner;
     ///   the owner is trusted by construction (it minted this child). Spawn is clone3-direct (no
     ///   CLONE_PARENT; clone.rs) and the body runs in that child (spawn.rs), so `getppid()` IS the
     ///   spawner — the gate is LIVE from construction.
     ///
-    /// Further peers (spawned children) are admitted by the owner via `allow'`.
+    /// Further peers (spawned children) are admitted by the owner via `allow`.
     ///
     /// Arc 278 Stone 1 — `max_frame_bytes` is the service's declared hard frame
-    /// limit `FOO`, threaded from `listener'` (default `DEFAULT_MAX_FRAME_BYTES`
+    /// limit `FOO`, threaded from `listener` (default `DEFAULT_MAX_FRAME_BYTES`
     /// = 512 KiB when the defservice declares nothing). It is carried on the
     /// `SocketListener` and applied to every accepted-connection receiver.
     pub fn from_socket(listener: UnixListener, max_frame_bytes: usize) -> Self {
@@ -462,7 +462,7 @@ impl Listener {
     }
 
     /// Dispatch accept to the concrete impl and build the matchable
-    /// `:wat::kernel::AcceptOutcome<R,S>` `Value` for the eval layer (Arc 278 the accept'
+    /// `:wat::kernel::AcceptOutcome<R,S>` `Value` for the eval layer (Arc 278 the accept
     /// OUTCOME WALL). `Ok(peer)` → `Accepted[peer]` (the `Peer` wrapped as a
     /// `PEER_TYPE_PATH` opaque); `Err(AcceptFail::Closed)` → `Closed[]`;
     /// `Err(AcceptFail::Failed(reason))` → `Failed[cause <- Failure]` (via

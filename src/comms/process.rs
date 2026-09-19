@@ -800,7 +800,7 @@ pub fn peer_cred(fd: std::os::fd::RawFd) -> std::io::Result<PeerCred> {
 /// Returns the bound, non-blocking `UnixListener` (`SOCK_NONBLOCK`, the C0b.3a-i
 /// invariant; `SOCK_CLOEXEC` so it does not leak across an unrelated exec — fork
 /// inheritance is unchanged) + the kernel-assigned abstract name (the bytes *after*
-/// the leading `\0`), which `connect'` dials.
+/// the leading `\0`), which `connect` dials.
 pub fn autobind_listener(backlog: i32) -> std::io::Result<(std::os::unix::net::UnixListener, Vec<u8>)> {
     use std::os::fd::FromRawFd;
     // socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC).
@@ -880,7 +880,7 @@ mod autobind_tests {
     fn autobind_address_round_trips_in_process() {
         // The minted capability is dialable: connect to the kernel-assigned name in the
         // SAME process, accept, and round-trip a byte. Proves the autobind address is a
-        // real, connectable rendezvous (the basis for listener'(process)→Bound + connect').
+        // real, connectable rendezvous (the basis for listener(process)→Bound + connect).
         use std::io::{Read, Write};
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixStream};
@@ -1945,7 +1945,7 @@ fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
         .map_err(|e| RecvError::Failed(format!("invalid UTF-8 in frame: {e}")))?;
     // Stone 214 1b-ii-β.0: the wire is plain EDN (`from_wire`). For `String` this is
     // raw passthrough — a forms-server's plain `42\n` decodes byte-for-byte, no holon
-    // tag required (the `recv'` boundary codec runs `edn_string_to_value` upstream).
+    // tag required (the `recv` boundary codec runs `edn_string_to_value` upstream).
     T::from_wire(s).map_err(|e| RecvError::Failed(format!("wire decode failed: {e}")))
 }
 
@@ -2510,7 +2510,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                 // SELECT_LISTENER_TAG is outside the broadcast(0)/data(1..=N) range so
                 // it never collides (`select_arm_ceiling` is what proves the data arms
                 // cannot reach it). The listen fd MUST be non-blocking (set at
-                // listener' bind time) so a spurious POLLIN → EWOULDBLOCK is safe to
+                // listener bind time) so a spurious POLLIN → EWOULDBLOCK is safe to
                 // re-poll.
                 if let Some(lfd) = self.listener_fd {
                     let poll_listener = opcode::PollAdd::new(
@@ -2649,7 +2649,7 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
     /// bypassing `decode_frame`. The caller is responsible for UTF-8 validation and
     /// typed decoding (e.g. `decode_trusted_wire` for user-defined enum/record values).
     ///
-    /// Arc 272 6b-ii-β — the process-tier `poll'` needs this to decode client socket
+    /// Arc 272 6b-ii-β — the process-tier `poll` needs this to decode client socket
     /// messages via `decode_trusted_wire(wire, sym.types())` (which requires a type
     /// registry). `select()` calls `Value::from_wire` internally (no registry) and
     /// fails for user-defined enum variants. `select_raw` is the seam that separates
@@ -2906,7 +2906,7 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
 
 /// Wrap one connected socket fd as a `(Sender<T>, Receiver<T>)` pair.
 ///
-/// Arc 209 C0b.2c — shared helper for `connect'`/`accept'` (which call it once on a
+/// Arc 209 C0b.2c — shared helper for `connect`/`accept` (which call it once on a
 /// `UnixStream`'s fd). Arc 278 Wave A: the `socket_pair` bare-pair-mint caller
 /// (`socket-pair'`, the process-tier hand-rolled-IPC affordance) was annihilated —
 /// this helper now serves only the named-address wire producers.
@@ -2929,7 +2929,7 @@ pub fn sender_receiver_from_fd<T: EdnRepresentable>(
 /// (via `SocketListener`), so a server reading client requests bounds each
 /// inbound frame at the service's declared budget. A frame over it → the
 /// receiver returns `RecvError::FrameTooLarge` (routed to a reasoned
-/// `ServiceEvent::Lost` in `poll'`, never a mute clean-close). `FOO`-agnostic
+/// `ServiceEvent::Lost` in `poll`, never a mute clean-close). `FOO`-agnostic
 /// callers keep the 512 KiB default via `sender_receiver_from_fd`.
 pub fn sender_receiver_from_fd_with_budget<T: EdnRepresentable>(
     fd: OwnedFd,

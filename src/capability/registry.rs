@@ -29,7 +29,7 @@ pub struct CapCodec {
     /// `:wat::kernel::Address` → `#wat.kernel/Address`.
     pub type_path: &'static str,
     /// Encode the opaque's PORTABLE form to a wire body. `None` when this opaque instance has no
-    /// portable form (e.g. a thread-tier `Address'`, whose `Sender` cannot cross) → the caller falls
+    /// portable form (e.g. a thread-tier `Address`, whose `Sender` cannot cross) → the caller falls
     /// back to the non-portable per-type-home tag (arc 294.i; refused on decode). `types` provides
     /// the type registry so record codecs can encode named fields.
     pub encode: fn(&RustOpaqueInner, &TypeEnv) -> Option<OwnedValue>,
@@ -207,10 +207,10 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
     Ok((minter_pid, name_bytes))
 }
 
-/// `Address'` (arc 272 6c.2 D1) — the kernel-minted abstract UDS address. The first inhabitant of
+/// `Address` (arc 272 6c.2 D1) — the kernel-minted abstract UDS address. The first inhabitant of
 /// the waist. Portable as a process-tier socket address: carries the minter pid + name bytes as a
 /// registered `SocketAddressWire` base record (the general record encode/decode path handles
-/// field naming). A thread-tier `Address'` (a crossbeam `Sender`) has no portable form →
+/// field naming). A thread-tier `Address` (a crossbeam `Sender`) has no portable form →
 /// `encode` returns `None`.
 fn address_codec() -> CapCodec {
     CapCodec {
@@ -245,7 +245,7 @@ fn address_codec() -> CapCodec {
 #[cfg(test)]
 mod waist_proof {
     //! Arc 272 narrow-waist STRIKE 2 — the proof. A SECOND capability round-trips through the SAME
-    //! generic dispatch that carries `Address'`, with `edn::render`'s core UNTOUCHED — the entire diff
+    //! generic dispatch that carries `Address`, with `edn::render`'s core UNTOUCHED — the entire diff
     //! for capability #2 is one `CapCodec`. That is the waist working: N capabilities, one frozen core.
     use super::*;
     use crate::runtime::Value;
@@ -327,7 +327,7 @@ mod waist_proof {
         let types = TypeEnv::default();
         let caps = vec![address_codec(), toy_token_codec()];
 
-        // Encode a Token through the SAME generic dispatch that carries Address'.
+        // Encode a Token through the SAME generic dispatch that carries Address.
         let token = make_rust_opaque(":test::Token", 42u64);
         let (tag_name, body) = encode_through_waist(&caps, &token, &types);
         assert_eq!(tag_name, "Token", "the toy cap wears its own type-home tag through the generic dispatch");

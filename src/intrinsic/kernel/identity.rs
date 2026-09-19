@@ -37,7 +37,7 @@
 //! two production call sites are `wat/bracket.wat:714` (GRANT-BOOT) and
 //! `wat/bracket.wat:754` (REVOKE-SHUTDOWN) — both `(match (peer-pid p) (Some
 //! pid) (grant-fn/revoke-fn grant-handles pid))`, feeding the pid straight
-//! into `allow'`'s `(Listener'<S,R>, i64) -> nil` allow-set insertion. Both
+//! into `allow`'s `(Listener'<S,R>, i64) -> nil` allow-set insertion. Both
 //! call sites unwrap the `Option` correctly today; the code is right.
 //!
 //! **★ Registering `peer-pid` here does NOT take it out of the
@@ -102,7 +102,7 @@
 //!   LIVE mutable cell (`cell.with_ref`): `peer-wire?`'s `None` (closed) →
 //!   `false`, `Some(peer)` → `peer.is_socket_tier()`; `peer-pid`'s `None`
 //!   (closed) → raises, `Timer` → raises, `Spawned(bundle)` → `Some(pid)`.
-//!   The SAME peer value, called before vs. after `close'`, can answer
+//!   The SAME peer value, called before vs. after `close`, can answer
 //!   differently for both. `@Determinism Nondeterministic` for both.
 //! - **`address-wire?`** and **`peer-process`** both read a PERMANENT tag or
 //!   field with no interior mutability: `address-wire?` reads
@@ -189,7 +189,7 @@ pub(crate) fn eval_require_wire_address(
 }
 
 /// `(:wat::kernel::peer-wire? peer)` → `:wat::core::bool`. `true` iff the
-/// peer's connection is socket-tier (a wire; `send'` would encode); `false`
+/// peer's connection is socket-tier (a wire; `send` would encode); `false`
 /// for thread-tier or an already-closed peer.
 ///
 /// @added         1.0.0
@@ -218,7 +218,7 @@ pub(crate) fn eval_require_wire_address(
 // citing, the SAME-DAY `HandlePool::finish` correction in
 // `kernel_resource.rs`: this reads through a LIVE mutable cell whose answer
 // changes over the peer's lifetime (`None`/closed → `false`; `Some` → the
-// tier). The SAME peer value, called before vs. after `close'`, can answer
+// tier). The SAME peer value, called before vs. after `close`, can answer
 // differently — the exact "two calls holding the same handle can return
 // different answers" shape. Contrast `peer-process` below, which reads a
 // permanent tag and stays Deterministic.
@@ -273,7 +273,7 @@ pub(crate) fn eval_address_wire(
 /// Pure projection of the far-end child pid off a process peer's `Pidfd`;
 /// `:None` for a thread peer (no separate pid). On the capability circuit:
 /// its two production call sites (`wat/bracket.wat:714,754`) feed the pid
-/// into `allow'`'s listener allow-set.
+/// into `allow`'s listener allow-set.
 ///
 /// ⚠ Still type-invisible: `check.rs` has zero mentions of this verb — no
 /// scheme, no `infer_*` arm — so it falls through `check.rs:5561`'s
@@ -306,7 +306,7 @@ pub(crate) fn eval_address_wire(
 // ⚠ Deciding line for `@Determinism Nondeterministic` — same correction as
 // `peer-wire?`: `with_ref` reaches into the SAME live cell whose contents
 // change over the peer's lifetime (`None`/closed → raises; `Timer` → raises;
-// `Spawned` → `Some(pid)`). The SAME peer, called before vs. after `close'`,
+// `Spawned` → `Some(pid)`). The SAME peer, called before vs. after `close`,
 // answers differently. NOT the same Determinism as `peer-process` below,
 // even though the design stone calls the pair "same shape" — the cell-vs-tag
 // distinction is real and this is where it shows up.

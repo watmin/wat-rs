@@ -95,7 +95,7 @@ impl<T: Send> ThreadOwnedCell<T> {
     ///
     /// Same thread-id validation as `with_ref`; the guard `Deref`s to `&T`
     /// and is bound to the lifetime of `self`. This is the escape hatch for
-    /// `select'`: registering N receivers in a `comms::thread::Select` or
+    /// `select`: registering N receivers in a `comms::thread::Select` or
     /// `comms::process::Select` requires holding N `&Receiver` borrows
     /// simultaneously — the closure form (`with_ref`) cannot nest for dynamic N.
     ///

@@ -50,7 +50,7 @@
 //! crash — a real, observable effect. `@Determinism Nondeterministic`:
 //! whether the crash path fires (and thus whether clients are notified)
 //! depends on what `body`'s op handler does when evaluated — in production,
-//! dispatch arms routinely call `recv'`/`send'`/etc., verbs this taxonomy
+//! dispatch arms routinely call `recv`/`send`/etc., verbs this taxonomy
 //! already marked Nondeterministic for depending on "the other side"; same
 //! reasoning one level up. No registered `TypeScheme` — `check.rs`'s
 //! `infer_serve_dispatch_op` (`:11347`) is the real authority: `clients`
@@ -65,7 +65,7 @@
 //! (`runtime.rs:33091`, dispatched from the ordinary match at old
 //! `runtime.rs:5640` — evaluates `body` via `eval_inner(body, env, sym)`).
 //! Their OWN doc comments say the second is "defensive parity… reached only
-//! if `serve-dispatch-op'` is ever evaluated outside serve's tail position
+//! if `serve-dispatch-op` is ever evaluated outside serve's tail position
 //! — the `defservice` codegen never places it anywhere else" — i.e. dead in
 //! practice even before this stone.
 //!
@@ -191,7 +191,7 @@ pub(crate) fn eval_retag_op(
 // Deciding line for `@Determinism Nondeterministic`: whether the crash path
 // fires (and thus whether clients are notified) depends on what `body`'s op
 // handler does when evaluated — in production, dispatch arms routinely call
-// `recv'`/`send'`/etc., verbs this taxonomy already marked Nondeterministic
+// `recv`/`send`/etc., verbs this taxonomy already marked Nondeterministic
 // for depending on "the other side." Same reasoning applies one level up.
 //
 // ★★ TWO-ARM COLLAPSE, reported not silently assumed (see the module doc's

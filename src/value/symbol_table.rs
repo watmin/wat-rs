@@ -120,12 +120,12 @@ pub struct SymbolTable {
     /// read by no eval path.
     // rune:purgare(future-fixture) — eval-time def-redef scaffolding: config-parsed into this field but no eval path reads it (the read-side gate is unbuilt); write-only by present construction.
     pub eval_redef_allowed: bool,
-    /// Arc 170 stdio-as-defservice — the three PRIMED stdio defservices' client-dial `Address'` values.
+    /// Arc 170 stdio-as-defservice — the three PRIMED stdio defservices' client-dial `Address` values.
     /// Set once per `invoke_user_main` by the freeze bootstrap after starting
     /// `:wat::kernel::{stdin,stdout,stderr}-svc` on the real fds; propagates to spawned threads via
     /// `Clone`. When set, the `:wat::kernel::spawn-thread` arm gives each spawned thread a fresh
     /// [`crate::services::ThreadIO`] so its `(println ...)` / `(eprintln ...)` / `(readln)` calls can
-    /// `connect'` + cache a client peer. `None` when no orchestrator is active (bare test worlds; the
+    /// `connect` + cache a client peer. `None` when no orchestrator is active (bare test worlds; the
     /// service threads themselves bootstrap before it is set, so their spawn-thread calls skip ThreadIO
     /// — the lazy pattern). Capability-carrier pattern next to `encoding_ctx` / `source_loader` /
     /// `macro_registry` (memory `feedback_capability_carrier.md`).
@@ -402,7 +402,7 @@ impl SymbolTable {
     }
 
     /// Borrow the primed-stdio carrier, if one is attached (arc 170). The flipped stdio verbs call this
-    /// to reach each stream's client-dial `Address'`; the spawn-thread arm uses its presence as the
+    /// to reach each stream's client-dial `Address`; the spawn-thread arm uses its presence as the
     /// "stdio is running → give the thread a ThreadIO" signal.
     pub fn primed_stdio(&self) -> Option<&Arc<crate::services::PrimedStdio>> {
         self.primed_stdio.as_ref()

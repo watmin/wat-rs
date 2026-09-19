@@ -44,13 +44,13 @@
 //! blocks on `sel.select()` (`runtime.rs:33463`), which for the thread tier
 //! is `comms::thread::Select::select()`; whichever arm fires, that fn's
 //! last move is `let result = selected_op.recv(ch)…` (`comms/thread.rs:400`)
-//! — the SAME crossbeam consuming-receive primitive `recv'`/`select'`
+//! — the SAME crossbeam consuming-receive primitive `recv`/`select`
 //! themselves use, which DEQUEUES the value from the channel (an effect the
 //! sending end can observe — e.g. it clears backpressure). The process tier
 //! (`sel.select_raw()`, `runtime.rs:33615`) does the analogous consuming
 //! read off the io_uring ring. The listener arm doesn't just notice a
 //! pending connection either — it completes the accept and mints a new
-//! `Peer'` (`wrap_connect_request`). None of poll's three arms (self-peer,
+//! `Peer` (`wrap_connect_request`). None of poll's three arms (self-peer,
 //! listener, client) is idle observation; every one drains something.
 //!
 //! So `poll` declares `@Purity Effectful` — the SAME answer as its four
@@ -88,7 +88,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 // is the real type authority: `I` is projected out of `args[0]`'s peer<I,O> via
 // `project_peer_io`, `payload` must unify with it, and the return is the fixed
 // path `:wat::kernel::SendOutcome` (not projective on the return side, unlike
-// `recv'`). The `@arg`/`@ret` above document that inference, not a scheme.
+// `recv`). The `@arg`/`@ret` above document that inference, not a scheme.
 //
 // Deciding line for `@Purity Effectful`: `runtime.rs:31092`,
 // `Some(peer) => match peer.send(payload_val) { … }` — an attempted enqueue
@@ -123,7 +123,7 @@ pub(crate) fn eval_peer_send_prime(
 // No registered `TypeScheme` for `try-send` — `check.rs`'s `infer_try_send_prime`
 // (~10788) is the real authority: same projective-I shape as `infer_send_prime`,
 // its own `:wat::kernel::TrySendOutcome` return (NOT a reuse of SendOutcome —
-// `WouldBlock` is a real outcome `send'` structurally cannot return).
+// `WouldBlock` is a real outcome `send` structurally cannot return).
 //
 // Deciding line for `@Purity Effectful`: `runtime.rs:31266`/`31276`,
 // `peer.try_send_wire(wire)` / `peer.try_send(payload_val.clone())` — an
@@ -211,13 +211,13 @@ pub(crate) fn eval_peer_recv_by_deadline(
 /// @Total         Unreviewed
 /// @Category      Message
 /// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) non-empty, same-tier peers to fan in over
-/// @ret     (:wat::spawn::ServiceEvent :- [I O A]) Message[idx,O] / Closed[idx] / Lost[idx,Failure] — `A` is a free, unconstrained tyvar (select' has no self-peer/admin channel, so :Admin can never fire from it)
+/// @ret     (:wat::spawn::ServiceEvent :- [I O A]) Message[idx,O] / Closed[idx] / Lost[idx,Failure] — `A` is a free, unconstrained tyvar (select has no self-peer/admin channel, so :Admin can never fire from it)
 /// @example-norun (:wat::kernel::select [peer-a peer-b]) #=> #wat.spawn/ServiceEvent.Message{idx: 0, msg: "hi"}
 // `//` not `///` — maintainer rationale (see `readln'`'s note in `kernel_stdio.rs`).
 //
 // No registered `TypeScheme` for `select` — `check.rs`'s `infer_select_prime`
 // (~11483) is the real authority: `I,O` project out of the Vector element's
-// peer<I,O>; `A` is `fresh.fresh()` (never constrained) because select' has no
+// peer<I,O>; `A` is `fresh.fresh()` (never constrained) because select has no
 // self-peer to source an admin-receive type from — the `<I,O,A>` above
 // documents that projection, not a scheme.
 //

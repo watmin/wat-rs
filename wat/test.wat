@@ -421,7 +421,7 @@
 ;; special-case "process" in a way that would block a (remote) host.
 ;;
 ;; CONTRACT (pass-or-raise): the child runs body via :user::main, then
-;; (:wat::kernel::println 0) — the pass-marker on fd 1. The parent recvs it.
+;; (:wat::kernel::println 0) — the pass-marker on fd 1. The parent recv's it.
 ;; A failing assertion crashes the child → the reason travels over the process Err
 ;; channel (fd 2) → recv raises with it (the process tier surfaces crashes over
 ;; the pipe, which is precisely why the process tier was the WORKING model that

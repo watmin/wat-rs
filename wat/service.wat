@@ -1828,7 +1828,7 @@
      ;; superset (every surface variant embedded field-for-field + the internal `-op`s), and
      ;; `retag-op` (wat/service.wat:1080) re-tags a client's surface op into its service-Op
      ;; counterpart at dispatch — so a surface-Op peer soundly satisfies a superset-Op slot
-     ;; (covariant widening in Peers received-Op position, one-directional). We register
+     ;; (covariant widening in Peer's received-Op position, one-directional). We register
      ;; the check-time edge via the ordinary `derive` mechanism: `assignable`'s per-arg
      ;; subtype-lattice flow (Arc 278 Stone 2, src/check.rs) then relaxes ONLY the Op slot
      ;; (Reply has no edge → stays exact). Guarded on `proto-str /= fqdn-str` so a
@@ -2035,7 +2035,7 @@
                           ;; timer peer through a one-element `(Vector :- [(Peer :- [Reply O])])` first — THAT
                           ;; conj DOES hit the working bare-Peer widening — then `first` it back out;
                           ;; the checker now reads it at `(Peer :- [Reply O])` before it ever reaches the
-                          ;; Tuple ctor. Values are unaffected: Peers type params are erased at
+                          ;; Tuple ctor. Values are unaffected: Peer's type params are erased at
                           ;; runtime (this file's own comment elsewhere: "params are erased in a
                           ;; runtime type_path") — this is a check-time-only detour.
                           arm-fn        `(:wat::core::fn [~arm-acc-sym <- ~selectable-entry-vec-ty  ~arm-alarm-sym <- ~alarm-o-ty]
@@ -3174,7 +3174,7 @@
      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
      ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)
      ;; Takes the Handle (unforgeable; never handed to clients); sends Admin::Stop down the
-     ;; lineage peer (Handle/handle h); recvs Status::Stopped → extracts and returns state.
+     ;; lineage peer (Handle/handle h); recv's Status::Stopped → extracts and returns state.
      ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
      stop-discard-sym  (:wat::core::symbol-node "_")
      stop-r-sym        (:wat::core::symbol-node "r")
@@ -3316,7 +3316,7 @@
 
      ;; ── arc 291 4a: owner-only hibernate method (mirror of stop) ─────────────────
      ;; Method: (defn <fqdn>/hibernate [h <- Handle] -> state-ty ...)
-     ;; Sends Admin::Hibernate (bare unit kw) down the lineage peer; recvs Status::Hibernated
+     ;; Sends Admin::Hibernate (bare unit kw) down the lineage peer; recv's Status::Hibernated
      ;; which carries the WHOLE State (not a projection — that's what distinguishes hibernate from stop).
      ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
      hib-discard-sym   (:wat::core::symbol-node "_")
@@ -3441,7 +3441,7 @@
      ;; Method: (defn <fqdn>/grant [h <- Handle  pids <- (Vector i64)] -> GateOutcome ...)
      ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
      ;; Peer, so a client has NO grant path). Sends Admin::AllowPeer[pids] down the lineage
-     ;; peer; recvs Status::PeersAllowed → the grant is applied before this returns (so the
+     ;; peer; recv's Status::PeersAllowed → the grant is applied before this returns (so the
      ;; circuit builder's post-spawn grant lands before the caller dials). Callable any time,
      ;; repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote at def time).
      grant-discard-sym (:wat::core::symbol-node "_")
@@ -3553,7 +3553,7 @@
      ;; Method: (defn <fqdn>/revoke [h <- Handle  pids <- (Vector i64)] -> GateOutcome ...)
      ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
      ;; Peer, so a client has NO revoke path). Sends Admin::DenyPeer[pids] down the lineage
-     ;; peer; recvs Status::PeersDenied → the revoke is applied before this returns. Callable
+     ;; peer; recv's Status::PeersDenied → the revoke is applied before this returns. Callable
      ;; any time, repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote
      ;; at def time).
      revoke-discard-sym (:wat::core::symbol-node "_")

@@ -67,7 +67,7 @@ pub(crate) fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError
 /// Arc 278 "errors first-class EDN" — the cause is the error's `error_edn()`
 /// floor record (`:message`/`:location`/`:causes` + variant coordinate fields),
 /// a fully-structured, navigable tagged record, NOT a `to_wire_edn` String
-/// (the double-encoded mask this stone kills). The owner's `recv'` Lost decoder
+/// (the double-encoded mask this stone kills). The owner's `recv` Lost decoder
 /// (`loci_died_error_from_reason`) STRICT-decodes it back to a typed record.
 ///
 /// Factored out of [`emit_startup_error_structured_exit`] so the acceptance
@@ -98,7 +98,7 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
 /// Arc 278 the LociDiedError stone — the `#wat.kernel/ProcessPanics` wrapper tag
 /// is ANNIHILATED: the chain crosses as a bare `[#wat.kernel.LociDiedError/… …]`
 /// vector, read by generic `edn::read` (the head element's own tag is the
-/// self-describing marker the stderr scanner / `recv'` Lost decoder key on).
+/// self-describing marker the stderr scanner / `recv` Lost decoder key on).
 fn emit_chain_envelope(chain: crate::runtime::Value, types: Option<&crate::types::TypeEnv>) {
     let edn = crate::edn::render::value_to_edn_with(&chain, types);
     let line = format!("{}\n", wat_edn::write(&edn));
@@ -341,7 +341,7 @@ fn run_user_main_in_child(
     finish_forked_child(world, outcome)
 }
 
-// ─── Post-dup2 server runtime for spawn-program' :process (arc 214 β) ───────
+// ─── Post-dup2 server runtime for spawn-program :process (arc 214 β) ───────
 //
 // Called AFTER the child branch has already dup2'd fd 0/1/2 and called
 // child_post_fork_init (non-preserving — the io_uring comms fds are swept;

@@ -21,16 +21,16 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-/// Per-thread CACHED client `Peer'` handles to each primed stdio defservice
+/// Per-thread CACHED client `Peer` handles to each primed stdio defservice
 /// (`:wat::kernel::{stdout,stderr,stdin}-svc`), used by `:wat::kernel::println` /
 /// `pprintln` / `eprintln` / `epprintln` / `readln`. Built empty by
 /// [`new_thread_io`] (the main-thread bootstrap + each spawned thread); tests
 /// populate via [`install_thread_io`].
 ///
-/// The flipped verbs (`src/services/verbs.rs`) `connect'` a client `Peer'` ONCE
+/// The flipped verbs (`src/services/verbs.rs`) `connect` a client `Peer` ONCE
 /// per thread (lazily, on first stdio call) via the wat `stdio-connect-*`
 /// helpers, cache it here, then reuse it for every subsequent op. Each field
-/// holds the dialed `Peer'` `Value`; its Drop (at thread exit / ThreadIO
+/// holds the dialed `Peer` `Value`; its Drop (at thread exit / ThreadIO
 /// uninstall) disconnects the client. `RefCell` gives interior mutability under
 /// the immutable `&ThreadIO` borrow `cached_stdio_peer` takes.
 ///
@@ -38,11 +38,11 @@ use std::sync::Arc;
 /// registry over `spawn_service_peer`) is DELETED; these cached primed peers are all
 /// that remains.
 pub struct ThreadIO {
-    /// Cached client (Peer' :- [StdOut::Op StdOut::Reply]) for `println`/`pprintln`.
+    /// Cached client (Peer :- [StdOut::Op StdOut::Reply]) for `println`/`pprintln`.
     pub stdout_peer: RefCell<Option<crate::runtime::Value>>,
-    /// Cached client (Peer' :- [StdErr::Op StdErr::Reply]) for `eprintln`/`epprintln`.
+    /// Cached client (Peer :- [StdErr::Op StdErr::Reply]) for `eprintln`/`epprintln`.
     pub stderr_peer: RefCell<Option<crate::runtime::Value>>,
-    /// Cached client (Peer' :- [StdIn::Op StdIn::Reply]) for `readln`.
+    /// Cached client (Peer :- [StdIn::Op StdIn::Reply]) for `readln`.
     pub stdin_peer: RefCell<Option<crate::runtime::Value>>,
 }
 
@@ -81,8 +81,8 @@ pub fn uninstall_thread_io() -> Option<ThreadIO> {
 }
 
 
-/// Arc 170 Strike 3 (the verb flip) — get this thread's CACHED client `Peer'` to a primed stdio
-/// service, `connect'`ing once (lazily) via the wat `connect_helper` and caching it in the ThreadIO
+/// Arc 170 Strike 3 (the verb flip) — get this thread's CACHED client `Peer` to a primed stdio
+/// service, `connect`ing once (lazily) via the wat `connect_helper` and caching it in the ThreadIO
 /// cell chosen by `select`. Subsequent calls on the same thread reuse the cached peer.
 ///
 /// The RefCell borrow is NEVER held across the `apply_function` connect (which must not re-enter the
@@ -107,7 +107,7 @@ pub(crate) fn cached_stdio_peer(
     if !installed {
         return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::ServiceNotRunning { op: op.into() }));
     }
-    // 3. connect' via the wat helper — NO ThreadIO borrow held across apply_function.
+    // 3. connect via the wat helper — NO ThreadIO borrow held across apply_function.
     let connect_fn = sym.get(connect_helper).ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::UnknownFunction(connect_helper.into())))?.clone();
     let peer = crate::runtime::apply_function(connect_fn, vec![addr], sym, span.clone())?;
     // 4. Cache it (borrow_mut released immediately).
@@ -119,22 +119,22 @@ pub(crate) fn cached_stdio_peer(
     Ok(peer)
 }
 
-/// Arc 170 stdio-as-defservice — holds the three PRIMED stdio defservices' client-dial `Address'`
+/// Arc 170 stdio-as-defservice — holds the three PRIMED stdio defservices' client-dial `Address`
 /// values, stashed on the SymbolTable via `sym.primed_stdio()`. The freeze bootstrap starts
 /// `:wat::kernel::{stdin,stdout,stderr}-svc` on the real fds (0/1/2), holds each returned `Handle`
 /// (keeping the admin lineage peer alive, hence the service alive), and extracts each Handle's `addr`
-/// field here. The flipped verbs `connect'` these addresses (once per thread, cached in ThreadIO) and
+/// field here. The flipped verbs `connect` these addresses (once per thread, cached in ThreadIO) and
 /// drive the typed surface ops.
 ///
 /// The three fields are the wat `Address'<Op,Reply>` VALUES (portable, thread-shareable — thread tier
 /// is shared memory). Held as opaque `Value`s (no per-op typing at this layer).
 #[derive(Clone)]
 pub struct PrimedStdio {
-    /// `(Address' :- [StdIn::Op StdIn::Reply])` — dial to reach the primed stdin read service.
+    /// `(Address :- [StdIn::Op StdIn::Reply])` — dial to reach the primed stdin read service.
     pub stdin_addr: crate::runtime::Value,
-    /// `(Address' :- [StdOut::Op StdOut::Reply])` — dial to reach the primed stdout write service.
+    /// `(Address :- [StdOut::Op StdOut::Reply])` — dial to reach the primed stdout write service.
     pub stdout_addr: crate::runtime::Value,
-    /// `(Address' :- [StdErr::Op StdErr::Reply])` — dial to reach the primed stderr write service.
+    /// `(Address :- [StdErr::Op StdErr::Reply])` — dial to reach the primed stderr write service.
     pub stderr_addr: crate::runtime::Value,
 }
 
@@ -149,8 +149,8 @@ impl std::fmt::Debug for PrimedStdio {
 }
 
 /// Build a fresh, EMPTY [`ThreadIO`] for a thread that will use the primed stdio services (the
-/// main-thread bootstrap and each spawned thread). The three cached client `Peer'` slots start `None`;
-/// the flipped verbs `connect'` + cache them lazily on first stdio call. Arc 170 Phase 3 — replaces the
+/// main-thread bootstrap and each spawned thread). The three cached client `Peer` slots start `None`;
+/// the flipped verbs `connect` + cache them lazily on first stdio call. Arc 170 Phase 3 — replaces the
 /// old `register_thread_with_services` (which sent `Register` to the now-deleted hand-rolled path).
 pub fn new_thread_io() -> ThreadIO {
     ThreadIO {
@@ -279,7 +279,7 @@ pub fn current_program_env() -> Option<crate::runtime::Value> {
 
 // ─── SELF_PEER thread-local (Arc 209 C0b.3a-0) ───────────────────────────────
 //
-// The process child's owner-link as a `SocketPeer'` value. Installed at the
+// The process child's owner-link as a `SocketPeer` value. Installed at the
 // child-only seam `run_forms_as_server_child` (process/verbs.rs); never
 // installed in root's `invoke_user_main_orchestrated`. Root callers get a
 // clean error from `(:wat::program::self-peer …)`. Mirrors PROGRAM_ENV exactly:

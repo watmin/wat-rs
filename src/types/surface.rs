@@ -139,7 +139,7 @@ fn is_surface_type_param_ref(ty: &TypeExpr, type_params: &[String]) -> bool {
 }
 
 /// Arc 170 C2 (receiver-check gap fix) — true iff the RESOLVED `defn_ty` (a satisfier's
-/// concrete method return/arg type, e.g. `(Address' :- [Echo::Op Echo::Reply])`) satisfies the
+/// concrete method return/arg type, e.g. `(Address :- [Echo::Op Echo::Reply])`) satisfies the
 /// surface's RAW, unresolved `member_ty` (e.g. `Address'<S,R>` where `S`/`R` are the
 /// surface's own type params — not real types).
 ///
@@ -679,7 +679,7 @@ fn parse_method_member_sig(
         i += 2;
     }
     // Arc 278 #16 Stone 16.3 — capture explicitness BEFORE defaulting: this is what
-    // `synthesize_surface_protocol`'s mandatory-budget lock consults for `:nature :Peer'`
+    // `synthesize_surface_protocol`'s mandatory-budget lock consults for `:nature :Peer`
     // surfaces (a non-serviceable surface's methods legitimately ride the default forever).
     let max_request_bytes_explicit = max_request_bytes.is_some();
     // Unset → the DEFAULT_MAX_FRAME_BYTES (512 KiB) default, cast to i64.

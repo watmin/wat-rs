@@ -206,7 +206,7 @@ pub struct StructRestrictions {
 ///   HolonRecord = holonic record (`:wat::holon::Record` hierarchy, wire-portable + holon_form)
 /// Arc 293 S3-Nature-2 — a fourth variant, `Peer`, joins the axis but sits OFF the aggregate
 /// contravariant ladder: a `:nature :Peer` surface requires an EXACT match (a dialed
-/// `(Peer' :- [S::Op S::Reply])`), not a floor. See `rank()` for why it carries the sentinel `i8::MIN`.
+/// `(Peer :- [S::Op S::Reply])`), not a floor. See `rank()` for why it carries the sentinel `i8::MIN`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Nature {
     Struct,
@@ -473,7 +473,7 @@ pub enum SurfaceMember {
         max_request_bytes: i64,
         /// Arc 278 #16 Stone 16.3 — true iff the source explicitly wrote `:max-request-bytes`
         /// on this op (false = it rode the silent parse-time default above). Consulted ONLY
-        /// by `synthesize_surface_protocol`'s mandatory-budget lock: a `:nature :Peer'`
+        /// by `synthesize_surface_protocol`'s mandatory-budget lock: a `:nature :Peer`
         /// surface's op omitting `:max-request-bytes` is a LOCATED compile error — a
         /// serviceable op must explicitly speak its wire cap, never ride the silent default
         /// (the whole point of Stone 16.2's per-op enforcement codegen). Non-serviceable
@@ -1489,7 +1489,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // So its payload cannot be `String` — it is the caller's `T`.
     //
     // WHY IT EXISTS. `readln` was the last IPC verb still RAISING. Every other one got its
-    // outcome wall this arc (recv'/send'/close'/accept'/connect'), because a raise in a
+    // outcome wall this arc (recv/send/close/accept/connect), because a raise in a
     // language with no try/catch UNWINDS PAST THE READER — R53's `VERBO MEO CAPTVS`. The
     // wat `stdio-read` collapsed `Eof` and `Stopped` into `assertion-failed!` and said so
     // in its own comment: "the matchable ::Eof variant is BANKED, not yet exposed to the
@@ -1722,7 +1722,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             // information; its ABSENCE proves nothing about the owner.
             EnumVariant::Unit("Severed".into()),
             // arc 170 slice 1i — structured exit variants for all peer death
-            // paths. extract-panics / the recv' Lost decoder use the TypeEnv to
+            // paths. extract-panics / the recv Lost decoder use the TypeEnv to
             // reconstruct these from EDN on round-trip; they must be registered
             // here so edn_to_value can find them.
             // Arc 278 "errors first-class EDN" (stone 1) — `StartupError`'s cause is
@@ -1875,11 +1875,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailed");
 
     // (:wat::kernel::RecvOutcome :- [O]) — the matchable outcome of a point-to-point
-    // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
-    // recv' RETURNED O and RAISED on close/crash — a raise unwinds past the reader
+    // peer read (`recv`). Arc 278 the recv-outcome wall (DESIGN-recv-outcome-wall.md):
+    // recv RETURNED O and RAISED on close/crash — a raise unwinds past the reader
     // (mute). This makes a reason-free failure UNREPRESENTABLE — a peer read yields a
     // matchable enum with exactly three shapes, mirroring the reason-bearing
-    // `:wat::spawn::ServiceEvent` that select'/poll' already return:
+    // `:wat::spawn::ServiceEvent` that select/poll already return:
     //   :Message [msg <- O]        — a real message (the happy path).
     //   :Closed  []                — a GENUINE clean EOF; the ONLY reason-free terminal.
     //   :Lost    [cause <- Failure] — abnormal loss; UNCONSTRUCTIBLE without a structured
@@ -1888,7 +1888,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                everywhere), the SAME structured carrier ServiceEvent::Lost
     //                                / Reply::Failed use (built via `message_only_failure`).
     // Impure like ServiceEvent (an I/O outcome). Registered as a builtin (peer with Failure /
-    // (WalkStep :- [A])) so the checker knows it from type-env init — recv' is used INSIDE the stdlib
+    // (WalkStep :- [A])) so the checker knows it from type-env init — recv is used INSIDE the stdlib
     // (spawn.wat) before any wat defenum would load; a builtin is load-order-robust and, per the
     // design's own note, Impure is the honest fixed purity (a Pure marking would lie the moment O
     // is a live resource). O carries the peer's output element type ((WalkStep :- [A]) is the parametric
@@ -2006,20 +2006,20 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::SendOutcome — Arc 278 the send'-outcome wall (Phase 1,
+    // :wat::kernel::SendOutcome — Arc 278 the send-outcome wall (Phase 1,
     // DESIGN-send-outcome-wall.md): the send-side twin of (RecvOutcome :- [O]) above.
-    // send' RAISED reason-free MalformedForms on a gone peer ("peer already
+    // send RAISED reason-free MalformedForms on a gone peer ("peer already
     // closed" / "channel disconnected") — the last raise-that-masks. This makes
     // a send failure a matchable value instead, mirroring RecvOutcome exactly
-    // except NON-parametric — send' carries no received payload, so no <O>:
+    // except NON-parametric — send carries no received payload, so no <O>:
     //   :Sent   []                — delivered (the happy path).
     //   :Closed []                — peer already cleanly closed (use-after-close;
     //                                was the "peer already closed" raise).
     //   :Lost   [cause <- LociDiedError] — disconnected mid-send; UNCONSTRUCTIBLE without
     //                                a structured cause. Arc 278 BRIEF-send-carries-its-cause
     //                                (#70): widened from the flat `Failure` to the SAME
-    //                                loci-agnostic `LociDiedError` recv' already carries —
-    //                                send' CAN distinguish a stop-woke-a-blocked-write
+    //                                loci-agnostic `LociDiedError` recv already carries —
+    //                                send CAN distinguish a stop-woke-a-blocked-write
     //                                (`Stopped`) from a genuine peer loss (`Disconnected`);
     //                                it was simply discarding the distinction. Was the
     //                                "channel disconnected" raise.
@@ -2029,7 +2029,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // LociDiedError]`, and LociDiedError is Purity::Pure (a death report — crosses back to
     // the owner as EDN data). A SendOutcome is fully EDN-reconstructable / wire-crossable;
     // marking it Impure would LIE (claim its values are locus-bound when they are not).
-    // Registered as a builtin for the same load-order reason as RecvOutcome — send' is used
+    // Registered as a builtin for the same load-order reason as RecvOutcome — send is used
     // inside the stdlib before any wat defenum would load.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::SendOutcome".into(),
@@ -2040,10 +2040,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
             EnumVariant::Unit("Closed".into()),
             // Arc 278 #73 — the send-side twin of `RecvOutcome::Stopped` (see above for
             // the full argument). Landed in the SAME pass, deliberately: a half-fixed
-            // pair is precisely how this arc got here — recv' was walled at R53 and the
+            // pair is precisely how this arc got here — recv was walled at R53 and the
             // send side went unwalled for months (R57 `IGNORANTIAM DELEMVS`).
             //
-            // `send'` has always been able to tell a stop from a peer loss —
+            // `send` has always been able to tell a stop from a peer loss —
             // `SendError::Shutdown` is a distinct variant (`comms/mod.rs:919`, built to
             // mirror `RecvError::Shutdown`) — and folded it into `Lost` anyway.
             EnumVariant::Unit("Stopped".into()),
@@ -2090,19 +2090,19 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::TrySendOutcome — Arc 278 the send'-outcome wall Phase 3a
-    // (BRIEF-send-wall-3a-try-send-outcome.md): `try-send'`'s OWN outcome type,
-    // sibling to SendOutcome, NOT a reuse. `try-send'` is NON-BLOCKING, so it has
-    // an outcome `send'` structurally cannot: WouldBlock (a live peer just not
+    // :wat::kernel::TrySendOutcome — Arc 278 the send-outcome wall Phase 3a
+    // (BRIEF-send-wall-3a-try-send-outcome.md): `try-send`'s OWN outcome type,
+    // sibling to SendOutcome, NOT a reuse. `try-send` is NON-BLOCKING, so it has
+    // an outcome `send` structurally cannot: WouldBlock (a live peer just not
     // draining — the channel-full / deadlock-guard case, `service.wat:1163`).
-    // Four-questions ruled: adding WouldBlock to SendOutcome FAILS (`send'`
+    // Four-questions ruled: adding WouldBlock to SendOutcome FAILS (`send`
     // never returns it — Obvious/Simple/Honest all fail); mapping WouldBlock to
-    // Lost FAILS Honest ("alive but not draining" is not "gone"). So try-send'
+    // Lost FAILS Honest ("alive but not draining" is not "gone"). So try-send
     // gets its own type:
     //   :Sent       []                — delivered (the happy path).
     //   :WouldBlock []                — channel full / receiver not draining
     //                                    (crossbeam TrySendError::Full /
-    //                                    process-tier EWOULDBLOCK) — try-send' ONLY.
+    //                                    process-tier EWOULDBLOCK) — try-send ONLY.
     //   :Closed     []                — peer already cleanly closed (cell None).
     //   :Lost       [cause <- LociDiedError] — receiver dropped mid-send (crossbeam
     //                                    TrySendError::Disconnected / a genuine
@@ -2129,12 +2129,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::CloseOutcome — Arc 278 peer-lifecycle Strike 2 (the close'
-    // OUTCOME WALL, BRIEF-close-outcome-wall.md). `close'` (:wat::kernel::-restricted
+    // :wat::kernel::CloseOutcome — Arc 278 peer-lifecycle Strike 2 (the close
+    // OUTCOME WALL, BRIEF-close-outcome-wall.md). `close` (:wat::kernel::-restricted
     // teardown intrinsic) used to RAISE on its *handleable* failures (thread-join-
     // panic, process-signaled, process-wait-fail, process-stopped); per the
     // peer-lifecycle LAW those become a matchable outcome, only the must-never-happen
-    // raises (double-close, close'-on-a-timer, arity/type) stay raises. Shape B (RULED):
+    // raises (double-close, close-on-a-timer, arity/type) stay raises. Shape B (RULED):
     //   :Closed   [exit <- (Option :- [i64])] — clean close. None = thread (no OS exit code);
     //                                     Some(code) = process exit status. Loci-agnostic
     //                                     (R32): the exit rides in an Option, not two variants.
@@ -2144,10 +2144,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   :Failed   [cause <- Failure]    — join-panic / wait-fail / stopped-not-terminated;
     //                                     the abnormal-close carrier (structured Failure).
     // PURE — like SendOutcome, unlike (RecvOutcome :- [O]). Non-parametric; the peer is
-    // CONSUMED (close' takes the Option, leaving None), so no value here holds a live
+    // CONSUMED (close takes the Option, leaving None), so no value here holds a live
     // resource. It carries only pure data: an (Option :- [i64]), an i64, and a Nature::Record
     // Failure — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
-    // Registered as a builtin for the same load-order reason as SendOutcome — close' is a
+    // Registered as a builtin for the same load-order reason as SendOutcome — close is a
     // kernel intrinsic used before any wat defenum would load.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::CloseOutcome".into(),
@@ -2232,7 +2232,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // :wat::kernel::SignalOutcome — the matchable outcome of
     // `(:wat::kernel::signal proc sig)` (BRIEF-process-signal-p2-mint.md).
-    // Non-parametric — the peer is BORROWED, not consumed (unlike close', a
+    // Non-parametric — the peer is BORROWED, not consumed (unlike close, a
     // process may be signalled any number of times before it is closed), and
     // no variant holds a live resource. Same MUST_USE_TYPES slot as
     // CloseOutcome/SendOutcome (see check.rs `MUST_USE_TYPES`): a dropped
@@ -2251,7 +2251,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // (`Option::take`). So the only way to reach an already-reaped pidfd
     // through this verb is to call it on an already-closed peer, and that path
     // is intercepted before the syscall (the same "peer already closed" guard
-    // close' itself uses) — a live `signal` call can never observe ESRCH. Two
+    // close itself uses) — a live `signal` call can never observe ESRCH. Two
     // arms and a raise, per the stone's own named fallback for this outcome.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::SignalOutcome".into(),
@@ -2315,15 +2315,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // (:wat::kernel::AcceptOutcome :- [R S]) — Arc 278 peer-lifecycle Strike 3 (the accept'
-    // OUTCOME WALL, BRIEF-accept-outcome-wall.md). `accept'` used to RETURN a bare
-    // `(Peer' :- [R S])` and RAISE on its *handleable* failures (rendezvous dropped/shutdown,
+    // (:wat::kernel::AcceptOutcome :- [R S]) — Arc 278 peer-lifecycle Strike 3 (the accept
+    // OUTCOME WALL, BRIEF-accept-outcome-wall.md). `accept` used to RETURN a bare
+    // `(Peer :- [R S])` and RAISE on its *handleable* failures (rendezvous dropped/shutdown,
     // decode error, `select` error, `peer_cred` read fail). Per the peer-lifecycle LAW
     // (2026-07-23) — "we deliver an enum for code to handle exceptions with; raise is
     // uncatchable on purpose, a thing that must never happen" — those become a matchable
     // outcome; only the must-never-happen raises (arity, listener-type-mismatch, and the
     // in-process malformed-connect-request substrate bug) stay raises. Shape (RULED):
-    //   :Accepted [peer <- (Peer' :- [R S])]  — an AUTHORIZED peer connected (the happy path).
+    //   :Accepted [peer <- (Peer :- [R S])]  — an AUTHORIZED peer connected (the happy path).
     //   :Closed   []                    — the listener's rendezvous shut down / address
     //                                     dropped (clean; no peer). The reason-free terminal.
     //   :Failed   [cause <- Failure]    — a decode / select / peer_cred / socket-wrap io
@@ -2333,10 +2333,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // drop + re-poll; thread tier: no gate — the crossbeam handle IS the grant), so no
     // tier returns a security-reject to the caller — a `Rejected` variant would never be
     // constructed (fails Honest).
-    // Impure + PARAMETRIC, mirroring (RecvOutcome :- [O]): `Accepted` holds a live `Peer'` (a
+    // Impure + PARAMETRIC, mirroring (RecvOutcome :- [O]): `Accepted` holds a live `Peer` (a
     // socket/channel handle), so a Pure marking would lie the moment the peer is a live
     // resource. R,S carry the peer's wire element types (the parametric precedent).
-    // Registered as a builtin for the same load-order reason as RecvOutcome — accept' is a
+    // Registered as a builtin for the same load-order reason as RecvOutcome — accept is a
     // kernel verb usable inside the stdlib before any wat defenum would load.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::AcceptOutcome".into(),
@@ -2364,23 +2364,23 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // (:wat::kernel::ConnectOutcome :- [S R]) — Arc 278 peer-lifecycle Strike 4 (the connect'
+    // (:wat::kernel::ConnectOutcome :- [S R]) — Arc 278 peer-lifecycle Strike 4 (the connect
     // OUTCOME WALL, BRIEF-connect-outcome-wall.md — the LAST peer-lifecycle wall). The
-    // exact TWIN of `(AcceptOutcome :- [R S])` above. `connect'` used to RETURN a bare
-    // `(Peer' :- [S R])` and RAISE on its *handleable* failures (ECONNREFUSED / no listener /
+    // exact TWIN of `(AcceptOutcome :- [R S])` above. `connect` used to RETURN a bare
+    // `(Peer :- [S R])` and RAISE on its *handleable* failures (ECONNREFUSED / no listener /
     // rendezvous gone, the `OnlyThisPeer` identity reject, `peer_cred` read fail,
     // socket-wrap io error). Per the peer-lifecycle LAW (2026-07-23) — "we deliver an enum
     // for code to handle exceptions with; raise is uncatchable on purpose, a thing that
     // must never happen" — those become a matchable outcome; only the must-never-happen
     // raises (arity, address-type-mismatch, and the in-process malformed-address substrate
     // bug — see below) stay raises. Shape (RULED):
-    //   :Connected [peer <- (Peer' :- [S R])]  — dialed + admitted (the happy path).
+    //   :Connected [peer <- (Peer :- [S R])]  — dialed + admitted (the happy path).
     //   :Refused   [cause <- Failure]    — ECONNREFUSED / no listener / rendezvous gone;
     //                                      RETRYABLE transport (the server may come up).
     //   :Rejected  [cause <- Failure]    — the `OnlyThisPeer` identity check failed (the
     //                                      answerer's pid/euid != the address minter's);
     //                                      NOT retryable (wrong process, not a transport
-    //                                      blip). FIRES here (unlike accept', where the
+    //                                      blip). FIRES here (unlike accept, where the
     //                                      gate bounces internally) — the client dials once
     //                                      and a server-identity mismatch is caller-visible.
     //   :Failed    [cause <- Failure]    — a `peer_cred` read / socket-wrap io error; the
@@ -2395,9 +2395,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // so a malformed name at connect time is an in-process substrate bug, not adversarial
     // wire data (STOP-3, grounded).
     // Impure + PARAMETRIC, mirroring (AcceptOutcome :- [R S])/(RecvOutcome :- [O]): `Connected` holds a
-    // live `Peer'` (a socket/channel handle), so a Pure marking would lie the moment the
+    // live `Peer` (a socket/channel handle), so a Pure marking would lie the moment the
     // peer is a live resource. S,R carry the peer's wire element types. Registered as a
-    // builtin for the same load-order reason as AcceptOutcome — connect' is a kernel verb
+    // builtin for the same load-order reason as AcceptOutcome — connect is a kernel verb
     // usable inside the stdlib before any wat defenum would load.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::ConnectOutcome".into(),
@@ -2704,7 +2704,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).
     // The struct collapsed into (:wat::kernel::Process :- [I O]) — both
-    // spawn-process and spawn-program' now return the unified Process
+    // spawn-process and spawn-program now return the unified Process
     // shape. The wait mechanism lives inside ProgramHandle's
     // InThread / Forked enum variant; the ChildHandle is no longer
     // wat-visible. Pre-arc-112 fixtures used:
@@ -3188,7 +3188,7 @@ fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
 ///
 /// The purity gate is DERIVED, not a marker: a surface is loci-agnostic by nature, so it
 /// is always dialable *unless* its sigs can't cross. Impure sigs (a method holding a live
-/// `Peer'`/`Connection`) → 293.W already rejects such an enum → the surface is in-thread-only
+/// `Peer`/`Connection`) → 293.W already rejects such an enum → the surface is in-thread-only
 /// and we synthesize NOTHING for it (silent, correct; the surface still registers + works
 /// for extend-type / width-subtyping).
 ///
@@ -3578,7 +3578,7 @@ fn synthesize_surface_protocol(
 
         // Arc 278 #16 Stone 16.3 — MANDATORY `:max-request-bytes` lock. Mirrors 16.1c's
         // RequestTooLarge lock immediately below: same gate (`enforce_rtl_lock` — ONLY a
-        // `:nature :Peer'` surface's ops are wire ops), same site (this per-member loop, before
+        // `:nature :Peer` surface's ops are wire ops), same site (this per-member loop, before
         // any downstream codegen consumes the surface), same shape (a located `MalformedDecl`
         // naming the offending op + surface). A serviceable op that omits the key would
         // otherwise ride the silent `DEFAULT_MAX_FRAME_BYTES` parse-time default (see
@@ -6491,7 +6491,7 @@ pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
     // Arc 278 Stone 2 — :wat::core::Never is the universal subtype-BOTTOM: Never <: every type
     // (the exact DUAL of Value's top). DOWN is free (this rule); UP stays checked — nothing is
     // <: Never except Never itself (reflexive, above). Uninhabited: it is the honest send-type of
-    // a timer peer (`after` → `(Peer' :- [Never O])`), which never sends, so `send'`-to-a-timer is a
+    // a timer peer (`after` → `(Peer :- [Never O])`), which never sends, so `send`-to-a-timer is a
     // compile error (the wrong thing has no form). No registration: like Value, Never is an opaque
     // Path; a TypeDef::Struct would wrongly synthesize a constructor (Never is un-constructible).
     if sub == ":wat::core::Never" {

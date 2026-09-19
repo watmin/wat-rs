@@ -733,8 +733,8 @@ fn check_program_inner(
     //
     // Arc 110 — validate_comm_positions retired alongside the raw
     // :wat::kernel::send / :wat::kernel::recv verbs it policed (non-prime
-    // IPC de-prime; this pass). The prime send'/recv' outcome types carry
-    // their own must-use discipline (see the send'-outcome wall below).
+    // IPC de-prime; this pass). The prime send/recv outcome types carry
+    // their own must-use discipline (see the send-outcome wall below).
     // Arc 109 slice 1c — validate_bare_legacy_primitives: bare primitive
     // type tokens (`:i64`, `:f64`, `:bool`, `:String`, `:u8`) rejected.
     // Arc 109 slice 9d — walk_for_legacy_stream: legacy `:wat::std::stream::*`
@@ -2017,7 +2017,7 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
 /// Process output-channel accessor on the same `<p>`. Arc 278 IPC de-prime:
 /// the process output-channel accessors (`Process/stdout` / `Process/stderr`)
 /// were annihilated with the Stone-C typed-channel API — the peer model
-/// (`spawn-program' (process)` + `recv'`/`recv-all'`) supersedes them — so
+/// (`spawn-program (process)` + `recv`/`recv-all`) supersedes them — so
 /// no accessors are collected any more and this drain-before-join check is
 /// now vacuous; the join-result collection is retained for the kept verb.
 ///
@@ -2709,7 +2709,7 @@ pub(crate) fn infer(
         // REMOVED; nil now falls through to the Doctrine 1 rejection below.
         WatAST::Keyword(k, _) if env.unit_variant_type(k).is_some() => {
             let base = env.unit_variant_type(k).expect("guard").clone();
-            // Arc 278 the recv'-outcome wall — a unit variant of a PARAMETRIC enum
+            // Arc 278 the recv-outcome wall — a unit variant of a PARAMETRIC enum
             // (e.g. `:wat::kernel::RecvOutcome::Closed` of `(RecvOutcome :- [O])`) must
             // instantiate the enum's type params with fresh vars, EXACTLY as the
             // `:None` arm above does for `(Option :- [T])`. The precomputed unit-variant
@@ -4857,7 +4857,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 259 S2c-ii-b — spawn-program' is a wat defclause (spawn.wat);
+            // Arc 259 S2c-ii-b — spawn-program is a wat defclause (spawn.wat);
             // the Rust intrinsic dispatch arm is RETIRED. The defclause machinery
             // in the checker dispatches on the locus type (ThreadOpts | ProcessOpts).
             // Arc 259 S2c-i — per-tier 1-arg primitives.
@@ -4881,7 +4881,7 @@ fn infer_list(
             }
             // Arc 259 (forced-hand) Stone S1 — `f` accepts ANY `Fn` (inferred,
             // not projected/unified — same "accept, runtime validates" posture
-            // as spawn-thread''s init-fn arg); `name` unifies against
+            // as spawn-thread's init-fn arg); `name` unifies against
             // `:wat::core::keyword`; return type is the fixed
             // `(:wat::core::Vector :- [wat::WatAST])` shape.
             ":wat::kernel::fn-forms" => {
@@ -4893,7 +4893,7 @@ fn infer_list(
                 };
             }
             // Arc 292 — one-shot timer peer (thread tier).
-            // after : (locus, duration: :wat::time::NonZeroDuration, msg: T) -> (Thread' :- [nil T])
+            // after : (locus, duration: :wat::time::NonZeroDuration, msg: T) -> (Thread :- [nil T])
             ":wat::kernel::after" => {
                 let (val, mut errs) = infer_kernel_after(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -4904,9 +4904,9 @@ fn infer_list(
             }
             // Arc 214 Stone 4.6a-ii — three peer verb intrinsics.
             // PARTITION — CLAUSE vs INTRINSIC: all three are intrinsic.
-            //   send'     — projective: I flows from (peer :- [I O]) into the payload arg.
-            //   recv'     — projective: O flows from (peer :- [I O]) into the return.
-            //   close'    — ∀-parametric: (peer :- [∀I ∀O]); clause cannot enumerate all (I,O).
+            //   send     — projective: I flows from (peer :- [I O]) into the payload arg.
+            //   recv     — projective: O flows from (peer :- [I O]) into the return.
+            //   close    — ∀-parametric: (peer :- [∀I ∀O]); clause cannot enumerate all (I,O).
             // See `infer_send_prime` / `infer_recv_prime` /
             // `infer_close_prime` for the per-op reasoning.
             ":wat::kernel::send" => {
@@ -4917,9 +4917,9 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 278 Phase 3a — try-send' has its OWN outcome type
+            // Arc 278 Phase 3a — try-send has its OWN outcome type
             // (`:wat::kernel::TrySendOutcome`), NOT a reuse of infer_send_prime:
-            // it is non-blocking and so has a WouldBlock outcome send' cannot
+            // it is non-blocking and so has a WouldBlock outcome send cannot
             // return. See `infer_try_send_prime` / BRIEF-send-wall-3a-try-send-outcome.md.
             ":wat::kernel::try-send" => {
                 let (val, mut errs) = infer_try_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4954,7 +4954,7 @@ fn infer_list(
                 };
             }
             // the-rope-can-be-looked-at — non-consuming peek of a lineage's
-            // end-state. Same peer surface as close' (Thread | Process),
+            // end-state. Same peer surface as close (Thread | Process),
             // return is Option<CloseOutcome>. Unrestricted. See infer_lineage_status.
             ":wat::kernel::lineage-status" => {
                 let (val, mut errs) = infer_lineage_status(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4992,8 +4992,8 @@ fn infer_list(
                 };
             }
             // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
-            // — STOP-1: `signal` is `(Process :- [I O])`-ONLY (unlike close', not shared with
-            // Thread'/Peer' — a thread peer has no process to signal). See infer_signal.
+            // — STOP-1: `signal` is `(Process :- [I O])`-ONLY (unlike close, not shared with
+            // Thread/Peer — a thread peer has no process to signal). See infer_signal.
             ":wat::kernel::signal" => {
                 let (val, mut errs) = infer_signal(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -5006,7 +5006,7 @@ fn infer_list(
             // itself.md — A1: un-erase the concrete locus a `(Peer :- [I O])`-typed value (e.g. a
             // defservice Handle's lineage `handle` field, deliberately widened by
             // `wat/spawn.wat:265` Launched so `stop` stays locus-agnostic) already holds at
-            // runtime. ∀-parametric over I,O (project_peer_io), same partition as close'/recv'.
+            // runtime. ∀-parametric over I,O (project_peer_io), same partition as close/recv.
             // See infer_peer_process.
             ":wat::kernel::peer-process" => {
                 let (val, mut errs) = infer_peer_process(args, head_span, env, locals, fresh, subst).into_parts();
@@ -5050,9 +5050,9 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 278 RST stone — `serve-dispatch-op'`: `clients` is checked
+            // Arc 278 RST stone — `serve-dispatch-op`: `clients` is checked
             // for internal consistency only (do-style, unconstrained — same
-            // discipline as `poll'`'s `listener` arg); `body`'s type IS the
+            // discipline as `poll`'s `listener` arg); `body`'s type IS the
             // form's own type (do-style passthrough of the last/only
             // meaningful arg). See infer_serve_dispatch_op.
             ":wat::kernel::serve-dispatch-op" => {
@@ -5063,8 +5063,8 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 278 Stone 2 (Option A) — `retag-op'`: the `<service>::Op`
-            // superset RE-TAG. `(retag-op' op :<surface>::Op :<service>::Op)`
+            // Arc 278 Stone 2 (Option A) — `retag-op`: the `<service>::Op`
+            // superset RE-TAG. `(retag-op op :<surface>::Op :<service>::Op)`
             // embeds a surface-tagged client op into its service-Op counterpart
             // (runtime concern — see `eval_retag_op`); its RESULT type is the
             // service Op named by arg[2] (a type-keyword literal, parsed the same
@@ -5078,7 +5078,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 214 Stone 4.6b / Stone 259 Lost-locus — select' intrinsic.
+            // Arc 214 Stone 4.6b / Stone 259 Lost-locus — select intrinsic.
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
             // I,O flow from (Vector :- [(peer :- [I O])])'s element peer type into the
             // return (ServiceEvent :- [I O]). See `infer_select_prime` for the reasoning.
@@ -5090,9 +5090,9 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 Stone C0b.2e-i-c — poll' intrinsic (3-arg service multiplexer).
+            // Arc 209 Stone C0b.2e-i-c — poll intrinsic (3-arg service multiplexer).
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
-            // I,O flow from (Vector :- [(Peer' :- [I O])])'s element peer type into (ServiceEvent :- [I O]).
+            // I,O flow from (Vector :- [(Peer :- [I O])])'s element peer type into (ServiceEvent :- [I O]).
             // See `infer_poll_prime` for the reasoning.
             ":wat::kernel::poll" => {
                 let (val, mut errs) = infer_poll_prime(args, head_span, env, locals, fresh, subst).into_parts();
@@ -5102,9 +5102,9 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> (Peer' :- [S R]).
+            // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> (Peer :- [S R]).
             // Returns the spawned process child's owner-link (rx=fd0, tx=fd1) as a
-            // unified Peer' (socket-backed, PEER_TYPE_PATH). Root gets MalformedForm.
+            // unified Peer (socket-backed, PEER_TYPE_PATH). Root gets MalformedForm.
             ":wat::program::self-peer" => {
                 let (val, mut errs) = infer_program_self_peer(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -5114,9 +5114,9 @@ fn infer_list(
                 };
             }
             // Arc 209 Stone C0b.1 — thread-tier connection verbs.
-            // listener' : (locus :S :R) -> (Tuple :- [(Listener' :- [S R]) (Address' :- [S R])])
-            // connect'  : (Address' :- [S R])  -> (Peer' :- [S R])
-            // accept'   : (Listener' :- [S R]) -> (Peer' :- [R S])
+            // listener : (locus :S :R) -> (Tuple :- [(Listener' :- [S R]) (Address :- [S R])])
+            // connect  : (Address :- [S R])  -> (Peer :- [S R])
+            // accept   : (Listener' :- [S R]) -> (Peer :- [R S])
             ":wat::kernel::listener" => {
                 let (val, mut errs) = infer_listener_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -5141,7 +5141,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 C0b.3b-b — allow'/deny': ((Listener' :- [S R]), i64) -> nil.
+            // Arc 209 C0b.3b-b — allow/deny: ((Listener' :- [S R]), i64) -> nil.
             // Tier (thread vs process) is not known at check time; tier-rejection is runtime-only.
             ":wat::kernel::allow" => {
                 let (val, mut errs) = infer_allow_prime(args, head_span, env, locals, fresh, subst).into_parts();
@@ -6061,7 +6061,7 @@ fn infer_list(
                                     //     the receiver IS this surface itself parametrized (e.g.
                                     //     `(Dialable :- [probe::Echo::Op probe::Echo::Reply])`), so no
                                     //     concrete satisfier `<Type>/<method>` scheme exists →
-                                    //     `Dialable/coord` on it fell back to the RAW `(Address' :- [S R])`.
+                                    //     `Dialable/coord` on it fell back to the RAW `(Address :- [S R])`.
                                     //     Instead, bind the surface's own `<T>` params from the
                                     //     RECEIVER's concrete args (`s.type_params[i] → recv_args[i]`)
                                     //     and `rename` the member's raw return + extra params — the
@@ -6193,9 +6193,9 @@ fn infer_list(
                     // apply_subst resolves any unification vars unified during the assignable calls.
                     // For monomorphic members: equivalent to returning member_ret_raw (no vars).
                     let ret = apply_subst(&member_ret, subst);
-                    // Arc 278 the recv'-outcome wall — a `:nature :Peer` surface METHOD is a
-                    // generated client call that dials the peer, sends the op, and `recv'`s the
-                    // reply; `recv'` yields a matchable `(RecvOutcome :- [Response])` (never a raise). The
+                    // Arc 278 the recv-outcome wall — a `:nature :Peer` surface METHOD is a
+                    // generated client call that dials the peer, sends the op, and `recv`s the
+                    // reply; `recv` yields a matchable `(RecvOutcome :- [Response])` (never a raise). The
                     // client-facing return type is therefore `(RecvOutcome :- [<Op>Response])`, matching
                     // the Path-B intrinsic (runtime.rs) and the defservice op-method codegen
                     // (wat/service.wat) — both now RETURN the outcome rather than unwrap+raise. Field
@@ -7630,8 +7630,8 @@ fn pattern_coverage(
                     }
                 };
                 // Arc 209 C0b.1b — build a type-param → concrete-type mapping so
-                // field types like `(Peer' :- [I O])` are instantiated to the scrutinee's
-                // concrete args (e.g. `(Peer' :- [i64 Op])`). For non-parametric enums the
+                // field types like `(Peer :- [I O])` are instantiated to the scrutinee's
+                // concrete args (e.g. `(Peer :- [i64 Op])`). For non-parametric enums the
                 // mapping is empty and `rename` is identity. This is the same
                 // substitution that `instantiate` applies to TypeSchemes at call sites.
                 let type_param_mapping: HashMap<String, TypeExpr> = enum_def
@@ -8413,7 +8413,7 @@ fn infer_if(
     CheckResult::errs(local_errors)
 }
 
-/// Arc 278 send'-outcome wall Phase 3 — the MUST-USE FORCE.
+/// Arc 278 send-outcome wall Phase 3 — the MUST-USE FORCE.
 ///
 /// Types named here CANNOT be silently dropped in a discard position (a
 /// `do` non-final, or a `let [_ expr]` wildcard bind): the checker raises a
@@ -8422,19 +8422,19 @@ fn infer_if(
 /// struct-field cascade across the 11 `EnumDef {…}` construction sites;
 /// generalizes later if a second must-use type shows up.
 ///
-/// `:wat::kernel::SendOutcome` was the first member: a *faced* `send'`
+/// `:wat::kernel::SendOutcome` was the first member: a *faced* `send`
 /// (wrapped in a `match` naming `Sent`/`Closed`/`Lost`) has type `nil`, not
-/// `SendOutcome` — so this fires ONLY on a raw unfaced `send'`, never on a
+/// `SendOutcome` — so this fires ONLY on a raw unfaced `send`, never on a
 /// properly-matched one. See DESIGN-send-outcome-wall.md.
 ///
 /// Arc 278 Phase 3a (`BRIEF-send-wall-3a-try-send-outcome.md`) adds
-/// `:wat::kernel::TrySendOutcome` — `try-send'`'s own outcome type (see
-/// `infer_try_send_prime`) — same discipline: an unfaced `try-send'` is a
-/// compile error too, same must-use force as `send'`.
-/// `:wat::kernel::CloseOutcome` (arc 278 peer-lifecycle Strike 2 — the close'
+/// `:wat::kernel::TrySendOutcome` — `try-send`'s own outcome type (see
+/// `infer_try_send_prime`) — same discipline: an unfaced `try-send` is a
+/// compile error too, same must-use force as `send`.
+/// `:wat::kernel::CloseOutcome` (arc 278 peer-lifecycle Strike 2 — the close
 /// OUTCOME WALL) — non-parametric, so this list, not `MUST_USE_PARAMETRIC_HEADS`.
-/// A *faced* `close'` (matched over `Closed`/`Signaled`/`Failed`) has an arm-joined
-/// type, never `CloseOutcome`, so this fires only on a raw dropped `close'`,
+/// A *faced* `close` (matched over `Closed`/`Signaled`/`Failed`) has an arm-joined
+/// type, never `CloseOutcome`, so this fires only on a raw dropped `close`,
 /// closing the swallow door on the handleable teardown failures the wall converted
 /// from raises. A 0-site pre-arm today (0 wat call sites — teardown is RAII Drop);
 /// it gates the FIRST future kernel-namespace teardown caller, not vacuous-dishonest.
@@ -8456,30 +8456,30 @@ const MUST_USE_TYPES: &[&str] = &[
 /// is one of these is must-use regardless of its type args. NB the Parametric
 /// `head` convention is a BARE FQDN (no leading `:`), unlike `Path` (colon-
 /// prefixed) — see `infer_recv_prime` (`head: "wat::kernel::RecvOutcome"`).
-/// `(:wat::kernel::RecvOutcome :- [O])` (arc 278 recv'-must-use, R53 wall's twin gate)
-/// — a *faced* `recv'` (matched over `Message`/`Closed`/`Lost`) has type `O`
+/// `(:wat::kernel::RecvOutcome :- [O])` (arc 278 recv-must-use, R53 wall's twin gate)
+/// — a *faced* `recv` (matched over `Message`/`Closed`/`Lost`) has type `O`
 /// (the message) or a joined arm type, never `(RecvOutcome :- [O])`, so this fires
-/// ONLY on a raw unfaced/dropped `recv'`, closing the swallow door R55's
+/// ONLY on a raw unfaced/dropped `recv`, closing the swallow door R55's
 /// harness-fix only patched at one site.
 ///
-/// `(:wat::spawn::ServiceEvent :- […])` (arc 278 peer-lifecycle walls — `poll'`/`select'`) — already
+/// `(:wat::spawn::ServiceEvent :- […])` (arc 278 peer-lifecycle walls — `poll`/`select`) — already
 /// value-faced (a matchable enum carrying `Message`/`Closed`/`Lost[cause]`/`Malformed[cause]`/
-/// `Rejected[cause]`), so the only gap was the swallow-axis: a dropped `poll'`/`select'` event
-/// hid a `Lost`/`Malformed` failure. Gating it closes that door; a *faced* poll' (matched over
+/// `Rejected[cause]`), so the only gap was the swallow-axis: a dropped `poll`/`select` event
+/// hid a `Lost`/`Malformed` failure. Gating it closes that door; a *faced* poll (matched over
 /// the event variants) has an arm-joined type, never `(ServiceEvent :- […])`.
 ///
-/// `(:wat::kernel::AcceptOutcome :- [R S])` (arc 278 peer-lifecycle Strike 3 — the accept'
-/// OUTCOME WALL) — parametric like (RecvOutcome :- [O]) (`Accepted` holds a live `(Peer' :- [R S])`).
-/// A *faced* `accept'` (matched over `Accepted`/`Closed`/`Failed`) has the Peer' / an
+/// `(:wat::kernel::AcceptOutcome :- [R S])` (arc 278 peer-lifecycle Strike 3 — the accept
+/// OUTCOME WALL) — parametric like (RecvOutcome :- [O]) (`Accepted` holds a live `(Peer :- [R S])`).
+/// A *faced* `accept` (matched over `Accepted`/`Closed`/`Failed`) has the Peer / an
 /// arm-joined type, never `(AcceptOutcome :- [R S])`, so this fires only on a raw dropped
-/// `accept'`, closing the swallow door on the rendezvous-drop/decode/select/peer_cred
+/// `accept`, closing the swallow door on the rendezvous-drop/decode/select/peer_cred
 /// failures the wall converted from raises.
 ///
-/// `(:wat::kernel::ConnectOutcome :- [S R])` (arc 278 peer-lifecycle Strike 4 — the connect'
+/// `(:wat::kernel::ConnectOutcome :- [S R])` (arc 278 peer-lifecycle Strike 4 — the connect
 /// OUTCOME WALL, the LAST peer wall) — the twin of `AcceptOutcome`, parametric (`Connected`
-/// holds a live `(Peer' :- [S R])`). A *faced* `connect'` (matched over
-/// `Connected`/`Refused`/`Rejected`/`Failed`) has the Peer' / an arm-joined type, never
-/// `(ConnectOutcome :- [S R])`, so this fires only on a raw dropped `connect'`, closing the
+/// holds a live `(Peer :- [S R])`). A *faced* `connect` (matched over
+/// `Connected`/`Refused`/`Rejected`/`Failed`) has the Peer / an arm-joined type, never
+/// `(ConnectOutcome :- [S R])`, so this fires only on a raw dropped `connect`, closing the
 /// swallow door on the ECONNREFUSED/no-listener, identity-reject, and peer_cred/socket-wrap
 /// failures the wall converted from raises.
 const MUST_USE_PARAMETRIC_HEADS: &[&str] = &[
@@ -8511,8 +8511,8 @@ fn is_must_use_type(ty: &TypeExpr) -> bool {
 /// `:wat::core::do` or `:wat::core::let`). Shared by the `do`-non-last gate
 /// and the `let [_ …]` wildcard gate — arc 278 Phase 3.
 fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty_name: &str) {
-    // Verb-aware remedy: recv' faces Message/Closed/Lost; poll'/select' face the ServiceEvent
-    // variants; send'/try-send' face Sent/(WouldBlock/)Closed/Lost.
+    // Verb-aware remedy: recv faces Message/Closed/Lost; poll/select face the ServiceEvent
+    // variants; send/try-send face Sent/(WouldBlock/)Closed/Lost.
     let (verb, arms) = if ty_name.contains("RecvOutcome") {
         ("recv", "Message/Closed/Lost/Stopped/TimedOut")
     } else if ty_name.contains("ServiceEvent") {
@@ -8547,7 +8547,7 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
 ///   unification with anything). This matches Clojure's `do` semantics:
 ///   non-finals are pure side effect; their values are dropped.
 ///   Arc 278 Phase 3 exception: if the resolved type is a MUST-USE type
-///   (`is_must_use_type`, e.g. an unfaced `send'`'s `SendOutcome`), the
+///   (`is_must_use_type`, e.g. an unfaced `send`'s `SendOutcome`), the
 ///   drop is a located compile error instead — see `push_must_use_error`.
 /// - args[N-1] (final): `infer` and return its inferred type. The do
 ///   form's inferred type IS the final form's inferred type. Recipient
@@ -8579,7 +8579,7 @@ fn infer_do(
     }
     // Non-finals: type-check for internal consistency; discard the
     // resulting type (no unification with anything) — UNLESS it's a
-    // must-use type (arc 278 Phase 3: an unfaced `send'` outcome), which
+    // must-use type (arc 278 Phase 3: an unfaced `send` outcome), which
     // is a located compile error rather than a silent drop.
     let last_idx = args.len() - 1;
     for arg in &args[..last_idx] {
@@ -10290,7 +10290,7 @@ fn infer_kernel_readln_prime(
     // Arc 258 — `-> :T` on readln' is illegal; the arrow is a function-return
     // annotation only. readln reads what the SELF-DESCRIBING EDN wire says
     // (records-are-EDN, arc 234.7); the decoded value's type flows from the
-    // consumer, exactly as recv'/select' do (258.5c). The caller no longer
+    // consumer, exactly as recv/select do (258.5c). The caller no longer
     // attests the type it is about to read — stdin is a self-describing wire
     // like any peer, and attestation was the crutch.
     if args.len() >= 2 {
@@ -10334,11 +10334,11 @@ fn infer_kernel_readln_prime(
     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
     // The decoded value's type is a fresh var pinned by the consumer — the
-    // self-describing wire reconstructs the exact value at runtime (mirror recv').
+    // self-describing wire reconstructs the exact value at runtime (mirror recv).
     //
     // Arc 170 closure #24 — readln returns `(:wat::kernel::ReadlnOutcome :- [T])`, not a bare
     // `T`. It was the LAST IPC verb still RAISING on Eof and on a stop; every sibling
-    // (recv'/send'/close'/accept'/connect') already hands its failure back as a matchable
+    // (recv/send/close/accept/connect) already hands its failure back as a matchable
     // value, because a raise in a language with no try/catch unwinds PAST the reader
     // (R53 `VERBO MEO CAPTVS`).
     //
@@ -10794,12 +10794,12 @@ fn infer_nth(
     if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) }
 }
 
-/// Arc 293.W.2d — validate that a `(Peer' :- [I O])` type argument is pure.
+/// Arc 293.W.2d — validate that a `(Peer :- [I O])` type argument is pure.
 ///
-/// A wire peer (`Peer'`) carries only pure data (records, scalars, pure containers).
+/// A wire peer (`Peer`) carries only pure data (records, scalars, pure containers).
 /// Impure types (structs, handles, closures) cannot cross a comms boundary.
 /// The structural guarantee: the producers enforce purity → an impure payload
-/// to a `Peer'` is an ordinary unify error (payload ≠ pure-I), no separate gate.
+/// to a `Peer` is an ordinary unify error (payload ≠ pure-I), no separate gate.
 ///
 /// Guard: only fire when the type is RESOLVED (not a type variable). An unresolved
 /// var is conservative-false in `is_pure_type`; gating on a var would produce false
@@ -10814,7 +10814,7 @@ fn check_wire_peer_purity(
     check_wire_peer_purity_span(ty, arg.span(), op, types, errs);
 }
 
-/// Span-based variant for producers that infer types (connect'/accept').
+/// Span-based variant for producers that infer types (connect/accept).
 fn check_wire_peer_purity_span(
     ty: &TypeExpr,
     span: &Span,
@@ -10842,7 +10842,7 @@ fn check_wire_peer_purity_span(
     }
 }
 
-/// Parse one `peer-pair'` (and `self-peer`/`retag-op`/`listener'`/`connect'`/`accept'`)
+/// Parse one `peer-pair'` (and `self-peer`/`retag-op`/`listener`/`connect`/`accept`)
 /// type arg; on an unparseable node, record a diagnostic and return a fresh var so
 /// checking continues.
 ///
@@ -10875,13 +10875,13 @@ fn parse_peer_pair_type_arg(
 
 
 /// Arc 209 C0b.3a-0 / C0b.2e-i-b — `(:wat::program::self-peer :S :R)` →
-/// `(Peer' :- [S R])`.
+/// `(Peer :- [S R])`.
 ///
 /// Mirror of `infer_socket_pair_prime`: two type-keyword args via
-/// `parse_peer_pair_type_arg`, single (not crossed) `(Peer' :- [S R])` result.
+/// `parse_peer_pair_type_arg`, single (not crossed) `(Peer :- [S R])` result.
 /// The self-peer is a one-sided peer (the child's owner-link); there is no
 /// crossed twin. Runtime type is `PEER_TYPE_PATH`; checker head is
-/// `"wat::kernel::Peer"` (arc 209 C0b.2e-i-b: unified, retiring SocketPeer').
+/// `"wat::kernel::Peer"` (arc 209 C0b.2e-i-b: unified, retiring SocketPeer).
 fn infer_program_self_peer(
     args: &[WatAST],
     head_span: &Span,
@@ -10908,8 +10908,8 @@ fn infer_program_self_peer(
     let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
     let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
 
-    // Arc 293.W.2d — self-peer (process-tier, socket-backed) creates a wire Peer'.
-    // Its S/R type args must be pure (same wall as connect'/accept'/peer-pair').
+    // Arc 293.W.2d — self-peer (process-tier, socket-backed) creates a wire Peer.
+    // Its S/R type args must be pure (same wall as connect/accept/peer-pair').
     check_wire_peer_purity(&s_ty, &args[0], OP, env.types(), &mut local_errors);
     check_wire_peer_purity(&r_ty, &args[1], OP, env.types(), &mut local_errors);
 
@@ -10919,11 +10919,11 @@ fn infer_program_self_peer(
 
 /// Arc 209 Stone C0b.1 / C0b.2d — `(:wat::kernel::listener locus …)`.
 ///
-/// Thread tier (C0b.1): `(listener' (thread) :S :R)` — 3 args; locus, :S, :R →
-/// `(Tuple :- [(Listener' :- [S R]) (Address' :- [S R])])`.
+/// Thread tier (C0b.1): `(listener (thread) :S :R)` — 3 args; locus, :S, :R →
+/// `(Tuple :- [(Listener' :- [S R]) (Address :- [S R])])`.
 ///
-/// Process tier (C0b.2d): `(listener' (process) addr)` — 2 args; locus, addr where
-/// addr is `(SocketAddress' :- [S R])` → `(Listener' :- [S R])` (unified entity, arc 209 C0b.2e-ii).
+/// Process tier (C0b.2d): `(listener (process) addr)` — 2 args; locus, addr where
+/// addr is `(SocketAddress :- [S R])` → `(Listener' :- [S R])` (unified entity, arc 209 C0b.2e-ii).
 /// Retires the C0b.2c mint-and-return form.
 ///
 /// Any other locus is a `TypeMismatch` check error naming both valid loci.
@@ -10965,11 +10965,11 @@ fn infer_listener_prime(
             let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
             bound_type(s_ty, r_ty, shared_marker())
         } else if host_reduced == TypeExpr::Path(":wat::spawn::ProcessOpts".into()) {
-            // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)` → `(Bound :- [S R])`,
+            // Arc 272 — 3-arg AUTOBIND form `(listener (process) :S :R)` → `(Bound :- [S R])`,
             // mirroring the thread tier (the listener mints its own kernel-unique address;
             // no name arg). The 2-arg named form below is LEGACY — annihilated in arc 272 step 5.
             // Arc 278 Stone 1 — an OPTIONAL 4th arg carries the service's declared hard frame
-            // limit `FOO` (bytes-per-read); `(listener' (process) :S :R FOO)`. It is threaded by
+            // limit `FOO` (bytes-per-read); `(listener (process) :S :R FOO)`. It is threaded by
             // defservice's child-main from the `:max-frame-bytes` clause (default 512 KiB).
             if args.len() == 3 || args.len() == 4 {
                 let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
@@ -11001,7 +11001,7 @@ fn infer_listener_prime(
                 };
             }
             // Arc 272 step 5 — the process listener is AUTOBIND-ONLY (the 3-arg form above). The
-            // legacy 2-arg named form `(listener' (process) <socket-address'>)` is annihilated with
+            // legacy 2-arg named form `(listener (process) <socket-address'>)` is annihilated with
             // the rest of the name-discovery stack: a chosen name is guessable hence squattable.
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                 callee: OP.into(), expected: 3, got: args.len()
@@ -11011,7 +11011,7 @@ fn infer_listener_prime(
             bound_type(s, r, wire_marker())
         } else if host_reduced == TypeExpr::Path(":wat::spawn::Locus".into()) {
             // Arc 209 host-parity-4a — abstract locus (the `:wat::spawn::Locus`
-            // protocol): a locus-blind `(listener' locus :S :R)` inside
+            // protocol): a locus-blind `(listener locus :S :R)` inside
             // defservice's `start [locus <- :Locus]`. Shape mirrors the thread
             // tier (3 args: locus, :S, :R → (Bound :- [S R T]) with T fresh); runtime
             // `eval_listener_prime` dispatches on the concrete locus value the
@@ -11050,7 +11050,7 @@ fn infer_listener_prime(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `(Bound :- [S R T])` — result type of `(listener' (thread|process|locus) …)`.
+/// `(Bound :- [S R T])` — result type of `(listener (thread|process|locus) …)`.
 /// T is Shared (thread), Wire (process), or a fresh var (abstract Locus).
 fn bound_type(s: TypeExpr, r: TypeExpr, t: TypeExpr) -> TypeExpr {
     TypeExpr::Parametric { head: "wat::spawn::Bound".into(), args: vec![s, r, t] }
@@ -11178,14 +11178,14 @@ fn is_transport_slot(ty: &TypeExpr) -> bool {
 }
 
 
-/// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect addr)` → `(Peer' :- [S R])`.
+/// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect addr)` → `(Peer :- [S R])`.
 ///
-/// 1 arg: `addr` of type `(Address' :- [S R])` (unified — thread and process tiers).
-/// Returns `(Peer' :- [S R])` (the client end).
-/// Extracts S and R from the `(Address' :- [S R])` parametric type of the argument.
+/// 1 arg: `addr` of type `(Address :- [S R])` (unified — thread and process tiers).
+/// Returns `(Peer :- [S R])` (the client end).
+/// Extracts S and R from the `(Address :- [S R])` parametric type of the argument.
 ///
-/// Arc 209 C0b.2e-iii: collapsed from two arms (`Address'` thread + `SocketAddress'`
-/// process) to one — both tiers now produce `(Address' :- [S R])`.
+/// Arc 209 C0b.2e-iii: collapsed from two arms (`Address` thread + `SocketAddress`
+/// process) to one — both tiers now produce `(Address :- [S R])`.
 fn infer_connect_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -11215,26 +11215,26 @@ fn infer_connect_prime(
         }
     };
     // Arc 258.5a (IO-cluster arrow-kill) — UNIFY the arg against `Address'<?,?>` rather than rigid
-    // pattern-match. A fresh `recv'` result (a process handle's opaque O, check.rs:10827) then BINDS
-    // to `Address'` and flows from this consumer — no `-> :T` ascription needed (258 NOTE: "the type
-    // lives in the channel"). A concrete `(Address' :- [i64 i64])` still unifies (binding S,R to its real
-    // params); a wrong concrete type still fails. Reduce first so an alias-to-`Address'` resolves.
+    // pattern-match. A fresh `recv` result (a process handle's opaque O, check.rs:10827) then BINDS
+    // to `Address` and flows from this consumer — no `-> :T` ascription needed (258 NOTE: "the type
+    // lives in the channel"). A concrete `(Address :- [i64 i64])` still unifies (binding S,R to its real
+    // params); a wrong concrete type still fails. Reduce first so an alias-to-`Address` resolves.
     let addr_reduced = reduce(&apply_subst(&addr_ty, subst), subst, env.types());
     let s = fresh.fresh();
     let r = fresh.fresh();
     let expected = TypeExpr::Parametric { head: "wat::kernel::Address".into(), args: vec![s.clone(), r.clone()] };
     match unify(&addr_reduced, &expected, subst, env.types()) {
         Ok(_) => {
-            // Arc 209 C0b.2e-iii — unified (Address' :- [S R]) → (Peer' :- [S R]) (both tiers).
-            // Arc 293.W.2d — (Peer' :- [I O]) well-formedness: I,O must be pure.
+            // Arc 209 C0b.2e-iii — unified (Address :- [S R]) → (Peer :- [S R]) (both tiers).
+            // Arc 293.W.2d — (Peer :- [I O]) well-formedness: I,O must be pure.
             let s_resolved = apply_subst(&s, subst);
             let r_resolved = apply_subst(&r, subst);
             check_wire_peer_purity_span(&s_resolved, args[0].span(), OP, env.types(), &mut local_errors);
             check_wire_peer_purity_span(&r_resolved, args[0].span(), OP, env.types(), &mut local_errors);
-            // Arc 278 the connect' OUTCOME WALL (the LAST peer wall) — connect' no longer
-            // returns the bare (Peer' :- [S R]) and raises on ECONNREFUSED/no-listener,
+            // Arc 278 the connect OUTCOME WALL (the LAST peer wall) — connect no longer
+            // returns the bare (Peer :- [S R]) and raises on ECONNREFUSED/no-listener,
             // identity-reject, or peer_cred/socket-wrap io; it returns a matchable
-            // `(:wat::kernel::ConnectOutcome :- [S R])` (::Connected[(Peer' :- [S R])] · ::Refused ·
+            // `(:wat::kernel::ConnectOutcome :- [S R])` (::Connected[(Peer :- [S R])] · ::Refused ·
             // ::Rejected · ::Failed, each [Failure]) so a masked connect failure is
             // structurally unrepresentable. The peer still flows via the ::Connected arm.
             let ty = TypeExpr::Parametric { head: "wat::kernel::ConnectOutcome".into(), args: vec![s, r] };
@@ -11255,9 +11255,9 @@ fn infer_connect_prime(
     }
 }
 
-/// Arc 209 Stone C0b.1 — `(:wat::kernel::accept listener)` → `(Peer' :- [R S])`.
+/// Arc 209 Stone C0b.1 — `(:wat::kernel::accept listener)` → `(Peer :- [R S])`.
 ///
-/// 1 arg: `listener` of type `(Listener' :- [S R])`. Returns `(Peer' :- [R S])` (the server end:
+/// 1 arg: `listener` of type `(Listener' :- [S R])`. Returns `(Peer :- [R S])` (the server end:
 /// server recvs S, sends R — the flipped pair).
 fn infer_accept_prime(
     args: &[WatAST],
@@ -11292,15 +11292,15 @@ fn infer_accept_prime(
     let ty = match listener_reduced {
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener" && args.len() == 2 => {
             // Arc 209 C0b.2e-ii — unified (Listener' :- [S R]) (both thread + process tiers)
-            // → (Peer' :- [R S]) (server recvs S, sends R — the flipped pair).
-            // Arc 293.W.2d — (Peer' :- [I O]) well-formedness: I,O must be pure.
-            let r_ty = args[1].clone(); // S in (Listener' :- [S R]) → R in (Peer' :- [R S])
-            let s_ty = args[0].clone(); // R in (Listener' :- [S R]) → S in (Peer' :- [R S])
+            // → (Peer :- [R S]) (server recvs S, sends R — the flipped pair).
+            // Arc 293.W.2d — (Peer :- [I O]) well-formedness: I,O must be pure.
+            let r_ty = args[1].clone(); // S in (Listener' :- [S R]) → R in (Peer :- [R S])
+            let s_ty = args[0].clone(); // R in (Listener' :- [S R]) → S in (Peer :- [R S])
             check_wire_peer_purity_span(&r_ty, head_span, OP, env.types(), &mut local_errors);
             check_wire_peer_purity_span(&s_ty, head_span, OP, env.types(), &mut local_errors);
-            // Arc 278 the accept' OUTCOME WALL — accept' no longer returns the bare
-            // (Peer' :- [R S]) and raises on rendezvous-drop/decode/select/peer_cred failure; it
-            // returns a matchable `(:wat::kernel::AcceptOutcome :- [R S])` (::Accepted[(Peer' :- [R S])]
+            // Arc 278 the accept OUTCOME WALL — accept no longer returns the bare
+            // (Peer :- [R S]) and raises on rendezvous-drop/decode/select/peer_cred failure; it
+            // returns a matchable `(:wat::kernel::AcceptOutcome :- [R S])` (::Accepted[(Peer :- [R S])]
             // · ::Closed · ::Failed[Failure]) so a masked accept failure is structurally
             // unrepresentable. The peer still flows to the consumer via the ::Accepted arm.
             TypeExpr::Parametric { head: "wat::kernel::AcceptOutcome".into(), args: vec![r_ty, s_ty] }
@@ -11450,18 +11450,18 @@ fn infer_deny_prime(
 }
 
 // Arc 259 S2c-ii-b — `infer_spawn_program_prime` is RETIRED.
-// `spawn-program'` is now a wat defclause (spawn.wat); the checker dispatches via the
+// `spawn-program` is now a wat defclause (spawn.wat); the checker dispatches via the
 // defclause machinery (Arc 256 generic-clause instantiation). The shared projection
-// helpers below remain as the backing inference for spawn-thread'/spawn-process'.
+// helpers below remain as the backing inference for spawn-thread/spawn-process.
 
 /// Shared `:thread` projection — infers `fn_arg` as a fn and projects it to
-/// `(Thread' :- [R S])` (self-peer model, the ONLY valid form post arc 259 S2c-ii-a purge).
+/// `(Thread :- [R S])` (self-peer model, the ONLY valid form post arc 259 S2c-ii-a purge).
 ///
 /// Called by `infer_spawn_thread_prime` (1-arg verb, passing `args[0]`).
 /// No duplication: one path.
 ///
 /// Arc 259 S2c-ii-a — apply-loop purge:
-/// - If the fn arg type is `(Peer' :- [S R])`, returns `(Thread' :- [R S])` (param-swap).
+/// - If the fn arg type is `(Peer :- [S R])`, returns `(Thread :- [R S])` (param-swap).
 /// - Otherwise, REJECTS with a clear error ("expected a self-peer prog").
 fn infer_thread_prog_type(
     fn_arg: &WatAST,
@@ -11530,15 +11530,15 @@ fn infer_thread_prog_type(
 
     // Arc 259 S2c-ii-a — PURGE. Only the self-peer model is valid.
     //
-    // If the fn arg type is `(ThreadSelfPeer' :- [S R])` (arc 293.W.2d — in-locus, any I/O)
-    // or `(Peer' :- [S R])` (wire-safe, pure I/O only), the prog is a ThreadProg:
+    // If the fn arg type is `(ThreadSelfPeer :- [S R])` (arc 293.W.2d — in-locus, any I/O)
+    // or `(Peer :- [S R])` (wire-safe, pure I/O only), the prog is a ThreadProg:
     // the spawned thread's `tx` sends S to the parent, and its `rx` receives R from the
-    // parent. The parent-side `(Thread' :- [I O])` has `I = R` (parent sends R → worker recvs R)
-    // and `O = S` (parent recvs S ← worker sends S). Return `(Thread' :- [R S])`.
+    // parent. The parent-side `(Thread :- [I O])` has `I = R` (parent sends R → worker recvs R)
+    // and `O = S` (parent recvs S ← worker sends S). Return `(Thread :- [R S])`.
     //
-    // ThreadSelfPeer' is the escape hatch for thread workers that carry impure I/O
+    // ThreadSelfPeer is the escape hatch for thread workers that carry impure I/O
     // (e.g. Sender/Receiver handles for reply channels). Any I/O is allowed in-locus.
-    // Peer' constrains I/O to pure types (enforced by the producers); a Peer' self-peer
+    // Peer constrains I/O to pure types (enforced by the producers); a Peer self-peer
     // is valid for thread workers that happen to use pure types.
     //
     // Any other prog — the legacy apply-loop `fn([I]) -> O` — is REJECTED.
@@ -11548,7 +11548,7 @@ fn infer_thread_prog_type(
             if (head == "wat::kernel::Peer" || head == "wat::kernel::ThreadSelfPeer")
                 && peer_args.len() == 2 =>
         {
-            // Self-peer model: (Thread' :- [R S]) (param-swap of (Peer' :- [S R]) or (ThreadSelfPeer' :- [S R])).
+            // Self-peer model: (Thread :- [R S]) (param-swap of (Peer :- [S R]) or (ThreadSelfPeer :- [S R])).
             let s_ty = peer_args[0].clone();
             let r_ty = peer_args[1].clone();
             let ty = TypeExpr::Parametric {
@@ -11578,7 +11578,7 @@ fn infer_thread_prog_type(
 }
 
 /// Shared `:process` projection — infers `forms_arg` (accepts any type; the
-/// runtime validates it is `(Vector :- [WatAST])`) and returns `(Process' :- [I O])` with
+/// runtime validates it is `(Vector :- [WatAST])`) and returns `(Process :- [I O])` with
 /// independent fresh vars (arc 214 γ-1).
 ///
 /// Called by `infer_spawn_process_prime` (1-arg verb, passing `args[0]`).
@@ -11595,11 +11595,11 @@ fn infer_process_prog_type(
     // startup_from_forms time, not here). Accept any type — the runtime validates
     // it's `(Vector :- [WatAST])` (forms).
     let _ = infer(forms_arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    // Return (Process' :- [I O]) with INDEPENDENT fresh vars (arc 214 γ-1). The
-    // forms-server is a request→response program — `send'`ing an I and
-    // `recv'`ing a different O is the common case (e.g. a Request enum in,
+    // Return (Process :- [I O]) with INDEPENDENT fresh vars (arc 214 γ-1). The
+    // forms-server is a request→response program — `send`ing an I and
+    // `recv`ing a different O is the common case (e.g. a Request enum in,
     // a Response enum out). A single shared `T` would force I = O and break
-    // every non-echo server. `send' peer v` drives I from v; `recv' peer -> :U`
+    // every non-echo server. `send peer v` drives I from v; `recv peer -> :U`
     // drives O from the ascription; the two never alias.
     let i = fresh.fresh();
     let o = fresh.fresh();
@@ -11615,9 +11615,9 @@ fn infer_process_prog_type(
 /// Type-check `(:wat::kernel::spawn-thread prog init-fn)` — arc 259 Stone S2c-i.
 ///
 /// Two positional args:
-/// - `args[0]`: program fn; inferred; must be `fn([(Peer' :- [S R])]) -> nil` (self-peer
+/// - `args[0]`: program fn; inferred; must be `fn([(Peer :- [S R])]) -> nil` (self-peer
 ///   model — the ONLY valid form post arc 259 S2c-ii-a purge); projects to
-///   `(Thread' :- [R S])`. Uses `infer_thread_prog_type` (the shared projection helper).
+///   `(Thread :- [R S])`. Uses `infer_thread_prog_type` (the shared projection helper).
 /// - `args[1]`: init-fn; a 0-arg fn returning `:wat::core::Record`; inferred but not
 ///   further projected (the checker accepts any fn value here — runtime validates
 ///   the return type is a :wat::core::Record subtype at peer start).
@@ -11662,7 +11662,7 @@ fn infer_spawn_thread_prime(
     // This causes the accessor type-check (ThreadLaunch/pid is unknown — check error).
     let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
-    // Delegate to the shared thread-projection helper (same logic as spawn-program' :thread).
+    // Delegate to the shared thread-projection helper (same logic as spawn-program :thread).
     let (val, mut proj_errs) = infer_thread_prog_type(&args[0], OP, env, locals, fresh, subst).into_parts();
     local_errors.append(&mut proj_errs);
     match val {
@@ -11675,7 +11675,7 @@ fn infer_spawn_thread_prime(
 ///
 /// Five positional args:
 /// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
-///   returns `(Process' :- [I O])` with independent fresh vars. Uses
+///   returns `(Process :- [I O])` with independent fresh vars. Uses
 ///   `infer_process_prog_type` (the shared projection helper).
 /// - `args[1]`: post-spawn-fn; `Fn(ProcessLaunch) -> nil`; inferred and unified
 ///   with `Fn(:wat::spawn::ProcessLaunch) -> :wat::core::nil`. This causes the
@@ -11737,7 +11737,7 @@ fn infer_spawn_process_prime(
     // an Option and renders the inner record, if any, to EDN).
     let _ = infer(&args[4], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
-    // Delegate to the shared process-projection helper (same logic as spawn-program' :process).
+    // Delegate to the shared process-projection helper (same logic as spawn-program :process).
     let (val, mut proj_errs) = infer_process_prog_type(&args[0], env, locals, fresh, subst).into_parts();
     local_errors.append(&mut proj_errs);
     match val {
@@ -11750,7 +11750,7 @@ fn infer_spawn_process_prime(
 ///
 /// Two positional args:
 /// - `args[0]`: `f`, the fn to reify; inferred but NOT projected/unified —
-///   the checker accepts ANY fn value here (mirrors `spawn-thread'`'s
+///   the checker accepts ANY fn value here (mirrors `spawn-thread`'s
 ///   init-fn arg: "the checker does not project deeper"; runtime validates
 ///   it is a `Value::wat__core__fn`). This is the established "accept any
 ///   Fn" posture — no new type-system feature needed. This permissiveness
@@ -11821,20 +11821,20 @@ fn infer_kernel_fn_forms(
 //
 // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md):
 // All three are INTRINSIC (projective / ∀-parametric):
-//   send'      — projective: I flows from (peer :- [I O]) into the payload arg.
-//   recv'      — projective: O flows from (peer :- [I O]) into the return type.
-//   close'     — ∀-parametric: the peer arg is (Thread' :- [∀I ∀O]) or (Process' :- [∀I ∀O]);
+//   send      — projective: I flows from (peer :- [I O]) into the payload arg.
+//   recv      — projective: O flows from (peer :- [I O]) into the return type.
+//   close     — ∀-parametric: the peer arg is (Thread :- [∀I ∀O]) or (Process :- [∀I ∀O]);
 //                a clause matcher cannot enumerate all (I,O) instantiations.
 // The pattern for each: infer args[0], apply_subst+reduce, match
-// Parametric{head:"wat::kernel::Thread"|"…Process'", args:[I,O]},
-// project I and/or O. Non-peer arg0 → TypeMismatch "peer ((Thread' :- [I O]) | (Process' :- [I O]))".
+// Parametric{head:"wat::kernel::Thread"|"…Process", args:[I,O]},
+// project I and/or O. Non-peer arg0 → TypeMismatch "peer ((Thread :- [I O]) | (Process :- [I O]))".
 
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
 ///
 /// Arc 293.W.2d: Returns `Ok((i_ty, o_ty))` on success. The purity constraint is
-/// now STRUCTURAL (carried by the peer type): `(Peer' :- [I O])` requires pure I,O by
-/// well-formedness (enforced at producers — connect'/accept'/peer-pair');
-/// `(ThreadSelfPeer' :- [I O])` is in-locus (any I/O). The ops are purity-blind here.
+/// now STRUCTURAL (carried by the peer type): `(Peer :- [I O])` requires pure I,O by
+/// well-formedness (enforced at producers — connect/accept/peer-pair');
+/// `(ThreadSelfPeer :- [I O])` is in-locus (any I/O). The ops are purity-blind here.
 ///
 /// On failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.
 #[expect(
@@ -11863,8 +11863,8 @@ fn project_peer_io(
     let peer_surface = apply_subst(&peer_ty, subst);
     let peer_reduced = reduce(&peer_surface, subst, env.types());
     match peer_reduced {
-        // Arc 209 C0b.2e-i-b: SocketPeer' is retired — all connection peers are Peer'.
-        // Arc 293.W.2d: ThreadSelfPeer' is the in-locus (any I/O) peer type.
+        // Arc 209 C0b.2e-i-b: SocketPeer is retired — all connection peers are Peer.
+        // Arc 293.W.2d: ThreadSelfPeer is the in-locus (any I/O) peer type.
         TypeExpr::Parametric { ref head, ref args }
             if (head == "wat::kernel::Thread"
                 || head == "wat::kernel::Process"
@@ -11873,11 +11873,11 @@ fn project_peer_io(
                 && args.len() == 2 =>
         {
             // Purity is guaranteed by the peer TYPE, not by ops:
-            //   (Peer' :- [I O]):           wire peer, I/O are pure by producer well-formedness.
-            //   (ThreadSelfPeer' :- [I O]): in-locus, any I/O (the 2d escape hatch).
-            //   (Thread' :- [I O]):         parent handle to spawned thread (in-locus crossbeam).
-            //   (Process' :- [I O]):        parent handle to spawned process (wire, pure I/O).
-            // The ops (send'/recv') go purity-blind — the peer type carries the guarantee.
+            //   (Peer :- [I O]):           wire peer, I/O are pure by producer well-formedness.
+            //   (ThreadSelfPeer :- [I O]): in-locus, any I/O (the 2d escape hatch).
+            //   (Thread :- [I O]):         parent handle to spawned thread (in-locus crossbeam).
+            //   (Process :- [I O]):        parent handle to spawned process (wire, pure I/O).
+            // The ops (send/recv) go purity-blind — the peer type carries the guarantee.
             Ok((args[0].clone(), args[1].clone()))
         }
         other => {
@@ -11905,9 +11905,9 @@ fn project_peer_io(
 /// - `args[1]`: duration — must conform to `:wat::time::NonZeroDuration`.
 /// - `args[2]`: msg — inferred; its type becomes the output type `O`.
 ///
-/// Returns `(Peer' :- [nil O])` where `O` is the inferred type of `msg`. arc 278 Stone 1:
-/// the timer is built in the CORRECT location — a UNIFIED `Peer'` — so it drops into
-/// `poll'`/`select'` by construction (the vestigial tier-open `Timer'` type + its
+/// Returns `(Peer :- [nil O])` where `O` is the inferred type of `msg`. arc 278 Stone 1:
+/// the timer is built in the CORRECT location — a UNIFIED `Peer` — so it drops into
+/// `poll`/`select` by construction (the vestigial tier-open `Timer'` type + its
 /// fusion machinery are retired). A timer has no input, so `I = :wat::core::nil`.
 fn infer_kernel_after(
     args: &[WatAST],
@@ -11979,18 +11979,18 @@ fn infer_kernel_after(
         .drain_errors_into(&mut local_errors)
         .unwrap_or_else(|| fresh.fresh());
 
-    // arc 278 Stone 1 — return the UNIFIED `(Peer' :- [I O])` where O is the delivered message
-    // type. This drops into `poll'`/`select'`'s `(Peer' :- [I O])` element arm by construction —
+    // arc 278 Stone 1 — return the UNIFIED `(Peer :- [I O])` where O is the delivered message
+    // type. This drops into `poll`/`select`'s `(Peer :- [I O])` element arm by construction —
     // no tier-open fusion needed.
     //
     // arc 278 Stone 2 (STEP 0) — the INPUT type `I` is `:wat::core::Never`, the honest named
     // BOTTOM (the DUAL of `:wat::core::Value`'s top), not `nil`. A timer never sends (runtime
     // `eval_kernel_after` builds a receive-only peer with a dead tx), so its send-type is
-    // genuinely UNINHABITED — `Never` names that, and makes `send'`-to-a-standalone-timer a
+    // genuinely UNINHABITED — `Never` names that, and makes `send`-to-a-standalone-timer a
     // compile error (Never has no inhabitant to send). Because `Never <: T` for every `T`
-    // (is_subtype, types.rs), a `(Peer' :- [Never O])` timer assigns into a service's `selectables`
-    // vec of reply-ing client peers `(Vector :- [(Peer' :- [Reply O])])` (I-slot: `Never <: Reply`), and
-    // into Stone 1's `(Vector :- [(Peer' :- [nil O])])` timer-only sites (`Never <: nil`) — both by the
+    // (is_subtype, types.rs), a `(Peer :- [Never O])` timer assigns into a service's `selectables`
+    // vec of reply-ing client peers `(Vector :- [(Peer :- [Reply O])])` (I-slot: `Never <: Reply`), and
+    // into Stone 1's `(Vector :- [(Peer :- [nil O])])` timer-only sites (`Never <: nil`) — both by the
     // bottom rule, no Value-erasure / fresh-var papering / coercion.
     let peer_ty = TypeExpr::Parametric {
         head: "wat::kernel::Peer".into(),
@@ -12006,14 +12006,14 @@ fn infer_kernel_after(
 // PARTITION — CLAUSE vs INTRINSIC: `infer_send_prime` is INTRINSIC (projective).
 // I flows from the peer's Parametric type param into the payload argument position.
 /// Type-check `(:wat::kernel::send peer payload)` — Stone 4.6a-ii / Arc 278 the
-/// send'-outcome wall Phase 1 (DESIGN-send-outcome-wall.md).
+/// send-outcome wall Phase 1 (DESIGN-send-outcome-wall.md).
 ///
 /// Two positional args: `args[0]` peer, `args[1]` payload of type I.
 /// Result: `:wat::kernel::SendOutcome` — a matchable value (`Sent`/`Closed`/`Lost`),
-/// mirroring `recv'`'s `(RecvOutcome :- [O])`. NOT `:wat::core::nil` (pre-278: send'
+/// mirroring `recv`'s `(RecvOutcome :- [O])`. NOT `:wat::core::nil` (pre-278: send
 /// RAISED on a gone peer instead of returning; the eval no longer raises, so the
 /// checker's declared return type must agree — this is the type-agreement
-/// correction, NOT the Phase-3 exhaustiveness force itself; a bare `(send' ...)`
+/// correction, NOT the Phase-3 exhaustiveness force itself; a bare `(send ...)`
 /// in statement/discard position with an unhandled SendOutcome IS a compile
 /// error, but that force lives in the discard-position gates (`infer_do`'s
 /// non-final loop, `process_let_binding`'s `_`-wildcard arm; `MUST_USE_TYPES`),
@@ -12057,7 +12057,7 @@ fn infer_send_prime(
     // Arc 293.W.2d: the purity guarantee is STRUCTURAL, not a separate gate here.
     // A wire peer's I type is pure by well-formedness (the producer enforces it);
     // an impure payload to a wire peer is an ordinary UNIFY ERROR below (payload ≠ pure-I).
-    // ThreadSelfPeer'/Thread' are in-locus — any I/O, no purity constraint needed.
+    // ThreadSelfPeer/Thread are in-locus — any I/O, no purity constraint needed.
     // The 2c runtime gate (Arc 293.W.2c) is DELETED: the peer type carries the wall.
     let payload_ty =
         match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -12092,16 +12092,16 @@ fn infer_send_prime(
 // PARTITION — CLAUSE vs INTRINSIC: `infer_try_send_prime` is INTRINSIC (projective),
 // same shape as `infer_send_prime` — I flows from the peer's Parametric type param
 // into the payload argument position.
-/// Type-check `(:wat::kernel::try-send peer payload)` — Arc 278 the send'-outcome
+/// Type-check `(:wat::kernel::try-send peer payload)` — Arc 278 the send-outcome
 /// wall Phase 3a (`BRIEF-send-wall-3a-try-send-outcome.md`).
 ///
-/// `try-send'` is a near-mirror of `send'` (same two positional args, same I
-/// unification), but it is NON-BLOCKING and so has an outcome `send'`
+/// `try-send` is a near-mirror of `send` (same two positional args, same I
+/// unification), but it is NON-BLOCKING and so has an outcome `send`
 /// structurally cannot: `WouldBlock` (channel full / peer not draining — a
 /// LIVE peer). The four-questions ruled out folding `WouldBlock` into
-/// `SendOutcome` (it re-breaks all `send'` matches — `send'` never returns
+/// `SendOutcome` (it re-breaks all `send` matches — `send` never returns
 /// it) and mapping it to `Lost` (dishonest — "not draining" isn't "gone").
-/// So `try-send'` gets its OWN return type here:
+/// So `try-send` gets its OWN return type here:
 /// `:wat::kernel::TrySendOutcome` — NOT a reuse of `infer_send_prime`.
 fn infer_try_send_prime(
     args: &[WatAST],
@@ -12138,7 +12138,7 @@ fn infer_try_send_prime(
             }
         };
 
-    // args[1]: payload — must unify with I. Same purity reasoning as send' (Arc
+    // args[1]: payload — must unify with I. Same purity reasoning as send (Arc
     // 293.W.2d — structural, not a separate gate here).
     let payload_ty =
         match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -12176,9 +12176,9 @@ fn infer_try_send_prime(
 ///
 /// One positional arg: `args[0]` peer → returns O (the peer's output type).
 ///
-/// The `-> :T` ascription (3-arg form) is KILLED (arc 258.5b). `recv'` is 1-arg only.
+/// The `-> :T` ascription (3-arg form) is KILLED (arc 258.5b). `recv` is 1-arg only.
 /// `-> :T` is a function-return annotation — it is illegal in any other position.
-/// The type flows from the consumer (258.5a: connect'/recv' unify) or the self-describing
+/// The type flows from the consumer (258.5a: connect/recv unify) or the self-describing
 /// EDN wire (post-234.7: tagged records/structs/enums + typed scalars decoded via sym.types()).
 fn infer_recv_prime(
     args: &[WatAST],
@@ -12191,7 +12191,7 @@ fn infer_recv_prime(
     const OP: &str = ":wat::kernel::recv";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // Arc 258.5b — `-> :T` on recv' is illegal; reject it with a clear error.
+    // Arc 258.5b — `-> :T` on recv is illegal; reject it with a clear error.
     // The arrow is a function-return annotation only. Detect the 3-arg form and any
     // multi-arg form that looks like an ascription attempt, and surface a targeted error.
     if args.len() >= 2 {
@@ -12242,7 +12242,7 @@ fn infer_recv_prime(
 
     match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
         Ok((_i_ty, o_ty)) => {
-            // Arc 278 the recv'-outcome wall — recv' no longer returns the bare O and
+            // Arc 278 the recv-outcome wall — recv no longer returns the bare O and
             // raises on close/crash; it returns a matchable `(:wat::kernel::RecvOutcome :- [O])`
             // (::Message[O] · ::Closed · ::Lost[Failure]) so a masked failure is
             // structurally unrepresentable. O still flows to the consumer via the
@@ -12341,15 +12341,15 @@ fn infer_recv_by_deadline(
 }
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_close_prime` is INTRINSIC (∀-parametric).
-// The peer arg is (Thread' :- [∀I ∀O]) or (Process' :- [∀I ∀O]); a defclause cannot enumerate
-// all (I,O) instantiations — the same infinite-open-set argument as get/recv'.
-/// Type-check `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close'
+// The peer arg is (Thread :- [∀I ∀O]) or (Process :- [∀I ∀O]); a defclause cannot enumerate
+// all (I,O) instantiations — the same infinite-open-set argument as get/recv.
+/// Type-check `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close
 /// OUTCOME WALL.
 ///
-/// One positional arg: `args[0]` peer ((Thread' :- [I O]) or (Process' :- [I O])).
+/// One positional arg: `args[0]` peer ((Thread :- [I O]) or (Process :- [I O])).
 /// Result: `:wat::kernel::CloseOutcome` (loci-agnostic — the exit code, when any,
 /// rides in `Closed[exit <- (Option :- [i64])]`). A must-use type (see `MUST_USE_TYPES`):
-/// a dropped `close'` outcome is a compile error, closing the swallow door on the
+/// a dropped `close` outcome is a compile error, closing the swallow door on the
 /// handleable teardown failures the wall converted from raises.
 fn infer_close_prime(
     args: &[WatAST],
@@ -12384,7 +12384,7 @@ fn infer_close_prime(
     };
     let peer_surface = apply_subst(&peer_ty, subst);
     let peer_reduced = reduce(&peer_surface, subst, env.types());
-    // Arc 278 the close' OUTCOME WALL: both peer tiers now yield a matchable
+    // Arc 278 the close OUTCOME WALL: both peer tiers now yield a matchable
     // `:wat::kernel::CloseOutcome` (loci-agnostic — the exit code, when any, rides
     // in `Closed[exit <- (Option :- [i64])]`), not a bare `nil`/`i64`.
     let close_outcome = || TypeExpr::Path(":wat::kernel::CloseOutcome".into());
@@ -12425,7 +12425,7 @@ fn infer_close_prime(
 // observation is not must-use.
 /// Type-check `(:wat::kernel::lineage-status peer)` — the-rope-can-be-looked-at.
 ///
-/// One positional arg: `args[0]` peer ((Thread' :- [I O]) or (Process' :- [I O])).
+/// One positional arg: `args[0]` peer ((Thread :- [I O]) or (Process :- [I O])).
 /// Result: `(:wat::core::Option :- [:wat::kernel::CloseOutcome])`.
 fn infer_lineage_status(
     args: &[WatAST],
@@ -12491,14 +12491,14 @@ fn infer_lineage_status(
 // PARTITION — CLAUSE vs INTRINSIC: `infer_signal` is INTRINSIC, and narrower than
 // `infer_close_prime`. STOP-1 (DESIGN-STONE-process-signal-owner-to-child.md /
 // BRIEF-process-signal-p2-mint.md): the verb takes `(Process :- [I O])` ONLY — a
-// Thread' peer has no process to signal, so unlike close' (loci-agnostic over
-// Thread'/Process') this is deliberately NOT shared codegen over both tiers.
+// Thread peer has no process to signal, so unlike close (loci-agnostic over
+// Thread/Process) this is deliberately NOT shared codegen over both tiers.
 /// Type-check `(:wat::kernel::signal proc sig)`.
 ///
 /// Two positional args: `args[0]` proc (`(:wat::kernel::Process :- [I O])`), `args[1]`
 /// sig (`:wat::kernel::Signal`). Result: `:wat::kernel::SignalOutcome` — a
 /// must-use type (see `MUST_USE_TYPES`): a dropped outcome is a compile error,
-/// same discipline as `close'`.
+/// same discipline as `close`.
 fn infer_signal(
     args: &[WatAST],
     head_span: &Span,
@@ -12642,7 +12642,7 @@ fn infer_peer_process(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_dialed_from` is INTRINSIC (projective).
 // I,O flow from the peer's Parametric type params into `(Address :- [I O])`.
-// A defclause cannot enumerate every (I,O) instantiation — same as recv'/peer-process.
+// A defclause cannot enumerate every (I,O) instantiation — same as recv/peer-process.
 /// Type-check `(:wat::kernel::dialed-from peer)` — a-peer-remembers-its-address.
 ///
 /// One positional arg: `args[0]` peer (anything `project_peer_io` accepts).
@@ -13013,9 +13013,9 @@ fn transport_marker(ty: &TypeExpr) -> Option<TypeExpr> {
 
 /// Type-check `(:wat::kernel::serve-dispatch-op clients body)` — arc 278 RST
 /// stone. `clients` is inferred for internal-consistency/error-surfacing only
-/// (`poll'`'s `listener`-arg discipline — checked, but its type is never
-/// unified with anything, since `serve-dispatch-op'` is ∀-generic over the
-/// service's own `(Peer' :- [S R])` element type and has no reason to pin it down).
+/// (`poll`'s `listener`-arg discipline — checked, but its type is never
+/// unified with anything, since `serve-dispatch-op` is ∀-generic over the
+/// service's own `(Peer :- [S R])` element type and has no reason to pin it down).
 /// `body`'s inferred type IS the form's own type — the SAME do-style
 /// passthrough `infer_do` uses for its final arg (see that function): this
 /// primitive is a transparent runtime wrapper around what used to be a bare
@@ -13089,20 +13089,20 @@ fn infer_retag_op(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_select_prime` is INTRINSIC (projective).
 // I,O flow from (Vector :- [(peer :- [I O])])'s element peer type into the return (ServiceEvent :- [I O A]).
-// A clause cannot enumerate (Vector :- [(Thread' :- [∀I ∀O])]) / (Vector :- [(Process' :- [∀I ∀O])]) —
-// the same infinite-open-set argument as get/recv'. Mixed tiers are already
+// A clause cannot enumerate (Vector :- [(Thread :- [∀I ∀O])]) / (Vector :- [(Process :- [∀I ∀O])]) —
+// the same infinite-open-set argument as get/recv. Mixed tiers are already
 // forbidden by Vector homogeneity at check; no bespoke rejection needed.
 /// Type-check `(:wat::kernel::select peers)` — Stone 4.6b / Stone 259 Lost-locus.
 ///
-/// One positional arg: `args[0]` a `(Vector :- [(Thread' :- [I O])])` or
-/// `(Vector :- [(Process' :- [I O])])`. Returns `(ServiceEvent :- [I O A])`.
+/// One positional arg: `args[0]` a `(Vector :- [(Thread :- [I O])])` or
+/// `(Vector :- [(Process :- [I O])])`. Returns `(ServiceEvent :- [I O A])`.
 ///
-/// select' has no self-peer / lineage channel, so `A` (the admin receive type) is a
-/// fresh unconstrained tyvar — the :Admin variant can never fire from select'.
+/// select has no self-peer / lineage channel, so `A` (the admin receive type) is a
+/// fresh unconstrained tyvar — the :Admin variant can never fire from select.
 ///
 /// On success: `TypeExpr::Parametric { "wat::spawn::ServiceEvent", [I, O, A] }`.
 /// On failure (non-peer element type): TypeMismatch with
-/// "Vector of (Thread' :- [I O]) | (Process' :- [I O]) peers".
+/// "Vector of (Thread :- [I O]) | (Process :- [I O]) peers".
 fn infer_select_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -13114,8 +13114,8 @@ fn infer_select_prime(
     const OP: &str = ":wat::kernel::select";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // Arc 209 Stone C0b.2e-i-c: select' is 1-arg-only.
-    // The 3-arg service multiplexer is poll' — use (poll' self listener clients).
+    // Arc 209 Stone C0b.2e-i-c: select is 1-arg-only.
+    // The 3-arg service multiplexer is poll — use (poll self listener clients).
     if args.len() != 1 {
         local_errors.push(CheckError {
             span: head_span.clone(),
@@ -13183,16 +13183,16 @@ fn infer_select_prime(
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if (head == "wat::kernel::Thread"       // TODO(arc-109/arc-170 cleanup): remove Thread'/Process' here —
-                || head == "wat::kernel::Process"   //   the unified fd-backed Peer' end-state makes select' take
-                || head == "wat::kernel::Peer")     //   ONLY Peer'; the tier heads vanish. Kept now to unblock the
-                && targs.len() == 2 =>               //   loci-agnostic bracket (259 S3a). Peer' is I=targs[0], O=targs[1].
+            if (head == "wat::kernel::Thread"       // TODO(arc-109/arc-170 cleanup): remove Thread/Process here —
+                || head == "wat::kernel::Process"   //   the unified fd-backed Peer end-state makes select take
+                || head == "wat::kernel::Peer")     //   ONLY Peer; the tier heads vanish. Kept now to unblock the
+                && targs.len() == 2 =>               //   loci-agnostic bracket (259 S3a). Peer is I=targs[0], O=targs[1].
         {
             // I = args[0] (input to spawned fn from parent); O = args[1] (output back to parent).
             (targs[0].clone(), targs[1].clone())
         }
         // arc 278 Stone 1 — the tier-open `Timer'` element arm is RETIRED: `after` now
-        // builds a UNIFIED `(Peer' :- [nil O])`, so a timer is a `Peer'` element (matched by
+        // builds a UNIFIED `(Peer :- [nil O])`, so a timer is a `Peer` element (matched by
         // the arm above), never a `Timer'`.
         other => {
             local_errors.push(CheckError {
@@ -13214,7 +13214,7 @@ fn infer_select_prime(
 
     let i_resolved = apply_subst(&i_ty, subst);
     let o_resolved = apply_subst(&o_ty, subst);
-    // select' has no self-peer / lineage channel — :Admin can never fire.
+    // select has no self-peer / lineage channel — :Admin can never fire.
     // Use a fresh unconstrained tyvar for A so the arity matches (ServiceEvent :- [I O A]).
     let a_fresh = fresh.fresh();
     let ret = TypeExpr::Parametric {
@@ -13231,13 +13231,13 @@ fn infer_select_prime(
 /// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll self-peer listener peers)` → `(ServiceEvent :- [I O A])`.
 ///
 /// 3-arg service-multiplexer form:
-///   args[0] = self-peer (`(Peer' :- [S R])` — the owner link; R = admin receive type A).
+///   args[0] = self-peer (`(Peer :- [S R])` — the owner link; R = admin receive type A).
 ///   args[1] = listener (`(Listener' :- [S R])` — inferred permissively, not further constrained).
-///   args[2] = peers (`(Vector :- [(Peer' :- [I O])])` — the connected client peers).
+///   args[2] = peers (`(Vector :- [(Peer :- [I O])])` — the connected client peers).
 ///
 /// Arc 291 3a-i: returns `Parametric { "wat::spawn::ServiceEvent", [I, O, A] }`.
 ///   I, O flow from the peers vector element type.
-///   A = the self-peer's receive type (args[0]: (Peer' :- [_ A])) — the admin channel receive type.
+///   A = the self-peer's receive type (args[0]: (Peer :- [_ A])) — the admin channel receive type.
 fn infer_poll_prime(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: type errors locate at the offending arg's own span (`args[2].span()`), more precise than the coarse head span
@@ -13250,10 +13250,10 @@ fn infer_poll_prime(
     const OP: &str = ":wat::kernel::poll";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // args[0]: self-peer — infer and extract the receive type A (targs[1] of (Peer' :- [S A])
-    // or (ThreadSelfPeer' :- [S A])). A is the type the service receives from the owner over
+    // args[0]: self-peer — infer and extract the receive type A (targs[1] of (Peer :- [S A])
+    // or (ThreadSelfPeer :- [S A])). A is the type the service receives from the owner over
     // the lineage channel (admin ops).
-    // Arc 293.W.2d: accept both Peer' (wire-safe) and ThreadSelfPeer' (in-locus, any I/O).
+    // Arc 293.W.2d: accept both Peer (wire-safe) and ThreadSelfPeer (in-locus, any I/O).
     let a_ty: TypeExpr = {
         let self_peer_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         match self_peer_ty {
@@ -13266,7 +13266,7 @@ fn infer_poll_prime(
                             || head == "wat::kernel::ThreadSelfPeer")
                             && targs.len() == 2 =>
                     {
-                        // (Peer' :- [S R]) or (ThreadSelfPeer' :- [S R]): targs[1] = R = the receive type A.
+                        // (Peer :- [S R]) or (ThreadSelfPeer :- [S R]): targs[1] = R = the receive type A.
                         targs[1].clone()
                     }
                     _ => {
@@ -13282,7 +13282,7 @@ fn infer_poll_prime(
     // args[1]: listener — infer for error coverage; type not further constrained here.
     let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
-    // args[2]: peers — must be (Vector :- [(Peer' :- [I O])]).
+    // args[2]: peers — must be (Vector :- [(Peer :- [I O])]).
     let vec_ty = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
@@ -13325,7 +13325,7 @@ fn infer_poll_prime(
         }
     };
 
-    // Reduce the element type — accept (Peer' :- [I O]).
+    // Reduce the element type — accept (Peer :- [I O]).
     let elem_surface = apply_subst(&elem_ty, subst);
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
@@ -13396,10 +13396,10 @@ fn process_let_binding(
         let rhs = &kv[1];
         let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
         // Arc 278 Phase 3b — the `let`-`_` must-use gate (twin of infer_do's
-        // do-non-final gate): a `_`-bound must-use outcome (send'/try-send')
+        // do-non-final gate): a `_`-bound must-use outcome (send/try-send)
         // is a swallow → located compile error. Re-added in 3b — the sweep
         // landed (`face-underscore-bound-send-prime.wat` faced every
-        // pre-existing `_`-bound `send'` site first — 50 files across
+        // pre-existing `_`-bound `send` site first — 50 files across
         // tests/ + wat-scripts/ — so this gate now finds nothing un-faced).
         if ident.as_str() == "_" {
             if let Some(ty) = &rhs_ty {
@@ -15664,7 +15664,7 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::kernel::Receiver"
                 | "wat::kernel::ProgramHandle"
                 | "wat::kernel::HandlePool"
-                // Arc 293.W.2d — ThreadSelfPeer' is always in-locus (never wire-safe).
+                // Arc 293.W.2d — ThreadSelfPeer is always in-locus (never wire-safe).
                 // Even if its I/O are pure scalars, the peer itself is an in-locus opaque
                 // (crossbeam channel) that cannot cross a comms boundary.
                 | "wat::kernel::ThreadSelfPeer"
@@ -16762,7 +16762,7 @@ fn infer_list_constructor(
                 } else {
                     // unify (invariant join) FIRST to preserve element-type inference; fall to the
                     // directional `assignable` up-cast so a subtype element (the R7 `Never` bottom
-                    // — a `(Peer' :- [Never O])` timer into a `(Vector :- [(Peer' :- [Reply O])])`) is accepted.
+                    // — a `(Peer :- [Never O])` timer into a `(Vector :- [(Peer :- [Reply O])])`) is accepted.
                     unify(&arg_ty, &elem_ty, subst, env.types()).is_ok()
                         || assignable(&arg_ty, &elem_ty, subst, env)
                 }
@@ -17244,7 +17244,7 @@ pub(crate) fn unify(
             Ok(())
         }
         // arc 278 Stone 1 — the tier-open `Timer'` fusion arms are RETIRED. `after` now
-        // builds a UNIFIED `(Peer' :- [nil O])`, so a timer unifies with real peers through the
+        // builds a UNIFIED `(Peer :- [nil O])`, so a timer unifies with real peers through the
         // ordinary structural `Parametric ~ Parametric` arm below — there is no `Timer'`
         // type to fuse anymore.
         (
@@ -17398,7 +17398,7 @@ fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
             return agg.nature;
         }
     }
-    // Arc 293 S3-Nature-2 — a dialed `(Peer' :- [S::Op S::Reply])` derives `Nature::Peer` exactly; it must
+    // Arc 293 S3-Nature-2 — a dialed `(Peer :- [S::Op S::Reply])` derives `Nature::Peer` exactly; it must
     // not fall through to the `Struct` default below (a peer is not a plain foreign struct).
     if let TypeExpr::Parametric { head, .. } = t {
         if head == "wat::kernel::Peer" {
@@ -17468,7 +17468,7 @@ pub(crate) fn assignable(
                 .all(|(x, y)| assignable(x, y, subst, env));
     }
     // Arc 293 S3-Nature-4 (Path B) — a dialed peer intrinsically satisfies a `:nature :Peer`
-    // surface: no extend-type needed. `(Peer' :- [X Y])` satisfies `:S` iff X/Y equal :S's own
+    // surface: no extend-type needed. `(Peer :- [X Y])` satisfies `:S` iff X/Y equal :S's own
     // S1-synthesized `Op`/`Reply` enums.
     if let (TypeExpr::Parametric { head, args: peer_args }, TypeExpr::Path(ep)) = (&a, &e) {
         if head == "wat::kernel::Peer" && peer_args.len() == 2 {
@@ -17493,7 +17493,7 @@ pub(crate) fn assignable(
     // extend-types the protocol. Edge keys carry the leading colon (types.rs:1402);
     // Parametric.head does not — reconcile with `crate::types::parametric_head_fqdn`.
     if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
-        // Full-args edge (a full-parametric extend-type, e.g. (Peer' :- [Op Reply]) <: :S — PROTOCOL-SPECIFIC)
+        // Full-args edge (a full-parametric extend-type, e.g. (Peer :- [Op Reply]) <: :S — PROTOCOL-SPECIFIC)
         // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. (Vector :- [T]) <: :Proto).
         if crate::types::is_subtype(&format_type(&a), ep, types)
             || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types)
@@ -17544,11 +17544,11 @@ pub(crate) fn assignable(
         }
     }
     // Arc 291 3a-ii-β — a parametric type satisfies a parametric bound iff its head DERIVES
-    // the expected head (the derive graph — N-loci-general: Thread'/Process'/<future remote>
-    // `derive` Peer' in spawn.wat, so a locus-agnostic `Peer'<…>` field binds any spawn handle)
+    // the expected head (the derive graph — N-loci-general: Thread/Process/<future remote>
+    // `derive` Peer in spawn.wat, so a locus-agnostic `Peer'<…>` field binds any spawn handle)
     // AND the type-args are pairwise compatible. Args are INVARIANT (a channel's send/recv types
     // are exact) → unify, not covariant-assignable. The head check is driven entirely by the
-    // derive graph, never a hardcoded {Thread',Process'} list — a new locus joins with one derive.
+    // derive graph, never a hardcoded {Thread,Process} list — a new locus joins with one derive.
     if let (
         TypeExpr::Parametric { head: ah, args: aargs },
         TypeExpr::Parametric { head: eh, args: eargs },
@@ -17653,9 +17653,9 @@ pub(crate) fn assignable(
         }
         // Arc 278 Stone 2 — SAME-head parametric: args are INVARIANT (unify) EXCEPT that the
         // subtype LATTICE flows through each arg position, so the two endpoints (`Never` bottom,
-        // `Value` top — the R7 dual pair) assign per-arg. This is what lets a `(Peer' :- [Never O])`
+        // `Value` top — the R7 dual pair) assign per-arg. This is what lets a `(Peer :- [Never O])`
         // timer (`after`'s honest uninhabited send-type) assign into a service's `selectables`
-        // element type `(Peer' :- [Reply O])` (I-slot: `Never <: Reply`; O-slot: `O` unifies exactly).
+        // element type `(Peer :- [Reply O])` (I-slot: `Never <: Reply`; O-slot: `O` unifies exactly).
         // Only a genuine subtype edge (endpoints, or a user-declared parent) relaxes a slot; two
         // unrelated concrete payload types still fail (unify fails, is_subtype finds no edge).
         if ah == eh
@@ -17676,20 +17676,20 @@ pub(crate) fn assignable(
                 {
                     return true;
                 }
-                // Arc 278 reconciliation (b) — a NESTED Peer' arg (e.g. the element of a
-                // `(Vector :- [(Peer' :- [Reply Op])])` selectables slot) widens COVARIANTLY in its
+                // Arc 278 reconciliation (b) — a NESTED Peer arg (e.g. the element of a
+                // `(Vector :- [(Peer :- [Reply Op])])` selectables slot) widens COVARIANTLY in its
                 // RECEIVED-Op position ONLY. A client peer speaks the SURFACE protocol —
-                // `(Peer' :- [proto::Reply proto::Op])` — but the serve loop's selectables are
-                // typed with the SUPERSET `(Peer' :- [proto::Reply service::Op])` (service::Op is
+                // `(Peer :- [proto::Reply proto::Op])` — but the serve loop's selectables are
+                // typed with the SUPERSET `(Peer :- [proto::Reply service::Op])` (service::Op is
                 // a genuine superset: every surface variant embedded field-for-field + the
                 // internal `-op`s, registered via the `derive` edge emitted by defservice;
-                // `retag-op'` re-tags a client op into its service-Op counterpart at dispatch).
-                // The two type-args of a Peer' are `[sent-Reply, received-Op]` (see
+                // `retag-op` re-tags a client op into its service-Op counterpart at dispatch).
+                // The two type-args of a Peer are `[sent-Reply, received-Op]` (see
                 // selectable-peer-ty, wat/service.wat): arg[0] (Reply, what THIS end sends)
                 // stays INVARIANT (`unify`); arg[1] (Op, what THIS end receives) widens via
                 // `is_subtype(surface-Op, service-Op)`. One-directional — a surface-Op peer
                 // satisfies a superset-Op slot, NEVER the reverse (a superset-Op peer carrying
-                // internal ops must not masquerade as a surface-only slot). Scoped to the Peer'
+                // internal ops must not masquerade as a surface-only slot). Scoped to the Peer
                 // head ALONE — every other Parametric arg stays invariant (unify), so this is
                 // NOT a blanket per-arg covariance.
                 if let (
@@ -20653,7 +20653,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::kernel::extract-panics` (stderr-EDN chain recovery for the
     // manual sandbox drivers) is ANNIHILATED with the run-sandboxed family.
     // The primed peer wire delivers the LociDiedError chain directly via
-    // recv' Lost; no stderr-scrape reader is needed. Its signature
+    // recv Lost; no stderr-scrape reader is needed. Its signature
     // registration and runtime eval site are removed. (The unrelated
     // internal Rust helper `extract_panics` in runtime.rs, used by
     // `:wat::core::result::expect` to carry chains through panics, is a
@@ -21124,7 +21124,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // polymorphic-return scheme as `assertion-failed!` (`∀T,R. T -> :R`): the fresh return
     // var `R` unifies with whatever the caller's context demands, so `(eprintln cause)` can
     // stand alone as a divergent match arm producing ANY declared type (e.g. an owner
-    // method's Lost arm returning the response type — arc 278 the recv'-outcome wall). Its
+    // method's Lost arm returning the response type — arc 278 the recv-outcome wall). Its
     // old `-> nil` scheme forced a `(do (eprintln …) <value>)` dance and lied that it
     // returns; the polymorphic scheme is the honest terminal (wat has no `Never` type).
     for op in [":wat::kernel::eprintln", ":wat::kernel::epprintln"] {
@@ -24149,15 +24149,15 @@ mod tests {
         );
     }
 
-    // ─── arc 278 Stone 1: `after` builds a UNIFIED `Peer'` (tier-open `Timer'`
-    // fusion RETIRED). A timer is now a `(Peer' :- [nil O])`; it composes with real
+    // ─── arc 278 Stone 1: `after` builds a UNIFIED `Peer` (tier-open `Timer'`
+    // fusion RETIRED). A timer is now a `(Peer :- [nil O])`; it composes with real
     // peers through the ordinary structural `Parametric ~ Parametric` unify arm, so
     // the dedicated `Timer'`-fusion arms + their tests are gone. Tier homogeneity
     // between real peers (below) is unchanged. ──────────────────────────────────
 
     #[test]
     fn thread_process_still_fail() {
-        // unify((Thread' :- [nil keyword]), (Process' :- [nil keyword])) == Err (homogeneity preserved)
+        // unify((Thread :- [nil keyword]), (Process :- [nil keyword])) == Err (homogeneity preserved)
         let mut s = Subst::new();
         let kw = TypeExpr::Path(":wat::core::keyword".into());
         let nil = TypeExpr::Path(":wat::core::nil".into());

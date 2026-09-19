@@ -1657,8 +1657,8 @@ pub enum EdnReadErrorKind {
     // ── RETIRED arc 293.W.2a ──────────────────────────────────────────────────
     // StructOnWire { class: String } — deleted by arc 293.W.2d.
     // The §7 struct-on-wire runtime backstop is superseded by the compile-time
-    // purity wall at wire-peer PRODUCERS (peer-pair', connect',
-    // accept', program-self-peer'). A struct can no longer be typed into a wire
+    // purity wall at wire-peer PRODUCERS (peer-pair', connect,
+    // accept, program-self-peer'). A struct can no longer be typed into a wire
     // peer at CHECK time, so the runtime decode door has no reachable struct case
     // to reject. The untyped pprintln path is an out-of-scope trust-boundary
     // concern (user validates inputs — the compiler wall is the primary defense).
@@ -3848,7 +3848,7 @@ pub fn value_to_edn(v: &Value) -> OwnedValue {
 // WITH its fields, and the sibling `value_to_edn_string_with` reaches them fine — the
 // lookup simply was not wired through this door. Three unrelated symptoms, one cause:
 // the `field-N` diagnostics blob (296/NOTE-value-to-edn-renders-fields-positionally.md),
-// `send'`'s `field-0`/`field-1` (bridged with a thread-local in 258.5b, killed by
+// `send`'s `field-0`/`field-1` (bridged with a thread-local in 258.5b, killed by
 // 258.5b-ii), and `(:wat::core::str <record>)` (introduced by 279.2 and fixed here).
 //
 // A default you cannot see at the call site is a default nobody audits. There is now ONE
@@ -3886,7 +3886,7 @@ pub(crate) fn edn_string_to_value(s: &str) -> Result<Value, EdnReadError> {
 /// Arc 272 6a-i — **THE ONE TRUSTED-WIRE DECODE DOOR.** The sole entry that reconstructs portable
 /// capability tags into live capabilities. Object-capability transfer-only: a
 /// capability is obtained only by being handed it over a trusted channel — the process peer wire
-/// (`recv'` / `select'`, whose bytes came from a lineage peer) — NEVER forged from parsed data.
+/// (`recv` / `select`, whose bytes came from a lineage peer) — NEVER forged from parsed data.
 ///
 /// Every other decode entry (`edn_to_value` / `read_edn` / `edn_string_to_value` / `:wat::edn::read`)
 /// is **structurally incapable** of minting a capability: `read_edn_caps` is private, so no
@@ -3907,7 +3907,7 @@ pub(crate) fn decode_trusted_wire(
     // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────
     // The §7 runtime backstop that refused a top-level Nature::Struct at the
     // wire-decode door is gone. The compile-time purity wall at wire-peer
-    // PRODUCERS (peer-pair', connect', accept', program-self-peer')
+    // PRODUCERS (peer-pair', connect, accept, program-self-peer')
     // makes the reachable struct-on-wire case structurally unrepresentable. The
     // untyped pprintln path is a trust-boundary concern outside our scope.
     Ok(v)
@@ -4208,7 +4208,7 @@ pub fn value_to_edn_with(
             // refuses any bare-nil tagged value; arc 278 A.0). The per-capability codecs live in
             // `crate::capability::registry`. `types` is required by record-based codecs (arc 272
             // 6c.2 SocketAddressWire field naming); when `types` is None (display/logging paths,
-            // and the process-tier `send'` path when no registry is threaded through — see arc
+            // and the process-tier `send` path when no registry is threaded through — see arc
             // 294.i STOP-2 finding), capability encoding is skipped and the value falls to its
             // per-type-home tag. Arc 294.i: `RustOpaque` is a Rust carrier word, never a tag name —
             // route the fallback through `tag_from_type_path`, the same fn already used at five

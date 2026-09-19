@@ -26,7 +26,7 @@
 //! - `handle.rs` — parent-side handles: `ChildHandle`, `ForkedProgramHandles`.
 //! - `verbs.rs` — `:wat::kernel::spawn-process` retired (non-prime IPC
 //!   de-prime); `fork_program_from_source` (wat-cli source-fork) + the
-//!   `spawn-program' (process)` server-child runtime remain.
+//!   `spawn-program (process)` server-child runtime remain.
 //!
 //! ## In-thread tier (std::thread over kernel pipes)
 //!
@@ -69,7 +69,7 @@ pub use verbs::{
 // the same structured EDN the forked path emitted.
 pub(crate) use verbs::{finish_in_process, emit_startup_error_structured_exit, emit_structured_exit};
 pub use stdio::{lend_ambient, emit_panic_envelope};
-// Arc 214 β — post-dup2 server runtime for spawn-program' :process. Called by
+// Arc 214 β — post-dup2 server runtime for spawn-program :process. Called by
 // kernel/spawn.rs after the child branch has dup2'd fd 0/1/2 and called
 // child_post_fork_init; runs the forms as a readln/println server (never returns).
 pub(crate) use verbs::run_forms_as_server_child;

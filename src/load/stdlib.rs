@@ -217,8 +217,8 @@ const STDLIB_FILES: &[WatSource] = &[
     // and wat/kernel/sandbox.wat ANNIHILATED. They defined the manual
     // sandbox-a-program family (run-sandboxed / run-sandboxed-ast /
     // run-sandboxed-hermetic-ast + drive-sandbox + drain-lines helpers),
-    // fully subsumed by the primed peer wire (spawn-program' + send' +
-    // recv' + LociDiedError). Their loader entries are removed with the files.
+    // fully subsumed by the primed peer wire (spawn-program + send +
+    // recv + LociDiedError). Their loader entries are removed with the files.
     // Arc 170 slice 1e — `:wat::kernel::ExitCode` retired (REALIZATIONS
     // pass 10 — `:wat::core::nil` IS the success exit code; `:user::main`
     // returns nil; substrate maps to libc::exit(0); panic-cascade maps

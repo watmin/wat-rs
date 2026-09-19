@@ -53,7 +53,7 @@
 //! reads via [`crate::io::WatReader::read_line`] (which strips
 //! trailing `\n`/`\r`) and parses with [`crate::edn::render::read_edn`].
 //! This is the same line-delimited EDN convention the process-tier
-//! peer wire (`spawn-program' (process)` + `send'`/`recv'`) uses.
+//! peer wire (`spawn-program (process)` + `send`/`recv`) uses.
 //!
 //! ## Error semantics (tier 2)
 //!

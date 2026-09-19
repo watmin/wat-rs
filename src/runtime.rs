@@ -636,9 +636,9 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
             // MEASURES; userland owns the transitions") applied to the SIGNAL HANDLER from the
             // start; it now applies to the worker too. An earlier revision of this stone had the
             // worker itself announce (`StopAccepted`) and ask each held service to stop — WRONG:
-            // `ThreadOwnedCell` (`src/rust_deps/custodia.rs`) binds a Handle's admin `Peer'` to
+            // `ThreadOwnedCell` (`src/rust_deps/custodia.rs`) binds a Handle's admin `Peer` to
             // whichever OS thread constructed it (main, via `bootstrap_wat_vm_process` →
-            // `start-primed-stdio`); only THAT thread may legally `send'`/`recv'` on it. The
+            // `start-primed-stdio`); only THAT thread may legally `send`/`recv` on it. The
             // worker is a different OS thread and can never satisfy that check — every ask from
             // here failed, always, silently swallowed until the fix that stopped discarding the
             // error surfaced it (see the arc 170 report). The announce and the ask-then-await now
@@ -666,9 +666,9 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
             // `trigger_shutdown()` here unconditionally, immediately after the wake byte,
             // reproduces the ORIGINAL bug on the very first try — main's ask-then-await
             // (`ProcessRuntime::ask_stop_and_collect_failures`, `src/freeze.rs`) sends
-            // `Admin::Stop` down a THREAD-TIER `Peer'`, whose `recv'` for `Status::Stopped` is
+            // `Admin::Stop` down a THREAD-TIER `Peer`, whose `recv` for `Status::Stopped` is
             // cascade-aware (`comms::thread::Receiver::recv`, selects against `shutdown_rx()`).
-            // If `SHUTDOWN_TX_PTR` is already dropped by the time that `recv'` runs, crossbeam's
+            // If `SHUTDOWN_TX_PTR` is already dropped by the time that `recv` runs, crossbeam's
             // `select!` can pick the disconnected shutdown arm over the real (already-sent, real)
             // reply — every ask spuriously fails with "process shutdown" (`RecvOutcome::Shutdown`)
             // instead of the true `Status::Stopped`. So this call is conditional: only when NO
@@ -724,7 +724,7 @@ pub fn trigger_shutdown() {
 //
 // Correction (builder-ruled): the announce + the ask-then-await themselves do
 // NOT live here anymore. `ThreadOwnedCell` (`src/rust_deps/custodia.rs`) binds
-// each Handle's admin `Peer'` to whichever thread constructed it —
+// each Handle's admin `Peer` to whichever thread constructed it —
 // `bootstrap_wat_vm_process`, always the caller's own thread (main, in the
 // CLI). The shutdown worker is a DIFFERENT OS thread, so it can never
 // legally ask; only MAIN can. See `ProcessRuntime::ask_stop_and_collect_failures`
@@ -4436,7 +4436,7 @@ pub(crate) fn angle_minted_name_reason(name: &str) -> String {
 }
 
 /// Arc 109 ③ — shape test for a runtime type-keyword ARG whose content this call site never
-/// actually consumes (`self-peer`, `listener'`'s socket-pair args): historically `WatAST::
+/// actually consumes (`self-peer`, `listener`'s socket-pair args): historically `WatAST::
 /// Keyword(_, _)` only, since a parametric arg always arrived as one angle-bracket keyword.
 /// Angle brackets are illegal now — the SAME parametric arg arrives as the reference FORM
 /// `(Head :- [args])`, a `WatAST::List` — so this widens the shape test to accept both,
@@ -6388,7 +6388,7 @@ fn dispatch_keyword_head_value(
         // Arc 170 CULMINATION (arc 278 IPC de-prime) — `:wat::kernel::extract-panics`
         // ANNIHILATED with the run-sandboxed family (its only callers were the
         // deleted manual sandbox drivers; the primed peer wire delivers the
-        // LociDiedError chain directly via recv' Lost, no stderr-scrape needed).
+        // LociDiedError chain directly via recv Lost, no stderr-scrape needed).
         // Arc 105c — substrate `:wat::kernel::run-sandboxed` /
         // `-ast` dispatch arms are GONE. The wat-level defines in
         // `wat/kernel/sandbox.wat` (bundled in `src/stdlib.rs`) atop
@@ -6402,43 +6402,43 @@ fn dispatch_keyword_head_value(
         // intrinsic registry (`src/intrinsic/kernel/abort.rs`); here/fn-forms moved to
         // (`src/intrinsic/kernel/source.rs`); dispatch now reaches them via the registry
         // lookup above, not a literal arm here.
-        // Arc 259 S2c-ii-b — spawn-program' is now a wat defclause in wat/spawn.wat.
+        // Arc 259 S2c-ii-b — spawn-program is now a wat defclause in wat/spawn.wat.
         // The 3-arg Rust intrinsic is RETIRED; the defclause dispatches on the host
-        // type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process').
+        // type (ThreadOpts → spawn-thread; ProcessOpts → spawn-process).
         // Arc 259 S2c-i — per-tier 1-arg primitives (no tier keyword, no env arg).
-        // spawn-thread' : fn([(Peer' :- [S R])]) -> nil -> (Thread' :- [R S])
-        // spawn-process' : forms -> (Process' :- [I O])
+        // spawn-thread : fn([(Peer :- [S R])]) -> nil -> (Thread :- [R S])
+        // spawn-process : forms -> (Process :- [I O])
         // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers.
         // Arc 255.1c-kernel-message — send/try-send/recv/select/poll moved to the
         // intrinsic registry (`src/intrinsic/kernel/message.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
         //
-        // Arc 214 Stone 4.6a-ii — close': intrinsic (∀-parametric: (peer :- [∀I ∀O]));
+        // Arc 214 Stone 4.6a-ii — close: intrinsic (∀-parametric: (peer :- [∀I ∀O]));
         // see docs/DISPATCH.md + check.rs ~4814 for the CLAUSE-vs-INTRINSIC
-        // partition. Downcasts the peer RustOpaque by sentinel (Thread' first,
-        // then Process', else TypeMismatch).
+        // partition. Downcasts the peer RustOpaque by sentinel (Thread first,
+        // then Process, else TypeMismatch).
         // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
         // — owner-to-child signal delivery. STOP-1: (Process :- [I O]) only, no shared
-        // codegen with Thread'/Peer'. STOP-3: routes through Pidfd::send_signal, never
+        // codegen with Thread/Peer. STOP-3: routes through Pidfd::send_signal, never
         // kill(pid, sig). See eval_signal.
         // Arc 255.1c-kernel-remainder (home #8) — peer-process/peer-wire?/address-wire?/
         // require-wire-address moved to the intrinsic registry
         // (`src/intrinsic/kernel/identity.rs`); dispatch now reaches them via the
         // registry lookup above, not a literal arm here.
-        // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
-        // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
-        // connect' mints the connection pairs, wraps the client Peer' end locally,
+        // Arc 209 Stone C0b.1 — thread-tier connection: listener/connect/accept.
+        // listener mints the crossbeam rendezvous (Listener'=rx, Address=tx).
+        // connect mints the connection pairs, wraps the client Peer end locally,
         // ships the server's raw halves over the rendezvous.
-        // accept' receives the server's raw halves from the rendezvous, wraps the
-        // server Peer' end on this thread.  No Peer' cell ever crosses a thread.
+        // accept receives the server's raw halves from the rendezvous, wraps the
+        // server Peer end on this thread.  No Peer cell ever crosses a thread.
         // Arc 255.1c-kernel-remainder (home #8) — peer-pid moved to the intrinsic
         // registry (`src/intrinsic/kernel/identity.rs`); dispatch now reaches it via
         // the registry lookup above, not a literal arm here. Still type-invisible to
         // `check.rs` (no scheme, no `infer_*` arm) — registration documents the verb,
         // it does not close that hole (task #110 / 255.1b-iv).
-        // Arc 209 C0b.3b-b — allow'/deny': mutate the SocketListener's allow-set.
-        // allow' : [(Listener' :- [S R]) i64 :-> nil]  — insert pid; process-tier only.
-        // deny'  : [(Listener' :- [S R]) i64 :-> nil]  — remove pid; process-tier only.
+        // Arc 209 C0b.3b-b — allow/deny: mutate the SocketListener's allow-set.
+        // allow : [(Listener' :- [S R]) i64 :-> nil]  — insert pid; process-tier only.
+        // deny  : [(Listener' :- [S R]) i64 :-> nil]  — remove pid; process-tier only.
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning (Result :- [()
         // ProcessDiedError]). The orphaned eval body in src/fork.rs
@@ -6542,9 +6542,9 @@ fn dispatch_keyword_head_value(
                         }) {
                             // Arc 293 S3-Nature-4 (Path B) — a `:nature :Peer` surface has no
                             // aggregate satisfier to look up; instead it COMPOSES the generic
-                            // `send'`/`recv'` peer primitives with its own S1-synthesized
-                            // `Op`/`Reply` enums: `(let [__op (:S::Op::<Variant> req) _ (send'
-                            // peer __op) __r (recv' peer)] (match __r -> <ret> ((:S::Reply::
+                            // `send`/`recv` peer primitives with its own S1-synthesized
+                            // `Op`/`Reply` enums: `(let [__op (:S::Op::<Variant> req) _ (send
+                            // peer __op) __r (recv peer)] (match __r -> <ret> ((:S::Reply::
                             // <Variant> resp) resp)))`. This branch fires ONLY for
                             // `Nature::Peer` — every other nature (aggregate dispatch) falls
                             // through to the unchanged `:<T>/<method>` lookup below.
@@ -6735,7 +6735,7 @@ fn dispatch_keyword_head_value(
                                             ], span.clone()),
                                         ], span.clone()),
                                         WatAST::List(vec![
-                                            // Arc 278 the recv'-outcome wall — `recv'` returns a
+                                            // Arc 278 the recv-outcome wall — `recv` returns a
                                             // matchable `(RecvOutcome :- [Reply])`, NEVER a raise. This
                                             // Path-B intrinsic RE-WRAPS it into a
                                             // `(RecvOutcome :- [<Op>Response])` the caller faces as a value
@@ -14601,7 +14601,7 @@ fn eval_field_names_of(
 /// keyword `:wat.kernel.Peer'<probe.Kv.Op_probe.Kv/Reply>`). The new form
 /// is plain-EDN and decomposable: an atomic type renders to
 /// `WatAST::Symbol("wat.type/i64")`; a parametric type renders to a
-/// `WatAST::List`, e.g. `(wat.kernel/Peer' probe.Kv/Op probe.Kv/Reply)`.
+/// `WatAST::List`, e.g. `(wat.kernel/Peer probe.Kv/Op probe.Kv/Reply)`.
 ///
 /// ★ Doc read against body (arc 255 Stone P6-c-W4): the prior informal return-type shorthand
 /// (`wat::WatAST`, colonless) named the right element type — matched, only reformatted to the
@@ -16083,7 +16083,7 @@ fn eval_variant(
 /// `<service>::Op` superset (surface variants + internal `-`-ops), but a client
 /// can only ever construct a `<surface>::Op` value (the wire type — that decode
 /// gate IS the "internals are un-callable" wall). So a client op arrives
-/// runtime-tagged `<surface>::Op::X` while its static type (from `poll'`'s
+/// runtime-tagged `<surface>::Op::X` while its static type (from `poll`'s
 /// `selectables` element `O`) is already `<service>::Op` — the runtime
 /// `type_path` disagrees with the static type, and the runtime enum matcher
 /// composes `type_path::variant` (see `try_match_pattern`), so a
@@ -17750,7 +17750,7 @@ fn construct_aggregate(
             ))))
         }
         // Arc 293 S3-Nature-2 — `Peer` is never registered as a `TypeDef::Aggregate` (it is the
-        // nature-root for `:nature`-bound surfaces, satisfied by a dialed `Peer'`, not constructed
+        // nature-root for `:nature`-bound surfaces, satisfied by a dialed `Peer`, not constructed
         // via aggregate-new); exhaustiveness only, unreachable at runtime.
         crate::types::Nature::Peer => unreachable!("TypeDef::Aggregate never carries Nature::Peer"),
     }
@@ -19873,7 +19873,7 @@ pub(crate) fn host_cpu_count() -> i64 {
 // the check.
 
 /// `(:wat::program::self-peer :S :R)` — returns the calling thread's self-peer
-/// (the spawned process child's owner-link as a unified `(Peer' :- [S R])`).
+/// (the spawned process child's owner-link as a unified `(Peer :- [S R])`).
 ///
 /// Arc 209 C0b.3a-0 / C0b.2e-i-b. The self-peer is installed into the `SELF_PEER`
 /// thread-local by `install_self_peer` at the child-only seam
@@ -20121,11 +20121,11 @@ pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span)
 /// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a
 /// `(:wat::kernel::listener host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
 ///
-/// Thread tier (C0b.1): `(listener' (thread) :S :R)` — mints a crossbeam rendezvous
-/// channel and returns `Tuple[(Listener' :- [S R]), (Address' :- [S R])]` (raw Receiver / raw Sender).
+/// Thread tier (C0b.1): `(listener (thread) :S :R)` — mints a crossbeam rendezvous
+/// channel and returns `Tuple[(Listener' :- [S R]), (Address :- [S R])]` (raw Receiver / raw Sender).
 /// 3 args: host, :S, :R.
 ///
-/// Process tier (C0b.2d → arc 272): `(listener' (process) :S :R)` — autobinds an abstract-namespace
+/// Process tier (C0b.2d → arc 272): `(listener (process) :S :R)` — autobinds an abstract-namespace
 /// UDS (kernel-minted, exclusive-bind, not a chosen name) and returns `Bound{ listener, address }`
 /// mirroring the thread tier. 3 args: host, :S, :R. The legacy 2-arg named form (`socket-address'`
 /// opaque) was annihilated in arc 272 step 5 (guessable names → squattable; autobind is the only
@@ -20159,10 +20159,10 @@ pub(crate) fn eval_listener_prime(
         Value::Aggregate(a) if a.class.as_ref() == "wat::spawn::ProcessOpts");
 
     if is_process {
-        // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)`: mint a kernel-unique,
+        // Arc 272 — 3-arg AUTOBIND form `(listener (process) :S :R)`: mint a kernel-unique,
         // exclusive-bind abstract address (kernel-minted, not a chosen name → no collision, no
         // squatting) and return `(Bound :- [S R]){listener, address}`, MIRRORING the thread tier.
-        // The address is the capability `connect'` dials. (The 2-arg `(host addr)` named form
+        // The address is the capability `connect` dials. (The 2-arg `(host addr)` named form
         // below is LEGACY — annihilated in arc 272 step 5 with the rest of the name-discovery
         // stack.) The SO_PEERCRED uid+pid checks are the security; the autobind name is the
         // exclusive-bind rendezvous token, not a secret.
@@ -20237,7 +20237,7 @@ pub(crate) fn eval_listener_prime(
             ))));
         }
         // Arc 272 step 5 — the process listener is AUTOBIND-ONLY. The legacy 2-arg named form
-        // `(listener' (process) <socket-address'>)` is ANNIHILATED with the rest of the
+        // `(listener (process) <socket-address'>)` is ANNIHILATED with the rest of the
         // name-discovery stack: a chosen name is guessable hence squattable, so all rendezvous is
         // the kernel-minted exclusive-bind autobind capability (the 3-arg form above), handed
         // over the lineage channel. Anything but the 3-arg autobind form is an arity error.
@@ -20281,7 +20281,7 @@ pub(crate) fn eval_listener_prime(
         }
         // Mint the crossbeam rendezvous channel.
         // Listener' = rx (the service accept-side, wrapped as Listener entity);
-        // Address' = tx (the client dial-side, wrapped as Address entity — C0b.2e-iii).
+        // Address = tx (the client dial-side, wrapped as Address entity — C0b.2e-iii).
         let (tx, rx) = crate::comms::thread::pair::<Value>();
         // Arc 209 C0b.2e-ii — wrap rx as the unified Listener entity.
         // Arc 209 C0b.2e-iii — wrap tx as the unified Address entity (was raw Sender).
@@ -20313,7 +20313,7 @@ fn bound_names() -> Arc<Vec<String>> {
 
 /// `(:wat::kernel::connect addr)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2e-iii.
 ///
-/// Arc 209 C0b.2e-iii: `addr` is now a unified `Address'` opaque (both thread and
+/// Arc 209 C0b.2e-iii: `addr` is now a unified `Address` opaque (both thread and
 /// process tiers). Downcasts the opaque to `Address`, calls `inner.connect(sym, span)`,
 /// wraps the returned `Peer` as a `PEER_TYPE_PATH` opaque.  One arm, two impls.
 ///
@@ -20339,7 +20339,7 @@ pub(crate) fn eval_connect_prime(
         .into());
     }
     let addr_val = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc 209 C0b.2e-iii — one arm: downcast the Address' opaque → inner.connect.
+    // Arc 209 C0b.2e-iii — one arm: downcast the Address opaque → inner.connect.
     let addr: &crate::kernel::address::Address = match addr_val {
         Value::RustOpaque(ref inner)
             if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH =>
@@ -20367,7 +20367,7 @@ pub(crate) fn eval_connect_prime(
     addr.connect_as_value(sym, list_span)
 }
 
-/// Unpack a connect-request `Value` and wrap the server `Peer'` end on the
+/// Unpack a connect-request `Value` and wrap the server `Peer` end on the
 /// current thread.
 ///
 /// Called by both `eval_accept_prime` (after a blocking `typed_recv` on the
@@ -20376,8 +20376,8 @@ pub(crate) fn eval_connect_prime(
 /// is not duplicated.
 ///
 /// The connect-request is a `Value::Tuple` `(req_rx: Receiver, resp_tx: Sender)`
-/// minted by `connect'` and uniquely owned at the point of receipt:
-/// `Arc::try_unwrap` succeeds.  Returns the server `(Peer' :- [R S])` opaque.
+/// minted by `connect` and uniquely owned at the point of receipt:
+/// `Arc::try_unwrap` succeeds.  Returns the server `(Peer :- [R S])` opaque.
 fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::accept"; // same context for error messages
                                              // Unpack the connect-request tuple: (req_rx: Receiver, resp_tx: Sender).
@@ -20480,7 +20480,7 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
             .into());
         }
     };
-    // Wrap the server (Peer' :- [R S]) end on THIS thread (custody holds).
+    // Wrap the server (Peer :- [R S]) end on THIS thread (custody holds).
     use crate::kernel::peer::Peer;
     use crate::kernel::spawn::PEER_TYPE_PATH;
     use crate::rust_deps::custodia::ThreadOwnedCell;
@@ -20498,13 +20498,13 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
 ///
 /// Thread tier (C0b.1): block on the rendezvous `Listener'` (a raw
 /// `Receiver`) until a connect-request arrives; unpack the server's raw
-/// halves `(req_rx, resp_tx)`; wrap the server `(Peer' :- [R S])` end on THIS
-/// thread (custody holds).  Returns the server `Peer'`.
+/// halves `(req_rx, resp_tx)`; wrap the server `(Peer :- [R S])` end on THIS
+/// thread (custody holds).  Returns the server `Peer`.
 ///
 /// Process tier (C0b.2c): downcast the `SocketListener'` opaque to
 /// `&UnixListener`, call `.accept()` (blocks until a connection — the
-/// honest wire-wait), wrap the accepted stream as a unified `(Peer' :- [R S])`.
-/// Returns `(Peer' :- [R S])`.
+/// honest wire-wait), wrap the accepted stream as a unified `(Peer :- [R S])`.
+/// Returns `(Peer :- [R S])`.
 pub(crate) fn eval_accept_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -21112,7 +21112,7 @@ pub(crate) fn eval_handle_pool_finish(
 // value — it communicates only by channel — so the "spawn a fn,
 // get a Value back" chain those types existed to carry had zero
 // producers left; its death-reason job was already carried
-// structurally by `recv'` -> `Lost[LociDiedError]`.
+// structurally by `recv` -> `Lost[LociDiedError]`.
 
 /// Coerce a `catch_unwind` panic payload to a printable String —
 /// same shape Rust's default panic hook does, plus an
@@ -21410,7 +21410,7 @@ fn thread_died_error_runtime(message: String) -> Value {
 /// it keeps its own uniform `shutdown` vocabulary, hence this fn's name.
 /// Distinguishable from ChannelDisconnected: the channel partner did
 /// NOT drop — the process is stopping. Used by [`loci_died_from_send_error`]
-/// (send' side); the recv' side builds its own inline copy in
+/// (send side); the recv side builds its own inline copy in
 /// `recv_outcome_shutdown`.
 fn thread_died_error_shutdown() -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -21800,9 +21800,9 @@ pub(crate) fn eval_died_error_message(
 // (the wat verb `:wat::kernel::extract-panics`) ANNIHILATED with the
 // run-sandboxed family. It walked a manual sandbox driver's captured
 // stderr lines to recover the LociDiedError chain; the primed peer wire
-// delivers that chain directly via recv' Lost, so the stderr-scrape
+// delivers that chain directly via recv Lost, so the stderr-scrape
 // reader is dead. The `edn_is_loci_died_chain` helper below survives
-// (still used by the recv' Lost EDN decoder).
+// (still used by the recv Lost EDN decoder).
 
 /// True when `v` is a bare `(Vector :- [LociDiedError])` death chain — a
 /// `Vector` whose first element is a `#wat.kernel.LociDiedError/…` tagged
@@ -22006,7 +22006,7 @@ fn select_lost_if_death_notice_wire(
 /// ⛔ THE SIBLING THAT WAS NEVER WRITTEN. `recv` has mapped the reserved protocol-tier
 /// `<S>::Reply::Failed` to an abnormal outcome since arc 278 (`recv_outcome_from_decoded`),
 /// and both `wat/service.wat` and `reply_failed_reason`'s own doc-comment assert that this
-/// covers "the defservice-generated client methods (both round-trip through `recv'`)".
+/// covers "the defservice-generated client methods (both round-trip through `recv`)".
 /// They do NOT: a generated op method goes through `call-by-deadline`, which uses `select`,
 /// and every `ServiceEvent::Message` site here handed the decoded value straight through.
 /// So a client whose request could not be decoded received the raw `Reply::Failed` as a
@@ -22028,7 +22028,7 @@ fn select_malformed_if_reply_failed(type_path: &str, peer_idx: i64, msg: &Value)
     })
 }
 
-/// Arc 278 the recv'-outcome wall — the type path of the matchable `recv'` outcome
+/// Arc 278 the recv-outcome wall — the type path of the matchable `recv` outcome
 /// enum (`(:wat::kernel::RecvOutcome :- [O])`, registered in `types.rs`).
 const RECV_OUTCOME_TYPE: &str = ":wat::kernel::RecvOutcome";
 
@@ -22199,9 +22199,9 @@ fn recv_outcome_from_decoded(v: Value, types: Option<&crate::types::TypeEnv>) ->
 }
 
 
-/// Arc 278 the send'-outcome wall — the type path of the matchable `send'` outcome
+/// Arc 278 the send-outcome wall — the type path of the matchable `send` outcome
 /// enum (`:wat::kernel::SendOutcome`, registered in `types.rs`). Non-parametric —
-/// send' carries no received payload (unlike (RecvOutcome :- [O])).
+/// send carries no received payload (unlike (RecvOutcome :- [O])).
 const SEND_OUTCOME_TYPE: &str = ":wat::kernel::SendOutcome";
 
 /// `SendOutcome::Sent []` — delivered (the happy path).
@@ -22227,7 +22227,7 @@ fn send_outcome_closed() -> Value {
 
 /// `:wat::kernel::LociDiedError::Disconnected []` — the peer's receiving end is
 /// gone (EPIPE). Arc 278 BRIEF-send-carries-its-cause (#70) minted this as the
-/// only cause send' could honestly report; arc 278 send-mirrors-recv
+/// only cause send could honestly report; arc 278 send-mirrors-recv
 /// (`DESIGN-STONE-send-mirrors-recv.md`) has since given `comms::thread::
 /// Sender::send` and `comms::process::Sender::send` a real `SendError` enum
 /// (`Disconnected`/`Shutdown`/`FrameTooLarge`/`Failed`) mirroring `RecvError` —
@@ -22250,7 +22250,7 @@ fn loci_died_disconnected() -> Value {
 /// - `Shutdown` → `LociDiedError::Stopped` — now producible, because
 ///   `Sender::send` polls the shutdown broadcast mid-write instead of
 ///   blocking uncancellably (the gap `loci_died_disconnected`'s old doc
-///   named: "not yet producible from any live send' call site").
+///   named: "not yet producible from any live send call site").
 /// - `Failed(_, reason)` → `LociDiedError::RuntimeError(reason)`, carrying
 ///   the real io error text instead of discarding it.
 ///
@@ -22280,7 +22280,7 @@ fn send_outcome_stopped() -> Value {
 
 /// THE ONE DOOR from a `comms::SendError<T>` to the wat-facing `SendOutcome`.
 ///
-/// Arc 278 #73. Every failing `send'` call site used to read
+/// Arc 278 #73. Every failing `send` call site used to read
 /// `send_outcome_lost(loci_died_from_send_error(&e))` — which folded EVERY error,
 /// including `SendError::Shutdown`, into `Lost`. The stop fact was built correctly
 /// (`LociDiedError::Stopped`) and then posted inside a carrier whose type is named
@@ -22302,7 +22302,7 @@ fn send_outcome_from_error<T>(e: &crate::comms::SendError<T>) -> Value {
 
 /// `SendOutcome::Lost [cause <- LociDiedError]` — disconnected mid-send (was the
 /// "channel disconnected" raise). Arc 278 BRIEF-send-carries-its-cause (#70):
-/// widened from a flat `Failure` to the SAME loci-agnostic `LociDiedError` recv'
+/// widened from a flat `Failure` to the SAME loci-agnostic `LociDiedError` recv
 /// already carries — the caller now MATCHES the cause instead of reading prose.
 fn send_outcome_lost(cause: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -22313,11 +22313,11 @@ fn send_outcome_lost(cause: Value) -> Value {
     }))
 }
 
-/// Arc 278 the send'-outcome wall Phase 3a — the type path of `try-send'`'s
+/// Arc 278 the send-outcome wall Phase 3a — the type path of `try-send`'s
 /// OWN matchable outcome enum (`:wat::kernel::TrySendOutcome`, registered in
 /// `types.rs`). Sibling to `SendOutcome`, not a reuse — see
-/// `BRIEF-send-wall-3a-try-send-outcome.md`: `try-send'` is non-blocking, so
-/// it has an outcome (`WouldBlock`) `send'` structurally cannot.
+/// `BRIEF-send-wall-3a-try-send-outcome.md`: `try-send` is non-blocking, so
+/// it has an outcome (`WouldBlock`) `send` structurally cannot.
 const TRY_SEND_OUTCOME_TYPE: &str = ":wat::kernel::TrySendOutcome";
 
 /// `TrySendOutcome::Sent []` — delivered (the happy path).
@@ -22332,7 +22332,7 @@ fn try_send_outcome_sent() -> Value {
 
 /// `TrySendOutcome::WouldBlock []` — channel full / receiver not draining
 /// (crossbeam `TrySendError::Full` / process-tier `EWOULDBLOCK`). A LIVE
-/// peer — `try-send'` ONLY (`send'` has no non-blocking notion of "full").
+/// peer — `try-send` ONLY (`send` has no non-blocking notion of "full").
 fn try_send_outcome_would_block() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: TRY_SEND_OUTCOME_TYPE.into(),
@@ -22366,7 +22366,7 @@ fn try_send_outcome_lost(cause: Value) -> Value {
     }))
 }
 
-/// Arc 278 peer-lifecycle Strike 2 — the type path of `close'`'s matchable outcome
+/// Arc 278 peer-lifecycle Strike 2 — the type path of `close`'s matchable outcome
 /// enum (`:wat::kernel::CloseOutcome`, registered in `types.rs`). Non-parametric —
 /// the peer is CONSUMED, so no variant holds a live resource (Pure, like SendOutcome).
 const CLOSE_OUTCOME_TYPE: &str = ":wat::kernel::CloseOutcome";
@@ -22396,7 +22396,7 @@ fn close_outcome_signaled(signal: i64) -> Value {
 
 /// `CloseOutcome::Failed [cause <- Failure]` — an abnormal close: a thread-join panic,
 /// a process wait failure, or a stopped-not-terminated child during teardown. Built via
-/// `message_only_failure` — the SAME structured carrier `send'`/`recv'` `Lost` use; never
+/// `message_only_failure` — the SAME structured carrier `send`/`recv` `Lost` use; never
 /// a hand-rolled `struct-new` Failure (R57's Struct-Failure mask, `3c72ef9c`).
 fn close_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -22438,7 +22438,7 @@ fn signal_outcome_delivered() -> Value {
 /// `SignalOutcome::Failed [cause <- Failure]` — an io failure from
 /// `pidfd_send_signal` other than the must-never-happen EINVAL/EBADF cases
 /// (those stay raises — STOP-7). Built via `message_only_failure`, the SAME
-/// structured carrier `send'`/`recv'`/`close'` use for their own `Failed`/`Lost`
+/// structured carrier `send`/`recv`/`close` use for their own `Failed`/`Lost`
 /// arms.
 fn signal_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -22449,12 +22449,12 @@ fn signal_outcome_failed(reason: String) -> Value {
     }))
 }
 
-/// Arc 278 peer-lifecycle Strike 3 — the type path of `accept'`'s matchable outcome
+/// Arc 278 peer-lifecycle Strike 3 — the type path of `accept`'s matchable outcome
 /// enum (`(:wat::kernel::AcceptOutcome :- [R S])`, registered in `types.rs`). PARAMETRIC +
-/// Impure, mirroring `(RecvOutcome :- [O])` — `Accepted` holds a live `Peer'`.
+/// Impure, mirroring `(RecvOutcome :- [O])` — `Accepted` holds a live `Peer`.
 const ACCEPT_OUTCOME_TYPE: &str = ":wat::kernel::AcceptOutcome";
 
-/// `AcceptOutcome::Accepted [peer <- (Peer' :- [R S])]` — an AUTHORIZED peer connected
+/// `AcceptOutcome::Accepted [peer <- (Peer :- [R S])]` — an AUTHORIZED peer connected
 /// (the happy path). `peer_val` is the already-wrapped `PEER_TYPE_PATH` opaque.
 pub(crate) fn accept_outcome_accepted(peer_val: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -22479,7 +22479,7 @@ pub(crate) fn accept_outcome_closed() -> Value {
 
 /// `AcceptOutcome::Failed [cause <- Failure]` — a decode / select / peer_cred / socket-wrap
 /// io error carrying its structured cause. Built via `message_only_failure` — the SAME
-/// structured carrier `send'`/`recv'`/`close'` `Lost`/`Failed` use; never a hand-rolled
+/// structured carrier `send`/`recv`/`close` `Lost`/`Failed` use; never a hand-rolled
 /// `struct-new` Failure (R57's Struct-Failure mask).
 pub(crate) fn accept_outcome_failed(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -22490,13 +22490,13 @@ pub(crate) fn accept_outcome_failed(reason: String) -> Value {
     }))
 }
 
-/// Arc 278 peer-lifecycle Strike 4 (the LAST peer wall) — the type path of `connect'`'s
+/// Arc 278 peer-lifecycle Strike 4 (the LAST peer wall) — the type path of `connect`'s
 /// matchable outcome enum (`(:wat::kernel::ConnectOutcome :- [S R])`, registered in `types.rs`).
 /// PARAMETRIC + Impure, the exact TWIN of `(AcceptOutcome :- [R S])` — `Connected` holds a live
-/// `Peer'` (note the mirrored arg order `[S R]`: connect returns the client end).
+/// `Peer` (note the mirrored arg order `[S R]`: connect returns the client end).
 const CONNECT_OUTCOME_TYPE: &str = ":wat::kernel::ConnectOutcome";
 
-/// `ConnectOutcome::Connected [peer <- (Peer' :- [S R])]` — dialed + admitted (the happy path).
+/// `ConnectOutcome::Connected [peer <- (Peer :- [S R])]` — dialed + admitted (the happy path).
 /// `peer_val` is the already-wrapped `PEER_TYPE_PATH` opaque.
 pub(crate) fn connect_outcome_connected(peer_val: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -22510,7 +22510,7 @@ pub(crate) fn connect_outcome_connected(peer_val: Value) -> Value {
 /// `ConnectOutcome::Refused [cause <- Failure]` — ECONNREFUSED / no listener / rendezvous
 /// gone (was the "connect abstract UDS" / "rendezvous send failed — listener was dropped"
 /// raise). RETRYABLE transport. Built via `message_only_failure` — the SAME structured
-/// carrier the accept'/send'/recv'/close' walls use; never a hand-rolled `struct-new`
+/// carrier the accept/send/recv/close walls use; never a hand-rolled `struct-new`
 /// Failure (R57's Struct-Failure mask).
 pub(crate) fn connect_outcome_refused(reason: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -24982,27 +24982,27 @@ fn is_mutation_head(head: &str) -> bool {
 // `RustOpaque.type_path` sentinel — that is fine (the rubric governs the
 // *type-check* mechanism; intrinsics are custom Rust by definition).
 //
-// Pattern: eval args[0] → try downcast as Thread' first → else try Process' →
-// else TypeMismatch. Thread' passes Value through; Process' bridges via EDN.
-// The Option wrap added in Stone 4.6a-ii lets close' consume the peer and
-// lets send'/recv' detect use-after-close (None → RuntimeError).
+// Pattern: eval args[0] → try downcast as Thread first → else try Process →
+// else TypeMismatch. Thread passes Value through; Process bridges via EDN.
+// The Option wrap added in Stone 4.6a-ii lets close consume the peer and
+// lets send/recv detect use-after-close (None → RuntimeError).
 
 // §7 wire-wall (OUTBOUND): a bare `Nature::Struct` value must not be WRITTEN to a
 // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────────
 // `reject_non_portable_on_wire` — deleted. The §7 runtime send-side guard that
 // refused a bare struct at the wire-serialize step is superseded by the
 // compile-time purity wall at wire-peer PRODUCERS (peer-pair',
-// connect', accept', program-self-peer'). A struct can no longer be typed into
+// connect, accept, program-self-peer'). A struct can no longer be typed into
 // a wire peer at CHECK time; the runtime path is no longer reachable. The two
 // call sites (PROCESS branch and socket-tier PEER' branch of eval_peer_send_prime)
 // were removed. Symmetric to the decode backstop retirement in edn/render.rs.
 
 /// `(:wat::kernel::send peer payload)` — Stone 4.6a-ii / Arc 258.5b-ii.
 ///
-/// Thread': `peer.send(value)` Value pass-through (crossbeam, no serialisation).
-/// Process': encode payload via value_to_edn + wat_edn::write → peer.send(String).
-/// Peer' thread-tier: `peer.send(value)` Value pass-through.
-/// Peer' socket-tier: encode with sym.types() in eval → `peer.send_wire(String)`.
+/// Thread: `peer.send(value)` Value pass-through (crossbeam, no serialisation).
+/// Process: encode payload via value_to_edn + wat_edn::write → peer.send(String).
+/// Peer thread-tier: `peer.send(value)` Value pass-through.
+/// Peer socket-tier: encode with sym.types() in eval → `peer.send_wire(String)`.
 /// Returns `nil`.  Use-after-close (Option is None) → RuntimeError.
 pub(crate) fn eval_peer_send_prime(
     args: &[WatAST],
@@ -25069,8 +25069,8 @@ pub(crate) fn eval_peer_send_prime(
             // the process wire with named fields (e.g. {:x 7, :y 35}) rather than
             // positional fallback ({:field-0 7, :field-1 35}). The decoder on the
             // receiver side uses sym.types() too (arc 258.5b / 272 6c.2), so the
-            // named-field map round-trips exactly. Before 258.5b, send' called
-            // value_to_edn (no registry) and recv' expected a `-> :T` hint.
+            // named-field map round-trips exactly. Before 258.5b, send called
+            // value_to_edn (no registry) and recv expected a `-> :T` hint.
             let edn_str = wat_edn::write(&crate::edn::render::value_to_edn_with(
                 &payload_val,
                 sym.types().map(|a| a.as_ref()),
@@ -25085,7 +25085,7 @@ pub(crate) fn eval_peer_send_prime(
                                 Err(e) => send_outcome_from_error(&e),
                             })
                         }
-                        // arc 292 L3 — timers are select'-only; send' is not supported. Not a
+                        // arc 292 L3 — timers are select-only; send is not supported. Not a
                         // "gone peer" case (the SendOutcome wall's remit) — a genuine
                         // programmer misuse (wrong peer kind), so it still raises.
                         Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => {
@@ -25104,13 +25104,13 @@ pub(crate) fn eval_peer_send_prime(
                 .map_err(Into::<EvalBreak>::into)??;
             Ok(outcome)
         }
-        // Arc 209 C0b.2e-i-b / Arc 258.5b-ii — unified Peer' arm.
+        // Arc 209 C0b.2e-i-b / Arc 258.5b-ii — unified Peer arm.
         //
         // Thread-tier peers: send Value in-process via crossbeam (no serialisation).
         // Socket-tier peers: encode with sym.types() in the eval layer → ship the
         //   wire String via Peer::send_wire (Sender<String> raw passthrough).
         //
-        // Symmetric with recv': the decode side already threads sym.types() through
+        // Symmetric with recv: the decode side already threads sym.types() through
         // decode_trusted_wire in eval_peer_recv_prime. Arc 258.5b's thread-local
         // injection is gone — the encode type env travels honestly as a function-local.
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
@@ -25163,10 +25163,10 @@ pub(crate) fn eval_peer_send_prime(
 /// `(:wat::kernel::try-send peer payload)` — Arc 278 Stone 1a / Phase 3a
 /// (`BRIEF-send-wall-3a-try-send-outcome.md`).
 ///
-/// Best-effort, NON-BLOCKING twin of `send'` for the unified `(Peer' :- [S R])`. Same
+/// Best-effort, NON-BLOCKING twin of `send` for the unified `(Peer :- [S R])`. Same
 /// type contract for the payload (unifies with the peer's I) but the write NEVER
 /// blocks: a full kernel buffer (peer not draining) or a gone peer is a
-/// **silent skip** at the transport level — but unlike Phase-1 `send'`, the
+/// **silent skip** at the transport level — but unlike Phase-1 `send`, the
 /// caller-visible result is now an honest `TrySendOutcome`
 /// (`Sent`/`WouldBlock`/`Closed`/`Lost`), not a swallowed `nil`. Used by the
 /// serve loop's over-FOO `Rejected` arm to reply `Reply::Failed{cause}` to a
@@ -25196,7 +25196,7 @@ pub(crate) fn eval_peer_try_send_prime(
     let payload_val = eval_inner(&args[1], env, sym)?.value_owned();
 
     match &peer_val {
-        // Unified Peer' arm (the serve loop's `clients` are PEER_TYPE_PATH — socket
+        // Unified Peer arm (the serve loop's `clients` are PEER_TYPE_PATH — socket
         // tier on process, thread tier on thread). Best-effort: any failure is a
         // faced TrySendOutcome value, never a raise.
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
@@ -25350,12 +25350,12 @@ pub(crate) fn eval_peer_pid(
 
 /// `(:wat::kernel::recv peer)` — Stone 4.6a-ii / arc 258.5b.
 ///
-/// Thread': `peer.recv()` → Value.
-/// Process': `peer.recv()` → decode EDN String → Value via the self-describing wire.
+/// Thread: `peer.recv()` → Value.
+/// Process: `peer.recv()` → decode EDN String → Value via the self-describing wire.
 /// RecvError (peer closed / child gone) → RuntimeError.
 /// Use-after-close (Option is None) → RuntimeError.
 ///
-/// The `-> :T` ascription form is KILLED (arc 258.5b). `recv'` is 1-arg only.
+/// The `-> :T` ascription form is KILLED (arc 258.5b). `recv` is 1-arg only.
 /// The EDN wire is self-describing (post-234.7: tagged records/structs/enums + typed
 /// scalars) so `decode_trusted_wire(edn, sym.types())` reconstructs the exact value
 /// with no declared target type. `-> :T` in a non-return position is illegal.
@@ -25365,11 +25365,11 @@ pub(crate) fn eval_peer_pid(
 /// `<S>::Reply::Failed [cause <- :wat::kernel::Failure]` on every serviceable surface's
 /// `Reply` enum — the floor BELOW the per-op `<Op>Response` outcome enums: a client
 /// message that never hydrates to ANY op cannot be carried by an op's response, so the
-/// serve loop replies `Reply::Failed[cause]` to that client and keeps serving. `recv'`
+/// serve loop replies `Reply::Failed[cause]` to that client and keeps serving. `recv`
 /// surfaces it HERE as a catchable raise carrying the cause's rich reason (`unknown tag
 /// #probe/Note … no matching struct or enum …`), so the caller is NEVER left blind. This
 /// is the ONE uniform surfacing point — it covers both the Path-B intrinsic peer-method
-/// dispatch and the defservice-generated client methods (both round-trip through `recv'`),
+/// dispatch and the defservice-generated client methods (both round-trip through `recv`),
 /// and it is CATCHABLE (a wat-level `assertion-failed!` in a client method would be an
 /// uncatchable `panic_any`). Returns the reason when `v` IS a `*::Reply::Failed`, else None.
 fn reply_failed_reason(v: &Value) -> Option<String> {
@@ -25417,7 +25417,7 @@ pub(crate) fn eval_peer_recv_prime(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::recv";
 
-    // Arc 258.5b — recv' is 1-arg only; `-> :T` ascription is illegal on recv'.
+    // Arc 258.5b — recv is 1-arg only; `-> :T` ascription is illegal on recv.
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -25452,7 +25452,7 @@ pub(crate) fn eval_peer_recv_prime(
             )?;
             let result = cell
                 .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
-                    // Arc 278 the recv'-outcome wall — recv' returns a matchable
+                    // Arc 278 the recv-outcome wall — recv returns a matchable
                     // `(RecvOutcome :- [O])`, never raises on close/crash (a raise unwinds
                     // past the reader = mute). Ok → Message; Disconnected (clean EOF,
                     // incl. use-after-close: the peer is gone) → Closed; Crashed(reason)
@@ -25493,13 +25493,13 @@ pub(crate) fn eval_peer_recv_prime(
                 OP,
                 list_span.clone(),
             )?;
-            // Arc 278 the recv'-outcome wall — the process arm returns a matchable
+            // Arc 278 the recv-outcome wall — the process arm returns a matchable
             // `(RecvOutcome :- [O])`. The EDN decode moves INSIDE the closure so a decode
             // failure surfaces as `Lost(<Failure>)` (abnormal loss carrying its reason),
             // never a raise. Ok+decode → Message; Crashed(reason) → Lost; Disconnected
             // (clean EOF / use-after-close) → Closed. Timer stays a static-usage raise.
             //
-            // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — recv' is the TRUSTED peer wire: decode
+            // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — recv is the TRUSTED peer wire: decode
             // through the capability-reconstructing door with the full type registry.
             // Every Peer is lineage BY CONSTRUCTION — a spawn handle / self-peer is
             // inherited; an accept'd peer passed OnlyMyPeers (euid + pid∈allow-set);
@@ -25535,7 +25535,7 @@ pub(crate) fn eval_peer_recv_prime(
                                 Err(PeerRecvError::Shutdown) => recv_outcome_shutdown(),
                             })
                         }
-                        // arc 292 L3 — timers are select'-only; recv' is not supported.
+                        // arc 292 L3 — timers are select-only; recv is not supported.
                         // A static-usage error (not a peer-read outcome) → still a raise.
                         Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                                 head: OP.into(),
@@ -25547,7 +25547,7 @@ pub(crate) fn eval_peer_recv_prime(
                 .map_err(Into::<EvalBreak>::into)??;
             Ok(result)
         }
-        // Arc 209 C0b.2e-i-b — unified Peer' arm: thread-tier and socket-tier peers both
+        // Arc 209 C0b.2e-i-b — unified Peer arm: thread-tier and socket-tier peers both
         // box their recv endpoint as `Box<dyn CommReceiver<Value>>`. Decoding is internal
         // to the boxed transport impl — `peer.recv()` returns `Value` directly.
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
@@ -25558,7 +25558,7 @@ pub(crate) fn eval_peer_recv_prime(
                     OP,
                     list_span.clone(),
                 )?;
-            // Arc 278 the recv'-outcome wall — the unified peer arm returns a matchable
+            // Arc 278 the recv-outcome wall — the unified peer arm returns a matchable
             // `(RecvOutcome :- [O])`. Ok+decode → Message (or Lost if the decoded value is a
             // reserved `Reply::Failed`, via recv_outcome_from_decoded); a raw wire
             // Failed(reason) or an abnormal far-side crash (PeerCrashed, whose to_string
@@ -25984,20 +25984,20 @@ pub(crate) fn eval_peer_recv_by_deadline(
     }
 }
 
-/// `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close' OUTCOME WALL.
+/// `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close OUTCOME WALL.
 ///
 /// Consumes the peer (takes the Option, leaving None for subsequent calls).
 /// Returns a matchable `:wat::kernel::CloseOutcome` for every HANDLEABLE outcome:
-///   Thread' clean join       → `Closed[exit = None]`   (no OS exit code).
-///   Thread' join panic       → `Failed[cause]`.
-///   Process' clean exit      → `Closed[exit = Some(code)]`.
-///   Process' terminated      → `Signaled[signal]`.
-///   Process' wait fail / stop → `Failed[cause]`.
+///   Thread clean join       → `Closed[exit = None]`   (no OS exit code).
+///   Thread join panic       → `Failed[cause]`.
+///   Process clean exit      → `Closed[exit = Some(code)]`.
+///   Process terminated      → `Signaled[signal]`.
+///   Process wait fail / stop → `Failed[cause]`.
 /// Only the MUST-NEVER-HAPPEN cases stay raises: double-close / use-after-close
-/// ("peer already closed"), close' on a timer peer (arc-292 L3), and arity/type
+/// ("peer already closed"), close on a timer peer (arc-292 L3), and arity/type
 /// mismatch (checker-prevented; defensive).
 // Arc 259 S2d — restricted to `:wat::kernel::` callers. Teardown is RAII Drop;
-// a :user:: fn calling close' is a check error. The user never holds the rope.
+// a :user:: fn calling close is a check error. The user never holds the rope.
 #[restricted_to(":wat::kernel::close", ":wat::kernel::")]
 pub(crate) fn eval_peer_close_prime(
     args: &[WatAST],
@@ -26045,10 +26045,10 @@ pub(crate) fn eval_peer_close_prime(
                         },
                     ))
                 })?;
-            // drain_and_join: drop input Sender FIRST (worker's recv' raises → worker
+            // drain_and_join: drop input Sender FIRST (worker's recv raises → worker
             // exits), then join. Idempotent via Option::take — the subsequent Drop on
             // `thread` is a no-op (arc 259 S2b drain-before-join invariant).
-            // Arc 278 the close' OUTCOME WALL: a join panic is a HANDLEABLE close
+            // Arc 278 the close OUTCOME WALL: a join panic is a HANDLEABLE close
             // failure → a matchable `CloseOutcome::Failed`, not a raise. A clean join
             // → `Closed[exit = None]` (a thread has no OS exit code — loci-agnostic, R32).
             if let Some(Err(_)) = thread.drain_and_join() {
@@ -26087,7 +26087,7 @@ pub(crate) fn eval_peer_close_prime(
                 crate::kernel::spawn::ProcessSelectable::Spawned(bundle) => {
                     // Consume the bundle: close channels, then wait for the child.
                     // We need to extract the peer from the bundle first (bundle has _lifeline_w field too).
-                    // Arc 278 the close' OUTCOME WALL: a wait failure is a HANDLEABLE close
+                    // Arc 278 the close OUTCOME WALL: a wait failure is a HANDLEABLE close
                     // failure → `CloseOutcome::Failed`, not a raise.
                     let exit_status = match bundle.peer.wait() {
                         Ok(status) => status,
@@ -26116,7 +26116,7 @@ pub(crate) fn eval_peer_close_prime(
                         )),
                     }
                 }
-                // arc 292 L3 — timer peers are consumed by select'; close' is not supported.
+                // arc 292 L3 — timer peers are consumed by select; close is not supported.
                 // Drop the rx (fd closed by Drop); no child to wait on.
                 crate::kernel::spawn::ProcessSelectable::Timer(_) => {
                     Err(EvalBreak::from(RuntimeError::new(
@@ -26294,13 +26294,13 @@ pub(crate) fn eval_lineage_status(
 /// `(:wat::kernel::signal proc sig)` — DESIGN-STONE-process-signal-owner-to-
 /// child.md; BRIEF-process-signal-p2-mint.md.
 ///
-/// STOP-1: `(Process :- [I O])` ONLY — no shared codegen with Thread'/Peer' (a thread
+/// STOP-1: `(Process :- [I O])` ONLY — no shared codegen with Thread/Peer (a thread
 /// peer has no process to signal). STOP-3: routes through `Pidfd::send_signal`,
 /// never `kill(pid, sig)` (`clone.rs:215-216` documents why the bare PID is
 /// unsafe to reuse). STOP-4: `Kill` sends and returns; it does NOT reap —
-/// `ChildHandle::Drop`/`close'` remain the only paths that reap.
+/// `ChildHandle::Drop`/`close` remain the only paths that reap.
 ///
-/// Unlike `close'`, this does NOT consume the peer (`with_ref`, not
+/// Unlike `close`, this does NOT consume the peer (`with_ref`, not
 /// `with_mut` + `take`) — a process may be signalled any number of times
 /// before it is closed.
 ///
@@ -26308,7 +26308,7 @@ pub(crate) fn eval_lineage_status(
 /// `pidfd_send_signal` against a child that had exited but was deliberately
 /// left un-reaped returned `Ok(())`, not ESRCH (delivery to a zombie is a
 /// silent no-op). ESRCH appeared only against an ALREADY-REAPED pidfd, and
-/// nothing in this substrate reaps a `Process` peer's pidfd except `close'`,
+/// nothing in this substrate reaps a `Process` peer's pidfd except `close`,
 /// which consumes it — so the only way to reach that state through THIS verb
 /// is to call it on an already-closed peer, which is intercepted below
 /// (`"peer already closed"`) before the syscall ever runs. A live `signal`
@@ -26507,20 +26507,20 @@ pub(crate) fn eval_peer_process(
 /// `(:wat::kernel::peer-wire? peer)` — DESIGN-STONE-the-client-validates-
 /// locally.md STOP-3.
 ///
-/// PURE PROJECTION, un-erasing the one fact `send'`/`try-send'` already branch
+/// PURE PROJECTION, un-erasing the one fact `send`/`try-send` already branch
 /// on internally (`peer.is_socket_tier()`, `eval_peer_send_prime` above) but
 /// never surfaced to wat: a client-generated method needs this BEFORE it
 /// decides whether to measure a request's encoded size at all — measuring on a
 /// thread-tier peer would be "a full serialization onto the one path whose
 /// entire point is not serializing" (the stone's own words), not a 2x cost but
 /// zero-to-full on every call. `c`'s runtime tag is always `PEER_TYPE_PATH`
-/// (the unified connection object send'/recv' already operate on — NOT the
+/// (the unified connection object send/recv already operate on — NOT the
 /// `PROCESS_PEER_TYPE_PATH`/`THREAD_PEER_TYPE_PATH` lineage-handle tags
 /// `peer-process` reads, a different peer kind entirely).
-/// - socket-tier (a wire; `send'` would call `send_wire`) → `true`.
-/// - thread-tier (shared memory; `send'` never encodes) → `false`.
+/// - socket-tier (a wire; `send` would call `send_wire`) → `true`.
+/// - thread-tier (shared memory; `send` never encodes) → `false`.
 /// - already closed (`None`) → `false`: nothing to measure against a peer with
-///   no live transport either way, and the caller's own `send'` will face the
+///   no live transport either way, and the caller's own `send` will face the
 ///   real `Closed`/`Lost` outcome regardless of this answer.
 pub(crate) fn eval_peer_wire(
     args: &[WatAST],
@@ -26916,8 +26916,8 @@ pub(crate) fn eval_peer_select_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::select";
-    // Arc 209 Stone C0b.2e-i-c: select' is 1-arg-only (fan-in over homogeneous peers).
-    // The 3-arg service multiplexer is poll' — use (poll' self listener clients) instead.
+    // Arc 209 Stone C0b.2e-i-c: select is 1-arg-only (fan-in over homogeneous peers).
+    // The 3-arg service multiplexer is poll — use (poll self listener clients) instead.
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -27259,7 +27259,7 @@ fn eval_peer_select_values(
                 match result {
                     // The ONE door (annihilation of the two-door deadlock):
                     // classify_peer_error owns the FrameTooLarge teardown (no err
-                    // read → no deadlock) AND the true-EOF err read. recv'
+                    // read → no deadlock) AND the true-EOF err read. recv
                     // (ProcessPeerBundle::recv) routes through the SAME fn — a
                     // cap-violation surfaces as Lost{cap reason} consistently.
                     // arc 292 L3 — timer peers have no err channel (err_rxs[i] = None);
@@ -27304,7 +27304,7 @@ fn eval_peer_select_values(
                         Ok(event)
                     }
                     Ok(edn_str) => {
-                        // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
+                        // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select is the TRUSTED peer wire:
                         // decode through the capability door with the full type registry.
                         // A peer whose frame will not decode is dead (recv:25047), not a live
                         // client with a junk message (poll:27194 Malformed). Cause is
@@ -27353,11 +27353,11 @@ fn eval_peer_select_values(
             }
         }
     } else if first_type_path == crate::kernel::spawn::PEER_TYPE_PATH {
-        // ── Bare Peer' (a provisioned connection — no spawned worker behind it) ──
+        // ── Bare Peer (a provisioned connection — no spawned worker behind it) ──
         // Arc 209 Stone C0 / C0b.2e-i-b — a service select's over the server ends of the
         // peer-pair' connections it has provisioned.  The unified `Peer` boxes its rx
         // endpoint; recover the concrete `&thread::Receiver<Value>` via `as_any` (i-a
-        // foundation).  Socket-backed connection peers in `select'` are C0b.3a-ii.
+        // foundation).  Socket-backed connection peers in `select` are C0b.3a-ii.
         let mut arcs: Vec<&crate::kernel::spawn::PeerCell> = Vec::with_capacity(peers_vec.len());
         for (i, peer) in peers_vec.iter().enumerate() {
             match peer {
@@ -27400,15 +27400,15 @@ fn eval_peer_select_values(
             );
         }
 
-        // Bare Peer' has no crash channel (it is a connection peer, not a spawned worker).
+        // Bare Peer has no crash channel (it is a connection peer, not a spawned worker).
         // EOF = clean disconnect only → :Closed. :Lost is for spawned workers.
         const SELECT_EVENT_TYPE_PEER: &str = ":wat::spawn::ServiceEvent";
 
         // ── Dispatch on the reactor class of the (homogeneous) peer set ───────────
-        // arc 278 Stone 1 — a unified `Peer'` timer (from `after`) is a real `Peer'`, so
-        // `select'` must accept it at BOTH tiers (a process-tier `after` yields a socket-
-        // backed `Peer'`). This closes the C0b.3a-ii deferral for `select'`, mirroring
-        // `poll'`'s already-shipped Fd client arm (`select_raw` + `decode_trusted_wire`).
+        // arc 278 Stone 1 — a unified `Peer` timer (from `after`) is a real `Peer`, so
+        // `select` must accept it at BOTH tiers (a process-tier `after` yields a socket-
+        // backed `Peer`). This closes the C0b.3a-ii deferral for `select`, mirroring
+        // `poll`'s already-shipped Fd client arm (`select_raw` + `decode_trusted_wire`).
         let first_class = match &*guards[0] {
             Some(peer) => peer.rx.reactor_class(),
             None => {
@@ -27512,8 +27512,8 @@ fn eval_peer_select_values(
             }
             crate::comms::ReactorClass::Fd => {
                 // ── Process tier: process::Select over ONE io_uring ring ────────────
-                // Recover &process::Receiver<Value> from each unified Peer' (mirrors the
-                // poll' Fd client arm). No self-peer / listener — select' is peers-only.
+                // Recover &process::Receiver<Value> from each unified Peer (mirrors the
+                // poll Fd client arm). No self-peer / listener — select is peers-only.
                 let mut receivers: Vec<&crate::comms::process::Receiver<Value>> =
                     Vec::with_capacity(guards.len());
                 for (i, guard) in guards.iter().enumerate() {
@@ -27560,7 +27560,7 @@ fn eval_peer_select_values(
                 }
                 // select_raw() → raw wire bytes (select() would call Value::from_wire with
                 // NO type registry and fail on user enum/record payloads); decode with the
-                // full registry via decode_trusted_wire — same as the poll' client arm.
+                // full registry via decode_trusted_wire — same as the poll client arm.
                 match sel.select_raw() {
                     Err(_io_err) => Ok(Value::Enum(Arc::new(EnumValue {
                         type_path: SELECT_EVENT_TYPE_PEER.into(),
@@ -27657,7 +27657,7 @@ fn eval_peer_select_values(
 //
 // 3-arg service-multiplexer form: multiplexes THREE inputs — the **self-peer**
 // (owner/supervisor link → `:Shutdown`), the **listener** (new connections),
-// and the **connected client `Peer'`s** (requests) — returning a `(ServiceEvent :- [I O])`.
+// and the **connected client `Peer`s** (requests) — returning a `(ServiceEvent :- [I O])`.
 //
 // Registration order (= Select index):
 //   0 = self-peer `.rx`  (= `input_rx`; wakes when owner drops the handle via RAII drain)
@@ -27672,16 +27672,16 @@ fn eval_peer_select_values(
 //     `Err(_)`   → `ServiceEvent::Closed  { idx: k-2 }`
 //
 // Thread tier only. Uses existing `comms::thread::Select` (no `comms/thread.rs` change).
-// `wrap_connect_request` is reused from `accept'` — ONE helper, THREE callers.
+// `wrap_connect_request` is reused from `accept` — ONE helper, THREE callers.
 
 // ─── after — one-shot timer peer ─────────────────────────────────────────────
 
 /// Implement `(:wat::kernel::after peer-kind duration msg)` — arc 292 L3 timer peer.
 ///
 /// arg0 is a `:wat::program::PeerKind` enum value (`:thread` or `:process`), selecting
-/// the tier for the one-shot timer. arc 278 Stone 1: returns a UNIFIED `(Peer' :- [nil O])`
+/// the tier for the one-shot timer. arc 278 Stone 1: returns a UNIFIED `(Peer :- [nil O])`
 /// value (`PEER_TYPE_PATH` opaque RustOpaque) — a real peer whose recv fires the `msg`
-/// once, then EOFs — so it drops into `poll'`/`select'` by construction:
+/// once, then EOFs — so it drops into `poll`/`select` by construction:
 ///   - `:thread` → crossbeam `after`-backed unified peer (futex, no background thread).
 ///   - `:process` → timerfd-backed unified peer (io_uring reactor, same Select as
 ///     accepted socket connections).
@@ -27812,8 +27812,8 @@ fn after_timer_peer(
         Ok(make_rust_opaque(PEER_TYPE_PATH, cell))
     } else {
         // ── Process tier ─────────────────────────────────────────────────────
-        // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'
-        // and as a real socket peer's frames, so `poll'`/`select'` decode it via
+        // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send
+        // and as a real socket peer's frames, so `poll`/`select` decode it via
         // `decode_trusted_wire` identically to any accepted connection.
         let edn_node = crate::edn::render::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()));
         let edn_str = wat_edn::write(&edn_node);
@@ -27912,7 +27912,7 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
         eval_inner(body, env, sym).map(|tv| tv.value_owned())
     }));
     match outcome {
-        // Arc 278 the recv'-outcome wall (move #2) — a wat RuntimeError bubbling out of
+        // Arc 278 the recv-outcome wall (move #2) — a wat RuntimeError bubbling out of
         // the op handler is a crash too (the `rterr` column of the 4×2 measure). It used
         // to slip through here with NO broadcast → the client's read was a bare EOF
         // (indistinguishable from a clean close = the mute we are killing). Broadcast the
@@ -27952,7 +27952,7 @@ fn serve_dispatch_op_caught_panic(
 
 // Arc 255.1c-kernel-remainder (home #8) — the `eval_inner`-based non-tail companion
 // (`eval_kernel_serve_dispatch_op`) that used to live HERE is DELETED, not merely
-// unregistered. It was "defensive parity… reached only if `serve-dispatch-op'` is ever
+// unregistered. It was "defensive parity… reached only if `serve-dispatch-op` is ever
 // evaluated outside serve's tail position… the codegen never places it anywhere else" per
 // its own doc — already dead in practice. With both literal match arms gone (the tail arm
 // in `eval_tail` and the non-tail arm above), `:wat::kernel::serve-dispatch-op` has exactly
@@ -27974,7 +27974,7 @@ pub(crate) fn eval_poll_prime(
     const SELECT_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
 
     // ── arg 0: self-peer → PEER_TYPE_PATH opaque ──────────────────────────────
-    // The self-peer is the spawned worker's own (Peer' :- [O I]) (tx=output_tx, rx=input_rx).
+    // The self-peer is the spawned worker's own (Peer :- [O I]) (tx=output_tx, rx=input_rx).
     // We only need its .rx (= input_rx); watching it makes the RAII drain the wake.
     // Arc 209 C0b.2e-i-b: Peer is now non-generic (boxed); recover the concrete
     // &thread::Receiver<Value> via as_any (i-a foundation, shipped aac27fb5).
@@ -28255,7 +28255,7 @@ pub(crate) fn eval_poll_prime(
                             ))
                         })?;
                         let peer_value = wrap_connect_request(cr, list_span)?;
-                        // ServiceEvent::Connection [peer <- (Peer' :- [I O])]
+                        // ServiceEvent::Connection [peer <- (Peer :- [I O])]
                         Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE.into(),
                             variant_name: "Connection".into(),
@@ -28279,12 +28279,12 @@ pub(crate) fn eval_poll_prime(
                                 })) }
                             }
                             Err(_) => {
-                                // Output EOF — bare Peer' has no crash channel, so there
+                                // Output EOF — bare Peer has no crash channel, so there
                                 // is no abnormal-exit distinction here.  The canonical
                                 // Lost-vs-Closed classifier is
-                                // `crate::kernel::spawn::classify_peer_death`; poll' keeps
+                                // `crate::kernel::spawn::classify_peer_death`; poll keeps
                                 // emitting :Closed because bare peers carry no crash
-                                // channel.  Upgrading poll' to emit :Lost requires adding
+                                // channel.  Upgrading poll to emit :Lost requires adding
                                 // a crash channel to `Peer` (peer.rs) — the next slice.
                                 // ServiceEvent::Closed [idx <- i64]
                                 Value::Enum(Arc::new(EnumValue {
@@ -28307,7 +28307,7 @@ pub(crate) fn eval_poll_prime(
         ReactorClass::Fd => {
             // ── Process tier: process::Select over ONE io_uring ring ──────────
             // Arc 209 C0b.3a-ii — DEADLOCK-SURFACE: the self-peer is index 0.
-            // The owner dropping the spawn-program' handle → the child's input
+            // The owner dropping the spawn-program handle → the child's input
             // pipe (fd0) closes → the self-peer's process::Receiver sees EOF →
             // process::Select fires Recv{0} → we return ServiceEvent::Shutdown →
             // the loop exits → RAII reaps. The RAII drain the runtime already
@@ -28499,7 +28499,7 @@ pub(crate) fn eval_poll_prime(
                             // 500-class internal crash. A frame exceeding THIS service's declared
                             // hard frame limit `FOO` (RecvError::FrameTooLarge) routes to
                             // ServiceEvent::Rejected{idx, cause}: the serve loop TELLS that client
-                            // (`Reply::Failed{cause}` via a non-blocking try-send'), EVICTS just that
+                            // (`Reply::Failed{cause}` via a non-blocking try-send), EVICTS just that
                             // connection (discarding the un-read oversized residual that would desync
                             // the wire), and KEEPS SERVING everyone else. NOT the reason-free `Closed`
                             // (mute), NOT the terminal `Lost` (whose `eprintln` is wat's panic — a
@@ -28519,7 +28519,7 @@ pub(crate) fn eval_poll_prime(
                             // reset (PeerCrashed — administrative, owner-crash-channel only), or a
                             // raw transport Failed(reason) (kept at the HEAD `Closed` path — its
                             // reason-surfacing is a separate stone, NOT this over-FOO disposition).
-                            // A bare Peer' has no crash channel here → clean `Closed`.
+                            // A bare Peer has no crash channel here → clean `Closed`.
                             // ServiceEvent::Closed [idx <- i64]
                             Err(_) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
@@ -28593,7 +28593,7 @@ pub(crate) fn eval_poll_prime(
                                         )))),
                                     )
                                 };
-                                // ServiceEvent::Connection [peer <- (Peer' :- [I O])]
+                                // ServiceEvent::Connection [peer <- (Peer :- [I O])]
                                 break Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Connection".into(),
@@ -28915,7 +28915,7 @@ mod tests {
         let chain_edn = crate::process::verbs::startup_error_chain_edn(&e);
         let line = wat_edn::write(&chain_edn);
 
-        // The owner's recv' Lost decoder STRICT-decodes the chain.
+        // The owner's recv Lost decoder STRICT-decodes the chain.
         let types = crate::types::TypeEnv::with_builtins();
         let parsed = wat_edn::parse_owned(&line).expect("emitted chain must parse");
         let decoded = crate::edn::render::edn_to_value(&parsed, Some(&types), None).unwrap_or_else(|err| {

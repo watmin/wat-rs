@@ -32,9 +32,9 @@
 //!   does not hand back an abstraction over time; it constructs a REAL
 //!   handle — a `crossbeam` timer `Receiver` (thread tier, futex-backed)
 //!   or a `timerfd`-backed `process::Receiver` (process tier, an actual
-//!   OS fd) — wraps it in a `Peer'` (`ThreadOwnedCell`/`RustOpaque`,
+//!   OS fd) — wraps it in a `Peer` (`ThreadOwnedCell`/`RustOpaque`,
 //!   `PEER_TYPE_PATH`), and returns THAT. The caller holds the peer, not
-//!   time; its lifetime is administered by the same `close'`/Drop
+//!   time; its lifetime is administered by the same `close`/Drop
 //!   machinery as any other peer. Once corrected, this lands the same way
 //!   `listener`/`connect`/`accept` do — the paragraph was needed to reject
 //!   the naive reading, not to force a fit.
@@ -60,7 +60,7 @@
 //!   holds, not an abstract permission token — the third disjunct
 //!   ("administers a handle") applies directly, no capability-as-handle
 //!   argument required. `:Mutate` was refused for these (per the axis
-//!   prose) because the observable change is to WHO may `connect'`
+//!   prose) because the observable change is to WHO may `connect`
 //!   through the listener, not a value the caller can read back and
 //!   compare — a `:Resource` administration, not a `:Mutate` on data.
 //!
@@ -69,8 +69,8 @@
 //! land as the textbook shape: mint, release, or operate on a handle the
 //! caller holds (or is handed) whose lifetime the runtime tracks outside
 //! the immediate expression. `signal` is worth one sentence: it neither
-//! acquires nor releases the `Process'` peer it is given (`with_ref`, not
-//! `with_mut` + `take` — `close'` remains the only consumer) — pure third
+//! acquires nor releases the `Process` peer it is given (`with_ref`, not
+//! `with_mut` + `take` — `close` remains the only consumer) — pure third
 //! disjunct, administering a live handle by delivering a signal through
 //! it.
 //!
@@ -319,7 +319,7 @@ pub(crate) fn eval_kernel_pipe(
 
 /// `(:wat::kernel::spawn-thread prog init-fn post-spawn-fn)` →
 /// `(:wat::kernel::Thread :- [R S])`. Spawns a thread-tier program peer running
-/// `prog` (self-peer model: `fn([self <- (Peer' :- [S R])]) -> nil`); `init-fn`
+/// `prog` (self-peer model: `fn([self <- (Peer :- [S R])]) -> nil`); `init-fn`
 /// (0-arg, returns `:wat::core::Record`) becomes the peer's `user-data`;
 /// `post-spawn-fn` runs owner-side after spawn, for effects.
 ///
@@ -331,27 +331,27 @@ pub(crate) fn eval_kernel_pipe(
 /// @arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the self-peer program body, run once on the new thread
 /// @arg     init_fn [:-> :wat::core::Record] 0-arg fn run at peer-start; its return becomes the peer's user-data
 /// @arg     post_spawn_fn [:wat::spawn::ThreadLaunch :-> :wat::core::nil] runs owner-side after spawn
-/// @yields  prog the new thread's own self-peer handle — a `(Peer' :- [S R])` — handed to prog when the thread starts running it
+/// @yields  prog the new thread's own self-peer handle — a `(Peer :- [S R])` — handed to prog when the thread starts running it
 /// @yields  post_spawn_fn the just-spawned thread's ThreadLaunch record, handed to post_spawn_fn owner-side after spawn
 /// @ret     (:wat::kernel::Thread :- [R S]) the new thread's peer handle
 /// @example-norun (:wat::kernel::spawn-thread prog init-fn post-fn) #=> #wat.kernel/Thread{}
 // No registered `TypeScheme` — `check.rs`'s `infer_spawn_thread_prime`
 // (`:10310`) is the real authority: `args[0]` projects through
 // `infer_thread_prog_type` (the shared self-peer projection helper) to
-// `(Thread' :- [R S])`; `init-fn`/`post-spawn-fn` are inferred and (for
+// `(Thread :- [R S])`; `init-fn`/`post-spawn-fn` are inferred and (for
 // post-spawn-fn) unified against `Fn(ThreadLaunch) -> nil`, but not
 // further projected into the return.
 //
 // Deciding line for `@Category Resource`: `src/kernel/spawn.rs:453`
 // `eval_kernel_spawn_thread_prime` spawns a real OS thread
-// (`spawn_thread_peer`) and returns a `(Thread' :- [R S])` peer handle whose
-// teardown `close'` administers — textbook acquisition. See the module
+// (`spawn_thread_peer`) and returns a `(Thread :- [R S])` peer handle whose
+// teardown `close` administers — textbook acquisition. See the module
 // doc's "spawn-thread / spawn-process — NOT inline blocks" note: this
 // delegate was already `pub fn`, no lifting needed.
 //
 // Deciding line for `@Purity Effectful` / `@Determinism Deterministic`:
 // spawning a thread is a real OS-level effect; the RETURN value (a valid
-// `Thread'` peer) is produced immediately without waiting on any external
+// `Thread` peer) is produced immediately without waiting on any external
 // actor's timing, so it is a deterministic function of the three fn
 // arguments (unlike `accept`, which blocks on someone else's `connect`).
 #[wat_intrinsic(":wat::kernel::spawn-thread")]
@@ -393,14 +393,14 @@ pub(crate) fn eval_kernel_spawn_thread_prime(
 /// @example-norun (:wat::kernel::spawn-process forms post-fn env-fn 524288 :wat::core::None) #=> #wat.kernel/Process{}
 // No registered `TypeScheme` — `check.rs`'s `infer_spawn_process_prime`
 // (`:10378`) is the real authority: `forms` projects through
-// `infer_process_prog_type` to `(Process' :- [I O])`; the other four args are
+// `infer_process_prog_type` to `(Process :- [I O])`; the other four args are
 // inferred (and `post-spawn-fn` unified against `Fn(ProcessLaunch) ->
 // nil`) but not further projected into the return.
 //
 // Deciding line for `@Category Resource`: `src/kernel/spawn.rs:539`
 // `eval_kernel_spawn_process_prime` forks a real OS process
-// (`spawn_process_peer`) and returns a `(Process' :- [I O])` peer handle whose
-// teardown `close'` administers — same acquisition shape as
+// (`spawn_process_peer`) and returns a `(Process :- [I O])` peer handle whose
+// teardown `close` administers — same acquisition shape as
 // `spawn-thread`. Already `pub fn`; no lifting needed (see module doc).
 //
 // Deciding line for `@Purity Effectful` / `@Determinism Deterministic`:
@@ -441,7 +441,7 @@ pub(crate) fn eval_kernel_spawn_process_prime(
 
 /// `(:wat::kernel::after peer-kind duration msg)` → `(:wat::kernel::Thread :- [nil O])`.
 /// One-shot timer peer: fires `msg` once after `duration`, then EOFs.
-/// Drops into `poll'`/`select'` by construction — a real `Peer'`, not a
+/// Drops into `poll`/`select` by construction — a real `Peer`, not a
 /// tier-specific `Timer'`.
 ///
 /// @added         1.0.0
@@ -457,16 +457,16 @@ pub(crate) fn eval_kernel_spawn_process_prime(
 // No registered `TypeScheme` — `check.rs`'s `infer_kernel_after`
 // (`:10595`) is the real authority: `peer-kind` must conform to
 // `PeerKind`, `duration` to `NonZeroDuration`; `O` is `msg`'s inferred type,
-// projected into the `(Peer' :- [nil O])` return — projective, no fixed-arity
+// projected into the `(Peer :- [nil O])` return — projective, no fixed-arity
 // scheme.
 //
 // Deciding line for `@Category Resource`: `runtime.rs:32904`–`33057`
 // `eval_kernel_after` builds a REAL handle — a crossbeam timer `Receiver`
 // (thread tier, `comms::thread::timer`) or a `timerfd`-backed
 // `process::Receiver` (process tier, an actual OS fd,
-// `comms::process::timer`) — and wraps it in a `Peer'`
+// `comms::process::timer`) — and wraps it in a `Peer`
 // (`ThreadOwnedCell`/`RustOpaque`, `PEER_TYPE_PATH`). The caller holds
-// THAT handle, administered by the same `close'` machinery as any peer.
+// THAT handle, administered by the same `close` machinery as any peer.
 // See the module doc's strain-report entry: the brief's "nobody holds
 // time" framing does not survive this body-read.
 //
@@ -493,7 +493,7 @@ pub(crate) fn eval_kernel_after(
 }
 
 /// `(:wat::kernel::close peer)` → `:wat::kernel::CloseOutcome`. Consumes
-/// the peer (`(Thread' :- [I O])` or `(Process' :- [I O])`) and returns a matchable
+/// the peer (`(Thread :- [I O])` or `(Process :- [I O])`) and returns a matchable
 /// outcome for every HANDLEABLE teardown result (`Closed`/`Failed`/
 /// `Signaled`); only double-close/use-after-close and type mismatches
 /// stay raises.
@@ -503,7 +503,7 @@ pub(crate) fn eval_kernel_after(
 /// @Determinism   Nondeterministic
 /// @Total         Unreviewed
 /// @Category      Resource
-/// @arg     peer (:wat::kernel::Peer :- [I O]) the peer to close (Thread' or Process')
+/// @arg     peer (:wat::kernel::Peer :- [I O]) the peer to close (Thread or Process)
 /// @ret     :wat::kernel::CloseOutcome Closed[exit] / Failed[cause] / Signaled[signal] — must-use
 /// @example-norun (:wat::kernel::close my-thread) #=> #wat.kernel/CloseOutcome.Closed{exit: #wat.core/None{}}
 // No registered `TypeScheme` — `check.rs`'s `infer_close_prime`
@@ -532,9 +532,9 @@ pub(crate) fn eval_peer_close_prime(
 }
 
 /// `(:wat::kernel::signal peer sig)` → `:wat::kernel::SignalOutcome`.
-/// Sends a POSIX signal to a `(Process' :- [I O])` peer's child via
+/// Sends a POSIX signal to a `(Process :- [I O])` peer's child via
 /// `Pidfd::send_signal` (never `kill(pid, sig)`). Does NOT consume the
-/// peer — signal any number of times before `close'`.
+/// peer — signal any number of times before `close`.
 ///
 /// @added         1.0.0
 /// @Purity        Effectful
@@ -546,8 +546,8 @@ pub(crate) fn eval_peer_close_prime(
 /// @ret     :wat::kernel::SignalOutcome the delivery outcome — must-use
 /// @example-norun (:wat::kernel::signal my-process :wat::kernel::Signal::Interrupt) #=> #wat.kernel/SignalOutcome.Sent{}
 // No registered `TypeScheme` — `check.rs`'s `infer_signal` (`:11039`) is
-// the real authority: `(Process :- [I O])`-only (unlike `close'`, not shared
-// with `Thread'`), return is the must-use `SignalOutcome`.
+// the real authority: `(Process :- [I O])`-only (unlike `close`, not shared
+// with `Thread`), return is the must-use `SignalOutcome`.
 //
 // Deciding line for `@Category Resource`: `runtime.rs:31909`
 // `eval_signal` reads the peer via `cell.with_ref` (NOT `with_mut` +
@@ -597,7 +597,7 @@ pub(crate) fn eval_signal(
 // Deciding line for `@Category Resource`: `runtime.rs:26051`
 // `eval_listener_prime` mints a fresh listener (crossbeam rendezvous or
 // kernel-autobound UDS) and returns it — textbook ACQUISITION of a handle
-// whose lifetime `accept`/`close'` (thread tier: scope) administer
+// whose lifetime `accept`/`close` (thread tier: scope) administer
 // thereafter.
 //
 // Deciding line for `@Purity Effectful` / `@Determinism Deterministic`:
@@ -615,8 +615,8 @@ pub(crate) fn eval_listener_prime(
 }
 
 /// `(:wat::kernel::connect addr)` → `(:wat::kernel::Peer :- [S R])`. Dials
-/// `addr` (a unified `(Address' :- [S R])`, both tiers) and returns the client
-/// end as a `(Peer' :- [S R])`.
+/// `addr` (a unified `(Address :- [S R])`, both tiers) and returns the client
+/// end as a `(Peer :- [S R])`.
 ///
 /// @added         1.0.0
 /// @Purity        Effectful
@@ -627,7 +627,7 @@ pub(crate) fn eval_listener_prime(
 /// @ret     (:wat::kernel::Peer :- [S R]) the client end of the new connection
 /// @example-norun (:wat::kernel::connect addr) #=> #wat.kernel/Peer{}
 // No registered `TypeScheme` — `check.rs`'s `infer_connect_prime`
-// (`:9872`) is the real authority: extracts `S,R` from the `(Address' :- [S R])`
+// (`:9872`) is the real authority: extracts `S,R` from the `(Address :- [S R])`
 // argument's parametric type — projective on the input, not a fixed
 // scheme.
 //
@@ -653,7 +653,7 @@ pub(crate) fn eval_connect_prime(
 
 /// `(:wat::kernel::accept listener)` → `(:wat::kernel::Peer :- [R S])`. Blocks
 /// until a connection arrives on `listener`, then returns the server end
-/// as a `(Peer' :- [R S])` (the flipped pair: server recvs S, sends R).
+/// as a `(Peer :- [R S])` (the flipped pair: server recvs S, sends R).
 ///
 /// @added         1.0.0
 /// @Purity        Effectful
@@ -664,7 +664,7 @@ pub(crate) fn eval_connect_prime(
 /// @ret     (:wat::kernel::Peer :- [R S]) the server end of the accepted connection
 /// @example-norun (:wat::kernel::accept my-listener) #=> #wat.kernel/Peer{}
 // No registered `TypeScheme` — `check.rs`'s `infer_accept_prime`
-// (`:9946`) is the real authority: returns `(Peer' :- [R S])` — the FLIPPED
+// (`:9946`) is the real authority: returns `(Peer :- [R S])` — the FLIPPED
 // pair relative to the listener's `[S R]` — a projection a fixed scheme
 // could express in shape but not in the flip's provenance-sensitive
 // wiring shared with `listener`/`connect`.

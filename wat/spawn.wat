@@ -246,7 +246,7 @@
 
 ;; ── (PoolMsg :- [D I]) — the universal pool wire message (arc 170 M1-pool) ──
 ;;
-;; Every bracket pool runner recvs (PoolMsg :- [D I]), never a raw (i64,I) pair, so the
+;; Every bracket pool runner recv's (PoolMsg :- [D I]), never a raw (i64,I) pair, so the
 ;; SAME peer type carries the dial handshake AND the work stream — the one shape
 ;; that lets a tier-agnostic map-worker send both. `:Pure` — proven to cross the
 ;; wire by scratchpad/probe-m1-worker-setup.wat (a :Pure enum, Address payload).
@@ -277,7 +277,7 @@
 (:wat::core::derive :wat::kernel::Thread  :wat::spawn::Spawned)
 (:wat::core::derive :wat::kernel::Process :wat::spawn::Spawned)
 
-;; ── arc 291 3a-ii-β: Thread/Process ARE Peers ────────────────────────────
+;; ── arc 291 3a-ii-β: Thread/Process ARE Peer's ────────────────────────────
 ;; The owner-side spawn handle IS the parent end of the lineage channel — a peer.
 ;; send/recv/poll already operate on it (process `launch` does `recv svc`/`send svc`);
 ;; these derives make the TYPE model say so, so a locus-agnostic `Handle.handle <- (Peer :- […])`

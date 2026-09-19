@@ -151,8 +151,8 @@ pub enum CheckErrorKind {
     /// Applies to the thread-tier comm-call set:
     /// `:wat::kernel::send` / `:wat::kernel::recv`.
     /// (Arc 278 IPC de-prime: the process-tier comm verbs were annihilated;
-    /// process IPC now flows through the `spawn-program' (process)` peer model
-    /// via `send'`/`recv'`/`recv-all'`.)
+    /// process IPC now flows through the `spawn-program (process)` peer model
+    /// via `send`/`recv`/`recv-all`.)
     CommCallOutOfPosition { callee: String },
     /// Arc 170 — Process-output-channel join-before-drain rule.
     /// Outer span = join-result call site (most-actionable).

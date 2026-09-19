@@ -549,7 +549,7 @@ pub enum RuntimeErrorKind {
     /// pipe-write failure) — distinguishing it there needs a `SendOutcome::
     /// Shutdown` variant, which cascades to `kernel/address.rs`'s
     /// `ThreadAddress::connect` and has no honest landing spot in `ConnectFail`
-    /// without extending the arc 278 "connect' OUTCOME WALL"; a design call
+    /// without extending the arc 278 "connect OUTCOME WALL"; a design call
     /// left to a follow-up (see `typed_send`'s PipeFd match arm for the detail).
     WriteStopped,
     /// Arc 278 #88 — a `(:wat::rete::core::defn …)` declaration's body failed one of the four

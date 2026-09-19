@@ -8,10 +8,10 @@
 //! These five verbs now route to the PRIMED stdio defservices (`:wat::kernel::{stdout,stderr,stdin}-svc`,
 //! built in `wat/kernel/services/stdio.wat`) instead of the hand-rolled `spawn_service_peer`
 //! path. Their CONTRACTS are byte-identical — only who they call changed:
-//!   - Each verb reaches its stream's `Address'` via `sym.primed_stdio()` (the `PrimedStdio` carrier
-//!     the freeze bootstrap seeded), `connect'`s a per-thread client `Peer'` ONCE (cached in ThreadIO
+//!   - Each verb reaches its stream's `Address` via `sym.primed_stdio()` (the `PrimedStdio` carrier
+//!     the freeze bootstrap seeded), `connect`s a per-thread client `Peer` ONCE (cached in ThreadIO
 //!     via `cached_stdio_peer`), then drives the op through a thin kernel wat helper
-//!     (`stdio-write-out`/`stdio-write-err`/`stdio-read`) that does the send'/recv'/typed-match.
+//!     (`stdio-write-out`/`stdio-write-err`/`stdio-read`) that does the send/recv/typed-match.
 //!   - `println`/`pprintln` → write-line via `StdOut`, return `nil`; RequestTooLarge/lost/closed SURFACE.
 //!   - `eprintln`/`epprintln` → write-line via `StdErr`, then TERMINATE (the death split — the write
 //!     is the service's act, the terminate is the verb's own, exactly as before).
@@ -67,8 +67,8 @@ fn eprintln_terminate(reason: String) -> ! {
 
 // ─── Arc 170 Strike 3 — primed-stdio routing helpers ─────────────────────────────────────────────
 
-/// Route a formatted line to the primed `StdOut` service: fetch the stdout `Address'` from
-/// `sym.primed_stdio()`, get/connect this thread's cached client `Peer'`, then apply the wat
+/// Route a formatted line to the primed `StdOut` service: fetch the stdout `Address` from
+/// `sym.primed_stdio()`, get/connect this thread's cached client `Peer`, then apply the wat
 /// `stdio-write-out` helper (which surfaces RequestTooLarge / lost / closed as a raise). The line is
 /// emitted + acked on success.
 ///
@@ -338,7 +338,7 @@ pub fn eval_kernel_readln_prime(
 
     // Read one line via the primed StdIn service, then decode via the SELF-DESCRIBING wire — no
     // target type; the EDN's own tags/notation reconstruct the exact Value (int→i64, float→f64),
-    // exactly as recv'/select' decode a peer message (unchanged from the old readln' contract).
+    // exactly as recv/select decode a peer message (unchanged from the old readln' contract).
     // Arc 170 closure #24 — readln RETURNS `:wat::kernel::ReadlnOutcome<T>`; it no longer
     // raises on Eof or on a stop. Decoding happens ONLY in the happy arm: `Eof`/`Stopped`
     // are not values to decode, they are outcomes to hand the caller. A decode FAILURE

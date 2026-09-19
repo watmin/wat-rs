@@ -60,9 +60,9 @@ use crate::comms::{EdnRepresentable, RecvError, SendError, TrySendError};
 /// ## RAII lifecycle (arc 259 S2b)
 ///
 /// `Drop` calls `drain_and_join` automatically — the worker is always reaped
-/// when the peer leaves scope, without any explicit `close'` call. The
-/// `close'` verb routes through the same idempotent `drain_and_join`, so
-/// `close'`-then-`Drop` is safe (the second call is a no-op via `Option::take`).
+/// when the peer leaves scope, without any explicit `close` call. The
+/// `close` verb routes through the same idempotent `drain_and_join`, so
+/// `close`-then-`Drop` is safe (the second call is a no-op via `Option::take`).
 ///
 /// ## Crash channel (arc 259 S3.5a-0)
 ///
@@ -174,7 +174,7 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
 
     /// Drain THEN join — idempotent. The ONE internal reap.
     ///
-    /// Drops the input `Sender` first (the worker's `recv'` raises →
+    /// Drops the input `Sender` first (the worker's `recv` raises →
     /// the worker exits), then joins the thread (synchronous wait). Both
     /// steps use `Option::take` so repeated calls are no-ops (returns `None`
     /// after the first reap).
@@ -182,10 +182,10 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
     /// ## Load-bearing order: drain BEFORE join
     ///
     /// Joining first would deadlock: `join` waits for the worker; the worker
-    /// is blocked on `recv'` (input not yet dropped). The drain-first order
+    /// is blocked on `recv` (input not yet dropped). The drain-first order
     /// is the cascade-safety that makes the join hang-free.
     pub(crate) fn drain_and_join(&mut self) -> Option<std::thread::Result<()>> {
-        drop(self.input.take()); // drain FIRST: worker's recv' raises → worker exits
+        drop(self.input.take()); // drain FIRST: worker's recv raises → worker exits
         self.join.take().map(|j| j.join()) // THEN join (synchronous); None if already reaped
     }
 
@@ -206,7 +206,7 @@ impl<I: Send + 'static, O: Send + 'static> Drop for Thread<I, O> {
     /// RAII backstop — reaps the worker when the peer leaves scope.
     ///
     /// Calls `drain_and_join` (idempotent). `Drop` cannot propagate thread
-    /// panics; they are swallowed here. The `close'` verb surfaces panics
+    /// panics; they are swallowed here. The `close` verb surfaces panics
     /// explicitly via `drain_and_join`'s return value.
     fn drop(&mut self) {
         let _ = self.drain_and_join();
@@ -231,10 +231,10 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
 // Unified, transport-blind bidirectional connection/self peer — arc 209 Stone C0b.2e-i-b.
 //
 // `Peer` is the single non-generic endpoint used for BOTH the worker self-peer
-// (handed to a spawned thread via `send'`/`recv'`) AND a connection handle
-// (produced by `peer-pair'`, `connect'`, `accept'`).  The
+// (handed to a spawned thread via `send`/`recv`) AND a connection handle
+// (produced by `peer-pair'`, `connect`, `accept`).  The
 // self-vs-connection role is positional at the call site (e.g. arg 0 of
-// `select'`), not a type distinction.
+// `select`), not a type distinction.
 //
 // Arc 258.5b-ii: the send path is now symmetric with recv.  Thread-tier peers
 // carry a `CommSender<Value>` (crossbeam; no serialisation); socket-tier peers
@@ -246,7 +246,7 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
 // Construct via `Peer::from_thread` (thread tier) or `Peer::from_socket`
 // (socket tier).  Do not construct by naming fields directly.
 //
-// Carries no `JoinHandle` — lifecycle belongs to the parent (`Thread'` today;
+// Carries no `JoinHandle` — lifecycle belongs to the parent (`Thread` today;
 // RAII in S2b).  For the thread-tier self-peer the instance is created INSIDE
 // the spawned thread's closure to satisfy the `ThreadOwnedCell` owner-thread
 // invariant.
@@ -265,7 +265,7 @@ pub(crate) enum PeerTx {
 pub struct Peer {
     /// Send endpoint — Thread or Socket tier.
     pub(crate) tx: PeerTx,
-    /// Receive endpoint (transport-erased; `Send` required; `as_any` for `select'` downcast).
+    /// Receive endpoint (transport-erased; `Send` required; `as_any` for `select` downcast).
     pub(crate) rx: Box<dyn crate::comms::CommReceiver<crate::value::Value> + Send>,
     /// The address this peer was DIALED FROM, when it was dialed at all.
     /// `None` for an accepted peer (the remote bound no listener), a self-peer,
@@ -304,7 +304,7 @@ pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
 ///
 /// `:Shutdown`'s own declaration (`wat/spawn.wat:196`) states that reason —
 /// *"owner dropped the handle (self-peer drained)"* — and the serve loop then
-/// returned `nil`, so every connected client's next `recv'` read a bare EOF and
+/// returned `nil`, so every connected client's next `recv` read a bare EOF and
 /// reported `RecvOutcome::Closed`: a clean-close label on a service that did not
 /// close cleanly. That is the same mute `PEER_CRASHED_SENTINEL` was minted to kill
 /// (arc 278 RST stone), on the one path that stone never covered — the ordinary
@@ -329,7 +329,7 @@ pub(crate) const PEER_SEVERED_SENTINEL: &str = ":wat::kernel::__peer_severed__";
 /// Outcome of [`Peer::try_send`] / [`Peer::try_send_wire`] — Arc 278 Phase
 /// 3a (`BRIEF-send-wall-3a-try-send-outcome.md`). Distinguishes "the write
 /// would have blocked" (a live peer just not draining fast enough — the
-/// `try-send'` deadlock-guard case, `service.wat:1163`) from "the peer is
+/// `try-send` deadlock-guard case, `service.wat:1163`) from "the peer is
 /// gone", instead of collapsing both into a bare `bool`. Mirrors
 /// `comms::TrySendError`'s two failure arms plus the success arm; the
 /// checker-level twin is `:wat::kernel::TrySendOutcome`
@@ -486,7 +486,7 @@ impl Peer {
         match self.rx.recv()? {
             v if Self::is_peer_crashed_sentinel(&v) => Err(RecvError::PeerCrashed),
             // The owner released the service handle. Carries its reason (never
-            // `PeerCrashed` — nothing crashed) so the client's `recv'` reports
+            // `PeerCrashed` — nothing crashed) so the client's `recv` reports
             // `Lost` with a cause instead of a mute `Closed`.
             v if Self::is_peer_severed_sentinel(&v) => Err(RecvError::PeerSevered),
             v => Ok(v),
@@ -496,7 +496,7 @@ impl Peer {
     /// Recognize the reserved `PeerCrashed` sentinel keyword value
     /// (thread-tier wire form — see [`PEER_CRASHED_SENTINEL`]'s doc).
     ///
-    /// `pub(crate)` so `select'` can intercept the same Value `recv` does,
+    /// `pub(crate)` so `select` can intercept the same Value `recv` does,
     /// before treating it as a `ServiceEvent::Message` (arc 278 the death
     /// notice is not a malformed frame).
     pub(crate) fn is_peer_crashed_sentinel(value: &crate::value::Value) -> bool {
@@ -524,7 +524,7 @@ impl Peer {
     /// retries: a channel that's full or already gone is silently skipped —
     /// a dying process cannot wait on a peer that isn't draining.
     ///
-    /// Arc 278 RST stone — the broadcast primitive `serve-dispatch-op'`
+    /// Arc 278 RST stone — the broadcast primitive `serve-dispatch-op`
     /// calls (via [`broadcast_peer_crashed_best_effort`]) for every peer in
     /// a crashing service's `clients`.
     pub(crate) fn notify_peer_crashed_best_effort(&self) {
@@ -604,7 +604,7 @@ impl Peer {
 ///
 /// Takes already-downcast [`crate::kernel::spawn::PeerCell`]s rather than a wat
 /// `Value`, because the one caller (`eval_poll_prime`, both tiers) has them in
-/// hand: `poll'` downcasts its peers argument up front, and the `Shutdown` arm
+/// hand: `poll` downcasts its peers argument up front, and the `Shutdown` arm
 /// fires inside that same call. So the notification is emitted where the cause is
 /// KNOWN, with no new wat-visible intrinsic and no change to the generated serve
 /// loop — `wat/service.wat`'s `:Shutdown` arm stays exactly as it is.
@@ -625,12 +625,12 @@ pub(crate) fn broadcast_peer_severed_best_effort(peers: &[crate::kernel::spawn::
 /// Best-effort broadcast of the `PeerCrashed` notification to every peer in
 /// a `defservice` serve loop's `clients` Vector (arc 278 RST stone).
 ///
-/// Called ONLY from `serve-dispatch-op'`'s panic-catch arm
+/// Called ONLY from `serve-dispatch-op`'s panic-catch arm
 /// (`runtime.rs::eval_kernel_serve_dispatch_op_tail`), which has just caught
 /// a genuine handler panic and is about to `resume_unwind` the original
 /// payload — `clients` is still reachable there (the ONE hook that can reach
 /// it before the crash propagates past `serve`'s own recursion). Silently
-/// skips any element that isn't a `Peer'` opaque or whose cell is already
+/// skips any element that isn't a `Peer` opaque or whose cell is already
 /// empty (peer already closed) — best-effort, never an error, never a panic
 /// of its own (a panic INSIDE a panic-catch arm would abort the process
 /// instead of letting the ORIGINAL crash resume cleanly).

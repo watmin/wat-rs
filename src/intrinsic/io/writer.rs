@@ -64,7 +64,7 @@
 //!   gives `signal`. `close`, by contrast, genuinely RELEASES for the
 //!   pipe-backed case — `PipeWriter::close` (`io.rs:759`) swaps the fd to -1
 //!   and calls `libc::close(2)`, a real release, matching `kernel/
-//!   resource.rs`'s `close'` (the actual-release consumer), not `signal`.
+//!   resource.rs`'s `close` (the actual-release consumer), not `signal`.
 //!   Both `Effectful`/`Deterministic` — like `reader.rs`'s `rewind`, the
 //!   outcome (no-op vs. real syscall) is a pure function of the handle's own
 //!   concrete backing type, never of unpredictable stream content.
@@ -589,7 +589,7 @@ pub(crate) fn eval_iowriter_flush(
 // (never releases across ANY backing), `close`'s `PipeWriter` impl
 // (`io.rs:759`) genuinely RELEASES: it swaps the fd to -1 and calls
 // `libc::close(2)` — a real syscall release, matching `kernel/resource.rs`'s
-// `close'` (the actual-release consumer), not `signal`. The default trait
+// `close` (the actual-release consumer), not `signal`. The default trait
 // impl (`io.rs:100`, "no-op for backings without an explicit-close
 // concept") covers `StringIoWriter`/`RealStdout`/`RealStderr`. `:Resource`'s
 // release disjunct, not merely its administer one — the brief's "flush/close

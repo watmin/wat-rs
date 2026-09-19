@@ -113,7 +113,7 @@ pub trait EdnRepresentable: Send + 'static {
 /// Raw passthrough (Stone 214 1b-ii-β.0): the `String` IS the EDN line. No
 /// holon tag — a forms-server's `(println 42)` writes plain `42\n`, and the
 /// parent reads it back byte-for-byte. The boundary codec (`value_to_edn` /
-/// `edn_string_to_value` at the `send'`/`recv'` intrinsics) already turned the
+/// `edn_string_to_value` at the `send`/`recv` intrinsics) already turned the
 /// Value into this EDN line, so the channel must not re-encode it.
 impl EdnRepresentable for String {
     fn to_wire(&self) -> String {
@@ -169,7 +169,7 @@ impl EdnRepresentable for crate::value::Value {
     {
         // Arc 272 6a-i — `from_wire` is the GENERAL `Value` deserializer; it does NOT assume a
         // trusted channel, so it REFUSES capability tags. The trusted peer wire is
-        // the `recv'`/`select'` eval path (runtime.rs), which calls `decode_trusted_wire` directly —
+        // the `recv`/`select` eval path (runtime.rs), which calls `decode_trusted_wire` directly —
         // the one audited door that may reconstruct a capability (ocap transfer-only).
         crate::edn::render::edn_string_to_value(s)
             .map_err(|e| WireError::new(format!("Value from_wire: {e}")))
@@ -178,7 +178,7 @@ impl EdnRepresentable for crate::value::Value {
 
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
 
-/// Which wait-primitive demuxes a receiver in `select'` — Stone C0b.2e-i-a.
+/// Which wait-primitive demuxes a receiver in `select` — Stone C0b.2e-i-a.
 /// `InMemory` = parked-thread crossbeam-select (no fd). `Fd` = kernel fd-poll
 /// (io_uring). A closed enum on a fixed axis (two wait primitives; a third OS
 /// poller is still `Fd`); the growing remote-transport axis lives in the impls,
@@ -207,7 +207,7 @@ pub trait CommSender<T> {
     /// `send`; ordinary reply/request traffic keeps the mini-TCP blocking
     /// discipline documented at this module's top.
     ///
-    /// Arc 278 Phase 3a (send'-outcome wall, `try-send'`'s own
+    /// Arc 278 Phase 3a (send-outcome wall, `try-send`'s own
     /// `TrySendOutcome`): returns [`TrySendError`], not the bare `SendError`
     /// — distinguishes "the channel is full / peer not draining" (a LIVE
     /// peer, `TrySendError::Full`) from "the peer is gone"
@@ -264,9 +264,9 @@ pub trait CommReceiver<T>: std::any::Any {
     /// The type system enforces single-close via move semantics — calling
     /// `close` twice is a compile error, not a runtime error.
     fn close(self);
-    /// The wait-primitive class `select'` groups this receiver under.
+    /// The wait-primitive class `select` groups this receiver under.
     fn reactor_class(&self) -> ReactorClass;
-    /// Recover the concrete receiver (the i-b `select'` reactor bridge).
+    /// Recover the concrete receiver (the i-b `select` reactor bridge).
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
@@ -405,7 +405,7 @@ pub enum RecvError {
     /// Carries NO reason: the crash reason is administrative (arc 294 —
     /// "a crash reason is administrative, to the creator, never blind
     /// callers") and travels ONLY to the owner's crash channel
-    /// (`PeerRecvError::Crashed`), never to a `connect'`-ed peer. Recognized
+    /// (`PeerRecvError::Crashed`), never to a `connect`-ed peer. Recognized
     /// as a reserved sentinel on the peer's existing data channel
     /// (`kernel::peer::Peer::recv`/`recv_wire`) — there is no separate
     /// control channel at either transport tier.
@@ -529,7 +529,7 @@ mod beta0_wire_tests {
 
     #[test]
     fn string_wire_is_raw_edn_not_holon_tagged() {
-        // The process peer's String IS the finished EDN line (the send'/recv'
+        // The process peer's String IS the finished EDN line (the send/recv
         // boundary codec ran value_to_edn upstream). to_wire must NOT re-wrap it.
         let edn_line = "42".to_string();
         assert_eq!(

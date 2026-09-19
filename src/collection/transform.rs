@@ -253,7 +253,7 @@ fn lazy_drop_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::st
 /// `(:wat::core::sort' less? xs)` → `Vec<T>` — the primitive comparator-sort engine.
 ///
 /// Arc 251 Stone: renamed from `sort-by` to `sort'` (primitive convention, like
-/// `spawn-program'`). The wat-level `sort` and `sort-by` defclauses in `core.wat`
+/// `spawn-program`). The wat-level `sort` and `sort-by` defclauses in `core.wat`
 /// build on this primitive.
 ///
 /// `less?` is a callable `:fn(T, T) -> :bool`; it returns true iff
