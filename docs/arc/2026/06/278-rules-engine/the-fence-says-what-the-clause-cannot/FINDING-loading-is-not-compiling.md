@@ -1,7 +1,25 @@
 # FINDING — the corpus gate LOADS 477 files and COMPILES zero rules. 11 cannot compile.
 
-**Measured 2026-09-10** at `6f1d93451`, instrument committed beside this finding at
-`tests/lint/rete-compile-census.sh` (re-runnable; re-derive before quoting any number here).
+**Measured 2026-09-10** at `6f1d93451`, instrument at `tests/lint/rete-compile-census.sh`.
+
+> ## ⭐ CLOSED 2026-09-10 at `2a9de244a` — `strike-no-rule-that-cannot-compile`
+>
+> **Every number below is HISTORICAL and no longer reproducible, by design:** the nine rotted
+> files are deleted, the two recorded migrations repaired, and `tests/lint/rete_compile_gate.rs`
+> now requires every rule-declaring corpus file to COMPILE — with **zero exemption categories**,
+> and a test asserting no exemption rune was ever added. The corpus reads **128 compile / 0 cannot**.
+>
+> ⛔ **The repair found FIVE fence call sites, not the three this finding implied** — and the
+> reason is a limitation of the instrument below that anyone re-using it must know: `compile-all`
+> **fails fast per file**, so the census reports only each file's FIRST refusal. A second bad fence
+> in the same file is invisible until the first is cured. **The census bounds files correctly and
+> UNDERCOUNTS sites.**
+>
+> ⛔ **And the instrument's own anchor was pinned to a mutable fact.** It required
+> `to-faithful-clojure-net.wat` to fail — the very file the strike repaired — so curing the corpus
+> disarmed the instrument that measured it, permanently. Now fixed: the anchor is a **synthesized**
+> fence the script constructs itself. *An anchor must be something you build, never something you
+> found.*
 
 ## The gap
 
