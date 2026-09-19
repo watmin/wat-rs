@@ -85,14 +85,15 @@ From `278-rules-engine/SEAM.md`, in the builder's own words:
 So the sequence is not an orchestrator's guess — it is on record, and the full chain reads:
 
 ```
-296/298  EDN errors ──► 255  registry ──► 251  clojurification ──► 278  rete resumes
+296/298  EDN errors ──► 255  registry ──► 251  clojurification        278  rete: ✅ COMPLETE
 ```
 
-⭐ **And the replay just did 278's half of the bargain.** That same banner: *"251 was abandoned FOR
-rete; rete is what made 251 executable"* — the tooling 251 needed (a rules engine that classifies by
-POSITION, an extractor turning real source into facts, a diagnostic that names the cause instead of the
-call site) landed in rete. **All of it is now on `main`.** 278's subsystem is current; what it waits on
-is the clojure syntax conversion, which is 251, which waits on 255.
+⭐⭐ **278 IS COMPLETE — BUILDER'S RULING, 2026-09-19.** *"278 should be assumed to be complete… that
+was the whole 9 day grind of getting grok-rete merged into main."* The 2026-08-13 banner said 278 would
+*"resume once we have the clojure syntax conversion complete"*; **that is superseded** — the replay WAS
+278's completion, not a prerequisite for it. The tooling 251 needed (a rules engine classifying by
+POSITION, an extractor turning source into facts, a diagnostic naming the cause not the call site) all
+landed and is on `main`. ⛔ **Do not re-open 278 expecting pending work.**
 
 ### Why 251 has landed work despite being blocked
 
@@ -145,16 +146,53 @@ rewritten. This file's ledger accumulates; its stamp rotates. Put claims that mu
 
 ---
 
-## ⭐ WHAT IS **NOT** DECIDED — the builder's ruling
+## ⭐ THE LIVE WORK — RULED 2026-09-19: finish the clojure/EDN compliance
 
-**Which arc resumes is the builder's call, not the orchestrator's** — opening or resuming an arc is a
-ruling (`[[feedback_opening_an_arc_is_the_builders_ruling]]`).
+**Builder:** *"we need to keep working on moving the codebase to clojure compliant syntax — the last
+outstanding item for non-edn compliant is our keywords having `::` in them… for not being clojure
+compliant… we need to make all call heads a symbol."*
 
-What the chain says *mechanically*, offered as a measurement and not a recommendation: **296's remaining
-tail sits at the head**. Its own notes call the `Failure`/`ProcessDiedError` de-stringify **"THE real
-heresy"** — registered wat types declared `:String` but carrying edn-as-text, so a receiver does
-`(edn::read (Failure/message f))`. That is the double-encode 296 R1 named, and the derive sweep is
-blocked behind it. Also open in 296: **`deferror`** (modelled, crowned N8, **unbuilt** — grep → 0) and
-**the L1/L2 close-gate** (cast the wards on the error subsystem and drive lie+mumble to 0).
+Those two items are **already designed**, as the last two stones of arc 251's campaign
+(`251-types-as-forms/DESIGN-STONE-251.8-symbol-proper.md`, 466 lines, DRAWN 2026-08-13):
+
+| stone | what it is | state |
+|---|---|---|
+| **8a** the vocabulary at zero offenders | `$bound` reserved; `namespace()`/`reference?` as the ONE DOOR | ✅ landed |
+| **8a-ii** the binder namespace unforgeable | refused at the READER — no-form, not a check | ✅ landed |
+| **8b** invert the normalizer | `Identifier` stores `(ns, name)` — ✅ `71c9f2f58`. ⚠ **The INVERSION half may still be owed**: `resolve/normalize.rs` still reads as Symbol→Keyword ("normalize all namespaced symbol refs"). **Confirm before drawing 8c.** | ⚠ partial |
+| **8c** **close the check hole (#95)** | route Symbol heads through `infer_list`'s Keyword-gated dispatch — **"the stone that actually fixes #95"** | ❌ **NEXT** |
+| **8d** **the reader/printer flip** | `::` retires as a reference spelling; a colon means keyword, full stop; the corpus flip lands here | ❌ after 8c |
+
+### ⛔ THE ORDERING IS NOT A PREFERENCE — VERIFIED BY PROBE, 2026-09-19
+
+The design's own cut: *"The corpus flip is NOT in this stone. It is 251.8d, and **it must not begin while
+a dotted call head is unchecked**."* **Re-verified at HEAD by hand today**, the d3/d4 pair:
+
+| probe | expected | actual |
+|---|---|---|
+| `(:user::f "boom")` — colon-quoted head, wrong arg type | type error | **rc=1** ✓ caught |
+| `(user/f "boom")` — slashed head, **same** wrong arg type | type error | **rc=0** ⛔ **passes unchecked** |
+
+⛔ **So flipping the corpus first would silently switch off type checking across the tree.** `infer_list`
+gates its **entire** call-inference universe on `if let WatAST::Keyword` (`check.rs:2542`, closing
+`:5568`); past it only `Some`/`Ok`/`Err` bare-symbol cases survive, and a namespaced `Symbol` head falls
+to a fresh type var that unifies with anything. **8c first. Always.**
+
+### The scale of 8d, measured
+
+**169,845 `::` occurrences across 2,440 of 2,483 tracked `.wat` files**, plus 826 Rust files carrying
+`:wat::`. This is R21's codemod path at a scale beyond anything in the replay — **read
+`294-holon-returns-to-vsa/REPLAY-PLAYBOOK.md` §6 before drawing it**, and note the design already calls
+it *"a spelling change over a substrate that already type-checks both"*, which is only true after 8c.
+
+### What 8c may still need from elsewhere
+
+⚠ **Unresolved, and it decides 8c's brief:** 251's seam says *"255 closes #95 because `type_sig` was
+ruled day-one"*, while the design says **8c** closes it. Both can be true — 8c makes the checker SEE a
+Symbol head; 255's registry supplies what to check it against. **Measure this before drawing the brief**;
+do not assume either doc is the whole story. The rest of the chain (296/298 → 255) is unchanged and still
+blocks the registry.
+
+---
 
 **Nothing is in flight. The tree is clean, `main` is green and pushed, and no batch is running.**
