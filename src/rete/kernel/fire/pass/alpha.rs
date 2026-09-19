@@ -295,15 +295,17 @@ pub(crate) fn alpha_seed(
     // The mixed leaf classes, deferred out of the fact loop above.
     if plan.has_mixed() {
         activate_deferred_mixed_classes(
-            sym,
-            wm,
-            d_alpha,
-            alpha_tree,
-            compiled_conds,
-            match_scratch,
-            cand_scratch,
-            cond_key_ids,
-            bind_only,
+            &mut AlphaActivateCx {
+                sym,
+                wm,
+                d_alpha,
+                alpha_tree,
+                compiled_conds,
+                match_scratch,
+                cand_scratch,
+                cond_key_ids,
+                bind_only,
+            },
             input_facts,
             &plan,
         )?;
@@ -333,19 +335,18 @@ pub(crate) fn alpha_seed(
 /// construction that a corpus with no mixed class never executes. A mixed class is by
 /// construction the rare case (it needs one runtime class whose instances differ in packability),
 /// so the branch is cold and the code belongs out of the hot function's body.
+///
+/// Took `&mut AlphaActivateCx<'_>` rather than its nine fields separately (arc 278,
+/// strike-allow-reasons-or-clausectx): every call site already built exactly this literal from
+/// exactly these names (see `alpha_seed`'s two calls above), so the nine were traveling as a unit
+/// before this fn existed — unlike the sites this strike left as `#[allow]`, where the
+/// "shared working set" is real but each caller still needs some of the fields on their own.
+/// `input_facts` and `plan` stay outside `cx`: they drive this loop's own filtering and are not
+/// part of what one `alpha_activate_fact` call needs.
 #[cold]
 #[inline(never)]
-#[allow(clippy::too_many_arguments)]
 fn activate_deferred_mixed_classes(
-    sym: &SymbolTable,
-    wm: &mut FireSession,
-    d_alpha: &mut AlphaDelta,
-    alpha_tree: &AlphaTree,
-    compiled_conds: &HashMap<i64, CompiledCond>,
-    match_scratch: &mut SlotFrame,
-    cand_scratch: &mut Vec<i64>,
-    cond_key_ids: &CondKeyIds,
-    bind_only: &BindOnlyFields,
+    cx: &mut AlphaActivateCx<'_>,
     input_facts: &crate::value::pvec::PVec,
     plan: &ClassPlan,
 ) -> Result<(), EvalBreak> {
@@ -362,21 +363,7 @@ fn activate_deferred_mixed_classes(
         // Per FACT of a mixed class. The `seed:batch-class-uniform` /
         // `seed:batch-class-mixed` pair increments once per CLASS.
         census_count("seed:mixed-fact-activate");
-        alpha_activate_fact(
-            fact,
-            i as u32,
-            &mut AlphaActivateCx {
-                sym,
-                wm,
-                d_alpha,
-                alpha_tree,
-                compiled_conds,
-                match_scratch,
-                cand_scratch,
-                cond_key_ids,
-                bind_only,
-            },
-        )?;
+        alpha_activate_fact(fact, i as u32, cx)?;
     }
     Ok(())
 }
