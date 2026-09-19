@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# check-where-shapes.sh — THE `where`-EXPRESSIVITY VERDICT, and it is one diff.
+# check-where-shapes.sh — THE `where`-EXPRESSIVITY VERDICT, and it is one diff per pair.
 #
-# Runs both halves of the corpus once each and compares them byte-for-byte:
+# Runs every discovered `where-<family>.wat` + `.clj` pair once each and compares them
+# byte-for-byte: one wat process and one Clara JVM PER PAIR (38 pairs on disk today — see
+# "THE CORPUS IS ONE PAIR PER FAMILY" below). `where-shapes.wat`/`.clj` is only the "core" pair,
+# not the whole corpus — naming it alone here is a holdover from before c8b062e64 (2026-08-01)
+# split this script into one pair per family.
 #
-#   wat-scripts/perf/grid/where-shapes.wat   (wat   — every row, one process)
-#   wat-scripts/perf/grid/where-shapes.clj   (Clara — every row, one JVM)
-#
-# Empty diff  ⇒  every row derives the same set in both engines.
+# Empty diff  ⇒  that pair's rows derive the same set in both engines.
 # A hunk      ⇒  it NAMES the row, because each row is one line carrying its own count.
 #
 # ── WHY THIS IS NOT `run-axis.sh` ─────────────────────────────────────────────────────────────
@@ -19,14 +20,24 @@
 # runs per row that is ~11 s per shape, so a 200-row corpus would have spent ~37 minutes booting a
 # JVM 600 times.
 #
-# Here the JVM tax is paid ONCE no matter how large the corpus grows. Measured at 6 rows:
-# wat 0.22 s + Clara 3.7 s, against ~67 s for the same six through run-axis.sh.
+# This script pays the JVM tax ONCE PER STEM, not once for the whole corpus. `check_pair()`
+# calls `clojure -Sdeps ... -M "$clj"` once per stem, so the 38-stem corpus on disk today pays
+# 38 cold JVM boots, serialized — still far cheaper than run-axis.sh's per-RUN-per-SIZE boots
+# above, but not the single-boot architecture this comment used to describe. Measured
+# 2026-09-08 against the current 38-pair corpus: 2m11.881s wall total (`time bash
+# check-where-shapes.sh`), ~3.47 s/boot average — consistent with the ~3.7 s/boot this file
+# measured back when it WAS one boot over 6 rows, before the corpus was split one-pair-per-family
+# (c8b062e64, 2026-08-01) and this comment was never updated to match. Batching every stem's
+# Clara program into one JVM invocation (one boot, N runs inside it) is available and
+# UNMEASURED — a real, plausible win, deliberately NOT built here: it is a performance change
+# with its own measurement, not a prose fix.
 #
 # ── NO TIMING, DELIBERATELY ───────────────────────────────────────────────────────────────────
 #
-# This script reports NO ratio and NO winner. Once the boot is amortised across the corpus, a
-# per-row wall-clock comparison would be a lie (row 1 pays the boot, rows 2..N do not), and a
-# fire-only ratio here would be a claim about microseconds inside a 4-second program. The nine
+# This script reports NO ratio and NO winner. Every pair pays its own JVM boot in full — there
+# is no amortisation across pairs to exploit (see the correction above) — so a per-pair
+# wall-clock comparison would be dominated by that boot rather than the fire, and a fire-only
+# ratio here would be a claim about microseconds inside a multi-second-per-pair program. The nine
 # perf axes are where speed is measured. This one measures whether the constraint can be said at
 # all — and mixing the two is how the grid previously came to report superiority on ~1% of a
 # runtime.
