@@ -1,5 +1,69 @@
 # Every worker races its own timer
 
+> ⛔⛔ **REDIRECTED 2026-09-19 TO ROUTE (c) — A BOUNDED `select`. Builder: "(c) has been reasoned."**
+> Rows 1–3 below described routes (a) and (b); **(b) is now superseded.** Read this banner first.
+>
+> ## Route (c): `select` gains a deadline
+>
+> ⭐ **`select` is the only wait in this system with no bounded form.** `recv` has
+> `recv-by-deadline`; `call` has `call-by-deadline`. `select`, `poll` and `accept` have nothing.
+> That asymmetry is the argument, and it holds independently of brackets — it fixes the gap for
+> **all 11 `select` callers**.
+>
+> **The mechanism already exists at both tiers.** Thread: crossbeam's `select_timeout` is the
+> direct analogue of the `.select()` already called (`comms/thread.rs:444`). Process: a **timerfd
+> in the ring** — which is already how `recv-by-deadline` gets its timeout there
+> (`comms/process.rs:2225`, an `itimerspec`). And `eval_peer_recv_by_deadline` already covers both
+> spawn tiers, so this is the N-peer analogue of a 1-peer wait that works today.
+>
+> ## ⛔ N DEADLINES, ONE TIMER — and the builder's correction that got this right
+>
+> An earlier orchestrator line said "one deadline". **Wrong, and the distinction is the design.**
+> Builder, with the worked case: a pool of 3, five tasks, a 20 s budget —
+>
+> > *"w-1 task-1 in 4 seconds, w-1 timer reaped, w-1 gets task 4, w-1 gets a FRESH timer for task 4
+> > … every time a worker is assigned a task, they are given a fresh deadline."*
+>
+> The deadline is per **(worker, task) assignment** and is refreshed on every new assignment. What
+> route (c) shares is the **wakeup**, not the deadline: one bounded wait whose timeout is
+> `min(remaining)`, then a scan. ⭐ The builder reached the same implementation independently —
+> *"we could probably optimize to exactly 1 timer with some map who knows when each will expire"* —
+> so the semantics are per-assignment and the timer count is an optimisation, not a compromise.
+>
+> ## ⭐ THE RST HAZARD, AND IT IS ALREADY HALF-SOLVED
+>
+> Builder: *"we also need a 'RST wake' or something to kill the timedout worker."* The hazard is
+> real and sharper than killing: a timed-out worker is **still running**, and its late reply
+> arrives for a task another worker has already completed. Unguarded, the `Done` arm's `conj`
+> would enter the same item **twice**.
+>
+> ⛔ It is guarded — the in-flight `already` fold discards a reply whose item is in `pairs-acc` and
+> marks that runner **idle** rather than killing it. **Keep that; it is the answer to the RST
+> question and it survives this redirect.** Reclaiming a healthy worker beats killing one, and it
+> is the same fact `collect-requeue`'s `in-pairs` guard encodes on the other side.
+>
+> ## What survives, stated honestly
+>
+> | built under (b) | under (c) |
+> |---|---|
+> | the `already` duplicate guard on `Done` | ⭐ **keep** — essential under any scheme |
+> | `PoolReply::Tick` | ❌ drop — a timeout is the bounded select returning, not a message |
+> | the `PoolReply` enum itself | ⚠ **its justification went with the Tick.** With only `Done` it is a tuple with extra steps. Do **not** keep it merely because it is built; re-argue it or revert it |
+>
+> ## The work, under (c)
+>
+> 1. **`select-by-deadline`** — a separate verb, following `recv` / `recv-by-deadline`'s precedent
+>    rather than an optional parameter. The unbounded `select` stays; all 11 callers unaffected.
+> 2. **Per-assignment deadlines in `collect-loop`** — a vector beside `holding`, stamped at
+>    dispatch and cleared on `Done`. The wait's timeout is `min(remaining)`.
+> 3. **On expiry** — re-queue via the existing `collect-requeue` (its guards intact), mark the
+>    runner idle, leave it in `alive`.
+> 4. ⛔ **Keep the `already` guard**, and say in the SCORE how a late reply from a timed-out worker
+>    is discarded.
+>
+> ⚠ Rows 4–7 of EXPECTATIONS still apply: control by mutation (remove the bound → the test hangs,
+> and a timeout is a fail), non-vacuity, "at least N" margins, and a floor with its tree stated.
+
 **The builder's design, specified.** Excursus `001-sns-sqs`. Read first:
 
 - `../the-bracket-peer-path-faces-chaos/SCORE.md` — the measured DoS this answers: a fleet-wide
