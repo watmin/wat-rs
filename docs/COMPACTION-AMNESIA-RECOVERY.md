@@ -133,18 +133,15 @@ plus the newest `SCORE-*.md` / `BRIEF-*.md` in that directory.
 > 2026-08-25) for three weeks after the work moved to arc 294's replay. That file is now PARKED and
 > points here.
 
-Arc 278's own history (replayed here, not this branch's live work) carries a further pointer:
-**the WORK LIST — the live open list within arc 278, and the only place a row's status lived
-there — is `docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/WORK-LIST.md`** (81 L1 + 97 L2
-from the 19-ward cast at HEAD `21530efab`). Read its Class A block first: several wards
-independently found instances of one class, and working the list top-to-bottom as 178 items
-misses it. That directory also holds the 19 ward returns **verbatim** in `reports/` — the
-2026-08-30 cast lost all nineteen of its own, which is why they now go to disk before any
-synthesis.
+⛔ **SUPERSEDED 2026-09-07 — A NEW VIGILIA IS MID-FLIGHT.** The live work is
+`docs/arc/2026/06/278-rules-engine/vigilia-2026-09-07-rete/`. Its `README.md` § "HOW TO RESUME THIS
+CAST" is MANDATORY before touching arc 278: ten of fourteen wards have returned for target 1, four
+are uncast, and the casting procedure exists nowhere else. `FINDINGS.md` there is the ONLY status
+home. The 2026-09-05 cast's rete scope is worked to completion — history, not open rows.
 
-**And the live SUBSET being worked (in arc 278's own history) was `vigilia-2026-09-05/
-RETE-BOARD.md`** — builder's ruling 2026-09-05: that branch worked rete only, main owned the
-cross-codebase cleanup. That file names what was out of scope there.
+**And the previous subset was `vigilia-2026-09-05/RETE-BOARD.md`** — builder's ruling
+2026-09-05: this branch works rete only, main owns the cross-codebase cleanup. That file names
+what is out of scope. Start there, not at the full list.
 
 Superseded: `VIGILIA-2026-08-30-WORK-LIST.md` (41 L1 + 70 L2 at `78b1fad56`) — history, not open
 rows. **⛔ When a new vigilia is cast, THIS paragraph is what you change** — the pointer rotted
