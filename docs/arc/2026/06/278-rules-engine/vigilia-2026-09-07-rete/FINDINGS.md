@@ -365,6 +365,8 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2M5** | temperare | `wat/rete/acc.wat:107-122` | `acc::distinct` is `foldl` + `PersistentVector/contains?` — a linear scan before every `conj`, so O(n²) in elements gathered. ⚠ **Oracle-only**: `kernel/arm.rs:285` recognises the name and dispatches a native `AccFold::Distinct`, so native fire never runs this body. It is real cost on every floor run, in the oracle's interpreted accumulate pass. | L2 · oracle-dimension | **OPEN** · ⚠ ward-reported | closed by a seen-`PersistentMap` instead of `contains?` |
 | **2M6** | temperare | `wat/rete.wat:539` | `render-dag`'s outer `foldl` does `(string::concat acc line)` on a growing accumulator — potentially O(n²) in output length. ⚠ The ward checked whether the adjacent `rune:exigere(scope-affirmative)` at `:524-527` covers it: **it does not** — that rune protects the fixed-depth nested-concat that builds one `line`, not the outer accumulator. Diagnostic renderer, lowest priority. | L3 | **OPEN** · ⚠ ward-reported | closed by a rope/joiner, or left as-is with a rune |
 | **2E1** | exigere | `wat/rete/factbag.wat:7` | *"Doors, all under `:wat::rete::factbag::` — the whitelist a future rung-3 seal **will name**:"* — a future-work promise naming **no tracker**. *"rung-3"* is a repo-wide phase label, not an arc number. ⚠ **The finding stands on the comment's own text** — it names no arc, checkable in the file itself. The ward's supporting evidence (a companion doc calling a sibling rung-3 item *"neither scoped nor scheduled"*) is `docs/*.md` and therefore **corroboration, not authority**, under today's ruling. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `sed -n '7p' wat/rete/factbag.wat` → the phrase, verbatim; the line cites no arc. Closed by formalising the whitelist now, or a `rune:exigere(attested-arc)` naming a real arc |
+| **2N1 ★★** | cernere | `expr_ir/eval.rs:59` and `:905` | ⭐⭐ **THE SAME CLASS AS TARGET 1's N1, TWICE MORE — AND IT IS NOW A CLASS, NOT A SITE.** Two user-facing `MalformedForm` errors carry `head: ":wat::rete::exec_value"` and `head: ":wat::rete::apply_op"`. Both are **the Rust functions' own names**, verbatim — `fn exec_value` at `:69`, `fn apply_op` at `:890`, each ~10 lines from its own error site. Both snake_case inside a namespace where every real name is kebab-case. Both resolve **nowhere**: one repo-wide hit each, their own construction site. ⭐ **And the same file demonstrates BOTH correct alternatives** — a real FQDN at `:772` (`":wat::rete::core::match"`) and a plain non-namespaced label at `:1295` (`"compiled-exec"`) for exactly this kind of internal guard. | L2 | **OPEN** · ✅ I VERIFIED | `grep -rn ':wat::rete::exec_value'` → **1**; `apply_op` → **1**; `grep -n 'fn exec_value\|fn apply_op'` → same file, same neighbourhood. Closed by adopting `:1295`'s non-namespaced form at both sites |
+| **2N2** | cernere | `clause.rs:551` | `":wat::rete::core::vector::="` appears in `unrelated_heads_are_not_constraints`'s list of heads that must NOT classify. No `RETE_OPS` row has ever borne that name (checked against the full 79-row extraction) and it appears nowhere else in the tree. ⚠ **The ward graded its own confidence LOWER here and said why**: the name is used correctly as a *negative probe*, which is what `cernere`'s `spell-probe` rune category exists for — it simply carries no rune. Test-only data, never user-visible. | L3 | **OPEN** · ⚠ ward-reported | closed by a `rune:cernere(spell-probe)` naming the test, or by using a real inadmissible head |
 
 ## Verified by the orchestrator — target 2
 
@@ -477,7 +479,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **10** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere | cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **11** — conferre · conformare · purgare · solvere · excusare · struere · intueri · sequi **CLEAN** · temperare · exigere · cernere | probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 20 (+1 L3, +1 ward-split) |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -832,3 +834,49 @@ case). **The spell's hardest rule is that a rune naming a nonexistent arc FAILS;
 did NOT inherit target 1's zero — *"target 1's zero did not carry over; this target's zero was earned
 separately."* That is the second time this ward has refused to inherit a number, and both times it
 was right to.
+
+⭐⭐ **2N1 PROMOTES N1 FROM A SITE TO A CLASS, AND THE CLASS NOW SPANS BOTH TARGETS.** Five error
+sites, three names, two files, one shape:
+
+| name | sites | file | target |
+|---|---|---|---|
+| `:wat::rete::to_transient` | 3 | `kernel/session.rs:754,981,1159` | 1 (N1) |
+| `:wat::rete::exec_value` | 1 | `expr_ir/eval.rs:59` | 2 |
+| `:wat::rete::apply_op` | 1 | `expr_ir/eval.rs:905` | 2 |
+
+**Every one is the Rust function's own name, verbatim, a few lines from its own error site** — I
+confirmed `fn exec_value` at `:69`, `fn apply_op` at `:890`, `fn to_transient` at
+`kernel/session.rs:1142`. Every one is snake_case inside a namespace where **every** resolving name
+is kebab-case. Every one resolves nowhere — one repo-wide hit each.
+
+⛔ **This is the extirpare ladder's bottom rung, exactly.** The convention *"an error head names a
+wat form"* is held by nothing: no gate, no type, no check. When an author needs a `head` and the
+nearest name to hand is the function they are standing in, the wrong thing is the easiest thing to
+write. Three separate authors, two files, five sites — that is not carelessness, it is **a shape the
+substrate makes writeable**.
+
+⭐ **And the cure is already in the same file as two of the sites.** `expr_ir/eval.rs` uses a real
+FQDN where one applies (`:772`, `":wat::rete::core::match"`) and a **plain, non-namespaced label**
+where the failure is internal (`:1295`, `"compiled-exec"` — *"compiled apply cannot dispatch kind…"*).
+The file already knows both correct answers; two sites invented a third. **A gate asserting that any
+`head:` string beginning `:wat::rete::` resolves to an authority would make this class
+unwriteable** — and `rete_names_in_wat_scripts_resolve.rs` already contains the resolver to do it.
+
+⛔⛔ **AND CERNERE CORRECTED MY COUNT — MY SIXTH, AND THE SECOND WITH THE IDENTICAL ROOT CAUSE.**
+I handed it *"`RETE_OPS`, 108 rows"*. The real count is **79**.
+· My grep was `grep -c 'rete_name'` — which matched the module doc's **prose about** `rete_name`
+  (`:69`, `:83`, `:102`), the **struct field declaration** (`:278`), and inline comments (`:567`,
+  `:904`) alongside the actual rows. 29 of my 108 were the identifier being *discussed*, not *used*.
+· The ward's `grep -c 'rete_name: ":wat::rete::'` returns 79, and — the anchor that settles it —
+  `tests/lint/rete_names_in_wat_scripts_resolve.rs:709` carries its own measured comment:
+  *"Measured 2026-09-01: 79 `RETE_OPS` rows, 328 attested names."*
+⚠ **This is the SAME failure as my `#[allow]` miscount** (`excusare` found 4 real attributes where I
+counted 5, because my pattern matched an allow **named inside a doc comment** explaining what they
+deliberately did *not* do). **In a codebase this comment-dense, a grep for an identifier matches the
+prose about it as readily as its uses — and here the prose outnumbered the uses 29 to nothing.**
+Six handed-down errors, six caught by wards that re-derived; two of the six share this one cause.
+
+⭐ **The registry itself is clean, and that is a real result.** The ward extracted all 79
+`(rete_name, core_name)` pairs and confirmed every distinct `core_name` — 67 of them — is
+independently attested **outside** `vocabulary.rs`. The question this target uniquely allowed
+(*"does the table everything trusts contain a phantom row?"*) is answered: **no.**
