@@ -21,42 +21,40 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `474322258` (batch 4v's records, pushed). **580 of 651 replayed. 71 remain.**
-In flight: nothing.
+Stamp: written on top of `c9658b43d` (batch 4w's records, pushed). **600 of 651 replayed. 51 remain —
+TWO BATCHES LEFT** (4x = #601–#620, then #621–#651: 18 docs-only + 13 code). In flight: nothing.
 
-**Batch 4v (#561–#580) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
-census `no STOP-8`, 20/20 subjects and trailers.
-★ **#576's three diverged files ALL auto-merged** — my brief predicted conflicts at all three and was
-wrong, the same safe-direction error as 4u. The executor proved grok's change landed unchanged
-**delta-vs-delta** (`git diff -U1` on both sides, headers stripped, content-identical) rather than by
-blob comparison, and reported my wrong forecast as a deviation.
-★ **The vocabulary gate stayed green (9/9)** after #576's `"shape-contract"` addition, **despite this
-tree's 7 excusare runes against grok's floor of 5** — because those runes belong to a *different ward's*
-vocabulary. A divergence that looks like a collision until you check which set the gate counts.
+**Batch 4w (#581–#600) is CLOSED and PUSHED.** Floor **5877/5877, 22 skipped**, **clippy 0** — the row
+#594 put at risk — census `no STOP-8`, 20/20 subjects and trailers.
+★ **#594's allow removal landed WITH its cure**: `activate_deferred_mixed_classes` is **3 parameters**,
+not 11, and the `#[allow(clippy::too_many_arguments)]` is gone. (`AlphaActivateCx` turned out to be
+PRE-EXISTING in `delta.rs`, not new — a small correction to my brief.)
 
-⚠ **A KNOWN, DISCLOSED, DELIBERATELY UNREPAIRED STALENESS** — `tests/lint/peragrare-bad-census.sh:225`
-(landed at #565) embeds `(:wat::core::i64::+ 1 2)` as its `axis1-err` self-test input. That spelling is
-RETIRED here, so the probe now errs via the retirement diagnostic rather than grok's intended cause.
-**Weighed and left as-is, 4-YES:** the probe still DISCRIMINATES (it fails if the classifier breaks, so
-it is not a vacuous green), **no `.rs` drives the script**, and grok never revisits it — so editing
-grok's own audit instrument, and rebuilding 16 commits to do it, would cost more than it buys.
-⛔ **The trigger to revisit:** if the retirement diagnostic for `:wat::core::i64::+` is ever changed or
-removed, that probe's meaning shifts silently and it must be re-spelled then.
+⛔⛔ **MY BRIEF FACTUALLY MISDESCRIBED #598, AND THE EXECUTOR CAUGHT IT BY READING THE CODE.** I wrote
+that grok "removes an `#[allow(unused_variables)]` with the binding it covered". **Grok does the
+opposite** — it KEEPS the allow and adds an 11-line justification, because deleting it reddened
+`rete_citation_resolves` (grok's own #600 says so). **The mechanism of my error:** I grepped `^[-+]` over
+grok's WHOLE commit and read `+` lines out of its **prose** — the `.md` SCORE narrating a deletion grok
+tried and REVERTED — then reported that discarded plan as the code change. Verified: grok's `.rs` diff
+contains **no deletion at all**, only an added comment line.
+⛔ **THE RULE: to state what a step DOES to code, diff the code paths only** (`git show <C> -- '*.rs'`).
+A commit that documents its own reasoning will hand you the opposite of the truth otherwise.
 
-Next is **batch 4w (#581–#600)**: censused — **15 docs-only, 5 code (#581 #586 #591 #594 #598)**, and it
-is back to real code: **24 `.md` + 20 `.rs`**, **+5 tests** (4 at #581, 1 at #586), no `.wat`, no `wat/`,
-**ZERO hazard rows, ZERO new gates**. Floor prediction **5877 run / 22 skipped**.
+Next is **batch 4x (#601–#620)**: censused — **13 docs-only, 7 code (#602 #603 #607 #610 #613 #616
+#619)**. The range is **18 `.md` + 11 `.rs` + 10 `.sh` + 7 `.wat` + 5 `.clj`**, **+6 tests** (3 at #607,
+1 at #610, 2 at #613), **ZERO hazard rows, ZERO new gates**. Floor prediction **5883 run / 22 skipped**.
 
-⚠ **HIGH DIVERGENCE — EXPECT COMPOSITION, NOT CHERRY-PICKS.** Measured against grok's pre-image:
-**#591 5-of-5, #586 3-of-3, #598 2-of-5** touched `.rs` already differ here. **#594 is 0-of-5** — the one
-clean step. Compare **deltas, not blobs**.
+⚠⚠ **FIVE NEW `.wat` ARE PRE-MIGRATION AND WILL RED — MEASURED.** #616 adds one and #619 adds four;
+**all five fail `--check` here**. Across them: **42 positional `assertion-failed!`**, **25
+`:wat::core::PersistentVector/conj`**, and **51 `:wat::core::i64::*`** occurrences — every one a form
+this tree retired. ⛔ **Cure AT the step with `scripts/replay/convert.sh <introducing-commit>`**, the
+#537 precedent, **never by hand**. This is finding 33's class in its sixth consecutive code-bearing batch.
 
-⚠⚠ **#594 REMOVES A CLIPPY ALLOW, AND CLIPPY IS THE ORCHESTRATOR'S ROW.** It drops
-`#[allow(clippy::too_many_arguments)]` from `activate_deferred_mixed_classes` — safe **only because the
-same step bundles 9 arguments into a new `AlphaActivateCx`, taking the fn from 11 args to 3** (measured;
-our `clippy.toml` is byte-identical to grok's and sets no threshold override, so the default 7 applies).
-⛔ **If the struct does not land with the removal, clippy reds at MY checkpoint and costs a fold.** The
-executor cannot run clippy — so it must verify the arg count fell and the struct landed, at the step.
+⚠⚠ **#610 IS A REAL STDLIB CODE CHANGE, NOT A COMMENT SWEEP.** It edits `wat/rete/oracle/stratify.wat`
+by **45 code lines** (14 comment, 1 blank) — `rule-negates` recursing through `and`/`or` to match
+`negate_types`. It is the range's only `wat/` path and its only `stdlib-touch` row. **R21 is NOT
+triggered** (one file's semantics, not a corpus-wide rewrite), so compose it by hand — but **run the
+loader gates after it** and record their verdicts.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -112,7 +110,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4t #521–#540 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4u #541–#560 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4v #561–#580 (CLOSED; floor 5872/5872, clippy 0, pushed)
-                              ⇒ 580 of 651 replayed. NEXT: batch 4w #581–#600.
+                              + batch 4w #581–#600 (CLOSED; floor 5877/5877, clippy 0, pushed)
+                              ⇒ 600 of 651 replayed. NEXT: batch 4x #601–#620.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -169,6 +168,19 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4w #581–#600 is CLOSED and PUSHED** (records at `c9658b43d`; SCORE-7w, REPLAY-LOG). 20 steps,
+  15 docs-only, 20 `.rs`. Floor **5877/5877, 22 skipped**, clippy 0, census `no STOP-8`.
+  ★ **#594's clippy risk cleared** — see the header.
+  ⛔ **My brief was WRONG about #598** and the executor landed grok's real change instead — see the
+  header for the mechanism and the rule it produced.
+  ⚠ **#581 needed FOUR composition fixes my census never anticipated**: a real conflict, a module path
+  absent here (`wat::load::InMemoryLoader` → `wat::load::loader::InMemoryLoader`), a retired
+  `:wat::rete::core::i64::+`, and a main-only gate (`no_error_flattening_helper`) objecting to the new
+  test's `Result<_, String>` helpers. **A census reads the diff; only driving the code finds these.**
+  ⚠ **A finding-36 subtlety, self-caught:** at #591 the executor first diffed against the BATCH-START
+  blob for a file #586 had already touched earlier in the same batch, producing a false 8-line
+  discrepancy. **When an earlier step in the same batch touched the file, the pre-image is STEP-relative,
+  not batch-relative.**
 - **Batch 4v #561–#580 is CLOSED and PUSHED** (records at `474322258`; SCORE-7v, REPLAY-LOG). 20 steps,
   18 docs-only. Floor **5872/5872, 22 skipped — unchanged**, clippy 0, census `no STOP-8`.
   ★ **#576 composed cleanly across three diverged files**, proven delta-vs-delta; its `wat/` edit stayed
