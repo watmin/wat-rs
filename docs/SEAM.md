@@ -160,10 +160,22 @@ Those two items are **already designed**, as the last two stones of arc 251's ca
 | **8a** the vocabulary at zero offenders | `$bound` reserved; `namespace()`/`reference?` as the ONE DOOR | ✅ landed |
 | **8a-ii** the binder namespace unforgeable | refused at the READER — no-form, not a check | ✅ landed |
 | **8b** invert the normalizer | `Identifier` stores `(ns, name)` — ✅ `71c9f2f58`. ⚠ **The INVERSION half may still be owed**: `resolve/normalize.rs` still reads as Symbol→Keyword ("normalize all namespaced symbol refs"). **Confirm before drawing 8c.** | ⚠ partial |
-| **8c** **close the check hole (#95)** | ⭐ **BRIEF DRAWN** `BRIEF-STONE-251.8c-close-the-check-hole.md`. ⛔ **The design's headline is STALE — re-measured, most of #95 is already CLOSED.** The residue is narrow: a slashed head's args/arity go unchecked **only when the result lands in a type-unconstrained position** (`format`'s `:v`). Four other shapes — statement, let-bound, plain nested arg, `assertion-failed!` kwarg — all catch it today. | ❌ **NEXT** |
-| **8d** **the reader/printer flip** | `::` retires as a reference spelling; a colon means keyword, full stop; the corpus flip lands here | ❌ after 8c |
+| **8c** **close the check hole (#95)** | ✅ **LANDED `bc93125aa`, pushed.** Floor 5919/5919, clippy 0, census `no STOP-8`. ⛔ **The REAL cause was neither the design's nor the brief's:** `check_program` walked **pre-normalization `FunctionBody` snapshots**, so the class was **every namespaced-symbol call inside a function body**. Fix: normalize stored bodies after residue normalization — one path, no second dispatch. Verified on main: `(user/f "boom")` → `TypeMismatch ":user::f: parameter #1 expects i64; got String"`, **byte-identical to the colon spelling**. | ✅ |
+| **8d** **the reader/printer flip** | `::` retires as a reference spelling; a colon means keyword, full stop; the corpus flip lands here | ⭐ **NEXT — UNBLOCKED** |
 
-### ⛔ THE ORDERING HOLDS — BUT THE HOLE IS MUCH SMALLER THAN THE DESIGN SAYS (measured 2026-09-19)
+### ✅ THE HOLE IS CLOSED (8c landed 2026-09-19) — and BOTH prior diagnoses were wrong
+
+⛔ **Recorded because the orchestrator was wrong twice and the counterpart was right.** The 2026-08
+design said *"args, arity and return are ALL unchecked"* because `infer_list` gates on
+`if let WatAST::Keyword`. The orchestrator's brief then said most of that was already closed and the
+residue was one shape (`format`'s `:v`) — **and that measurement was a PROBE ARTIFACT**: four rows read
+`rc=1` as "caught" while a *different* error fired, in the same document that warned against exactly
+that mistake. **The counterpart killed the hypothesis and found the true cause**: `check_program` walked
+**pre-normalization `FunctionBody` snapshots**, so normalized residue was checked while stored function
+bodies kept raw `Symbol` heads — the class being **every namespaced-symbol call inside a function body**.
+⛔ **The lesson, seventh instance: check WHICH error fired, never the exit code.**
+
+### The pre-8c evidence, kept for the record (measured 2026-09-19, before the fix)
 
 The design's cut stands: *"the corpus flip… must not begin while a dotted call head is unchecked."*
 **But the design's headline — "args, arity and return are ALL unchecked" — is STALE.** Measured by hand
@@ -197,9 +209,8 @@ everything that exists; the ruling defines the pathological case that is current
 ⚠ A first count said 3,984 and would have made this look large — it was matching file paths in
 **comments**. Strip comments, restrict to code, read the survivors.
 
-⛔ **Do not strike while 8c is open.** Measured as non-colliding (different files; `is_reference()`
-returns the same answer for every input that exists), but two hands in the identifier/resolve
-neighbourhood at once is how the 7h desync happened. **Its own small stone, after 8c.**
+⭐ **UNBLOCKED — 8c landed.** It was held only to keep two hands out of the identifier/resolve
+neighbourhood at once. **Its own small stone; can go before or after 8d, builder's call.**
 
 ### The scale of 8d, measured
 
