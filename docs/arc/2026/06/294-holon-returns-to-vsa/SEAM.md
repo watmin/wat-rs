@@ -21,47 +21,42 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `fda61206e` (batch 4q's records, pushed). **480 of 651 replayed. 171 remain.**
+Stamp: written on top of `f6e619888` (batch 4r's records, pushed). **500 of 651 replayed. 151 remain.**
 In flight: nothing.
 
-**Batch 4q (#461–#480) is CLOSED and PUSHED.** Floor **5864/5864, 24 skipped**, clippy 0, census
+**Batch 4r (#481–#500) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped**, clippy 0, census
 `no STOP-8`, 20/20 subjects and trailers verified.
 
-⛔ **THE EXECUTOR CORRECTED MY FLOOR PREDICTION AND WAS RIGHT.** I forecast 5865; it measured **5864**.
-#474's new test lives in `session.rs`'s `#[cfg(all(test, debug_assertions))] mod join_left_index_tests`
-and the release profile sets no debug-assertions override, so it **never compiles into the floor**.
-Verified independently before adopting its number. **That is four batches running where my pre-flight was
-short** (12-not-3, 25-not-23, 7-not-6 name steps, now this) — and in the same session I counted 7
-`#[ignore]` sites in a file that has 2, because my grep matched prose. **The instrument is the problem,
-not the arithmetic: derive from the data, exclude comments, and never hand-list.**
+★★ **#498 DID NOT UNDO #472.** Grok's Stone K moved three diagnostics into `benches/binding_repr.rs`
+(`harness = false`) and deleted `token_bindings_representation_dominance`. We landed the bench move in
+full and **kept the surviving small-end GET assertion on the floor** — verified: `-E
+'test(token_bindings_representation_dominance)'` → 1 passed at the tip, and the two `#[ignore]`d
+diagnostics are gone from the test binary. A bench never runs on our floor, so grok's deletion would have
+removed a live 4.53–10.15x gate silently.
+★ **#496's mirror gate proved the corpus divergence**: grok's body says *"all 25 got readers"*; **this
+tree emits 45** after the census campaign. All 45 read, none runed, nothing deleted for green. **Grok's
+counts are never ours.**
 
-★ **#472's RULING LANDED THROUGH A REAL CONFLICT.** `token_bindings_representation_dominance` is NOT
-`#[ignore]`d here; grok's hunk (which also deletes our surviving assertion) was refused, and #477's
-matching re-wording was skipped. The file carries exactly **2** real `#[ignore]` sites, both
-excusare-runed.
+⛔⛔ **THE EXECUTOR HAS NOW CORRECTED MY FLOOR PREDICTION TWICE RUNNING, AND I WAS WRONG BOTH TIMES.**
+At 4q I missed a `#[cfg(all(test, debug_assertions))]` module; at 4r I **double-counted** — my census
+line `NET tests: +5` was already net of #498's removals, and E12 subtracted them a second time. **Five
+batches running my pre-flight has been short.** The cure is instrumental, not arithmetical:
+**derive every set from the data over the whole range, exclude comments when counting code, and net
+ONCE.** The 4s census below was built that way and its totals line shows the derivation.
 
-Next is **batch 4r (#481–#500)**: censused — **8 docs-only, 12 code**, the densest batch in a while.
-**ZERO hazard rows**, no `wat-scripts/fixes/` edit; two `wat/` steps (#486, #490 — one file each); both
-M-status-absent paths are created earlier in the range (#485→#486, #488→#490). Net **+5 tests, −3
-ignores**.
-
-⚠⚠ **#498 IS THE SEQUEL TO #472 — RULED 4-YES, 2026-09-18, OPTION B.** Grok's Stone K moves three
-diagnostics out of the test binary into a new `benches/binding_repr.rs` (`harness = false`), **deleting
-`token_bindings_representation_dominance` outright**. Measured: grok's bench keeps only a faithfulness
-`assert_eq!` and the dead-clock non-vacuity `assert!`, and states *"Timing-ordering assertions are gone —
-they cannot separate the hypotheses under this floor's contention band."* **That is true of the two
-LARGE-END assertions grok carried; it is NOT true of the SMALL-END GET assertion this tree kept**, whose
-margin is 4.53–10.15x and which has been green in every floor since. ⛔ **`harness = false` means a bench
-never runs on our floor**, so landing #498 verbatim would delete a live, wide-margin gate and silently
-reverse the ruling made twenty steps earlier.
-★ **RULING:** land the bench move in full (it is a real improvement — benchmarks do not belong in the
-test binary), and **KEEP the surviving small-end GET ordering assertion, plus its non-vacuity companion,
-as a slim test on the floor**, with a record naming #472, the 4i strike, and the measured margin.
-
-⚠ **#496 LANDS THE MIRROR GATE** `census_emitted_name_is_read_or_declared` (EMITTED ⇒ READ, counters
-only) beside 4p's READ ⇒ EMITTED. grok reports *"all 25 got readers, none runed"* — **that is grok's 25,
-not ours.** Measure our emitted set before assuming; an unread counter here is a finding, and the
-sibling's asymmetry (it does not cover `phase_end`) is deliberate.
+Next is **batch 4s (#501–#520)**: censused — **19 docs-only, 1 code (#501)**, and it is by far the
+lightest batch of the campaign. The whole range is **34 `.md` + 1 `.wat`**: grok's 2026-09-07 *vigilia*,
+an audit cast recorded as prose. **ZERO `src/`, ZERO hazard rows, ZERO new gates, ZERO test delta** — so
+the floor prediction is **unchanged at 5872 run / 22 skipped**.
+- **#501** is the only code step: one comment-only fix to `wat-scripts/scratch-pad/…userfn-facts.wat`,
+  striking a `println` literal that claimed a compile it never observed.
+- ⚠ **72 `path:line` citations are added**, and **all 72 resolve in range here** (measured). But
+  `no_stale_path_in_doc` checks **existence and range only** — it cannot see that a line number now
+  points at different content than grok meant. That drift is invisible and is not a defect to chase.
+- ⛔ **THE VIGILIA DOCS RECORD GROK'S MEASUREMENTS, NOT OURS** — "65 exemptions", "18 findings", "all 25".
+  They are the historical record of grok's own audit, exactly like a SCORE. **Do NOT "helpfully" correct
+  them to this tree's numbers**; that would falsify the record being replayed. Our divergent counts
+  belong in our SCORE, never inside grok's prose.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -112,7 +107,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4o #421–#440 (CLOSED; floor 5856/5856, clippy 0, pushed)
                               + batch 4p #441–#460 (CLOSED; floor 5856/5856, clippy 0, pushed)
                               + batch 4q #461–#480 (CLOSED; floor 5864/5864, clippy 0, pushed)
-                              ⇒ 480 of 651 replayed. NEXT: batch 4r #481–#500.
+                              + batch 4r #481–#500 (CLOSED; floor 5872/5872, clippy 0, pushed)
+                              ⇒ 500 of 651 replayed. NEXT: batch 4s #501–#520.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -169,6 +165,19 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4r #481–#500 is CLOSED and PUSHED** (records at `f6e619888`; SCORE-7r, REPLAY-LOG). 20 steps,
+  8 docs-only — the densest batch of the campaign. Floor **5872/5872, 22 skipped** — the EXECUTOR's
+  corrected figure — clippy 0, census `no STOP-8`.
+  ★ **The #498 ruling landed through a real conflict** at the predicted site; `benches/binding_repr.rs`
+  is byte-identical to grok's, and the kept assertion still runs.
+  ★ **45 emitted counters here against grok's 25**, all read, under #496's new EMITTED ⇒ READ gate.
+  ⚠ **Five self-caught executor defects, all repaired pre-yield, none published**: three staging slips
+  (a verified fix never `git add`ed, so the commit disagreed with the green run) and two fabricated
+  cherry-pick trailers caught by its own post-commit audit. ⚠ It also reports `git commit --amend` being
+  refused twice by the harness's destructive-action classifier, so it rebuilt via detach + reset --soft +
+  cherry-pick-forward with tree-diff proof. **That tool constraint is real; plan repairs around it.**
+  ⚠ **Finding 33 recurred at five steps** (#484 #488 #490 #492 #494), every one cured through
+  `scripts/replay/convert.sh`, never hand-edited.
 - **Batch 4q #461–#480 is CLOSED and PUSHED** (records at `fda61206e`; SCORE-7q, REPLAY-LOG). 20 steps,
   12 docs-only. Floor **5864/5864, 24 skipped** — the executor's corrected figure, not mine — clippy 0,
   census `no STOP-8`.
