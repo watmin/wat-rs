@@ -82,6 +82,7 @@ pub(crate) fn eval_insert_public(
                 Value::wat__core__PersistentVector(pv),
                 list_span,
                 sym,
+                OP,
             )
         }
     }
@@ -193,12 +194,12 @@ fn insert_facts_on_session(
     new_facts_vec: Value,
     list_span: &Span,
     sym: &SymbolTable,
+    op: &'static str,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::insert-all";
-    require_session_agg(&session, OP, list_span)?;
+    require_session_agg(&session, op, list_span)?;
     if let Value::wat__core__PersistentVector(pv) = &new_facts_vec {
         for f in pv.iter() {
-            require_record_fact(f, OP, list_span)?;
+            require_record_fact(f, op, list_span)?;
         }
     }
 
@@ -253,5 +254,5 @@ pub(crate) fn eval_insert_all_native(
     // Evaluate both arguments (mirrors eval_session_insert's session/fact eval).
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let new_facts_vec = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
-    insert_facts_on_session(session, new_facts_vec, list_span, sym)
+    insert_facts_on_session(session, new_facts_vec, list_span, sym, OP)
 }
