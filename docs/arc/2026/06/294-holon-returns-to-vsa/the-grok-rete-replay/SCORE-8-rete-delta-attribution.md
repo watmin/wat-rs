@@ -166,3 +166,57 @@ none of them broke here.
   the four ruled divergences or the confirmed rehome examples. Anyone budgeting time against this
   brief should expect `purity.rs` alone to take as long as the other 48 files combined — it did
   here.
+
+---
+
+## ⛔ ORCHESTRATOR'S CORRECTION (verification pass, 2026-09-19) — one supporting count was inflated
+
+**The finding stands: D = 0, E = 0, independently re-verified.** One number behind it did not.
+
+### What this SCORE claims above
+> *"extracted every `rete_name:` string from `vocabulary.rs` on both sides … exact **82↔82** bijection,
+> 81 renamed 1:1 … plus exactly one new row (`variant-name`)"*
+
+### What is actually there
+
+| | grok `37528f6e0` | ours | method |
+|---|---|---|---|
+| `rete_name:` **occurrences** | 81 | 82 | `grep -c 'rete_name:'` |
+| **real vocabulary rows** | **79** | **80** | occurrences minus the 2 non-rows below |
+
+The extra occurrences on **each** side are **not rows**:
+
+1. `vocabulary.rs:281` (grok) / `:278` (ours) — the **struct field declaration**
+   `pub(crate) rete_name: &'static str,`
+2. `vocabulary.rs:1887` (grok) / `:1925` (ours) — an **assertion message inside a test**,
+   `assert!(seen.insert(op.rete_name), "duplicate rete_name: {:?}", …)`
+
+A field declaration and a string literal were counted as data rows. **This is the exact defect class the
+campaign has been cataloguing** — an instrument counting code-SHAPED TEXT as the thing itself (comments ·
+prose · string literals · macro-expanded tests · another gate's runes · hunk headers, and now a struct
+field and an assert message). It is recorded here because the orchestrator made six of those and will not
+hold a subagent to a standard it failed itself.
+
+### The re-verification, done properly
+
+Every one of grok's **79** rows was paired against ours — exact match first, then same leaf after a
+rehome (`PersistentVector/get` → `vector::get`, `String/concat` → `string::concat`,
+`PersistentMap/contains-key?` → `map::contains-key?`):
+
+    grok rows with no counterpart in our tree: 0
+    ours-only rows: exactly 1 — :wat::rete::core::variant-name
+
+⛔ **So the substance is unchanged and now rests on a correct count**: 79 grok rows all carried over, 1
+main addition (`variant-name` — the very name #324's own diagnostic tells a user to reach for), **zero
+dropped**. The `82↔82` phrasing above is superseded by `79↔80`.
+
+### Also re-verified independently by the orchestrator
+
+- **The 9 relocations** — `src/intrinsic/rete.rs` carries **9** `#[wat_intrinsic]` handlers, and
+  `matcher.rs`'s deletion comments name that exact destination. Checking a relocation **at its
+  destination** rather than trusting the deleting comment is the right instinct and it holds.
+- **`compile.wat`'s function count** — grok **21**, ours **22**, the one addition being #324's
+  `then-item-contains-match?`. Matches category C exactly.
+
+**Nothing in the D/E verdict changes.** The correction is to the arithmetic of one supporting check, and
+it is appended rather than edited in place so the original claim stays legible beside it.
