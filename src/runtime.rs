@@ -22019,13 +22019,53 @@ fn select_lost_if_death_notice_wire(
 /// failure is deterministic and re-sending the same bytes fails identically.
 fn select_malformed_if_reply_failed(type_path: &str, peer_idx: i64, msg: &Value) -> Option<Value> {
     reply_failed_reason(msg).map(|reason| {
-        Value::Enum(Arc::new(EnumValue {
-            type_path: type_path.into(),
-            variant_name: "Malformed".into(),
-            names: builtin_enum_variant_names(type_path, "Malformed"),
-            fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
-        }))
+        service_event_malformed(type_path, peer_idx, reason)
     })
+}
+
+/// `ServiceEvent::Malformed [idx, message_only_failure(class)]`. The live
+/// "frame will not decode" / "reply was Failed" arm. Shared by select and poll
+/// so a decode failure cannot be Lost in one verb and Malformed in the other
+/// (one-selectable-set-primitive).
+fn service_event_malformed(type_path: &str, peer_idx: i64, class: impl Into<String>) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: type_path.into(),
+        variant_name: "Malformed".into(),
+        names: builtin_enum_variant_names(type_path, "Malformed"),
+        fields: vec![Value::i64(peer_idx), message_only_failure(class.into())],
+    }))
+}
+
+fn service_event_message(type_path: &str, peer_idx: i64, msg: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: type_path.into(),
+        variant_name: "Message".into(),
+        names: builtin_enum_variant_names(type_path, "Message"),
+        fields: vec![Value::i64(peer_idx), msg],
+    }))
+}
+
+/// One door for a process-tier trusted-wire Recv Ok. Both
+/// `:wat::kernel::select` and `:wat::kernel::poll` classify through here:
+/// death-notice → Lost, Reply::Failed → Malformed, decode failure → Malformed,
+/// else Message. The decode-failure variant is the cell that used to drift
+/// (`select` emitted Lost; `poll` emitted Malformed).
+fn classify_trusted_wire_recv(
+    type_path: &str,
+    peer_idx: i64,
+    wire: &str,
+    types: Option<&crate::types::TypeEnv>,
+    ctx: Option<&crate::value::EncodingCtx>,
+    on_decode_fail: impl FnOnce(&str) -> String,
+) -> Value {
+    if let Some(lost) = select_lost_if_death_notice_wire(type_path, peer_idx, wire) {
+        return lost;
+    }
+    match crate::edn::render::decode_trusted_wire(wire, types, ctx) {
+        Ok(value) => select_malformed_if_reply_failed(type_path, peer_idx, &value)
+            .unwrap_or_else(|| service_event_message(type_path, peer_idx, value)),
+        Err(e) => service_event_malformed(type_path, peer_idx, on_decode_fail(&e.to_string())),
+    }
 }
 
 /// Arc 278 the recv-outcome wall — the type path of the matchable `recv` outcome
@@ -27304,40 +27344,17 @@ fn eval_peer_select_values(
                         Ok(event)
                     }
                     Ok(edn_str) => {
-                        // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select is the TRUSTED peer wire:
-                        // decode through the capability door with the full type registry.
-                        // A peer whose frame will not decode is dead (recv:25047), not a live
-                        // client with a junk message (poll:27194 Malformed). Cause is
-                        // reason-free (arc 294): do not interpolate the decode error.
+                        // Same door as poll's client arm: decode failure is Malformed
+                        // (alive, sent garbage), not Lost. Cause is reason-free (arc 294).
                         let peer_idx = index.0 as i64;
-                        if let Some(lost) = select_lost_if_death_notice_wire(
+                        Ok(classify_trusted_wire_recv(
                             SELECT_EVENT_TYPE,
                             peer_idx,
                             &edn_str,
-                        ) {
-                            return Ok(lost);
-                        }
-                        match crate::edn::render::decode_trusted_wire(
-                            &edn_str,
                             sym.types().map(|a| a.as_ref()),
                             sym.encoding_ctx().map(|a| a.as_ref()),
-                        ) {
-                            // excursus 001 — the Reply::Failed pre-check, applied AFTER the
-                            // decode because at this tier the value arrives as a wire string.
-                            Ok(value) => Ok(select_malformed_if_reply_failed(
-                                SELECT_EVENT_TYPE, peer_idx, &value)
-                                .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE.into(),
-                                    variant_name: "Message".into(),
-                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                                    fields: vec![Value::i64(peer_idx), value],
-                                })))),
-                            Err(_e) => Ok(select_event_lost(
-                                SELECT_EVENT_TYPE,
-                                peer_idx,
-                                "select EDN decode failed",
-                            )),
-                        }
+                            |_| "select EDN decode failed".into(),
+                        ))
                     }
                 }
             }
@@ -27578,44 +27595,21 @@ fn eval_peer_select_values(
                                 let wire_str = match std::str::from_utf8(&raw_bytes) {
                                     Ok(s) => s,
                                     Err(_) => {
-                                        // Not valid UTF-8: a peer whose frame will not
-                                        // decode is dead (recv:25047), not Malformed.
-                                        return Ok(select_event_lost(
+                                        return Ok(service_event_malformed(
                                             SELECT_EVENT_TYPE_PEER,
                                             peer_idx,
                                             "select (process tier): peer message is not valid UTF-8",
                                         ));
                                     }
                                 };
-                                if let Some(lost) = select_lost_if_death_notice_wire(
+                                Ok(classify_trusted_wire_recv(
                                     SELECT_EVENT_TYPE_PEER,
                                     peer_idx,
                                     wire_str,
-                                ) {
-                                    return Ok(lost);
-                                }
-                                match crate::edn::render::decode_trusted_wire(
-                                    wire_str,
                                     sym.types().map(|a| a.as_ref()),
                                     sym.encoding_ctx().map(|a| a.as_ref()),
-                                ) {
-                                    Ok(msg) => Ok(select_malformed_if_reply_failed(
-                                        SELECT_EVENT_TYPE_PEER, peer_idx, &msg)
-                                        .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
-                                        type_path: SELECT_EVENT_TYPE_PEER.into(),
-                                        variant_name: "Message".into(),
-                                        names: builtin_enum_variant_names(
-                                            SELECT_EVENT_TYPE_PEER,
-                                            "Message",
-                                        ),
-                                        fields: vec![Value::i64(peer_idx), msg],
-                                    })))),
-                                    Err(_e) => Ok(select_event_lost(
-                                        SELECT_EVENT_TYPE_PEER,
-                                        peer_idx,
-                                        "select EDN decode failed",
-                                    )),
-                                }
+                                    |_| "select EDN decode failed".into(),
+                                ))
                             }
                             // EOF — bare connection peer left gracefully (no crash channel).
                             Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
@@ -28452,47 +28446,24 @@ pub(crate) fn eval_poll_prime(
                                 // decode_trusted_wire so user-defined enum/record values
                                 // (e.g. Op::Increment(IncrementRequest{n:5})) are
                                 // reconstructed correctly via the type registry.
-                                let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
-                                    EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                                            head: OP.into(),
-                                            reason: "poll (process tier): client message is not valid UTF-8".into(),
-                                        }))
-                                })?;
-                                // Arc 278 no-hidden-failures — a client message we cannot
-                                // decode is NOT service-fatal. On decode failure, build the
-                                // rich reason as a first-class Failure and return
-                                // ServiceEvent::Malformed{idx, cause} INSTEAD of raising (the
-                                // old `?` here was the DoS: one bad message killed the whole
-                                // service, and its reason vanished on the EPIPE'd err pipe).
-                                // The serve loop replies the cause to THIS client (Reply::Failed)
-                                // and keeps serving — the peer is ALIVE.
-                                match crate::edn::render::decode_trusted_wire(
-                                    wire_str,
-                                    sym.types().map(|a| a.as_ref()),
-                                    sym.encoding_ctx().map(|a| a.as_ref()),
-                                ) {
-                                    // ServiceEvent::Message [idx <- i64  msg <- Value]
-                                    Ok(msg) => select_malformed_if_reply_failed(
-                                        SELECT_EVENT_TYPE, peer_idx, &msg)
-                                        .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
-                                            type_path: SELECT_EVENT_TYPE.into(),
-                                            variant_name: "Message".into(),
-                                            names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                                            fields: vec![Value::i64(peer_idx), msg],
-                                        }))),
-                                    // ServiceEvent::Malformed [idx <- i64  cause <- Failure]
-                                    Err(e) => Value::Enum(Arc::new(EnumValue {
-                                        type_path: SELECT_EVENT_TYPE.into(),
-                                        variant_name: "Malformed".into(),
-                                        names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
-                                        fields: vec![
-                                            Value::i64(peer_idx),
-                                            message_only_failure(format!(
-                                                "poll (process tier): client message decode failed: {}",
-                                                e
-                                            )),
-                                        ],
-                                    })),
+                                // UTF-8 failure is the same class as a decode failure: the
+                                // peer is ALIVE. Raising here was the DoS Malformed undoes.
+                                match std::str::from_utf8(&raw_bytes) {
+                                    Err(_) => service_event_malformed(
+                                        SELECT_EVENT_TYPE,
+                                        peer_idx,
+                                        "poll (process tier): client message is not valid UTF-8",
+                                    ),
+                                    Ok(wire_str) => classify_trusted_wire_recv(
+                                        SELECT_EVENT_TYPE,
+                                        peer_idx,
+                                        wire_str,
+                                        sym.types().map(|a| a.as_ref()),
+                                        sym.encoding_ctx().map(|a| a.as_ref()),
+                                        |e| format!(
+                                            "poll (process tier): client message decode failed: {e}"
+                                        ),
+                                    ),
                                 }
                             }
                             // Arc 278 Stone 1a — over-FOO is a 400-class CLIENT error, NOT a
@@ -28666,46 +28637,22 @@ pub(crate) fn eval_poll_prime(
                                                     let pidx = (idx2.0 - 1) as i64;
                                                     match res2 {
                                                         Ok(raw_bytes2) => {
-                                                            // Arc 272 6b-ii-β: decode with
-                                                            // trusted wire for user-defined types.
-                                                            let ws2 = std::str::from_utf8(&raw_bytes2).map_err(|_| {
-                                                                EvalBreak::from(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                                                                        head: OP.into(),
-                                                                        reason: "poll (process tier re-poll): client message is not valid UTF-8".into(),
-                                                                    }))
-                                                            })?;
-                                                            // Arc 278 no-hidden-failures — a client
-                                                            // message we cannot decode is NOT
-                                                            // service-fatal: return Malformed{idx,cause}
-                                                            // instead of raising (mirrors the main
-                                                            // client arm above).
-                                                            match crate::edn::render::decode_trusted_wire(
-                                                                ws2,
-                                                                sym.types().map(|a| a.as_ref()),
-                                                                sym.encoding_ctx().map(|a| a.as_ref()),
-                                                            ) {
-                                                                Ok(msg2) => select_malformed_if_reply_failed(
-                                                                    SELECT_EVENT_TYPE, pidx, &msg2)
-                                                                    .unwrap_or_else(|| Value::Enum(Arc::new(EnumValue {
-                                                                    type_path: SELECT_EVENT_TYPE
-                                                                        .into(),
-                                                                    variant_name: "Message".into(),
-                                                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Message"),
-                                                                    fields: vec![
-                                                                        Value::i64(pidx),
-                                                                        msg2,
-                                                                    ],
-                                                                }))),
-                                                                Err(e) => Value::Enum(Arc::new(EnumValue {
-                                                                    type_path: SELECT_EVENT_TYPE
-                                                                        .into(),
-                                                                    variant_name: "Malformed".into(),
-                                                                    names: builtin_enum_variant_names(SELECT_EVENT_TYPE, "Malformed"),
-                                                                    fields: vec![
-                                                                        Value::i64(pidx),
-                                                                        message_only_failure(format!("poll (process tier re-poll): client message decode failed: {}", e)),
-                                                                    ],
-                                                                })),
+                                                            match std::str::from_utf8(&raw_bytes2) {
+                                                                Err(_) => service_event_malformed(
+                                                                    SELECT_EVENT_TYPE,
+                                                                    pidx,
+                                                                    "poll (process tier re-poll): client message is not valid UTF-8",
+                                                                ),
+                                                                Ok(ws2) => classify_trusted_wire_recv(
+                                                                    SELECT_EVENT_TYPE,
+                                                                    pidx,
+                                                                    ws2,
+                                                                    sym.types().map(|a| a.as_ref()),
+                                                                    sym.encoding_ctx().map(|a| a.as_ref()),
+                                                                    |e| format!(
+                                                                        "poll (process tier re-poll): client message decode failed: {e}"
+                                                                    ),
+                                                                ),
                                                             }
                                                         }
                                                         // Arc 278 Stone 1a — over-FOO → Rejected

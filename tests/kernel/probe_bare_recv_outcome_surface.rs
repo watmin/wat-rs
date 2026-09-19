@@ -186,34 +186,22 @@ fn bracket_recvoutcome_matches_are_fed_by_bare_recv() {
     );
 }
 
-/// ⭐ ROW 4 — WHICH `ServiceEvent` ARMS BRACKET CAN ACTUALLY RECEIVE. Four of eight.
+/// ⭐ ROW 4 — WHICH `ServiceEvent` ARMS FOLLOW FROM THE SELECTABLE SET.
 ///
-/// ⛔ CORRECTED 2026-09-19. This row first claimed `ServiceEvent::Malformed` was "the live
-/// ungraceful arm" bracket's DESIGN had missed. **It is not live for bracket either.** `ServiceEvent`
-/// is ONE enum serving TWO different select verbs, and they build disjoint variant sets:
+/// `one-selectable-set-primitive`: both verbs classify a trusted-wire Recv Ok through
+/// `classify_trusted_wire_recv`. Decode failure is Malformed from both. Admin / Connection
+/// still follow from set membership (self-peer / listener) and cannot appear on a peers-only
+/// call. Rejected is still poll's FrameTooLarge arm (select spawn still classifies cap via
+/// `classify_peer_error` → Lost). Bracket's four arms are not repaired here.
 ///
-///   `:wat::kernel::select`  → `eval_peer_select_values` → Message, Closed, Lost, Shutdown  (4)
-///   the service `poll`      → `eval_poll_prime`         → + Admin, Connection, Malformed,
-///                                                           Rejected                       (7)
-///
-/// `bracket.wat` calls `select` and calls `poll` ZERO times. So its `Admin` / `Connection` /
-/// `Malformed` / `Rejected` arms are arms for events its own verb cannot construct — and the only
-/// thing a match can honestly write there is a panic.
-///
-/// ⭐ THAT IS THE REAL DEFECT, and it is a tier confusion in a TYPE — the same shape
-/// `a-momentary-failure-is-not-fatal` names for `Reply::Failed` ("a transport fact wearing an op
-/// type"), mirrored: SERVICE-shaped events in a POOL-shaped select. The rung that fixes it is a
-/// narrower event type for the peer-vector select ("making an illegal state not representable"),
-/// not four hand-written panics. Filed, not fixed here.
-///
-/// What this pin holds: the two impls' variant sets, so the moment `select` gains a variant —
-/// making one of bracket's four dead arms live — this reddens and the arm must be placed in
-/// RETRY / REPORT-FINAL / REPORT-GONE before it can go green.
+/// What this pin holds: Admin/Connection stay off the peers-only path; decode classification
+/// is shared. The parked stone places bracket's now-live Malformed arm.
 #[test]
 fn kernel_select_builds_only_four_serviceevent_variants() {
     let src = runtime_src();
     let sel = fn_body(&src, "eval_peer_select_values");
     let poll = fn_body(&src, "eval_poll_prime");
+    let shared = fn_body(&src, "classify_trusted_wire_recv");
 
     // NON-VACUITY — both slices must really be the impls, not empty finds.
     assert!(
@@ -231,33 +219,65 @@ fn kernel_select_builds_only_four_serviceevent_variants() {
             .collect()
     };
     let sel_set = built(sel);
-    let poll_set = built(poll);
+    let poll_and_shared = format!("{poll}{shared}");
+    let poll_set = built(&poll_and_shared);
 
     assert_eq!(
         sel_set.iter().cloned().collect::<Vec<_>>(),
         vec!["Closed", "Lost", "Message", "Shutdown"],
-        "⛔ `:wat::kernel::select` (bracket's verb) now builds a different ServiceEvent set. Any \
-         ADDED variant makes one of bracket.wat's dead collect-loop arms LIVE — place it in \
-         RETRY / REPORT-FINAL / REPORT-GONE before making this green. See \
-         docs/excursus/2026/08/001-sns-sqs/a-dead-runner-loses-one-item-not-the-run/."
+        "⛔ `:wat::kernel::select` literals moved. Admin/Connection must not appear here \
+         (set membership). Decode failure lives in classify_trusted_wire_recv as Malformed."
     );
 
-    // The service poll is the one that owns the other four; pinned so the SPLIT is the fact on
-    // record, not just bracket's half of it.
-    for service_only in ["Admin", "Connection", "Malformed", "Rejected"] {
+    for set_only in ["Admin", "Connection"] {
         assert!(
-            poll_set.contains(service_only),
-            "{service_only} left the service poll's set — the two-verb split this file documents \
-             has moved"
+            poll_set.contains(set_only),
+            "{set_only} left poll — a peers-only call cannot grow it"
         );
         assert!(
-            !sel_set.contains(service_only),
-            "⛔ `select` now builds {service_only}; bracket's arm for it is no longer dead"
+            !sel_set.contains(set_only),
+            "⛔ `select` now builds {set_only}; that cannot follow from a peers-only set"
         );
     }
+    assert!(
+        // rune:lint(loose-assert) — targeted PRESENCE of the FrameTooLarge constructor
+        // name in the poll+helper slice, not a value equality.
+        poll_set.contains("Rejected"),
+        "Rejected left poll's FrameTooLarge arm"
+    );
 }
 
-/// ⚠ The four dead arms are COUNTED so they cannot multiply quietly while unreachable.
+/// ⭐ Mutation control: break the shared decode classification, this reddens.
+/// Delete `classify_trusted_wire_recv` from either verb, or make its decode Err
+/// call `select_event_lost`, and the collapse is back.
+#[test]
+fn select_and_poll_share_decode_classification() {
+    let src = runtime_src();
+    let helper = fn_body(&src, "classify_trusted_wire_recv");
+    let sel = fn_body(&src, "eval_peer_select_values");
+    let poll = fn_body(&src, "eval_poll_prime");
+    assert!(
+        // rune:lint(loose-assert) — presence of the shared door, not a value equality.
+        helper.contains("service_event_malformed"),
+        "classify_trusted_wire_recv no longer builds Malformed on decode failure"
+    );
+    assert!(
+        // rune:lint(loose-assert) — targeted ABSENCE of the Lost constructor in the
+        // shared decode door. The claim is "this name is not referenced here".
+        !helper.contains("select_event_lost"),
+        "classify_trusted_wire_recv collapsed decode failure to Lost — the drift this stone undoes"
+    );
+    assert!(
+        // rune:lint(loose-assert) — both verbs must call the one door.
+        sel.contains("classify_trusted_wire_recv") && poll.contains("classify_trusted_wire_recv"),
+        "select or poll stopped calling classify_trusted_wire_recv — two impls again"
+    );
+}
+
+/// ⚠ The four collect-loop arms are COUNTED so they cannot multiply quietly.
+/// Malformed is now live for process-tier select (shared helper); the arm still
+/// panics until the parked stone places it. Admin/Connection/Rejected stay
+/// unreachable from a peers-only call.
 #[test]
 fn brackets_four_unreachable_serviceevent_arms_are_counted() {
     let code = bracket_code();
@@ -267,8 +287,7 @@ fn brackets_four_unreachable_serviceevent_arms_are_counted() {
             .count();
         assert_eq!(
             n, 1,
-            "expected exactly ONE collect-loop arm for the poll-only variant {dead} (it cannot \
-             reach a `select`-driven pool); found {n}"
+            "expected exactly ONE collect-loop arm for {dead}; found {n}"
         );
     }
 }
