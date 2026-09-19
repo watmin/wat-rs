@@ -69,7 +69,7 @@ hunting a decision, not a defect.**
 |---|---|---|
 | **`peragrare`** | a load-bearing instrument AND its corpus | ⭐⭐ **MUSTER — this is the target it was minted for.** The grid is the arc's correctness instrument (Clara \| oracle \| native) and the `.wat`/`.clj` axes are its corpus. ⛔ Its census goes in `wat-scripts/perf/grid/`, **beside the corpus**, never in this directory |
 | **`mora`** | a wait by chosen duration, or a timeout-0 snapshot | ⭐ **MUSTER — FIRES FOR THE FIRST TIME IN THIS VIGILIA.** `run-axis.sh` (the timer) carries `sleep`/`timeout`. It measured **0** on targets 1 and 2 |
-| **`exigere`** | universal, every kind | ⭐ **MUSTER, and with a real population for the first time** — **7** TODO-family hits. Targets 1 and 2 each measured **zero**, three times over |
+| **`exigere`** | universal, every kind | **MUSTER** — I measured 7 TODO-family hits and called it "a real population for the first time". ⛔ **WRONG, and the ward corrected it:** `XXX` excluded, the count is **0**. All seven are `"XXX"` as a deliberately-nonexistent location code in a query axis. The grid's true count matches targets 1 and 2: **zero** |
 | `conferre` · `cernere` · `probare` | spec / reference vs subject | **muster** — the `.clj` twins are a REFERENCE implementation against the `.wat` axes' subject; that is `conferre`'s pair by construction |
 | intueri · solvere · purgare · struere · sequi · temperare · conformare | universal code | **muster** — 19 shell scripts + 54 `.wat` + 43 `.clj` are all code |
 | `excusare` | runes / inline suppressions | **NO — 0 runes in the entire grid.** Targets 1 and 2 carried 65 and 36. A measured zero, and a fact worth noticing: **no exemption anywhere in the instrument has ever been written down** |
