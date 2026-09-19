@@ -186,30 +186,23 @@ fn bracket_recvoutcome_matches_are_fed_by_bare_recv() {
     );
 }
 
-/// ⭐ ROW 4 — WHICH `ServiceEvent` ARMS FOLLOW FROM THE SELECTABLE SET.
+/// ⭐ ROW 4 — variant set follows from the selectable set.
 ///
-/// `one-selectable-set-primitive`: both verbs classify a trusted-wire Recv Ok through
-/// `classify_trusted_wire_recv`. Decode failure is Malformed from both. Admin / Connection
-/// still follow from set membership (self-peer / listener) and cannot appear on a peers-only
-/// call. Rejected is still poll's FrameTooLarge arm (select spawn still classifies cap via
-/// `classify_peer_error` → Lost). Bracket's four arms are not repaired here.
-///
-/// What this pin holds: Admin/Connection stay off the peers-only path; decode classification
-/// is shared. The parked stone places bracket's now-live Malformed arm.
+/// `select(peers)` is `fan_in_unified_peer_set(..., None, None, peers)`. `poll` supplies
+/// self + listener. Admin / Connection are constructed only on those roles. A peers-only
+/// call cannot grow them. Decode failure is Malformed via `classify_trusted_wire_recv`.
 #[test]
 fn kernel_select_builds_only_four_serviceevent_variants() {
     let src = runtime_src();
     let sel = fn_body(&src, "eval_peer_select_values");
     let poll = fn_body(&src, "eval_poll_prime");
-    let shared = fn_body(&src, "classify_trusted_wire_recv");
+    let fan = fn_body(&src, "fan_in_unified_peer_set");
 
-    // NON-VACUITY — both slices must really be the impls, not empty finds.
     assert!(
-        // rune:lint(loose-assert) — targeted PRESENCE over a large function body sliced
-        // out of src/runtime.rs. The claim is "this constructor name is referenced here",
-        // not a value equality. Same reason as row 1 of this file.
-        sel.contains("SELECT_EVENT_TYPE") && poll.contains("SELECT_EVENT_TYPE"),
-        "one of the two select impls no longer builds a ServiceEvent — re-derive this pin"
+        // rune:lint(loose-assert) — both verbs call the one engine.
+        poll.contains("fan_in_unified_peer_set")
+            && sel.contains("fan_in_unified_peer_set(OP, None, None"),
+        "select is no longer the peers-only call of fan_in_unified_peer_set"
     );
 
     let built = |body: &str| -> std::collections::BTreeSet<String> {
@@ -219,58 +212,48 @@ fn kernel_select_builds_only_four_serviceevent_variants() {
             .collect()
     };
     let sel_set = built(sel);
-    let poll_and_shared = format!("{poll}{shared}");
-    let poll_set = built(&poll_and_shared);
-
     assert_eq!(
         sel_set.iter().cloned().collect::<Vec<_>>(),
         vec!["Closed", "Lost", "Message", "Shutdown"],
-        "⛔ `:wat::kernel::select` literals moved. Admin/Connection must not appear here \
-         (set membership). Decode failure lives in classify_trusted_wire_recv as Malformed."
+        "⛔ spawn-path select literals moved. Admin/Connection must not appear here."
     );
-
     for set_only in ["Admin", "Connection"] {
         assert!(
-            poll_set.contains(set_only),
-            "{set_only} left poll — a peers-only call cannot grow it"
-        );
-        assert!(
             !sel_set.contains(set_only),
-            "⛔ `select` now builds {set_only}; that cannot follow from a peers-only set"
+            "⛔ `select` now builds {set_only} on the spawn path; that cannot follow from a peers-only set"
         );
     }
     assert!(
-        // rune:lint(loose-assert) — targeted PRESENCE of the FrameTooLarge constructor
-        // name in the poll+helper slice, not a value equality.
-        poll_set.contains("Rejected"),
-        "Rejected left poll's FrameTooLarge arm"
+        // rune:lint(loose-assert) — Admin is built only on the self-peer role in the engine.
+        fan.contains("service_event_admin") && fan.contains("service_event_connection"),
+        "fan_in lost Admin/Connection constructors"
     );
 }
 
-/// ⭐ Mutation control: break the shared decode classification, this reddens.
-/// Delete `classify_trusted_wire_recv` from either verb, or make its decode Err
-/// call `select_event_lost`, and the collapse is back.
+/// ⭐ Mutation control: break the shared engine or the decode door, this reddens.
 #[test]
 fn select_and_poll_share_decode_classification() {
     let src = runtime_src();
     let helper = fn_body(&src, "classify_trusted_wire_recv");
+    let fan = fn_body(&src, "fan_in_unified_peer_set");
     let sel = fn_body(&src, "eval_peer_select_values");
     let poll = fn_body(&src, "eval_poll_prime");
     assert!(
-        // rune:lint(loose-assert) — presence of the shared door, not a value equality.
+        // rune:lint(loose-assert) — presence of the shared decode door.
         helper.contains("service_event_malformed"),
         "classify_trusted_wire_recv no longer builds Malformed on decode failure"
     );
     assert!(
-        // rune:lint(loose-assert) — targeted ABSENCE of the Lost constructor in the
-        // shared decode door. The claim is "this name is not referenced here".
+        // rune:lint(loose-assert) — targeted ABSENCE of Lost in the decode door.
         !helper.contains("select_event_lost"),
         "classify_trusted_wire_recv collapsed decode failure to Lost — the drift this stone undoes"
     );
     assert!(
-        // rune:lint(loose-assert) — both verbs must call the one door.
-        sel.contains("classify_trusted_wire_recv") && poll.contains("classify_trusted_wire_recv"),
-        "select or poll stopped calling classify_trusted_wire_recv — two impls again"
+        // rune:lint(loose-assert) — engine uses the decode door; both verbs call the engine.
+        fan.contains("classify_unified_process_recv")
+            && poll.contains("fan_in_unified_peer_set")
+            && sel.contains("fan_in_unified_peer_set"),
+        "select or poll left fan_in_unified_peer_set — two impls again"
     );
 }
 

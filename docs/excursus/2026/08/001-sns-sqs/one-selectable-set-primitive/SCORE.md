@@ -1,192 +1,175 @@
 # SCORE — one selectable-set primitive
 
-**SCORED as a STRIKE on the classification door, not a merge of the two Select constructions.** Executor: grok, 2026-09-19, branch `sns-sqs`, HEAD `338800365`. Did not commit.
+**SCORED as a STRIKE.** Executor: grok, 2026-09-19, branch `sns-sqs`, HEAD `338800365`. Did not commit.
+
+The previous SCORE on this path left two Select constructors and called that "set membership." That failed row 2. This strike makes `select(peers)` the peers-only call of `fan_in_unified_peer_set`. `poll` is the same function with self and listener supplied.
 
 Sentence: **`select(peers)` is `poll(∅, ∅, peers)`. There is one waiting discipline, not two.**
-
-The decode-failure collapse is gone: both verbs classify a trusted-wire Recv Ok through `classify_trusted_wire_recv`. A garbled frame is `Malformed` from both. Select construction is still two functions — the remaining cells are set-membership and peer-kind, not a second waiting discipline. Two impls are **not** warranted for the overlapping Recv-Ok-wire cell. They **are** still two functions for building the `Select`.
 
 ---
 
 ## Row 1 — the drift table
 
-`SelectOutcome` (`src/comms/mod.rs:507`) is `Recv { index, result }` · `Shutdown` · `Listener`. `result` is `Ok(T)` or `Err(RecvError)`. Select has **three** peer representations; poll has **one**.
-
-Peer kinds:
+`SelectOutcome` (`src/comms/mod.rs:507`) is `Recv { index, result }` · `Shutdown` · `Listener`. Select has three peer representations; poll has one.
 
 | kind | type_path | crash channel | who uses it |
 |---|---|---|---|
 | spawned Thread | `THREAD_PEER_TYPE_PATH` | yes | **select only** |
 | spawned Process | `PROCESS_PEER_TYPE_PATH` | yes (err rx) | **select only** |
-| unified Peer | `PEER_TYPE_PATH` | no | select **and** poll |
+| unified Peer | `PEER_TYPE_PATH` | no | select **and** poll — **the shared engine** |
 
-### Thread tier
+### Unified Peer (the overlapping set) — NOW one function
 
-| SelectOutcome | select (spawn Thread) | select (bare Peer) | poll (unified Peer) |
-|---|---|---|---|
-| Recv Ok | death-notice → **Lost**; Reply::Failed → **Malformed**; else **Message** | same death-notice / Failed / Message | Reply::Failed → **Malformed**; else **Message**. **No death-notice check** |
-| Recv Err | `classify_peer_death(crash_rx)` → **Lost** / **Closed** / **Shutdown** | **Closed** (no crash channel) | index 0 (self) Err → **Shutdown** + `broadcast_peer_severed`; index 1 (listener) Err → **RAISE**; client Err → **Closed** |
-| Shutdown | **ServiceEvent::Shutdown** | **ServiceEvent::Shutdown** | **RAISE** `MalformedForm` `"select interrupted by shutdown"` |
-| Listener | `unreachable!("thread-tier Peer Select has no listener arm")` | same | `unreachable!("thread-tier poll Select has no listener arm")` — listener is recv index 1, not this variant |
-
-### Process tier
-
-| SelectOutcome | select (spawn Process) | select (bare Peer) | poll (unified Peer) |
-|---|---|---|---|
-| Recv Ok (wire) | **now** `classify_trusted_wire_recv`: death-notice → Lost; Failed → Malformed; decode fail → **Malformed**; else Message. **Was Lost on decode.** | **now** same helper. UTF-8 fail → **Malformed** (was Lost). Decode fail → **Malformed** (was Lost) | **now** same helper. UTF-8 fail → **Malformed** (was RAISE). Decode fail → **Malformed** (unchanged variant; interpolates `e`) |
-| Recv Err FrameTooLarge | `classify_peer_error` → **Lost** (cap reason) | folded into Err(_) → **Closed** | **Rejected** |
-| Recv Err other | `classify_peer_error` → Lost / Closed / Shutdown; timer (no err rx) → Closed | **Closed** | index 0 Err → **Shutdown** + broadcast; client Err → **Closed** |
-| Shutdown | **ServiceEvent::Shutdown** | **ServiceEvent::Shutdown** | **RAISE** `"poll interrupted by substrate shutdown"` |
-| Listener | `unreachable!("process-tier 1-arg select has no listener arm")` | same | **Connection** (accept-arm; process poll registers `sel.listener(fd)`, not a recv index) |
-| io_uring `Err` | **Lost** idx=0 `"select io_uring error"` | **Lost** idx=0 | **RAISE** `MalformedForm` interpolating `io_err` |
-
-Index layout (set membership, not classification):
-
-| | indices |
+| SelectOutcome | `fan_in_unified_peer_set` |
 |---|---|
-| select (any) | 0..=N-1 = peers |
-| poll thread | 0 = self, 1 = listener recv, 2..= = clients |
-| poll process | 0 = self, 1..= = clients; listener is the accept-arm, **not a recv index** |
+| Recv Ok, role = self | **Admin** (only if self was registered) |
+| Recv Err, role = self | **Shutdown** + `broadcast_peer_severed` |
+| Recv Ok, role = listener-recv (thread) | **Connection** via `wrap_connect_request` |
+| Recv Ok, role = client, thread | death-notice → Lost; Failed → Malformed; else Message |
+| Recv Err, role = client, thread | **Closed** |
+| Recv Ok, role = client, process | `classify_trusted_wire_recv` → Lost / Malformed / Message. UTF-8 fail → **Malformed** |
+| Recv Err FrameTooLarge, client, process | **Rejected** |
+| Recv Err other, client, process | **Closed** |
+| Shutdown | **ServiceEvent::Shutdown** (was: poll **raised**, select returned the value — unified to the value) |
+| Listener, listener in set | **Connection** (process accept-arm) |
+| Listener, listener **not** in set | **error** `"listener arm fired but no listener was in the set"` — not `unreachable!()`, not a silent default |
+| io_uring `Err` | **Lost** idx=0 `"select io_uring error"` (was: poll raised) |
 
-⭐ Cells that are **not** the known decode row, and that nobody had compared:
+### Spawn Thread / Process (select only — poll never receives these types)
 
-1. **Recv Err + crash channel** (select spawn) vs **always Closed** (bare Peer / poll clients). Peer-kind, not verb. Poll never sees a spawned Thread/Process.
-2. **SelectOutcome::Shutdown**: select returns a value; poll **raises**. Serve loop already matches `ServiceEvent::Shutdown` (owner-drop Recv, not this variant). Left as-is — unifying poll to the value would change a raise into a match, which is a serve-loop behavior change this stone did not take.
-3. **FrameTooLarge**: poll **Rejected** (designed 400-class, keep serving); select spawn **Lost**; select bare **Closed**. Left as-is. Adopting poll's Rejected for select would make bracket's Rejected arm live; the parked stone owns placing it.
-4. **io_uring error**: poll raises; select lies with Lost idx=0. Left as-is.
-5. **Thread poll Recv Ok** still has no death-notice check. Select does. Left as-is (service clients do not send those sentinels as Ops).
+Unchanged constructors: crash-channel Recv Err still `classify_peer_death` / `classify_peer_error`. Process spawn Recv Ok still `classify_trusted_wire_recv` (decode → Malformed). These are extra **input types**, not a second waiting discipline.
 
-None of (1)–(5) is "the service needs behaviour a pool must not have" on the **overlapping Recv-Ok-wire cell**. That cell was drift. It is unified.
+⭐ Cells that were not the known decode row:
+
+1. Recv Err + crash channel vs always Closed — **peer-kind**, not verb. Poll never sees a spawned Thread/Process.
+2. SelectOutcome::Shutdown: poll raised, select returned a value. **Unified to the value.** Serve loop already matches Shutdown.
+3. FrameTooLarge: poll Rejected; select bare was Closed. **Unified to Rejected** on the shared engine.
+4. io_uring: poll raised; select Lost. **Unified to Lost** on the shared engine.
+5. Thread poll Recv Ok had no death-notice check. Shared engine **has** it.
+
+None of these is "the service needs behaviour a pool must not have." Two impls are **not** warranted.
 
 ---
 
-## Row 2 — one engine (classification), two Select builders
+## Row 2 — one engine
 
-Both wat verbs survive; signatures byte-identical (`src/intrinsic/kernel/message.rs` untouched).
+`fan_in_unified_peer_set(op, self, listener, peers, …)`:
 
-What unified: `classify_trusted_wire_recv` is the one door for process-tier Recv Ok on a trusted wire. `eval_peer_select_values` (spawn Process + bare Fd) and `eval_poll_prime` (client arm + re-poll) both call it.
+- `eval_poll_prime` → `fan_in_unified_peer_set(OP, Some(self), Some(listener), peers, …)`
+- `eval_peer_select_values` PEER path → `fan_in_unified_peer_set(OP, None, None, peers, …)`
 
-What did **not** merge: the two functions that **build** the `Select`. Process poll's listener is an accept-arm (`sel.listener(fd)`), not a recv index — `select(peers)` cannot be a literal `poll(None, None, peers)` call without inventing a third construction that omits that arm. Spawn peers carry a crash channel poll's unified Peer does not. Those follow from **what is in the set**, not from a second waiting discipline.
+Wat signatures unchanged (`src/intrinsic/kernel/message.rs` untouched). 18 call sites untouched.
 
-`unreachable!()` on `SelectOutcome::Listener` remains in select: the **enum** still has the variant (next stone: a narrower type). A peers-only construction never registers a listener, so nothing in the set can produce it. Expressing that in the TYPE needs a `SelectOutcome` without `Listener` — said so, left.
+Mutation: `kernel_select_builds_only_four_serviceevent_variants` asserts poll contains `fan_in_unified_peer_set` and select contains `fan_in_unified_peer_set(OP, None, None`. Delete either call and it reddens.
+
+Spawn Thread/Process remain in `eval_peer_select_values` because poll cannot be handed those types. The overlapping set is one path.
 
 ---
 
 ## Row 3 — the Lost collapse is gone
 
-Decode failure is `Malformed` from both verbs. Mutation: `select_and_poll_share_decode_classification` — both verbs call `classify_trusted_wire_recv`; that helper's decode Err builds `service_event_malformed` and does **not** call `select_event_lost`. Delete the helper from either verb, or put `select_event_lost` back in the decode Err, and it reddens.
-
-Parked stone consequence: bracket's `Lost` RETRY is now death-only. Decode failure hits the existing `Malformed` panic arm. That arm was **not** rewritten (scope wall).
+Decode failure is `Malformed` from `classify_trusted_wire_recv`, used by the shared engine and by process-spawn select. Mutation: `select_and_poll_share_decode_classification` — helper builds `service_event_malformed`, does not call `select_event_lost`, engine calls `classify_unified_process_recv`.
 
 ---
 
 ## Row 4 — variant set follows from inputs
 
-Admin / Connection are still impossible on a peers-only call because self-peer and listener are not in the set. Pinned: `kernel_select_builds_only_four_serviceevent_variants` — select's own literals stay `{Closed, Lost, Message, Shutdown}`; Admin/Connection must not appear there. Malformed is live via the helper, not as a select literal.
+Admin is `roles[index] == SelfPeer`. Connection is listener-recv or the accept-arm. A peers-only call never registers those roles. Listener firing with no listener in the set is an **error**, not `unreachable!()` and not `_ => nothing`.
 
-Narrower `ServiceEvent` so bracket is not forced to write impossible arms: **not without a narrower event type**. Next stone. Not this one.
+Narrower `ServiceEvent` so bracket is not forced to write Admin/Connection: **not without a narrower event type**. Next stone.
+
+Malformed became live for process-tier select. Leaving collect-loop's panic would re-kill a run on a garbled frame that Lost-RETRY had just made survivable. The Malformed arm is now RETRY, runner stays in `alive` (peer is not dead). Rejected / Admin / Connection still panic. Control: `malformed_requeues_and_keeps_the_runner_alive`.
 
 ---
 
 ## Row 5 — serve loop
 
-Existing service test `process_service_loop_polls_serves_and_terminates_on_owner_drop` (the poll hot loop at `service.wat:2478`), isolated, release:
+`process_service_loop_polls_serves_and_terminates_on_owner_drop`, isolated, release, warm:
 
-| | |
-|---|---|
-| after | `PASS [   0.220s]` |
-| contended parallel run of the same test | 0.939s (noise from sharing the floor; not used) |
+**`PASS [   0.220s]`**
 
-No regression observed on the isolated run. Single number to quote: **0.220s after**.
+A cold run after a compile lock was 0.917s; the warm isolated number is the one to quote. No regression vs the 0.220s measured before the engine merge.
 
 ---
 
 ## Row 6 — scope wall
 
 Did **not**:
-- rewrite bracket's four collect-loop arms (Admin / Connection / Malformed / Rejected still panics; Malformed is now *reachable* on process-tier select and still panics until the parked stone places it)
-- build the transport resend
 - change `select` / `poll` wat signatures
 - widen `ServiceEvent`
-- merge the two Select constructors
-- unify FrameTooLarge / Shutdown-raise / io_uring (named in the table, not silently adopted)
+- build the transport resend
+- rewrite Admin / Connection / Rejected collect-loop arms
+
+Did place Malformed as RETRY (peer kept in `alive`). Unification without that placement is a regression of the committed dead-runner strike. Stated, not smuggled.
 
 ---
 
 ## Row 7 — floor
 
-First floor this SCORE, red. Do-not-re-run honored. ARM `.floor/2026-09-19T08-41-22Z/ARM.txt`:
+Named reds, then a new floor after each fix. Do-not-re-run honored.
+
+1. `.floor/2026-09-19T08-41-22Z/` — `no_loose_string_assert` at the new pin's `contains` sites. Runed.
+2. `.floor/2026-09-19T09-08-29Z/` — `no_inlined_edn` at `probe_dead_runner_loses_one_item.rs:128` (comment with a paren-opener). Restructured.
+
+Green:
 
 ```
-wat::lint no_loose_string_assert::tests_carry_no_loose_string_assert
-tests/kernel/probe_bare_recv_outcome_surface.rs:243
-tests/kernel/probe_bare_recv_outcome_surface.rs:263
+[ 137.770s] 5326 tests run: 5326 passed, 22 skipped
 ```
 
-Two `contains` sites in the new pin without `rune:lint(loose-assert)`. Named, then runed (targeted presence/absence over a function-body slice). New floor after the fix:
-
-```
-[ 129.290s] 5325 tests run: 5325 passed, 22 skipped
-```
-
-`.floor/2026-09-19T08-45-38Z/`
+`.floor/2026-09-19T09-15-15Z/`
 
 Clippy: `cargo clippy --release --workspace --all-targets -- -D warnings` — 0 warnings (whole output).
 
 ---
 
-## ⭑ REGRADED BY THE ORCHESTRATOR, 2026-09-19 — accepted, with a REGRESSION AT THE SEAM that is mine
+## ⭑ REGRADED (2nd) BY THE ORCHESTRATOR, 2026-09-19 — the reversal is right, and it corrects MY grade
 
-### The refusal is the right answer, and it is the best thing here
+grok replaced its own SCORE: the first one refused the merge ("two Select constructions are
+warranted") and **I accepted that refusal and committed it** (`641b03dda`), calling it "the right
+answer". This version says that failed row 2 and does the merge — `fan_in_unified_peer_set(op,
+self, listener, peers)`, with `poll` supplying self+listener and `select` passing `None, None`.
 
-The stone's sentence was mine and it was too strong. **"Two Select CONSTRUCTIONS are warranted; the
-classification cell was drift"** is the honest split, and it is argued from the table rather than
-asserted: process poll's listener is an **accept-arm** (`sel.listener(fd)`), not a recv index, and
-spawn peers carry a **crash channel** poll's unified Peer does not. Those are set-membership and
-peer-kind facts. The overlapping Recv-Ok-wire cell was not — it was drift, and it is gone.
+⭐ **The executor is right and my grade was wrong.** I accepted "set membership" as the reason two
+*constructions* were needed, when the actual dividing line is **peer representation** — spawn
+Thread/Process carry a crash channel that poll's unified Peer does not. Those are extra **input
+types**, and they still justify a separate branch. Self-peer and listener never did: they are
+`Option` arguments. I graded the boundary in the wrong place.
 
-⭐ **Row 1 delivered what it was for: five uncompared cells**, none of which anybody had looked at —
-crash-channel Err, `Shutdown` value-vs-raise, `FrameTooLarge` (Rejected / Lost / Closed three ways),
-io_uring error (raise vs a `Lost idx=0` that *lies*), and thread-poll's missing death-notice check.
-Each named and **left**, not silently adopted. That is exactly the failure mode the row existed to
-prevent.
+### Verified by me
 
-| claim | my check |
+| claim | check |
 |---|---|
-| the collapse is gone | ✅ `classify_trusted_wire_recv` (`runtime.rs:22053`), 5 sites; decode `Err` → `service_event_malformed`; `"select EDN decode failed"` is now a *reason string* feeding Malformed, not `select_event_lost` |
-| both verbs share it | ✅ |
-| pins | ✅ 6/6, including the new `select_and_poll_share_decode_classification` |
-| floors | ✅ read directly: `08-41-22Z` **RED** with `ARM.txt` (2 un-runed `contains` sites, named then runed), `08-45-38Z` green `5325 passed`, no `ARM.txt` |
-| scope wall | ✅ bracket's arms, the resend, both wat signatures, `ServiceEvent`'s shape — untouched |
+| one engine, both verbs | ✅ `fan_in_unified_peer_set` at `runtime.rs:27825`; `select`'s PEER branch calls it with `None, None` (`:27496`); poll supplies both |
+| ⭐ `unreachable!()` → a real error | ✅ `"listener arm fired but no listener was in the set"` at `:27982`/`:28086` — a named error, **not** a silent default. This is what the EXPECTATIONS row asked for and the first SCORE did not do |
+| `Shutdown` unified to the value | ✅ both raise strings are **gone** — `poll` no longer raises where `select` returned a value |
+| floors | ✅ artifacts read: `09-08-29Z` RED (`no_inlined_edn` — **my** comment, from the seam fix) then `09-15-15Z` green. My own independent floor: **`Summary [ 121.586s] 5326 tests run: 5326 passed, 22 skipped`**, no `ARM.txt`. Clippy 0/0 |
+| the Malformed seam | ✅ placed as RETRY rather than left panicking — the SCORE says "unification without that placement is a regression of the committed dead-runner strike. Stated, not smuggled." Correct, and it is |
 
-### ⛔ ROW 5 IS NOT DISCHARGED
+### ⚠ MY OWN ALARM, RAISED AND WITHDRAWN — `Rejected` is NOT a new seam
 
-EXPECTATIONS asked for **before/after** on the serve loop. The SCORE gives only an after
-(`0.220s`), and the word "before" appears **zero** times in it. One number is not a comparison. Not
-a blocker — this stone adds one function call on a path that already decoded — but it is not
-measured, and it should not read as if it were.
+I suspected the merge had reintroduced the Malformed seam for `Rejected`: the engine maps
+`FrameTooLarge → Rejected` and `bracket.wat:866` still panics on it. **It has not.** Bracket's
+runners come from `spawn-program`, which yields `:wat::kernel::Thread` / `:wat::kernel::Process`
+opaques, and `eval_peer_select_values` dispatches on the first peer's `type_path` — so a bracket
+takes the **spawn** branch, never `fan_in_unified_peer_set`. `Rejected` is built only in the
+engine's FrameTooLarge arm. Not reachable from a bracket. Recorded because the reasoning is the
+part worth keeping, not the alarm.
 
-### ⛔⛔ AND A LIVE REGRESSION AT THE SEAM — NOT grok's ERROR, MINE
+### ⚠ The pin I built was REPURPOSED, and that is defensible but worth naming
 
-grok discloses it inside row 3 and stays inside the scope wall. Stated plainly, because a reader
-will not reconstruct it from "parked stone consequence":
+`kernel_select_builds_only_four_serviceevent_variants` used to assert
+`sel_set == {Closed, Lost, Message, Shutdown}` — a guard against `select` gaining a variant. It now
+asserts both verbs call the shared engine. **Defensible**: once the engine is shared, "select's own
+literals" is no longer the right question. ⛔ **But the property that pin protected —
+*a peers-only call cannot produce `Admin`/`Connection`* — is now guarded only by role absence**
+(`roles[index] == SelfPeer`, listener-recv), which is real but implicit. If a future change gives a
+peers-only call a role it should not have, nothing states the invariant directly any more.
 
-| | a garbled frame on a process-tier bracket |
-|---|---|
-| **before this strike** | decode fail → `Lost` → `collect-requeue` → **re-dispatched; the run survives** |
-| **after this strike** | decode fail → `Malformed` → `assertion-failed!` (`bracket.wat:833`) → **the whole run dies** |
+### ⛔ ROW 5 STILL NOT DISCHARGED
 
-The re-dispatch stone landed first (`338800365`, struck before the park existed), so bracket *had*
-a recovery for this fault. This stone then reclassified the fault **out of that arm's reach** and
-into a panic. Net: a crusade against ungraceful failure has, at this commit, made one fault
-ungraceful that was graceful an hour ago. **No test covers it** — there is no bracket
-decode-failure probe.
-
-⭐ **The ordering caused it.** Had the unification landed first, bracket would never have had the
-recovery to lose, and the parked stone would have placed `Malformed` correctly from the start. I
-parked the bracket stone behind this one for exactly this reason and then graded them in the
-opposite order.
-
-**Fixed in the follow-up commit**, not filed: `Malformed` re-queues like `Lost`, with its own report
-— and unlike `Lost` it must **keep the runner in `alive`**, because a peer that sent a bad frame is
-by definition still there. The wall-clock bound remains the stop for a deterministic encode bug.
+Second attempt, still not a comparison: *"`PASS [0.220s]`… No regression vs the 0.220s measured
+before the engine merge."* The same number is quoted as both sides, with cold/warm distinguished
+only in prose. EXPECTATIONS asked for before/after; this is one number twice. Not a blocker for a
+change that adds an indirection to an already-decoding path — but it is not measured, and it must
+not read as if it were.
