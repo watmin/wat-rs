@@ -21,39 +21,35 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `4a39f254c` (batch 4s's records, pushed). **520 of 651 replayed. 131 remain.**
+Stamp: written on top of `9bbe3af47` (batch 4t's records, pushed). **540 of 651 replayed. 111 remain.**
 In flight: nothing.
 
-**Batch 4s (#501–#520) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
-census `no STOP-8`, 20/20 subjects and trailers. The range touched **zero `.rs`** (22 `.md` + 1 `.wat`),
-which is why the count could not move.
-★ **THE RESTRAINT HELD.** #511 lands grok's *"all 65 exemptions — 59 hold, 6 struck"* **verbatim**. The
-executor spot-checked it here, got 65 by a different route, and reported **"not found false"** rather
-than claiming confirmation its method could not support. **Grok's prose keeps grok's words; our
-divergent numbers live in our SCORE.**
-⚠ **#515 hit a REAL conflict in a shared doc** (`docs/COMPACTION-AMNESIA-RECOVERY.md`, `shared=1`): our
-2026-09-13 annotation sits on the paragraph grok's stamp supersedes. Both were kept — verified at the
-tip, no markers, neither side's content dropped.
+**Batch 4t (#521–#540) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
+census `no STOP-8`, 20/20 subjects and trailers. **The first batch in several with NO deviation, NO
+conflict, NO red and NO repair.**
+★ **#537's nine pre-migration `.wat` were cured by the RECORDED CHAIN**, one pass, no hand edits —
+verified at the tip: **9 of 9 check clean**, zero retired `assertion-failed!`, zero
+`:wat::core::i64::+`. The chain cured **more** than the pre-flight found (match-arm shape and enum
+variant separators as well), which is the argument for using it over hand patches.
+★ **The executor proved grok's prose unedited by HASHING every touched file** against grok's blob across
+all 20 steps, rather than asserting it. Spot-verified here on four steps: zero differences.
 
-Next is **batch 4t (#521–#540)**: censused — **18 docs-only, 2 code (#537, #540)**; the vigilia
-continues. The range is **39 `.md` + 9 `.wat` + 1 `.sh`**. **ZERO `src/`, ZERO hazard rows, ZERO new
-gates, ZERO test delta** — floor prediction **unchanged at 5872 run / 22 skipped**.
+Next is **batch 4u (#541–#560)**: censused — **20 docs-only, ZERO code steps. The whole range is 52
+`.md`.** No `.rs`, no `.wat`, no `.sh`, no hazard rows, no gates, **zero test delta** — floor prediction
+**unchanged at 5872 run / 22 skipped**, and structurally it cannot move.
 
-⚠⚠ **#537 WILL GO RED WITHOUT CONVERSION — THIS IS MEASURED, NOT FEARED.** It adds **9 new `.wat` under
-`wat-scripts/scratch-pad/experiri-then/`**, and **every one of the nine** carries two forms this tree
-retired:
-- the **positional `assertion-failed!`** (kwargs `:message`/`:actual`/`:expected` are required now — the
-  checker says so by name), and
-- **`:wat::core::i64::+`** (9 occurrences; the live spelling is `:wat::i64::+`).
+⚠⚠ **THE ONE REAL TRAP IS A DIVERGED SHARED DOC, TOUCHED NINE TIMES.**
+`docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md` differs from grok's
+pre-image here by **12 lines (9+/3−)**, and **#548, #549, #551, #552, #554, #555, #556, #557 and #560
+all touch it.** Expect repeated conflicts in one file. **The #515 rule governs: keep BOTH sides — our
+annotation and grok's supersession — and drop neither.** Verify after each, not just at the end.
 
-⛔ **Two gates walk `wat-scripts/` RECURSIVELY** (`every_wat_scripts_file_loads_on_the_current_runtime`
-and `every_rete_name_in_wat_scripts_code_resolves`), so scratch-pad is **not** a quiet corner. **Cure at
-#537 via `scripts/replay/convert.sh <introducing-commit>`** — the recorded chain, the 4o/4q/4r precedent
-— **never by hand.** This is finding 33's class and it has now fired in five consecutive code-bearing
-batches.
-
-⚠ **#540 adds `wat-scripts/perf/grid/peragrare-census.sh`** — a shell script that may itself contain wat
-in string literals. Grep that side; finding 33 reaches `.sh` too.
+⚠ **A CITATION RUMOUR, MEASURED AND DISMISSED.** #558 adds `wat/rete.wat:547+` while that file is **541
+lines** — but it is out of range on **grok's own tree too** (also 541), and it lives in a `.md`.
+`no_stale_path_in_doc` scans **doc comments inside `src/rete/*.rs`, `wat/*.wat`, `wat-tests/*.wat`** —
+**not `docs/**.md`**. So it is neither gated here nor ours to fix: **land it unedited** (the 4s rule).
+⛔ Recorded because I nearly briefed it as a red: **check what a gate actually SCANS before predicting it
+will fire.**
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -106,7 +102,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4q #461–#480 (CLOSED; floor 5864/5864, clippy 0, pushed)
                               + batch 4r #481–#500 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4s #501–#520 (CLOSED; floor 5872/5872, clippy 0, pushed)
-                              ⇒ 520 of 651 replayed. NEXT: batch 4t #521–#540.
+                              + batch 4t #521–#540 (CLOSED; floor 5872/5872, clippy 0, pushed)
+                              ⇒ 540 of 651 replayed. NEXT: batch 4u #541–#560.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -163,6 +160,15 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4t #521–#540 is CLOSED and PUSHED** (records at `9bbe3af47`; SCORE-7t, REPLAY-LOG). 20 steps,
+  18 docs-only. Floor **5872/5872, 22 skipped — unchanged**, clippy 0, census `no STOP-8` (2177 → 2186
+  files). **Zero deviations, zero defects** — see the header.
+  ★ **#537's conversion is the model**: `convert.sh <introducing-commit>`, one pass, both `wat-scripts/`
+  loader gates green, and the executor caught the staging-defect class itself (`AM` status after copying
+  converted files over staged pre-images) before committing — the failure that cost repairs at 4r.
+  ⚠ **A counting reconciliation, disclosed rather than smoothed**: "39 `.md`" is the sum of each step's
+  own `files=` column; the DISTINCT-file diff over the range is 31, because `FINDINGS.md` and `README.md`
+  are touched repeatedly. Both true, different questions.
 - **Batch 4s #501–#520 is CLOSED and PUSHED** (records at `4a39f254c`; SCORE-7s, REPLAY-LOG). 20 steps,
   19 docs-only — the lightest batch of the campaign, grok's 2026-09-07 vigilia recorded as prose. Floor
   **5872/5872, 22 skipped — unchanged**, clippy 0, census `no STOP-8`.
