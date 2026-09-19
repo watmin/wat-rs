@@ -434,4 +434,5 @@ rc=0.
 
 ## Commit
 
-Not yet committed — pending final report review. Ready to commit on this green state.
+`4495aafcd` on branch `grok-rete` — "rete: ARM_BUILDS thread-owned, matching ARM_TABLE (arc 278,
+4D1/4Q2)". 4 files changed (`arm.rs`, `arm_lease.rs`, `cascade_cost.rs`, this `SCORE.md`).
