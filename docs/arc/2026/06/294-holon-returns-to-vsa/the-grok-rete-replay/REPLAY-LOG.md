@@ -3951,3 +3951,96 @@ construction (the recorded migration). Zero `src/`, zero hazard rows, zero new g
 `wat-scripts/fixes/` edits, zero `wat/` (stdlib) paths, zero test-count delta (no `.rs` file
 touched anywhere in the range) — predicted **5872 run, 22 skipped, unchanged**. See
 `SCORE-7t-replay-batch-4t.md` for the full row-by-row account against all rows (E1–E16).
+
+## #541 — docs-only, 2 files (vigilia(rete): mora returns CLEAN — and refuses a rune it was entitled
+to reach for).
+
+## #542 — docs-only, 3 files (vigilia(rete): exigere returns CLEAN — the "real population" I handed
+it was domain data).
+
+## #543 — docs-only, 2 files (vigilia(rete): solvere returns 6 on target 3 — and two of them have
+already bitten).
+
+## #544 — docs-only, 2 files (vigilia(rete): conferre closes with a contract that never says ":or" —
+and cites a rule it does not contain).
+
+## #545 — docs-only, 1 file (vigilia(rete): rewrite the resume protocol for all four targets).
+
+## #546 — docs-only, 2 files (vigilia(rete): purgare returns 1 on target 3 — a diagnostic that
+prints a constant).
+
+## #547 — docs-only, 1 file (curare: purgare landed before the wall — correct the resume block).
+
+## #548 — docs-only, 1 file, REAL SHARED-DOC TOUCH 1/9 (curare: stamp the wall — a four-target
+vigilia is mid-flight across it). Clean AUTO-MERGE, not a textual conflict:
+`CURRENT-STATE-annihilate-interpretation.md` diverges from grok's pre-#541 pre-image by main's own
+2026-09-13 PARKED annotation (lines 1-7, 12 lines / 9 insertions / 3 deletions), and every one of
+grok's edits across this batch lands further down (the STAMP paragraph and below), so git's own
+three-way merge unions them with no marker. Verified: PARKED annotation present, grok's forty-fourth
+stamp landed in full below it, zero conflict markers, diff-vs-grok's-blob limited to exactly the
+annotation block.
+
+## #549 — docs-only, 3 files, REAL SHARED-DOC TOUCH 2/9 (recolligere: the status home's three totals
+were all wrong — and one was caught by nothing). Clean auto-merge, same shape as #548, verified the
+same way.
+
+## #550 — docs-only, 1 file (vigilia(rete): measure three target-3 triggers — and one of them is
+100% contamination).
+
+## #551 — docs-only, 4 files, REAL SHARED-DOC TOUCH 3/9 (vigilia(rete): intueri returns 4 on target
+3 — and one comment pre-blesses a red). Clean auto-merge, verified the same way as #548.
+
+## #552 — docs-only, 4 files, REAL SHARED-DOC TOUCH 4/9 (vigilia(rete): struere returns 5 on target
+3 — and cited its own refutation without seeing it). Clean auto-merge, verified the same way.
+
+## #553 — docs-only, 2 files (vigilia(rete): 3X1 — two wards, one line, opposite dispositions, same
+research).
+
+## #554 — docs-only, 4 files, REAL SHARED-DOC TOUCH 5/9 (vigilia(rete): sequi refutes my own
+hypothesis — and verifying its finding found a better one). Clean auto-merge, verified the same way.
+
+## #555 — docs-only, 4 files, REAL SHARED-DOC TOUCH 6/9 (vigilia(rete): temperare finds an
+asymmetric timer — and a claim the file citing it implements alone). Clean auto-merge, verified the
+same way.
+
+## #556 — docs-only, 5 files, REAL SHARED-DOC TOUCH 7/9 (vigilia(rete): conformare + probare return
+6 — and probare refuses the verdict I suggested). Clean auto-merge, verified the same way.
+
+## #557 — docs-only, 4 files, REAL SHARED-DOC TOUCH 8/9 (vigilia(rete): perspicere finds the rete
+stdlib already named the shape the grid did not). Clean auto-merge, verified the same way.
+
+## #558 — docs-only, 2 files (vigilia(rete): cernere returns CLEAN — and corrects this repo's own
+CLAUDE.md). ⚠ Landed UNEDITED per the brief: `cernere.md` cites `wat/rete.wat:547+`, out of range
+(the file is 541 lines, also 541 on grok's own tree) and inside a `.md` that
+`no_stale_path_in_doc`'s `ROOTS` (`src/rete/*.rs`, `wat/*.wat`, `wat-tests/*.wat`) do not scan — not
+gated here, not corrected, observation carried to this SCORE.
+
+## #559 — docs-only, 1 file (vigilia(rete): repair the resume block — my last commit shipped a
+half-applied edit).
+
+## #560 — docs-only, 4 files, REAL SHARED-DOC TOUCH 9/9, the last (vigilia(rete): circumspicere
+closes target 3 at 15/15 — and the cure a prior cast prompted opened the gap). Clean auto-merge,
+verified the same way as the prior eight.
+
+⛔ ZERO SELF-CAUGHT DEFECTS AND ZERO REPAIR COMMITS THIS BATCH. Every subject and trailer was built
+by piping `git log -1 --format=%s <C>` and `git rev-parse <C>` into the commit heredoc, never
+retyped, and verified two-sided immediately after each commit (20/20, see
+`SCORE-7u-replay-batch-4u.md`'s table). The one real task the brief flagged — nine touches of
+`CURRENT-STATE-annihilate-interpretation.md`, main's own annotation diverging from grok's pre-image
+by 12 lines — landed as nine CLEAN AUTO-MERGES rather than the textual conflicts the brief predicted
+("expect a conflict at several"): main's annotation sits at the top of the file and every one of
+grok's edits lands lower, so git's own three-way merge performed the union with no marker at any of
+the nine. Each was still verified individually, not assumed clean from the first: main's annotation
+present, grok's new text present, zero conflict markers, and a full diff against grok's own
+post-image confined to exactly the annotation block. #558's `wat/rete.wat:547+` citation (out of
+range on both trees, and inside a `.md` no gate here scans) landed unedited, per the standing rule
+that grok's prose keeps grok's words.
+
+**Disposition: COMPLETE.** All 20 steps (#541–#560) landed, tree clean at `d7f6e9cf8`
+(`REPLAY(grok-rete #560)`), not pushed. `origin/replay/grok-rete` (`64ecbf436`) remains the
+published tip, an ancestor of HEAD throughout. No mid-batch STOP; no test ever went red; no
+`mcp__pulsare__*` tool called. All four docs gates (`no_stale_path_in_doc`, `rete_citation_resolves`,
+`docs_wat_loads_or_declares_why_not`, `no_new_broken_doc_link`) green at the tip. Zero `src/`, zero
+`.wat`, zero `.sh`, zero hazard rows, zero new gates, zero test-count delta (no `.rs` file touched
+anywhere in the range) — predicted **5872 run, 22 skipped, unchanged**, structurally impossible to
+move. See `SCORE-7u-replay-batch-4u.md` for the full row-by-row account against all rows (E1–E14).
