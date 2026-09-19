@@ -1078,7 +1078,7 @@ not the same as there being none, and the ward said so rather than reading the z
 
 ---
 
-# TARGET 3 — `wat-scripts/perf/grid/` (147 files, 16,345 lines measured)
+# TARGET 3 — `wat-scripts/perf/grid/` (148 files, 16,616 lines — re-derived 2026-09-08 by `find wat-scripts/perf/grid -type f`)
 
 Muster derived in `README.md` with measured triggers. Returns land verbatim in `reports-target3/`.
 
