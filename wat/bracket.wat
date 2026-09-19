@@ -584,10 +584,15 @@
       "idle (holding no item)"
       (:wat::string::interpolate "holding item {item}" :item item))))
 
-;; collect-loop wall-clock bound. Load-bearing: `select` collapses a decode
-;; failure into Lost, so a deterministic encode bug would re-dispatch until this
-;; bound fires. The give-up report names that it could not distinguish death
-;; from garbling. 300000 ms is well above any honest map.
+;; collect-loop wall-clock bound. Load-bearing: a DETERMINISTIC fault — a work-fn that encodes
+;; garbage, or an item that kills whoever takes it — is re-dispatched to survivor after survivor
+;; and reproduces identically, so this bound is the only stop.
+;; ⛔ The "could not distinguish death from garbling" clause that stood in these reports is GONE,
+;; and deliberately: `one-selectable-set-primitive` unified the classification door, so `select`
+;; now DOES distinguish — Lost is death, Malformed is a frame that did not decode. What the
+;; reports still cannot carry is WHICH ITEM hit WHICH fault, because `collect-loop` returns
+;; `(Vector :- [O])` with no slot for a per-item report. That is the honest limitation to state.
+;; 300000 ms is well above any honest map.
 (:wat::core::defn :wat::bracket::collect-deadline-ms [] -> :wat::core::i64 300000)
 
 (:wat::core::defn :wat::bracket::alive-without
@@ -682,7 +687,7 @@
   -> :T
   (:wat::kernel::assertion-failed!
     (:wat::string::interpolate
-      "bracket collect-loop: REPORT-GONE last runner {idx} crashed {held}: {why} (could not distinguish death from garbling)"
+      "bracket collect-loop: REPORT-GONE last runner {idx} crashed {held}: {why} (no runners left to re-dispatch to)"
       :idx orig :held held :why why)
     :wat::core::None :wat::core::None))
 
@@ -693,7 +698,7 @@
     [waited (:wat::i64::/ (:wat::i64::- (:wat::time::epoch-nanos (:wat::time::now)) t0-ns) 1000000)]
     (:wat::kernel::assertion-failed!
       (:wat::string::interpolate
-        "bracket collect-loop: GaveUp waited-ms={w} last={l} (wall-clock bound {b} ms; could not distinguish death from garbling)"
+        "bracket collect-loop: GaveUp waited-ms={w} last={l} (wall-clock bound {b} ms; per-item causes are not carried — the surface has no slot)"
         :w waited :l last :b budget-ms)
       :wat::core::None :wat::core::None)))
 
@@ -827,17 +832,36 @@
                       (:wat::kernel::Failure/message cause))
                     (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
                       holding1 alive' pending' t0-ns budget-ms))))
-        ;; POLL-ONLY variant of a too-wide ServiceEvent. `select` (this verb) does not
-        ;; construct Malformed; it folds garbled into Lost. Panic is the only honest
-        ;; arm until a narrower pool-select event type exists. Not "local IPC cannot."
-        ((:wat::spawn::ServiceEvent::Malformed idx cause)
-          (:wat::kernel::assertion-failed!
-            (:wat::string::interpolate
-              "bracket collect-loop: runner {idx} sent an undecodable result {held}: {cause}"
-              :idx idx
-              :held (:wat::bracket::holding-phrase holding1 idx)
-              :cause (:wat::kernel::Failure/message cause))
-            :wat::core::None :wat::core::None))
+        ;; ⭐ RETRY — the runner is ALIVE and its result was unreadable.
+        ;;
+        ;; ⛔ THIS ARM WAS A PANIC UNTIL 2026-09-19, AND THE COMMENT THAT STOOD HERE IS NOW FALSE.
+        ;; It read "`select` (this verb) does not construct Malformed; it folds garbled into Lost."
+        ;; True until `one-selectable-set-primitive` unified the classification door
+        ;; (`classify_trusted_wire_recv`): `select` NOW constructs Malformed on a decode failure,
+        ;; where it previously produced Lost. That reclassification moved a garbled frame OUT of
+        ;; the Closed/Lost re-dispatch arms and INTO this panic — a fault that survived an hour
+        ;; earlier began killing the whole run. This restores the recovery.
+        ;;
+        ;; ⚠ AND IT IS NOT THE SAME ACT AS Closed/Lost, in one way that matters: the peer is still
+        ;; THERE. It finished the work and sent; only the frame was unreadable. So the item is
+        ;; re-queued and the runner is marked idle (`holding-set … -1`, exactly as the Message arm
+        ;; does after a delivery) and STAYS IN `alive`. Removing it would discard a healthy worker.
+        ;;
+        ;; ⚠ The cause is DROPPED, and that is a real cost stated rather than hidden:
+        ;; `collect-loop` returns `(Vector :- [O])` and has no slot for a per-item report. If the
+        ;; fault is deterministic — the work-fn encodes garbage, so every runner reproduces it —
+        ;; the wall-clock bound is the stop, and `collect-gave-up!` names it. An outcome-typed
+        ;; bracket surface is the stone that would let this be reported instead of absorbed.
+        ;;
+        ;; ⚠ The old arm also indexed `holding-phrase holding1 idx` with the SELECT position where
+        ;; Closed/Lost map through `alive` first — a latent off-by-one that was invisible while the
+        ;; arm was unreachable. `orig` is the mapped index.
+        ((:wat::spawn::ServiceEvent::Malformed live-idx _cause)
+          (:wat::core::let
+            [orig (:wat::core::nth alive live-idx)
+             pending' (:wat::bracket::collect-requeue holding1 orig pairs-acc pending1)]
+            (:wat::bracket::collect-loop peers items pairs-acc cursor collected m
+              (:wat::bracket::holding-set holding1 orig -1) alive pending' t0-ns budget-ms)))
         ;; POLL-ONLY (FrameTooLarge on untrusted client). Same too-wide enum.
         ((:wat::spawn::ServiceEvent::Rejected idx cause)
           (:wat::kernel::assertion-failed!

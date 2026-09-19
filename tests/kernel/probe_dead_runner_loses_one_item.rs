@@ -101,3 +101,71 @@ fn dead_runner_fault_fired() {
     // println of a String writes the EDN form, quotes included.
     assert_eq!(stdout.trim(), "\"1,2,3,4\"");
 }
+
+/// ⭐ THE SEAM CONTROL — `Malformed` must RE-DISPATCH, not panic.
+///
+/// ⛔ WHY THIS EXISTS. `one-selectable-set-primitive` unified the classification door, so
+/// `:wat::kernel::select` now builds `ServiceEvent::Malformed` on a decode failure where it
+/// previously built `Lost`. That reclassification moved a garbled frame OUT of the Closed/Lost
+/// re-dispatch arms and INTO a panic — for one commit, a fault that this very file had just made
+/// survivable killed the whole run again. No test caught it; the two stones were graded in the
+/// wrong order. This is the tripwire for that seam.
+///
+/// ⚠ `Malformed` is NOT the same act as Closed/Lost: the peer is still there (it finished and
+/// sent; only the frame was unreadable), so it must be marked idle and KEPT in `alive`. Removing
+/// it would discard a healthy worker.
+#[test]
+fn malformed_requeues_and_keeps_the_runner_alive() {
+    let code = bracket_code();
+    let arm = code
+        .split(":wat::spawn::ServiceEvent::Malformed")
+        .nth(1)
+        .expect("collect-loop has no Malformed arm");
+    // ⛔ BOUND THE WINDOW AT THE NEXT ARM, NOT AT A FIXED SIZE. An 800-char slice spills into the
+    // adjacent `Rejected` arm — which DOES raise — so a fixed window makes the absence assertions
+    // below fail on correct code. Measured: this control reddened on its own first run for exactly
+    // that reason. A PRESENCE assertion tolerates spillover; an ABSENCE assertion does not.
+    // Bound the window at the next ServiceEvent variant path. `arm` starts after the
+    // Malformed head, so the next bare variant path is the next arm. Do not write a
+    // constructor-shaped string literal — no_inlined_edn treats a paren-opener as EDN.
+    let body = match arm.find(":wat::spawn::ServiceEvent::") {
+        Some(end) => &arm[..end],
+        None => arm,
+    };
+    assert!(
+        body.len() > 80 && body.len() < 1200,
+        "Malformed arm sliced to {} bytes — the terminator moved and the window is wrong; \
+         re-derive it before trusting the assertions below",
+        body.len()
+    );
+
+    assert!(
+        // rune:lint(loose-assert) — presence of the re-dispatch helper in the Malformed arm
+        // body. The claim is "this call is here", not a value equality.
+        body.contains("collect-requeue"),
+        "⛔ Malformed no longer re-dispatches. Since the classification unification, `select` \
+         builds Malformed on a decode failure — a garbled frame that panics here kills the whole \
+         bracket run, which is the regression this control exists to catch."
+    );
+    assert!(
+        // rune:lint(loose-assert) — targeted ABSENCE over one arm body: the arm must not raise.
+        !body.contains("assertion-failed!"),
+        "⛔ Malformed raises again. A decode failure means the item's result did not arrive — the \
+         same fact as Closed/Lost — and the work is re-runnable. The wall-clock bound is the stop \
+         for a deterministic encode fault, not a panic on the first one."
+    );
+    assert!(
+        // rune:lint(loose-assert) — targeted ABSENCE: the peer is alive, so it must not be
+        // dropped from the select set the way Closed/Lost drop a dead one.
+        !body.contains("alive-without"),
+        "⛔ Malformed drops the runner from `alive`. The peer is ALIVE — it finished and sent, \
+         only the frame was unreadable. Dropping it discards a healthy worker."
+    );
+    assert!(
+        // rune:lint(loose-assert) — presence: the runner is marked idle so collect-feed-idle can
+        // hand it the re-queued item, exactly as the Message arm does after a delivery.
+        body.contains("holding-set"),
+        "Malformed must mark the runner idle (`holding-set … -1`) or collect-feed-idle will never \
+         hand it the item it just re-queued"
+    );
+}
