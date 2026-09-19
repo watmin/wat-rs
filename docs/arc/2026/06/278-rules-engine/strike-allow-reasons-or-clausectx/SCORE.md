@@ -127,5 +127,6 @@ newly written) or gone (1, `alpha.rs`).
 
 ## Commit
 
-Pending — will commit `src/rete/kernel/fire/mod.rs`, `src/rete/kernel/fire/pass/{alpha,
-filter_after_join, hash_join, round_census}.rs`, and this `SCORE.md` on this green floor.
+`87285b5db` on branch `grok-rete` — "rete: eleven too_many_arguments allows — reasons or ClauseCtx
+(arc 278)". 6 files changed (the 5 touched source files + this `SCORE.md`), 181 insertions(+),
+34 deletions(-).
