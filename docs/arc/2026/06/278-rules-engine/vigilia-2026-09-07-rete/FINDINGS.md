@@ -355,6 +355,9 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 | **2X2 ★★** | excusare | `clause.rs:72-76` | ⭐⭐ **TWO WARDS, ONE RUNE, TWO VERDICTS — the second such split of this cast.** `purgare` rowed this (2P2) as mis-categorised: `trait-contract` on a plain enum field no trait bound mandates. `excusare` — whose entire remit is weighing exemptions — returns **HOLDS**, and gives its ground explicitly: category fit is *"a check another ward can decide"* and therefore outside its remit; its own question is only whether the reason earns the `#[allow(dead_code)]`, and it independently confirmed the reason is TRUE (`acc_form` written once at `clause.rs:354`, never read as this field; fire reads `node_named_ast(node, "acc-form")` in `kernel/arm.rs`). **Both stand as returned.** `vigilia` forbids me re-classifying a child's verdict — so this is a decision for the builder. | 2P2 says mis-categorised · 2X1 says HOLDS | **OPEN — NEEDS A DECISION** · ✅ I VERIFIED both readings | the reason's truth and the category's fit are **separable**, and the two wards each judged a different one. Closed when the builder rules whether a true reason under a wrong category is a defect |
 | **2T1 ★** | struere | `where_tree.rs:271-272` vs `:299` | ⭐ **THE DOC NAMES A DOWNGRADE THE CODE DOES NOT DO.** `walk`'s header: *"The moment the walk takes a wildcard **or a range edge** — a guard, not a proof — everything below it is `maybe`."* The wildcard arm (`:316`) passes `false` — matches. The range arm's `Some(true)` (`:299`) passes **`proven` unchanged**. ⚠ The code is nonetheless SAFE, for a reason the doc never states: the sole caller gates on `proven.contains(&tid) && sink.where_tree.is_pure_cmp(tid)` (`kernel/fire/mod.rs:2284`), and for a pure-cmp id `DimCon` permits one constraint per dim, so a held range edge really does prove its dim. **Half the contract lives in another file.** | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `:299` → `walk(child, …, proven, …)`; `:316` → `walk(wc, …, false, …)`; `:301` (`None`) → `false`. ⛔ **The hazard is a plausible "fix":** forcing `proven=false` on any range edge would match the doc and silently kill the pure-cmp fast path for every range-typed clause — a pessimization no test would redden. Closed by stating the real invariant on `walk` |
 | **2T2 ★★** | struere | `compiled_cond.rs:1567-1614`; doc at `:95-96` and `:1538-1539` | ⭐⭐ **A TEST NAMED `every_op_variant_lands_in_core_or_driver` THAT DOES NOT COVER EVERY OP VARIANT.** `lands()` (`:1550-1565`) is a genuine compiler-enforced exhaustive match over `Op`'s **8** variants and classifies `Bind \| Eval → Driver`. The test drives it from a **hand-typed array of 7** — `Op::Eval` is absent — and then asserts `driver.len() == 1, "driver must be exactly Bind"`. **That assertion passes only because of the omission.** Three sources now disagree: the module doc (`:95-96`, *"Driver = slot population (`Bind` only)"*), the `Lands` doc (`:1538-1539`, same), and `lands()` itself (`Bind \| Eval`). The test freezes the two stale ones. | L2 (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `Op` has 8 variants (`enum Op` at `:102`, bounded read); array lists 7; `:1557` maps `Bind \| Eval → Driver`; `:1608-1612` asserts `driver.len() == 1`. ⛔ **See my note — completing the array REDDENS the test, and the red points at the wrong file.** Closed by deriving `variants` exhaustively and fixing both stale docs |
+| **2I1 ★★** | intueri | `vocabulary.rs:104-105`, `:1845`, `:1846`, `:1853` | ⭐⭐ **FOUR NUMBERS DESCRIBE ONE ARRAY, IN ONE FILE, AND ONLY ONE IS GATED.** `NAMING_RULE_EXCEPTIONS` is claimed as **nine** by the module header, **eleven** by the test's own doc comment, **fourteen** by that test's function NAME one line below it, and **14** by its assertion one line below that. The assertion is the only mechanically enforced one, and it is the true one. ⛔ **The doc comment disagrees with its own test's name TWO LINES AWAY.** | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | `sed -n '104,105p'` → *"Nine rows total"*; `:1845` → *"exactly the eleven rows"*; `:1846` → `fn naming_rule_exceptions_are_exactly_the_documented_fourteen`; `:1853` → `assert_eq!(…len(), 14)`. Closed by deleting both prose numbers in favour of *"count enforced by the gate below"* |
+| **2I2** | intueri | `export.rs:2274` | `import_export`'s doc says *"Its 194 lines are phase COUNT rather than depth."* The body spans `:2278-2535` — **258 lines**. The qualitative claim it supports (9 phases, brace nesting peaks at 3) is still true; only the number rotted, by 64. | **L1** (ward's severity, passed through) | **OPEN** · ✅ I VERIFIED | body end located by brace-match at `:2535`; 2535−2277 = 258. Closed by dropping the number — the point stands without it |
+| **2I3 ★** | intueri | `purity.rs:1811` | ⭐ **A CYCLE DETECTOR WHOSE HEADER CALLS ITSELF PURITY — IN THE FILE WHERE "PURE" IS THE LOAD-BEARING TERM.** `walk_rete_defn_callees`'s first line: *"Walk a rete definition's callees for **purity**, returning the first **impure** one."* It classifies no purity; it is a gray/black DFS cycle detector, called only from `rete_defn_cycle`. ⚠ Two neighbouring comments in the same file say the opposite explicitly — `:1803` *"this walk is a LOAD refusal, not a fifth axis"* and `:1782` *"cycle is a second question (#87 recursion), not a fifth fence axis."* And the doc's OWN second paragraph correctly describes the gray/black colouring. **The header contradicts its own body-description.** | L2 | **OPEN** · ✅ I VERIFIED | `:1811` uses "purity"/"impure"; `:1813-1815` describes cycle-safe colouring; `:1782` and `:1803` both name cycle-≠-purity. Closed by naming the recursion cycle in the first line |
 
 ## Verified by the orchestrator — target 2
 
@@ -467,7 +470,7 @@ flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE 
 
 | target | cast at | wards mustered | returned | still to cast | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **6** — conferre · conformare · purgare · solvere · excusare · struere | intueri · sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **1** | 15 |
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **7** — conferre · conformare · purgare · solvere · excusare · struere · intueri | sequi · temperare · exigere · cernere · probare · perspicere, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | **3** | 16 |
 
 - **2S1 ★** — CONFIRMED, **and it pairs with `conferre` in a way neither ward could see alone.**
   `conferre` read these exact two bodies this cast (its claim #3) and adjudicated them **TRUE — no
@@ -612,3 +615,49 @@ hits (`export.rs:1985,1997`) are same-map lookups where the key was just collect
 It also traced ~30 `-> bool` classifiers to their callers hunting the `ClassPlan::observe` shape it
 found on target 1 — **none found.** Two of its target-1 signature defects are simply absent here,
 and it said so with the method. That is the answer to *"prove the others don't find anything."*
+
+- **2I1 ★★** — CONFIRMED, all four. This is target 1's *"five counts of one population"* recurring —
+  but **worse, and in a way that is worse for a precise reason.** There the five figures lived in
+  five different wards' reports and no finding turned on any of them. Here **four figures describe
+  one array inside one file**, three of them are prose and one is a gate — and the prose numbers
+  rotted at *different rates*, so they do not even agree with each other. The failure is visible in
+  two adjacent lines: `:1845`'s doc comment says *"eleven"* while `:1846`'s function name says
+  *"fourteen"*.
+  ⭐ **And the gated number is the right one** — `assert_eq!(…len(), 14)` passes on the green floor,
+  so the array really has 14. That is the lesson in miniature: **the figure that recomputes is
+  correct; every figure a human retyped rotted.** `[[a-right-number-vouches-for-a-wrong-label]]` —
+  here the right number vouches for three wrong ones sitting above it.
+
+- **2I2** — CONFIRMED. `:2274` claims 194; the body runs `:2278-2535` = **258**. Note what did NOT
+  rot: the claim it *supports* — nine phases, brace nesting peaking at 3 — is still accurate. Only
+  the number moved. A qualitative claim outlived the quantitative one propping it up.
+
+- **2I3 ★** — CONFIRMED, and the internal contradiction is the sharp part. `walk_rete_defn_callees`'s
+  **first line** says purity; its **own next paragraph** correctly describes gray/black cycle
+  colouring; and two other comments in the same file (`:1782`, `:1803`) explicitly rule that cycle
+  detection is *"a second question (#87 recursion), not a fifth fence axis."* So the file as a whole
+  knows the distinction and states it twice — one header reached for the wrong noun anyway. In
+  `purity.rs`, where `pure?` is a precisely-scoped axis term, that misdirects a reader to the wrong
+  bug class.
+
+⭐⭐ **TWO WARDS LANDED ON THE SAME SITE THROUGH DIFFERENT LENSES — AGAIN.** `intueri`'s fourth
+finding is `compiled_cond.rs`'s `every_op_variant_lands_in_core_or_driver`, already rowed as **2T2**
+by `struere`. **I have NOT double-rowed it**; I record the second reading here because the two are
+complementary and neither is the other:
+· `struere` (craft): the fixture is a hand-typed array of 7 against an 8-variant enum, so the
+  assertion is vacuous — and completing it reddens the test against the *live* classifier.
+· `intueri` (communication): the assertion's **message text** — *"driver must be exactly Bind"* —
+  contradicts `lands()`'s own doc **two lines above it**, which says `Eval` is `Bind`'s sibling and
+  lands identically. The message overclaims a coverage the test does not have.
+One ward found the hole; the other found that the hole is *narrated* as a guarantee. This is the
+third such convergence of the vigilia (after I1/T5 and N1/F2 on target 1), and every one has come
+from casting the full guard rather than a chosen roster.
+
+⚠ **`intueri` also disclosed a process failure inside its own cast, unprompted**: one of its three
+forks *"mistook itself for a coordinator and briefly delegated out of scope"*, and the ward
+disregarded that side work, using only the fork's own direct findings — which it then re-derived
+against the live file itself before reporting. **A ward that reports its own contamination and says
+what it discarded is a ward whose clean findings are worth more**, not less.
+
+⭐ It also re-derived the handed line count and reported **delta 0** — the first of my measurements
+this cast to survive a re-derivation intact.
