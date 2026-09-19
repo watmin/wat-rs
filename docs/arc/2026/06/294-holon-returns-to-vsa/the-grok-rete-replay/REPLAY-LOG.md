@@ -3451,3 +3451,139 @@ orphan readers left behind by either the deletion (#455) or the two renames that
 before/after census (#444, #459). One self-caught, immediately-killed process irregularity
 (finding 2, disclosed above and in SCORE-7p's Yield section) — no result was ever based on it. See
 `SCORE-7p-replay-batch-4p.md` for the full row-by-row account against all 20 rows.
+
+# REPLAY-LOG — grok-rete #461–#480 onto `replay/grok-rete` (BRIEF-7q, batch 4q)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` (git show only). **Not pushed.** Main
+untouched. Start tip `bca6203b9` (batch 4p CLOSED, 4q censused). 20 REPLAY commits, #461–#480,
+contiguous. `verify-step-record.sh bca6203b9 HEAD 461 480` → `step-range: #461..#480 each present
+exactly once, sources match` + `step-record: complete`, exit 0.
+
+## Batch 4q — #461→#480 (SCORE-7q-replay-batch-4q.md)
+
+Twelve docs-only steps (#461 #462 #464 #466 #468 #469 #471 #473 #475 #476 #479 #480); eight code
+steps. Governed by the #472 ruling (4-YES, 2026-09-18, option B): this tree's own 4i strike
+(`4d5287a53`, 2026-09-16) cured `token_bindings_representation_dominance` before grok's #472
+reached the same conclusion by `#[ignore]`ing the test outright.
+
+## #461 — docs-only, 1 file (note(109): park the TestSummary defect — arc 109 relocation, a rename
+git detected as a move).
+
+## #462 — docs-only, 3 files (strike: draw census K/L).
+
+## #463 — LANDED (docs(rete): census K/L — two census.rs claims now say what the code does).
+Clean auto-merge, 2 files (1 `.rs`), doc-comment-only. No finding-33-class hit.
+
+## #464 — docs-only, 3 files (strike: draw census M).
+
+## #465 — LANDED (fix(rete): census M — a bench replica could write a production census key).
+Clean auto-merge, 3 files (2 `.rs`). **NEW GATE**: `tests/lint/kernel_tests_census_count_is_bench_
+scoped.rs`, empty exemption list. Both `census_count("filter:test-reuse")` sites in
+`node_share_cost.rs` converted to `bench:filter-reuse`, exactly the two sites predicted. Gate run:
+6/6 passed. `+6 #[test]` — the batch's first registered-count movement (5877→5883 skipped on the
+nested-program-gate instrument).
+
+## #466 — docs-only, 3 files (strike: draw the combinator-inner measurement).
+
+## #467 — LANDED (docs(rete): the combinator-inner rune's premise measured — it holds). Clean
+auto-merge, 2 files (1 `.rs`), two comment lines in `fire/mod.rs`. No finding-33-class hit.
+
+## #468 — docs-only, 1 file (note(109): Value's Hash has two functions selected by a flag).
+
+## #469 — docs-only, 3 files (strike: draw A4 — the fixpoint's dedup set).
+
+## #470 — LANDED (refactor(rete): A4 — the fixpoint's dedup set has one door). Clean auto-merge, 9
+files (8 `.rs`) — the batch's heaviest step. `SeenSet { ids, rest }` replaces the two-handle
+`seen_ids`/`seen_rest` threading across `delta.rs`, `fire/pass/{alpha,mod,production,
+round_census}.rs` and three cost-test files. No `debug_assert` shipped (STOP-2 honored — a
+hot-path hash to prove absence, paid only to make a test green, was rejected). One stale engine
+label (`delta::seen_insert` → `delta::SeenSet::insert` in `gather_probe_cost.rs`) — already
+grok's own fix, verified via `rete_engine_label_names_its_evidence`/`rete_citation_resolves`
+(33/33). `token_bindings_representation_dominance` re-verified standalone: 1/1 passed, still
+active (not `#[ignore]`d) on this tree.
+
+## #471 — docs-only, 3 files (strike: draw the timing-diagnostic rune; mint the excusare
+vocabulary).
+
+## #472 — LANDED, WITH THE RULING APPLIED (test(rete): rune the three timing diagnostics; mint and
+gate excusare's vocabulary). Real `CONFLICT (content)` in `binding_repr_bench.rs` at
+`token_bindings_representation_dominance`'s body, exactly where the ruling predicted: grok's hunk
+deletes the small-end GET assertion this tree's 4i strike left standing, and adds
+`#[ignore = "rune:excusare(below-resolution) …"]`. Resolved per the ruling: `docs/CONVENTIONS.md`
+and `tests/lint/no_unknown_ward_rune.rs` landed in full (byte-identical to grok's hunk); the two
+OTHER `#[ignore]` re-wordings (`binding_key_cost`, `binding_repr_microbench`) landed; the new
+ignore on the dominance fn did NOT land, replaced by an inline record block naming the 4i strike,
+the absent premise, and grok's own #498 (`bb306bd3c`) deletion of the fn at its own tip.
+`no_unknown_ward_rune`/`every_ward_rune_names_a_known_category`: 9/9 passed. Dominance fn re-run:
+1/1 passed, still active.
+
+## #473 — docs-only, 3 files (strike: draw the last A1 remnant).
+
+## #474 — LANDED (fix(rete): the first-keying door refuses a second keying — A1's last remnant).
+Clean auto-merge, 2 files (1 `.rs`). `debug_assert` added to `key_and_index`'s FIRST-keying door;
+new `#[cfg(all(test, debug_assertions))]` `#[should_panic]` test carrying
+`rune:excusare(no-falsifier)` (vocabulary already minted at #472). ⚠ **MEASURED DEVIATION FROM THE
+BRIEF (finding 37's class)**: EXPECTATIONS predicted `+1 #[test]` here; measured directly on the
+RELEASE floor, the delta is `+0` — the new fn is compiled out of the release test binary entirely
+(no `debug-assertions` override in `[profile.release]`), confirmed by `kind(lib)` staying at 1515
+(not 1516) and by `cargo nextest run --release -E 'test(second_key_and_index_on_one_join_panics)'`
+returning "0 tests run".
+
+## #475 — docs-only, 3 files (strike: draw conferre L2-2).
+
+## #476 — docs-only, 3 files (strike: the vocabulary was accepted, raised the bar past two runes).
+
+## #477 — LANDED, WITH THE RULING'S ECHO APPLIED (docs(rete): the excusare vocabulary was
+accepted — and two runes had to earn it). `docs/CONVENTIONS.md` landed in full (the
+below-resolution/no-falsifier bar-raise, the new "rune is void where another ward owns the
+finding" paragraph). Conflict in `binding_repr_bench.rs` again, at the same site: grok re-words
+the SAME removed ignore on the dominance fn — dropped per the ruling's own instruction ("skip the
+matching re-wording of that removed string"); `binding_repr_microbench`'s OTHER re-wording (the
+no-falsifier rune, naming the two attempts tried) landed normally. Noted for the record:
+`docs/CONVENTIONS.md`'s below-resolution table example still cites the dominance fn by name
+(byte-identical to grok's own doc hunk) though this tree's copy no longer carries that rune —
+prose in a general table, not a per-repo state claim, landed as-is and flagged.
+
+## #478 — LANDED (fix(rete): `insert` reports `insert` — conferre L2-2). Clean auto-merge, 4 files
+(1 new `.wat`, 2 `.rs`, 1 SCORE.md). `insert.rs` threads `op: &'static str` from each entry instead
+of hardcoding `":wat::rete::insert-all"` inside `insert_facts_on_session`. ⚠⚠
+**FINDING-33-ADJACENT**: the new `tests/rete/probe_arc278_insert_reports_the_verb.wat` fixture, as
+grok wrote it, failed `--check` with 5 retired-form errors (positional `assertion-failed!`, two
+`(pattern body)` match arms, two `:wat::core::i64::+`) — this tree's syntax moved on since grok's
+era and the file is brand new, never touched by a prior corpus codemod. Not hand-edited: dry-run
+verified first (`assertion-failed-to-kwargs.wat` alone, `/tmp` copy, diffed), then
+`scripts/replay/convert.sh e95b5ba33 <out-dir> tests/rete/probe_arc278_insert_reports_the_verb.wat`
+ran the full recorded chain (the file's own introducing commit as the source rev, matching the
+`#438`/batch-4o precedent for retired-era syntax on a non-corpus-migration site). Diff against the
+pre-image: exactly 3 lines, all mechanical. `--check` rc=0 after; both new tests
+(`insert_reports_insert`, `insert_all_reports_insert_all`) pass; the two loader gates
+(`every_tracked_wat_file_parses`, `every_docs_wat_loads_or_declares_why_not`) both green. `+2
+#[test]` (5883→5885 skipped on the nested-program-gate instrument).
+
+⛔⛔ ONE SELF-CAUGHT RECORD-FORMAT DEFECT, repaired pre-yield. The first version of #478's commit
+body wrapped its `census:` verdict onto a second physical line — `verify-step-record.sh`'s pattern
+`census: .*--diff no STOP-8` cannot match across a newline (finding 38's class, the exact trap the
+brief named). Caught by this executor's own pre-yield run of the gate, not by the orchestrator.
+Repaired via detach/re-commit/rebuild-descendants (never `git replace`, never `filter-branch`,
+nothing pushed at any point): detached at the old #478, amended the message onto one line (tree
+hash verified byte-identical before/after via `md5sum` of both trees), cherry-picked #479 and #480
+forward onto the fixed #478 (both trees verified byte-identical to their pre-fold versions), moved
+the branch pointer, deleted the local, un-pushed, superseded safety-net ref. Re-verified:
+`verify-step-record.sh bca6203b9 HEAD 461 480` → exit 0.
+
+## #479 — docs-only, 2 files (curare: stamp the census-complete breadcrumb; one file auto-merged
+by git, no conflict).
+
+## #480 — docs-only, 3 files (curare(rete): nine OPEN rows collapse to one home — batch finale).
+
+**Disposition: COMPLETE.** All 20 steps (#461–#480) landed, tree clean at
+`a948e15c2` (`REPLAY(grok-rete #480)`), not pushed. `origin/replay/grok-rete` (`9b83b4899`)
+remains the published tip (the BRIEF/EXPECTATIONS commit), an ancestor of HEAD throughout. No
+mid-batch STOP. The #472 ruling landed exactly as specified, at both its own step and its #477
+echo. One finding-33-adjacent defect (#478's new `.wat` fixture, retired-era syntax) found and
+cured via the recorded codemod chain. One measured correction to the brief's own test-count
+forecast (#474's `#[cfg(debug_assertions)]` test is invisible to the release floor — actual delta
+`+8`, not `+9`; predicted final floor **5864 run, 24 skipped**, one less than the orchestrator's
+stated 5865). One self-caught record-format defect (a wrapped `census:` verdict line at #478),
+repaired pre-yield, never published. See `SCORE-7q-replay-batch-4q.md` for the full row-by-row
+account against all 20 rows (E1–E20).
