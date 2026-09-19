@@ -4044,3 +4044,105 @@ published tip, an ancestor of HEAD throughout. No mid-batch STOP; no test ever w
 `.wat`, zero `.sh`, zero hazard rows, zero new gates, zero test-count delta (no `.rs` file touched
 anywhere in the range) — predicted **5872 run, 22 skipped, unchanged**, structurally impossible to
 move. See `SCORE-7u-replay-batch-4u.md` for the full row-by-row account against all rows (E1–E14).
+
+# REPLAY-LOG — grok-rete #561–#580 onto `replay/grok-rete` (BRIEF-7v, batch 4v)
+
+Anchor `/home/john/work/holon/wat-rs`, branch `replay/grok-rete`; `/home/john/work/holon/` FROZEN,
+untouched. Start tip `a55a292e0` (batch 4u CLOSED, 4v briefed at `fbf25be78`). 20 REPLAY commits,
+#561–#580, 18 docs-only + 2 code steps (#565, #576), range 62 `.md` + 3 `.rs` +
+2 `.sh` + 1 `.wat` (touch-sums), matching the brief exactly.
+
+## #561 — docs-only, 1 file (vigilia(rete): measure target 4 and derive its muster — the tracker was
+off by 42 files). Clean cherry-pick.
+
+## #562 — docs-only, 4 files, SHARED-DOC TOUCH 1/9 (vigilia(rete): target 4 opens — excusare weighs
+81 exemptions, 80 hold). Clean auto-merge: main's PARKED annotation untouched, grok's text landed in
+full below it, zero conflict markers, diff-vs-grok's-blob limited to exactly the annotation block.
+
+## #563 — docs-only, 4 files, SHARED-DOC TOUCH 2/9 (vigilia(rete): complectens answers the 257-file
+question with a proof, and finds a test that cannot reach what it names). Clean auto-merge, verified
+the same way as #562.
+
+## #564 — docs-only, 5 files, SHARED-DOC TOUCH 3/9 (vigilia(rete): vocare + perspicere — and a CLASS
+four wards each saw one corner of). Clean auto-merge, verified the same way.
+
+## #565 — 6 files (5 docs, 1 new `.sh`), SHARED-DOC TOUCH 4/9 (vigilia(rete): peragrare + purgare —
+a gate whose self-clearing branch never fired, and 143/144 fixtures alive). Adds
+`tests/lint/peragrare-bad-census.sh`, a standalone census instrument — measured, no `.rs` drives it,
+gates nothing on this floor. Finding-33 sweep: one hit at line 225, a synthetic self-test fixture
+embedding the pre-rename spelling `(:wat::core::i64::+ 1 2)`; verified inert (the checker's own
+retirement diagnostic still errors, matching the probe's own expectation) and left unedited.
+
+## #566 — docs-only, 5 files, SHARED-DOC TOUCH 5/9 (vigilia(rete): secare corrects my
+process-structure ruling — and its finding survives sharper). Clean auto-merge, verified the same
+way.
+
+## #567 — docs-only, 5 files, SHARED-DOC TOUCH 6/9 (vigilia(rete): cernere reads the right forms and
+invents their addresses — the inverse error). Clean auto-merge, verified the same way.
+
+## #568 — docs-only, 5 files, SHARED-DOC TOUCH 7/9 (vigilia(rete): the codebase wrote down why the
+abstraction must exist, then duplicated it 20 times). Clean auto-merge, verified the same way.
+
+## #569 — docs-only, 2 files, SHARED-DOC TOUCH 8/9 (curare: stamp the wall — three targets closed,
+the fourth 12 wards in). Clean auto-merge (larger stamp rewrite, still no line overlap with main's
+annotation), verified the same way.
+
+## #570 — docs-only, 1 file, SHARED-DOC TOUCH 9/9, the last (recolligere: the stamp headline was
+stale AGAIN — on the line under its own warning). Clean auto-merge, verified the same way as the
+prior eight.
+
+## #571 — docs-only, 3 files (vigilia(rete): struere finds the positional triple — and checking its
+"byte-identical" found the sharper one). Clean cherry-pick, no shared-doc touch.
+
+## #572 — docs-only, 3 files (vigilia(rete): sequi refutes my question — and the counter the
+convention calls harmless decides five tests). Clean cherry-pick.
+
+## #573 — docs-only, 4 files (vigilia(rete): a gate that tells every future reader to expect a red —
+in a repo whose doctrine forbids it). Clean cherry-pick.
+
+## #574 — docs-only, 1 file (vigilia(rete): a "structural proof" this cast accepted sixteen wards ago
+is the exact inversion of the truth). Clean cherry-pick.
+
+## #575 — docs-only, 3 files (vigilia(rete): CLOSED — one test got the budget, nine siblings running
+the same primitive did not). Clean cherry-pick. Target 4 closes.
+
+## #576 — ⚠ the batch's one real code step, 6 files (fix(rete): the three "builder decisions" were
+three missing measurements — all cured). Touches three files already diverged here — `clause.rs`,
+`eval_test.rs`, `fire.wat` — all three composed as CLEAN auto-merges, zero conflict markers, verified
+by delta-vs-delta (finding 36): grok's own hunk against grok's pre/post-image is content-identical to
+our hunk against our pre/post-image, for all three, despite each file carrying substantial unrelated
+local content grok's pre-image lacks. `wat/rete/oracle/fire.wat`'s edit confirmed 3 comment lines, 0
+code (no STOP). `tests/lint/no_unknown_ward_rune.rs` was byte-identical to grok's pre-image; the
+`"shape-contract"` addition landed as a clean 1-line insert, and the gate ran green (9/9, N > 0,
+including the mutation-proof test) despite this tree's own unrelated excusare-rune divergence. Full
+record line landed: `census:` + `nested-program-gate: PASS` + `lint-subset: 327 passed` +
+`kind(lib): 1522 passed` + `doctest: 8 passed`, all unchanged from #537's own last-measured figures.
+
+## #577 — docs-only, 3 files (strike: draw the lower-depth shield — 2W1's cure is refuted, the
+dependency is the defect). Clean cherry-pick, new BRIEF/DESIGN/EXPECTATIONS trio.
+
+## #578 — docs-only, 3 files (strike: draw the rete-cohort budget — nine tests, one measured sibling,
+no numbers of their own). Clean cherry-pick, second new BRIEF/DESIGN/EXPECTATIONS trio.
+
+## #579 — docs-only, 1 file (strike(redraw): STOP-2 was right — the quote door hands lower an
+unbounded tree, and it aborts). Clean cherry-pick, DESIGN.md redraw.
+
+## #580 — docs-only, 3 files, the last (strike(brief v2): thread one shared depth budget through
+LowerCx, close the quote door). Clean cherry-pick, adds SCORE.md, closes the lower-depth-shield
+strike.
+
+⛔ ZERO SELF-CAUGHT DEFECTS, ZERO REPAIR COMMITS, ZERO TEXTUAL MERGE CONFLICTS THIS BATCH. Every
+subject and trailer was built by piping `git log -1 --format=%s <C>` and `git rev-parse <C>` into the
+commit heredoc, never retyped, and verified two-sided immediately after each commit (20/20, see
+`SCORE-7v-replay-batch-4v.md`'s table). The one real task the brief flagged — #576's three
+already-diverged files and the rune-vocabulary addition — landed as three CLEAN AUTO-MERGES and one
+green gate run, verified by delta-vs-delta rather than a blob comparison (finding 36), because a
+blob comparison would have failed all three on this tree's own unrelated prior divergence.
+
+**Disposition: COMPLETE.** All 20 steps (#561–#580) landed, tree clean at `0f78ea1e2`
+(`REPLAY(grok-rete #580)`), not pushed. `origin/replay/grok-rete` (`fbf25be78`) remains the published
+tip, an ancestor of HEAD throughout. No mid-batch STOP; no test ever went red; no `mcp__pulsare__*`
+tool called. The vocabulary gate (`no_unknown_ward_rune`) green at #576 and the tip (9/9, N > 0).
+`lint-subset` (327), `kind(lib)` (1522) and `doctest` (8) all unchanged from #537. Zero
+`#[test]`/`#[ignore]` delta anywhere in the range — predicted **5872 run, 22 skipped, unchanged**.
+See `SCORE-7v-replay-batch-4v.md` for the full row-by-row account against all rows (E1–E16).
