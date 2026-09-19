@@ -21,58 +21,73 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `b5777affb` (batch 4y's records, pushed). **640 of 651 replayed. ELEVEN
-STEPS REMAIN — batch 4z (#641–#651) is the LAST.** In flight: nothing.
+Stamp: written on top of `bc50f4690`. ⭐⭐ **THE REPLAY IS COMPLETE: 651 of 651, GREEN, PUSHED.**
+In flight: nothing. **No batch remains.**
 
-**Batch 4y (#621–#640) is CLOSED and PUSHED.** Floor **5908/5908, 22 skipped**, clippy 0, census
-`no STOP-8`, 20/20 subjects and trailers. It took a genuine mid-batch STOP and two folds.
-★ **THE THREE OUT-OF-SCOPE COMPILE FAILURES WERE RULED (4-YES) AND LANDED.** The two `then-match-*`
-probes were DELETED — they probe `match` in a `:then`, which our fence refuses by `250162a0e` under the
-builder's **#324** ruling, and **grok's own #638 deletes two siblings from that same directory**; the
-finding is already pinned by `tests/rete/probe_then_match_is_refused.wat`. `277-width-fixpoint-probe.wat`
-was **RELOCATED, not deleted or repaired**: it is main-only and **already harvested** —
-`NOTE-width-is-a-fact-not-a-rule.md` records *"rete CANNOT derive width"* and cites that exact path,
-**so its refusal IS the result**. Repairing it to compile would erase the finding. It now lives under
-`docs/arc/2026/06/277-wat-lint-fix-fmt/probes/`, and the executor MEASURED that the docs gate needs no
-rune rather than assuming one.
-★ **#638's zero-exemption compile gate is live and carries ZERO exemptions.** (My own "6 runes" reading
-was wrong: 4 belong to the main-only `one_variant_separator` gate, 1 to the inlined-wat gate, and 1 is
-the gate's own code reading OTHER files' runes inside a string literal.)
+**Batch 4z (#641–#651) is CLOSED and PUSHED** — the last eleven. Floor **5918/5918, 22 skipped**,
+clippy 0, census `no STOP-8`.
 
-⛔⛔ **THE #438 CLASS RECURRED AND MY WARNING HAD EVAPORATED.** #627's new codemod landed unfixtured and
-reddened `every_recorded_migration_is_fixtured_or_runed` — byte-for-byte batch 4o's red. **At 4o I wrote
-"expect this for every future migration grok lands" INTO THIS ROTATING HEADER, which is replaced
-wholesale every batch.** It was gone by 4p. ⛔ **A DURABLE WARNING BELONGS IN THE LEDGER ROW OR
-`FINDINGS-composition.md`, NEVER IN THE PART THAT ROTATES.** Folded into #627 with a join-case fixture;
-the executor then measured that the tool's output shifts at **#628** (a whitespace trim), not #630 as I
-guessed, and gave #628 its own legitimate fixture update.
+## ⭐ COMPLETION — what was verified, and how
 
-⛔⛔ **MY INSTRUMENTS COUNT CODE-SHAPED TEXT AS CODE — SIX VARIANTS THIS CAMPAIGN.** Comments (7 ignores
-where 2 exist) · prose (#598's phantom `#[allow]` deletion) · string literals (#613's `#[test]` inside a
-fixture string) · **macro-expanded tests (#638: literal 8, registered 23 — a `shards!` pattern I had
-MEASURED CORRECTLY AT 4k and did not check for)** · another gate's runes · hunk headers and a malformed
-regex. **THE CURE: ask the tool that OWNS the fact.** Test counts → `cargo nextest list`. Deltas →
-`git diff` with `index` AND `@@` stripped. Never hand-roll a pattern for a structural fact.
+- **651 REPLAY commits**, #1 → #651, each carrying grok's own subject verbatim and a
+  `(cherry picked from commit …)` trailer.
+- ⭐ **ALL 651 TRAILERS VERIFIED TWO-SIDED IN ONE SWEEP: 0 mismatches.** Every commit cites the source
+  commit the plan assigns it.
+- ⭐ **#651 cites grok's TIP** `37528f6e0f7001d4e995ef666d97f6ccf00c47e6` — the replay reaches the end of
+  the branch, not merely 651 commits.
+- ⭐ **The record gate passes `#153 → #651` in ONE run — 499 consecutive steps**, exit 0, zero
+  MISSING-STEP, zero WRONG-SOURCE. ⚠ It does **not** pass from #1: the five-verbatim-line record
+  convention **did not exist before #153** (batch 3's own ledger row says so — *"makes the record
+  checkable (five verbatim lines from #153)"*). The executor disclosed this rather than re-litigating
+  ~150 closed batches against a gate that postdates them, and the #153 run corroborates the explanation
+  exactly.
+- ⭐ **END CROSS-CHECK vs grok's tip:** **ZERO files grok has that this tree lacks** across `src/rete`
+  and `wat/rete` — no landing gap. **49 files carry content deltas**, which is main's own rete work plus
+  the four documented divergences. ⚠ **A full per-file attribution of those 49 has NOT been done** — it
+  is the honest next piece of work, not a claim to make now.
+- **836 commits since main**: 651 REPLAY + 185 orchestrator/record commits. `main` is still an ancestor.
+- ⚠ `merge/grok-rete` (`102fe3afd`) differs from this tree in 1111 files. **That is the intended
+  outcome** — it is the first, REJECTED whole merge, rejected precisely because it dropped main's hand
+  content. Differing from it is not a finding.
 
-Next is **batch 4z (#641–#651) — THE LAST ELEVEN STEPS.** Censused: **7 docs-only, 4 code (#644 #646
-#647 #651)**; **19 `.md` + 7 `.rs` + 6 `.wat` + 4 `.wat.bad`**; **+10 tests** (7 at #644, 3 at #651),
-**no macro expansion** (checked), zero hazard rows, zero `wat/` paths, zero new gates. Floor prediction
-**5918 run / 22 skipped**. ⭐ **#651 IS GROK'S TIP** (`37528f6e0`).
+## ⭐ THE FOUR DELIBERATE DIVERGENCES, all builder-ruled or 4-YES
 
-⚠ **TWO `wat-scripts/` FILES NEED CONVERSION, AND ONE MEETS THE NEW COMPILE GATE:**
-- **#646 `scratch-pad/arc278-acc-count-unused-bind/probe-acc-count-unused-bind.wat`** — `--check` **101**
-  (retired syntax), and it **declares 2 `defrule` + 2 `defquery`**, so after conversion it must also
-  satisfy **#638's zero-exemption compile gate**, which is now live. ⚠ Note #646 lands a FINDING that
-  **#648 WITHDRAWS** ("Clara agrees") — land both as grok wrote them.
-- **#651 `scratch-pad/arc278-fence-binder-shadow/census-fence-binders.wat`** — `--check` **1**, but it
-  **declares no rules**, so the compile gate skips it; the loader gate still walks it.
-- Retired forms across the range's `.wat`: **5 positional `assertion-failed!`, 2
-  `:wat::core::PersistentMap/get`, 1 `:wat::core::i64::-`** — finding 33's **seventh** consecutive
-  code-bearing batch. Cure with `scripts/replay/convert.sh`, never by hand.
+1. **#324 — the `:then`-match fence.** Main's `250162a0e` refuses `:wat::rete::core::match` in a `:then`;
+   grok's tests need it. **Ruled option A, 4-YES**: our fence stands, grok's two tests inverted to assert
+   refusal, `wat/rete/compile.wat` untouched.
+2. **#388 — `--check` is a UNIT checker here.** Grok's cure made it demand `:user::main`, flipping 1052
+   of 2165 tracked `.wat` to rc 1 (27 under `wat/`) while the floor stayed green. Kept the
+   `RLIMIT_STACK` hoist verbatim; narrowed the entry-point check to a DECLARED `:user::main`.
+3. **#472/#498 — the kept assertion.** Grok `#[ignore]`s then deletes
+   `token_bindings_representation_dominance`; this tree cured it at the 4i strike and **keeps it running
+   on the floor** (non-vacuity + one ordering assertion, margin 4.53–10.15x).
+4. **#638's three out-of-scope compile failures.** Two `then-match-*` probes DELETED (grok deletes two
+   siblings from that same directory; the finding is pinned by main's own test);
+   `277-width-fixpoint-probe.wat` **RELOCATED, not repaired** — it is already harvested, and its refusal
+   IS the recorded result.
 
-⭐ **AFTER #651 THE REPLAY IS COMPLETE.** `merge/grok-rete` (`102fe3afd`) is the REFERENCE — the first,
-rejected whole-merge — kept for **the end cross-check**. That comparison, and the close-out, are the
-orchestrator's work after 4z lands.
+## ⛔ WHAT THE CAMPAIGN TAUGHT — the durable part
+
+- ⛔ **EVERY FUTURE GROK CODEMOD REDS `every_recorded_migration_is_fixtured_or_runed` UNTIL GIVEN A
+  REPLAY FIXTURE.** Two instances (#438, #627). **This lives in the LEDGER, not a rotating header** —
+  the 4o warning was written into the header and was gone by 4p, and the class recurred unwarned.
+- ⛔ **MY INSTRUMENTS COUNT CODE-SHAPED TEXT AS CODE — six variants**: comments · prose · string literals
+  · macro-expanded tests (`shards!`: literal 8, registered 23) · another gate's runes · hunk headers.
+  **THE CURE: ask the tool that OWNS the fact.** `cargo nextest list` for test counts; `git diff` with
+  `index` AND `@@` stripped for deltas. **Never hand-roll a pattern for a structural fact.**
+- ⛔ **A UNIFORM FAILURE ACROSS AN ENTIRE CORPUS IS AN INSTRUMENT DEFECT UNTIL PROVEN OTHERWISE.** Grok's
+  own census reported `0 of 176` here; the truth was 163 compiling. Prove an instrument on a known
+  positive AND a known negative before believing its number.
+- **Executors corrected the orchestrator's floor prediction four times and were right every time.** The
+  brief's standing clause — *"if this brief contradicts grok's diff or the runner, they win"* — is what
+  made that safe to say out loud.
+
+## ⭐ WHAT REMAINS (orchestrator/builder work, not a replay batch)
+
+1. **Attribute the 49 rete content deltas** against grok's tip — each to main's own work or to a named
+   ruling. The one claim this stamp deliberately does NOT make.
+2. **The merge to `main`** — the replay branch is green and complete; landing it is the builder's call.
+3. `merge/grok-rete` can be retired once (1) is done; it has served as the crib.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -131,7 +146,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4w #581–#600 (CLOSED; floor 5877/5877, clippy 0, pushed)
                               + batch 4x #601–#620 (CLOSED; floor 5882/5882, clippy 0, pushed)
                               + batch 4y #621–#640 (CLOSED; floor 5908/5908, clippy 0, pushed)
-                              ⇒ 640 of 651 replayed. NEXT: batch 4z #641–#651 — THE LAST ELEVEN.
+                              + batch 4z #641–#651 (CLOSED; floor 5918/5918, clippy 0, pushed)
+                              ⇒ ⭐ 651 of 651 replayed. THE REPLAY IS COMPLETE.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -188,6 +204,18 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4z #641–#651 is CLOSED and PUSHED — THE FINAL BATCH** (records at `bc50f4690`; SCORE-7z,
+  REPLAY-LOG). 11 steps, 7 docs-only. Floor **5918/5918, 22 skipped**, clippy 0, census `no STOP-8`.
+  ★ **Both `wat-scripts/` files cured by the chain**, and #646's probe — 2 `defrule` + 2 `defquery` —
+  **passed #638's zero-exemption compile gate with zero runes and zero deletions**.
+  ★ **#646's finding, #647's self-correction and #648's withdrawal all landed unsoftened, in order.**
+  ★ **The test count came from the RUNNER** (`cargo nextest list --message-format json`, `filter-match`
+  accounting), not a `#[test]` grep — and matched the prediction exactly.
+  ⚠ **Three main-only gate reds, none named in advance**, all repaired before their own commits. The
+  best of them: `no_inlined_edn`'s placeholder-stripper mis-split an adjacent `{{…}}` pair; the executor
+  reproduced the exact `MalformedBraceLiteral` in a throwaway test and **RESTRUCTURED the code** so the
+  gate's concern no longer applied, emitting byte-identical wat — rather than runing a gate it could
+  have silenced.
 - **Batch 4y #621–#640 is CLOSED and PUSHED** (records at `b5777affb`; SCORE-7y, three ADDENDA,
   REPLAY-LOG). 20 steps, 11 docs-only, 35 `.wat`, an R21 corpus migration and a zero-exemption gate.
   Floor **5908/5908, 22 skipped**, clippy 0, census `no STOP-8`.
