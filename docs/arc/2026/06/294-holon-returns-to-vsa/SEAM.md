@@ -21,41 +21,47 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `000aa79f6` (batch 4p's records, pushed). **460 of 651 replayed. 191 remain.**
+Stamp: written on top of `fda61206e` (batch 4q's records, pushed). **480 of 651 replayed. 171 remain.**
 In flight: nothing.
 
-**Batch 4p (#441–#460) is CLOSED and PUSHED.** Floor **5856/5856, 24 skipped** — the count predicted from
-the diff before running, **twentieth consecutive exact match** — clippy 0, census `no STOP-8`, 20/20
-subjects and trailers verified. The whole phase-census campaign (B, D, E, F, G, H, I) landed with **zero
-orphan readers and zero runes**: every retired or renamed counter's readers were converted in its own
-step. Detail in the ledger row below and `SCORE-7p`.
+**Batch 4q (#461–#480) is CLOSED and PUSHED.** Floor **5864/5864, 24 skipped**, clippy 0, census
+`no STOP-8`, 20/20 subjects and trailers verified.
 
-⛔ **MY PRE-FLIGHT HAS NOW BEEN SHORT THREE BATCHES RUNNING** — 3 sites where there were 12 (4n), 23 files
-where there were 25 (4o), six name-change steps where there were seven (4p, I extracted names from six of
-nine code steps). Every time the executor measured properly and reported it. **Derive the set from the
-data, over the WHOLE range, and never hand-list.**
+⛔ **THE EXECUTOR CORRECTED MY FLOOR PREDICTION AND WAS RIGHT.** I forecast 5865; it measured **5864**.
+#474's new test lives in `session.rs`'s `#[cfg(all(test, debug_assertions))] mod join_left_index_tests`
+and the release profile sets no debug-assertions override, so it **never compiles into the floor**.
+Verified independently before adopting its number. **That is four batches running where my pre-flight was
+short** (12-not-3, 25-not-23, 7-not-6 name steps, now this) — and in the same session I counted 7
+`#[ignore]` sites in a file that has 2, because my grep matched prose. **The instrument is the problem,
+not the arithmetic: derive from the data, exclude comments, and never hand-list.**
 
-Next is **batch 4q (#461–#480)**: censused — **12 docs-only, 8 code (#463 #465 #467 #470 #472 #474 #477
-#478)**, **ZERO hazard rows**, **no `wat/` path**, one new `.wat` fixture (#478), one new lint gate (#465).
+★ **#472's RULING LANDED THROUGH A REAL CONFLICT.** `token_bindings_representation_dominance` is NOT
+`#[ignore]`d here; grok's hunk (which also deletes our surviving assertion) was refused, and #477's
+matching re-wording was skipped. The file carries exactly **2** real `#[ignore]` sites, both
+excusare-runed.
 
-⚠⚠ **#472 COLLIDES WITH OUR OWN 4i STRIKE — RULED 4-YES, 2026-09-18, OPTION B.** Grok's #472 adds
-`#[ignore = "rune:excusare(below-resolution) — captured red … at card 64 EXTEND …"]` to
-`token_bindings_representation_dominance`. **This tree already cured that test**: the 4i strike
-(`4d5287a53`, ruled 4-YES) struck the two large-end directional assertions that gated the SCHEDULER, and
-its own commit body predicted this exact moment — *"grok keeps these assertions until #472."*
-**Measured:** our version still carries a NON-VACUITY check that refuses a dead clock and ONE ordering
-assertion with a **4.53–10.15x margin**, and it has been green in **twenty consecutive floors**. Grok's
-rune cites assertions this tree no longer has.
-★ **RULING:** land #472's excusare vocabulary and its re-wording of the OTHER two ignores
-(`binding_key_cost`, `binding_repr_microbench`); **do NOT add the ignore to the cured test**, and skip
-#477's matching re-wording of that same string, recording both in the step bodies. Rejected: landing it
-verbatim (its premise is absent here and it would silence a live, wide-margin gate), and any
-land-then-un-ignore dance.
+Next is **batch 4r (#481–#500)**: censused — **8 docs-only, 12 code**, the densest batch in a while.
+**ZERO hazard rows**, no `wat-scripts/fixes/` edit; two `wat/` steps (#486, #490 — one file each); both
+M-status-absent paths are created earlier in the range (#485→#486, #488→#490). Net **+5 tests, −3
+ignores**.
 
-⚠ **#465 lands `kernel_tests_census_count_is_bench_scoped`** — under `src/rete/kernel/tests/`, a
-`census_count` may name only a `bench:`-prefixed key, and *"the exemption list is empty."* **Measured: our
-only two non-bench calls are the two `census_count("filter:test-reuse")` sites in `node_share_cost.rs`
-that grok's own #465 converts to `bench:filter-reuse`.** Expect green; read the gate's verdict anyway.
+⚠⚠ **#498 IS THE SEQUEL TO #472 — RULED 4-YES, 2026-09-18, OPTION B.** Grok's Stone K moves three
+diagnostics out of the test binary into a new `benches/binding_repr.rs` (`harness = false`), **deleting
+`token_bindings_representation_dominance` outright**. Measured: grok's bench keeps only a faithfulness
+`assert_eq!` and the dead-clock non-vacuity `assert!`, and states *"Timing-ordering assertions are gone —
+they cannot separate the hypotheses under this floor's contention band."* **That is true of the two
+LARGE-END assertions grok carried; it is NOT true of the SMALL-END GET assertion this tree kept**, whose
+margin is 4.53–10.15x and which has been green in every floor since. ⛔ **`harness = false` means a bench
+never runs on our floor**, so landing #498 verbatim would delete a live, wide-margin gate and silently
+reverse the ruling made twenty steps earlier.
+★ **RULING:** land the bench move in full (it is a real improvement — benchmarks do not belong in the
+test binary), and **KEEP the surviving small-end GET ordering assertion, plus its non-vacuity companion,
+as a slim test on the floor**, with a record naming #472, the 4i strike, and the measured margin.
+
+⚠ **#496 LANDS THE MIRROR GATE** `census_emitted_name_is_read_or_declared` (EMITTED ⇒ READ, counters
+only) beside 4p's READ ⇒ EMITTED. grok reports *"all 25 got readers, none runed"* — **that is grok's 25,
+not ours.** Measure our emitted set before assuming; an unread counter here is a finding, and the
+sibling's asymmetry (it does not cover `phase_end`) is deliberate.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -105,7 +111,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4n #401–#420 (CLOSED; floor 5847/5847, clippy 0, pushed)
                               + batch 4o #421–#440 (CLOSED; floor 5856/5856, clippy 0, pushed)
                               + batch 4p #441–#460 (CLOSED; floor 5856/5856, clippy 0, pushed)
-                              ⇒ 460 of 651 replayed. NEXT: batch 4q #461–#480.
+                              + batch 4q #461–#480 (CLOSED; floor 5864/5864, clippy 0, pushed)
+                              ⇒ 480 of 651 replayed. NEXT: batch 4r #481–#500.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -162,6 +169,19 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4q #461–#480 is CLOSED and PUSHED** (records at `fda61206e`; SCORE-7q, REPLAY-LOG). 20 steps,
+  12 docs-only. Floor **5864/5864, 24 skipped** — the executor's corrected figure, not mine — clippy 0,
+  census `no STOP-8`.
+  ★ **The #472 divergence landed through a genuine merge conflict** and is recorded inline in
+  `binding_repr_bench.rs`: our 4i strike, the rune's absent premise, and grok's own later deletion of the
+  fn at #498. Both new gates green: `no_unknown_ward_rune` 9/9 (our tree carries 7 excusare runes against
+  a floor of 5), `kernel_tests_census_count_is_bench_scoped` 6/6 with an empty exemption list.
+  ⚠ **The executor's run was killed mid-#472 by an expired login** — a harness auth failure, not a defect.
+  Eleven steps were landed, the working tree held #472's correct work, and it resumed cleanly.
+  ⚠ **Three disclosed deviations**: the +8-not-+9 test correction; #478's new `.wat` needed the recorded
+  conversion chain (grok's era predates several syntax migrations here); and a self-caught WRAPPED
+  `census:` verdict line at #478 — finding 38's exact trap — repaired by detach/re-commit/rebuild with
+  tree hashes proven byte-identical.
 - **Batch 4p #441–#460 is CLOSED and PUSHED** (records at `000aa79f6`; SCORE-7p, REPLAY-LOG). 20 steps,
   11 docs-only; one campaign, grok auditing its own phase census. Floor **5856/5856, 24 skipped** — the
   count PREDICTED for the **twentieth consecutive batch**, and the first batch whose nine code steps add
