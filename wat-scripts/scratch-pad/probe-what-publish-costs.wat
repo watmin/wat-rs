@@ -15,7 +15,6 @@
 ;; Handle is (Handle :- [Shared]). Two functions, not one with a flag.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 ;; ── bare ping: one nullary arm, a constant. No format, no state touch, no alloc
 ;; beyond the reply enum. If this is not the floor, STOP-1.
@@ -99,17 +98,17 @@
     (_ (:wat::kernel::assertion-failed! "pp: dial store failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :pp::dial-q
-  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])] -> :queue::Queue
+  [a <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])] -> :wat::queue::Queue
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected c) c)
     (_ (:wat::kernel::assertion-failed! "pp: dial q failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :pp::send-n [q <- :queue::Queue  n <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :pp::send-n [q <- :wat::queue::Queue  n <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::foldl
     (:wat::core::fn [_a <- :wat::core::nil  i <- :wat::core::i64] -> :wat::core::nil
       (:wat::core::match
-        (:queue::Queue/send q
-          (:queue::Queue::SendRequest :queue "q"
+        (:wat::queue::Queue/send q
+          (:wat::queue::Queue::SendRequest :queue "q"
             :bodies (:wat::core::Vector :- [:wat::core::String] "m")
             :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
         (_ nil)))
@@ -171,14 +170,14 @@
      sh (:wat::query::sqlite-store/start :locus (:wat::spawn::process)
           :record (:wat::query::sqlite-store::Record :path ":memory:" :index-names
                     (:wat::core::Vector :- [:wat::core::String] "by-visible-at")))
-     qh (:queue::queue/start
+     qh (:wat::queue::queue/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:wat::service::require-granted (:wat::query::sqlite-store/grant sh (:pp::pids pl)))))
-          :record (:queue::queue::Record :cap 64
+          :record (:wat::queue::queue::Record :cap 64
                     :store-addr (:wat::query::sqlite-store::Handle/addr sh)
                     :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q  (:pp::dial-q (:queue::queue::Handle/addr qh))
+     q  (:pp::dial-q (:wat::queue::queue::Handle/addr qh))
      st (:pp::dial-store (:wat::query::sqlite-store::Handle/addr sh))
      _f (:pp::send-n q 60)
      now (:wat::time::epoch-nanos (:wat::time::now))

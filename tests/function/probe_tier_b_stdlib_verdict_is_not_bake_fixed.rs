@@ -400,18 +400,24 @@ fn no_stdlib_body_names_a_user_declarable_name_in_evaluated_position() {
     for s in sites.iter().filter(|s| s.channel == Channel::Quoted) {
         *quoted_occ.entry(s.name.as_str()).or_default() += 1;
     }
+    // ⭑ 9 → 10 on 2026-09-19: `wat/queue.wat` was promoted into the stdlib and carries one
+    // `defservice` (`:wat::queue::queue`, queue.wat:214), so there is a TENTH `…::service-forms`
+    // body quoting `:user::main` into its child-program template. The pin FIRED on that
+    // promotion, which is what it is for — the surface grew deliberately, not silently.
+    // ⛔ The evaluated-position count is still ZERO and the two-name surface is unchanged: this
+    // is one more OCCURRENCE of a name already on the quoted channel, not a new name.
     assert_eq!(
         quoted_occ.get(":user::main").copied().unwrap_or(0),
-        9,
-        "quoted `:user::main` occurrence count moved (was 9 service-forms mentions)"
+        10,
+        "quoted `:user::main` occurrence count moved (was 10 service-forms mentions)"
     );
     assert_eq!(
         quoted_occ
             .get(":user::spawn::service-locus")
             .copied()
             .unwrap_or(0),
-        10,
-        "quoted `:user::spawn::service-locus` occurrence count moved (was 10)"
+        11,
+        "quoted `:user::spawn::service-locus` occurrence count moved (was 11)"
     );
 }
 

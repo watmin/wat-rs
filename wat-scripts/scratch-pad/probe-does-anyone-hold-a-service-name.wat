@@ -1,8 +1,8 @@
 ;; probe-does-anyone-hold-a-service-name.wat
 ;;
 ;; defservice emits a per-op client method under the SERVICE's own name
-;; (`fqdn-base`, wat/service.wat:276) — `:queue::queue/send`. Path B in
-;; src/runtime.rs handles the SURFACE name — `:queue::Queue/send`. Both are
+;; (`fqdn-base`, wat/service.wat:276) — `:wat::queue::queue/send`. Path B in
+;; src/runtime.rs handles the SURFACE name — `:wat::queue::Queue/send`. Both are
 ;; client methods; both now carry their own `:max-entries` guard, written
 ;; separately (wat quasiquote vs hand-assembled WatAST).
 ;;
@@ -13,12 +13,11 @@
 ;; callable? A client holds (Peer :- [Queue::Op Queue::Reply]) — typed by the
 ;; SURFACE — so nothing may even be in a position to call the service spelling.
 ;;
-;; Refutation: if `:queue::queue/send` does not resolve, they are not an
+;; Refutation: if `:wat::queue::queue/send` does not resolve, they are not an
 ;; unused alias, they are uncallable, and deleting them is a fact not a policy.
 ;; If it resolves and agrees, the guard duplication is at least OBSERVABLE.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 (:wat::core::defn :sn::bodies [n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::foldl
@@ -29,37 +28,37 @@
     (:wat::core::range 0 n)))
 
 (:wat::core::defn :sn::tag
-  [r <- (:wat::kernel::RecvOutcome :- [:queue::Queue::SendResponse])] -> :wat::core::String
+  [r <- (:wat::kernel::RecvOutcome :- [:wat::queue::Queue::SendResponse])] -> :wat::core::String
   (:wat::core::match r
     ((:wat::kernel::RecvOutcome::Message m)
       (:wat::core::match m
-        ((:queue::Queue::SendResponse::Accepted n)
+        ((:wat::queue::Queue::SendResponse::Accepted n)
           (:wat::core::format "Accepted({n})" :n n))
-        ((:queue::Queue::SendResponse::RequestTooLarge _b _c) "RequestTooLarge")
-        ((:queue::Queue::SendResponse::RequestTooManyEntries e c)
+        ((:wat::queue::Queue::SendResponse::RequestTooLarge _b _c) "RequestTooLarge")
+        ((:wat::queue::Queue::SendResponse::RequestTooManyEntries e c)
           (:wat::core::format "RequestTooManyEntries({e},{c})" :e e :c c))
-        ((:queue::Queue::SendResponse::RequestMalformed _p _e _g) "RequestMalformed")))
+        ((:wat::queue::Queue::SendResponse::RequestMalformed _p _e _g) "RequestMalformed")))
     (_ "recv-failed")))
 
-(:wat::core::defn :sn::req [n <- :wat::core::i64] -> :queue::Queue::SendRequest
-  (:queue::Queue::SendRequest
+(:wat::core::defn :sn::req [n <- :wat::core::i64] -> :wat::queue::Queue::SendRequest
+  (:wat::queue::Queue::SendRequest
     :queue "q" :bodies (:sn::bodies n)
     :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
 
 ;; THE ONE VARIABLE: same peer, same request, two spellings of the same call.
-(:wat::core::defn :sn::via-surface [q <- :queue::Queue  n <- :wat::core::i64] -> :wat::core::String
-  (:sn::tag (:queue::Queue/send q (:sn::req n))))
+(:wat::core::defn :sn::via-surface [q <- :wat::queue::Queue  n <- :wat::core::i64] -> :wat::core::String
+  (:sn::tag (:wat::queue::Queue/send q (:sn::req n))))
 
 (:wat::core::defn :sn::via-service
-  [q <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])  n <- :wat::core::i64]
+  [q <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])  n <- :wat::core::i64]
   -> :wat::core::String
-  (:sn::tag (:queue::queue/send q (:sn::req n))))
+  (:sn::tag (:wat::queue::queue/send q (:sn::req n))))
 
-(:wat::core::defn :sn::depth [q <- :queue::Queue] -> :wat::core::i64
-  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+(:wat::core::defn :sn::depth [q <- :wat::queue::Queue] -> :wat::core::i64
+  (:wat::core::match (:wat::queue::Queue/stats q (:wat::queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok qst) (:queue::Stats/visible qst))
+        ((:wat::queue::Queue::StatsResponse::Ok qst) (:wat::queue::Stats/visible qst))
         (_ (:wat::kernel::assertion-failed! "sn: stats not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "sn: stats recv failed" :wat::core::None :wat::core::None))))
 
@@ -68,11 +67,11 @@
     [sh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
           :record (:wat::query::mem-store::Record
                     :rows (:wat::core::PersistentVector :- [:wat::query::StoredRow])))
-     qh (:queue::queue/start :locus (:wat::spawn::thread)
-          :record (:queue::queue::Record :cap 64
+     qh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+          :record (:wat::queue::queue::Record :cap 64
                     :store-addr (:wat::query::mem-store::Handle/addr sh)
                     :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q  (:wat::core::match (:wat::kernel::connect (:queue::queue::Handle/addr qh))
+     q  (:wat::core::match (:wat::kernel::connect (:wat::queue::queue::Handle/addr qh))
           ((:wat::kernel::ConnectOutcome::Connected c) c)
           (_ (:wat::kernel::assertion-failed! "sn: dial failed" :wat::core::None :wat::core::None)))
      ;; over the cap, both spellings

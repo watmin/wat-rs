@@ -1,8 +1,8 @@
 ;; probe-nonzeroduration-crosses-the-wire.wat — THE DISCONFIRMING PROBE FOR STONE B.
 ;;
 ;; Stone B replaced the queue's `wait-ns <- :wat::core::i64` with
-;;   (defenum :queue::Queue::Wait :Immediate [] :UpTo [d <- :wat::time::NonZeroDuration])
-;; inside `(defsurface :queue::Queue :nature :wat::kernel::Peer)`. That is a WIRE PROTOCOL
+;;   (defenum :wat::queue::Queue::Wait :Immediate [] :UpTo [d <- :wat::time::NonZeroDuration])
+;; inside `(defsurface :wat::queue::Queue :nature :wat::kernel::Peer)`. That is a WIRE PROTOCOL
 ;; record, so the whole design rests on one assumption nothing in the tree has tested:
 ;;
 ;;   ★ CAN A defsurface MESSAGE CARRY A :wat::time::NonZeroDuration ACROSS THE WIRE?

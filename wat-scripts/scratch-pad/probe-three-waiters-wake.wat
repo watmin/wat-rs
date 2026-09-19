@@ -12,7 +12,6 @@
 ;; finding. Parent thread only; parkers do not call sibling defns.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 (:wat::core::defsurface :vw::Parker :nature :wat::kernel::Peer
   :messages
@@ -29,12 +28,12 @@
 (:wat::service::defservice :vw::parker
   :satisfies :vw::Parker
   :durable   [queue-name <- :wat::core::String]
-  :ephemeral [q     <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])
+  :ephemeral [q     <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])
               n-got <- :wat::core::i64]
-  :peers     [:queue::Queue]
+  :peers     [:wat::queue::Queue]
   :init (:wat::core::fn
           [record     <- :vw::parker::Record
-           queue-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
+           queue-addr <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
           -> :vw::parker::State
           (:vw::parker::State :durable record
             :q (:wat::core::match (:wat::kernel::connect queue-addr)
@@ -57,27 +56,27 @@
         got  (:vw::parker::State/n-got s)
         now  (:wat::time::epoch-nanos (:wat::time::now))
         vis  1000000000000
-        rr   (:queue::Queue/receive q
-               (:queue::Queue::ReceiveRequest
+        rr   (:wat::queue::Queue/receive q
+               (:wat::queue::Queue::ReceiveRequest
                  :queue name :now-ns now :visibility-ns vis
-                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 250))))]
+                 :limit 10 :wait (:wat::queue::Queue::Wait::UpTo (:wat::time::Milliseconds 250))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message r)
            (:wat::core::match r
-             ((:queue::Queue::ReceiveResponse::Ok envs)
+             ((:wat::queue::Queue::ReceiveResponse::Ok envs)
                (:wat::core::if (:wat::core::empty? envs)
                  (:wat::service::SelfOutcome::Continue s
                    (:wat::core::Vector :- [(:wat::service::Directed :- [:vw::Parker::Reply])])
                    [(:wat::service::Alarm :delay (:wat::time::Milliseconds 1) :op :-tick)])
                  (:wat::core::let
                    [got' (:wat::core::foldl
-                           (:wat::core::fn [acc <- :wat::core::i64  e <- :queue::Envelope]
+                           (:wat::core::fn [acc <- :wat::core::i64  e <- :wat::queue::Envelope]
                              -> :wat::core::i64
                              (:wat::core::let
-                               [ar (:queue::Queue/ack q
-                                     (:queue::Queue::AckRequest
+                               [ar (:wat::queue::Queue/ack q
+                                     (:wat::queue::Queue::AckRequest
                                        :queue name
-                                       :ids (:wat::core::Vector :- [:wat::core::String] (:queue::Envelope/id e))))]
+                                       :ids (:wat::core::Vector :- [:wat::core::String] (:wat::queue::Envelope/id e))))]
                                (:wat::core::match ar
                                  ((:wat::kernel::RecvOutcome::Message _ar)
                                    (:wat::i64::+ acc 1))
@@ -117,8 +116,8 @@
     (_ (:wat::kernel::assertion-failed! "dial-parker failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :vw::dial-queue
-  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
-  -> :queue::Queue
+  [a <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
+  -> :wat::queue::Queue
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     (_ (:wat::kernel::assertion-failed! "dial-queue failed" :wat::core::None :wat::core::None))))
@@ -129,26 +128,26 @@
     (_ (:wat::kernel::assertion-failed! "arm failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :vw::depth-of
-  [q <- :queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
-  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+  [q <- :wat::queue::Queue] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
+  (:wat::core::match (:wat::queue::Queue/stats q (:wat::queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok qst)
-          (:wat::core::Tuple (:queue::Stats/visible qst) (:queue::Stats/unacked qst)))
+        ((:wat::queue::Queue::StatsResponse::Ok qst)
+          (:wat::core::Tuple (:wat::queue::Stats/visible qst) (:wat::queue::Stats/unacked qst)))
         (_ (:wat::core::Tuple -1 -1))))
     (_ (:wat::core::Tuple -1 -1))))
 
-(:wat::core::defn :vw::calls-of [q <- :queue::Queue] -> :wat::core::i64
-  (:wat::core::match (:queue::Queue/stats q (:queue::Queue::StatsRequest))
+(:wat::core::defn :vw::calls-of [q <- :wat::queue::Queue] -> :wat::core::i64
+  (:wat::core::match (:wat::queue::Queue/stats q (:wat::queue::Queue::StatsRequest))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::StatsResponse::Ok qst) (:queue::Stats/receive-calls qst))
+        ((:wat::queue::Queue::StatsResponse::Ok qst) (:wat::queue::Stats/receive-calls qst))
         (_ -1)))
     (_ -1)))
 
 ;; TCO. Bound so a hang becomes a printed leftover depth, not a silent timeout.
 (:wat::core::defn :vw::wait-depth
-  [q <- :queue::Queue  left <- :wat::core::i64] -> :wat::core::String
+  [q <- :wat::queue::Queue  left <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let
     [d (:vw::depth-of q)
      p (:wat::core::first d)
@@ -166,11 +165,11 @@
     [t0 (:wat::time::epoch-nanos (:wat::time::now))
      sh (:wat::query::mem-store/start :locus (:wat::spawn::process)
           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     qh (:queue::queue/start
+     qh (:wat::queue::queue/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:wat::service::require-granted (:wat::query::mem-store/grant sh (:vw::pids pl)))))
-          :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+          :record (:wat::queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      parkers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:vw::parker::Handle])
                                 _i  <- :wat::core::i64]
@@ -179,9 +178,9 @@
                    (:vw::parker/start
                      :locus (:wat::spawn::process/post-spawn
                               (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                                (:wat::service::require-granted (:queue::queue/grant qh (:vw::pids pl)))))
+                                (:wat::service::require-granted (:wat::queue::queue/grant qh (:vw::pids pl)))))
                      :record (:vw::parker::Record :queue-name "q0")
-                     :queue-addr (:queue::queue::Handle/addr qh))))
+                     :queue-addr (:wat::queue::queue::Handle/addr qh))))
                (:wat::core::Vector :- [:vw::parker::Handle])
                (:wat::core::range 0 j))
      _arm (:wat::core::foldl
@@ -190,7 +189,7 @@
             nil
             (:wat::core::range 0 j))
      _settle (:vw::await-timer-ms 100)
-     q (:vw::dial-queue (:queue::queue::Handle/addr qh))
+     q (:vw::dial-queue (:wat::queue::queue::Handle/addr qh))
      ;; Drive stats while waiters are parked — a missed return path
      ;; used to drop the wakeup here. Send after this must still wake.
      _stats (:wat::core::foldl
@@ -203,8 +202,8 @@
                (:wat::core::let
                  [now (:wat::time::epoch-nanos (:wat::time::now))]
                  (:wat::core::match
-                   (:queue::Queue/send q
-                     (:queue::Queue::SendRequest :queue "q0" :bodies (:wat::core::Vector :- [:wat::core::String] (:wat::core::str i)) :now-ns now))
+                   (:wat::queue::Queue/send q
+                     (:wat::queue::Queue::SendRequest :queue "q0" :bodies (:wat::core::Vector :- [:wat::core::String] (:wat::core::str i)) :now-ns now))
                    ((:wat::kernel::RecvOutcome::Message _r) nil)
                    (_ nil))))
              nil
@@ -216,7 +215,7 @@
              (:wat::i64::+ acc (:wat::service::require-stopped (:vw::parker/stop (:wat::core::nth parkers i)))))
            0
            (:wat::core::range 0 j))
-     _qs (:wat::service::stop-faced (:queue::queue/stop qh))
+     _qs (:wat::service::stop-faced (:wat::queue::queue/stop qh))
      _ss (:wat::service::stop-faced (:wat::query::mem-store/stop sh))
      t1 (:wat::time::epoch-nanos (:wat::time::now))]
     (:wat::core::format

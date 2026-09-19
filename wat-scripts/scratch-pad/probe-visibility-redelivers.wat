@@ -18,7 +18,6 @@
 ;; invariant rests on.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 ;; Timer-channel recv, not a sleep — legal where mora forbids sleeping.
 (:wat::core::defn :vr::await-timer-ms [ms <- :wat::core::i64] -> :wat::core::nil
@@ -31,37 +30,37 @@
     (:wat::kernel::RecvOutcome::Closed nil) (:wat::kernel::RecvOutcome::TimedOut nil) ((:wat::kernel::RecvOutcome::Malformed _cause) (:wat::kernel::assertion-failed! "recv: malformed frame — the peer could not decode our message; this arm is an UNMIGRATED PLACEHOLDER (a-momentary-failure-is-not-fatal, stone 2 replaces it with report-final)" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :vr::dial
-  [a <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])] -> :queue::Queue
+  [a <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])] -> :wat::queue::Queue
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected c) c)
     (_ (:wat::kernel::assertion-failed! "vr: dial failed" :wat::core::None :wat::core::None))))
 
 ;; one receive; returns the first envelope id, or "" when nothing came back
 (:wat::core::defn :vr::take-one
-  [q <- :queue::Queue  vis-ns <- :wat::core::i64] -> :wat::core::String
+  [q <- :wat::queue::Queue  vis-ns <- :wat::core::i64] -> :wat::core::String
   (:wat::core::match
-    (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest
+    (:wat::queue::Queue/receive q
+      (:wat::queue::Queue::ReceiveRequest
         :queue "q" :now-ns (:wat::time::epoch-nanos (:wat::time::now))
-        :visibility-ns vis-ns :limit 1 :wait (:queue::Queue::Wait::Immediate)))
+        :visibility-ns vis-ns :limit 1 :wait (:wat::queue::Queue::Wait::Immediate)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::ReceiveResponse::Ok envs)
+        ((:wat::queue::Queue::ReceiveResponse::Ok envs)
           (:wat::core::if (:wat::core::empty? envs)
             ""
-            (:queue::Envelope/id (:wat::core::first envs))))
+            (:wat::queue::Envelope/id (:wat::core::first envs))))
         (_ (:wat::kernel::assertion-failed! "vr: receive not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "vr: receive recv failed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :vr::send-one [q <- :queue::Queue] -> :wat::core::nil
+(:wat::core::defn :vr::send-one [q <- :wat::queue::Queue] -> :wat::core::nil
   (:wat::core::match
-    (:queue::Queue/send q
-      (:queue::Queue::SendRequest :queue "q"
+    (:wat::queue::Queue/send q
+      (:wat::queue::Queue::SendRequest :queue "q"
         :bodies (:wat::core::Vector :- [:wat::core::String] "m0")
         :now-ns (:wat::time::epoch-nanos (:wat::time::now))))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::SendResponse::Accepted n)
+        ((:wat::queue::Queue::SendResponse::Accepted n)
           (:wat::core::if (:wat::core::= n 1) nil
             (:wat::kernel::assertion-failed! "vr: send not fully accepted" :wat::core::None :wat::core::None)))
         (_ (:wat::kernel::assertion-failed! "vr: send not Accepted" :wat::core::None :wat::core::None))))
@@ -71,9 +70,9 @@
   (:wat::core::let
     [sh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     qh (:queue::queue/start :locus (:wat::spawn::thread)
-          :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     q  (:vr::dial (:queue::queue::Handle/addr qh))
+     qh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+          :record (:wat::queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     q  (:vr::dial (:wat::queue::queue::Handle/addr qh))
      _s (:vr::send-one q)
      first-id  (:vr::take-one q 200000000)          ;; 200 ms visibility, NOT acked
      while-inflight (:vr::take-one q 200000000)     ;; immediately again -> must be empty

@@ -25,20 +25,20 @@
     (:wat::core::range 0 n)))
 
 (:wat::core::defn :once::join
-  [envs <- (:wat::core::Vector :- [:queue::Envelope])] -> :wat::core::String
+  [envs <- (:wat::core::Vector :- [:wat::queue::Envelope])] -> :wat::core::String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String  e <- :queue::Envelope] -> :wat::core::String
+    (:wat::core::fn [acc <- :wat::core::String  e <- :wat::queue::Envelope] -> :wat::core::String
       (:wat::core::if (:wat::core::= acc "")
-        (:queue::Envelope/body e)
-        (:wat::core::format "{a},{b}" :a acc :b (:queue::Envelope/body e))))
+        (:wat::queue::Envelope/body e)
+        (:wat::core::format "{a},{b}" :a acc :b (:wat::queue::Envelope/body e))))
     ""
     envs))
 
 (:wat::core::defn :once::count-msg0
-  [envs <- (:wat::core::Vector :- [:queue::Envelope])] -> :wat::core::i64
+  [envs <- (:wat::core::Vector :- [:wat::queue::Envelope])] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [n <- :wat::core::i64  e <- :queue::Envelope] -> :wat::core::i64
-      (:wat::core::let [parts (:wat::string::split (:queue::Envelope/body e) "|")]
+    (:wat::core::fn [n <- :wat::core::i64  e <- :wat::queue::Envelope] -> :wat::core::i64
+      (:wat::core::let [parts (:wat::string::split (:wat::queue::Envelope/body e) "|")]
         (:wat::core::if (:wat::i64::< (:wat::core::count parts) 2)
           n
           (:wat::core::if (:wat::core::= (:wat::core::nth parts 1) "p0")
@@ -47,18 +47,18 @@
     0
     envs))
 
-(:wat::core::defn :once::recv-all [q <- :queue::Queue] -> (:wat::core::Vector :- [:queue::Envelope])
+(:wat::core::defn :once::recv-all [q <- :wat::queue::Queue] -> (:wat::core::Vector :- [:wat::queue::Envelope])
   (:wat::core::match
-    (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest
+    (:wat::queue::Queue/receive q
+      (:wat::queue::Queue::ReceiveRequest
         :queue "inbox"
         :now-ns (:wat::time::epoch-nanos (:wat::time::now))
         :visibility-ns 1000000000000
         :limit 64
-        :wait (:queue::Queue::Wait::Immediate)))
+        :wait (:wat::queue::Queue::Wait::Immediate)))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::ReceiveResponse::Ok envs) envs)
+        ((:wat::queue::Queue::ReceiveResponse::Ok envs) envs)
         (_ (:wat::kernel::assertion-failed! "once: receive not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "once: receive recv failed" :wat::core::None :wat::core::None))))
 
@@ -67,14 +67,14 @@
     [nsubs 4
      ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 6
+     iqh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+           :record (:wat::queue::queue::Record :cap 6
                      :store-addr (:wat::query::mem-store::Handle/addr ish)
                      :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
+          :record (:demo::topic::Record :inbox-addr (:wat::queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      t  (:demo::dial-topic (:demo::topic::Handle/addr th))
-     q  (:demo::dial-queue (:queue::queue::Handle/addr iqh))
+     q  (:demo::dial-queue (:wat::queue::queue::Handle/addr iqh))
      tag (:wat::core::match
            (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs (:once::msgs 2)))
            ((:wat::kernel::RecvOutcome::Message r)
@@ -96,12 +96,12 @@
   (:wat::core::let
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64
+     iqh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+           :record (:wat::queue::queue::Record :cap 64
                      :store-addr (:wat::query::mem-store::Handle/addr ish)
                      :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
+          :record (:demo::topic::Record :inbox-addr (:wat::queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      t  (:demo::dial-topic (:demo::topic::Handle/addr th))
      tag (:wat::core::match
            (:demo::Topic/publish t (:demo::Topic::PublishRequest :msgs (:once::msgs 10)))

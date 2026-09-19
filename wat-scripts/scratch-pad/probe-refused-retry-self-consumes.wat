@@ -38,7 +38,7 @@
 ;; happened inside the budget. This is the claim under test -- "spins forever" is a statement
 ;; about the FUTURE, and pending=0 at one instant does not establish it.
 (:wat::core::defn :rr::poll-pending
-  [q <- :queue::Queue  attempts <- :wat::core::i64  ms <- :wat::core::i64] -> :wat::core::i64
+  [q <- :wat::queue::Queue  attempts <- :wat::core::i64  ms <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::i64::<= attempts 1)
     (:wat::core::if (:wat::i64::>= (:wat::core::first (:demo::q-depth q)) 1) 0 -1)
     (:wat::core::if (:wat::i64::>= (:wat::core::first (:demo::q-depth q)) 1)
@@ -52,20 +52,20 @@
   (:wat::core::let
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     iqh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+           :record (:wat::queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      ssh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     sqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr ssh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
-              (:queue::queue::Handle/addr sqh))
+     sqh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+           :record (:wat::queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr ssh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
+              (:wat::queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
+          :record (:demo::topic::Record :inbox-addr (:wat::queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
-          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
-     inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
-     subq  (:demo::dial-queue (:queue::queue::Handle/addr sqh))
+          :record (:demo::mk-tw 200000000 (:wat::queue::queue::Handle/addr iqh) qaddrs 0 0))
+     inbox (:demo::dial-queue (:wat::queue::queue::Handle/addr iqh))
+     subq  (:demo::dial-queue (:wat::queue::queue::Handle/addr sqh))
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw    (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      _ (:demo::send-one subq "q0" "dummy")
@@ -102,18 +102,18 @@
 ;; Prediction: NEITHER cell stalls. gap=300 makes the race VISIBLE as pending=1 at the
 ;; absence check -- an assertion that names the race -- instead of swallowing it.
 (:wat::core::defn :rr::take-blocking
-  [q <- :queue::Queue  wait <- :queue::Queue::Wait] -> :wat::core::String
+  [q <- :wat::queue::Queue  wait <- :wat::queue::Queue::Wait] -> :wat::core::String
   (:wat::core::match
-    (:queue::Queue/receive q
-      (:queue::Queue::ReceiveRequest
+    (:wat::queue::Queue/receive q
+      (:wat::queue::Queue::ReceiveRequest
         :queue "q0" :now-ns (:wat::time::epoch-nanos (:wat::time::now))
         :visibility-ns 200000000 :limit 1 :wait wait))
     ((:wat::kernel::RecvOutcome::Message r)
       (:wat::core::match r
-        ((:queue::Queue::ReceiveResponse::Ok envs)
+        ((:wat::queue::Queue::ReceiveResponse::Ok envs)
           (:wat::core::if (:wat::core::empty? envs)
             ""
-            (:queue::Envelope/id (:wat::core::first envs))))
+            (:wat::queue::Envelope/id (:wat::core::first envs))))
         (_ (:wat::kernel::assertion-failed! "take-blocking: not Ok" :wat::core::None :wat::core::None))))
     (_ (:wat::kernel::assertion-failed! "take-blocking: recv failed" :wat::core::None :wat::core::None))))
 
@@ -121,20 +121,20 @@
   (:wat::core::let
     [ish (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     iqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     iqh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+           :record (:wat::queue::queue::Record :cap 64 :store-addr (:wat::query::mem-store::Handle/addr ish) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      ssh (:wat::query::mem-store/start :locus (:wat::spawn::thread)
            :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     sqh (:queue::queue/start :locus (:wat::spawn::thread)
-           :record (:queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr ssh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
-     qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
-              (:queue::queue::Handle/addr sqh))
+     sqh (:wat::queue::queue/start :locus (:wat::spawn::thread)
+           :record (:wat::queue::queue::Record :cap 1 :store-addr (:wat::query::mem-store::Handle/addr ssh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+     qaddrs (:wat::core::Vector :- [(:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
+              (:wat::queue::queue::Handle/addr sqh))
      th (:demo::topic/start :locus (:wat::spawn::thread)
-          :record (:demo::topic::Record :inbox-addr (:queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
+          :record (:demo::topic::Record :inbox-addr (:wat::queue::queue::Handle/addr iqh) :inbox-lost 0 :inbox-closed 0 :inbox-timedout 0 :delay-bp 0 :delay-ms 0 :delay-seed 0 :delays-fired 0 :delay-draws 0))
      wh (:demo::topic-worker/start :locus (:wat::spawn::thread)
-          :record (:demo::mk-tw 200000000 (:queue::queue::Handle/addr iqh) qaddrs 0 0))
-     inbox (:demo::dial-queue (:queue::queue::Handle/addr iqh))
-     subq  (:demo::dial-queue (:queue::queue::Handle/addr sqh))
+          :record (:demo::mk-tw 200000000 (:wat::queue::queue::Handle/addr iqh) qaddrs 0 0))
+     inbox (:demo::dial-queue (:wat::queue::queue::Handle/addr iqh))
+     subq  (:demo::dial-queue (:wat::queue::queue::Handle/addr sqh))
      tc    (:demo::dial-topic (:demo::topic::Handle/addr th))
      tw    (:demo::dial-topic-worker (:demo::topic-worker::Handle/addr wh))
      _ (:demo::send-one subq "q0" "dummy")
@@ -148,7 +148,7 @@
      _ (:wat::core::if (:wat::i64::> gap-ms 0) (:demo::await-timer-ms gap-ms) nil)
      at-check (:wat::core::first (:demo::q-depth subq))
      got (:demo::receive-blocking subq "q0" 200000000
-           (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 2000)))]
+           (:wat::queue::Queue::Wait::UpTo (:wat::time::Milliseconds 2000)))]
     (:wat::core::format "gap={g};pending-at-absence-check={c};delivered={d};raced={r}"
       :g gap-ms
       :c at-check

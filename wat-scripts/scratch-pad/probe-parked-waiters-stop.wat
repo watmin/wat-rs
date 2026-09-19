@@ -15,7 +15,6 @@
 ;; the last printed line names the threshold. Run under `timeout`: a timeout IS the finding.
 
 (:wat::config::set-redef! true)
-(:wat::load-file! "../queue/sqs.wat")
 
 (:wat::core::defsurface :vb::Parker :nature :wat::kernel::Peer
   :messages
@@ -32,11 +31,11 @@
 (:wat::service::defservice :vb::parker
   :satisfies :vb::Parker
   :durable   [queue-name <- :wat::core::String]
-  :ephemeral [q <- (:wat::kernel::Peer :- [:queue::Queue::Op :queue::Queue::Reply])]
-  :peers     [:queue::Queue]
+  :ephemeral [q <- (:wat::kernel::Peer :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
+  :peers     [:wat::queue::Queue]
   :init (:wat::core::fn
           [record     <- :vb::parker::Record
-           queue-addr <- (:wat::kernel::Address :- [:queue::Queue::Op :queue::Queue::Reply])]
+           queue-addr <- (:wat::kernel::Address :- [:wat::queue::Queue::Op :wat::queue::Queue::Reply])]
           -> :vb::parker::State
           (:vb::parker::State :durable record
             :q (:wat::core::match (:wat::kernel::connect queue-addr)
@@ -55,10 +54,10 @@
        [name (:vb::parker::Record/queue-name (:vb::parker::State/durable s))
         q    (:vb::parker::State/q s)
         now  (:wat::time::epoch-nanos (:wat::time::now))
-        rr   (:queue::Queue/receive q
-               (:queue::Queue::ReceiveRequest
+        rr   (:wat::queue::Queue/receive q
+               (:wat::queue::Queue::ReceiveRequest
                  :queue name :now-ns now :visibility-ns 1000000000000
-                 :limit 10 :wait (:queue::Queue::Wait::UpTo (:wat::time::Milliseconds 50))))]
+                 :limit 10 :wait (:wat::queue::Queue::Wait::UpTo (:wat::time::Milliseconds 50))))]
        (:wat::core::match rr
          ((:wat::kernel::RecvOutcome::Message _r)
            (:wat::service::SelfOutcome::Continue s
@@ -98,11 +97,11 @@
   (:wat::core::let
     [sh (:wat::query::mem-store/start :locus (:wat::spawn::process)
           :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
-     qh (:queue::queue/start
+     qh (:wat::queue::queue/start
           :locus (:wat::spawn::process/post-spawn
                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
                      (:wat::service::require-granted (:wat::query::mem-store/grant sh (:vb::pids pl)))))
-          :record (:queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
+          :record (:wat::queue::queue::Record :cap 1024 :store-addr (:wat::query::mem-store::Handle/addr sh) :drop-recv-bp 0 :drop-ack-bp 0 :drop-seed 0))
      parkers (:wat::core::foldl
                (:wat::core::fn [acc <- (:wat::core::Vector :- [:vb::parker::Handle])
                                 _i  <- :wat::core::i64]
@@ -111,9 +110,9 @@
                    (:vb::parker/start
                      :locus (:wat::spawn::process/post-spawn
                               (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                                (:wat::service::require-granted (:queue::queue/grant qh (:vb::pids pl)))))
+                                (:wat::service::require-granted (:wat::queue::queue/grant qh (:vb::pids pl)))))
                      :record (:vb::parker::Record :queue-name "q0")
-                     :queue-addr (:queue::queue::Handle/addr qh))))
+                     :queue-addr (:wat::queue::queue::Handle/addr qh))))
                (:wat::core::Vector :- [:vb::parker::Handle])
                (:wat::core::range 0 j))
      _arm (:wat::core::foldl
@@ -127,7 +126,7 @@
                (:wat::core::let [_o (:wat::service::stop-faced (:vb::parker/stop (:wat::core::nth parkers i)))] (:wat::i64::+ acc 1)))
              0
              (:wat::core::range 0 j))
-     _qs (:wat::service::stop-faced (:queue::queue/stop qh))
+     _qs (:wat::service::stop-faced (:wat::queue::queue/stop qh))
      _ss (:wat::service::stop-faced (:wat::query::mem-store/stop sh))]
     j))
 
