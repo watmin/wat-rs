@@ -1,8 +1,11 @@
 //! the-bracket-runs-on-the-queue — control by mutation.
 //!
-//! Queue path: `bracket/map` over `queue-opts` with drop-recv-bp armed.
-//! Peer disposition: the same TimedOut, matched with runner-loop's panic string.
-//! Same commit. A green-only control fails the stone.
+//! Queue path: `bracket/map` over `queue-opts` with drop-recv-bp armed, asserting BOTH the result
+//! and `recv-drops>0` so a pass cannot be a vacuous skip.
+//!
+//! ⛔ The "peer disposition" half is GONE — see the tombstone at the foot of this file. It matched
+//! a panic string the fixture itself wrote, so it could not redden on the change it claimed to
+//! control. Reachability is pinned by `probe_bare_recv_outcome_surface.rs` instead.
 
 use wat::freeze::startup_from_file;
 use wat::runtime::{apply_function, Value};
@@ -103,15 +106,17 @@ fn queue_path_survives_recv_drop() {
     );
 }
 
-#[test]
-#[should_panic]
-fn peer_disposition_dies_on_timedout() {
-    let world = startup_from_file("tests/kernel/probe_bracket_runs_on_the_queue_peer_dies.wat")
-        .expect("startup should succeed");
-    let func = world
-        .symbols()
-        .get(":user::compute")
-        .expect("no :user::compute")
-        .clone();
-    let _ = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
-}
+// ⛔ `peer_disposition_dies_on_timedout` WAS HERE AND IS DELETED, 2026-09-19. It is recorded
+// rather than quietly dropped, because the reason is load-bearing.
+//
+// It read a fixture (`…_peer_dies.wat`, deleted with it) that NEVER RAN A BRACKET: it started a
+// queue at `drop-recv-bp=10000`, called `call-by-deadline` directly, and hand-wrote the two panic
+// strings into its own match arms. So its `#[should_panic]` was satisfied by an
+// `assertion-failed!` the fixture author typed in — delete all ten arms from `wat/bracket.wat` and
+// it stayed green. It controlled nothing.
+//
+// ⭐ And the control it was standing in for was never constructible, because the premise was
+// false: bare `:wat::kernel::recv` CANNOT return `RecvOutcome::TimedOut` or `::Malformed`, so
+// bracket's ten arms are exhaustiveness filler, not live crash paths. The honest control is
+// `tests/kernel/probe_bare_recv_outcome_surface.rs`, which pins that reachability and reddens if
+// anything makes those arms live.
