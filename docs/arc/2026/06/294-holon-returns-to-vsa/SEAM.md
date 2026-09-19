@@ -21,35 +21,35 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `9bbe3af47` (batch 4t's records, pushed). **540 of 651 replayed. 111 remain.**
+Stamp: written on top of `a55a292e0` (batch 4u's records, pushed). **560 of 651 replayed. 91 remain.**
 In flight: nothing.
 
-**Batch 4t (#521–#540) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
-census `no STOP-8`, 20/20 subjects and trailers. **The first batch in several with NO deviation, NO
-conflict, NO red and NO repair.**
-★ **#537's nine pre-migration `.wat` were cured by the RECORDED CHAIN**, one pass, no hand edits —
-verified at the tip: **9 of 9 check clean**, zero retired `assertion-failed!`, zero
-`:wat::core::i64::+`. The chain cured **more** than the pre-flight found (match-arm shape and enum
-variant separators as well), which is the argument for using it over hand patches.
-★ **The executor proved grok's prose unedited by HASHING every touched file** against grok's blob across
-all 20 steps, rather than asserting it. Spot-verified here on four steps: zero differences.
+**Batch 4u (#541–#560) is CLOSED and PUSHED.** Floor **5872/5872, 22 skipped — unchanged**, clippy 0,
+census `no STOP-8`, 20/20 subjects and trailers. Twenty docs-only steps, 22 distinct `.md`, no code.
+★ **THE NINE SHARED-DOC TOUCHES ALL AUTO-MERGED** — my brief predicted conflicts and was wrong, in the
+safe direction. The reason is structural: main's `PARKED 2026-09-13` annotation occupies the first seven
+lines while every one of grok's nine edits lands below the STAMP paragraph, so the hunks never share a
+line. **The executor verified after EACH of the nine anyway** — annotation present, grok's text landed,
+zero markers — and reported my wrong prediction as a deviation rather than pocketing the easy path.
+Verified here at the tip: the delta against grok's final blob is exactly the 12-line annotation block.
 
-Next is **batch 4u (#541–#560)**: censused — **20 docs-only, ZERO code steps. The whole range is 52
-`.md`.** No `.rs`, no `.wat`, no `.sh`, no hazard rows, no gates, **zero test delta** — floor prediction
-**unchanged at 5872 run / 22 skipped**, and structurally it cannot move.
+Next is **batch 4v (#561–#580)**: censused — **18 docs-only, 2 code (#565, #576)**. The range is **62
+`.md` + 3 `.rs` + 2 `.sh` + 1 `.wat`**. **ZERO hazard rows, ZERO new gates, ZERO test delta** — floor
+prediction **unchanged at 5872 run / 22 skipped**.
 
-⚠⚠ **THE ONE REAL TRAP IS A DIVERGED SHARED DOC, TOUCHED NINE TIMES.**
-`docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md` differs from grok's
-pre-image here by **12 lines (9+/3−)**, and **#548, #549, #551, #552, #554, #555, #556, #557 and #560
-all touch it.** Expect repeated conflicts in one file. **The #515 rule governs: keep BOTH sides — our
-annotation and grok's supersession — and drop neither.** Verify after each, not just at the end.
+⚠ **#576 is the only real code step** and it is small: `src/rete/clause.rs` (+6/−4) and
+`src/rete/eval_test.rs` (+2/−1), one **comments-only** edit to `wat/rete/oracle/fire.wat` (3 lines, the
+range's only `wat/` path, `stdlib-touch`), a `.sh`, and **one word added to the rune vocabulary gate**:
+`"shape-contract"` in `tests/lint/no_unknown_ward_rune.rs`. ⛔ **Our copy of that gate is byte-identical
+to grok's pre-image**, so it composes — but we carry **7 excusare runes** against grok's floor of 5, so
+read the gate's verdict rather than assuming.
+⚠ **Conflicts expected at `clause.rs`, `eval_test.rs` and `fire.wat`** — all three already differ from
+grok's pre-image here. Compare **deltas, not blobs**.
 
-⚠ **A CITATION RUMOUR, MEASURED AND DISMISSED.** #558 adds `wat/rete.wat:547+` while that file is **541
-lines** — but it is out of range on **grok's own tree too** (also 541), and it lives in a `.md`.
-`no_stale_path_in_doc` scans **doc comments inside `src/rete/*.rs`, `wat/*.wat`, `wat-tests/*.wat`** —
-**not `docs/**.md`**. So it is neither gated here nor ours to fix: **land it unedited** (the 4s rule).
-⛔ Recorded because I nearly briefed it as a red: **check what a gate actually SCANS before predicting it
-will fire.**
+⚠ **#565 adds `tests/lint/peragrare-bad-census.sh`** — a standalone census instrument. Measured: **no
+`.rs` drives it**, so it gates nothing; it cites `every_wat_bad_fixture_actually_fails.rs:242-301`, and
+`no_stale_path_in_doc` does not scan `.sh`. It is prose-with-a-shebang. Finding 33 still applies to its
+string literals — sweep and say so.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -103,7 +103,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4r #481–#500 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4s #501–#520 (CLOSED; floor 5872/5872, clippy 0, pushed)
                               + batch 4t #521–#540 (CLOSED; floor 5872/5872, clippy 0, pushed)
-                              ⇒ 540 of 651 replayed. NEXT: batch 4u #541–#560.
+                              + batch 4u #541–#560 (CLOSED; floor 5872/5872, clippy 0, pushed)
+                              ⇒ 560 of 651 replayed. NEXT: batch 4v #561–#580.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -160,6 +161,15 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4u #541–#560 is CLOSED and PUSHED** (records at `a55a292e0`; SCORE-7u, REPLAY-LOG). 20 steps,
+  ALL docs-only — the first all-prose batch of the campaign. Floor **5872/5872, 22 skipped — unchanged**,
+  clippy 0, census `no STOP-8`.
+  ★ **The nine shared-doc touches auto-merged** (see the header), each verified individually.
+  ★ **#558's `wat/rete.wat:547+` citation landed UNEDITED** — out of range on grok's own tree too, and in
+  a `.md` that `no_stale_path_in_doc` does not scan. The observation is in our SCORE, not in grok's text.
+  ⛔ **Recorded against me:** I nearly briefed that citation as a certain red. **Check what a gate
+  actually SCANS before predicting it will fire** — its `ROOTS` are `src/rete/*.rs`, `wat/*.wat`,
+  `wat-tests/*.wat`, and doc COMMENTS within them, never `docs/**.md`.
 - **Batch 4t #521–#540 is CLOSED and PUSHED** (records at `9bbe3af47`; SCORE-7t, REPLAY-LOG). 20 steps,
   18 docs-only. Floor **5872/5872, 22 skipped — unchanged**, clippy 0, census `no STOP-8` (2177 → 2186
   files). **Zero deviations, zero defects** — see the header.
