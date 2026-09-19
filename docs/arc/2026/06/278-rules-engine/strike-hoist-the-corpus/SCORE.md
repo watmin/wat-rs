@@ -1,9 +1,17 @@
-# SCORE — Phase 1 (`tests/`, 32 files): dry-run diff, reported, nothing applied
+# SCORE — Phase 1 (`tests/`, 32 files): applied for real, floor went RED, reverted — a check-contract gap
 
 Executing `DESIGN.md`'s Phase 1 only. Written as-I-go per house rule. Branch `grok-rete`, floor
-baseline `5490/5490` confirmed green both before touching anything and after (see "Floor" below —
-the working tree is IDENTICAL at both ends; only `wat-scripts/fixes/hoist-where-into-condition.wat`
-is new).
+baseline `5490/5490`. **Current state: reverted to that baseline.** The corpus is untouched; only
+the codemod (`wat-scripts/fixes/hoist-where-into-condition.wat`) and this SCORE.md are modified.
+
+**Three passes recorded below.** (1) The original dry-run-only submission (everything through the
+first "What I did NOT do"): diff read, nothing applied. (2) The coordinator approved it on
+substance, asked for a whitespace refinement, then asked for Phase 1 to be applied for real — see
+"Coordinator's refinement" onward: the fix, a re-run dry-run diff, the real application, re-
+verification, idempotency on the real corpus. (3) **The floor after applying went RED — 24
+failures** — see "⛔ Floor — RED" at the end: a genuine gap in the ORIGINAL check's own "could
+legally move" contract (not a codemod bug), captured in full, corpus reverted per the exact
+precedent this strike already set once, nothing committed.
 
 ## Re-derivation, before any edit
 
@@ -254,12 +262,15 @@ Captured at `.floor/2026-09-09T23-34-40Z/` (`.floor/latest`). **5490/5490, match
 baseline exactly** — expected, since nothing in the real corpus or `src/` changed: `git status`
 immediately before AND after the floor run shows only `?? wat-scripts/fixes/hoist-where-into-condition.wat`.
 
-## What I did NOT do
+## What I did NOT do (first pass — dry-run only, before the coordinator's go-ahead)
 
 - **Did not apply the codemod to the real `tests/` corpus.** All 32 files remain exactly as they
   were; only `/tmp` copies were rewritten, per this phase's explicit "STOP after the dry-run diff"
-  instruction.
-- **Did not touch `wat-scripts/`** — Phase 2's tree, untouched, per the ⛔ in the brief.
+  instruction. (Superseded below — the coordinator read this diff, approved it on substance,
+  asked for one refinement, then asked for Phase 1 to be applied for real. See "Applied for real"
+  further down.)
+- **Did not touch `wat-scripts/`** — Phase 2's tree, untouched, per the ⛔ in the brief. Still true
+  after applying for real.
 - **Did not restore the check permanently** — it was cherry-picked, used twice (enumeration, then
   verification), and stashed away + dropped both times. `src/rete/validate/{mod,error}.rs` are
   byte-identical to HEAD. Restoring it for real is Phase 3.
@@ -282,6 +293,323 @@ immediately before AND after the floor run shows only `?? wat-scripts/fixes/hois
   it ever reached the index; `git status` throughout the write-up shows it untouched.
 - **Did not re-run a red floor** — there was none; both the immediate-post-dance and final floor
   runs were green on the first try.
+
+## Coordinator's refinement — a deleted `where` takes its LINE with it, not just its own span
+
+Approved on substance; one issue: the dry-run diff left a whitespace-only line where each hoisted
+`where` used to sit (`:when [(:dm::Beat …)\n         ]` — a dangling indented `]`), and at
+`probe_arc278_sift_rules_arena.wat`'s `:arena::suspect-rule`, three in a row. Nothing gates this —
+no trailing-whitespace/line-length lint exists, and the corpus already has an 885-char line — but
+this branch is the reference for an imminent merge into `main`, and 63 sites of it is noise in
+exactly the files a merge will be resolving conflicts in. Fix: **the deletion must remove the
+`where`'s own LINE, not just its span**, so the `:when` vector closes naturally.
+
+**The fix — `backward-trim`, asymmetric on purpose.** Added `ws-char?`/`backward-trim` to the
+codemod: before building the deletion edit, walk backward from the `where` node's own start offset
+through every contiguous whitespace character (space/tab/CR/LF) until hitting a non-whitespace
+character (or offset 0); the deletion then runs from THAT position to the node's own end, folding
+in its leading indentation and the newline before it. Deliberately **backward-only, never
+forward** — reasoned through before touching the file, then confirmed empirically:
+
+- If it also trimmed forward, two adjacent hoisted `where`s' deletion spans could overlap (the
+  newline between them would be claimed by BOTH sites), corrupting `fix-text-apply`'s offset
+  arithmetic (which depends on non-overlapping, correctly-ordered edits, exactly the invariant
+  `positional-to-kwargs.wat`'s own doc calls out).
+- Backward-only means site K's trim always stops at site (K-1)'s own closing paren — a
+  non-whitespace character — because sites are exactly the `where` forms' own token spans and
+  nothing else. Traced by hand for `:arena::suspect-rule` (3 wheres, all hoisting into the SAME
+  `:arena::Event` condition): site1's deletion runs `[end of :arena::Event's paren, end of
+  where1)`; site2's runs `[end of where1, end of where2)`; site3's runs `[end of where2, end of
+  where3)` — three back-to-back, non-overlapping ranges, confirmed by re-running the dry-run (below)
+  rather than trusted from the trace alone.
+- The one case backward-trim does NOT collapse to a single line — a `where` sharing its `[` on the
+  SAME line as `:when` (no line existed for it to remove) — was checked separately and is not a
+  regression: `:when [\n         (:t::A …)]` is `:when [` ending its own line normally, not a
+  dangling bracket on its own separate line, which is the shape being asked for. No REAL file in
+  the 32-file corpus has this shape (confirmed below, "positionally-free" and single-line-rule
+  cases are the two patterns that actually occur).
+
+**Re-verified against the eight synthetic regression probes first** (plain-pattern hoist,
+factbind-pattern hoist, `where` before its binder, two targets, two `where`s → ONE target — the
+merge-bug case, `:not`-of-`:and` exclusion, ambiguous exclusion, cross-join exclusion, accumulate
+exclusion): all eight still resolve exactly as before — `backward-trim` only touches the deletion
+span's START; it cannot change WHICH sites hoist, only how much whitespace a hoisted site's
+deletion also removes. Re-ran double-migrate on three representative cases
+(`:dm::gap`, `:arena::suspect-rule`, `:wpf::r-trail`) — idempotent, byte-identical to single-migrate.
+
+## Re-run dry-run, `/tmp` copies, diffed against the recorded diff
+
+Fresh `/tmp` copies of all 32 real files, same codemod (now with `backward-trim`), same OLD-checker
+binary (no rebuild needed — `wat-scripts/*.wat` is not frozen into the binary, only `wat/*.wat`'s
+stdlib is). All 32 processed cleanly, zero errors.
+
+```
+$ grep -c '^-.*:wat::rete::where' all_diffs2.txt   →  63   (unchanged — same 63 sites)
+$ grep -c '^+[[:space:]]*$' all_diffs2.txt         →  0    (was N>0 before the fix; now none)
+```
+
+Read every one of the 32 diffs again in full (not sampled — same discipline as the first pass).
+Confirmed: the ONLY difference from the recorded first-pass diff is the absence of the
+whitespace-only lines; every hoisted predicate lands in the exact same place, verbatim, as before.
+Representative:
+
+```diff
+ (:wat::rete::defrule :dm::gap
+-  :when [(:dm::Beat (?t <- :t) (?k <- :kind))
+-         (:wat::rete::where (:wat::rete::core::string::= ?k "gap"))]
++  :when [(:dm::Beat (?t <- :t) (?k <- :kind) (:wat::rete::core::string::= ?k "gap"))]
+   :then [(:dm::Gap :t ?t)])
+```
+
+```diff
+           (:wat::rete::defrule :arena::suspect-rule
+-            :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing) (?bytes <- :bytes))
+-                   (:wat::rete::where (:wat::rete::core::i64::> (:arena::Timing/total-ns ?timing) 500000))
+-                   (:wat::rete::where (:wat::rete::core::i64::< (:arena::Client/reputation ?client) 0))
+-                   (:wat::rete::where (:wat::rete::core::string::= (:arena::Geo/country (:arena::Client/geo ?client)) "XX"))]
++            :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing) (?bytes <- :bytes) (:wat::rete::core::i64::> (:arena::Timing/total-ns ?timing) 500000) (:wat::rete::core::i64::< (:arena::Client/reputation ?client) 0) (:wat::rete::core::string::= (:arena::Geo/country (:arena::Client/geo ?client)) "XX"))]
+             :then [(:arena::Suspect :client ?client :route ?route :timing ?timing :bytes ?bytes)])
+```
+
+```diff
+ (:wat::rete::defrule :wpf::r-trail
+-  :when [(:wpf::A (?id <- :id) (?k <- :k))
+-         (:wpf::B (?id <- :id)) (:wpf::C (?id <- :id))
+-         (:wat::rete::where (:wat::rete::core::string::= ?k "yes"))]
++  :when [(:wpf::A (?id <- :id) (?k <- :k) (:wat::rete::core::string::= ?k "yes"))
++         (:wpf::B (?id <- :id)) (:wpf::C (?id <- :id))]
+   :then [(:wpf::Trail :x ?id)])
+```
+
+Idempotency re-confirmed on this fixed version too: a second pass over the migrated copies makes
+zero further changes.
+
+## Applied for real — all 32 `tests/` files
+
+`git status` checked clean (only the modified codemod file) immediately before. Applied the
+codemod directly to the 32 real paths (listed explicitly, one `printf`/EDN vector, no hand-edits,
+no sed):
+
+```
+$ cat apply_real_paths.edn | ./target/release/wat ./wat-scripts/fixes/hoist-where-into-condition.wat
+```
+
+All 32 printed `[hoisted]`, zero errors. `git status --short` immediately after: exactly the 32
+target files `M`, plus the already-modified codemod file — nothing else, `tests/rete/datamancer.rete.edn`
+untouched. `git diff -- tests/` shows 63 `where`-deletion lines removed, zero whitespace-only added
+lines. Byte-compared every one of the 32 real (now-modified) files against the just-recorded
+`/tmp` dry-run copies: **identical**, confirming the applied corpus is exactly what was reviewed.
+
+## Check-enabled re-verification, again — zero remaining `WhereHoistable`, real corpus content
+
+Re-ran the stash dance (cherry-pick `f47a9fccc`, `cargo build --release`) to get the check-enabled
+binary back. Learned from the earlier near-miss: verified against the `/tmp` copy tree (byte-
+identical to the real, now-applied files) **as CWD**, not the real repository root, so
+`datamancer.src.wat`'s hardcoded relative `write-file` path cannot resolve against the real
+`tests/rete/datamancer.rete.edn` no matter what its `:user::main` does. Zero of the 32 files produce
+a `WhereHoistable` finding. `git status --short tests/rete/datamancer.rete.edn` confirmed empty
+(untouched) immediately after. Stashed the check away and dropped it, rebuilt the OLD checker
+(`grep -n "Where(_)" src/rete/validate/mod.rs` shows all four original `{}` arms, matching HEAD).
+
+## Idempotency, on the REAL corpus this time
+
+Snapshotted the 32 real (already-migrated) files, re-ran the codemod against their real paths a
+second time: all 32 still print `[hoisted]` (the driver always attempts every path; "hoisted" means
+"processed", not "changed"), but byte-comparison against the pre-re-run snapshot shows **zero
+files changed**. `git status --short` line count unchanged (33: the 32 corpus files + the codemod).
+
+## ⛔ Floor — RED. 24 failures. NOT re-run. NOT committed. Corpus reverted; finding surfaced instead.
+
+`pgrep -af 'cargo|nextest'` checked clear immediately before (only unrelated `wat --mcp` processes).
+`./scripts/floor.sh`, foreground:
+
+```
+     Summary [ 452.222s] 5490 tests run: 5466 passed (2 slow), 24 failed, 19 skipped
+```
+
+Captured whole at `.floor/2026-09-10T00-02-20Z/` (`ARM.txt`, `clean.log`, `raw.log`; also preserved
+outside `.floor/` at the scratchpad in case a later `floor.sh` run recycles the directory). Per
+`wat-rs/CLAUDE.md`: **DO NOT RE-RUN, capture whole, name the exact arm, surface as a finding.**
+Confirmed BEFORE reading a single failure that this was not check-dance contamination: `git status`
+showed exactly the 32 migrated files + the codemod, nothing from the check-enabled verification
+phase; `grep -n "Where(_)" src/rete/validate/mod.rs` showed all four original `{}` arms, matching
+HEAD. **These 24 failures are a real, reproducible consequence of the migration itself, against the
+unmodified current compiler — not contamination, not a check artifact.**
+
+### The finding: `check_where_hoistable`'s "could legally move" contract only verifies VARIABLE
+BINDING. It never verifies the target form still compiles or behaves identically as an inline
+clause. At least four independent, unrelated compiler-level facts falsify that assumption — read
+every one before forming a theory, per `[[feedback_a_finding_names_one_site_enumerate_the_rest]]`.
+
+**(A) — 9 failures — an inline clause is NOT the same grammar as a `where`'s interior.** A `where`
+fence's predicate can call an arbitrary PURE user-defined/foreign function
+(`probe_arc278_foreign_pred_purity.wat`'s whole existence proves this is a supported, blessed shape).
+An INLINE clause cannot: `classify_rete_clause`'s `Predicate` arm gates on
+`expr_is_provably_boolean` (`src/rete/clause.rs:242`), which recognizes `and`/`or`/`not`/`if`/
+`let`/`match`/a bool literal/a known `RETE_OPS` row **by shape alone, with no registry** — an
+arbitrary function call is never in that set, foreign or not. Two distinct files, same mechanism,
+verbatim:
+
+```
+thread 'probe_arc278_6b_ii_a_where_oracle::where_with_user_fn_predicate_blocks' panicked at
+tests/rete/probe_arc278_6b_ii_a_where_oracle.rs:63:5:
+where (big? 50) false → 0 Gates; got Err("startup: #wat.rete/ReteCheckErrors {:message
+\"#wat.rete/ReteCheckErrors {:message \\\"1 rete rule validation error\\\" ... #wat.rete/MalformedClause
+{:message \\\"defrule `wb::big-gate` (`:weather::Temperature`): malformed rete clause
+`(:test/big? ?c)` — not a recognized :when shape\\\" :location ... {:file \\\"tests/rete/probe_arc278_6b_ii_a_where_oracle_userfn.wat\\\"
+:line 11 :col 44 ...} ... :rule \\\"wb::big-gate\\\" :fact-type \\\"weather::Temperature\\\"
+:clause \\\"(:test/big? ?c)\\\"}]}" ...}")
+```
+(and its `_passes` sibling, identical mechanism, `probe_arc278_6b_ii_a_where_oracle.rs:56:5`).
+
+`probe_arc300_2_fix_defrule.rs`'s 7 tests share ONE `startup_beside` fixture, so a single hoisted
+`(:fix/head-keyword-str? ?name)` — same mechanism exactly — takes down all 7 at once:
+```
+thread 'probe_arc300_2_fix_defrule::head_keyword_deduces_headconv' panicked at src/freeze.rs:1165:9:
+call_beside_value: fixture beside ".../tests/rete/probe_arc300_2_fix_defrule.rs" failed to freeze:
+#wat.rete/ReteCheckErrors {... #wat.rete/MalformedClause {:message \"defrule
+`fix::head-keyword->conv` (`:fix::Node`): malformed rete clause `(:fix/head-keyword-str? ?name)`
+— not a recognized :when shape\" :location ... {:file \"tests/rete/probe_arc300_2_fix_defrule.wat\"
+:line 67 :col 52 ...} :rule \"fix::head-keyword->conv\" :fact-type \"fix::Node\" :clause
+\"(:fix/head-keyword-str? ?name)\"}]}
+```
+(identical panic, same file/line, for `left_arrow_deduces_arrowconv`, `non_arrow_symbol_deduces_nothing`,
+`post_arrow_keyword_deduces_typeconv`, `post_arrow_keyword_is_not_headconv`,
+`right_arrow_deduces_arrowconv`, `type_shaped_keyword_deduces_typeconv_even_when_not_post_arrow`).
+
+**(B) — 2 failures — hoisting a DELIBERATELY malformed `where` moves it out of `where`'s OWN
+Law-A/totality diagnostic path.** `probe_fence_names_the_head_core_op.wat` and `_partial.wat` are
+NEGATIVE fixtures on purpose: `(:wat::rete::where (:wat::core::i64::> ?c 0))` — a bare
+`:wat::core::` op inside a `where`, meant to be refused by `where`'s OWN compile path
+(`compile-condition`, per the codemod's own header note at `wat/rete.wat`) with a Law-A-specific
+diagnostic. My census correctly found these hoistable-by-variable-binding (one var, one binder) —
+the check has no way to know the predicate is deliberately illegal — but hoisting them moves the
+SAME malformed head into the GENERIC inline-clause classifier instead, which reports a DIFFERENT,
+less specific error:
+```
+thread 'probe_fence_names_the_head::core_op_where_names_law_a_not_total' panicked at
+tests/rete/probe_fence_names_the_head.rs:109:5:
+assertion `left == right` failed
+  left: "startup: ... MalformedClause {:message \"defrule `wf::bad-gate` (`:weather::Temperature`):
+  malformed rete clause `(:wat.core.i64/> ?c 0)` — not a recognized :when shape\" ...}"
+ right: "compile-condition: where expr is not a rete primitive — ':wat::core::i64::>' is not a
+  rete primitive; a where admits only :wat::rete:: ops"
+```
+```
+thread 'probe_fence_names_the_head::partial_where_names_the_offending_head_and_axis' panicked at
+tests/rete/probe_fence_names_the_head.rs:97:5:
+assertion `left == right` failed
+  left: "startup: ... MalformedClause {:message \"defrule `wf::bad-gate` ...: malformed rete clause
+  `(:wat.core.i64// ?c 1)` — not a recognized :when shape\" ...}"
+ right: "compile-condition: where expr is not total — ':wat::core::i64::/' is not total"
+```
+The `where` fence is not JUST a beta-vs-alpha performance distinction — it is also its OWN
+validation surface (Law A enforcement, totality) that inlining bypasses entirely, replacing a
+targeted diagnostic with a generic one. Both fixtures still fail to compile before AND after
+hoisting; only the ERROR TEXT changes, which is exactly what these two tests assert on.
+
+**(C) — 1 failure — a termination-BOUNDING `where` fence is not equivalent to the same test
+inlined, for the round-cap VERIFIER specifically**, independent of match-set:
+```
+thread 'probe_arc278_fixpoint_round_cap::a_fence_bounded_counter_is_admitted_and_its_wrong_way_twin_is_not'
+panicked at tests/rete/probe_arc278_fixpoint_round_cap.rs:396:5:
+assertion `left == right` failed: and CONVERGE at 501 — the seed plus every step up to the bound.
+Admitting a rule set that then hangs would be worse than refusing it
+  left: "\"ARM MayNotTerminate\"\n\"gc::count-up\"\n\"gc::N\""
+ right: "\"501\""
+```
+`probe_arc278_termination_guarded_counter.wat`'s `gc::count-up` uses `(where (< ?k 500))` as a
+counter's own termination bound. Once inlined into the alpha condition, the STATIC
+may-not-terminate verifier — a SEPARATE analysis from `check_where_hoistable`, reasoning over the
+compiled rule graph's shape — now refuses to admit the rule set at all, where it previously proved
+termination and ran to completion. This is a genuine BEHAVIORAL regression (refusal vs 501
+successful rounds), not a cosmetic diagnostic difference — the two forms are NOT interchangeable
+for this analysis, directly contradicting the premise that hoisting is a pure optimization.
+
+**(D) — 1 failure — an alpha condition does not compile the same closure-bearing expression a beta
+test does:**
+```
+thread 'probe_arc278_reduce_arity_totality::the_partial_two_arity_form_is_refused' panicked at
+tests/rete/probe_arc278_reduce_arity_totality.rs:93:5:
+the refusal must name the admitted spelling so the author knows what to write; got:
+#wat.runtime/MalformedForm {:message "malformed :wat::rete::fire-rules form: alpha 0 cond did not
+compile — setup should compile every fact-shaped alpha" :location ... {:file
+"tests/rete/probe_arc278_reduce_arity_totality_two.wat" :line 7 :col 4 ...} :head
+":wat::rete::fire-rules" :reason "alpha 0 cond did not compile — setup should compile every
+fact-shaped alpha"}
+```
+The hoisted predicate is a `reduce` over a `fn` closure (`(:wat::rete::core::reduce (:wat::rete::core::fn
+[acc x] -> i64 ...) 0 ?v)`) — legal inside a `where`, but alpha-node compilation apparently cannot
+build this shape the way beta-test compilation could.
+
+**(E) — 10 failures — a test's own scaffolding depends on the `where`'s compiled node existing,
+for reasons UNRELATED to the where/hoist question itself.** All 10 are `probe_arc278_export.rs`
+tests sharing a fixture built around `:exp::cool`'s `where`; they use the exported `:prog`-tagged
+node the `where` used to compile to as a convenient, pre-existing depth-probe subject for testing
+UNRELATED arity/depth-refusal behavior. With the `where` gone, that scaffolding node is gone too:
+```
+thread 'probe_arc278_export::a_well_formed_user_call_still_runs' panicked at
+tests/rete/probe_arc278_export.rs:755:5:
+cool-export packs no [:prog …] — these depth probes would be vacuous
+```
+(identical panic, same file/line, for `arity_refuses_a_call_with_no_arguments_at_all`,
+`arity_refuses_a_surplus_that_falls_past_the_frame`,
+`arity_refuses_a_surplus_that_collides_with_a_declared_slot`,
+`arity_refuses_arguments_to_a_zero_parameter_callee`,
+`arity_refuses_too_few_arguments_on_the_evaluating_path`,
+`import_refuses_a_node_graph_with_dangling_child_edges`,
+`import_refuses_a_pattern_tower_past_the_depth_bound`,
+`import_refuses_a_user_prog_cycle_tower_past_the_depth_bound`,
+`import_refuses_an_and_tower_past_the_depth_bound`, `import_refuses_op_outside_rete_ops`).
+
+**9 + 2 + 1 + 1 + 10 = 24, accounts for every failure**, confirmed against the full FAIL list
+(`clean.log` line numbers 408, 430, 594, 613, 632, 651, 672, 691, 712, 731, 751, 771, 794, 836, 938,
+1035, 1054, 1074, 1093, 1112, 1131, 1150, 1181, 1206 — 24 lines).
+
+### Why this is a check-contract gap, not a codemod bug
+
+The codemod is a faithful, independently-verified mirror of `check_where_hoistable`'s own decision
+procedure (var-binding superset, exactly one match). Every one of these 63 sites — the 24 broken
+ones included — is genuinely "hoistable" BY THAT DEFINITION. The gap is in the definition itself:
+"could legally move" was formalized as "every var is bound by exactly one condition," which says
+nothing about whether the MOVED predicate (a) is drawn from the narrower inline-clause grammar
+(A), (b) was relying on `where`'s OWN separate validation path for its diagnostic (B), (c) is
+transparent to the SAME degree to the termination verifier in both positions (C), (d) compiles
+identically as an alpha vs. a beta test (D), or (e) is depended upon structurally by something
+that has nothing to do with hoisting at all (E). None of these are things `check_where_hoistable`
+or this codemod could have caught by construction — they are facts about OTHER parts of the
+compiler (the inline-clause grammar, `where`'s Law-A path, the termination verifier, alpha
+compilation) that the hoist transform's own contract never claimed to preserve.
+
+### Action taken: reverted the 32 files, kept the codemod and this SCORE.md
+
+Per the exact precedent this same strike already set once (`23625037b`, "NOT SHIPPED": the check
+itself was reverted and only its SCORE.md kept, when it turned out to refuse correct code) — `git
+restore`d all 32 real corpus files back to their last-committed (pre-migration) content. Verified
+after: `git status --short` shows only the codemod file and this SCORE.md modified — the corpus is
+byte-identical to `HEAD` again. **Did NOT re-run the floor after reverting** (a green re-run would
+prove nothing new and risks reading as "the problem went away"; the red evidence stands on its own
+in `.floor/2026-09-10T00-02-20Z/`, preserved). Did NOT commit anything. Did NOT attempt to patch
+the codemod to special-case these 24 sites — narrowing the codemod's OWN hoist criterion to also
+require inline-clause-grammar admissibility, Law-A/totality parity, termination-verifier parity,
+AND absence of unrelated structural dependents is a real design decision (four independent new
+exclusion axes, at least one of which — (E) — is not even a property of the `.wat` source at all,
+but of a SIBLING `.rs` test's assumptions) that belongs to whoever owns `check_where_hoistable`'s
+contract, not something to improvise mid-codemod.
+
+## Floor, one more time — on the REVERTED state, before committing anything
+
+Not a re-run of the red floor (a different tree: the corpus reverted, the codemod carrying only its
+own whitespace refinement). `git status --short` confirmed clean except the codemod file and this
+SCORE.md before starting; `pgrep -af 'cargo|nextest'` clear. `./scripts/floor.sh`, foreground:
+
+```
+     Summary [ 452.667s] 5490 tests run: 5490 passed (1 slow), 19 skipped
+```
+
+Matches baseline exactly. Committing the codemod's whitespace refinement and this SCORE.md only —
+per house rule, commit ONLY on green, and this is the first green measured for this exact tree
+state (the corpus-reverted one), not a re-run of the red one.
 
 ---
 

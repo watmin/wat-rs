@@ -1,17 +1,11 @@
-# ORACLE for hoist-where-into-condition — HISTORY, plus the codemod's own header spec for the
-# whitespace artifact this step's PRE-refinement tool leaves behind (fixed at #628; this fixture's
-# after.post is updated there to match).
+# ORACLE for hoist-where-into-condition — HISTORY, never the tool.
 #
 # The substantive hoist (the `where`s' predicates moving into the `:wat::grep::Node` condition) is
 # grok's own #630 (feb5fae91), copied verbatim from wat-scripts/grep/bare-variant-constructors.wat
 # (the `:bv::head` rule — a genuine JOIN case, 2 ordinary conditions, so #630's join-only gate
 # does not exclude it and this fixture stays correct at every step from #627 through the tip).
-#
-# At #627 (before #628's backward-trim refinement), a hoisted `where`'s own deletion covers
-# exactly its own span, per the tool's OWN header doctrine — leaving a whitespace-only line and a
-# standalone `]` behind. That `]` line does not appear verbatim in real history (grok's own
-# history only ever shipped the POST-backward-trim form), so it is backed by the tool's own
-# documented behavior instead.
+# Updated here at #628: `backward-trim`'s own refinement lands, so the fixture's expected output
+# now matches grok's real post-image line-for-line (the closing bracket merges onto the preceding
+# condition's own line) — no whitespace-artifact spec entry is needed any longer.
 
 history feb5fae91 wat-scripts/grep/bare-variant-constructors.wat
-spec ] :: whitespace/newline it leaves behind survives — that is wat-fmt's job, not this codemod's

@@ -7,7 +7,5 @@
 
 (:wat::rete::defrule :bv::head
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index) (:wat::rete::core::string::= ?k "keyword") (:wat::rete::core::i64::= ?i 0))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
-         
-         ]
+         (:wat::grep::Named (?id <- :id) (?n <- :name))]
   :then [(:bv::Head :id ?id :name ?n)])
