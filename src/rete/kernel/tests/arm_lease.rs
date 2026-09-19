@@ -11,10 +11,10 @@ use super::*;
 #[test]
 fn fire_rules_reuses_arm_across_fire_and_insert_overlay() {
     use super::{
-        fire_fixpoint_delta, network_identity, session_facts, session_with_facts, ARM_BUILDS,
+        fire_fixpoint_delta, network_identity, session_facts, session_with_facts, arm_builds,
     };
     let (world, fired) = fire_cascade(3, 5);
-    let builds_after_first = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let builds_after_first = arm_builds();
     assert!(
         builds_after_first >= 1,
         "first fire-rules must have built an arm; got {builds_after_first}"
@@ -27,7 +27,7 @@ fn fire_rules_reuses_arm_across_fire_and_insert_overlay() {
     );
 
     fire_fixpoint_delta(&fired, world.symbols(), None).expect("second fire on the same session");
-    let after_second = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let after_second = arm_builds();
     assert_eq!(
         after_second, builds_after_first,
         "second fire-rules must not rebuild the arm (same network)"
@@ -40,7 +40,7 @@ fn fire_rules_reuses_arm_across_fire_and_insert_overlay() {
         "insert/facts overlay must share the network intern"
     );
     fire_fixpoint_delta(&overlay, world.symbols(), None).expect("fire on overlay session");
-    let after_overlay = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let after_overlay = arm_builds();
     assert_eq!(
         after_overlay, builds_after_first,
         "fire on a facts overlay must not rebuild the arm"
@@ -90,6 +90,105 @@ fn intern_index_thread_owned_workers_do_not_collide() {
     assert_eq!(ids.len(), N, "N workers minted N instance ids; got {ids:?}");
 }
 
+/// PROBE (arc 278, strike `arm-builds-thread-owned`) — `arm_builds()` is THREAD-OWNED, not
+/// process-global. This is the discriminating claim the strike exists to prove: "the count went
+/// up" passes under both a thread-local `Cell` and a process-global `AtomicUsize`; only
+/// thread-ownership makes a thread's own reading immune to what OTHER threads built.
+///
+/// rune:lint(cited-name-absent) AtomicUsize — the pre-strike process-global counter type this
+/// strike deleted from arm.rs; cited by name below only to contrast against the `Cell` fix, not
+/// because it exists anywhere in this tree anymore.
+///
+/// Two independent claims are driven, not one — an earlier draft of this probe relied only on
+/// the second and it passed under BOTH designs (see the note below), which is exactly the trap the
+/// brief warns about ("a probe that only asserts the count went up... passes under both
+/// designs"):
+///
+/// 1. **The MAIN test thread built nothing, and must read 0 even after two OTHER threads build 4
+///    arms between them.** This needs no timing assumption at all: `JoinHandle::join` is a full
+///    happens-before edge, so once both `join()` calls below return, every write either worker
+///    made is already visible here, unconditionally. A process-global counter reads 4 here
+///    instead of 0 — the two-thread total, on a thread that built nothing.
+/// 2. **Each worker reads only its own count.** The two workers build a DIFFERENT number of arms
+///    (1 vs 3) so neither's own total can coincidentally match a shared running total, and
+///    rendezvous on two `Barrier`s — one before EITHER starts building (so neither worker's
+///    `before` reading can be polluted by the other racing ahead) and one after BOTH have
+///    finished (so by construction, by the time a worker takes its final reading, the OTHER
+///    worker has already finished ALL of its own builds; a `Barrier::wait()` does not return for
+///    either party until both have arrived).
+///
+/// Note: the first draft read `before`/`after` around a single `fire_cascade` call with no
+/// synchronisation before the read, reasoning that the read happened "after my own build". It
+/// does — but `build_rete_arm`'s `#[cfg(test)]` increment fires near the START of a call whose
+/// total runtime is dominated by the surrounding compile/fire work, so by the time either
+/// thread's own call returned, the OTHER thread had, in practice, already incremented too — both
+/// threads' un-synchronised reads already saw the shared total, and the assertion passed
+/// vacuously **even under the reverted process-global `AtomicUsize`** (driven, not assumed —
+/// this is the exact mutation run this strike's EXPECTATIONS calls for). Claim 1 above needed no
+/// redesign to become airtight; claim 2 needed the two barriers.
+#[test]
+fn arm_builds_is_thread_owned_not_process_global() {
+    use std::sync::Barrier;
+
+    let main_before = arm_builds();
+    assert_eq!(
+        main_before, 0,
+        "fresh nextest process (fork-per-test, module header): nothing has built yet on ANY \
+         thread, including this main test thread"
+    );
+
+    let start = Arc::new(Barrier::new(2));
+    let done = Arc::new(Barrier::new(2));
+    let handles: Vec<_> = [1usize, 3usize]
+        .into_iter()
+        .map(|own_builds| {
+            let start = Arc::clone(&start);
+            let done = Arc::clone(&done);
+            std::thread::spawn(move || {
+                // Rendezvous BEFORE either worker has built or read the counter, so `before`
+                // cannot be polluted by the other worker racing ahead.
+                start.wait();
+                let before = arm_builds();
+                for _ in 0..own_builds {
+                    // Every `fire_cascade` call mints a fresh network identity — `compile-all`
+                    // never content-interns (`arm_lease.rs`'s own note on this, above) — so each
+                    // call is a guaranteed intern MISS and a guaranteed build.
+                    let _ = fire_cascade(2, 2);
+                }
+                // Rendezvous AFTER both workers have finished ALL their builds.
+                done.wait();
+                let after = arm_builds();
+                (before, own_builds, after)
+            })
+        })
+        .collect();
+
+    let mut total_worker_builds = 0usize;
+    for (idx, h) in handles.into_iter().enumerate() {
+        let (before, own_builds, after) =
+            h.join().unwrap_or_else(|_| panic!("worker {idx} panicked"));
+        total_worker_builds += own_builds;
+        assert_eq!(
+            after - before,
+            own_builds,
+            "worker {idx}: arm_builds() must be THREAD-OWNED — this worker built {own_builds} \
+             arms of its own, but its reading changed by {} once BOTH workers had finished \
+             building; a process-global counter would show the combined total built by both \
+             workers here, instead of just this worker's own",
+            after - before
+        );
+    }
+
+    let main_after = arm_builds();
+    assert_eq!(
+        main_after, 0,
+        "the MAIN test thread built nothing itself; under thread-ownership its own reading must \
+         still be 0 even after two OTHER threads built {total_worker_builds} arms between them \
+         (`join()`'s happens-before guarantee needs no timing assumption at all) — a \
+         process-global counter would read {total_worker_builds} here instead"
+    );
+}
+
 fn session_net_id(session: &Value) -> Option<u64> {
     super::session_network(session).and_then(super::network_identity)
 }
@@ -98,7 +197,7 @@ fn session_net_id(session: &Value) -> Option<u64> {
 #[test]
 fn intern_release_drops_arm_and_next_fire_rebuilds() {
     use super::{
-        fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, ARM_BUILDS,
+        fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, arm_builds,
     };
     let (world, fired) = fire_cascade(2, 2);
     let id = session_net_id(&fired).expect("fired session has a network identity");
@@ -107,10 +206,10 @@ fn intern_release_drops_arm_and_next_fire_rebuilds() {
         Some(1),
         "compile-all leases 1; fire HIT does not add a lease"
     );
-    let builds = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let builds = arm_builds();
     fire_fixpoint_delta(&fired, world.symbols(), None).expect("second fire HIT");
     assert_eq!(
-        ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+        arm_builds(),
         builds,
         "fire HIT must not rebuild"
     );
@@ -121,7 +220,7 @@ fn intern_release_drops_arm_and_next_fire_rebuilds() {
     );
     fire_fixpoint_delta(&fired, world.symbols(), None).expect("fire after release");
     assert_eq!(
-        ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+        arm_builds(),
         builds + 1,
         "next fire after release must rebuild"
     );
@@ -136,7 +235,7 @@ fn intern_release_drops_arm_and_next_fire_rebuilds() {
 #[test]
 fn intern_release_one_session_leaves_the_other() {
     use super::{
-        fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, ARM_BUILDS,
+        fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, arm_builds,
     };
     let (_world_a, a) = fire_cascade(2, 2);
     let (world_b, b) = fire_cascade(2, 2);
@@ -148,13 +247,13 @@ fn intern_release_one_session_leaves_the_other() {
     );
     assert_eq!(rete_arm_leases(id_a), Some(1));
     assert_eq!(rete_arm_leases(id_b), Some(1));
-    let builds = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let builds = arm_builds();
     rete_arm_release(id_a);
     assert!(rete_arm_lookup(id_a).is_none());
     assert_eq!(rete_arm_leases(id_b), Some(1));
     fire_fixpoint_delta(&b, world_b.symbols(), None).expect("b still HIT");
     assert_eq!(
-        ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+        arm_builds(),
         builds,
         "releasing A must not force B to rebuild"
     );
@@ -167,7 +266,7 @@ fn intern_release_one_session_leaves_the_other() {
 fn intern_overlay_is_not_a_second_lease() {
     use super::{
         fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, session_facts,
-        session_with_facts, ARM_BUILDS,
+        session_with_facts, arm_builds,
     };
     let (world, fired) = fire_cascade(2, 2);
     let id = session_net_id(&fired).expect("id");
@@ -178,10 +277,10 @@ fn intern_overlay_is_not_a_second_lease() {
         Some(1),
         "overlay insert is not a second lease"
     );
-    let builds = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let builds = arm_builds();
     fire_fixpoint_delta(&overlay, world.symbols(), None).expect("overlay fire HIT");
     assert_eq!(
-        ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+        arm_builds(),
         builds
     );
     rete_arm_release(id);
@@ -189,7 +288,7 @@ fn intern_overlay_is_not_a_second_lease() {
     fire_fixpoint_delta(&overlay, world.symbols(), None)
         .expect("overlay fire after release rebuilds");
     assert_eq!(
-        ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+        arm_builds(),
         builds + 1
     );
 }
@@ -252,15 +351,15 @@ const SCOPED_WORK_WORLD: &str = "\
 ";
 
 /// Row 1 — N units of work cost ONE network build. `with-overlay` over 3 distinct fact sets
-/// (matching the prototype's `3 / 0 / 3`) must increment `ARM_BUILDS` exactly once; rete
+/// (matching the prototype's `3 / 0 / 3`) must increment `arm_builds()` exactly once; rete
 /// already gates the underlying mechanism (`fire_rules_reuses_arm_across_fire_and_insert_
 /// overlay`), this asserts the COMPOSITION through the promoted `with-overlay` form.
 #[test]
 fn scoped_work_with_overlay_reuses_one_build() {
-    use super::ARM_BUILDS;
+    use super::arm_builds;
     let world = startup_from_source(SCOPED_WORK_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("scoped-work world should freeze");
-    let builds_before = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let builds_before = arm_builds();
 
     let src = "\
 (:wat::rete::with-overlay (:sw::the-rules) (:sw::the-queries)\n\
@@ -281,7 +380,7 @@ fn scoped_work_with_overlay_reuses_one_build() {
         "one match per unit, three distinct units"
     );
 
-    let builds_after = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    let builds_after = arm_builds();
     assert_eq!(
         builds_after - builds_before,
         1,
