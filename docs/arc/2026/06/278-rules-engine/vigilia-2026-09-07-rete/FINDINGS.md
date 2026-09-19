@@ -1075,3 +1075,72 @@ eleven files that are, in fact, covered.
 ⚠ **Zero `rune:circumspicere` in target 2, re-derived.** Target 1 had exactly one, adjudicated valid.
 So **no surface on the compile side has ever been declared an accepted-by-design edge** — which is
 not the same as there being none, and the ward said so rather than reading the zero as health.
+
+---
+
+# TARGET 3 — `wat-scripts/perf/grid/` (147 files, 16,345 lines measured)
+
+Muster derived in `README.md` with measured triggers. Returns land verbatim in `reports-target3/`.
+
+| id | ward | site | finding | sev | status | re-derivation |
+|---|---|---|---|---|---|---|
+| **3P1 ★★★** | peragrare | the grid's 5-axis grid; census at `wat-scripts/perf/grid/peragrare-census.sh` | ⭐⭐⭐ **THE CORPUS PROVES EVERY MECHANISM ALONE AND NO TWO TOGETHER.** All three founding defects that birthed this ward are now closed **as isolated axes** — `userfn-head`, `retract-multiplicity`, `accum-over-derived` each have a fixture and a mutation proof. But **no fixture combines any two of them.** 5 of 108 cells are empty *and* carry a live compound hypothesis: a user-fn head whose LHS accumulates over a type the same ruleset derives; a duplicate-retract feeding a **leading** accumulate; a leading accumulate whose `:from` is itself derived; a positive consumer downstream of a **leading** gate; a duplicate-retract of the accumulate's own source. **Each cure was proven only where the other pressure is absent.** | **L1** ×5 | **OPEN** · ✅ I VERIFIED the census, its anchor and its arithmetic | `bash peragrare-census.sh` → 108 cells, 9 visited, 99 empty, 16 members; `--pins` → all three PASS, moving pin **8 of 8** with the spell's own denominator `(2-1)+(2-1)+(3-1)+(3-1)+(3-1)`; `--verify` → *"all 16 fixtures' mechanical facts agree with the table"*. Closed cell by cell, each with a fixture |
+
+## Verified by the orchestrator — target 3
+
+⭐⭐⭐ **THE FACT THAT REFRAMES THE WHOLE GRID, AND I HAD IT WRONG UNTIL THE CENSUS RAN: THE
+THREE-WAY INSTRUMENT COMPARES 16 OF THE 54 AXES.** `check-grid-three-way.sh:126` carries
+`case "$stem" in where-*) continue ;; esac` — and `ls where-*.wat | wc -l` is **38**. 54 − 38 = 16.
+I have referred to "the grid" as 54 axes throughout this vigilia; the arc's flagship correctness
+instrument runs over **16**. ⚠ **This is NOT a finding**: the 38 are an *honest exclusion* handed
+to two **named** siblings (`check-where-shapes.sh`, `check-query-compat.sh`), which is exactly the
+distinction `peragrare`'s step 4 demands between *never offered* and *silently dropped* — and
+`dropped` measured **0**. But every coverage intuition about this instrument has to be rebuilt on
+16, not 54.
+
+- **3P1 ★★★** — CONFIRMED, and I ran the census myself rather than reading its output.
+  · `bash peragrare-census.sh` → 108 cells (2×2×3×3×3, the arithmetic closes), 9 visited, 99 empty,
+    16 members. · `--pins` → **populated PASS** (5 where 5 expected), **empty PASS** (`H=lambda`, a
+    value no axis takes — correctly a *value* and not a forbidden *combination*), **moving PASS,
+    8 of 8**, with the denominator the spell specifies. · `--verify` → *"all 16 fixtures' mechanical
+    facts agree with the table."*
+  ⭐ **And the ward disclosed the one thing that would have made this a rumour.** Its coordinates are
+  **hand-derived, not computed** — it built a mechanical classifier, found it misread this corpus's
+  *second* authoring idiom (bare let-bound symbols vs inline quoted forms) and produced false
+  userfn heads, and **refused to ship it**. The spell's own clause covers this: *"Where a fixture's
+  coordinate is read literally off it rather than computed, this pin is trivially satisfied."*
+  Hand-assignment is the read case. It then built `--verify` so a future corpus edit breaks the
+  table **loudly**. That is the honest disposition of a limitation, not a workaround for one.
+
+⛔⛔ **AND I NEARLY ROWED TWO FALSE FINDINGS IN ONE VERIFICATION CHAIN — BOTH FROM GREPPING A NAME.**
+1. The ward's aside says *"no Rust test drives `check-grid-three-way.sh` at all."* My
+   `grep -rl 'check-grid-three-way' tests/` returned **0**, and I began treating the arc's flagship
+   differential as ungated.
+2. I then found `tests/lint/every_parity_script_is_invoked.rs` and started to row *that* gate for
+   not covering it.
+**Both were wrong, for the same reason.** The gate's own header says: *"**Discovery, not a list.**
+The directory is WALKED. A list cannot notice what was never added to it — which is the whole
+defect."* It globs `check-*.sh` under the grid, so a covered script is **never named** — my grep was
+measuring mentions, not coverage. And *"What counts as invoked: named by the CI workflow, **or** by a
+Rust test. Both are real invocation paths… the question is whether SOMETHING runs it, not which
+thing."* `check-grid-three-way.sh` is invoked at **`.github/workflows/ci.yml:262`**.
+⚠ **This is the THIRD distinct instance this session of one error class**: my `#[allow]` count
+matched a prose mention; my `RETE_OPS` count matched 29 prose mentions of `rete_name`; and now two
+name-greps mistook "not mentioned" for "not covered." **A grep for a name answers a question about
+names.** The ward was right to file its note as *"not a peragrare finding — an instrument-robustness
+aside"*, and that framing is why it did no damage: the residue that survives is narrow and real —
+the *"BOTH is a hard failure"* guard is live code that has never been **mutation-proved**.
+
+⭐ **9 of 9 visited cells READ, zero hollow** — and the evidence is specific rather than asserted:
+`userfn-head.wat`'s witness carries both Rate and Out *"so a witness carrying Out alone cannot tell
+'Out dropped' from 'nothing derived'"*, which reads two axes at once; `accum-lead-rule-cascade.wat`
+asserts count-**constancy** precisely to catch a round-count leak. **The corpus's fixtures assert on
+the axes they occupy.** The gap is entirely in what nobody staged, not in what was staged weakly.
+
+⚠ **One number I declined to adjudicate rather than get wrong an eighth time.**
+`check-grid-three-way.sh:17` says *"0 of 47 carry `:oracle-accuracy`"*; the ward re-derived **0 of
+29** (corpus rotation). My own quick `grep -c` found **11 `.wat` mentioning** `:oracle-accuracy` —
+but that is a **different population** (sources mentioning a field, not recorded outputs carrying
+it), and it is the exact mention-vs-thing trap above. **I am recording all three numbers and
+adjudicating none**, because settling it needs the recorded-output corpus enumerated, which nobody
+has done.
