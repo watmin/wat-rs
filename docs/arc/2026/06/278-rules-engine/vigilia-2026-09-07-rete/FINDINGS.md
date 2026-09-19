@@ -1093,6 +1093,7 @@ Muster derived in `README.md` with measured triggers. Returns land verbatim in `
 | **3S6** | solvere | `check-spec-native.sh:15-23`; `check-query-compat.sh:15-23`; `check-grid-three-way.sh:60-68`; `check-where-shapes.sh:55-66`; `run-axis.sh:45-62` | `WAT_BIN`/`GRID_DIR`/`REPO_ROOT` discovery-and-validation repeated **5×**, byte-identical but for the echoed script name; its rationale comment duplicated in long and short forms. ⚠ **Only `run-axis.sh` carries the freshness wall** — the other four read the same binary for the same kind of measurement with no such protection, which is itself evidence the copies are not kept in sync. | L2 · incidental | **OPEN** · ⚠ ward-reported | extract the 5-line core; leave `run-axis.sh`'s freshness wall local |
 | **3C1 ★★** | conferre | contract: `CLARA-TRANSLATIONS.md` (422 lines) · code: `where-or-conditions.clj:2,45` + 15 sibling twins | ⭐⭐ **THE CONTRACT NEVER MENTIONS `:or` — AND 16 OF 43 TWINS CARRY A DEFENSIVE COLLAPSE FOR IT.** Clara's `:or` compiles to independent activation paths, so a rule fires its RHS **once per matching disjunct**; `where-or-conditions.clj:2` says so outright — *"Clara insert!s twice when both arms match"* — and compensates with `(count (set …))`. **16 twins carry that collapse; their `.wat` partners use a raw `length`.** The contract's stated job is *"any semantic caveat that could make an accuracy/speed differential misleading"* — and ⛔ **I verified the word `:or` does not appear in it at all.** | L2 (ward: Medium) | **OPEN** · ✅ I VERIFIED | `grep -n ':or\b' CLARA-TRANSLATIONS.md` → **empty**; `grep -lE '\(count \(set ' *.clj \| wc -l` → **16**. Closed by an `:or` entry in the contract |
 | **3C2** | conferre | `CLARA-TRANSLATIONS.md:363` | ⚠ **A DANGLING SELF-CITATION THAT IS THE SOLE JUSTIFICATION FOR A DECISION.** The line strikes A10's original "no twin needed" reasoning on the authority of *"Rule 4 of this document (mirror the OPERATION, not the vocabulary)"*. **There is no rule list in this document** — the ward read all 422 lines and all three commits of its history; I re-checked the current file: `Rule [0-9]` occurs **exactly once**, at `:363`, the citation itself. | L2 · aside | **OPEN** · ✅ I VERIFIED | `grep -coE 'Rule [0-9]' CLARA-TRANSLATIONS.md` → **1**, which is the citation. ⚠ **Filed as an observation, not a conferre finding** — the ward noted it has only ONE coordinate, and its spell requires two. Closed by writing the rule, or citing what actually holds |
+| **3G1 ★** | purgare | `run-all.sh:139` | ⭐ **A DIAGNOSTIC THAT PROMISES AN EXIT CODE AND PRINTS A CONSTANT.** `if ! bash run-axis.sh …; then echo "… FAILED (rc=$?)"` — inside the `then` branch of a **negated** test, bash has already collapsed `$?` to `0`. The message names the failing axis's exit code and can only ever print `rc=0`. ⚠ **The propagation itself is correct** — `rc=1` and the final `exit $rc` are unaffected; only the printed number is dead. ⛔ Note the interaction: `mora` cited this exact line as evidence the sweep *"fails loud"*. **It does — the failure is loud and the number in it is meaningless.** | L2 | **OPEN** · ✅ I VERIFIED by mutation | `f() { return 3; }; if ! f; then echo $?; fi` → **0**; bare `f` → **3**. Closed by capturing `$?` in the `else` arm |
 
 ## Verified by the orchestrator — target 3
 
@@ -1326,3 +1327,25 @@ did NOT read in full. ⭐ **It also reported the clean half:** all 8 pairs read 
 `userfn-head`'s own fidelity guard, *"if mk-rate ever computes, this file… must be rewritten."*
 **A sample whose rule is stated and whose exclusions are named is evidence; a larger sample without
 one is not.**
+
+- **3G1 ★** — CONFIRMED **by running the mutation myself**, not by reading. `f() { return 3; }` then
+  `if ! f; then echo $?; fi` prints **0**; the same `f` un-negated prints **3**. So `run-all.sh:139`
+  can only ever emit `rc=0`.
+  ⛔ **And it lands on a line another ward vouched for.** `mora` read this exact site an hour ago and
+  cited it as evidence the sweep *"does not swallow"* a killed axis — *"`rc=1`, propagating the
+  failure rather than reading as a quiet gap."* **Both wards are right, and neither alone is the
+  whole truth:** the propagation is correct and the diagnostic beside it is a constant. `mora` was
+  reading the control flow; `purgare` was reading the value. **A line can be load-bearing and carry a
+  dead field at the same time**, and it took two wards with different questions to see both.
+
+⭐⭐ **AND ITS METHOD IS THE ANSWER TO THE FAILURE I HAVE MADE FOUR TIMES THIS SESSION.** I warned it
+that a name-grep here cannot see coverage-by-walk or consumption-by-argument, and that I had nearly
+handed it a false finding (28 of 29 `GRID-*.txt` "unreferenced" — they are `compare-grids.sh`'s `$1`
+and `$2`). It answered with **six distinct query kinds**, named: by name; **by discovery-walk**
+(reading the actual glob code in three scripts and reconciling *bidirectionally*); by call-site in
+sibling scripts (building the real invocation chain `check-grid-speed → run-all → run-axis → gen-*`);
+by function name against call sites; **by independent glob-diff** (`comm` over stems, re-deriving the
+exactly-one-of rule from scratch rather than trusting my citation); and by **mutation**.
+**Six queries where I used one.** Its clean result — every script alive, all 54 axes covered by at
+least one instrument, no orphaned function or env var — is worth something *because* of that, and
+would have been worth nothing without it.
