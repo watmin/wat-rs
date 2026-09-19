@@ -341,6 +341,14 @@ fn compiled_cond_bindings_identical_to_interpreter_at_50_100() {
 /// ⚠ The site attribution (matcher Bind arm + `resolve_operand`) holds HERE because this
 /// test arms the census around direct matcher calls only. A whole-fire read of the same
 /// counter also includes RHS insert and step-payload; that is not this harness.
+///
+/// Row 3 — the two call counters are live, count every invocation of these loops, and are
+/// comparable. `match:calls` equals the interpreter loop's hand count `interp_calls`;
+/// `compiled:exec` equals the compiled loop's hand count `calls`; the two hand counts are
+/// equal because both loops walk the same corpus. Deleting the `match:calls` bump reads 0
+/// against a nonzero hand count, so liveness is gated. This corpus cannot prove census E's
+/// widening: every `cond` here is an alpha pattern, so `alpha_pattern`'s `?` never returns
+/// early (STOP-1, measured — do not add a non-alpha `cond` here to force it).
 #[test]
 fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
     use crate::rete::compiled_cond::exec_compiled;
@@ -450,5 +458,30 @@ fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
         "the interpreter comparison itself allocated ZERO keys over {interp_calls} calls — \
              the counter is not wired to a live call path, so compiled's zero above would prove \
              nothing"
+    );
+
+    // ROW 3 — the two call counters are live, count every invocation, and are comparable.
+    let match_calls = get(&interp_rows, "match:calls");
+    let compiled_exec = get(&compiled_rows, "compiled:exec");
+    println!(
+        "\n  ROW 3 — call-counter differential, same corpus\n  \
+             match:calls    = {match_calls}  (hand interp_calls = {interp_calls})\n  \
+             compiled:exec  = {compiled_exec}  (hand calls = {calls})\n"
+    );
+    assert_eq!(
+        match_calls, interp_calls,
+        "match:calls is {match_calls} but the loop made {interp_calls} calls — the counter misses \
+             invocations (census E moved it above `alpha_pattern`'s `?` so it would not)"
+    );
+    assert_eq!(
+        compiled_exec, calls,
+        "compiled:exec is {compiled_exec} but the loop made {calls} calls — the compiled path's \
+             execution counter misses invocations (it bumps as the first statement of \
+             `exec_compiled_with_key_ids`)"
+    );
+    assert_eq!(
+        calls, interp_calls,
+        "compiled loop made {calls} calls, interpreter loop made {interp_calls} — the two loops \
+             do not share a corpus, so the two counters are not comparable"
     );
 }
