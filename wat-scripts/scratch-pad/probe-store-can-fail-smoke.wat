@@ -9,7 +9,7 @@
      ph (:query::faulting-store/start :locus (:wat::spawn::thread)
           :record (:query::faulting-store::Record
                     :real-addr (:wat::query::mem-store::Handle/addr sh)
-                    :drop-reply-bp 0 :die-bp 0 :seed 1 :drops-fired 0 :dies-fired 0))
+                    :drop-reply-bp 0 :die-bp 0 :delay-bp 0 :delay-ms 0 :seed 1 :drops-fired 0 :dies-fired 0 :delays-fired 0))
      p (:wat::core::match (:wat::kernel::connect (:query::faulting-store::Handle/addr ph))
          ((:wat::kernel::ConnectOutcome::Connected c) c)
          (_ (:wat::kernel::assertion-failed! "smoke: proxy dial failed" :wat::core::None :wat::core::None)))

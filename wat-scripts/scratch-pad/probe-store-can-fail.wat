@@ -81,9 +81,12 @@
                     :real-addr (:wat::query::mem-store::Handle/addr sh)
                     :drop-reply-bp drop-bp
                     :die-bp die-bp
+                    :delay-bp 0
+                    :delay-ms 0
                     :seed 1
                     :drops-fired 0
-                    :dies-fired 0))
+                    :dies-fired 0
+                    :delays-fired 0))
      qh (:wat::queue::queue/start :locus (:wat::spawn::thread)
           :record (:wat::queue::queue::Record
                     :cap 1024
