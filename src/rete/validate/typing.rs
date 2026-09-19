@@ -141,24 +141,6 @@ pub(crate) fn check_field_kw(
     false
 }
 
-/// Design call 3 — accumulate's `:from` inner and (by extension) any bare fact-type-head-only
-/// check: registered-type validation ONLY, no clause walk.
-pub(crate) fn validate_fact_type_head_only(cond: &WatAST, rule_name: &str, types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
-    let fact_type = match crate::rete::matcher::alpha_pattern(cond) {
-        Some(p) => p.type_head.to_string(),
-        None => {
-            errors.push(malformed(cond.span().clone(), rule_name, "", cond));
-            return;
-        }
-    };
-    if lookup_fields(types, &fact_type).is_none() {
-        errors.push(ReteCheckError {
-            span: cond.span().clone(),
-            kind: ReteCheckErrorKind::UnknownFactType { rule: rule_name.to_string(), fact_type },
-        });
-    }
-}
-
 /// Registry lookup — the SAME colon-prefixed key + `field_names()` accessor the runtime
 /// matcher uses (proven reachable by the `rete_wall_probe`).
 type FieldList = Vec<String>;
