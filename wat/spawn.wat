@@ -45,7 +45,7 @@
 ;; The init-fn runs at the peer's start and populates user-data.
 ;; ProcessOpts carries no config — its TYPE is the whole message.
 ;; Both opts records carry post-spawn-fn: an owner-side fn that runs after
-;; the peer is spawned, before spawn-program' returns, for effects. Receives
+;; the peer is spawned, before spawn-program returns, for effects. Receives
 ;; the per-env launch record. Required with a no-op default on the bare ctors.
 (:wat::core::defstruct :wat::spawn::ThreadOpts
   [init-fn       <- [:-> :wat::core::Record]
@@ -199,7 +199,7 @@
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
 ;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
 ;; per-type accessor: the defclause dispatches on the concrete locus class (exactly as
-;; spawn-program' dispatches on ThreadOpts | ProcessOpts). A new locus type joins as one
+;; spawn-program dispatches on ThreadOpts | ProcessOpts). A new locus type joins as one
 ;; more clause here; the 1-arg sig is unmoved.
 (:wat::core::defclause :wat::spawn::runner-count
   ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::i64  (:wat::spawn::ThreadOpts/runner-count locus))
@@ -343,9 +343,9 @@
   [handle  <- (:wat::kernel::Peer :- [Sh Lu])
    address <- (:wat::kernel::Address :- [S R T])])
 
-;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
+;; ── The Keymaker's masterwork (the spawn-program defclause) ─────────────────
 ;;
-;; Arc 259 S2c-ii-b — `spawn-program'` as a locus-type defclause.
+;; Arc 259 S2c-ii-b — `spawn-program` as a locus-type defclause.
 ;;
 ;; 2-arg `(locus prog)` — the key's TYPE (ThreadOpts | ProcessOpts) selects
 ;; the matching locus door and delegates to the S2c-i tier primitives.
@@ -396,7 +396,7 @@
   ;; thread — the ONE true form (self-peer; apply-loop is the annihilated heresy).
   ;; The locus's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
   ;; The locus's post-spawn-fn (extracted via ThreadOpts/post-spawn-fn) runs owner-side
-  ;; after the peer is spawned, before spawn-program' returns, for effects.
+  ;; after the peer is spawned, before spawn-program returns, for effects.
   ;; Arc 293.W.2d: thread programs take ThreadSelfPeer' (in-locus, any I/O) as the self
   ;; parameter. Peer' is the wire-capable peer (pure I/O only); ThreadSelfPeer' is the
   ;; in-locus escape hatch for thread workers that carry Sender/Receiver or other impure types.
@@ -419,7 +419,7 @@
 ;; defservice's `start [locus <- :Locus]` routes the per-tier service launch through
 ;; this surface. `listener'` is locus-blind on its own (its checker accepts an
 ;; abstract :Locus and dispatches the Bound shape on arity; the runtime dispatches
-;; on the concrete value) — but the PROGRAM handed to spawn-program' is
+;; on the concrete value) — but the PROGRAM handed to spawn-program is
 ;; shared-vs-not-shared specific: thread captures a closure over the in-memory
 ;; listener/state; process ships forms ([[project_shared_memory_partition_hosting]]).
 ;; So `launch` MINTS THE LISTENER INSIDE the concrete impl (arc 272 6a: the child
@@ -537,7 +537,7 @@
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).
 ;; Builds the serve closure capturing the minted listener + empty clients vector + state0;
-;; spawn-program' (thread) runs it on a freshly-spawned peer. serve is invoked by keyword
+;; spawn-program (thread) runs it on a freshly-spawned peer. serve is invoked by keyword
 ;; via apply so this generic impl never names the per-service serve fn.
 ;; Returns Launched{handle=Thread', address=Bound/address}.
 ;; service-forms: thread arm ignores it (serve is already in the parent universe).
@@ -599,7 +599,7 @@
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
 ;; prepend `(def :user::spawn::service-locus (process))` (the transport literal lives HERE,
 ;; not in defservice), concat service-forms (which contains the agnostic child :user::main
-;; that binds on :user::spawn::service-locus), spawn via spawn-program', handshake:
+;; that binds on :user::spawn::service-locus), spawn via spawn-program, handshake:
 ;;
 ;; The coordinate is `:user::`, not `:wat::` — and that is the doctrine, not a preference.
 ;; `:user::` is the RENDEZVOUS COORDINATE SPACE (see bracket.wat's header: "not a user's

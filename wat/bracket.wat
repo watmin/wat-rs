@@ -513,7 +513,7 @@
             :wat::core::None))]
       (:wat::core::concat forms (:wat::core::Vector :- [:wat::WatAST] runner-def main-def))))
   ;; ── existing Fn branch (arc 170 M1-pool, arity 3/6 dispatch) — UNCHANGED logic,
-  ;; only the tail (spawn-program' call -> plain forms-vector return) is refactored so
+  ;; only the tail (spawn-program call -> plain forms-vector return) is refactored so
   ;; both clauses share the one call site above.
   ([work-fn <- :W] -> (:wat::core::Vector :- [:wat::WatAST])
     (:wat::core::let
@@ -609,7 +609,7 @@
 ;; Arc 170 C2 Strike 1c — generalized `Address` (bare) to `D`. Purely a WIDENING of the
 ;; declared type (this fn's own logic never touches the Setup/D payload — it only ever
 ;; handles Work/select' events on the (i64,O) channel). Originally needed so the (since-
-;; retired) `uses'` coordinator — which back then spawned DIRECTLY via `spawn-program'`,
+;; retired) `uses'` coordinator — which back then spawned DIRECTLY via `spawn-program`,
 ;; bypassing `Locus/spawn-runner`, because that surface's return type was FIXED to a bare
 ;; `Address` and a `::Coords` record couldn't round-trip through it — could reuse this SAME
 ;; collector for its `::Coords`-carrying peers. Arc 170 gap J made `Locus/spawn-runner` itself

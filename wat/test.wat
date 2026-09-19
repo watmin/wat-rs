@@ -18,7 +18,7 @@
 ;; (2) [arc 170 CULMINATION — the :wat::test::run / run-in-scope / run-ast
 ;;     sandbox-entry wrappers over the annihilated :wat::kernel::run-sandboxed
 ;;     family are DELETED; inner programs spawn directly on the primed peer
-;;     wire (spawn-program' + recv'), so this witness invariant is retired];
+;;     wire (spawn-program + recv'), so this witness invariant is retired];
 ;; (3) the 15 retired-form bombs inside the arc-170-ignored proof files are
 ;;     DEFUSED — no value-position :wat::core::nil or :wat::core::struct-restricted
 ;;     survives anywhere in the corpus (contained un-ignore verification on
@@ -33,7 +33,7 @@
 ;;
 ;; Pure wat. An assertion that fails raises internally; the enclosing
 ;; run (a deftest thread via run-thread', or a spawned peer via
-;; spawn-program' + recv') surfaces the failure as a RunResult / a
+;; spawn-program + recv') surfaces the failure as a RunResult / a
 ;; recv' Lost carrying the LociDiedError. Arc 170 CULMINATION: the old
 ;; :wat::kernel::run-sandboxed family (manual spawn + pipe-drain +
 ;; stderr-scrape) is annihilated; the primed peer wire subsumes it.
@@ -174,7 +174,7 @@
 ;; `run-in-scope` / `run-ast` wrappers over the annihilated
 ;; `:wat::kernel::run-sandboxed` family are DELETED. Hand-written tests
 ;; that need to run an inner program spawn it directly on the primed
-;; peer wire — `(:wat::kernel::spawn-program' (:wat::spawn::process) <fn>)`
+;; peer wire — `(:wat::kernel::spawn-program (:wat::spawn::process) <fn>)`
 ;; + `recv'`. `:wat::test::program` survives as the ergonomic
 ;; forms-capture helper: it expands to `:wat::core::forms` (the
 ;; variadic-quote substrate), capturing each top-level form as
@@ -296,7 +296,7 @@
 ;; Arc 259 S3.5a. A test is a ONE-SHOT computation with an OUTCOME — not a streaming
 ;; self-peer. With the thread-peer crash-reason IPC fix (S3.5a-0) in place, `recv'`
 ;; surfaces a crashed peer's reason over the pipe, so the harness is PURE user surface:
-;; `spawn-program'` + `recv'`. The body runs in a self-peer and `send'`s a completion
+;; `spawn-program` + `recv'`. The body runs in a self-peer and `send'`s a completion
 ;; signal (0) on success; a failing assertion crashes the peer; `recv'` delivers the
 ;; reason. NO outcome-capture side-channel, NO internal forms, NO test privilege — the
 ;; harness dogfoods exactly what users use.
@@ -306,7 +306,7 @@
 ;; structured assertion → the runner reports that Failure. Arc 278 the vacuous-gate
 ;; wall made RunResult an ENUM, so a failure can no longer be read as a pass.
 ;; Siblings of the legacy `run-thread`/`deftest` (which ride spawn-thread +
-;; Thread/join-result); these ride spawn-program' + recv'. The legacy retires in
+;; Thread/join-result); these ride spawn-program + recv'. The legacy retires in
 ;; S3.5's back-half.
 
 ;; ── The capability holders (arc 170 #13) ────────────────────────────────────
@@ -414,7 +414,7 @@
 ;; ── run-hermetic' / deftest-hermetic' — the PROCESS-tier pipe-model siblings ──
 ;;
 ;; Arc 259 S3.5a. The forms siblings of run-thread'/deftest' (the thread pipe-model
-;; pair). Same caller — spawn-program' + recv' — different body PACKAGING: a thread
+;; pair). Same caller — spawn-program + recv' — different body PACKAGING: a thread
 ;; shares memory and ships a CLOSURE; a process/remote has SEPARATE memory and ships
 ;; FORMS (program over the wire). "Separate memory" = same-host-process OR remote-host;
 ;; this forms interface is the SHARED one with the future deftest-remote — do NOT
