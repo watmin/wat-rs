@@ -21,46 +21,41 @@ git log --oneline | grep -c 'REPLAY(grok-rete #'       # how far the replay has 
 readlink .census/latest                 # the census baseline the next step diffs against
 ```
 
-Stamp: written on top of `74a3ef546` (batch 4o's records, pushed). **440 of 651 replayed. 211 remain.**
+Stamp: written on top of `000aa79f6` (batch 4p's records, pushed). **460 of 651 replayed. 191 remain.**
 In flight: nothing.
 
-**Batch 4o (#421–#440) is CLOSED and PUSHED.** Floor **5856/5856, 24 skipped** — the count predicted from
-the diff before running, **nineteenth consecutive exact match** — clippy 0, census `no STOP-8`, range gate
-exit 0, 20/20 subjects and trailers verified. Detail in the ledger row below, `SCORE-7o` and
-`BRIEF-7o-ADDENDUM-438-the-migration-needs-its-fixture.md`.
+**Batch 4p (#441–#460) is CLOSED and PUSHED.** Floor **5856/5856, 24 skipped** — the count predicted from
+the diff before running, **twentieth consecutive exact match** — clippy 0, census `no STOP-8`, 20/20
+subjects and trailers verified. The whole phase-census campaign (B, D, E, F, G, H, I) landed with **zero
+orphan readers and zero runes**: every retired or renamed counter's readers were converted in its own
+step. Detail in the ledger row below and `SCORE-7p`.
 
-★★ **#438 WAS THE FACTBAG MIGRATION AND R21 HELD.** 26 `.wat`, 153 code lines under `wat/`, migrated **by
-grok's own recorded codemod**, not by hand — after the tool itself needed four repairs to run here (grok
-wrote it in syntax this tree retired, including an edit-tuple shape change). Dry-run, diffed, applied to a
-**path list derived HERE (25 files, not my brief's 23** — my scan saw only one of the tool's two rewrite
-shapes, and one file it missed, `wat/rete/compile.wat`, sits inside the new gate's own scope), then re-run
-to a fixed point. The new `no_raw_factbag_access` gate is green with **zero runes** — its own text says
-the exemption list is empty.
-⛔ **A RECORDED MIGRATION MUST SHIP ITS REPLAY FIXTURE HERE, AND GROK'S DOES NOT** — the floor's one red.
-`every_recorded_migration_replays` demands `wat-scripts/fixes/replay/<stem>/{before.pre,after.post,ORACLE}`
-plus one `;; SCOPE:` line, with provenance from HISTORY, never the tool. **100 of our 106 migrations carry
-one.** Folded into #438: the fixture's two changed lines come verbatim from two files grok's own #438
-rewrote, chosen because their whole diff there is pure tool output. **Expect this for every future
-migration grok lands.**
+⛔ **MY PRE-FLIGHT HAS NOW BEEN SHORT THREE BATCHES RUNNING** — 3 sites where there were 12 (4n), 23 files
+where there were 25 (4o), six name-change steps where there were seven (4p, I extracted names from six of
+nine code steps). Every time the executor measured properly and reported it. **Derive the set from the
+data, over the WHOLE range, and never hand-list.**
 
-Next is **batch 4p (#441–#460)**: censused — **11 docs-only, 9 code (#442 #444 #446 #450 #451 #453 #455
-#457 #459)**, and it is the cleanest batch in months: **ZERO `.wat`, ZERO `wat/`, ZERO hazard rows, no new
-lint gate, no `wat-scripts/fixes/` edit, and every touched path exists here.** It is one campaign —
-grok auditing its own phase census (B, D, E, F, G, H, I).
+Next is **batch 4q (#461–#480)**: censused — **12 docs-only, 8 code (#463 #465 #467 #470 #472 #474 #477
+#478)**, **ZERO hazard rows**, **no `wat/` path**, one new `.wat` fixture (#478), one new lint gate (#465).
 
-⚠ **NET TEST DELTA IS ZERO** — measured off the diff, no `#[test]` added or removed anywhere in the range.
-The floor prediction is therefore **unchanged at 5856**, which is itself the claim to check.
+⚠⚠ **#472 COLLIDES WITH OUR OWN 4i STRIKE — RULED 4-YES, 2026-09-18, OPTION B.** Grok's #472 adds
+`#[ignore = "rune:excusare(below-resolution) — captured red … at card 64 EXTEND …"]` to
+`token_bindings_representation_dominance`. **This tree already cured that test**: the 4i strike
+(`4d5287a53`, ruled 4-YES) struck the two large-end directional assertions that gated the SCHEDULER, and
+its own commit body predicted this exact moment — *"grok keeps these assertions until #472."*
+**Measured:** our version still carries a NON-VACUITY check that refuses a dead clock and ONE ordering
+assertion with a **4.53–10.15x margin**, and it has been green in **twenty consecutive floors**. Grok's
+rune cites assertions this tree no longer has.
+★ **RULING:** land #472's excusare vocabulary and its re-wording of the OTHER two ignores
+(`binding_key_cost`, `binding_repr_microbench`); **do NOT add the ignore to the cured test**, and skip
+#477's matching re-wording of that same string, recording both in the step bodies. Rejected: landing it
+verbatim (its premise is absent here and it would silence a live, wide-margin gate), and any
+land-then-un-ignore dance.
 
-⚠ **CENSUS NAMES MOVE, AND NAMES ARE WHAT OUR COST TESTS READ.** #455 **deletes** `prod:record-alloc` and
-`prod:vec-alloc`; #459 **renames** `seed:mixed-class-activate` → `seed:mixed-fact-activate`; #442/#444/
-#453 add `compiled:exec`, `compiled:span-elided`, `bindkey:alloc`, `dbeta:nonempty`. Our exposure is
-`src/` and prose, not tests — and **our copy of `census_name_read_by_a_cost_test_is_emitted.rs` is
-byte-identical to grok's pre-image**, so the gate is shared and grok's own #442 updates it. A name a cost
-test reads but nothing emits is a zero wearing a measurement's clothes; that gate is the wall.
-
-⚠ **THE WALL-CLOCK NEIGHBOURHOOD AGAIN**: `accum_alpha_cost.rs` 27 sites, `node_share_cost.rs` 25,
-`gather_probe_cost.rs` 24, `accum_cost.rs` 23, `fanout_cost.rs` 6. The 4i precedent stands — a timing red
-is captured and reported, never re-run.
+⚠ **#465 lands `kernel_tests_census_count_is_bench_scoped`** — under `src/rete/kernel/tests/`, a
+`census_count` may name only a `bench:`-prefixed key, and *"the exemption list is empty."* **Measured: our
+only two non-bench calls are the two `census_count("filter:test-reuse")` sites in `node_share_cost.rs`
+that grok's own #465 converts to `bench:filter-reuse`.** Expect green; read the gate's verdict anyway.
 
 📊 Finding 38 (a main-only artifact pinned to text a replayed step rewrote) fired for the **fourth
 time** at 4k, and there its CURE tripped finding 33's gate. **After any edit to a `.rs` string literal,
@@ -109,7 +104,8 @@ replay/grok-rete  (this)      main + stone 0 + pilot #1–#10 + 2b + 2a1/2a1b/2a
                               + batch 4m #381–#400 (CLOSED; floor 5828/5828, clippy 0, pushed)
                               + batch 4n #401–#420 (CLOSED; floor 5847/5847, clippy 0, pushed)
                               + batch 4o #421–#440 (CLOSED; floor 5856/5856, clippy 0, pushed)
-                              ⇒ 440 of 651 replayed. NEXT: batch 4p #441–#460.
+                              + batch 4p #441–#460 (CLOSED; floor 5856/5856, clippy 0, pushed)
+                              ⇒ 460 of 651 replayed. NEXT: batch 4q #461–#480.
 merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the end cross-check only
 ```
 
@@ -166,6 +162,17 @@ merge/grok-rete   REFERENCE   the first (rejected) whole merge; a crib and the e
   `verify-step-record.sh 060199f7f HEAD 160 211` green on BOTH the range and the record. E1/E2/E8/E9
   re-checked by the orchestrator; 7/7 `.rs.txt` harness files byte-identical to grok's; 8/8 census files
   named in bodies exist. **#190 carries the folded #202 strike** (finding 28).
+- **Batch 4p #441–#460 is CLOSED and PUSHED** (records at `000aa79f6`; SCORE-7p, REPLAY-LOG). 20 steps,
+  11 docs-only; one campaign, grok auditing its own phase census. Floor **5856/5856, 24 skipped** — the
+  count PREDICTED for the **twentieth consecutive batch**, and the first batch whose nine code steps add
+  **no test at all** — clippy 0, census `no STOP-8`.
+  ★ **Zero orphan readers, zero runes.** `prod:record-alloc` and `prod:vec-alloc` (deleted at #455),
+  `seed:mixed-class-activate` (renamed at #459) and `merge:pv-owners` (renamed at #457 — a seventh
+  name-change step my brief missed) all had their readers converted in the same step. The census-name
+  gate was run after EVERY name change, 14/14 each time, not once at the end.
+  ⚠ **One executor violation, self-caught and disclosed**: it began a bare whole-suite `cargo nextest
+  run` — the orchestrator's row — recognised it before reading any output, killed it (exit 144), and
+  proved the tree inert. No verdict depended on it.
 - **Batch 4o #421–#440 is CLOSED and PUSHED** (records at `74a3ef546`; SCORE-7o, ADDENDUM-438,
   REPLAY-LOG). 20 steps, 14 docs-only. Floor **5856/5856, 24 skipped** — the count PREDICTED from the diff
   for the **nineteenth consecutive batch** — clippy 0, census `no STOP-8`.
