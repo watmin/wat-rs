@@ -620,12 +620,13 @@ thread_local! {
     /// phase name → (nanoseconds, MARK PAIRS FIRED), summed over every round. `None` = not recording.
     ///
     /// ★ The pair COUNT is not bookkeeping — it is what makes the timing readable. A mark pair
-    /// costs ~75-80ns, and the `alpha:*` marks fire PER FACT: at 40,200 facts that is ~3.2ms of
-    /// pure clock-reading per row. Measured 2026-08-01 against a no-sub-marks control: the fire
-    /// read 78.5ms instrumented vs 58.2ms bare — 26% of the "measurement" was the instrument, and
-    /// THREE of alpha's five children (candidates/element/fieldnames) were individually SMALLER
-    /// than their own instrument, i.e. their rows measured nothing but themselves. Without the
-    /// count there is no way to say that from the table; with it, the table subtracts.
+    /// costs ~75-80ns. Measured 2026-08-01 against a no-sub-marks control, when alpha had five
+    /// per-fact children: the fire read 78.5ms instrumented vs 58.2ms bare — 26% of the
+    /// "measurement" was the instrument, and THREE of those children (candidates/element/fieldnames)
+    /// were individually SMALLER than their own instrument. That finding is why the five
+    /// children were removed. Today two `alpha:*` marks remain (`alpha:seed`, `alpha:delta`),
+    /// each `phase_end` at the end of a pass — once per pass, not per fact. Without the count
+    /// there is no way to say that from the table; with it, the table subtracts.
     // rune:perspicere(read-once) — test-only phase map; alias would be a mumble.
     pub(crate) static PHASE_NANOS: std::cell::RefCell<Option<HashMap<&'static str, (u64, u64)>>> =
         const { std::cell::RefCell::new(None) };
@@ -840,9 +841,14 @@ thread_local! {
 
 /// Record that `site` pushed `n` elements into `right_idx[join_id]`.
 ///
-/// Called with `n == 0` too: "the block ran and appended nothing" and "the block never ran" are
-/// different facts, and a census that cannot tell them apart is the blind spot the first D2 probe
-/// shipped (three of four branches covered, the fourth silently indistinguishable from silence).
+/// Called with `n == 0` at `RIGHT_IDX_SITE_STEP2` (`dr.iter().count()`, outside the loop) and
+/// `RIGHT_IDX_SITE_CATCHUP` (`n_all.saturating_sub(already)` — zero whenever `n_all == already`).
+/// "The block ran and appended nothing" and "the block never ran" are different facts, and a
+/// census that cannot tell them apart is the blind spot the first D2 probe shipped.
+///
+/// `RIGHT_IDX_SITE_MAINTAINER` cannot emit 0: it sits inside
+/// `if already < right_elements.len()`, so "ran and appended nothing" is unreachable, and no
+/// consumer asks (`site_ran` is STEP2 and CATCHUP only; the maintainer is read through `n > 0`).
 #[cfg(test)]
 #[inline]
 pub(crate) fn right_idx_appended(join_id: i64, site: &'static str, n: usize) {
@@ -882,10 +888,11 @@ pub(crate) fn with_phase_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static s
 /// As [`with_phase_census`], but each row also carries **how many mark pairs fired**.
 ///
 /// ONE implementation, two views: the count only matters to a caller that intends to subtract the
-/// instrument from the reading, and most callers just want the split. A mark pair is ~75-80ns and
-/// the `alpha:*` marks fire PER FACT, so at 40,200 facts a single row carries ~3.2ms of clock
-/// reads — enough that three of alpha's five children measured nothing but themselves. A caller
-/// that reports raw nanoseconds on a per-fact-marked phase is reporting its own instrument.
+/// instrument from the reading, and most callers just want the split. A mark pair is ~75-80ns.
+/// Measured 2026-08-01 against a no-sub-marks control, when alpha had five per-fact children
+/// (26% of the reading was the instrument — why those children were removed). Today two
+/// `alpha:*` marks remain, each once per pass. A caller that reports raw nanoseconds on a
+/// per-fact-marked phase is reporting its own instrument.
 #[cfg(test)]
 pub(crate) fn with_phase_census_counted<R>(
     f: impl FnOnce() -> R,
