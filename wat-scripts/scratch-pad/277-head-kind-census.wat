@@ -26,8 +26,7 @@
 ;; v2 joins the PARENT's kind and reports it, so a call can be told from an arm.
 (:wat::rete::defrule :hk::head-kind
   :when [(:wat::grep::Node   (?p <- :id) (?pk <- :kind))
-         (:wat::grep::Node   (?h <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
-         (:wat::rete::where  (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Node   (?h <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind) (:wat::rete::i64::= ?i 0))
          (:wat::grep::Span   (?h <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match

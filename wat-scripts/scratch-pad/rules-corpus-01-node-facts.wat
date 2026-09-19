@@ -56,18 +56,14 @@
 
 ;; RULE A — the arrow. Joins Node x Named on id: a node with NO name never reaches this rule.
 (:wat::rete::defrule :fixr::arrow
-  :when [(:fixr::Node  (?id <- :id) (?k <- :kind))
-         (:fixr::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
+  :when [(:fixr::Node  (?id <- :id) (?k <- :kind) (:wat::rete::string::= ?k "symbol"))
+         (:fixr::Named (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n "<-"))]
   :then [(:fixr::IsArrow :id ?id)])
 
 ;; RULE B — the ::-namespaced call head / reference keyword.
 (:wat::rete::defrule :fixr::head-kw
-  :when [(:fixr::Node  (?id <- :id) (?k <- :kind))
-         (:fixr::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::string::contains? ?n "::"))]
+  :when [(:fixr::Node  (?id <- :id) (?k <- :kind) (:wat::rete::string::= ?k "keyword"))
+         (:fixr::Named (?id <- :id) (?n <- :name) (:wat::rete::string::contains? ?n "::"))]
   :then [(:fixr::IsHeadKw :id ?id)])
 
 ;; RULE C — ★ THE ONE THAT REPLACES `prev-arrow?`.

@@ -33,8 +33,7 @@
    col  <- :wat::core::i64])
 
 (:wat::rete::defrule :ls::head-of
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
+  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
          (:wat::grep::Named (?h <- :id) (?n <- :name))
          (:wat::grep::Span  (?h <- :id) (?l <- :line) (?c <- :col))]
   :then [(:ls::Head :form ?p :name ?n :line ?l :col ?c)])

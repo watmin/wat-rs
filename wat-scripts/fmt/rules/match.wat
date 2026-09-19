@@ -16,19 +16,14 @@
 ;; Break names a kind (BreakKind); the emitter computes the rest.
 
 (:wat::rete::defrule :fmt::match-claim
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/match"))]
+  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/match"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 ;; one ARM per line. Child 0 is the head, child 1 is the scrutinee (stays on the head line),
 ;; so every child from index 2 on starts its own line.
 (:wat::rete::defrule :fmt::match-arm-per-line
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/match"))
-         (:wat::grep::Node  (?arm <- :id) (?p <- :parent) (?ai <- :index))
-         (:wat::rete::where (:wat::rete::i64::> ?ai 1))]
+  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/match"))
+         (:wat::grep::Node  (?arm <- :id) (?p <- :parent) (?ai <- :index) (:wat::rete::i64::> ?ai 1))]
   :then [(:wat::fmt::Break :id ?arm :kind (:wat::fmt::BreakKind.Block {}))])
