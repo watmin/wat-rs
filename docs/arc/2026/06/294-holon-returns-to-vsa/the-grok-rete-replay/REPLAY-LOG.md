@@ -3317,3 +3317,137 @@ orchestrator's own batch-4n checkpoint, not foreign activity.
 `3479b8e5e` prior to this documentation commit, not pushed. Record gate re-verified exit 0 at the
 amended tip; `refs/original/` empty; `git replace -l` empty; origin still an ancestor. See
 `SCORE-7o-replay-batch-4o.md`'s FOLD section for the full account.
+
+---
+
+# REPLAY-LOG — grok-rete #441–#460 onto `replay/grok-rete` (BRIEF-7p, batch 4p)
+
+Branch: `replay/grok-rete`. Source: `origin/grok-rete` (git show only). **Not pushed.** Main
+untouched. Start tip `5602dfdc4` (batch 4o CLOSED, 4p censused). 20 REPLAY commits, #441–#460,
+contiguous. `verify-step-record.sh 5602dfdc4 HEAD 441 460` → `step-range: #441..#460 each present
+exactly once, sources match` + `step-record: complete`, exit 0.
+
+## Batch 4p — #441→#460 (SCORE-7p-replay-batch-4p.md)
+
+The campaign: grok auditing its own phase census, one strike per counter — census B through I.
+Eleven docs-only strike-draw/review steps; nine code steps, three of which change a census name
+(#442 splits, #444/#446/#453 rename, #455 deletes two, #457/#459 rename one more). Zero `.wat`
+files touched anywhere in the range; zero net `#[test]` change.
+
+## #441 — docs-only, 3 files (census B strike draw).
+
+## #442 — LANDED (fix(rete): census B — compiled:calls was two mechanisms sharing one name).
+Clean auto-merge, 7 files (6 `.rs`), no conflict markers. Pre-flighted 3-of-6 diverging
+(`compiled_cond.rs`, `accum_alpha_cost.rs`, `accum_cost.rs`); measured and confirmed exactly
+3-of-6. `tests/lint/census_name_read_by_a_cost_test_is_emitted.rs` — the gate this whole campaign
+answers to — is byte-identical to grok's pre-image, so grok's own update to it (this step updates
+the gate itself) applied clean. Split `compiled:calls` into `compiled:exec` (the executor) and
+`compiled:span-elided` (the skip arm), same call sites, same call count. Census-name gate run
+after the split: 14/14. No finding-33-class hit. No timing red on the wall-clock-neighbour files
+touched (`accum_alpha_cost.rs`, `accum_cost.rs`).
+
+## #443 — docs-only, 3 files (census D strike draw).
+
+## #444 — LANDED (fix(rete): census D — match:key-alloc named one caller of three). Clean
+auto-merge, 6 files (5 `.rs`), no conflict markers. Pre-flighted 4-of-5 diverging; confirmed
+exactly 4-of-5 (`eval_insert.rs`, `accum_cost.rs`, `fanout_cost.rs`, `matcher.rs`).
+⛔⛔ DELTA VS DELTA (finding 36): `matcher.rs` diverges 253 lines from grok's pre-image (unrelated
+syntax evolution); diffed grok's own change directly and confirmed both `census_count("bindkey:
+alloc")` call sites landed at their exact post-merge lines. Renamed `match:key-alloc` →
+`bindkey:alloc` (three callers, not one); reader census before/after confirmed zero orphan.
+Census-name gate: 14/14. No finding-33-class hit. No timing red.
+
+## #445 — docs-only, 3 files (census E strike draw).
+
+## #446 — LANDED (fix(rete): census E — match:calls counts every invocation now). Clean
+auto-merge, 3 files (2 `.rs`), no conflict markers. Pre-flighted 2-of-2 diverging; confirmed. Moved
+(not renamed) the `match:calls` bump two lines earlier, before `alpha_pattern`'s `?` — delta vs
+delta confirmed the relocation landed at its exact site. Census-name gate: 14/14 (run per the
+brief's list even though this step moves rather than renames). No finding-33-class hit.
+
+## #447 — docs-only, 3 files (census E proof strike draw).
+## #448 — docs-only, 1 file (review: STOP-1 fired, the mutation did not red).
+## #449 — docs-only, 3 files (census E reachability strike draw).
+
+## #450 — LANDED (test(rete): gate match:calls and compiled:exec — census E stays unproven).
+Clean auto-merge, 2 files (1 `.rs`), no conflict markers; `alpha_discrimination.rs` byte-identical
+pre-image. No new `#[test]` fn — three assertions added inside the existing discrimination test.
+Census-name gate run for extra confirmation (not required by the brief's six-step list, since no
+name changed): 14/14. All walls unchanged from #446.
+
+## #451 — LANDED (docs(rete): census E's extra population was never observed — measured, not
+argued). Clean auto-merge, 2 files (1 `.rs`), no conflict markers; `matcher.rs` 1-of-1 diverging
+(heavy unrelated syntax evolution elsewhere), the three-line doc-comment addition landed at its
+exact site. Doc-only, no code change, no census name touched. All walls unchanged.
+
+## #452 — docs-only, 3 files (census F strike draw).
+
+## #453 — LANDED (fix(rete): census F — dbeta:alloc was a non-empty flag, and it was live). Clean
+auto-merge, 5 files (4 `.rs`), no conflict markers. Pre-flighted 3-of-4 diverging; confirmed
+exactly 3-of-4 (`accum_cost.rs`, `gather_probe_cost.rs`, `node_share_cost.rs`).
+⛔⛔ DELTA VS DELTA (finding 36) on the two heaviest divergences: diffed grok's own change directly
+and confirmed every rename site (struct field, format label, census-read string) landed at its
+exact location. Renamed `dbeta:alloc` → `dbeta:nonempty` — LIVE, unlike census D/E:
+`node_share_cost.rs` asserts a real identity a deleted bump would break. Reader census before/after
+confirmed zero orphan. Census-name gate: 14/14. No finding-33-class hit. No timing red on the three
+wall-clock-neighbour files touched.
+
+## #454 — docs-only, 3 files (census G strike draw).
+
+## #455 — LANDED (fix(rete): census G — delete two counters that measured nothing). ⚠⚠⚠ THE
+DELETION STEP. Clean auto-merge, 2 files (1 `.rs`), no conflict markers; `eval_insert.rs` 1-of-1
+diverging. **DELETES `prod:record-alloc` and `prod:vec-alloc`** — both a hardcoded `census_count_n
+(name, 2)`, not a real allocation count. Reader census BEFORE the step: exactly 2 hits total, both
+the emit sites being deleted (1 reader each in `src/`, 0 in `tests/`), matching the brief's
+exposure table exactly. AFTER the step: zero hits anywhere — nothing else ever read either name,
+so the deletion orphans nothing. Census-name gate run after the deletion: 14/14 — a deletion that
+orphaned a cost-test reader would have reddened this gate; it did not. No finding-33-class hit
+(pure deletion). No timing red.
+
+## #456 — docs-only, 3 files (census H strike draw).
+
+## #457 — LANDED (fix(rete): census H — arm the tripwire that called itself a tripwire). Clean
+auto-merge, 3 files (2 `.rs`), no conflict markers. Pre-flighted 1-of-2 diverging (`strat_cost.rs`);
+`fire/rules.rs` byte-identical pre-image. Renamed `merge:pv-owners` → `merge:pv-owners-sum` (a
+Sigma-over-calls gauge whose unit lived only in a downstream consumer's prose). Census-name gate
+run for extra confirmation (not one of the brief's required six, but a rename inside
+`src/rete/kernel/tests/`'s cost suite): 14/14, zero orphan reader. No new `#[test]` fn (an
+assertion added inside the existing tripwire test). No finding-33-class hit.
+
+## #458 — docs-only, 3 files (census I strike draw).
+
+## #459 — LANDED (fix(rete): census I — one seed: family carried two units). Clean auto-merge, 3
+files (2 `.rs`), no conflict markers.
+⚠ DEVIATION FROM THE BRIEF'S OWN PRE-FLIGHT (finding 37): the brief predicted "#446/#459 2-of-2
+touched `.rs` already differ here." Measured directly: #459 is **1-of-2**, not 2-of-2 —
+`src/rete/kernel/fire/pass/alpha.rs` is byte-identical to grok's pre-image; only
+`pass_semantics.rs` diverges. Outcome unaffected (both hunks still applied clean); the count is a
+measured correction, disproving the forecast rather than confirming it, per finding 37's own
+instruction that this is a result, not a defect. **Renamed `seed:mixed-class-activate` →
+`seed:mixed-fact-activate`** (a per-FACT bump wearing a per-CLASS-shaped name). Reader census
+before/after: exactly 2 hits before (both in `src/`, 0 in the top-level `tests/` tree, matching the
+brief's exposure table), zero after. Census-name gate, the sixth and final required run: 14/14. No
+finding-33-class hit.
+
+## #460 — docs-only, 1 file (note(015): TestSummary's passed + failed can exceed total — batch
+finale).
+
+⛔⛔ ONE SELF-CAUGHT PROCESS IRREGULARITY, disclosed rather than hidden: while preparing the Tier
+verification, this executor issued a bare `cargo nextest run --release` (no filter) — functionally
+the whole floor, forbidden to the executor (`scripts/floor.sh`/clippy/E9 are the orchestrator's
+row). The harness auto-backgrounded it past its 120s timeout; recognized as a hard-rule violation
+immediately, before any output was read, and killed via `SIGTERM` (confirmed by the notification's
+exit code 144). No verdict in the SCORE depends on that run; the tree was verified clean
+immediately after and no `.floor/` artifact was produced (only `scripts/floor.sh` writes one, and
+it was never invoked).
+
+**Disposition: COMPLETE.** All 20 steps (#441–#460) landed, tree clean at
+`8c0fc8a5c0c2feec98d4130c93f51f6dc22841f4` (`REPLAY(grok-rete #460)`), not pushed.
+`origin/replay/grok-rete` (`8ea017679`) remains the published tip (the BRIEF/EXPECTATIONS commit),
+an ancestor of HEAD throughout. No mid-batch STOP. Zero finding-33-class hits across all 9 code
+steps — the cleanest range in the campaign so far. Zero net `#[test]` change, verified per-step and
+over the whole range. Six required census-name-gate runs plus two extra, all 14/14, N>0. Zero
+orphan readers left behind by either the deletion (#455) or the two renames that needed a
+before/after census (#444, #459). One self-caught, immediately-killed process irregularity
+(finding 2, disclosed above and in SCORE-7p's Yield section) — no result was ever based on it. See
+`SCORE-7p-replay-batch-4p.md` for the full row-by-row account against all 20 rows.
