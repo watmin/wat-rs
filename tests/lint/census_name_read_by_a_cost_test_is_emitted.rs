@@ -62,8 +62,8 @@
 //!   which are rule classes, not census rows. Little is lost: the glyph half already reaches every
 //!   *child* row, and a deleted *top-level* mark is already caught loudly by `REQUIRED_PHASES`'s
 //!   subset assertion (`accum_cost.rs:101`), which this gate deliberately does not duplicate.
-//! - **Every literal in an `== "…"` comparison.** This would reach `"compiled:calls"`
-//!   (`accum_cost.rs:38`) and `"accum:index-builds"` (`gather_probe_cost.rs:35`), which are real
+//! - **Every literal in an `== "…"` comparison.** This would reach `"compiled:exec"`
+//!   (`accum_cost.rs`) and `"accum:index-builds"` (`gather_probe_cost.rs:35`), which are real
 //!   census names — but also `"WHOLE EVAL (compile+seed+fire)"` (`mod.rs:570`), a row the test
 //!   harness synthesises itself and the engine never emits, plus `"weather::Temperature"`,
 //!   `"hs::q-T"` and `"apx::ExistsF"`. A rule that reds on a correct tree gets suppressed, and a
