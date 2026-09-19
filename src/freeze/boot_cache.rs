@@ -18,9 +18,10 @@
 //! | `6a defclause-stub-preregister` | 1.0 |
 //! | `6b stdlib-runtime-def-filter` | 0.04 |
 //!
-//! ⛔ **It does NOT elide the check sweeps.** That is Tier B (a further ~126 ms), it is gated on
-//! an unproven soundness question (can a user definition change a *stdlib* body's verdict?), and
-//! bundling it here would make one floor prove two things.
+//! ⭐ **It DOES elide 8b / 8d(ALL-fns) / 8f for bake-time functions**, once a successful
+//! `check_program` has stamped `infer_fresh_consumed` onto the payload (Tier B step C).
+//! 8c and 8d's `forms` half keep running. Partition is the `:wat::` path, never
+//! `body.span().file` (user-type companions live in `src/runtime.rs`).
 //!
 //! ⛔ **It does NOT elide `6a-9 auto-method-codegen`, `5 aggregate-containment`, or
 //! `6.97 typeenv-clone-attach`.** Those three walk the COMBINED (stdlib + user) `TypeEnv`; a
@@ -107,7 +108,7 @@ use crate::value::{Function, FunctionBody, ReteContract};
 
 /// Bumped whenever the byte layout below changes in ANY way. A payload written by a different
 /// version is refused, not reinterpreted.
-const FORMAT_VERSION: u32 = 1;
+const FORMAT_VERSION: u32 = 2;
 
 const MAGIC: &[u8; 8] = b"WATBOOT\x01";
 
@@ -129,6 +130,11 @@ pub struct StdlibSnapshot {
     /// ⛔ THE GATE. Every macro name the expander probed while producing this snapshot that is
     /// NOT a reserved prefix — i.e. every name a USER macro could possibly have intercepted.
     pub probe_witness: Vec<String>,
+    /// How many `InferCtx` fresh vars the bake-time 8f sweep consumed, recorded
+    /// AFTER a successful `check_program`. `None` until that check has run for
+    /// this fingerprint — a hit with `None` does not elide (it re-runs 8f and
+    /// then fills this in). Sentinel in the payload is `u64::MAX`.
+    pub infer_fresh_consumed: Option<u64>,
 }
 
 // ── the cache key ───────────────────────────────────────────────────────────────────────────
@@ -283,6 +289,53 @@ pub(crate) fn store(snap: &StdlibSnapshot) {
     if std::fs::rename(&tmp, &path).is_err() {
         let _ = std::fs::remove_file(&tmp);
     }
+}
+
+/// Overwrite an existing payload. Used after a successful check to stamp
+/// `infer_fresh_consumed` onto a snapshot that was stored *before* check
+/// (the derivation store sits at step 7.9; check is step 8).
+pub(crate) fn store_overwrite(snap: &StdlibSnapshot) {
+    if !enabled() {
+        return;
+    }
+    let Some(path) = cache_path() else { return };
+    let Some(key) = cache_key() else { return };
+    let Some(dir) = path.parent() else { return };
+    if std::fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    if !is_representable(snap) {
+        return;
+    }
+    let bytes = encode(snap, &key);
+    let tmp = dir.join(format!(
+        ".{}.{}.fresh.tmp",
+        std::process::id(),
+        path.file_name().and_then(|n| n.to_str()).unwrap_or("x")
+    ));
+    if std::fs::write(&tmp, &bytes).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+        return;
+    }
+    if std::fs::rename(&tmp, &path).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+}
+
+/// After a successful check that actually RAN the bake-time 8f sweep, stamp
+/// the measured `InferCtx.next` consumption onto the on-disk snapshot so
+/// subsequent hits can elide. No-op if the cache is off, absent, or already
+/// stamped.
+pub(crate) fn record_infer_fresh(n: u64) {
+    if !enabled() {
+        return;
+    }
+    let Some(mut snap) = load() else { return };
+    if snap.infer_fresh_consumed.is_some() {
+        return;
+    }
+    snap.infer_fresh_consumed = Some(n);
+    store_overwrite(&snap);
 }
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────────
@@ -890,6 +943,9 @@ fn encode(snap: &StdlibSnapshot, key: &str) -> Vec<u8> {
     w.sort();
     w.dedup();
     e.strs(&w);
+    // u64::MAX = "not yet recorded" so a payload written before check can be
+    // distinguished from a real zero (stdlib 8f consuming no vars).
+    e.uvar(snap.infer_fresh_consumed.unwrap_or(u64::MAX));
 
     // ── header, string table, trailer ──
     // The two tables go last (first-encounter order is only known once the body is written); the
@@ -1472,6 +1528,12 @@ fn decode(bytes: &[u8], key: &str) -> Option<StdlibSnapshot> {
     // ── residue + witness ──
     let runtime_def_forms = d.asts()?;
     let probe_witness = d.strs()?;
+    let infer_raw = d.uvar()?;
+    let infer_fresh_consumed = if infer_raw == u64::MAX {
+        None
+    } else {
+        Some(infer_raw)
+    };
 
     // The body must end exactly where the string table begins. A payload that decodes but
     // leaves bytes behind is a payload this decoder did not understand.
@@ -1485,6 +1547,7 @@ fn decode(bytes: &[u8], key: &str) -> Option<StdlibSnapshot> {
         symbols,
         runtime_def_forms,
         probe_witness,
+        infer_fresh_consumed,
     })
 }
 
@@ -1668,6 +1731,7 @@ pub mod probe {
             symbols: crate::runtime::SymbolTable::new(),
             runtime_def_forms: forms,
             probe_witness: Vec::new(),
+            infer_fresh_consumed: None,
         }
     }
 

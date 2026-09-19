@@ -71,7 +71,7 @@ pub mod census;
 pub mod validator;
 
 use crate::ast::WatAST;
-use crate::check::{check_program, CheckErrors};
+use crate::check::{check_program_with_elision, CheckErrors};
 use crate::config::{collect_entry_file, collect_entry_file_with_inherit, Config, ConfigError};
 use crate::load::loader::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{MacroError, MacroRegistry};
@@ -1310,7 +1310,7 @@ fn startup_from_forms_post_config(
     // four of its passes sweep the whole symbol table (every stdlib fn body) and never look at the
     // `residue` argument at all. Wrapping the call would have hidden that. See
     // `census::P_CHECK_BODIES` and the step-8 note in `freeze/census.rs`.
-    let check_result = check_program(&bundle.residue, &bundle.symbols, &bundle.types);
+    let check_result = check_program_with_elision(&bundle.residue, &bundle.symbols, &bundle.types, bundle.stdlib_check_elision);
     match (check_result, bundle.deferred_resolve.take()) {
         (Err(check_err), Some(resolve_err)) => {
             // ★ THE CAUSE OUTRANKS THE SYMPTOM ONLY WHEN IT IS A DIFFERENT CAUSE.
@@ -1331,8 +1331,8 @@ fn startup_from_forms_post_config(
             return Err(check_err.into());
         }
         (Err(check_err), None) => return Err(check_err.into()),
-        (Ok(()), Some(resolve_err)) => return Err(resolve_err.into()),
-        (Ok(()), None) => {}
+        (Ok(_), Some(resolve_err)) => return Err(resolve_err.into()),
+        (Ok(_), None) => {}
     }
 
     // 9. Freeze. The loader moves into the frozen world's

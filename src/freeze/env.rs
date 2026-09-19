@@ -56,6 +56,11 @@ pub(crate) struct EnvBundle {
     /// `register_runtime_defs` (STOP-3, one door — see `FrozenWorld::freeze`), which needs
     /// this exact set at BOTH its callers (the boot path and the live-session path).
     pub declared_rete_defns: std::collections::HashSet<String>,
+    /// Some(n) ⇒ skip 8b / 8d(ALL-fns) / 8f for bake-time (`:wat::`) functions and
+    /// advance `InferCtx.next` by n. Taken from the boot-cache snapshot when a
+    /// prior successful check recorded the consumption. None ⇒ run those sweeps
+    /// and record the measured n back into the cache.
+    pub stdlib_check_elision: Option<u64>,
     /// Arc 278 — a resolve failure DEFERRED so `check_program` (step 8) runs first.
     ///
     /// A malformed definition does not register, so every CALL to it becomes an
@@ -111,6 +116,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // runs exactly as it always did; there is no second pipeline. See `crate::freeze::boot_cache`
     // for the key, the ⛔ gate, and why absent / stale / corrupt all mean "derive".
     let snapshot = census::phase(census::P_CACHE_LOAD, || boot_cache::consider(&user_forms));
+    let stdlib_check_elision = snapshot.as_ref().and_then(|s| s.infer_fresh_consumed);
     let want_store = snapshot.is_none() && boot_cache::should_store();
 
     // Parsed ONLY when the cache did not answer. `stdlib_forms()` is the last place in the whole
@@ -360,6 +366,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
                 symbols: symbols.clone(),
                 runtime_def_forms: stdlib_runtime_def_forms.clone(),
                 probe_witness,
+                infer_fresh_consumed: None,
             };
             census::phase(census::P_CACHE_STORE, || boot_cache::store(&snap));
         }
@@ -526,6 +533,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         symbols,
         residue,
         declared_rete_defns,
+        stdlib_check_elision,
         deferred_resolve,
     })
 }

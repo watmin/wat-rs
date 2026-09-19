@@ -28822,7 +28822,7 @@ mod tests {
         // consumer. Uses stdlib's TypeEnv (no user-source type
         // declarations are honored — `run` deliberately doesn't
         // accept those).
-        if let Err(errors) = crate::check::check_program(&rest, &sym, stdlib_types) {
+        if let Err(errors) = crate::check::check_program(&rest, &sym, stdlib_types).map(|_| ()) {
             panic!("type-check errors in test wat:\n{}", errors);
         }
         let env = Environment::new();

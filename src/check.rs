@@ -544,6 +544,25 @@ impl InferCtx {
         self.enclosing_fns.pop();
     }
 
+    /// How many fresh type-vars this ctx has handed out. Used by the Tier B
+    /// elision to replay the bake-time sweep's consumption so user bodies see
+    /// the same `next` they would have if the stdlib bodies had run.
+    pub(crate) fn peek_next(&self) -> u64 {
+        self.next
+    }
+
+    pub(crate) fn advance(&mut self, n: u64) {
+        self.next = self.next.saturating_add(n);
+    }
+
+    /// True when the three enclosing stacks are empty — the per-body
+    /// push/pop contract. Checked after every `check_function_body`.
+    pub(crate) fn stacks_balanced(&self) -> bool {
+        self.enclosing_rets.is_empty()
+            && self.enclosing_fns.is_empty()
+            && self.enclosing_handle_params.is_empty()
+    }
+
     pub(crate) fn enclosing_fn(&self) -> Option<&str> {
         self.enclosing_fns.last().map(|s| s.as_str())
     }
@@ -645,11 +664,56 @@ fn is_fn_def_form(form: &WatAST) -> bool {
 /// arity and argument types.
 ///
 /// Reports all errors found in a single pass.
+/// Bake-time function path: a `:wat::` / `:rust::` / `:$bound::` name,
+/// including parametric method paths that open with `(` (`(:wat::core::Seqable :- [:T])/seq`).
+/// User companions (`:user::Foo'`, `:battery::is-Box?`) are not bake-time even when
+/// their body span points at `src/runtime.rs`.
+fn is_bake_time_path(path: &str) -> bool {
+    crate::resolve::is_reserved_prefix(path.trim_start_matches('('))
+}
+
+/// Stats from a completed `check_program`. `bake_time_infer_fresh` is how many
+/// type-vars the bake-time (stdlib) 8f sweep consumed — recorded into the boot
+/// cache so a later hit can replay `InferCtx.next` without re-running those bodies.
+#[derive(Clone, Copy, Debug)]
+pub struct CheckStats {
+    pub bake_time_infer_fresh: u64,
+}
+
+/// `elide_bake_time`: `Some(n)` skips 8b / 8d(ALL-fns) / 8f for bake-time
+/// function paths and advances `InferCtx.next` by `n`. `None` runs them and
+/// reports the measured consumption. ⛔ 8c and 8d's `forms` half always run.
 pub fn check_program(
     forms: &[WatAST],
     sym: &SymbolTable,
     types: &TypeEnv,
-) -> Result<(), CheckErrors> {
+) -> Result<CheckStats, CheckErrors> {
+    check_program_inner(forms, sym, types, None)
+}
+
+pub fn check_program_with_elision(
+    forms: &[WatAST],
+    sym: &SymbolTable,
+    types: &TypeEnv,
+    elide_bake_time: Option<u64>,
+) -> Result<CheckStats, CheckErrors> {
+    check_program_inner(forms, sym, types, elide_bake_time)
+}
+
+fn check_program_inner(
+    forms: &[WatAST],
+    sym: &SymbolTable,
+    types: &TypeEnv,
+    elide_bake_time: Option<u64>,
+) -> Result<CheckStats, CheckErrors> {
+    // The outcome-wildcard census hooks `infer_match` during 8f of stdlib bodies.
+    // Eliding those bodies would make the census report zero and fail its non-vacuity
+    // trap-door. Production boots never enable it (one relaxed load).
+    let elide_bake_time = if crate::check::outcome_wildcard_census::is_enabled() {
+        None
+    } else {
+        elide_bake_time
+    };
     // Arc 157 — `env` must be `mut` so `defined_values` / `defined_value_spans`
     // can be updated incrementally as top-level `def` forms are processed.
     // Stone 243.3.1 — pass `types` by reference (borrow); CheckEnv borrows it.
@@ -688,7 +752,10 @@ pub fn check_program(
     // ⚠ BOOT CENSUS, and read the iterator: this sweeps `sym.function_values()`, i.e. EVERY
     // function registered by step 6 — the whole stdlib — not the `forms` this fn was handed.
     crate::freeze::census::phase(crate::freeze::census::P_CHECK_LEGACY_SWEEP, || {
-    for func in sym.function_values() {
+    for (name, func) in sym.functions_iter() {
+        if elide_bake_time.is_some() && is_bake_time_path(name) {
+            continue;
+        }
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
             validate_bare_legacy_primitives(body, &mut errors);
@@ -778,9 +845,13 @@ pub fn check_program(
     // ⚠ BOOT CENSUS — the `forms` half is the user's; the loop below is the whole symbol table.
     crate::freeze::census::phase(crate::freeze::census::P_CHECK_DEF_POS, || {
     validate_def_positions_in_forms(forms, &mut errors);
-    // Also check inside user-defined function bodies (def inside fn body
-    // is always non-top-level regardless of the call site).
-    for func in sym.function_values() {
+    // Also check inside function bodies (def inside fn body is always
+    // non-top-level regardless of the call site). Bake-time bodies are
+    // skipped when a verdict applies; the `forms` half above always runs.
+    for (name, func) in sym.functions_iter() {
+        if elide_bake_time.is_some() && is_bake_time_path(name) {
+            continue;
+        }
         // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
         if let FunctionBody::Wat(body) = &func.body {
             validate_def_position_with_wrapper(
@@ -849,11 +920,19 @@ pub fn check_program(
     // start — measured 2026-09-16 at ~100 ms of a ~430 ms boot with a one-line user program. The
     // comment above says "each user define's body"; the iterator says otherwise.
     drop(_census_forms);
+    let mut bake_time_infer_fresh = 0u64;
     crate::freeze::census::phase(crate::freeze::census::P_CHECK_BODIES, || {
+    if let Some(n) = elide_bake_time {
+        fresh.advance(n);
+        bake_time_infer_fresh = n;
+    }
     for (path, func) in sym.functions_iter() {
-        // SPIKE PROBE — the window opens for EVERY function and carries the body's source
-        // FILE, so stdlib bodies are separated from the user's by attribution rather than by
-        // name.
+        let bake = is_bake_time_path(path);
+        if elide_bake_time.is_some() && bake {
+            continue;
+        }
+        // SPIKE PROBE — the window opens for EVERY function that actually
+        // runs, and carries the body's source FILE.
         //
         // ⚠ THE REASON THIS WAS LOAD-BEARING IS GONE, and the note is kept rather than deleted
         // because the fact it argued from is what a later reader would otherwise re-derive.
@@ -875,8 +954,16 @@ pub fn check_program(
             FunctionBody::Native => "<native>".to_string(),
         };
         crate::spike_probe::begin_body_sweep(path, &body_file);
+        let n0 = fresh.peek_next();
         if let Some(scheme) = env.get(path) {
             check_function_body(path, func, scheme, &env, &mut fresh, &mut errors);
+        }
+        debug_assert!(
+            fresh.stacks_balanced(),
+            "InferCtx enclosing stacks unbalanced after {path}"
+        );
+        if elide_bake_time.is_none() && bake {
+            bake_time_infer_fresh = bake_time_infer_fresh.saturating_add(fresh.peek_next() - n0);
         }
         crate::spike_probe::end_body_sweep();
     }
@@ -891,7 +978,10 @@ pub fn check_program(
     });
 
     if errors.is_empty() {
-        Ok(())
+        if elide_bake_time.is_none() {
+            crate::freeze::boot_cache::record_infer_fresh(bake_time_infer_fresh);
+        }
+        Ok(CheckStats { bake_time_infer_fresh })
     } else {
         Err(CheckErrors(errors))
     }
@@ -23438,7 +23528,7 @@ mod tests {
             register_types(expanded, &mut types).expect("register user types");
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(rest_post_types, &mut sym).expect("register defines");
-        check_program(&rest, &sym, &types)
+        check_program(&rest, &sym, &types).map(|_| ())
     }
 
     // ─── Arc 170 #13 — the ONE door (register_defclause) gates ────────────
@@ -23479,7 +23569,7 @@ mod tests {
         let rest_post_types =
             register_types(expanded, &mut types).expect("register caller types");
         let rest = register_defines(rest_post_types, &mut sym).expect("register caller defines");
-        check_program(&rest, &sym, &types)
+        check_program(&rest, &sym, &types).map(|_| ())
     }
 
     /// **The acceptance-condition gate.** A defclause registered with
