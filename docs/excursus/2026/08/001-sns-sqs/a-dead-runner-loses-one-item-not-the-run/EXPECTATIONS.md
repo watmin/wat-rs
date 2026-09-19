@@ -15,7 +15,7 @@ two stones in this area both over-claimed; a precise negative is worth more than
 
 | # | what | how it is judged |
 |---|---|---|
-| 1 | ⭐ **Per-arm reachability IN A BRACKET POOL** | Seven arms, each answered with evidence: reachable, or structurally impossible and why. ⛔ Emitted-somewhere is not reachable-here — that conflation is what made the last stone chase dead code. An impossible arm keeps its `assertion-failed!` **and gains a comment saying it is a substrate violation, not a runtime failure.** |
+| 1 | ⭐ **Per-arm classification, TRANSPORT-INDEPENDENT** | Seven arms sorted into *protocol-impossible* (assert is honest at any distance — a runner pool has no listener/admin channel) vs *transport fact* (a network produces it routinely). ⛔ **"Local IPC cannot produce this" is NOT a reason to assert** — brackets target networked hosts and IPC is the stand-in, so that reasoning bakes a crash into the case the work exists for. An arm that keeps `assertion-failed!` must justify it from the PROTOCOL SHAPE and say so at the site. |
 | 2 | **Taxonomy placement** | Every reachable arm in exactly one of RETRY / REPORT-FINAL / REPORT-GONE. `Malformed` is never retried (inherited contract). Every bound wall-clock, and every report names which bound fired. |
 | 3 | ⭐ **RETRY actually re-dispatches** | A killed runner's held item (`holding[idx]`) goes to a survivor and produces its `O`. All N results returned. |
 | 4 | ⭐ **Control by MUTATION** | Remove the re-dispatch → the test goes RED. Show both runs. ⛔ A green-only control fails this row outright — that is exactly what `632335c55` had to delete. |
@@ -35,6 +35,9 @@ two stones in this area both over-claimed; a precise negative is worth more than
   ordering makes it correct at the moment `Closed` is observed.
 - **A control that kills the runner so early it never held anything** — then re-dispatch is
   trivially unnecessary and the test proves nothing.
+- ⛔ **An arm asserted because today's transport is local.** The network is the target; the IPC is
+  the stand-in. If the justification for a raise would evaporate the moment the locus is remote, it
+  is not a justification.
 
 ## Deliverable
 

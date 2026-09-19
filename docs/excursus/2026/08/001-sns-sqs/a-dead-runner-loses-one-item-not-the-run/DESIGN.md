@@ -43,23 +43,45 @@ possible: when runner *k* dies, `holding[k]` is the item to hand to a survivor.
 
 ## The work
 
-### 1. Per-arm reachability, in a bracket pool
+### 1. ⛔ CORRECTED 2026-09-19 — THE DISPOSITION MUST BE TRANSPORT-INDEPENDENT
 
-For each of the seven raising arms: can it reach `collect-loop`, given that `peers` is a vector of
-runner peers with no listener and no admin channel? ⛔ **Answer per arm with evidence, not prose.**
-An arm that is structurally impossible here is a legitimate `assertion-failed!` (a substrate
-violation, not a runtime failure) and should say so at the site. An arm that is reachable is a live
-ungraceful path and belongs in row 2.
+This row first asked "can this arm reach a bracket pool *over local IPC*?", planning to bless the
+unreachable ones with `assertion-failed!`. **That is the wrong question, and the builder's ruling
+says why:**
 
-⚠ Emitted-somewhere ≠ reachable-here. That conflation is exactly what made the previous stone chase
-dead code.
+> *"brackets is meant to be used with networked hosts — the ipc is a stand in for that — we are
+> doing chaos work on the ipc to show that we can recover from there as these are what networking
+> will induce."*
+
+`scratch/WAT-NETWORK.md` is the corroborating record: `RemoteProgram`, bounded wire buffers,
+*"if a remote node is overloaded"*. `RemoteOpts` is the deliberately-uncut third `spawn-program`
+key. **A bracket's transport is a network; IPC is the local stand-in.** So "local IPC cannot produce
+this" is *irrelevant* to how the arm must behave — it would bake a crash into exactly the case the
+work exists for.
+
+**The rule this row now applies:**
+
+> An arm may keep `assertion-failed!` **only if its impossibility follows from the PROTOCOL SHAPE**
+> — a runner pool has no listener and no admin channel, so `Connection` / `Admin` mean the substrate
+> handed us someone else's event, an invariant violation at any distance. It may **never** assert
+> because of the transport's locality.
+
+Sort the seven on that axis, with evidence:
+
+| | |
+|---|---|
+| **protocol-impossible** (assert is honest, at any distance) | candidates: `Connection`, `Admin` — prove it from what a runner peer *is* |
+| **transport facts** (a network produces these routinely) | `Closed`, `Lost`, `Malformed`, `Rejected`, `Shutdown` — all in scope for row 2 |
+
+⚠ Emitted-somewhere ≠ reachable-here still holds as a caution against the previous stone's error —
+but the fix is not to narrow to today's transport, it is to classify by **why** an arm can occur.
 
 ### 2. Place each reachable arm in the taxonomy
 
 | | |
 |---|---|
 | **RETRY** | `Closed` / `Lost` — the runner is gone, but **its item is known** (`holding[idx]`). Re-dispatch to a surviving runner. This is the stone's whole point. |
-| **REPORT, FINAL** | `Malformed` — a reply that did not decode. ⚠ Determine whether the defect is the ITEM or the RUNNER before deciding; the governing DESIGN's contract is that `Malformed` is **never retried**, and this stone inherits that rather than re-deciding it. |
+| **REPORT, FINAL** | `Malformed` — a reply that did not decode. ⚠⚠ **AND HERE THE GOVERNING TAXONOMY HAS A HOLE THAT ONLY THE NETWORKING LENS EXPOSES.** It classifies `Malformed` as REPORT-FINAL because *"deterministic — retrying reproduces it exactly; WE are the defect."* That is true of a LOCAL decode failure (a type mismatch, the sender encoded garbage). **Over a network it is not:** a corrupted frame is a transmission fault, and retrying may well succeed. So `Malformed` is really two facts wearing one name — *the sender encoded garbage* (deterministic, REPORT-FINAL) and *the wire damaged it* (momentary, RETRY) — and the transport cannot tell them apart from the decode error alone. ⛔ **Do not silently pick one.** Report which fact today's `ServiceEvent::Malformed` actually carries, and if it cannot distinguish them, say so — that is a finding against `a-momentary-failure-is-not-fatal`, not a decision for this stone to make. |
 | **REPORT, GONE** | no runners left to re-dispatch to |
 
 Bounded by **wall clock, never an attempt count**, and the report names which bound it hit — the
@@ -99,8 +121,9 @@ not touch the queue path (`0d8bada7b`, `dac31ac03`).
 
 ## The four questions
 
-- **Obvious** — yes: a worker dying should not lose the other 999 items, and the pool already
-  records what the dead worker held.
+- **Obvious** — yes, and more so under the networking frame: a worker dying should not lose the
+  other 999 items, the pool already records what the dead worker held, and a network will kill
+  workers as routine weather rather than as an exceptional event.
 - **Simple** — ⚠ genuinely unclear until row 1. Re-dispatch inside an existing accumulator loop is
   small; a re-dispatch that must also re-establish a dead peer may not be. Score it honestly.
 - **Honest** — the RETRY arms are made recoverable and the rest are **classified and stated**, not
