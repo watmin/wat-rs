@@ -24,10 +24,30 @@ row first for days.
 
 | id | ward | target | site | finding | sev | status | re-derivation |
 |---|---|---|---|---|---|---|---|
-| — | — | — | — | *no cast has returned yet* | — | — | — |
+| **I1** | intueri | 1 | `fire/pass/accumulate.rs:18` | `accumulate_pass`'s doc promises only *"dispatch the accumulate nodes"*; the body ALSO runs pass 3.20 — pre-dispatching `Test` parents that feed an accumulate, so `filter_pass` can skip them. A reader trusting the doc misses that a sibling pass's inputs are seeded here. | L2 | **OPEN** | `grep -q dispatch_where_tests src/rete/kernel/fire/pass/accumulate.rs && sed -n 18p … \| grep -qiv pre-dispatch` — closed when the doc names both responsibilities, or 3.20 becomes its own fn |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | — | — | — | — | — |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ (in flight: solvere, purgare, struere, conferre) | 0 | 1 |
+
+## Verified by the orchestrator, not taken
+
+Every row above was re-read against the disk before it was rowed; a ward's verdict is a hypothesis
+until a `file:line` confirms it.
+
+- **I1** — CONFIRMED. `accumulate.rs:59` clears `pre_dispatched`, `:76` calls `dispatch_where_tests`,
+  `:88` inserts into it. The second responsibility is real and the doc at `:18` does not name it.
+
+## Runes weighed
+
+| rune | verdict |
+|---|---|
+| `rune:intueri(naming)` at `wat/rete/oracle/fire.wat:54` — *"the name is the historical walk-sorted-ids split, not filter-alone"* | **CLEAR, confirmed.** `walk-filter-ids` does dispatch `accumulate-pass`, `filter-pass` AND `hash-join-pass` (verified over `:57-76`). The rune names the mismatch honestly and gives a checkable cost for the rename. |
+
+## Convergence, per ward
+
+| ward | verdict |
+|---|---|
+| intueri | 0 L1 + 1 L2 — **DIVERGES** (narrowly) |
