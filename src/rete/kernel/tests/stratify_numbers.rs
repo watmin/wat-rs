@@ -187,3 +187,63 @@ fn native_stratify_numbers_against_the_oracle_scratch() {
         fmt_map(&oracle_bag),
     );
 }
+
+/// strike-oracle-negation-recurses PROBE — `(or A (and B (not C)))` on a RULE, C DERIVED.
+///
+/// `DESIGN.md` (`strike-oracle-negation-recurses`) reads the oracle's `rule-negates`
+/// (`wat/rete/oracle/stratify.wat`) as recursing into `:not` ONLY when a LHS form's
+/// TOP-LEVEL head is literally `:wat::rete::not` — a top-level `:or`/`:and` contributes
+/// nothing, however deep a `:not` sits inside it. The native `rule_negates` (`negate_types`,
+/// `stratify.rs`) recurses through `And`/`Or` unconditionally. The corpus hit for this shape
+/// (`where-nested-combinators.wat` q6) is a `defquery`, not a `defrule`, and stratification
+/// orders PRODUCERS — so whether the divergence is reachable for a RULE was NOT established
+/// before this test. This drives both engines, in one process, over the SAME rule set (same
+/// source as `wat-scripts/scratch-pad/arc278-l2-3-stratify-numbers.wat`'s `:l24::*` addition).
+#[test]
+fn native_stratify_numbers_nested_or_and_not_against_the_oracle() {
+    let world = world();
+    let sym = world.symbols();
+
+    let nested_rules = eval_form(
+        &world,
+        "(:wat::core::PersistentVector (:l24::mkc) (:l24::nested))",
+    );
+    let nested_views = views_of(&nested_rules, sym);
+    let native_nested = native_stratify(&nested_views).expect("native stratify NESTED");
+    let oracle_nested = hashmap_i64(
+        &eval_form(
+            &world,
+            "(:wat::rete::stratify (:wat::core::PersistentVector (:l24::mkc) (:l24::nested)))",
+        ),
+        "oracle NESTED",
+    );
+
+    println!(
+        "NATIVE NESTED keys (raw): [{}]\n\
+         ORACLE NESTED keys (raw): [{}]",
+        fmt_map(&native_nested),
+        fmt_map(&oracle_nested),
+    );
+
+    // DIVERGENCE (pre-cure) / AGREEMENT (post-cure) — native must ALWAYS raise Out to 1: it
+    // recurses through Or/And unconditionally, and this is the semantically correct side
+    // (DESIGN's pinned ⭐, not up for negotiation here). Whether the oracle also raises Out
+    // is exactly what distinguishes "not yet fixed" from "fixed" — this assertion is written
+    // to hold in BOTH states so it survives the cure as a standing regression gate rather than
+    // becoming stale the moment the oracle is fixed.
+    assert_eq!(
+        native_nested.get("l24::Out"),
+        Some(&1),
+        "NESTED: native must raise Out to 1 — it recurses through Or/And unconditionally\n  \
+         native NESTED = {{{}}}",
+        fmt_map(&native_nested),
+    );
+    assert_eq!(
+        oracle_nested.get("l24::Out"),
+        Some(&1),
+        "NESTED: oracle must ALSO raise Out to 1 once rule-negates recurses through Or/And — \
+         if this is None the oracle still only recognises a top-level `:not` head\n  \
+         oracle NESTED = {{{}}}",
+        fmt_map(&oracle_nested),
+    );
+}
