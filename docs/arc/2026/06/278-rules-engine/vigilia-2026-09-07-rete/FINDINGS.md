@@ -53,12 +53,14 @@ row first for days.
 | **X2** | excusare | 1 | `fire/mod.rs:469`, `:2128`, `filter_after_join.rs:17`, `round_census.rs:25` | Four more bare `#[allow(clippy::too_many_arguments)]` with no argument-count reason. Each has a doc comment above describing what the fn DOES — a comment's presence is not a reason's presence. `round_census.rs:25` is `#[cfg(test)]`-only, where the lint is arguably MORE valid. | L1 | **OPEN** · ✅ I VERIFIED | read all four lines above: *"Drain the frontier…"*, *"Exists/Not Leaf: probe…"*, etc. None mentions arity |
 | **X3 ★★** | excusare | 1 | `wat/rete/oracle/fire.wat:54` | ⭐⭐ **THREE WARDS, ONE RUNE, TWO VERDICTS.** `excusare` strikes `rune:intueri(naming)` as ILLEGITIMATE-AT-BIRTH: *"rename would fork every oracle fire caller"* is a cost-of-change plea, not a domain-truth, and names no target. But `intueri` graded the same rune **CLEAR**, and `struere` (T6) said **no action required**. Vigilia forbids me re-classifying a ward's verdict — so both stand, and the disagreement IS the finding. | L2 (excusare) vs CLEAR (intueri) | **OPEN — NEEDS A DECISION** · ✅ I VERIFIED both readings | the rune's text at `:54-56` is a historical explanation + a refactor-cost claim; whether that is a warrant is the open question |
 | **E1** | exigere | 1 | `stratify.rs:620-632` | *"deliberately not attempted"* / *"the fence half stays punted"* — but `RETE-OPEN-WORK.md:1471` records that exact idea as **CLOSED — REFUSED**, permanently, because population for `i64`/`f64`/`String` is an insert-time input rather than a static type property. The comment describes a final refusal in punt-language; a reader who has not seen the arc doc reads open work. | L1 by pattern, **wording-only in substance** | **OPEN** · ✅ I VERIFIED | `:632` says *"stays punted"*; `RETE-OPEN-WORK.md:1471` says *"THE FENCE HALF IS CLOSED — REFUSED"*. Closed by rewording to a refusal; no work is owed |
+| **F1 ★** | conformare | 1 | `stratify.rs:288-294`; caller `fire/rules.rs:648`,`:707`,`:880` | A NEGATION CYCLE is a user rule-authoring mistake, and it is raised with `rust_caller_span!()` — while `fire_rules_on_session`, ONE FRAME UP, holds `span: &Span` and its own doc says *"a refusal a user can reach must name the line the user wrote, not a line in this file."* The span was available and discarded at the boundary. | L2 | **OPEN** · ✅ I VERIFIED | `stratify.rs:288-294` uses `rust_caller_span!()`; `fire/rules.rs:648` has `span: &Span`. Closed by threading it through `native_stratify`/`fire_rules_from_deps` |
+| **F2** | conformare | 1 | `session.rs` `pm_to_*` / `to_transient_*` — 28 raise sites | The whole decode family takes no `span` and raises every `TypeMismatch` with `rust_caller_span!()`, reached from two span-bearing entry points that don't forward it. ⚠ Ward explicitly could NOT resolve whether a malformed Session-memory shape is user-reachable at all — if it is not, the fix is 28 `rune:conformare(spanless-by-domain)` marks, not code. None carries a rune today. | L2 | **OPEN** · ⚠ ward-reported, domain question unresolved | `grep -c rust_caller_span session.rs` → **27**; `insert.rs` → **0** |
 
 ## Cast log
 
 | # | target | cast at | wards mustered | returns in `reports/` | L1 | L2 |
 |---|---|---|---|---|---|---|
-| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ sequi ✓ **CONV** temperare ✓ excusare ✓ exigere ✓ **CONV** (in flight: conformare; not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
+| 1 | `src/rete/kernel/` + `wat/rete/oracle/` | 2026-09-07 | 13 inward + circumspicere last | intueri ✓ purgare ✓ solvere ✓ struere ✓ conferre ✓ sequi ✓ **CONV** temperare ✓ excusare ✓ exigere ✓ **CONV** conformare ✓ (not yet cast: conformare, sequi, temperare, exigere, cernere, probare, perspicere, excusare, circumspicere) | **1** | 20 |
 
 ## Verified by the orchestrator, not taken
 
@@ -166,3 +168,21 @@ Nobody is badly wrong and no finding turns on it — but a population **nobody c
 is a population no later claim should be built on. Recorded rather than smoothed, because a count
 that varies with who ran it is a count that needs its method stated beside it. This is the fifth
 sweep-arithmetic wobble of the session.
+
+- **F1 ★** — CONFIRMED. `stratify.rs:288-294` raises *"negation cycle detected — rule set is not
+  stratifiable"* with `rust_caller_span!()`; `fire/rules.rs:648` declares `span: &Span` and uses it
+  for exactly one other call. **And the comparator is decisive:** `insert.rs` contains **zero**
+  `rust_caller_span!()` — all five of its error sites thread `list_span` — while `session.rs`
+  contains **27**. Same subsystem, two opposite conventions.
+
+⭐ **conformare reported SCOPE before findings, which is why its findings are worth having.** It
+established first that the target defines no error type of its own and has no `From` impls at all —
+both by grep, both reported as zero — and only then ran the one audit surface that applies. The
+brief told it that answering *"this target defines none"* would be a complete result; it did the
+work anyway and found two real call-boundary gaps. A ward that can say "not here" is a ward whose
+"here" means something.
+
+⚠ **F2 carries an unresolved domain question and is rowed WITH it.** The ward could not determine,
+from the target alone, whether a malformed Session-memory shape is ever user-reachable. If it is
+not, these 28 sites are `driver_of`'s legitimate class and the fix is documentation, not threading.
+It said so instead of guessing — and that honesty is why the row is actionable.
