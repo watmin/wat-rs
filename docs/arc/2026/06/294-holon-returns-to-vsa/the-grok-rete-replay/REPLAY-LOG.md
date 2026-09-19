@@ -3847,3 +3847,107 @@ measured figures (notably #511's "all 65 exemptions") landed exactly as written 
 "corrected." Zero `src/`, zero hazard rows, zero new gates, zero `wat-scripts/fixes/` edits, zero
 `wat/` paths, zero test-count delta (no `.rs` file touched anywhere in the range). See
 `SCORE-7s-replay-batch-4s.md` for the full row-by-row account against all rows (E1–E16).
+
+## #521 — docs-only, 3 files (vigilia(rete): circumspicere closes target 1 — 14/14, and the LAST
+ward found the sharpest L1).
+
+## #522 — docs-only, 1 file (vigilia(rete): derive target 2's muster — and close a hole that would
+have swept nothing).
+
+## #523 — docs-only, 3 files, 2 new (vigilia(rete): target 2 opens — conferre 8/8 hold, conformare
+finds Pattern A in force).
+
+## #524 — docs-only, 2 files, 1 new (vigilia(rete): purgare returns 7 on target 2 — and one rune's
+reason is false).
+
+## #525 — docs-only, 2 files, 1 new (vigilia(rete): solvere returns 3 on target 2 — and two of them
+are self-diagnosed).
+
+## #526 — docs-only, 2 files, 1 new (vigilia(rete): excusare weighs 36 on target 2 — 34 hold, and it
+corrected my count twice).
+
+## #527 — docs-only, 1 file (vigilia(rete): builder's ruling — docs/*.md is stale by default, and
+may not be authority).
+
+## #528 — docs-only, 2 files, 1 new (vigilia(rete): struere returns target 2's first L1 — and a test
+that defends the wrong answer).
+
+## #529 — docs-only, 2 files, 1 new (vigilia(rete): intueri returns 4 — four numbers for one array,
+and only one is gated).
+
+## #530 — docs-only, 1 file (vigilia(rete): correct the cast-log total — I committed 2I1's own
+defect while rowing it).
+
+## #531 — docs-only, 2 files, 1 new (vigilia(rete): sequi returns CLEAN on target 2 — and the
+corrected clause worked).
+
+## #532 — docs-only, 2 files, 1 new (vigilia(rete): temperare returns 7 — and corrects a
+reachability claim I put in its brief).
+
+## #533 — docs-only, 2 files, 1 new (vigilia(rete): exigere returns 1 on target 2 — and its
+dismissal list is the product).
+
+## #534 — docs-only, 2 files, 1 new (vigilia(rete): cernere returns — N1 was not a site, it is a
+class, and it spans both targets).
+
+## #535 — docs-only, 2 files, 1 new (vigilia(rete): probare returns 2 — the false caller-count is a
+class, and it is cheap to close).
+
+## #536 — docs-only, 2 files, 1 new (vigilia(rete): perspicere closes the read-only wave — and its
+second reading strengthens 2M1).
+
+## #537 — LANDED WITH CONVERSION (vigilia(rete): experiri DROVE — 163 cells clean, and the column
+nobody sweeps is the finding). 11 files (2 docs, 9 new `.wat` under
+`wat-scripts/scratch-pad/experiri-then/`). ⚠⚠ FINDING-33-CLASS HIT, PRE-FLIGHTED BY THE
+ORCHESTRATOR AND CONFIRMED HERE: all nine failed `./target/release/wat --check` (rc=101) on arrival
+with the retired positional `assertion-failed!` form, plus 9 occurrences of the retired
+`:wat::core::i64::+` (one per file). Cured via the recorded chain, never by hand:
+`scripts/replay/convert.sh 628e6371d /tmp/convert-537 <the 9 paths>` (the file's own introducing
+commit, the batch-4o/4q/4r precedent). Per-file the chain rewrote: the positional
+`assertion-failed!` call sites to kwargs form (`assertion-kwargs`); `:wat::core::i64::+` to
+`:wat::i64::+` (9/9 sites, the core/rete-numerics-to-their-homes rename pair); match arms from
+parenthesized to bracket-map patterns (`match-arm-to-bracket-map-pattern`); and enum variant
+separators from `::` to `.` (`variant-separator-to-dot`, e.g. `CompileOutcome::Compiled` →
+`CompileOutcome.Compiled`). All nine re-verified: `--check` rc=0 after (was 101 before). Fixed
+blobs re-`git add`ed before commit (the #484/#490 staging-defect class explicitly checked this
+time — `git status --porcelain` showed `A`, not `AM`, before the commit). No hand-edited `.wat`.
+Both `wat-scripts/` loader gates re-run and green: `every_wat_scripts_file_loads_on_the_current_
+runtime` PASS (1/1, 5893 skipped), `every_rete_name_in_wat_scripts_code_resolves` PASS (1/1, 5893
+skipped). `census: files=2186; --diff no STOP-8` (vs the batch-start census, `files=2177`).
+`nested-program-gate: PASS (3/3, 5891 skipped)`.
+
+## #538 — docs-only, 3 files, 1 new (vigilia(rete): circumspicere closes target 2 — 15/15, and the
+last ward found the strongest L1).
+
+## #539 — docs-only, 1 file (vigilia(rete): derive target 3's muster — and catch a false finding
+before briefing it).
+
+## #540 — LANDED (vigilia(rete): peragrare returns to the corpus that birthed it — every mechanism
+proven alone, no two together). 3 files (2 docs, 1 new `.sh`:
+`wat-scripts/perf/grid/peragrare-census.sh`). No `.wat`, no `.rs` — the record gate's path-based
+rule requires no wall verdict for this step, but per the brief both code steps touch
+`wat-scripts/`, so both loader gates were re-run anyway: green, 2/2 (paired with #537's sibling
+test in the same run), 5892 skipped. Finding-33 sweep (wat embedded in `.sh` STRING LITERALS) —
+explicit, NOT APPLICABLE: `grep -n ':wat::\|assertion-failed!\|::i64::\|rete::core'
+peragrare-census.sh` returns zero matches anywhere, including comments. The script's own grep
+patterns test corpus file CONTENT for live spellings (`wat::rete::retract`, `wat::rete::not`),
+confirmed present verbatim in the current `wat-scripts/perf/grid/*.wat` corpus
+(`retract-multiplicity.wat`, `strat-neg.wat`) — not stale, not a finding-33 hit.
+
+⛔ ZERO SELF-CAUGHT DEFECTS AND ZERO MERGE CONFLICTS THIS BATCH — the first batch in several with
+neither class. Every subject and trailer was built by piping `git log -1 --format=%s <C>` and
+`git rev-parse <C>` into the commit heredoc, never retyped, and verified two-sided immediately
+after each commit (20/20, see `SCORE-7t-replay-batch-4t.md`'s table). The one real task, #537's
+nine-file conversion, ran the recorded chain exactly once and needed no repair — every file passed
+`--check` on the first conversion attempt.
+
+**Disposition: COMPLETE.** All 20 steps (#521–#540) landed, tree clean at `68dd5510b`
+(`REPLAY(grok-rete #540)`), not pushed. `origin/replay/grok-rete` (`ca77d8436`) remains the
+published tip, an ancestor of HEAD throughout. No mid-batch STOP; no test ever went red. Grok's own
+measured figures landed exactly as written; verified byte-identical to grok's blobs for all 19 docs
+steps' doc files and #537's own 2 docs files (SHA-256 per file, `git show <C>:<path>` vs
+`git show <ours>:<path>`) — only the 9 converted `.wat` files at #537 differ from grok's blobs, by
+construction (the recorded migration). Zero `src/`, zero hazard rows, zero new gates, zero
+`wat-scripts/fixes/` edits, zero `wat/` (stdlib) paths, zero test-count delta (no `.rs` file
+touched anywhere in the range) — predicted **5872 run, 22 skipped, unchanged**. See
+`SCORE-7t-replay-batch-4t.md` for the full row-by-row account against all rows (E1–E16).
