@@ -20490,6 +20490,20 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Excursus 001 `the-bracket-peer-path-faces-chaos` — collect-loop's wall-clock bound.
+    // `(:wat::program::collect-deadline-ms) → :wat::core::i64`
+    // Replaces the frozen `(:wat::core::defn :wat::bracket::collect-deadline-ms [] 300000)`.
+    // `WAT_COLLECT_DEADLINE_MS` injects it, read once per process in `src/intrinsic/program.rs`
+    // (default 300000).
+    env.register(
+        ":wat::program::collect-deadline-ms".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1e — ambient runtime values per REALIZATIONS pass 7.
     // `(:wat::runtime::argv) → (:wat::core::Vector :- [wat::core::String])`
     // — process-wide argv handed in by wat-cli (or any embedder)

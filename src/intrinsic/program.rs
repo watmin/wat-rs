@@ -180,3 +180,55 @@ fn startup_handshake_deadline_ms() -> i64 {
 pub(crate) fn eval_program_startup_handshake_deadline_ms() -> Result<Value, EvalBreak> {
     Ok(Value::i64(startup_handshake_deadline_ms()))
 }
+
+// ─── collect-loop's wall-clock bound — excursus 001, the-bracket-peer-path-faces-chaos ───
+//
+// Same shape as the handshake deadline: one Rust home, OnceLock, env injects, zero/negative/
+// unparseable → default + one stderr line. The wat `defn` that held 300000 is gone;
+// `wat/bracket.wat` calls this nullary. Do not put a second 300000 in wat.
+
+const DEFAULT_COLLECT_DEADLINE_MS: i64 = 300_000;
+
+const COLLECT_DEADLINE_ENV: &str = "WAT_COLLECT_DEADLINE_MS";
+
+static COLLECT_DEADLINE_MS: OnceLock<i64> = OnceLock::new();
+
+fn collect_deadline_ms() -> i64 {
+    *COLLECT_DEADLINE_MS.get_or_init(|| {
+        let Ok(raw) = std::env::var(COLLECT_DEADLINE_ENV) else {
+            return DEFAULT_COLLECT_DEADLINE_MS;
+        };
+        match raw.trim().parse::<i64>() {
+            Ok(ms) if ms > 0 => ms,
+            _ => {
+                eprintln!(
+                    "wat: {COLLECT_DEADLINE_ENV}={raw:?} must be a POSITIVE integer \
+                     number of milliseconds (zero is not a wait) — using the default \
+                     {DEFAULT_COLLECT_DEADLINE_MS}."
+                );
+                DEFAULT_COLLECT_DEADLINE_MS
+            }
+        }
+    })
+}
+
+/// `(:wat::program::collect-deadline-ms)` — nullary; the milliseconds
+/// `collect-loop` bounds itself by, as `:wat::core::i64`.
+///
+/// Excursus 001 `the-bracket-peer-path-faces-chaos`. Defaults to 300 000 ms;
+/// `WAT_COLLECT_DEADLINE_MS` overrides it for the process, read at most once.
+/// Homed next to `:wat::program::startup-handshake-deadline-ms` (same shape).
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Total         Unreviewed
+/// @Category      Ambient
+/// @ret     :wat::core::i64 the collect-loop wall-clock bound in milliseconds for this process
+/// @example (:wat::core::= (:wat::program::collect-deadline-ms) (:wat::program::collect-deadline-ms)) #=> true
+/// @example-norun (:wat::program::collect-deadline-ms)
+/// @see     :wat::program::startup-handshake-deadline-ms
+#[wat_intrinsic(":wat::program::collect-deadline-ms")]
+pub(crate) fn eval_program_collect_deadline_ms() -> Result<Value, EvalBreak> {
+    Ok(Value::i64(collect_deadline_ms()))
+}

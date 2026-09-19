@@ -179,10 +179,10 @@ fn bracket_recvoutcome_matches_are_fed_by_bare_recv() {
     );
     let deadline = code.matches(":wat::kernel::recv-by-deadline").count();
     assert_eq!(
-        deadline, 0,
-        "⛔ bracket.wat now calls recv-by-deadline ({deadline} site(s)), which CAN return \
-         RecvOutcome::TimedOut. The five placeholder arms are no longer unreachable — migrate them \
-         to RETRY / REPORT-FINAL / REPORT-GONE first."
+        deadline, 1,
+        "collect-wait-one is the one recv-by-deadline (1-peer stall bound). Found {deadline}. \
+         The five runner loops must stay on bare recv — their placeholder TimedOut/Malformed \
+         arms remain unreachable there. Do not add more deadline recvs without placing those arms."
     );
 }
 
@@ -264,7 +264,7 @@ fn select_and_poll_share_decode_classification() {
 #[test]
 fn brackets_four_unreachable_serviceevent_arms_are_counted() {
     let code = bracket_code();
-    for dead in ["Admin", "Connection", "Malformed", "Rejected"] {
+    for dead in ["Admin", "Connection", "Rejected"] {
         let n = code
             .matches(&format!(":wat::spawn::ServiceEvent::{dead}"))
             .count();
@@ -273,6 +273,13 @@ fn brackets_four_unreachable_serviceevent_arms_are_counted() {
             "expected exactly ONE collect-loop arm for {dead}; found {n}"
         );
     }
+    let malformed = code
+        .matches(":wat::spawn::ServiceEvent::Malformed")
+        .count();
+    assert_eq!(
+        malformed, 2,
+        "Malformed is collect-loop's arm plus collect-wait-one's constructor; found {malformed}"
+    );
 }
 
 fn bracket_code() -> String {

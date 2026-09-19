@@ -43,16 +43,32 @@ fn run_vec(path: &str) -> Vec<i64> {
     }
 }
 
+/// The collect-loop arm for `variant`, not a constructor that produces it.
+/// A later helper may construct Closed/Lost/Malformed; nth(1) would land there.
+fn collect_loop_arm_body<'a>(code: &'a str, variant: &str) -> &'a str {
+    let mut search = code;
+    loop {
+        let Some(idx) = search.find(variant) else {
+            panic!("collect-loop has no {variant} arm");
+        };
+        let after = &search[idx + variant.len()..];
+        let body = match after.find(":wat::spawn::ServiceEvent::") {
+            Some(end) => &after[..end],
+            None => after,
+        };
+        if body.contains("collect-requeue") {
+            return body;
+        }
+        search = after;
+    }
+}
+
 /// ⭐ Closed/Lost re-dispatch is actually in the collect-loop arms.
 /// Delete `collect-requeue` from those arms and this reddens.
 #[test]
 fn closed_and_lost_requeue_the_held_item() {
     let code = bracket_code();
-    let closed = code
-        .split(":wat::spawn::ServiceEvent::Closed")
-        .nth(1)
-        .expect("collect-loop has no Closed arm");
-    let closed_body = &closed[..closed.len().min(800)];
+    let closed_body = collect_loop_arm_body(&code, ":wat::spawn::ServiceEvent::Closed");
     assert!(
         // rune:lint(loose-assert) — presence of the re-dispatch helper in the Closed
         // arm body. The claim is "this call is here", not a value equality.
@@ -60,11 +76,7 @@ fn closed_and_lost_requeue_the_held_item() {
         "Closed arm no longer re-dispatches via collect-requeue — the mutation this \
          control exists to catch"
     );
-    let lost = code
-        .split(":wat::spawn::ServiceEvent::Lost")
-        .nth(1)
-        .expect("collect-loop has no Lost arm");
-    let lost_body = &lost[..lost.len().min(800)];
+    let lost_body = collect_loop_arm_body(&code, ":wat::spawn::ServiceEvent::Lost");
     assert!(
         // rune:lint(loose-assert) — presence of the re-dispatch helper in the Lost
         // arm body. The claim is "this call is here", not a value equality.
@@ -117,21 +129,7 @@ fn dead_runner_fault_fired() {
 #[test]
 fn malformed_requeues_and_keeps_the_runner_alive() {
     let code = bracket_code();
-    let arm = code
-        .split(":wat::spawn::ServiceEvent::Malformed")
-        .nth(1)
-        .expect("collect-loop has no Malformed arm");
-    // ⛔ BOUND THE WINDOW AT THE NEXT ARM, NOT AT A FIXED SIZE. An 800-char slice spills into the
-    // adjacent `Rejected` arm — which DOES raise — so a fixed window makes the absence assertions
-    // below fail on correct code. Measured: this control reddened on its own first run for exactly
-    // that reason. A PRESENCE assertion tolerates spillover; an ABSENCE assertion does not.
-    // Bound the window at the next ServiceEvent variant path. `arm` starts after the
-    // Malformed head, so the next bare variant path is the next arm. Do not write a
-    // constructor-shaped string literal — no_inlined_edn treats a paren-opener as EDN.
-    let body = match arm.find(":wat::spawn::ServiceEvent::") {
-        Some(end) => &arm[..end],
-        None => arm,
-    };
+    let body = collect_loop_arm_body(&code, ":wat::spawn::ServiceEvent::Malformed");
     assert!(
         body.len() > 80 && body.len() < 1200,
         "Malformed arm sliced to {} bytes — the terminator moved and the window is wrong; \

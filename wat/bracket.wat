@@ -592,8 +592,10 @@
 ;; now DOES distinguish — Lost is death, Malformed is a frame that did not decode. What the
 ;; reports still cannot carry is WHICH ITEM hit WHICH fault, because `collect-loop` returns
 ;; `(Vector :- [O])` with no slot for a per-item report. That is the honest limitation to state.
-;; 300000 ms is well above any honest map.
-(:wat::core::defn :wat::bracket::collect-deadline-ms [] -> :wat::core::i64 300000)
+;; 300000 ms is well above any honest map. THE NUMBER LIVES IN RUST:
+;; `DEFAULT_COLLECT_DEADLINE_MS` in `src/intrinsic/program.rs`, exposed as the
+;; nullary `(:wat::program::collect-deadline-ms)`. `WAT_COLLECT_DEADLINE_MS`
+;; injects it. Same shape as the handshake deadline. Do not restate the literal.
 
 (:wat::core::defn :wat::bracket::alive-without
   [alive <- (:wat::core::Vector :- [:wat::core::i64])
@@ -702,6 +704,32 @@
         :w waited :l last :b budget-ms)
       :wat::core::None :wat::core::None)))
 
+;; 1-peer wait. `select` of spawned Thread/Process cannot mix `after`'s unified
+;; Peer (STOP-1 of the-owner-wait-has-a-deadline). `recv-by-deadline` is the
+;; primitive that bounds a spawned runner. N-way `select` stays unbounded —
+;; a stall of every runner in a pool of 2+ still hangs. The stall probe is 1
+;; runner so this path is the one that can fire `collect-gave-up!`.
+(:wat::core::defn :wat::bracket::collect-wait-one :- [D I O]
+  [peer <- (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])
+   remaining-ms <- :wat::core::i64
+   t0-ns <- :wat::core::i64
+   budget-ms <- :wat::core::i64]
+  -> (:wat::spawn::ServiceEvent :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O]) :wat::core::nil])
+  (:wat::core::match (:wat::kernel::recv-by-deadline peer remaining-ms)
+    ((:wat::kernel::RecvOutcome::Message m)
+      (:wat::spawn::ServiceEvent::Message 0 m))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::spawn::ServiceEvent::Closed 0))
+    ((:wat::kernel::RecvOutcome::Lost c)
+      (:wat::spawn::ServiceEvent::Lost 0
+        (:wat::kernel::message-only-failure (:wat::kernel::LociDiedError/message c))))
+    (:wat::kernel::RecvOutcome::TimedOut
+      (:wat::bracket::collect-gave-up! t0-ns budget-ms "TimedOut"))
+    (:wat::kernel::RecvOutcome::Stopped
+      :wat::spawn::ServiceEvent::Shutdown)
+    ((:wat::kernel::RecvOutcome::Malformed c)
+      (:wat::spawn::ServiceEvent::Malformed 0 c))))
+
 ;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
 ;;
 ;; State: peers (the live Thread vector), items (the full input vector),
@@ -767,7 +795,12 @@
                               -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])])
                             (:wat::core::nth peers i))
                           alive)
-             event (:wat::kernel::select live-peers)]
+             remaining (:wat::i64::- budget-ms elapsed)
+             event (:wat::core::if (:wat::i64::= (:wat::core::length alive) 1)
+                     (:wat::bracket::collect-wait-one
+                       (:wat::core::nth peers (:wat::core::first alive))
+                       remaining t0-ns budget-ms)
+                     (:wat::kernel::select live-peers))]
             (:wat::core::match event
          
               ((:wat::spawn::ServiceEvent::Message live-idx pair)
@@ -1523,7 +1556,7 @@
                 (:wat::core::range 0 n))
               (:wat::core::Vector :- [:wat::core::i64])
               (:wat::time::epoch-nanos (:wat::time::now))
-              (:wat::bracket::collect-deadline-ms))
+              (:wat::program::collect-deadline-ms))
      ;; REVOKE-SHUTDOWN: the drain is complete but the peers are still alive (still in scope,
      ;; still hold their Pidfd → peer-pid still Some). For each process peer, revoke its pid
      ;; (a no-op for a plain pool) — the grant a worker held cannot outlive its reaping. A
