@@ -328,3 +328,76 @@ it faces inward at the code, is that the sentence the code SHIPS describes a str
 the placement delivers. Thirteen inward lenses passed over `session.rs:1759` and none was pointed at
 the gap between a claim and its enforcement. That is the surround, and it is exactly what
 `circumspicere` exists for.
+
+---
+
+# TARGET 2 — `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines)
+
+Cast opened 2026-09-07. Muster derived with measured triggers in `README.md`. Returns land verbatim
+in `reports-target2/`. **Same rules: this table is the only status home; every row carries its
+re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the ward's claim.**
+
+| id | ward | site | finding | sev | status | re-derivation |
+|---|---|---|---|---|---|---|
+| **2C1** | conferre | `validate/mod.rs:709` vs `:720-725` and `matcher.rs:977-985` | The doc says the accepted set is *"a literal resolves"* — unqualified. `ast_literal_value` accepts **only** `IntLit`/`FloatLit`/`BoolLit`/`StringLit`; `RationalLit`, `BigIntLit` and `NilLit` are literals that resolve to `None`. ⭐ **The code is RIGHT** — its own `matches!` omits exactly those three — and the file already contains the precise phrasing 40 lines below, in the user-facing error at `:748`: *"an integer / float / boolean / string literal."* The loose word is only in the doc comment above the function. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '977,986p' matcher.rs` → 4 arms then `_ => None`; `grep -nE '(RationalLit\|BigIntLit\|NilLit)\('` → all three variants exist (`hash.rs:189,201,218`). Closed by copying `:748`'s own wording up to `:709` |
+| **2F1** | conformare | `purity.rs:1513` | `classify_native_fn` raises `AxisViolation::at(rust_caller_span!(), …)` — the **one** production site in ~20 that does not thread a real user span. ⭐ **The exception is legitimate and documented** — `purity.rs:168-169` says *"`classify_native_fn` / unregistered names use `rust_caller_span` (no body AST)"* — but the prose sits at the STRUCT definition, **1,300 lines from the site**, and carries no `rune:conformare(spanless-by-domain)`. A reader at `:1513`, and every rune census, sees an unexplained sentinel. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '1513p' purity.rs` → `rust_caller_span!()`; `sed -n '168,169p'` → the justification, naming this fn; `grep -rn 'rune:conformare'` over target 2 → **0**. Closed by a rune at the site citing `:168-169` and `:1494-1500` |
+
+## Verified by the orchestrator — target 2
+
+- **2C1** — CONFIRMED, and it is the *good* kind of L2: a file that already contains its own correct
+  sentence. `matcher.rs:981-985` accepts four literal kinds and falls to `_ => None`;
+  `validate/mod.rs:720-725` correctly omits Rational/BigInt/Nil; `:748` says it precisely. Only the
+  doc comment at `:709` generalises to "a literal". Not vacuous — all three unhandled variants
+  really exist (`hash.rs:189,201,218`).
+
+⛔ **AND THE WARD CORRECTED MY BRIEF — THE ERROR WAS MINE, AND IT IS ONE OF MY OWN NAMED FAILURES.**
+I handed it a list of `Mirrors` claims and wrote: *"That grep returned 7 lines; the 7th is a
+continuation."* **It is not.** There are **seven distinct claims**, and the one I omitted is
+`src/rete/expr_ir/eval.rs:1191` (`TupleNew` mirrors `eval_tuple_ctor`) — a real, checkable spec claim
+in a file I never quoted. The cause: I ran the grep piped through `head -6`, read the total as 7, and
+*inferred* the seventh was a wrap-around without ever looking at it. That is exactly
+`[[a-truncating-pager-makes-absence-unfalsifiable]]` and `[[never-cite-a-symbol-you-have-not-grepped]]`,
+committed inside a brief whose entire purpose was to hand a ward verified ground.
+
+⭐ **What caught it was the brief's own defensive clause** — *"derive your own list and say if you find
+more or fewer than I did."* Without that sentence the ward would have audited my six, found them
+sound, and the seventh would have gone unread with nobody the wiser. **Keep that clause in every
+brief that hands a ward a pre-measured list.** A measurement handed down is a claim, and the cheapest
+way to test it is to ask the worker to re-derive it and report the delta.
+
+⭐ **The ward also went BEYOND its list, correctly.** It swept the five `.wat` spec files for
+mirroring language and found an eighth claim (`compile.wat:1076`); it spot-checked a lowercase
+`mirrors` at `compiled_cond.rs:132` that its own grep pattern would have missed; and it read
+`clause.rs:25`'s topology claim against `compile.wat:364-650`. **All eight hold.** For a ward that
+produced this cast's first L1 on target 1 by reading exactly this kind of claim, eight-for-eight is
+a real statement about the compile side — not silence.
+
+- **2F1** — CONFIRMED. `purity.rs:1513` is `Err(AxisViolation::at(crate::rust_caller_span!(), path,
+  axis))`; the justification at `:168-169` is real, on point, and names `classify_native_fn`
+  explicitly. Zero `rune:conformare` exist anywhere in target 2. So the finding is **not** that the
+  exception is wrong — it is that the exception's warrant is unreachable from the site and
+  unfindable by machine.
+
+⭐⭐ **AND THE HEADLINE IS THE CONFORMANCE, NOT THE FINDING — this is the ward answering the question
+its target-1 cast could not.** On target 1 `conformare` reported, correctly, *"this target defines no
+error type of its own."* That answer is what exposed the scope hole and widened target 2. Cast on the
+ground it pointed at, it found **four** error-type families where my brief named three — it located
+`LowerError` (`expr_ir/mod.rs:188`), `ReteDefnCheckError` (`purity.rs:1667`) and `AxisViolation`
+(`purity.rs:174`) beyond the three I handed it — and **all four independently use Pattern A**: span
+on the outer struct, kind enum carrying variant data, span mandatory at construction. I verified the
+principal: `ReteCheckError { span: Span, kind: ReteCheckErrorKind }`, and `error.rs:432` names the
+pattern itself. **Zero `impl From<`** in the whole 20-file Rust surface, so there is no conversion
+boundary that could drop a span. **Zero `Span::unknown()`.**
+
+That is a real statement about the compile side, and only a cast ward could make it: the wrong shape
+here is not merely discouraged, it is **uncompilable**, and it got that way independently in four
+places.
+
+⭐ **The ward's scope discipline is worth copying.** It excluded five candidates *with stated
+reasons* rather than padding: `reachability.rs`'s `Verdict`/`DefectKind` (a calibration ledger, never
+in a `Result` a caller sees), `step_payload.rs`'s `Result<_, String>` (the string is an in-band
+explain-trace VALUE, not a raised diagnostic — a rendering concern its own spell excludes), and
+`EvalBreak`/`RuntimeError` (defined outside the target; read only to resolve threading). It also
+declined to flag `matcher.rs:854` discarding a `LowerError` via `.ok()`, correctly naming that a
+`solvere` question about error-recovery strategy rather than a span-shape defect. **A ward that
+refuses findings outside its own concern is what makes its in-concern findings worth crediting.**
