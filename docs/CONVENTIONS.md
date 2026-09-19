@@ -1159,25 +1159,31 @@ list of examples to pattern-match.
 must be named or it is a convenience-plea. A
 `// rune:excusare(<category>) — <reason>` (or the same marker folded into an `#[ignore]` reason
 slot) declares **why the override is warranted**, and the category says *which kind of warrant*.
+The spell blesses that placement: a test held back from the run is a silenced check, and its
+string is the excuse; a bare `#[ignore]` pleads nothing.
 
-`perennial` is the ward's own, from the `excusare` spell in the datamancy grimoire. The other two
-are **proposed upstream and in use here pending acceptance** — the request is
-`~/work/NOTE-excusare-lacks-a-term-for-a-gate-that-cannot-be-built.md`. A reader must be able to
-tell which categories the grimoire blesses (`perennial`) and which this tree is using while that
-request is open (`below-resolution`, `no-falsifier`). The decisive-test column is what this table
+The three are the ward's own, from the `excusare` spell in the datamancy grimoire (fetched
+2026-09-07) — `perennial` from the original spell, `below-resolution` and `no-falsifier`
+**accepted 2026-09-07** with the proposed names. The decisive-test column is what this table
 adds.
 
 | category | the claim | the decisive test — answer it in the reason | example |
 |---|---|---|---|
 | `perennial` | the warrant is **structurally immutable** — correct-forever by construction | why can this exemption's warrant NEVER rot? Name the structure that would have to change first | `Select`'s withheld `Default` — an empty Select is a footgun; a `Default` impl would produce the prohibited value with no call-site signal |
-| `below-resolution` | the instrument cannot separate the hypotheses — the margin is inside the noise | **name the noise floor and the margin, and show the margin is smaller** | `token_bindings_representation_dominance` — a 5.3× excursion inside this floor's 3.5×–4.4× contention band |
-| `no-falsifier` | nothing achievable can make the check fail — a green is not evidence | **name what you tried to falsify it with, and why that cannot work** | `binding_repr_microbench` — five operations × two representations × four cardinalities; any single ordering leaves the grid untested, a conjunction is a corpus-tuned threshold |
+| `below-resolution` | the instrument cannot separate the hypotheses — the margin is inside the noise | **name the noise floor and the margin, both measured, and show the margin is smaller.** The margin is measured from the effect, never read off the operator. "The comparison is a bare `<`, so the required margin is zero" is not a margin | `token_bindings_representation_dominance` — margin 3.0× (medians 2028.8/676.3 ns at card 64, six samples) inside this floor's measured 3.5×–4.4× contention band |
+| `no-falsifier` | nothing achievable can make the check fail — a green is not evidence | **name what you tried to falsify it with, and why that cannot work.** "No mutation available" alone fails: it is indistinguishable from not having looked | `binding_repr_microbench` — tried array-wins-extend-everywhere (sibling already prints DOMINANCE: NO); a single-cell ordering leaves the 5×2×4 grid untested |
 
 **`no-falsifier` is the one that drifts, because the honest answer and the lazy answer look
 identical on the page.** "Nothing to assert" without naming what was tried is indistinguishable
 from not having tried — and that is the convenience-plea `excusare` exists to strike. `below-resolution`
 defends itself better: it carries arithmetic a reader can check. `perennial` does not drift by
 forgetting; it drifts by being reached for when the warrant *can* rot.
+
+**The rune is void where another ward owns the finding.** `no-falsifier` and `below-resolution`
+declare that no gate is constructible — never that a constructible one is inconvenient. A test
+that restates its implementation is `vocare`'s; a layer that leans on another layer's proof is
+`complectens`'s; a declared surface cell that answers the same to every input is `experiri`'s
+`inert`. Where any of them owns the finding, this rune is the wrong instrument.
 
 **What the gate closes, and what it cannot.** `no_unknown_ward_rune` (tests/lint/) refuses a
 category outside this set — a fourth `excusare` category, invented at a call site, is a red build

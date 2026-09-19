@@ -261,7 +261,7 @@ fn binding_key_cost() {
 ///
 /// Diagnostic, not a gate. Read with `--no-capture`.
 #[test]
-#[ignore = "rune:excusare(no-falsifier) — five operations (build/lookup/clone/extend/drop) across two representations at four cardinalities. A single ordering (array-wins-all, trie-wins-all, a named crossover) is one cell of that grid and leaves the rest untested; a conjunction of orderings is a threshold tuned from this corpus, which R60 refuses. Nothing achievable fails the check without inventing the constant the probe exists not to pick."]
+#[ignore = "rune:excusare(no-falsifier) — tried asserting array-wins-extend at every cardinality (the dominance question): the sibling token_bindings_representation_dominance already prints DOMINANCE: NO on that exact question, so the assert would be a known-false gate. Tried a single-cell ordering: one cell of a 5×2×4 grid, and a green is not evidence about the table. The test sat on the floor asserting nothing, counted as a passing test that cannot fail. Nothing achievable reds the rest of the grid without inventing a crossover N, which R60 refuses."]
 fn binding_repr_microbench() {
     use std::hint::black_box;
     use std::time::Instant;
