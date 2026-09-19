@@ -341,6 +341,13 @@ re-derivation; ✅ means I re-read the disk myself, ⚠ means the row is the war
 |---|---|---|---|---|---|---|
 | **2C1** | conferre | `validate/mod.rs:709` vs `:720-725` and `matcher.rs:977-985` | The doc says the accepted set is *"a literal resolves"* — unqualified. `ast_literal_value` accepts **only** `IntLit`/`FloatLit`/`BoolLit`/`StringLit`; `RationalLit`, `BigIntLit` and `NilLit` are literals that resolve to `None`. ⭐ **The code is RIGHT** — its own `matches!` omits exactly those three — and the file already contains the precise phrasing 40 lines below, in the user-facing error at `:748`: *"an integer / float / boolean / string literal."* The loose word is only in the doc comment above the function. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '977,986p' matcher.rs` → 4 arms then `_ => None`; `grep -nE '(RationalLit\|BigIntLit\|NilLit)\('` → all three variants exist (`hash.rs:189,201,218`). Closed by copying `:748`'s own wording up to `:709` |
 | **2F1** | conformare | `purity.rs:1513` | `classify_native_fn` raises `AxisViolation::at(rust_caller_span!(), …)` — the **one** production site in ~20 that does not thread a real user span. ⭐ **The exception is legitimate and documented** — `purity.rs:168-169` says *"`classify_native_fn` / unregistered names use `rust_caller_span` (no body AST)"* — but the prose sits at the STRUCT definition, **1,300 lines from the site**, and carries no `rune:conformare(spanless-by-domain)`. A reader at `:1513`, and every rune census, sees an unexplained sentinel. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '1513p' purity.rs` → `rust_caller_span!()`; `sed -n '168,169p'` → the justification, naming this fn; `grep -rn 'rune:conformare'` over target 2 → **0**. Closed by a rune at the site citing `:168-169` and `:1494-1500` |
+| **2P1 ★** | purgare | `clause.rs:68-71` | ⭐ **A RUNE WHOSE REASON IS FALSE.** `rune:purgare(trait-contract)` on `Accumulate.var` says *"current consumers only walk `from`"* — but `validate/mod.rs:561-562` destructures `Accumulate { var, from, .. }` and does `out.push(var)`, feeding the freeze-time trapped-bind wall. The field is LIVE; the rune and its `#[allow(dead_code)]` describe a world that no longer exists. | L2 | **OPEN** · ✅ I VERIFIED | `sed -n '561,562p' validate/mod.rs` → `out.push(var)`. Closed by deleting the rune + attribute; the field stays |
+| **2P2** | purgare | `clause.rs:72-76` | `Accumulate.acc_form` IS genuinely dead — every destructuring site discards it via `..`. ⚠ Here the rune's **reason is TRUE** (*"fire reads acc-form off the AccumulateNode"* — confirmed: `kernel/arm.rs:415,925` read `node_named_ast(node, "acc-form")`, never this parse field). Only the **category** is wrong: `trait-contract` on a plain enum field that no trait bound mandates. | L2 | **OPEN** · ✅ I VERIFIED | `grep -rn 'acc_form' src/ --include=*.rs \| grep -v clause.rs` → all hits are `kernel/arm.rs` locals reading the compiled node. Closed by recategorising |
+| **2P3** | purgare | `matcher.rs:484-568`, `:843` | `sym: Option<&SymbolTable>` threaded through `alpha_match_inner`/`_local`/`_seeded`/`_opts` → `eval_clauses`/`eval_clause` is **never `None`** at any of its 8 call sites (4 production, 4 in `kernel/tests/`). The doc concedes *"no caller lacks one today"* — honest, but not a rune. ⛔ **See my qualification below: `resolve_operand`'s own `sym` IS reached with `None`, from a different caller.** | L2 | **OPEN** · ✅ I VERIFIED, with a correction | zero `None` call sites in the alpha_match family; **but** `eval_insert.rs:290` passes `None` to `resolve_operand` directly. Closed by collapsing the MATCHER family only, or a `rune:purgare(safety-margin)` |
+| **2P4** | purgare | `export.rs:2286-2300` | `let agg = match export { … }; let _ = agg;` — bound, immediately discarded, never read. The refusal is entirely done inside the match arms. Reader tax, no behaviour. | L2 | **OPEN** · ⚠ ward-reported | closed by a `matches!`-guarded early return with no binding |
+| **2P5** | purgare | `eval_test.rs:72-73` | `rune:purgare(trait-contract)` on `eval_test_core`'s `env` parameter. All 5 call sites pass a fresh `Environment::new()` — a genuine constant-parameter, correctly spotted. But `eval_test_core` is a plain fn, not a trait impl; the category does not fit the doctrine's own taxonomy. | L2 | **OPEN** · ⚠ ward-reported | closed by recategorising to `future-fixture` |
+| **2P6** | purgare | `wat/rete/factbag.wat:103-115` | `:wat::rete::factbag::count-of` is DEAD — a full-name grep across `.wat` and `.rs` returns the definition and nothing else. No Rust dispatch arm, no wat caller. ⚠ The ward was careful to exclude `:sq::count-of` / `:t118b::count-of`, unrelated namespaces that a substring grep would have swept in. | L2 | **OPEN** · ✅ I VERIFIED | `grep -rn 'factbag::count-of' --include=*.wat --include=*.rs .` → **1 hit, the defn**. Closed by deleting it, or a `rune:purgare` if held for the file's rung-3 seal |
+| **2P7 ★** | purgare | `wat/rete/compile.wat:263-266` | ⭐ **A RECORD THAT PROMISES A DIAGNOSTIC IT NEVER GIVES.** `AxisViolation` declares `head`, `axis`, `span`, and `purity.rs:2055-2070` populates all three with real values on every construction. Only `head` is ever read. The record's own doc says a caller can *"report as well as the substrate can"* — but `axis-violation-message`'s four arms use `head` alone, so the span is computed, carried across the boundary, and dropped. | L2 | **OPEN** · ✅ I VERIFIED | `AxisViolation/head` → **4** reads; `AxisViolation/axis` → **0**; `AxisViolation/span` → **0**. Closed by wiring the 4 arms to use `span`, or dropping the fields |
 
 ## Verified by the orchestrator — target 2
 
@@ -401,3 +408,56 @@ explain-trace VALUE, not a raised diagnostic — a rendering concern its own spe
 declined to flag `matcher.rs:854` discarding a `LowerError` via `.ok()`, correctly naming that a
 `solvere` question about error-recovery strategy rather than a span-shape defect. **A ward that
 refuses findings outside its own concern is what makes its in-concern findings worth crediting.**
+
+- **2P1 ★ / 2P2** — CONFIRMED, **and the pair is sharper than either row alone.** Two runes sit six
+  lines apart on two fields of one enum variant, both categorised `trait-contract`, and they fail in
+  *opposite* ways:
+  · **`var`** — the rune's REASON is **false**. It says *"current consumers only walk `from`"*;
+    `validate/mod.rs:561-562` reads `var` and pushes it into the trapped-bind wall. The field is
+    live, the suppression is unneeded, and the sentence has been wrong since whenever that consumer
+    landed.
+  · **`acc_form`** — the rune's REASON is **true**. It says fire reads acc-form off the compiled
+    `AccumulateNode`, and it does: `kernel/arm.rs:415` and `:925` call
+    `node_named_ast(node, "acc-form")`. The field really is dead. Only the CATEGORY is wrong.
+  ⭐ **That is the distinction the ward earned its keep on** — a lazier sweep flags both as "stale
+  runes" or clears both as "explained", and either way one of the two is mis-served. A rune has two
+  separable parts, and they rot independently.
+
+- **2P3** — CONFIRMED **with a correction I am adding, because acting on the row as written could
+  break the build.** The ward's claim is exact for the family it names: zero `None` call sites across
+  `alpha_match_inner`/`_local`/`_seeded`/`_opts` and `eval_clauses`/`eval_clause`. **But
+  `resolve_operand` — the terminus of that same chain — IS called with `None`, from
+  `eval_insert.rs:290**` (`resolve_operand(arg, &[], &[], bindings, None)`). ⚠ And that is not
+  incidental: `conferre` cited *that exact call* as the evidence for its own adjudication of the
+  `rhs_operand_can_never_resolve` mirroring claim — the `None` is what makes a Keyword genuinely
+  unresolvable on the RHS path. **So the `Option` is vacuous in the matcher family and load-bearing
+  at the terminus.** A future hand collapsing "the whole chain" to `&SymbolTable` would delete a
+  live distinction two wards depend on. Collapse the matcher family only, or rune it.
+
+- **2P6** — CONFIRMED, and the ward's method is why I credit it. A substring grep for `count-of`
+  returns hits in `:sq::` and `:t118b::` namespaces — scratch probes and type-system tests. It
+  excluded them by **full-name** match and said so. My own re-run of
+  `grep -rn 'factbag::count-of'` returns exactly **one** line: the definition.
+  `[[a-throwaway-sweep-is-an-instrument]]` — this is what anchoring one looks like.
+
+- **2P7 ★** — CONFIRMED and it is the best of the seven. `AxisViolation/head` is read **4** times
+  (`compile.wat:332,339,346,359`); `AxisViolation/axis` and `AxisViolation/span` are read **zero**
+  times anywhere in `wat/`, `wat-scripts/`, `tests/` or `src/`. The Rust side builds both on every
+  construction. So a real source location is computed, carried across the language boundary, stored
+  in a record whose doc promises the caller can *"report as well as the substrate can"* — and then
+  never read. ⚠ **This is the same family as target 1's F1 and `conformare`'s whole concern**: a
+  diagnostic that cannot name the user's line. There the span was discarded at the boundary; here it
+  is carried faithfully and dropped by the consumer. Different mechanism, same loss.
+
+⭐ **purgare came back CLEAN on two of its five sweep groups and said which** — `purity.rs`,
+`reachability.rs`, `step_payload.rs` (group C) and `vocabulary.rs`, `where_tree.rs`,
+`expr_ir/{eval,mod}.rs` (group D). It also cleared the **108-row `RETE_OPS` table** explicitly, which
+was the scope correction I most worried it would mishandle: a table row without a caller is not dead
+when the table IS the language's operator surface. And it honoured the other correction — it did not
+flag `reachability.rs` for lacking callers, having read its DISCONFIRMING-PROBE header first.
+
+## Cast log — target 2
+
+| target | cast at | wards mustered | returned | still to cast | L1 | L2 |
+|---|---|---|---|---|---|---|
+| 2 · `src/rete/**` minus `kernel/` + `wat/rete*.wat` (25 files, 23,886 lines) | 2026-09-07 | 14 read-only + `experiri` sequenced separately | **3** — conferre · conformare · purgare | intueri · solvere · struere · sequi · temperare · exigere · cernere · probare · perspicere · excusare, then **`experiri`** (serialized, it DRIVES), then **`circumspicere` LAST** | 0 | 9 |
