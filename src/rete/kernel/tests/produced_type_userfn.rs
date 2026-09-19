@@ -1,10 +1,15 @@
 //! Drive native `rule_produces` against the oracle's `rule-produces` on a user-fn
-//! `:then` head. Arm 1 of strike-produced-type-userfn-head.
+//! `:then` head. After the oracle cure both sides name the RETURN TYPE.
 //!
-//! Native `produced_type` resolves the head through the SymbolTable and returns the
-//! fn's declared return type when that is a non-`wat::core::` Path. The oracle takes
-//! the first child and strips a colon — no resolution. The scratch `.wat` already
-//! drove the oracle: ANCHOR `["pt::Rate"]`, MEASURE `["pt::first-rate"]`.
+//! Native `produced_type` resolves the head through the SymbolTable. The oracle
+//! now uses `compile.wat`'s recipe (`eval-ast!` / PRIME `:T'` / `return-type-of`)
+//! instead of stripping a colon off the first child's name. Pre-cure the oracle
+//! named `pt::first-rate` and dropped `Out`; post-cure both engines say `pt::Rate`
+//! and both derive `[Bad Rate Out] = [0 1 1]`.
+//!
+//! ⛔ THE ANCHOR IS THE NON-VACUITY GUARD. `:pt::plain` is an ordinary fact-type
+//! head and must stay `pt::Rate` on both sides. Agreement on an empty answer would
+//! satisfy "they agree" without proving the recipe works on a record head.
 //!
 //! Both halves run in this process. The scratch is `include_str!`'d so the two
 //! cannot drift. Do not hardcode the oracle's answer.
@@ -53,7 +58,7 @@ fn native_produced(world: &crate::freeze::FrozenWorld, rule_form: &str) -> Vec<S
 }
 
 #[test]
-fn native_rule_produces_diverges_on_a_userfn_then_head() {
+fn native_rule_produces_agrees_on_a_userfn_then_head() {
     let world = world();
 
     let native_anchor = native_produced(&world, "(:pt::plain)");
@@ -86,18 +91,18 @@ fn native_rule_produces_diverges_on_a_userfn_then_head() {
          native ANCHOR = {native_anchor:?}\n  oracle ANCHOR = {oracle_anchor:?}"
     );
 
-    // DIVERGENCE — both sides measured in this process. Native resolves the fn
-    // to its return type; the oracle names the fn. If they agree, STOP-1: the
-    // reading at produced_type is refuted.
+    // AGREEMENT — both sides measured in this process. Both name the fn's
+    // return type. If the oracle still says first-rate the colon-strip is back.
+    // If both say first-rate native's resolution is gone too.
     assert_eq!(
         (&native_measure[..], &oracle_measure[..]),
         (
             &["pt::Rate".to_string()][..],
-            &["pt::first-rate".to_string()][..]
+            &["pt::Rate".to_string()][..]
         ),
-        "MEASURE: native pt::Rate, oracle pt::first-rate. If both Rate the \
-         SymbolTable lookup did not fire. If both first-rate native does not \
-         resolve. If the oracle half disagrees with the scratch .wat, STOP.\n  \
+        "MEASURE: both engines must name pt::Rate for a user-fn :then head. If \
+         oracle is first-rate the cure did not land. If native is first-rate \
+         produced_type stopped resolving.\n  \
          native MEASURE = {native_measure:?}\n  oracle MEASURE = {oracle_measure:?}"
     );
 }
@@ -125,11 +130,11 @@ fn pvec_i64(v: &Value, what: &str) -> Vec<i64> {
     }
 }
 
-/// Arm 2 — the names divergence DROPS a derived fact on the oracle.
-/// Native [Bad Rate Out] = [0 1 1]; oracle = [0 1 0]. Clara 0.24.0 agrees
-/// with native. Do not "fix" either stratifier in this file.
+/// Arm 2 — after the oracle resolves the head, Out is derived on both sides.
+/// Native [Bad Rate Out] = [0 1 1]; oracle must match. Clara 0.24.0 is [0 1 1].
+/// The ANCHOR of this test is native still [0 1 1]: agreement on [0 0 0] is vacuous.
 #[test]
-fn userfn_then_head_drops_the_oracle_out() {
+fn userfn_then_head_oracle_derives_out() {
     let world = facts_world();
     let native = pvec_i64(
         &eval_form(&world, "(:user::native-facts)"),
@@ -143,13 +148,12 @@ fn userfn_then_head_drops_the_oracle_out() {
     assert_eq!(
         native,
         vec![0, 1, 1],
-        "native must derive Rate and Out from Src(1)"
+        "native must still derive Rate and Out from Src(1) — the non-vacuity guard"
     );
     assert_eq!(
         oracle,
-        vec![0, 1, 0],
-        "oracle derives Rate and DROPS Out — the consumer sat at stratum 0 \
-         and was not re-fired. If both [0 1 1] the drop is gone. If both \
-         [0 1 0] native now drops it too.\n  native = {native:?}\n  oracle = {oracle:?}"
+        vec![0, 1, 1],
+        "oracle must derive Out. [0 1 0] means the colon-strip is back and Out \
+         still sits below Rate.\n  native = {native:?}\n  oracle = {oracle:?}"
     );
 }
