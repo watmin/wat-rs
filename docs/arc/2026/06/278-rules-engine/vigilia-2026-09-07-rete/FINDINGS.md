@@ -1091,6 +1091,8 @@ Muster derived in `README.md` with measured triggers. Returns land verbatim in `
 | **3S4** | solvere | `compare-grids.sh:39-60`; `check-grid-speed.sh:57-60` | `#grid/Verdict` field extraction done twice in **two different techniques** — awk `match`/`substr` in one, four `sed -E` one-liners in the other — over the same line shape, with no field unique to either consumer. | L2 · incidental | **OPEN** · ⚠ ward-reported | one shared verdict-reader |
 | **3S5** | solvere | `check-where-shapes.sh:68-84`; `check-query-compat.sh:25-44`; `check-grid-three-way.sh:98-112` | JDK discovery (`PATH → JAVA_HOME → $HOME/opt/jdk-*`) triplicated; the two function forms differ only in whitespace and statement splitting — **the signature of independent retyping** — and the convention is documented twice in near-identical header lines. | L2 · incidental | **OPEN** · ⚠ ward-reported | one sourced `find_java` |
 | **3S6** | solvere | `check-spec-native.sh:15-23`; `check-query-compat.sh:15-23`; `check-grid-three-way.sh:60-68`; `check-where-shapes.sh:55-66`; `run-axis.sh:45-62` | `WAT_BIN`/`GRID_DIR`/`REPO_ROOT` discovery-and-validation repeated **5×**, byte-identical but for the echoed script name; its rationale comment duplicated in long and short forms. ⚠ **Only `run-axis.sh` carries the freshness wall** — the other four read the same binary for the same kind of measurement with no such protection, which is itself evidence the copies are not kept in sync. | L2 · incidental | **OPEN** · ⚠ ward-reported | extract the 5-line core; leave `run-axis.sh`'s freshness wall local |
+| **3C1 ★★** | conferre | contract: `CLARA-TRANSLATIONS.md` (422 lines) · code: `where-or-conditions.clj:2,45` + 15 sibling twins | ⭐⭐ **THE CONTRACT NEVER MENTIONS `:or` — AND 16 OF 43 TWINS CARRY A DEFENSIVE COLLAPSE FOR IT.** Clara's `:or` compiles to independent activation paths, so a rule fires its RHS **once per matching disjunct**; `where-or-conditions.clj:2` says so outright — *"Clara insert!s twice when both arms match"* — and compensates with `(count (set …))`. **16 twins carry that collapse; their `.wat` partners use a raw `length`.** The contract's stated job is *"any semantic caveat that could make an accuracy/speed differential misleading"* — and ⛔ **I verified the word `:or` does not appear in it at all.** | L2 (ward: Medium) | **OPEN** · ✅ I VERIFIED | `grep -n ':or\b' CLARA-TRANSLATIONS.md` → **empty**; `grep -lE '\(count \(set ' *.clj \| wc -l` → **16**. Closed by an `:or` entry in the contract |
+| **3C2** | conferre | `CLARA-TRANSLATIONS.md:363` | ⚠ **A DANGLING SELF-CITATION THAT IS THE SOLE JUSTIFICATION FOR A DECISION.** The line strikes A10's original "no twin needed" reasoning on the authority of *"Rule 4 of this document (mirror the OPERATION, not the vocabulary)"*. **There is no rule list in this document** — the ward read all 422 lines and all three commits of its history; I re-checked the current file: `Rule [0-9]` occurs **exactly once**, at `:363`, the citation itself. | L2 · aside | **OPEN** · ✅ I VERIFIED | `grep -coE 'Rule [0-9]' CLARA-TRANSLATIONS.md` → **1**, which is the citation. ⚠ **Filed as an observation, not a conferre finding** — the ward noted it has only ONE coordinate, and its spell requires two. Closed by writing the rule, or citing what actually holds |
 
 ## Verified by the orchestrator — target 3
 
@@ -1287,3 +1289,40 @@ the same binary for the same kind of measurement with no such protection. It rea
 shape this session already met at the top of the tree**: I ran a stale `~/.cargo/bin/wat` earlier
 today, and only caught it before casting `experiri` because the lesson had been written down. **Four
 of these five scripts have no equivalent of that lesson at all.**
+
+- **3C1 ★★** — CONFIRMED, **and it is STRONGER than the ward stated.** It reported that the contract
+  *"discusses `:or` zero times as a Clara-vs-wat semantic point."* I ran `grep -n ':or\b'` over all
+  422 lines: **the token does not appear in the file at all.** Not under-discussed — **absent.**
+  Meanwhile `grep -lE '\(count \(set '` returns **16** of the 43 twins, exactly as reported.
+  ⛔ **The asymmetry is the finding.** The contract documents 8 axes in depth, and — the ward's
+  sharpest observation — **only ONE of those 8 has a static `.clj` in this directory at all**; the
+  other seven are `gen-*.sh` axes with no twin to check against. So the document is thorough about
+  axes it cannot be checked on, and silent on the idiom that reaches 16 of the twins it can.
+  ⚠ **And the code is right.** This is not a live accuracy bug — the 16 sites already compensate.
+  The defect is that a rider authoring a NEW `:or`-shaped twin, using the contract as its stated
+  grounding source, would not learn that Clara doubles the insert.
+  `[[a-briefs-read-list-vouches-for-what-it-points-at]]` — here the corpus's own translation
+  authority is the thing that vouches, and the gap is what it does not say.
+
+- **3C2** — CONFIRMED, and delicious. `CLARA-TRANSLATIONS.md:363` strikes a prior decision on the
+  authority of *"Rule 4 of this document."* I ran `grep -coE 'Rule [0-9]'` over the file: **1** —
+  and that one occurrence **is the citation itself.** There is no Rule 1, no Rule 4, no rule list;
+  the ward checked all three commits of the file's history and found none ever existed. **A document
+  citing a rule of its own that it does not contain**, as the sole justification for treating its
+  "most important axis" as resolved.
+  ⭐ **The ward filed it as an aside rather than a finding, and was right to.** Its spell requires
+  **two coordinates** — spec and code — and this has only one: it is a spec-internal broken
+  citation, not a spec/code divergence. **A ward that declines to promote a good catch into a
+  category it does not fit is one whose categories still mean something.** I have rowed it as an
+  observation, in its own words.
+
+⭐ **AND ITS SAMPLING RULE IS THE MODEL FOR A CORPUS TOO LARGE TO READ.** I told it 43 pairs is more
+than one cast can read properly, and to state a rule rather than skim. It read **8 pairs in full**,
+chose them by a stated three-part rule (axes the contract documents that actually have a static twin;
+the newest additions post-dating the contract's last edit; the highest-risk shapes named in the
+cast), **grep-verified the pattern it found across all 43**, and then listed by name the ~35 pairs it
+did NOT read in full. ⭐ **It also reported the clean half:** all 8 pairs read in full were
+*"structurally faithful rule-for-rule"*, two with exemplary self-documented deviations — including
+`userfn-head`'s own fidelity guard, *"if mk-rate ever computes, this file… must be rewritten."*
+**A sample whose rule is stated and whose exclusions are named is evidence; a larger sample without
+one is not.**
