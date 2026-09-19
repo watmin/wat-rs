@@ -8,17 +8,22 @@
 ;; syntax: a `where` fence never had to prove a fn's RETURN type; that check is `:then`-only.
 ;;
 ;; ★ WHY EXTRACTION, NOT CONSTRUCTION: `:tf::first-rate` selects an EXISTING accumulated fact
-;; rather than building a new one. That is not a stylistic choice — it works AROUND a separate,
-;; pre-existing, already-tracked substrate gap: `purity.rs`'s `KNOWN_UNREVIEWED` ratchet lists
-;; `:wat::core::kwargs-construct` AND `:wat::core::aggregate-new` as genuinely unclassified (its
-;; own comment: "these 215 are genuinely unruled... this list IS the debt, by name"). Every
-;; surface a user fn can build a NEW aggregate through (kwargs sugar, positional sugar, even the
-;; type's own PRIME constructor) macro-expands to one of those two heads, so a composed fn whose
-;; body constructs a record is refused today with "`:wat::core::kwargs-construct` is not pure" —
-;; the identical fence any `where`-fn hits, just never previously EXERCISED because a `where`
-;; predicate never had to return one. This is unrelated to and unfixable by Stone B's own fence
-;; (`purity.rs` is explicitly out of scope, per BRIEF-then-user-forms.md's read list); it is
-;; reported here rather than routed around.
+;; rather than building a new one. The probe's subject is that the `:then` item's HEAD is a
+;; user fn; extraction demonstrates that. Construction is a different fixture, already driven.
+;;
+;; ⛔ STRUCK 2026-09-07. This paragraph used to say a composed fn whose body constructs a
+;; record is refused with "`:wat::core::kwargs-construct` is not pure". FALSE. A rete defn
+;; whose body constructs is admitted. Why it was believed: three probes each used a plain
+;; `:wat::core::defn`, so Law A refused the FN declaration, not the body — the table
+;; measured ONE door three times and read it as three.
+;; Driven 2026-08-28: `src/rete/kernel/stratify.rs:418-424` (the kwargs-construct row
+;; immediately above `rete_fn_body_mints`: a rete defn constructing a record declares
+;; clean and reaches the cyclicity check).
+;; Driven again 2026-09-07: `wat-scripts/scratch-pad/arc278-produced-type-userfn-facts.wat`
+;; (`:a2::mk-rate` is a `:wat::rete::core::defn` whose body constructs `(:a2::Rate :count k)`;
+;; the fixture behind `21a5f8514` prints `COMPILE: Compiled`).
+;; What actually guards a minting body: `rete_fn_body_mints`, pinned by
+;; `probe_arc278_termination_fn_head.wat`.
 
 (:wat::core::defrecord :tf::Anchor [x <- :wat::core::i64])
 (:wat::core::defrecord :tf::Rate   [count <- :wat::core::i64])
