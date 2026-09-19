@@ -332,11 +332,15 @@ fn compiled_cond_bindings_identical_to_interpreter_at_50_100() {
 }
 
 /// Row 2 / STOP-3 — the load-bearing row: the failure path allocates NOTHING. Asserted via
-/// the `match:key-alloc` census counter (armed at the two `Value::String(Arc::new(..))` call
+/// the `bindkey:alloc` census counter (armed at the two `Value::String(Arc::new(..))` call
 /// sites in `matcher.rs` that rebuild the constant `"?var"` key on every call), with the SAME
 /// measure taken against the interpreter over the IDENTICAL corpus — so a compiled path that
 /// happens to read zero simply because the counter is never wired to anything live cannot
 /// pass vacuously (EXPECTATIONS' named trap-door for this row).
+///
+/// ⚠ The site attribution (matcher Bind arm + `resolve_operand`) holds HERE because this
+/// test arms the census around direct matcher calls only. A whole-fire read of the same
+/// counter also includes RHS insert and step-payload; that is not this harness.
 #[test]
 fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
     use crate::rete::compiled_cond::exec_compiled;
@@ -420,14 +424,14 @@ fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
             .map(|(_, c)| *c)
             .unwrap_or(0)
     };
-    let compiled_key_allocs = get(&compiled_rows, "match:key-alloc");
-    let interp_key_allocs = get(&interp_rows, "match:key-alloc");
+    let compiled_key_allocs = get(&compiled_rows, "bindkey:alloc");
+    let interp_key_allocs = get(&interp_rows, "bindkey:alloc");
 
     println!(
         "\n  ROW 2 — failure-path binding-key allocation, [50 100] cascade\n  \
              compiled calls:    {calls} ({fails} failed, {:.1}% failure rate)\n  \
-             compiled path    match:key-alloc = {compiled_key_allocs}\n  \
-             interpreter      match:key-alloc = {interp_key_allocs}   (over {interp_calls} calls, \
+             compiled path    bindkey:alloc = {compiled_key_allocs}\n  \
+             interpreter      bindkey:alloc = {interp_key_allocs}   (over {interp_calls} calls, \
              the SAME corpus)\n",
         100.0 * fails as f64 / calls.max(1) as f64
     );
