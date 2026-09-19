@@ -255,22 +255,20 @@ fn seen_pv_walk_split() {
             black_box(set.len());
         }));
         v = v.min(elapsed_ns(|| {
-            let mut ids_set: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(N, Default::default());
-            let mut rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(N);
             for f in &facts {
-                super::seen_insert(&mut ids_set, &mut rest, f);
+                // UFCS so the engine-label gate records the call (a method
+                // call through a dot is not a recorded path).
+                super::SeenSet::insert(&mut seen, f);
             }
-            black_box(ids_set.len() + rest.len());
+            black_box(seen.len());
         }));
         p = p.min(elapsed_ns(|| {
-            let mut ids_set: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(N, Default::default());
-            let mut rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(N);
             for f in pv.iter() {
-                super::seen_insert(&mut ids_set, &mut rest, f);
+                super::SeenSet::insert(&mut seen, f);
             }
-            black_box(ids_set.len() + rest.len());
+            black_box(seen.len());
         }));
         d = d.min(elapsed_ns(|| {
             let collected: Vec<Value> = pv.iter().cloned().collect();
@@ -285,8 +283,8 @@ fn seen_pv_walk_split() {
              \n\
              W  PersistentVector iter only         {:>7.2} ms\n\
              I  FxHashSet<u64> from Vec<u64>       {:>7.2} ms\n\
-             V  Vec<Value> iter + seen_insert      {:>7.2} ms\n\
-             P  PV iter + seen_insert              {:>7.2} ms   (engine: delta::seen_insert)\n\
+             V  Vec<Value> iter + SeenSet::insert  {:>7.2} ms\n\
+             P  PV iter + SeenSet::insert          {:>7.2} ms   (engine: delta::SeenSet::insert)\n\
              D  PV collect into Vec                {:>7.2} ms\n\
              \n\
              P−V  walk                             {:>7.2} ms\n\

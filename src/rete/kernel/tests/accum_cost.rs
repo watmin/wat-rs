@@ -1657,7 +1657,6 @@ fn accum_exec_ops_split() {
 /// it shows how little of `S` lives in this phase.
 #[test]
 fn accum_seen_fire_context_split() {
-    use rustc_hash::FxHashSet;
     use std::hint::black_box;
 
     const RUNS: usize = 3;
@@ -1689,9 +1688,8 @@ fn accum_seen_fire_context_split() {
     let mut s = f64::INFINITY;
     for _ in 0..RUNS {
         a = a.min(elapsed_ns(|| {
-            let ids: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
-            let rest: FxHashSet<Value> = FxHashSet::default();
-            black_box(ids.len() + rest.len());
+            let seen = super::SeenSet::with_capacity(n);
+            black_box(seen.len());
         }));
         x = x.min(elapsed_ns(|| {
             let mut sum = 0u64;
@@ -1703,13 +1701,11 @@ fn accum_seen_fire_context_split() {
             black_box(sum);
         }));
         s = s.min(elapsed_ns(|| {
-            let mut ids: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(n, Default::default());
-            let mut rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(n);
             for f in pv.iter() {
-                super::seen_insert(&mut ids, &mut rest, f);
+                seen.insert(f);
             }
-            black_box(ids.len() + rest.len());
+            black_box(seen.len());
         }));
     }
 

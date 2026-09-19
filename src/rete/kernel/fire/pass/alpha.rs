@@ -130,8 +130,7 @@ pub(crate) fn alpha_seed(
         cond_key_ids,
         cand_scratch,
         match_scratch,
-        seen_ids,
-        seen_rest,
+        seen,
         leaf_aids,
         ..
     } = scratch;
@@ -179,7 +178,7 @@ pub(crate) fn alpha_seed(
     // the class; appending re-orders elements away from fact order and forfeits the share.
     let mut plan = ClassPlan::seeded(leaf_aids.keys(), input_facts.len());
     for (i, fact) in input_facts.iter().enumerate() {
-        seen_insert(seen_ids, seen_rest, fact);
+        seen.insert(fact);
         let (class, fields) = match fact {
             Value::Aggregate(a) if a.nature != Nature::Struct => {
                 (a.class.as_ref(), a.fields.as_slice())

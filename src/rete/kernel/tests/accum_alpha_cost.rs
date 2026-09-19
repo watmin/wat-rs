@@ -381,7 +381,6 @@ fn accum_alpha_leftover_split() {
 /// walk the facts PV, `candidates_into`, `seen_insert`.
 #[test]
 fn accum_alpha_seed_after_fold_split() {
-    use rustc_hash::FxHashSet;
     use std::hint::black_box;
 
     const RUNS: usize = 3;
@@ -474,21 +473,17 @@ fn accum_alpha_seed_after_fold_split() {
             }
         }));
         s = s.min(elapsed_ns(|| {
-            let mut seen_ids: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
-            let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(n_facts);
             for f in input_pv.iter() {
-                super::seen_insert(&mut seen_ids, &mut seen_rest, f);
+                seen.insert(f);
                 black_box(f);
             }
-            black_box(seen_ids.len() + seen_rest.len());
+            black_box(seen.len());
         }));
         x = x.min(elapsed_ns(|| {
-            let mut seen_ids: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
-            let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(n_facts);
             for f in input_pv.iter() {
-                super::seen_insert(&mut seen_ids, &mut seen_rest, f);
+                seen.insert(f);
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
                         black_box((ag.class.as_ref(), ag.fields.as_slice()));
@@ -496,15 +491,13 @@ fn accum_alpha_seed_after_fold_split() {
                     _ => {}
                 }
             }
-            black_box(seen_ids.len());
+            black_box(seen.len());
         }));
         k = k.min(elapsed_ns(|| {
-            let mut seen_ids: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
-            let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(n_facts);
             let mut cand = Vec::new();
             for f in input_pv.iter() {
-                super::seen_insert(&mut seen_ids, &mut seen_rest, f);
+                seen.insert(f);
                 match f {
                     Value::Aggregate(ag) if ag.nature != Nature::Struct => {
                         arm.alpha_tree.candidates_into(
@@ -522,13 +515,11 @@ fn accum_alpha_seed_after_fold_split() {
         reset(&mut wm, &mut d_alpha_e);
         let _cond_key_ids_e = intern_keys(&mut wm);
         e = e.min(elapsed_ns(|| {
-            let mut seen_ids: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
-            let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(n_facts);
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut cand = Vec::new();
             for f in input_pv.iter() {
-                super::seen_insert(&mut seen_ids, &mut seen_rest, f);
+                seen.insert(f);
                 let Value::Aggregate(ag) = f else { continue };
                 if ag.nature == Nature::Struct {
                     continue;
@@ -554,13 +545,11 @@ fn accum_alpha_seed_after_fold_split() {
         reset(&mut wm, &mut d_alpha_n);
         let cond_key_ids_n = intern_keys(&mut wm);
         n = n.min(elapsed_ns(|| {
-            let mut seen_ids: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
-            let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(n_facts);
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut cand = Vec::new();
             for (i, f) in input_pv.iter().enumerate() {
-                super::seen_insert(&mut seen_ids, &mut seen_rest, f);
+                seen.insert(f);
                 let Value::Aggregate(ag) = f else { continue };
                 if ag.nature == Nature::Struct {
                     continue;
@@ -601,13 +590,11 @@ fn accum_alpha_seed_after_fold_split() {
             }
         }
         a = a.min(elapsed_ns(|| {
-            let mut seen_ids: FxHashSet<u64> =
-                FxHashSet::with_capacity_and_hasher(n_facts, Default::default());
-            let mut seen_rest: FxHashSet<Value> = FxHashSet::default();
+            let mut seen = super::SeenSet::with_capacity(n_facts);
             let mut scratch = Vec::with_capacity(arm.compiled_max_slots);
             let mut cand = Vec::new();
             for (i, fact) in input_pv.iter().enumerate() {
-                super::seen_insert(&mut seen_ids, &mut seen_rest, fact);
+                seen.insert(fact);
                 super::alpha_activate_fact(
                     fact,
                     i as u32,

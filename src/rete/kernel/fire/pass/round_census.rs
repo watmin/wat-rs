@@ -30,8 +30,7 @@ pub(crate) fn record_round_census(
     left_idx: &JoinLeftIndex,
     right_idx: &JoinRightIndex,
     feeding_alpha_of: &std::collections::HashMap<i64, i64>,
-    seen_ids: &rustc_hash::FxHashSet<u64>,
-    seen_rest: &rustc_hash::FxHashSet<Value>,
+    seen: &SeenSet,
     round_no: usize,
     this_round_in: usize,
 ) {
@@ -130,7 +129,7 @@ pub(crate) fn record_round_census(
                     .collect()
             },
             production_facts: wm.production.values().map(Vec::len).sum(),
-            seen_facts: seen_ids.len() + seen_rest.len(),
+            seen_facts: seen.len(),
             network_edges: node_ids
                 .iter()
                 .filter_map(|id| get_node(&wm.network, *id))
