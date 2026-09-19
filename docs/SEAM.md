@@ -160,23 +160,26 @@ Those two items are **already designed**, as the last two stones of arc 251's ca
 | **8a** the vocabulary at zero offenders | `$bound` reserved; `namespace()`/`reference?` as the ONE DOOR | ✅ landed |
 | **8a-ii** the binder namespace unforgeable | refused at the READER — no-form, not a check | ✅ landed |
 | **8b** invert the normalizer | `Identifier` stores `(ns, name)` — ✅ `71c9f2f58`. ⚠ **The INVERSION half may still be owed**: `resolve/normalize.rs` still reads as Symbol→Keyword ("normalize all namespaced symbol refs"). **Confirm before drawing 8c.** | ⚠ partial |
-| **8c** **close the check hole (#95)** | route Symbol heads through `infer_list`'s Keyword-gated dispatch — **"the stone that actually fixes #95"** | ❌ **NEXT** |
+| **8c** **close the check hole (#95)** | ⭐ **BRIEF DRAWN** `BRIEF-STONE-251.8c-close-the-check-hole.md`. ⛔ **The design's headline is STALE — re-measured, most of #95 is already CLOSED.** The residue is narrow: a slashed head's args/arity go unchecked **only when the result lands in a type-unconstrained position** (`format`'s `:v`). Four other shapes — statement, let-bound, plain nested arg, `assertion-failed!` kwarg — all catch it today. | ❌ **NEXT** |
 | **8d** **the reader/printer flip** | `::` retires as a reference spelling; a colon means keyword, full stop; the corpus flip lands here | ❌ after 8c |
 
-### ⛔ THE ORDERING IS NOT A PREFERENCE — VERIFIED BY PROBE, 2026-09-19
+### ⛔ THE ORDERING HOLDS — BUT THE HOLE IS MUCH SMALLER THAN THE DESIGN SAYS (measured 2026-09-19)
 
-The design's own cut: *"The corpus flip is NOT in this stone. It is 251.8d, and **it must not begin while
-a dotted call head is unchecked**."* **Re-verified at HEAD by hand today**, the d3/d4 pair:
+The design's cut stands: *"the corpus flip… must not begin while a dotted call head is unchecked."*
+**But the design's headline — "args, arity and return are ALL unchecked" — is STALE.** Measured by hand
+at HEAD, callee `(:user::f [n <- i64] -> i64)`:
 
-| probe | expected | actual |
-|---|---|---|
-| `(:user::f "boom")` — colon-quoted head, wrong arg type | type error | **rc=1** ✓ caught |
-| `(user/f "boom")` — slashed head, **same** wrong arg type | type error | **rc=0** ⛔ **passes unchecked** |
+| shape | colon head | slashed head | |
+|---|---|---|---|
+| statement · let-bound · plain nested arg · `assertion-failed!` kwarg | rc=1 | **rc=1** | ✓ same — **already closed** |
+| **`format` `:v` value** — result lands in a type-unconstrained position | rc=1 | **rc=0** | ⛔ **the residue** |
+| unresolvable head `(user/nope 1)` | — | rc=1 `UnresolvedReference :path ":user::nope"` | ✓ the normalizer fires |
 
-⛔ **So flipping the corpus first would silently switch off type checking across the tree.** `infer_list`
-gates its **entire** call-inference universe on `if let WatAST::Keyword` (`check.rs:2542`, closing
-`:5568`); past it only `Some`/`Ok`/`Err` bare-symbol cases survive, and a namespaced `Symbol` head falls
-to a fresh type var that unifies with anything. **8c first. Always.**
+⛔ **So "the checker never sees a Symbol head" is NO LONGER the defect** — `resolve/normalize.rs`
+converts `Symbol → Keyword` and resolution works. **The residue is narrow**: arg/arity validation is
+skipped when nothing downstream constrains the call's result type. **8c still comes first** — an
+unchecked shape is an unchecked shape, and 8d must not run over one — but it is a smaller stone than the
+design implies, and its brief says so rather than inheriting the 2026-08 framing.
 
 ### The scale of 8d, measured
 
