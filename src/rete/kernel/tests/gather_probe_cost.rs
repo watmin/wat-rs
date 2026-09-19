@@ -1208,7 +1208,7 @@ fn probe_gap_cost_split() {
 }
 
 /// Volume of `d_beta_from_parents` — the capacity-less `Vec<Token>` gather
-/// (`NEXT-STRIKES-theater-hunt.md` T8). Reports calls / tokens / allocating
+/// (`NEXT-STRIKES-theater-hunt.md` T8). Reports calls / tokens / nonempty
 /// calls / MULTI-parent calls across two workloads, so the strike is aimed at
 /// measured volume rather than an assumed one.
 ///
@@ -1224,11 +1224,11 @@ fn dbeta_gather_volume() {
     const ITEMS: i64 = 2000;
     const STRAT_WORLD: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/wat-scripts/perf/grid/strat-neg.wat"));
 
-    /// calls, tokens, allocating calls, multi-parent calls.
+    /// calls, tokens, nonempty-result calls, multi-parent calls.
     struct Gather {
         calls: u64,
         tokens: u64,
-        alloc: u64,
+        nonempty: u64,
         multi: u64,
     }
 
@@ -1253,7 +1253,7 @@ fn dbeta_gather_volume() {
         Gather {
             calls: get("dbeta:calls"),
             tokens: get("dbeta:tokens"),
-            alloc: get("dbeta:alloc"),
+            nonempty: get("dbeta:nonempty"),
             multi: get("dbeta:multi"),
         }
     };
@@ -1271,8 +1271,8 @@ fn dbeta_gather_volume() {
 
     let row = |label: &str, g: &Gather| -> String {
         format!(
-            "{label:<20} calls {:>6}   allocating {:>6}   MULTI-parent {:>6}   tokens {:>8}\n",
-            g.calls, g.alloc, g.multi, g.tokens
+            "{label:<20} calls {:>6}   nonempty {:>6}   MULTI-parent {:>6}   tokens {:>8}\n",
+            g.calls, g.nonempty, g.multi, g.tokens
         )
     };
     let table = format!(
