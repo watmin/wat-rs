@@ -235,7 +235,7 @@ impl Symbol {
     #[track_caller]
     pub fn new(name: impl AsRef<str>) -> Self {
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)
+        crate::vocab::validate_name_body(name)
             .unwrap_or_else(|m| panic!("invalid symbol name {:?}: {}", name, m));
         Self { namespace: None, name: CompactString::from(name) }
     }
@@ -250,7 +250,7 @@ impl Symbol {
         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
             .unwrap_or_else(|m| panic!("invalid symbol namespace {:?}: {}", namespace.as_ref(), m));
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)
+        crate::vocab::validate_name_body(name)
             .unwrap_or_else(|m| panic!("invalid symbol name {:?}: {}", name, m));
         Self {
             namespace: Some(CompactString::from(ns_translated)),
@@ -264,7 +264,7 @@ impl Symbol {
     /// errors from the parser path).
     pub fn try_new(name: impl AsRef<str>) -> std::result::Result<Self, &'static str> {
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)?;
+        crate::vocab::validate_name_body(name)?;
         Ok(Self { namespace: None, name: CompactString::from(name) })
     }
 
@@ -277,7 +277,7 @@ impl Symbol {
     ) -> std::result::Result<Self, &'static str> {
         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)?;
+        crate::vocab::validate_name_body(name)?;
         Ok(Self {
             namespace: Some(CompactString::from(ns_translated)),
             name: CompactString::from(name),
@@ -313,7 +313,7 @@ impl Symbol {
 /// does NOT name `clojure.core//` as an exception; that form has two `/` and
 /// is a RULING (strict: refuse) under stone 218.7, not a spec quotation.
 fn validate_keyword_name(name: &str) -> std::result::Result<(), &'static str> {
-    crate::vocab::validate_first_char(name)?;
+    crate::vocab::validate_name_body(name)?;
     if name.contains('/') && name != "/" {
         return Err("name must not contain /");
     }
@@ -326,7 +326,7 @@ impl Keyword {
     #[track_caller]
     pub fn new(name: impl AsRef<str>) -> Self {
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)
+        crate::vocab::validate_name_body(name)
             .unwrap_or_else(|m| panic!("invalid keyword name {:?}: {}", name, m));
         Self { namespace: None, name: CompactString::from(name) }
     }
@@ -351,7 +351,7 @@ impl Keyword {
     /// [`Symbol::try_new`] for the error-type rationale.
     pub fn try_new(name: impl AsRef<str>) -> std::result::Result<Self, &'static str> {
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)?;
+        crate::vocab::validate_name_body(name)?;
         Ok(Self { namespace: None, name: CompactString::from(name) })
     }
 
@@ -403,7 +403,7 @@ impl Tag {
         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())
             .unwrap_or_else(|m| panic!("invalid tag namespace {:?}: {}", namespace.as_ref(), m));
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)
+        crate::vocab::validate_name_body(name)
             .unwrap_or_else(|m| panic!("invalid tag name {:?}: {}", name, m));
         Self {
             namespace: CompactString::from(ns_translated),
@@ -423,7 +423,7 @@ impl Tag {
     ) -> std::result::Result<Self, &'static str> {
         let ns_translated = crate::vocab::translate_and_validate_ns(namespace.as_ref())?;
         let name = name.as_ref();
-        crate::vocab::validate_first_char(name)?;
+        crate::vocab::validate_name_body(name)?;
         Ok(Self {
             namespace: CompactString::from(ns_translated),
             name: CompactString::from(name),

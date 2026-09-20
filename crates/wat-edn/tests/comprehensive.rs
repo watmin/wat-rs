@@ -524,6 +524,26 @@ fn keyword_double_colon_rejected() {
 }
 
 #[test]
+fn symbol_colon_and_hash_interior() {
+    // 218.8: `:`/`#` as constituents. clj reads these as symbols.
+    assert_eq!(parse("a:b").unwrap(), Value::Symbol(Symbol::new("a:b")));
+    assert_eq!(parse("a#b").unwrap(), Value::Symbol(Symbol::new("a#b")));
+    assert_eq!(parse("a:b:c").unwrap(), Value::Symbol(Symbol::new("a:b:c")));
+    assert_eq!(parse("x#").unwrap(), Value::Symbol(Symbol::new("x#")));
+    assert_eq!(parse(":a:b").unwrap(), Value::Keyword(Keyword::new("a:b")));
+}
+
+#[test]
+fn symbol_doubled_or_final_colon_rejected() {
+    assert!(parse("a::b").is_err());
+    assert!(parse("x:").is_err());
+    assert!(parse(":a::b").is_err());
+    assert!(parse(":x:").is_err());
+    assert!(parse("a:/b").is_err()); // colon-final on the prefix
+    assert!(parse("wat::core::x").is_err());
+}
+
+#[test]
 fn keyword_bare_slash_accepted() {
     // clj-oracle parity: clojure.edn accepts `:/` as the keyword form of
     // the bare `/` symbol (the 13-year-old spec doc's "`:/` is not a

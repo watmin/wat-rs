@@ -97,12 +97,15 @@ pub fn is_symbol_start(b: u8) -> bool {
 }
 
 /// True if `b` may continue a symbol body (after the first byte).
-/// EDN character set: alphanumeric + `. * + ! - _ ? $ % & = < > / '`.
-/// ⚠ The spec's NEXT sentence also permits `: #` as constituent characters
-/// other than the first. Arc 219 removed them, believing the spec forbade
-/// them; that premise omitted that sentence. The 219 ruling STANDS until
-/// the builder reopens it (stone 218.7 reports the premise, does not revert).
-/// Constructors (`::ns`, `::try_ns`) translate `::` → `.` at the boundary.
+/// EDN character set: alphanumeric + `. * + ! - _ ? $ % & = < > / '` plus
+/// `: #` as constituent characters other than the first (spec's next sentence).
+///
+/// ⚠ This predicate is per-byte and cannot see "doubled" or "final". Clojure
+/// (and we) refuse `a::b` and `x:`. [`validate_colon_constituents`] is the
+/// post-scan: `#` unrestricted; `:` legal only when neither doubled nor final
+/// **on a name component**. Stone 218.8 reopened 219 after the builder verified
+/// `a:b` / `a#b` are definable in Clojure. Constructors (`::ns`, `::try_ns`)
+/// still translate `::` → `.` at the wat-rs boundary.
 ///
 /// wat is a Clojure dialect, and Clojure legally admits a trailing prime `'`
 /// inside symbol/keyword BODIES (`x'`, `:wut'`) — the primed convention wat uses
@@ -128,6 +131,8 @@ pub fn is_symbol_continue(b: u8) -> bool {
                 | b'>'
                 | b'/'
                 | b'\''
+                | b':'
+                | b'#'
         )
 }
 
@@ -207,6 +212,32 @@ pub fn validate_first_char(s: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// `:` is a legal body constituent only when it is neither doubled nor final
+/// on a name **component** (the prefix or the name after `/`). `#` is
+/// unrestricted. Whole-token scan is not enough: `a:/b` has no `::` and does
+/// not end in `:`, but Clojure refuses it (`Invalid token`) because the
+/// prefix `a:` is colon-final.
+pub fn validate_colon_constituents(s: &str) -> Result<(), &'static str> {
+    let bytes = s.as_bytes();
+    if bytes.last() == Some(&b':') {
+        return Err("':' cannot be the last character of a name component");
+    }
+    // rune:lint(one-variant-separator, edn) — EDN constituent rule: refuse a
+    // doubled colon in a symbol/keyword body. Not an enum/variant split.
+    if bytes.windows(2).any(|w| w == *b"::") {
+        return Err("':' cannot be doubled in a name component");
+    }
+    Ok(())
+}
+
+/// First-character rule plus the colon-constituent rule. Shared by the
+/// parser (each namespaced component) and the public constructors.
+pub fn validate_name_body(s: &str) -> Result<(), &'static str> {
+    validate_first_char(s)?;
+    validate_colon_constituents(s)?;
+    Ok(())
+}
+
 /// Translate a wat-rs `::` namespace separator to strict-EDN `.` form
 /// and validate the first-character rule in one step. Returns the
 /// translated namespace on success.
@@ -214,7 +245,7 @@ pub(crate) fn translate_and_validate_ns(ns: &str) -> Result<String, &'static str
     // rune:lint(one-variant-separator, edn) — the wall's own literal example: translates the
     // wat `::` namespace separator into strict-EDN `.` form.
     let translated = ns.replace("::", ".");
-    validate_first_char(&translated)?;
+    validate_name_body(&translated)?;
     Ok(translated)
 }
 
@@ -273,5 +304,18 @@ mod tests {
         assert_eq!(hex_value(b'a'), Some(10));
         assert_eq!(hex_value(b'F'), Some(15));
         assert_eq!(hex_value(b'g'), None);
+    }
+
+    #[test]
+    fn colon_constituents_match_the_oracle() {
+        assert!(validate_colon_constituents("a:b").is_ok());
+        assert!(validate_colon_constituents("a:b:c").is_ok());
+        assert!(validate_colon_constituents("a#b").is_ok());
+        assert!(validate_colon_constituents("x#").is_ok());
+        assert!(validate_colon_constituents("a::b").is_err());
+        assert!(validate_colon_constituents("x:").is_err());
+        assert!(validate_colon_constituents("a:").is_err());
+        // Prefix of `a:/b` — colon-final on the component.
+        assert!(validate_colon_constituents("a:").is_err());
     }
 }

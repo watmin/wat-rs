@@ -290,18 +290,18 @@ fn signed_bigdec() {
 // ─── Arc-219: strict-EDN keyword bodies ─────────────────────────
 
 #[test]
-fn is_symbol_continue_rejects_colon() {
-    // Arc 219 Option β: `:` and `#` are NOT valid in strict-EDN
-    // symbol bodies. The lexer enforces this at the byte level.
-    assert!(!wat_edn::vocab::is_symbol_continue(b':'));
-    assert!(!wat_edn::vocab::is_symbol_continue(b'#'));
+fn is_symbol_continue_admits_colon_and_hash() {
+    // 218.8 reopened 219: `:` and `#` ARE continue bytes (spec constituent
+    // sentence). Doubled/final `:` is a post-scan on the component, not here.
+    assert!(wat_edn::vocab::is_symbol_continue(b':'));
+    assert!(wat_edn::vocab::is_symbol_continue(b'#'));
 }
 
 #[test]
 fn parser_rejects_double_colon_in_keyword() {
-    // After removing `:` from `is_symbol_continue`, the lexer stops
-    // reading at the first `:` inside a keyword body, producing a
-    // parse error on the remaining `::core::HashMap` fragment.
+    // Doubled `:` is illegal on a name component (clj: Invalid token).
+    // The lexer now consumes `:wat::core::HashMap` as one keyword; the
+    // post-scan refuses it.
     assert!(
         parse(":wat::core::HashMap").is_err(),
         "expected parse to fail on `::` in keyword body"

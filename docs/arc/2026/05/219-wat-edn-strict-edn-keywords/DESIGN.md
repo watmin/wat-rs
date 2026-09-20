@@ -1,6 +1,18 @@
 # Arc 219 — wat-edn strict-EDN keyword namespace compliance
 
 **Opened:** 2026-05-21
+**Reopened:** 2026-09-20 (stone 218.8)
+
+The builder reopened 219 after a live REPL showed `a:b` and `a#b` are
+definable and callable in Clojure. This DESIGN's spec summary omitted the
+sentence *"`: #` are allowed as constituent characters in symbols other than
+as the first character."* Option β's drop of those two bytes is reversed:
+`is_symbol_continue` admits them again, and a post-scan
+(`validate_colon_constituents`) refuses what Clojure refuses — doubled `:`
+and final `:` **on a name component**. `#` is unrestricted as a body character.
+`wat::core::x` stays refused (doubled colon). Constructor `::` → `.`
+translation is unchanged. Identifier blast in tracked `.wat` source is zero.
+
 **Branch:** `arc-170-gap-j-v5-deadlock-state`
 **Blocks:** arc 218 Stone 218.5 (re-cast vigilia must audit post-strict substrate)
 **Trigger:** orchestrator audit during arc 218 surfaced the `::` in wat-edn keyword bodies. Practitioner direction: *"open 219 and do it now - edn now demands it - we satisfy it - 218 is blocked until 219 is done."*

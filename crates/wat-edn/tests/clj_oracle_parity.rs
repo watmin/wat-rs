@@ -14,7 +14,7 @@
 //! | | meaning | example |
 //! |---|---|---|
 //! | `clj:OK / wat:OK`, `clj:ERR / wat:ERR` | parity | most rows |
-//! | `clj:OK / wat:ERR` **and the construct is EDN** | **a wat bug** | `a:b` (spec permits `: #` as constituent) — 219 stands, exempted pending builder |
+//! | `clj:OK / wat:ERR` **and the construct is EDN** | **a wat bug** | i64-cap (fixed 218.7); `a:b` is now parity (218.8) |
 //! | `clj:OK / wat:ERR` **and NOT EDN** | **CORRECT** — clj's superset, deliberately refused | `'x`, `^:m x` |
 //! | `clj:ERR / wat:OK` | **a wat bug** unless exempted | `{:a 1 :a 2}` (bug) vs unknown tag (exempt) |
 //!
@@ -99,16 +99,6 @@ fn exemption(input: &str) -> Option<&'static str> {
         );
     }
 
-    // ── clj:OK / wat:ERR — arc 219 standing ruling (premise expired, ruling stands) ──
-    if is_219_colon_or_hash_body(t) {
-        return Some(
-            "arc 219 removed `:` and `#` from symbol/keyword bodies, quoting the spec's \
-             constituent-char list and omitting the next sentence (they ARE allowed other \
-             than as the first character). The ruling stands until the builder reopens it; \
-             218.7 reports the premise, does not revert.",
-        );
-    }
-
     // ── clj:ERR / wat:OK — intentional EDN-valid superset ──
     if t.starts_with("#myapp/") {
         return Some(
@@ -132,30 +122,6 @@ fn slash_count_in_name(t: &str) -> usize {
         return 0;
     }
     t.bytes().filter(|&b| b == b'/').count()
-}
-
-/// `:` or `#` as a constituent in a symbol/keyword body, not a keyword prefix or `#` dispatch.
-fn is_219_colon_or_hash_body(t: &str) -> bool {
-    if t.contains(' ') || t.contains('"') {
-        return false;
-    }
-    // Collection / reader delimiters — not a symbol or keyword token.
-    if t.bytes()
-        .any(|b| matches!(b, b'{' | b'}' | b'[' | b']' | b'(' | b')' | b'\\'))
-    {
-        return false;
-    }
-    if t.starts_with('#') {
-        return false; // dispatch / set / inst / uuid / tag
-    }
-    if let Some(body) = t.strip_prefix(':') {
-        // `::foo` is Clojure auto-resolve, not the 219 constituent-char ruling.
-        if body.starts_with(':') {
-            return false;
-        }
-        return body.contains(':') || body.contains('#');
-    }
-    t.contains(':') || t.contains('#')
 }
 
 #[test]
@@ -205,8 +171,6 @@ fn every_exemption_names_a_reason() {
         "a/b/c",
         "clojure.core//",
         "#inst \"1985-04-12\"",
-        "a:b",
-        "a#b",
         "#myapp/Foo {:x 1}",
         "\\ ",
     ] {
@@ -217,7 +181,11 @@ fn every_exemption_names_a_reason() {
     }
     assert!(exemption("42").is_none());
     assert!(exemption("{:a 1 :a 2}").is_none()); // duplicate-key is a bug, not an exemption
-    assert!(exemption("{:a").is_none()); // unclosed map, not a 219 symbol
+    assert!(exemption("{:a").is_none()); // unclosed map
     assert!(exemption("#inst \"not-a-timestamp\"").is_none()); // malformed, not date-only
-    assert!(exemption("::foo").is_none()); // auto-resolve, not 219 constituent
+    assert!(exemption("::foo").is_none()); // auto-resolve
+    // 218.8: `a:b` / `a#b` are parity, not exemptions. A stale exemption
+    // here would be invisible to the ward (it continues at wat==clj).
+    assert!(exemption("a:b").is_none());
+    assert!(exemption("a#b").is_none());
 }

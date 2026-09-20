@@ -5,7 +5,7 @@
 //! at parse time. User tags surface as `Value::Tagged`.
 
 use crate::error::{Error, ErrorKind, Result};
-use crate::vocab::{is_canonical_uuid, validate_first_char};
+use crate::vocab::{is_canonical_uuid, validate_name_body};
 use crate::lexer::{Lexer, Token};
 use crate::value::{Keyword, Symbol, Tag, Value};
 use bigdecimal::BigDecimal;
@@ -420,7 +420,7 @@ fn parse_namespaced(
     match (parts.next(), parts.next()) {
         (None, _) => {
             // No '/': bare name.
-            validate_first_char(first).map_err(|m| wrap(format!("{}: {}", body, m)))?;
+            validate_name_body(first).map_err(|m| wrap(format!("{}: {}", body, m)))?;
             Ok((None, first))
         }
         (Some(name), None) => {
@@ -432,8 +432,8 @@ fn parse_namespaced(
             if name.is_empty() {
                 return Err(wrap(format!("empty name in {}", body)));
             }
-            validate_first_char(ns).map_err(|m| wrap(format!("prefix in {}: {}", body, m)))?;
-            validate_first_char(name).map_err(|m| wrap(format!("name in {}: {}", body, m)))?;
+            validate_name_body(ns).map_err(|m| wrap(format!("prefix in {}: {}", body, m)))?;
+            validate_name_body(name).map_err(|m| wrap(format!("name in {}: {}", body, m)))?;
             Ok((Some(ns), name))
         }
         (Some(_), Some(_)) => {
@@ -443,7 +443,7 @@ fn parse_namespaced(
     }
 }
 
-// validate_first_char and is_canonical_uuid live in `crate::vocab`
+// validate_name_body and is_canonical_uuid live in `crate::vocab`
 // so spec rules are owned once and shared across the parser/json layers.
 
 #[cfg(test)]

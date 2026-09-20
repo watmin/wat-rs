@@ -51,13 +51,38 @@ for ch in CONSTITUENT + list("abcXYZ"):
     add("a" + ch)    # continue
     add(ch + "a")    # first then letter
 
-# `: #` in first vs non-first (219's omitted sentence)
-add("a:b")
-add("a#b")
-add("foo:bar")
-add("x#y")
-add(":a:b")
-add(":a#b")
+# 218.8 — `:` / `#` as body constituents. Enumerate interior, doubled,
+# trailing, leading; symbols and keywords; combined with `.` / `-`.
+# Do not paste the brief's table; generate the surface.
+for p in (":", "#"):
+    add("a" + p + "b")             # interior
+    add("a" + p + p + "b")         # doubled
+    add("x" + p)                   # trailing
+    add("x" + p + p)               # trailing doubled
+    add(":a" + p + "b")            # keyword interior
+    add(":a" + p + p + "b")        # keyword doubled
+    add(":x" + p)                  # keyword trailing
+for sep in ".-":
+    add("a" + sep + "b:c")
+    add("a" + sep + "b#c")
+    add("a:b" + sep + "c")
+    add("a#b" + sep + "c")
+    add(":a" + sep + "b:c")
+add("a:b:c")
+add("a#:b")
+add("a:#b")
+add("#x")                         # leading hash = dispatch
+add("a:::b")
+add(":a::b")
+add("x:")
+add("x::")
+add(":x:")
+add("a:/b")                       # colon-final on the prefix
+add("foo/a:b")
+add(":ns/a:b")
+add("wat::core::x")
+add(":wat::core::x")
+add("foo#_bar")                   # one symbol, not discard
 
 # slash counts 0 / 1 / 2 / 3
 add("foo")
