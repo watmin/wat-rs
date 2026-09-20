@@ -207,6 +207,35 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ⛔⛔ 2026-09-20 — 8d IS BLOCKED. THE REGISTRY GOES FIRST. (builder's ruling)
+
+**8d's premise — *"a spelling change over a substrate that already type-checks both"* — is FALSE.**
+It holds for CALL SITES (8c proved it). It does **not** hold for declarations or for some top-level
+resolution. Measured as a DELTA on real codemod output: **104 of 161 previously-clean files regress
+(65%) ⇒ ~1,240 corpus-wide.**
+
+**THREE independent gaps, and the biggest is not the one first found:**
+
+| gap | mechanism | sample regressions |
+|---|---|---|
+| macro declarations | `defrecord`/`defstruct` — *"program body eval failed"* | **52** |
+| slashed **resolution** | a top-level `(wat.core/def u/x 1)` or `(wat.config/set-capacity-mode! :panic)` does **not** resolve where the colon spelling does — **the 8c class, residual** | **34** |
+| declaration **names** | `types.rs:4684 parse_declared_name` — Keyword-only, and it stores the **RAW KEYWORD as the TypeEnv KEY** | **8** |
+
+⛔ **The second defect is the real one: TYPE IDENTITY IS THE SPELLING.** `wat.core/Option` would be a
+*different key* from `:wat::core::Option`. That is a registry ruling, not a parser fix.
+
+⭐ **BUILDER'S RULING (2026-09-20) — Option A, the only 4-YES:** *"make identity canonical; both
+spellings resolve to one key."* A type's identity is its **`(namespace, name)` pair, not its
+characters.** And the sequencing: **255 next (identity + `wat.type` together) → 8d-ii → 8d-iii.**
+
+⚠ **THE SEAM WAS RIGHT AND THE ORCHESTRATOR WAS WRONG.** On 2026-09-20 it wrote that the chain had
+*inverted* because 8c closed #95 without the registry. ⛔ It had not. #95 was closed without 255, but
+**8d-iii is gated by declaration-name identity, which IS registry work.** The line below —
+*"if you remember it the other way round, that is the pivot talking"* — was ignored within a day of
+being re-read. **The mechanism it named (#95) was not the one that binds; the instruction was right
+anyway.** Full detail: `251/FINDING-8d-the-premise-is-FALSE-for-declaration-names.md`.
+
 ### ✅ 251.8d-i LANDED — THE CODEMOD IS TOTAL (2026-09-20, stone `a83eae411`)
 
 **Census: 2145/2145 OK — 0 class-A, 0 class-B, 0 class-C**, verified on the orchestrator's own
