@@ -18647,6 +18647,16 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // the-little-wat F-135 — index a String without allocating one
+    env.register(
+        ":wat::string::code-point-at".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), i64_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
     // clj's `bit-not` — the one unary member of the bitwise family
     env.register(
         ":wat::i64::bit-not".to_string(),

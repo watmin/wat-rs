@@ -539,6 +539,72 @@ pub(crate) fn eval_string_kebab_to_pascal_in(
     Ok(Value::String(Arc::new(result)))
 }
 
+/// `(:wat::string::code-point-at s i)` → the Unicode scalar value of the
+/// character at index `i`, as an `i64`. Indexing is by CHARACTER, matching
+/// `:wat::string::length` and `:wat::string::subs` (clj's `count`/`subs`), not
+/// by byte.
+///
+/// **Why this verb exists.** Before it, the only way to look at one character
+/// was `(subs s i (+ i 1))`, which ALLOCATES a one-character String and then
+/// needs a string compare to read it. the-little-wat's F-135 measured that at
+/// **71 instructions and 56 cycles per byte scanned — 34x a C loop** doing
+/// `s[i] == 'e'`. This returns a number, so a scan allocates nothing.
+///
+/// It returns the CODE POINT rather than a `:wat::core::char` deliberately: a
+/// number needs no new type in a consumer, and the compiled and interpreted
+/// answers are then the same object rather than two spellings of one. The
+/// faithful `(nth s i)` → char surface is a separate question and is not this.
+///
+/// **Expand-time ground —** string ops: pure. Safe to evaluate while a `defmacro` body is
+/// being expanded; same group as `length`/`subs`.
+///
+/// **Totality ground — `Unreviewed`.** Both args are domain-gated by the checker's fixed
+/// scheme, but the index is not: an out-of-range `i` raises `MalformedForm`, exactly as
+/// `:wat::string::subs` does for an out-of-range span. Loud, not silent.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     s :wat::core::String the string to index
+/// @arg     i :wat::core::i64 the character index, 0-based
+/// @ret     :wat::core::i64 the Unicode scalar value at `i`
+/// @example (:wat::string::code-point-at "hello" 1) #=> 101
+#[wat_intrinsic(":wat::string::code-point-at")]
+pub(crate) fn eval_string_code_point_at(
+    s: &WatAST,
+    i: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::string::code-point-at";
+    let s = arg_string(OP, s, env, sym)?;
+    let i = arg_i64(OP, i, env, sym)?;
+    // `chars().nth` walks, which is what UTF-8 costs; the ELF compiler's ASCII-only
+    // restriction (F-120) lets IT index directly, and the two agree on every string the
+    // compiler will accept.
+    match if i < 0 { None } else { s.chars().nth(i as usize) } {
+        Some(c) => Ok(Value::i64(c as i64)),
+        None => {
+            let char_len = s.chars().count() as i64;
+            Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "index out of range: i={i}, char-length={char_len}; \
+                         require 0 <= i < char-length"
+                    ),
+                },
+            )
+            .into())
+        }
+    }
+}
+
 /// `(:wat::string::subs s start end)` → the CHAR-indexed substring
 /// `[start, end)`.
 ///
