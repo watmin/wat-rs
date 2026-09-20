@@ -26,10 +26,13 @@ While drawing this, the orchestrator told the builder:
 > *"`/` by itself is a legal symbol, but otherwise **neither the prefix nor the name part can be
 > empty** when the symbol contains `/`."*
 
-`clojure.core//` contains **two** `/`. Read literally, **wat-edn's refusal may be CORRECT** and the
-orchestrator's "bug" report was wrong. What the builder proved in his REPL — `(clojure.core// 2 1)`
-⇒ `2` — is **Clojure's LANGUAGE reader**, which special-cases this symbol. It is *not* evidence about
-`clojure.edn`, and `clojure.edn` is our oracle.
+`clojure.core//` contains **two** `/`, so on the spec text alone the refusal looks defensible.
+
+⭐ **THE ORACLE LATER RULED THAT `clojure.edn` DOES ACCEPT IT — so the CONCLUSION was right.**
+⛔ **That does not rescue the claim.** The orchestrator asserted a verbatim spec sentence that does
+not exist, and happened to land on the right answer. **Being accidentally right is not being right**,
+and a fabricated quotation is worse than a wrong conclusion because it is unfalsifiable by the reader
+— it *looks* like evidence. `[[feedback_the_authority_you_cite_decides_who_can_catch_you]]`.
 
 ⚠ **`crates/wat-edn/src/value.rs:312` carries the same false claim** in a code comment —
 *"The name `/` itself (division, Clojure `clojure.core//`) is the one exception"* — so this belief is
@@ -42,48 +45,76 @@ it states a spec fact without a test.**
 
 ---
 
-## WHAT IS ESTABLISHED (measured, reproducible)
+## ⭐ THE ORACLE HAS RULED — 57 rows run through real `clojure.edn` (2026-09-19)
 
-A 64-row conformance sweep against `wat_edn::parse_owned`, oracle written from the spec:
-**56 conform, 8 deviate.** Triaged against the fetched spec text:
+⛔ **Every "unresolved" row in the first draft of this brief is now RESOLVED, by running the oracle.**
+`clj` is at `/usr/local/bin/clj` **in this environment** — the orchestrator asked the builder to run
+three REPL lines it was fully capable of running itself. That was the process failure; the builder
+named it. **The oracle is a tool on this machine, not a favour to ask for.**
 
-### ✅ CONFIRMED deviations — the spec is unambiguous
+Corpus of 57 rows → `clojure.edn/read-string` → diffed against `wat_edn::parse_owned`:
 
-| # | case | ours | spec |
+### **45 parity · 9 WAT BUGS (clj:OK / wat:ERR) · 3 supersets (clj:ERR / wat:OK)**
+
+#### The 9 bugs — clj accepts, we refuse. Per the ward's own doctrine each is a wat bug.
+
+| # | input | clj reads it as | our defect |
 |---|---|---|---|
-| 1 | `a:b` | **REJECT** | *"Additionally, `: #` are allowed as constituent characters in symbols other than as the first character."* |
-| 2 | `a#b` | **REJECT** | same sentence |
-| 3 | `{:a 1 :a 2}` | **accept**, keeps BOTH | *"Each key should appear at most once."* |
-| 4 | `#{1 1}` | **accept**, keeps BOTH | *"A set is a collection of unique values."* |
+| 1 | `9223372036854775808` | `…808N` | **i64 cap**; `num-bigint` is already a dependency |
+| 2 | `123456789012345678901234567890` | `…N` | same |
+| 3 | `clojure.core//` | `clojure.core//` | multi-slash refusal |
+| 4 | **`a/b/c`** | `a/b/c` | **`clojure.edn` TOLERATES multi-slash** despite the spec's "once only" |
+| 5 | `a:b` | `a:b` | arc 219 removed `:` from symbol bodies |
+| 6 | `a#b` | `a#b` | arc 219 removed `#` |
+| 7 | `#inst "1985-04-12"` | `#inst "1985-04-12T00:00:00.000-00:00"` | date-only promoted; we refuse |
+| 8 | **`'x`** | `'x` (quote) | **`clojure.edn` reads QUOTE** |
+| 9 | **`^:m x`** | `x` (meta attached) | **`clojure.edn` reads METADATA** |
 
-⛔ **On 3 and 4 the value is worse than the verdict.** `Map` is a `Vec<(Value, Value)>`, so a
-duplicate key **survives into the parsed value**: `{:a 1 :a 2}` → `Map([(a,1),(a,2)])`. Any consumer
-doing a linear lookup silently gets whichever it scans first. **This is a data-integrity defect, not
-a strictness preference**, and it should be sized before it is fixed: something may depend on it.
+#### The 3 supersets — clj refuses, we accept. Two are bugs; one is already exempt.
 
-### ⚠ UNRESOLVED — the oracle decides, not the orchestrator, not the builder's memory
-
-| # | case | ours | why it is open |
+| input | clj | ours | verdict |
 |---|---|---|---|
-| 5 | `clojure.core//` | REJECT | spec says "once only"; Clojure's *language* reader special-cases it. **`clojure.edn` untested.** |
-| 6 | `123456789012345678901234567890` | REJECT (i64 cap) | spec only says the **`N` suffix** requests arbitrary precision; it does not say plain integers must be arbitrary. `clojure.edn` promotes automatically. |
-| 7 | `#inst "1985-04-12"` (date-only) | REJECT | spec says `#inst` is an RFC-3339 timestamp; RFC-3339 wants a full date-time. Clojure's instant reader is believed lenient — **believed, not measured.** |
+| `{:a 1 :a 2}` | `ERR: Duplicate key: :a` | accepts, **keeps both** | ⛔ **BUG — accepting invalid EDN** |
+| `#{1 1}` | `ERR: Duplicate key: 1` | accepts, **keeps both** | ⛔ **BUG — accepting invalid EDN** |
+| `#myapp/Person {:first "F"}` | declines unknown tag | reads generically | ✅ already exempted, with reason |
 
-⭐ **Each is settled by one line in the builder's REPL** — and the executor must run them, not assume:
+**⇒ 11 real defects, 1 justified exemption, on a 57-row probe.**
 
-```clojure
-(require '[clojure.edn :as edn])
-(edn/read-string "clojure.core//")
-(edn/read-string "123456789012345678901234567890")
-(edn/read-string "#inst \"1985-04-12\"")
-```
+⛔ On the duplicates the *value* is worse than the verdict: `Map` is a `Vec<(Value, Value)>`, so the
+duplicate **survives into the parsed value** and a linear lookup silently takes whichever it scans
+first. Size what depends on that before changing it.
 
-### ✅ DELIBERATE supersets — NOT bugs, but they must be EXEMPTED EXPLICITLY
+---
 
-| case | status |
-|---|---|
-| `1/2` ratios | wat extension (arc 300 stone A). Not in the EDN spec. |
-| `x'` primed symbols | documented at `writer.rs:421` — *"wat is a Clojure dialect: a trailing prime `'` is a legal symbol/keyword BODY character."* ⚠ The doc says **trailing**; `a'b` (MEDIAL) is also accepted. **Measure whether medial is intended.** |
+## ⛔⛔ THE ONE QUESTION AN EXECUTOR CANNOT ANSWER — IT CHANGES THE STONE'S SIZE
+
+Rows 8 and 9 are the problem. **`clojure.edn` reads `'x` and `^:m x`** — quote and metadata are
+**Clojure reader features, not EDN**. The ward's doctrine says, verbatim:
+
+> *"wat must accept everything clj accepts — a `clj:OK / wat:ERR` row is a wat bug."*
+
+Read literally, that obligates `wat-edn` to grow **quote and metadata support**. That is not a bug
+fix; it is a feature, and it moves `wat-edn` from "an EDN reader" toward "a Clojure reader" — which
+is the opposite direction from the highlander, where `wat-edn` is meant to be the EDN core and the
+reader-macro layer sits ABOVE it.
+
+⛔ **THE BUILDER RULES THIS BEFORE THE STONE IS STRUCK.** Three coherent answers exist:
+- **(a)** the obligation is to `clojure.edn` as-is → implement quote + metadata in `wat-edn`;
+- **(b)** the obligation is to **EDN**, and `clojure.edn`'s reader-macro support is itself a superset
+  → add a THIRD ward category ("clj superset we deliberately refuse") and exempt rows 8–9;
+- **(c)** the ward's doctrine sentence is wrong and gets rewritten.
+
+**An executor guessing here builds the wrong stone.** Rows 1–7 and the two duplicate-key bugs are
+unaffected by the ruling and can proceed regardless.
+
+## ⚠ AND IT REOPENS A RULING THE BUILDER ALREADY MADE
+
+Row 4 matters beyond `wat-edn`. The orchestrator told the builder his multi-slash examples
+(`u/f/g/a/g`, `a/b/c`) were *"not EDN"* and therefore outside his own stated compliance bar.
+**`clojure.edn` accepts them.** The builder's instinct — *"pathological names are allowed"* — was
+correct and the orchestrator's correction was wrong. The first-slash ruling
+(`251/RULING-the-first-slash-separates-namespace-from-name.md`) is therefore **load-bearing after
+all**, not moot: multi-slash names are readable, so *where* the split falls is a real decision.
 
 ---
 
