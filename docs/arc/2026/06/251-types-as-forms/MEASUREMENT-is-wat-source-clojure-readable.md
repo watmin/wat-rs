@@ -1,4 +1,64 @@
-# MEASUREMENT — are `.wat` files EDN-readable? (2026-09-19)
+# MEASUREMENT — is `.wat` source CLOJURE-readable? (2026-09-19, BAR CORRECTED 2026-09-20)
+
+## ⛔⛔ THE BAR IN THE ORIGINAL VERSION OF THIS DOCUMENT WAS WRONG
+
+This document was first written against *"all .wat files are fully **edn** readable."* **The builder
+corrected the bar after his own assumption broke:**
+
+> *"we are not going to drop clojure's macro forms - wat's source code **by definition cannot be pure
+> edn** - so..... i don't know if your final item is acceptable"*
+> *"clojure's source code is not edn - my assumption has been broken - **we will continue to use
+> .wat indefinitely**"*
+> *"that said... we are seeking to be **clojure compliant source code even if clojure cannot run
+> us**."*
+
+**The correct oracle is therefore `clojure.core`'s READER, not `clojure.edn`.** Measured 2026-09-20,
+`(binding [*read-eval* false] (read-string …))`, Clojure 1.12.4:
+
+| construct | `clojure.edn` | **Clojure's reader** |
+|---|---|---|
+| `` `x `` · `~x` · `~@x` · `@x` · `` `(a ~b) `` | ❌ `Invalid leading character` | ✅ **reads** |
+| `#(+ 1 %)` · `#"re"` · `#'x` | ❌ `No dispatch macro` | ✅ **reads** |
+| `'x` · `^:m x` · `#_` · `#{}` · `#inst` | ✅ | ✅ |
+| `a/b/c` · `clojure.core//` · `a:b` · `a#b` · `1/2` · `x'` | mixed | ✅ **all read** |
+| `{:a 1 :a 2}` | ❌ | ❌ **`Duplicate key: :a`** |
+| `my.trading.Price/0` | ❌ | ❌ **`Invalid token`** |
+
+⭐ **CONSEQUENCES — three items in earlier drafts are now DELETED, not rescheduled:**
+
+1. ⛔ **The quasiquote → list-form stone is KILLED.** `` ` ``/`~`/`~@` are Clojure-readable. The 105
+   files need **nothing**. The orchestrator proposed that stone because it had adopted the wrong
+   bar; the builder rejected it on exactly that ground.
+2. ⛔ **The file-extension question is CLOSED, not deferred.** `.wat` stays indefinitely. The rename
+   to `.edn` was premised on wat source being EDN; the premise is gone. *(The 1,274-occurrence blast
+   radius measurement stands recorded, unused.)*
+3. ⭐ **Regex (`#"…"`) is NO LONGER a future problem.** Clojure's reader takes it. The builder's
+   *"regex needs to be in there"* and the compliance bar do not conflict.
+
+⚠ **`wat-edn` is UNAFFECTED.** 218.7 made it a spec-correct **EDN data** reader and that stands —
+`wat-edn` is not the thing that reads `.wat` source. Two layers, as ruled: `wat-edn` = EDN data,
+`wat-reader` = Clojure-dialect code. **Only `wat-reader` answers to this bar.**
+
+## ⭐ ONLY TWO SHAPES NOW BLOCK CLOJURE-COMPLIANT SOURCE (besides `::`)
+
+Both were already found below and both survive the bar change, because Clojure refuses them too:
+
+| shape | files | Clojure says |
+|---|---|---|
+| duplicate key in a literal | 2 | `Duplicate key: :a` |
+| `T/0` positional accessor | ~3 | `Invalid token: my.trading.Price/0` — a name may not begin with a digit |
+
+⇒ **The path to Clojure-compliant source is: 8d (the `::` flip) + the 3 codemod classes + these 5
+files.** No macro-system change. No extension change.
+
+---
+
+# The original EDN measurement, kept — the file counts are unchanged by the bar
+
+⚠ Re-run under Clojure's reader: **identical numbers** (44/2190 today, 2016/2140 converted). The
+reader-macro difference is **masked**, because the 99 class-B files still carry `::` and fail on
+`:wat::core::defmacro` long before a `~` is reached. That is why the table below still holds.
+
 
 **The builder's bar, verbatim:** *"the requirement i have for wat… is that all .wat files are fully
 edn readable."* · *"wat-edn needs to be a correct edn impl."*
