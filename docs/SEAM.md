@@ -207,6 +207,31 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 251.8d-i LANDED — THE CODEMOD IS TOTAL (2026-09-20, stone `a83eae411`)
+
+**Census: 2145/2145 OK — 0 class-A, 0 class-B, 0 class-C**, verified on the orchestrator's own
+independent run, not accepted from the score. Floor 5930/5930, clippy 0, census `no STOP-8`.
+⭐ **ZERO tracked `.wat` files converted** — 4 new fixtures + `wat/fix.wat` only.
+
+The three cures, all recorded and re-runnable **against an arbitrary branch** (the builder's merge
+constraint: *"we have many more large scale branch merges to contend with"*):
+- **A** `ast-name` partiality — kind-guard `head` as `c2` already was.
+- **B** reader-synthesized spans — **general rule, no `~` in it**: *edit a leaf only when the source
+  text at its span EQUALS its `ast-name`; where they disagree, skip.* Covers `~ ~@ ` ` '` without
+  enumerating them, which is what makes it survive a branch using a reader macro we have not seen.
+- **C** namespace-prefix markers **CONVERT** (`:my::kernel::` → `my.kernel`), plus the parser half:
+  `:restricted-to` accepts Symbols, **hard-errors** on anything else (the silent `filter_map` drop is
+  dead), and discriminates on `/` — as `entry/` **or** `entry.`, because a prefix must admit
+  `ns.Type/method` too.
+
+⛔ **OPEN, for 8d-iii:** `FINDING-8d-a-symbol-whitelist-entry-gets-RESOLVED.md` — a slashed symbol
+entry is walked as a reference and must exist; a bare namespace entry is not. Builder's push
+improved the cure to **exempt from resolution + validate explicitly**; measured that we always know
+(forward-in-file, cross-file, and Rust-registered names all resolve).
+
+**Next: 8d-ii** (the `wat/` bootstrap — `wat/fix.wat` is `include_str!`'d and the flip rewrites the
+codemod's own source), then **8d-iii** (the flip: 67,065 lines, 2,021 files).
+
 | **8d** **the reader/printer flip** | ⭐ **BRIEF DRAWN + PRE-FLIGHTED** `BRIEF-STONE-251.8d-the-corpus-flip.md`. ⛔ **The tool ALREADY EXISTS** (`to-faithful-clojure.wat` → `:wat::fix::fix-text`), works, idempotent — 8d is *"make the migration survive the corpus"*, not *"write the migration"*. **Corpus census, all 2,140 files: 2,021 OK · 99 class-B · 20 class-C · 0 class-A.** Real size: **67,065 source lines** across 2,021 files. ⛔ **THE SEAM'S OLD NUMBERS WERE ALL WRONG** (said 169,845 `::` over 2,440 of 2,483 files; truth is 2,190 tracked, 2,140 to flip). Proposed as 3 stones — builder rules the split. | ⭐ **NEXT** |
 
 ### ✅ THE HOLE IS CLOSED (8c landed 2026-09-19) — and BOTH prior diagnoses were wrong
