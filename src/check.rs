@@ -1360,44 +1360,40 @@ fn walk_for_bare_legacy_console(node: &WatAST, errors: &mut Vec<CheckError>) {
 ///    `WatAST::List([Keyword(":wat::core::Vector"), Keyword(p1), ...], _)`.
 ///    The first item is the `:wat::core::Vector` head; items[1..] are prefixes.
 ///
-/// Returns the Vec of prefix strings if found and well-formed; `None`
-/// otherwise (no restriction — caller is unrestricted).
-fn extract_prefix_list_from_metadata(meta: &HashMap<String, WatAST>) -> Option<Vec<String>> {
-    let restricted_to = meta.get(":restricted-to")?;
+/// Returns the Vec of prefix strings if found and well-formed; `Ok(None)`
+/// otherwise (no restriction — caller is unrestricted). A non-keyword,
+/// non-symbol entry is a hard error (251.8d-i: the silent `filter_map`
+/// drop would empty every whitelist after the flip).
+fn extract_prefix_list_from_metadata(
+    meta: &HashMap<String, WatAST>,
+) -> Result<Option<Vec<String>>, Span> {
+    let Some(restricted_to) = meta.get(":restricted-to") else {
+        return Ok(None);
+    };
     match restricted_to {
         // Path 1 — user-written {... [:prefix::] ...}: brace-form parser encodes
-        // [...] as WatAST::Vector; items are the prefix keywords directly.
-        WatAST::Vector(items, _) => {
-            let prefixes: Vec<String> = items
-                .iter()
-                .filter_map(|n| {
-                    if let WatAST::Keyword(k, _) = n {
-                        Some(k.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            Some(prefixes)
-        }
+        // [...] as WatAST::Vector; items are the prefix keywords/symbols directly.
+        WatAST::Vector(items, _) => Ok(Some(restricted_to_entries(items)?)),
         // Path 2 — restrictions_to_binding_metadata_ast (struct-restrictions +
         // freeze-time RestrictionEntry): List with :wat::core::Vector head.
-        // items[0] is the head keyword; items[1..] are the prefix keywords.
-        WatAST::List(items, _) => {
-            let prefixes: Vec<String> = items[1..]
-                .iter()
-                .filter_map(|n| {
-                    if let WatAST::Keyword(k, _) = n {
-                        Some(k.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            Some(prefixes)
-        }
-        _ => None,
+        // items[0] is the head keyword; items[1..] are the prefix keywords/symbols.
+        WatAST::List(items, _) => Ok(Some(restricted_to_entries(&items[1..])?)),
+        _ => Ok(None),
     }
+}
+
+/// Spelling of one `:restricted-to` entry. Keywords (today) and symbols
+/// (after 8d-iii) are both legal; anything else is a hard error (the span).
+fn restricted_to_entries(items: &[WatAST]) -> Result<Vec<String>, Span> {
+    let mut out = Vec::with_capacity(items.len());
+    for n in items {
+        match n {
+            WatAST::Keyword(k, _) => out.push(k.clone()),
+            WatAST::Symbol(id, _) => out.push(id.as_str().to_owned()),
+            other => return Err(other.span().clone()),
+        }
+    }
+    Ok(out)
 }
 
 /// Stone 241.14 (migrated from arc 198 `walk_for_def_restricted_call`) —
@@ -1411,8 +1407,8 @@ fn extract_prefix_list_from_metadata(meta: &HashMap<String, WatAST>) -> Option<V
 /// `SymbolTable.binding_metadata` populated at `register_defines` /
 /// `freeze-time RestrictionEntry` iteration. Whitelist matching uses
 /// [`caller_matches_prefix_list`]:
-/// - entry ending in `::` → caller FQDN must START WITH the entry
-/// - entry NOT ending in `::` → caller FQDN must EQUAL the entry exactly
+/// - entry with no `/` (after canonicalize) → namespace prefix
+/// - entry containing `/` → exact FQDN
 ///
 /// Renamed from `walk_for_def_restricted_call` (Stone 241.14 drops the
 /// "def_restricted" specificity — the mechanism is no longer def-specific).
@@ -1459,14 +1455,25 @@ fn walk_for_restricted_call(
     if let WatAST::Keyword(name, name_span) = node {
         if owner_type != Some(name.as_str()) {
             if let Some(meta) = env.get_binding_metadata(name) {
-                if let Some(prefixes) = extract_prefix_list_from_metadata(meta) {
-                    if !caller_matches_prefix_list(enclosing_fn, &prefixes) {
-                        errors.push(CheckError { span: name_span.clone(), kind: CheckErrorKind::DefRestrictedCallerNotAllowed {
-                            callee: name.clone(),
-                            enclosing_fn: enclosing_fn.into(),
-                            prefixes,
-                        } });
+                match extract_prefix_list_from_metadata(meta) {
+                    Ok(Some(prefixes)) => {
+                        if !caller_matches_prefix_list(enclosing_fn, &prefixes) {
+                            errors.push(CheckError { span: name_span.clone(), kind: CheckErrorKind::DefRestrictedCallerNotAllowed {
+                                callee: name.clone(),
+                                enclosing_fn: enclosing_fn.into(),
+                                prefixes,
+                            } });
+                        }
                     }
+                    Ok(None) => {}
+                    Err(span) => errors.push(CheckError {
+                        span,
+                        kind: CheckErrorKind::MalformedForm {
+                            head: ":restricted-to".into(),
+                            reason: ":restricted-to entries must be keywords or symbols".into(),
+                            remedies: vec![],
+                        },
+                    }),
                 }
             }
         }
@@ -1481,11 +1488,11 @@ fn walk_for_restricted_call(
 
 /// Arc 198 — match a caller FQDN against a `def-restricted` whitelist.
 ///
-/// Each entry is matched independently; the first match wins. Two rules:
-/// - entry ending in `::` (e.g. `:wat::kernel::`) → caller FQDN must
-///   START WITH the entry (namespace-prefix match).
-/// - entry NOT ending in `::` (e.g. `:wat::kernel::specific-fn`) → caller
-///   FQDN must EQUAL the entry exactly (exact-FQDN match).
+/// Each entry is matched independently; the first match wins. Discriminator
+/// is `/` on the canonical spelling (251.8d-i), not a trailing `::`:
+/// - no `/` (e.g. `:wat::kernel::` or `wat.kernel`) → namespace prefix
+/// - contains `/` (e.g. `:wat::kernel::specific-fn` or `wat.kernel/specific-fn`)
+///   → exact FQDN.
 ///
 /// Empty whitelist semantics: `[]` matches nothing — every caller fails.
 /// This is the honest "substrate-internal only" reading and lets a future
@@ -1496,14 +1503,9 @@ fn walk_for_restricted_call(
 /// returns `false` and the walker fires `DefRestrictedCallerNotAllowed`
 /// with the empty prefix list rendered in the diagnostic.
 fn caller_matches_prefix_list(caller_fqdn: &str, prefixes: &[String]) -> bool {
-    prefixes.iter().any(|entry| {
-        // rune:lint(one-variant-separator, namespace) — prefix-list entries are namespace-style FQDN prefixes (e.g. "wat::core::"), not enum/variant paths.
-        if entry.ends_with("::") {
-            caller_fqdn.starts_with(entry.as_str())
-        } else {
-            caller_fqdn == entry.as_str()
-        }
-    })
+    prefixes
+        .iter()
+        .any(|entry| crate::edn::render::restriction_entry_matches(caller_fqdn, entry))
 }
 
 /// Arc 216 — canonical recursive atomizable predicate (DESIGN Q6).

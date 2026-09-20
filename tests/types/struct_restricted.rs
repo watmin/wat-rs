@@ -11,9 +11,9 @@
 //!   [field <- :T ...])
 //! ```
 //!
-//! Prefix matching (inherited from arc 198):
-//! - Whitelist entry ending in `::` → caller FQDN must START WITH the prefix.
-//! - Whitelist entry NOT ending in `::` → caller FQDN must EQUAL the entry exactly.
+//! Prefix matching (251.8d-i): after canonicalize, an entry without `/` is a
+//! namespace prefix; an entry containing `/` is an exact FQDN. Trailing `::`
+//! on today's unconverted keywords is a prefix because it contains no `/`.
 
 use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_from_file, StartupError};

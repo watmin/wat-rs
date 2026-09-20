@@ -12,11 +12,9 @@
 //! `binding_metadata` (sole restriction store post-stone) and fires
 //! `DefRestrictedCallerNotAllowed` for callers outside the whitelist.
 //!
-//! Prefix matching:
-//! - Whitelist entry ending in `::` (e.g. `:wat::kernel::`) → caller FQDN
-//!   must start with this prefix (namespace prefix match).
-//! - Whitelist entry NOT ending in `::` (e.g. `:wat::kernel::specific-fn`)
-//!   → caller FQDN must equal this entry exactly (exact FQDN match).
+//! Prefix matching (251.8d-i): after canonicalize, an entry without `/` is a
+//! namespace prefix (e.g. `:wat::kernel::` or `wat.kernel`); an entry containing
+//! `/` is an exact FQDN (e.g. `:wat::kernel::specific-fn` or `wat.kernel/specific-fn`).
 
 use wat::check::error::{CheckErrorKind, CheckErrors};
 use wat::freeze::{startup_beside, startup_from_file, StartupError};
@@ -153,5 +151,47 @@ fn def_restricted_value_position_alias_denied() {
         ":my::kernel::restricted-fn",
         ":user::sneaky",
         &[":my::kernel::"],
+    );
+}
+
+// ─── 251.8d-i — symbol entries in :restricted-to ──────────────────────────
+
+#[test]
+fn restricted_to_symbol_prefix_admits_namespace() {
+    startup_from_file("tests/kernel/wat_arc251_8d_restricted_to_symbol_prefix_ok.wat")
+        .expect("symbol namespace prefix my.kernel should admit :my::kernel::caller");
+}
+
+#[test]
+fn restricted_to_symbol_exact_admits_named_caller() {
+    startup_from_file("tests/kernel/wat_arc251_8d_restricted_to_symbol_exact_ok.wat")
+        .expect("symbol exact FQDN my.kernel/specific-caller should admit that caller");
+}
+
+#[test]
+fn restricted_to_symbol_exact_denies_sibling() {
+    assert_restricted_call_rejected(
+        "tests/kernel/wat_arc251_8d_restricted_to_symbol_exact_denied.wat",
+        ":my::kernel::restricted-fn",
+        ":my::kernel::other-caller",
+        &["my.kernel/specific-caller"],
+    );
+}
+
+#[test]
+fn restricted_to_neither_keyword_nor_symbol_is_a_hard_error() {
+    let err = startup_from_file("tests/kernel/wat_arc251_8d_restricted_to_neither_errors.wat")
+        .expect_err("integer :restricted-to entry must not be dropped");
+    let errors: &CheckErrors = match &err {
+        StartupError::Check(errs) => errs,
+        other => panic!("expected StartupError::Check; got {other:?}"),
+    };
+    assert!(
+        errors.0.iter().any(|e| matches!(
+            &e.kind,
+            CheckErrorKind::MalformedForm { reason, .. }
+                if reason == ":restricted-to entries must be keywords or symbols"
+        )),
+        "expected MalformedForm on neither-keyword-nor-symbol; got {errors:?}"
     );
 }

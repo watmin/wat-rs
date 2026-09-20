@@ -3613,6 +3613,47 @@ pub(crate) fn wat_keyword_to_clojure_symbol(kw: &str) -> Option<String> {
     Some(format!("{}/{}", ns_parts.join("."), name))
 }
 
+/// Canonical form of a `:restricted-to` entry or a caller FQDN, for matching.
+///
+/// Stone 251.8d-i: after the flip, entries are symbols (`my.kernel` prefix,
+/// `my.kernel/specific-caller` exact). Today they are keywords (`:my::kernel::`,
+/// `:my::kernel::specific-caller`). Matching compares this canonical spelling
+/// so both dialects work during the additive parser window.
+pub(crate) fn canonicalize_restriction_entry(s: &str) -> String {
+    if let Some(clj) = wat_keyword_to_clojure_symbol(s) {
+        return clj;
+    }
+    if let Some(body) = s.strip_prefix(':') {
+        // rune:lint(one-variant-separator, namespace) — trailing-`::` marker
+        if let Some(rest) = body.strip_suffix("::") {
+            // rune:lint(one-variant-separator, namespace) — interior `::` of a marker become `.`
+            return rest.replace("::", ".");
+        }
+    }
+    s.to_string()
+}
+
+/// Prefix entries have no `/` (a namespace). Exact-FQDN entries contain `/`.
+pub(crate) fn restriction_entry_is_prefix(canonical: &str) -> bool {
+    !canonical.contains('/')
+}
+
+/// Does `caller_fqdn` match this whitelist `entry`? Dual-dialect: keywords
+/// and symbols canonicalize before the `/` vs no-`/` discriminator.
+pub(crate) fn restriction_entry_matches(caller_fqdn: &str, entry: &str) -> bool {
+    let caller = canonicalize_restriction_entry(caller_fqdn);
+    let entry = canonicalize_restriction_entry(entry);
+    if restriction_entry_is_prefix(&entry) {
+        // `wat.spawn` admits `wat.spawn/foo` AND `wat.spawn.ThreadOpts/bar`
+        // (the keyword form `:wat::spawn::` was a character prefix of both).
+        caller == entry
+            || caller.starts_with(&format!("{entry}/"))
+            || caller.starts_with(&format!("{entry}."))
+    } else {
+        caller == entry
+    }
+}
+
 /// Three head spellings, one clojure-target spelling.
 ///
 /// STONE-three-spellings-one-seam: fmt rules match this canonical form so dropping
@@ -3657,6 +3698,45 @@ mod canonical_head_name_tests {
         assert_eq!(canonical_head_name("<-"), "<-");
         assert_eq!(canonical_head_name("x"), "x");
         assert_eq!(canonical_head_name("->"), "->");
+    }
+}
+
+#[cfg(test)]
+mod restriction_entry_match_tests {
+    use super::{canonicalize_restriction_entry, restriction_entry_matches};
+
+    #[test]
+    fn keyword_and_symbol_prefix_both_admit_the_namespace() {
+        assert_eq!(canonicalize_restriction_entry(":my::kernel::"), "my.kernel");
+        assert_eq!(canonicalize_restriction_entry("my.kernel"), "my.kernel");
+        assert!(restriction_entry_matches(":my::kernel::caller", ":my::kernel::"));
+        assert!(restriction_entry_matches(":my::kernel::caller", "my.kernel"));
+        assert!(restriction_entry_matches(
+            ":wat::spawn::ThreadOpts/spawn-runner",
+            ":wat::spawn::"
+        ));
+        assert!(!restriction_entry_matches(":user::app::caller", "my.kernel"));
+        assert!(!restriction_entry_matches(":wat::spawner::x", ":wat::spawn::"));
+    }
+
+    #[test]
+    fn exact_fqdn_denies_a_sibling() {
+        assert_eq!(
+            canonicalize_restriction_entry(":my::kernel::specific-caller"),
+            "my.kernel/specific-caller"
+        );
+        assert!(restriction_entry_matches(
+            ":my::kernel::specific-caller",
+            "my.kernel/specific-caller"
+        ));
+        assert!(!restriction_entry_matches(
+            ":my::kernel::other-caller",
+            "my.kernel/specific-caller"
+        ));
+        assert!(!restriction_entry_matches(
+            ":my::kernel::other-caller",
+            ":my::kernel::specific-caller"
+        ));
     }
 }
 

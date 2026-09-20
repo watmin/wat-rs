@@ -718,7 +718,7 @@ impl CheckErrorKind {
                 }
                 write!(
                     f,
-                    " has a restricted caller whitelist [{}]; the enclosing fn `{}` does not match any entry (declared via `{{:restricted-to [...]}}` metadata-map). An entry ending in `::` is a namespace prefix (caller FQDN must start with it); an entry without trailing `::` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `{}` to the `:restricted-to` list at the binding site.",
+                    " has a restricted caller whitelist [{}]; the enclosing fn `{}` does not match any entry (declared via `{{:restricted-to [...]}}` metadata-map). An entry without `/` is a namespace prefix (caller FQDN must start with it); an entry containing `/` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `{}` to the `:restricted-to` list at the binding site.",
                     allowed_prefixes.join(" "),
                     enclosing_fn,
                     enclosing_fn,

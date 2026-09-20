@@ -19,6 +19,16 @@ use super::{SurfaceMember, TypeDef, TypeEnv, TypeExpr, TypeError, TypeErrorKind}
 
 const HEAD: &str = ":wat::core::defstruct";
 
+/// Spelling of one `:restricted-to` entry. Keywords (today) and symbols
+/// (251.8d-i, after the flip) are both legal.
+fn restricted_to_entry_spelling(n: &WatAST) -> Option<String> {
+    match n {
+        WatAST::Keyword(k, _) => Some(k.clone()),
+        WatAST::Symbol(id, _) => Some(id.as_str().to_owned()),
+        _ => None,
+    }
+}
+
 // Stone 255.1a-β-i-b — `validate_defstruct_arity` REMOVED (its only caller, `parse_defstruct`,
 // is removed below). `:wat::core::defstruct` is a stdlib `defmacro` (`wat/core.wat:2030`) that
 // `expand_all` rewrites to `:wat::core::structtype`; `parse_type_decl`'s `"defstruct"` arm that
@@ -89,18 +99,18 @@ pub(super) fn parse_defstruct_metadata(
         };
         match key_str.as_str() {
             ":restricted-to" => {
-                // Value must be a Vector of keyword prefixes.
+                // Value must be a Vector of keyword or symbol prefixes.
                 match val {
                     WatAST::Vector(prefix_items, _) => {
                         for item in prefix_items {
-                            match item {
-                                WatAST::Keyword(k, _) => ctor_whitelist.push(k.clone()),
-                                _ => {
+                            match restricted_to_entry_spelling(item) {
+                                Some(s) => ctor_whitelist.push(s),
+                                None => {
                                     return Err(TypeError::new(
                                         item.span().clone(),
                                         TypeErrorKind::MalformedDecl {
                                             head: HEAD.into(),
-                                            reason: ":restricted-to entries must be keyword prefixes".into(),
+                                            reason: ":restricted-to entries must be keywords or symbols".into(),
                                         },
                                     ));
                                 }
@@ -112,7 +122,7 @@ pub(super) fn parse_defstruct_metadata(
                             val.span().clone(),
                             TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
-                                reason: ":restricted-to value must be a Vector of keyword prefixes `[...]`".into(),
+                                reason: ":restricted-to value must be a Vector of keywords or symbols `[...]`".into(),
                             },
                         ));
                     }
@@ -219,15 +229,15 @@ fn parse_field_metadata_key(
                 match fval {
                     WatAST::Vector(prefix_items, _) => {
                         for item in prefix_items {
-                            match item {
-                                WatAST::Keyword(k, _) => field_wlist.push(k.clone()),
-                                _ => {
+                            match restricted_to_entry_spelling(item) {
+                                Some(s) => field_wlist.push(s),
+                                None => {
                                     return Err(TypeError::new(
                                         item.span().clone(),
                                         TypeErrorKind::MalformedDecl {
                                             head: HEAD.into(),
                                             reason: format!(
-                                                ":field-metadata :restricted-to entries for '{}' must be keyword prefixes",
+                                                ":field-metadata :restricted-to entries for '{}' must be keywords or symbols",
                                                 field_sym
                                             ),
                                         },

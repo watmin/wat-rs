@@ -71,9 +71,14 @@
         false
         (:wat::core::let [head (:wat::core::first ch)
                           c2   (:wat::core::nth ch 2)]
-          (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
-            (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
-              (:wat::core::= (:wat::core::ast-name c2) "->")
+          ;; 251.8d-i class A — ast-name is partial (Symbol/Keyword/StringLit).
+          ;; A list in head position with ≥3 children used to raise here; the
+          ;; kind guard matches c2's. wat.core/if is lazy, so this prevents the call.
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+            (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
+              (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
+                (:wat::core::= (:wat::core::ast-name c2) "->")
+                false)
               false)
             false))))
     false))
@@ -93,6 +98,29 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::string::contains? (:wat::core::ast-name node) "::")
     false))
+
+;; marker-keyword? — a keyword whose name ENDS in `::`. Data, not a call head:
+;; the namespace-prefix marker in `{:restricted-to [:my::kernel::]}`.
+;; `keyword/to-symbol` correctly refuses these; we convert them ourselves.
+(:wat::core::defn :wat::fix::marker-keyword? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+    (:wat::string::ends-with? (:wat::core::ast-name node) "::")
+    false))
+
+;; `:my::kernel::` → `my.kernel` (symbol, no `/` ⇒ a namespace).
+;; Trailing empty split-piece (the final `::`) is dropped; interior `::` become `.`.
+(:wat::core::defn :wat::fix::marker-to-namespace-text [node <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::let [nm   (:wat::core::ast-name node)
+                    body (:wat::core::if (:wat::string::starts-with? nm ":")
+                            (:wat::string::subs nm 1 (:wat::string::length nm))
+                            nm)
+                    parts (:wat::string::split body "::")
+                    n     (:wat::core::length parts)
+                    last  (:wat::core::nth parts (:wat::i64::- n 1))
+                    kept  (:wat::core::if (:wat::core::= last "")
+                            (:wat::core::into [] (:wat::core::take parts (:wat::i64::- n 1)))
+                            parts)]
+    (:wat::string::join "." kept)))
 
 ;; arrow? — a bare binder/return annotation arrow SYMBOL (<- or ->). NOTE: the threading
 ;; macro head is the KEYWORD :wat::core::-> ; a bare `->` SYMBOL is always an annotation arrow.
@@ -131,9 +159,11 @@
                             (:wat::keyword::to-type-form h)
                           (:wat::core::if (:wat::fix::arrow? h)
                             (:wat::core::keyword-node ":-")
+                          (:wat::core::if (:wat::fix::marker-keyword? h)
+                            (:wat::core::symbol-node (:wat::fix::marker-to-namespace-text h))
                           (:wat::core::if (:wat::fix::head-keyword? h)
                             (:wat::keyword::to-symbol h)
-                            (:wat::fix::fix-source h)))))]
+                            (:wat::fix::fix-source h))))))]
       (:wat::core::concat (:wat::core::Vector :- [:wat::WatAST] out)
                           (:wat::fix::fix-seq tl (:wat::fix::arrow? h))))))
 
@@ -238,6 +268,24 @@
     (:wat::fix::fix-text-offset-of start-span lines)
     (:wat::fix::fix-text-offset-of end-span lines)))
 
+;; source-matches-name? — 251.8d-i class B. Edit a leaf only when the source
+;; text at its span EQUALS its ast-name. Where they disagree the node is
+;; reader-synthesized (`~` spans 1 char; ast-name is 19-char `:wat::core::unquote`):
+;; skip it, edit nothing. This USES fix-text-span-text as a GUARD comparison,
+;; then declines — the opposite of filling old-text from the span (which would
+;; make fix-text-apply's check vacuous). The guard at fix-text-apply stays.
+(:wat::core::defn :wat::fix::source-matches-name?
+  [node  <- :wat::WatAST
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   src   <- :wat::core::String]
+  -> :wat::core::bool
+  (:wat::core::= (:wat::fix::fix-text-span-text
+                   (:wat::core::ast-span node)
+                   (:wat::core::ast-end-span node)
+                   lines
+                   src)
+                 (:wat::core::ast-name node)))
+
 ;; fix-text-deletion-edit — a one-element Vector holding a deletion edit for node.
 ;; Deletion covers exactly the token text (ast-name char length); surrounding whitespace stays.
 (:wat::core::defn :wat::fix::fix-text-deletion-edit
@@ -249,77 +297,96 @@
     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
       (:wat::core::Tuple off old-len ""))))
 
+;; empty-edits — no-op edit list (class B skip; bare data keyword; non-arrow symbol).
+(:wat::core::defn :wat::fix::empty-edits []
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+
 ;; fix-text-leaf-edits — apply the same rule order as fix-seq to a leaf node,
 ;; emitting zero or one edit (never recurses into children).
-;; post-arrow type > structural type > arrow > head-keyword > no-op.
+;; post-arrow type > structural type > marker > head-keyword > arrow > no-op.
+;; 251.8d-i: a leaf whose span text ≠ ast-name is reader-synthesized — skip it.
 (:wat::core::defn :wat::fix::fix-text-leaf-edits
   [node        <- :wat::WatAST
    prev-arrow? <- :wat::core::bool
-   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+   lines       <- (:wat::core::Vector :- [:wat::core::String])
+   src         <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let [kind (:wat::core::ast-kind node)]
     (:wat::core::if (:wat::core::= kind "keyword")
-      ;; keyword leaf — check type-annotation and head-keyword rules
-      (:wat::core::let [span    (:wat::core::ast-span node)
-                        off     (:wat::fix::fix-text-offset-of span lines)
-                        nm      (:wat::core::ast-name node)
-                        old-len nm]
-        (:wat::core::if prev-arrow?
-          ;; post-arrow keyword is a type annotation → convert to type form
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
-            (:wat::core::Tuple off old-len
-              (:wat::core::write-forms (:wat::keyword::to-type-form node))))
-          (:wat::core::if (:wat::fix::type-shaped-keyword? node)
-            ;; parametric/tuple keyword → type form
+      (:wat::core::if (:wat::fix::source-matches-name? node lines src)
+        ;; keyword leaf — check type-annotation, marker, and head-keyword rules
+        (:wat::core::let [span    (:wat::core::ast-span node)
+                          off     (:wat::fix::fix-text-offset-of span lines)
+                          nm      (:wat::core::ast-name node)
+                          old-len nm]
+          (:wat::core::if prev-arrow?
+            ;; post-arrow keyword is a type annotation → convert to type form
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
               (:wat::core::Tuple off old-len
                 (:wat::core::write-forms (:wat::keyword::to-type-form node))))
-            (:wat::core::if (:wat::fix::head-keyword? node)
-              ;; ::-namespaced call head → faithful-Clojure symbol
+            (:wat::core::if (:wat::fix::type-shaped-keyword? node)
+              ;; parametric/tuple keyword → type form
               (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
                 (:wat::core::Tuple off old-len
-                  (:wat::core::ast-name (:wat::keyword::to-symbol node))))
-              ;; bare data keyword (no ::, not type-shaped) — no edit
-              (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))))
+                  (:wat::core::write-forms (:wat::keyword::to-type-form node))))
+              (:wat::core::if (:wat::fix::marker-keyword? node)
+                ;; trailing-`::` namespace-prefix marker → namespace symbol
+                (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+                  (:wat::core::Tuple off old-len
+                    (:wat::fix::marker-to-namespace-text node)))
+                (:wat::core::if (:wat::fix::head-keyword? node)
+                  ;; ::-namespaced call head → faithful-Clojure symbol
+                  (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
+                    (:wat::core::Tuple off old-len
+                      (:wat::core::ast-name (:wat::keyword::to-symbol node))))
+                  ;; bare data keyword (no ::, not type-shaped) — no edit
+                  (:wat::fix::empty-edits))))))
+        ;; class B — reader-synthesized; span ≠ name. Skip, edit nothing.
+        (:wat::fix::empty-edits))
       (:wat::core::if (:wat::core::= kind "symbol")
         ;; symbol leaf — only arrow rule applies
-        (:wat::core::if (:wat::fix::arrow? node)
+        (:wat::core::if (:wat::core::if (:wat::fix::arrow? node)
+                          (:wat::fix::source-matches-name? node lines src)
+                          false)
           (:wat::core::let [span    (:wat::core::ast-span node)
                             off     (:wat::fix::fix-text-offset-of span lines)
                             nm      (:wat::core::ast-name node)
                             old-len nm]
             (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
               (:wat::core::Tuple off old-len ":-")))
-          ;; non-arrow symbol — no edit
-          (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]))
+          ;; non-arrow symbol, or synthesized arrow — no edit
+          (:wat::fix::empty-edits))
         ;; int, float, bool, string, nil — no edit
-        (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])))))
+        (:wat::fix::empty-edits)))))
 
 ;; fix-text-node-edits — dispatch: structural nodes → fix-text-struct-edits;
 ;; leaf nodes → fix-text-leaf-edits with position context.
 (:wat::core::defn :wat::fix::fix-text-node-edits
   [node        <- :wat::WatAST
    prev-arrow? <- :wat::core::bool
-   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+   lines       <- (:wat::core::Vector :- [:wat::core::String])
+   src         <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
-    (:wat::fix::fix-text-struct-edits node lines)
-    (:wat::fix::fix-text-leaf-edits node prev-arrow? lines)))
+    (:wat::fix::fix-text-struct-edits node lines src)
+    (:wat::fix::fix-text-leaf-edits node prev-arrow? lines src)))
 
 ;; fix-text-seq-edits — position-aware left-to-right walk over a child sequence.
 ;; Mirrors fix-seq's rule order; collects edits in ascending offset order.
 (:wat::core::defn :wat::fix::fix-text-seq-edits
   [items       <- (:wat::core::Vector :- [:wat::WatAST])
    prev-arrow? <- :wat::core::bool
-   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+   lines       <- (:wat::core::Vector :- [:wat::core::String])
+   src         <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+    (:wat::fix::empty-edits)
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
-        (:wat::fix::fix-text-node-edits h prev-arrow? lines)
-        (:wat::fix::fix-text-seq-edits tl (:wat::fix::arrow? h) lines)))))
+        (:wat::fix::fix-text-node-edits h prev-arrow? lines src)
+        (:wat::fix::fix-text-seq-edits tl (:wat::fix::arrow? h) lines src)))))
 
 ;; fix-text-struct-edits — collect edits from a structural node.
 ;; For annotated-if: emit deletion edits for child[2](arrow) + child[3](type),
@@ -327,7 +394,8 @@
 ;; For all other structural nodes: delegate to fix-text-seq-edits on children.
 (:wat::core::defn :wat::fix::fix-text-struct-edits
   [node  <- :wat::WatAST
-   lines <- (:wat::core::Vector :- [:wat::core::String])]
+   lines <- (:wat::core::Vector :- [:wat::core::String])
+   src   <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::fix::annotated-if? node)
     ;; strip-if: manually process children to emit deletions for -> and :T
@@ -341,16 +409,16 @@
                         branches (:wat::core::into [] (:wat::core::drop ch 4))]
         ;; edits in ascending text order: head, cond, arrow-del, type-del, branches
         (:wat::core::concat
-          (:wat::fix::fix-text-leaf-edits head false lines)
+          (:wat::fix::fix-text-leaf-edits head false lines src)
           (:wat::core::concat
-            (:wat::fix::fix-text-node-edits c1 false lines)
+            (:wat::fix::fix-text-node-edits c1 false lines src)
             (:wat::core::concat
               (:wat::fix::fix-text-deletion-edit c2 lines)
               (:wat::core::concat
                 (:wat::fix::fix-text-deletion-edit c3 lines)
-                (:wat::fix::fix-text-seq-edits branches false lines)))))))
+                (:wat::fix::fix-text-seq-edits branches false lines src)))))))
     ;; normal structural node — walk children with fix-text-seq-edits
-    (:wat::fix::fix-text-seq-edits (:wat::core::ast->children node) false lines)))
+    (:wat::fix::fix-text-seq-edits (:wat::core::ast->children node) false lines src)))
 
 ;; fix-text-apply — apply a list of edits (in right-to-left order) to src.
 ;;
@@ -425,7 +493,7 @@
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
                     forms     (:wat::core::ast->children tree)
-                    all-edits (:wat::fix::fix-text-seq-edits forms false lines)
+                    all-edits (:wat::fix::fix-text-seq-edits forms false lines src)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
 
