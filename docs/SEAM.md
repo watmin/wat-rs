@@ -178,6 +178,16 @@ reported a bug that may not be one — the spec says `/` "can be used once only"
 carries the same false claim. **Two careful readings of four spec sentences produced two opposite
 wrong answers**, which is why the cure is the differential oracle, not more reading.
 
+✅ **218.8 LANDED** (stone `a1fa08d36`) — **arc 219 is CORRECTED.** The builder reopened it after
+verifying in a live REPL that `a:b`/`a#b` are not merely readable but **definable and callable**
+Clojure fns. ⛔ **It was NOT the one-line revert it looked like:** a naive add of `:`/`#` to the
+per-byte `is_symbol_continue` would have accepted `a::b`, `wat::core::x` and `x:`, all of which
+Clojure refuses — three new bugs. The oracle-derived rule is **`#` unrestricted; `:` legal only when
+neither DOUBLED nor FINAL**, enforced **per name-component** (the counterpart's catch: `a:/b` has no
+`::` and no trailing `:`, but its *prefix* `a:` is colon-final). Corpus 190→221, dry. Floor
+5924/5924, clippy 0, census clean. ⭐ **No `.wat` file moved** — verified, not argued; `wat::core::x`
+stays refused by both readers, so 8d's 85 tokens are untouched.
+
 ✅ **218.7 LANDED** (stone `fccc7b45d`, fold inside it). Floor 5921/5921, clippy 0, census `no STOP-8`.
 Corpus **72 → 190, GENERATED** (`generate_corpus.py`), golden regenerated against real `clj` and
 **verified byte-identical by the orchestrator's own run**; looped to **dry** (round 3: 0 new).
