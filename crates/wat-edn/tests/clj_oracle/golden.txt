@@ -34,7 +34,6 @@ OK	my.ns/foo
 OK	foo?
 OK	*foo*
 OK	😀
-OK	é
 OK	λ
 OK	foo→bar
 OK	:foo
@@ -70,3 +69,122 @@ OK	0/5
 OK	-6/4
 OK	10/4
 ERR	1/0
+OK	.
+OK	a.
+OK	.a
+OK	*
+OK	a*
+OK	*a
+OK	a+
+OK	+a
+OK	!
+OK	a!
+OK	!a
+OK	a-
+OK	-a
+OK	_
+OK	a_
+OK	_a
+OK	?
+OK	a?
+OK	?a
+OK	$
+OK	a$
+OK	$a
+OK	%
+OK	a%
+OK	%a
+OK	&
+OK	a&
+OK	&a
+OK	=
+OK	a=
+OK	=a
+OK	<
+OK	a<
+OK	<a
+OK	>
+OK	a>
+OK	>a
+OK	a
+OK	aa
+OK	b
+OK	ab
+OK	ba
+OK	c
+OK	ac
+OK	ca
+OK	X
+OK	aX
+OK	Xa
+OK	Y
+OK	aY
+OK	Ya
+OK	Z
+OK	aZ
+OK	Za
+OK	a:b
+OK	a#b
+OK	foo:bar
+OK	x#y
+OK	:a:b
+OK	:a#b
+OK	ns/foo
+OK	a/b/c
+OK	a/b/c/d
+OK	clojure.core//
+ERR	/x
+ERR	x/
+OK	-1
+OK	+1
+OK	.1
+OK	1
+OK	9223372036854775807
+OK	9223372036854775808
+OK	-9223372036854775808
+OK	-9223372036854775809
+OK	123456789012345678901234567890
+OK	9223372036854775808N
+OK	123456789012345678901234567890N
+OK	42N
+OK	0N
+OK	.5
+OK	5.
+OK	1.5e-2
+OK	1.5E+2
+OK	0.0
+OK	-0.0
+OK	"\n"
+OK	"\t"
+OK	"\r"
+OK	"\\"
+OK	"\""
+ERR	"\q"
+OK	"\u0041"
+ERR	"\u00"
+ERR	"\uXXXX"
+OK	\return
+OK	\u0041
+OK	\ 
+ERR	(
+ERR	[1
+ERR	{:a
+ERR	{:a 1
+ERR	{:a}
+ERR	{:a 1 :a 2}
+ERR	#{1 1}
+ERR	#{1 1 2}
+OK	{,}
+OK	[1, 2]
+OK	#{1}
+OK	#_1 2
+OK	#inst "1985-04-12"
+ERR	#inst "not-a-timestamp"
+ERR	#uuid "not-a-uuid"
+ERR	#myapp/Person {:first "F"}
+OK	'x
+ERR	`x
+ERR	~x
+ERR	~@x
+ERR	@x
+OK	^:m x

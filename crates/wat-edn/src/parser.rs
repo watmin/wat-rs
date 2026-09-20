@@ -238,6 +238,9 @@ impl<'a> Parser<'a> {
                         return Err(Error::at(self.lexer.pos(), ErrorKind::OddMapElements));
                     }
                     let v = self.parse_value()?;
+                    if entries.iter().any(|(ek, _)| ek == &k) {
+                        return Err(Error::at(self.lexer.pos(), ErrorKind::DuplicateMapKey));
+                    }
                     entries.push((k, v));
                 }
             }
@@ -254,7 +257,13 @@ impl<'a> Parser<'a> {
                     return Ok(Value::Set(items));
                 }
                 Token::Eof => return Err(Error::at(self.lexer.pos(), ErrorKind::UnclosedSet)),
-                _ => items.push(self.parse_value()?),
+                _ => {
+                    let v = self.parse_value()?;
+                    if items.iter().any(|e| e == &v) {
+                        return Err(Error::at(self.lexer.pos(), ErrorKind::DuplicateSetElement));
+                    }
+                    items.push(v);
+                }
             }
         }
     }

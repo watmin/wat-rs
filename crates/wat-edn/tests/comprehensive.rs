@@ -33,9 +33,10 @@ fn integer_min() {
 }
 
 #[test]
-fn integer_overflow_errors() {
-    // i64::MAX + 1 — should error since we don't auto-promote to BigInt
-    assert!(parse("9223372036854775808").is_err());
+fn integer_overflow_promotes_to_bigint() {
+    // Spec: integers are arbitrary precision. clj reads i64::MAX+1 as N.
+    let v = parse("9223372036854775808").unwrap();
+    assert!(matches!(v, Value::BigInt(_)));
 }
 
 #[test]
@@ -69,18 +70,17 @@ fn float_scientific() {
 }
 
 #[test]
-fn float_no_int_part_rejected() {
-    // Per spec, leading dot is not allowed.
-    assert!(parse(".5").is_err());
+fn float_leading_dot_is_a_float() {
+    // clj accepts `.5`; spec is silent on a missing integer part.
+    // Stone 218.7: the oracle wins, discrepancy reported.
+    assert_eq!(parse(".5").unwrap(), Value::Float(0.5));
 }
 
 #[test]
-fn float_no_frac_after_dot_works() {
-    // `42.` — our impl treats trailing `.` as token-terminator since
-    // there's no digit after, so this lexes as int 42 followed by junk.
-    // Verify the integer comes through.
-    let v = parse_all("42.").unwrap();
-    assert_eq!(v[0], Value::Integer(42));
+fn float_trailing_dot_is_a_float() {
+    // clj accepts `42.`; spec wants a digit in a present fractional part.
+    // Stone 218.7: the oracle wins, discrepancy reported.
+    assert_eq!(parse("42.").unwrap(), Value::Float(42.0));
 }
 
 #[test]

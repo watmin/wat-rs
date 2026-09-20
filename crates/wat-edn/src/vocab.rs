@@ -97,11 +97,12 @@ pub fn is_symbol_start(b: u8) -> bool {
 }
 
 /// True if `b` may continue a symbol body (after the first byte).
-/// EDN character set (Clojure dialect): alphanumeric + `. * + ! - _ ? $ % & = < > / '`.
-/// The `:` and `#` bytes are NOT permitted in symbol bodies per EDN spec;
-/// wat-rs uses `::` as its internal namespace separator but the wat-edn
-/// substrate enforces strict-EDN on input. Constructors (`::ns`, `::try_ns`)
-/// translate `::` → `.` at the boundary before storage.
+/// EDN character set: alphanumeric + `. * + ! - _ ? $ % & = < > / '`.
+/// ⚠ The spec's NEXT sentence also permits `: #` as constituent characters
+/// other than the first. Arc 219 removed them, believing the spec forbade
+/// them; that premise omitted that sentence. The 219 ruling STANDS until
+/// the builder reopens it (stone 218.7 reports the premise, does not revert).
+/// Constructors (`::ns`, `::try_ns`) translate `::` → `.` at the boundary.
 ///
 /// wat is a Clojure dialect, and Clojure legally admits a trailing prime `'`
 /// inside symbol/keyword BODIES (`x'`, `:wut'`) — the primed convention wat uses

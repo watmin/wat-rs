@@ -308,8 +308,10 @@ impl Symbol {
 
 /// First-character rule, plus: a namespaced keyword's NAME must not contain
 /// `/`. EDN spells keywords as `:name` or `:ns/name` — a `/` inside the name
-/// is unspellable (`:wat.holon/Hologram/make`). The name `/` itself (division,
-/// Clojure `clojure.core//`) is the one exception.
+/// is unspellable (`:wat.holon/Hologram/make`). Bare `/` as the whole name is
+/// admitted (the division symbol, and `:/` as its keyword form). The spec
+/// does NOT name `clojure.core//` as an exception; that form has two `/` and
+/// is a RULING (strict: refuse) under stone 218.7, not a spec quotation.
 fn validate_keyword_name(name: &str) -> std::result::Result<(), &'static str> {
     crate::vocab::validate_first_char(name)?;
     if name.contains('/') && name != "/" {

@@ -137,6 +137,12 @@ impl<'a> Lexer<'a> {
             b':' => self.lex_keyword(),
             b'#' => self.lex_hash(),
             b'-' | b'+' => self.lex_signed(),
+            // `.5` is a float (clj; spec is silent on a missing integer part).
+            // `.` not followed by a digit is a symbol (`.a`).
+            b'.' if matches!(self.peek_at(1), Some(b'0'..=b'9')) => {
+                let start = self.pos;
+                self.lex_number(start)
+            }
             b'0'..=b'9' => {
                 let start = self.pos;
                 self.lex_number(start)
@@ -558,10 +564,7 @@ impl<'a> Lexer<'a> {
             ));
         }
 
-        // The dispatcher in next_token only routes here when the leading
-        // byte (after optional sign) is a digit, so the digit-required
-        // assertion is structural — keep as debug_assert.
-        debug_assert!(matches!(self.peek(), Some(b'0'..=b'9')));
+        // Digit run, or a leading `.` for `.5`. `5.` is handled below.
 
         while matches!(self.peek(), Some(b'0'..=b'9')) {
             self.pos += 1;
@@ -597,14 +600,12 @@ impl<'a> Lexer<'a> {
         let mut is_float = false;
 
         if self.peek() == Some(b'.') {
-            // Only treat `.` as decimal if followed by a digit (avoids
-            // grabbing token-terminating punctuation).
-            if matches!(self.peek_at(1), Some(b'0'..=b'9')) {
-                is_float = true;
+            // clj accepts both `.5` and `5.`. Spec says a present fractional
+            // part must have a digit; we follow the oracle and report it.
+            is_float = true;
+            self.pos += 1;
+            while matches!(self.peek(), Some(b'0'..=b'9')) {
                 self.pos += 1;
-                while matches!(self.peek(), Some(b'0'..=b'9')) {
-                    self.pos += 1;
-                }
             }
         }
 
@@ -654,10 +655,18 @@ impl<'a> Lexer<'a> {
                         .map_err(|_| Error::at(start, ErrorKind::InvalidNumber(body.into())))?;
                     Ok(Token::Float(f))
                 } else {
-                    let i: i64 = body
-                        .parse()
-                        .map_err(|_| Error::at(start, ErrorKind::InvalidNumber(body.into())))?;
-                    Ok(Token::Integer(i))
+                    match body.parse::<i64>() {
+                        Ok(i) => Ok(Token::Integer(i)),
+                        Err(_) if is_integer_digit_run(body) => {
+                            // Spec: integers are arbitrary precision. clj reads
+                            // i64::MAX+1 as a BigInt (`…N`); we used to refuse.
+                            Ok(Token::BigInt(body))
+                        }
+                        Err(_) => Err(Error::at(
+                            start,
+                            ErrorKind::InvalidNumber(body.into()),
+                        )),
+                    }
                 }
             }
         }
@@ -667,6 +676,13 @@ impl<'a> Lexer<'a> {
 // Predicate helpers (`is_symbol_start`, `is_symbol_continue`,
 // `is_whitespace`, `hex_value`) live in `crate::vocab` so the
 // lexer and writer share one source of truth.
+
+/// Digit run with optional leading `+`/`-` — the integer grammar, used to
+/// distinguish i64 overflow (promote to BigInt) from a malformed number.
+fn is_integer_digit_run(s: &str) -> bool {
+    let digits = s.strip_prefix('+').or_else(|| s.strip_prefix('-')).unwrap_or(s);
+    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+}
 
 fn decode_utf8_char(bytes: &[u8]) -> std::result::Result<(char, usize), String> {
     if bytes.is_empty() {

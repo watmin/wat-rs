@@ -153,9 +153,11 @@ fn rejects_plus_digit_name() {
 // ─── CRIT-6: leading-dot-then-digit ─────────────────────────────
 
 #[test]
-fn rejects_dot_digit_symbol() {
-    assert!(parse(".5").is_err());
-    assert!(parse(".0").is_err());
+fn leading_dot_digit_is_a_float() {
+    // `.5` is a float (clj). The spec's "if `.` is first, second must be
+    // non-numeric" rule is about *symbols*; a digit second makes it a number.
+    assert!(matches!(parse(".5").unwrap(), Value::Float(_)));
+    assert!(matches!(parse(".0").unwrap(), Value::Float(_)));
 }
 
 #[test]

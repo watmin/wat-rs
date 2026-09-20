@@ -30,6 +30,8 @@ pub enum ErrorKind {
     UnclosedMap,
     UnclosedSet,
     OddMapElements,
+    DuplicateMapKey,
+    DuplicateSetElement,
     Utf8(String),
     TagWithoutElement(String),
     UserTagMissingNamespace(String),
@@ -58,6 +60,8 @@ impl std::fmt::Display for ErrorKind {
             UnclosedMap => f.write_str("unclosed map"),
             UnclosedSet => f.write_str("unclosed set"),
             OddMapElements => f.write_str("map literal must have an even number of forms"),
+            DuplicateMapKey => f.write_str("duplicate key in map literal"),
+            DuplicateSetElement => f.write_str("duplicate element in set literal"),
             Utf8(s) => write!(f, "invalid UTF-8: {}", s),
             TagWithoutElement(s) => write!(f, "tag {} has no following element", s),
             UserTagMissingNamespace(s) => {
