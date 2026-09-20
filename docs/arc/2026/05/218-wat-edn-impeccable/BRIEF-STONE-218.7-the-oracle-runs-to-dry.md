@@ -231,7 +231,24 @@ right directional doctrine already written into its header:
 > examine it — a wat superset of valid EDN is allowed (exempt it with a reason), accepting invalid
 > EDN is a bug."*
 
-**Nothing about that needs changing. The corpus is the hole:**
+⛔⛔ **THAT DOCTRINE SENTENCE IS NOW WRONG AND YOU MUST FIX IT — see the builder's ruling above.**
+`clojure.edn` accepts **quote, metadata and multi-slash symbols**, none of which EDN sanctions, so
+*"wat must accept everything clj accepts"* would drag the EDN layer toward being a Clojure reader.
+**Rewrite the header to three categories**, then make the ward enforce them:
+
+| category | meaning | example |
+|---|---|---|
+| `clj:OK / wat:OK`, `clj:ERR / wat:ERR` | parity | most rows |
+| `clj:OK / wat:ERR` | **a wat bug**, UNLESS the construct is not EDN | `a:b` (bug) vs `'x` (not EDN) |
+| `clj:ERR / wat:OK` | **a wat bug** — we accept invalid EDN — unless exempted with a reason | `{:a 1 :a 2}` (bug) vs unknown tag (exempt) |
+| ⭐ **NEW: `clj:OK / wat:ERR` and NOT EDN** | **CORRECT.** clj's superset, deliberately refused. | `'x`, `^:m x` |
+
+⛔ **The new category needs the same discipline as `exemption()`: each entry names the spec clause
+that makes the construct non-EDN.** "It feels like Clojure" is not a reason. Without that rule the
+third category becomes a place to hide real bugs.
+
+**The ward's SHAPE is right — differential, golden-backed, runs without Clojure. The corpus is the
+other hole:**
 
 ```
 corpus.txt: 72 hand-written cases
@@ -265,8 +282,9 @@ Enumerate systematically, from the spec's own structure. At minimum:
 
 ⚠ **A generator with no negative controls will happily generate only what we already accept.**
 
-**2 — REGENERATE the golden against real `clojure.edn`.** The builder has `clj` installed as of
-today, so `regen.clj` runs. ⛔ **Do not hand-write a golden verdict. Ever.** The whole value of the
+**2 — REGENERATE the golden against real `clojure.edn`.** ⭐ **`clj` is at `/usr/local/bin/clj`
+(Clojure 1.12.4) ON THIS MACHINE — run it yourself.** The orchestrator asked the builder to run three
+REPL lines it could have run itself; do not repeat that. `regen.clj` runs as documented. ⛔ **Do not hand-write a golden verdict. Ever.** The whole value of the
 ward is that a human never decides what is legal.
 
 **3 — LOOP TO DRY.** Grow → regen → run → fix or exempt → repeat, until a generation round finds
