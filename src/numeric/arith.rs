@@ -76,6 +76,46 @@ where
     }
 }
 
+/// The one-operand twin of `eval_i64_arith`, for `:wat::i64::bit-not`.
+///
+/// It exists because the two-operand helper arity-checks for exactly two, and the obvious
+/// dodge — handing it the same argument twice — would EVALUATE THAT ARGUMENT TWICE. For
+/// `(bit-not (some-call))` that is a second call, and any side effect it carries happens
+/// again. One operand, evaluated once.
+pub(crate) fn eval_i64_unary<F>(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: F,
+) -> Result<Value, EvalBreak>
+where
+    F: Fn(i64) -> i64,
+{
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch { op: head.into(), expected: 1, got: args.len() },
+        )
+        .into());
+    }
+    let a_span = args[0].span().clone();
+    let a = eval_inner(&args[0], env, sym)?;
+    match a.value() {
+        Value::i64(x) => Ok(Value::i64(op(*x))),
+        other => Err(RuntimeError::new(
+            a_span,
+            RuntimeErrorKind::TypeMismatch {
+                op: head.into(),
+                expected: "i64",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
 // ─── Arc 255 Stone A-i — the SHARED i64 op fns ─────────────────────────────
 //
 // Named, `pub(crate)` op fns for `+ - * / mod quot rem`, factored out of what

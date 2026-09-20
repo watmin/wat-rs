@@ -18627,6 +18627,15 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::i64::mod",
         ":wat::i64::rem",
         ":wat::i64::quot",
+        // Arc the-little-wat — clj's bitwise six of (i64,i64)->i64 shape. `bit-not` is unary
+        // and is registered separately below. These are TOTAL: a bit shifted off the top is
+        // not overflow, so unlike +/-/* they have no error channel at all.
+        ":wat::i64::bit-and",
+        ":wat::i64::bit-or",
+        ":wat::i64::bit-xor",
+        ":wat::i64::bit-shift-left",
+        ":wat::i64::bit-shift-right",
+        ":wat::i64::unsigned-bit-shift-right",
     ] {
         env.register(
             op.to_string(),
@@ -18638,6 +18647,16 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // clj's `bit-not` — the one unary member of the bitwise family
+    env.register(
+        ":wat::i64::bit-not".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
     // Float arithmetic — strict f64 × f64 → f64 under the
     // `:wat::core::f64` namespace. Stone 237.8b — drop '2 suffix.
     for op in &[
