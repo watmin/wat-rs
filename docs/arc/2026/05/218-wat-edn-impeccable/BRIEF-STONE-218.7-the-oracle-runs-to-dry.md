@@ -86,7 +86,83 @@ first. Size what depends on that before changing it.
 
 ---
 
-## ⛔⛔ THE ONE QUESTION AN EXECUTOR CANNOT ANSWER — IT CHANGES THE STONE'S SIZE
+## ✅ THE BUILDER RULED IT (2026-09-19) — TWO LAYERS, EACH CORRECT AT ITS OWN JOB
+
+> *"wat-edn needs to be a correct edn impl."*
+> *"this is screaming wat's source code is not edn.. its code.... so.... we need another extension…
+> let's just get our edn tooling corrected and wat's reader to be correct to handle macros and
+> whatever."*
+
+**The ruling, as the orchestrator reads it** (⚠ builder corrects if wrong):
+
+| layer | is | must |
+|---|---|---|
+| **`wat-edn`** | the **EDN data** reader | be **spec-correct EDN**. NOT `clojure.edn` parity — `clojure.edn` is itself a superset (it reads quote, metadata, multi-slash). |
+| **`wat-reader`** | the **wat code** reader | be a correct **Clojure-dialect** reader: EDN **plus** wat's reader macros. |
+
+⛔ **This kills the ward's doctrine sentence as written.** *"wat must accept everything clj accepts"*
+is the wrong obligation for `wat-edn`, because `clojure.edn` accepts things EDN does not. The ward
+needs a **third category**: *"clj accepts, we deliberately refuse, because it is not EDN."*
+
+### ⭐ RE-TRIAGE UNDER THE RULING — 6 bugs, 3 rulings, 2 we get RIGHT
+
+| row | clj | wat-edn | verdict under "spec-correct EDN" |
+|---|---|---|---|
+| `9223372036854775808` | OK | ERR | ⛔ **BUG** — spec: integers are arbitrary precision |
+| `123456789012345678901234567890` | OK | ERR | ⛔ **BUG** — same; `num-bigint` already a dep |
+| `a:b` | OK | ERR | ⛔ **BUG** — *"`: #` are allowed as constituent characters… other than as the first"* |
+| `a#b` | OK | ERR | ⛔ **BUG** — same sentence |
+| `{:a 1 :a 2}` | ERR | **accepts** | ⛔ **BUG** — *"Each key should appear at most once"* |
+| `#{1 1}` | ERR | **accepts** | ⛔ **BUG** — *"A set is a collection of unique values"* |
+| `'x` | OK | ERR | ✅ **CORRECT** — quote is not EDN; it belongs to `wat-reader` |
+| `^:m x` | OK | ERR | ✅ **CORRECT** — metadata is not EDN; `wat-reader`'s |
+| `a/b/c` | OK | ERR | ⚠ **RULING** — spec: `/` *"can be used once only"*. clj is lenient. Strict ⇒ we are right. |
+| `clojure.core//` | OK | ERR | ⚠ **RULING** — two `/`, but the name part IS `/`. Spec is genuinely ambiguous here. |
+| `#inst "1985-04-12"` | OK | ERR | ⚠ **RULING** — spec says RFC-3339; a bare date is not a timestamp. clj promotes it. |
+| `#myapp/Person {…}` | ERR | accepts | ✅ already exempted, with reason |
+
+⭐ **Two rows flipped from "bug" to "correct" purely by the ruling.** That is the measure of how much
+the doctrine question was worth: an executor guessing parity would have implemented quote and
+metadata in the EDN layer and pushed `wat-edn` toward being a Clojure reader — the wrong direction.
+
+⚠ **`a/b/c` matters beyond this crate.** The builder's first-slash ruling tolerates multi-slash names
+in **wat source**. Under the two-layer split that is consistent: `wat-reader` tolerates them,
+`wat-edn` (strict) refuses them, and wat source is **code, not EDN**, so nothing is violated.
+
+## ⛔ NOT-NOW, RECORDED SO IT IS NOT LOST
+
+- **The file extension.** `.wat` collides with **WebAssembly Text**. The builder was going to mass-
+  rename to `.edn` and ruled against it on this measurement: *"wat's source code is not edn.. its
+  code."* ⛔ **`.edn` would be a claim that is 2% true today and would still be wrong at 100%,** for
+  the same reason Clojure ships `.clj` and not `.edn`. **A new extension is owed; it is deferred.**
+  ⚠ Blast radius, measured: **1,274 hardcoded `.wat` occurrences across 307 `.rs` files**, 1,326
+  `.wat` files referencing `.wat`, plus `extension() == Some("wat")` checks in at least 4 load-bearing
+  places (`distribution/staleness.rs:138`, `host/test_runner.rs:585`, `wat-macros/discover.rs:265`).
+- **Regex is COMING.** Builder: *"wat very limited regex support, it will be necessary later. wat is
+  meant to be a general purpose lang, regex needs to be in there."* `#"…"` is **not EDN**
+  (`No dispatch macro for: "`). ⛔ **Nobody may argue "wat source is EDN" as a durable property** —
+  regex will break it by design. It is `wat-reader`'s, never `wat-edn`'s.
+- **Ruled OUT:** `#(…)` anonymous-fn shorthand, and `#'` var-quote (*"i don't like what `#'` actually
+  does"*).
+
+## ⭐ WHAT WAT ACTUALLY USES THAT IS NOT EDN — measured, and it is ONE family
+
+Every Clojure reader construct, tested against `clojure.edn`, then censused over the corpus
+(comments stripped):
+
+| construct | EDN? | wat files |
+|---|---|---|
+| `'x` quote · `^:m` meta · `#_` discard · `#{}` · `#inst` | ✅ EDN-OK | — |
+| **`` ` `` `~` `~@`** quasiquote family | ❌ `Invalid leading character` | ⛔ **105 files (union)** |
+| `@` deref | ❌ | **0** — all 34 hits were string literals (`"… @ {size}"`) |
+| `#"…"` regex | ❌ | **0 today** — all 9 hits were string literals (`:sk-lo "#"`). **Coming.** |
+| `#(…)` · `#'` | ❌ | **0** — and both ruled out |
+
+⭐ **wat's ONLY non-EDN construct today is the quasiquote family, in 105 files.** Everything else the
+language uses is already EDN. ⚠ The 105 is comment-stripped but **not** string-stripped; treat it as
+a near-bound, and derive the real list from the reader, not from grep.
+
+## ⛔ THE SUPERSEDED QUESTION (kept for the record)
 
 Rows 8 and 9 are the problem. **`clojure.edn` reads `'x` and `^:m x`** — quote and metadata are
 **Clojure reader features, not EDN**. The ward's doctrine says, verbatim:
