@@ -178,7 +178,16 @@ reported a bug that may not be one — the spec says `/` "can be used once only"
 carries the same false claim. **Two careful readings of four spec sentences produced two opposite
 wrong answers**, which is why the cure is the differential oracle, not more reading.
 
-⭐ **Brief drawn: `docs/arc/2026/05/218-wat-edn-impeccable/BRIEF-STONE-218.7-the-oracle-runs-to-dry.md`.**
+✅ **218.7 LANDED** (stone `fccc7b45d`, fold inside it). Floor 5921/5921, clippy 0, census `no STOP-8`.
+Corpus **72 → 190, GENERATED** (`generate_corpus.py`), golden regenerated against real `clj` and
+**verified byte-identical by the orchestrator's own run**; looped to **dry** (round 3: 0 new).
+Fixed: i64→BigInt promotion, duplicate map keys, duplicate set elements, and — found BY the oracle —
+`.5`/`5.` as floats. Refused with named spec clauses: quote, metadata, multi-slash, date-only
+`#inst`, `\ `. ⛔ **Arc 219 STANDS** (not reverted, as instructed); blast measured at **0 real
+`a:b`/`a#b` identifiers**, so re-permitting is free whenever the builder rules — the 154k `::`
+keyword tokens are 8d's, not 219's. **The ward was proven to CATCH**, not merely pass.
+
+⭐ Brief: `docs/arc/2026/05/218-wat-edn-impeccable/BRIEF-STONE-218.7-the-oracle-runs-to-dry.md`.
 The clj-differential ward already exists and is correctly designed; its **corpus is 72 hand-written
 cases** with every failing case absent and zero multi-slash or big-int rows. The stone is to
 **generate** the corpus and run the ward **to dry**. ⛔ It also records that **arc 219's premise does

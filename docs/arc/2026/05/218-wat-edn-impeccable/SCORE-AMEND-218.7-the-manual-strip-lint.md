@@ -32,3 +32,44 @@ if let Some(body) = t.strip_prefix(':') {
   `every_exemption_names_a_reason` and `wat_edn_matches_clj_oracle` both ok.
 
 Floor + workspace clippy + census: **not run** (brief: orchestrator, uncontended). Do not push. 8d does not start.
+
+---
+
+# ORCHESTRATOR'S WEIGH — independent re-run, 2026-09-20
+
+| row | result |
+|---|---|
+| `scripts/floor.sh` | ✅ **5921/5921 passed** (3 slow), 22 skipped, exit 0 |
+| clippy `-D warnings --all-targets --workspace` | ✅ **0** |
+| `census.sh --diff` | ✅ `no STOP-8` |
+| fold is INSIDE the stone | ✅ **no commit after `fccc7b45d` touches `clj_oracle_parity.rs`** |
+| no published history rewritten | ✅ `origin/main` is an ancestor; **0** `refs/original` refs |
+| no `#[allow]` smuggled | ✅ `&t[1..]` gone tree-wide; `strip_prefix` form, `::foo` short-circuit intact |
+| golden is the ORACLE'S | ✅ regenerated with `/usr/local/bin/clj` — **byte-identical** |
+| corpus generator idempotent | ✅ byte-identical, 190 rows |
+| 19 behavioural rows (4 fixes · 7 spec-strict refusals · 6 non-vacuity controls) | ✅ 19/19 |
+| **the ward CATCHES** | ✅ injected `ERR\t42` → RED `"42" clj:ERR wat:OK`; restored → green |
+
+## ⚠ THE ORCHESTRATOR RAN A PROBE THAT COULD NOT FAIL — recorded, not hidden
+
+Re-proving the ward after the classifier rewrite, the orchestrator flipped **`a:b`**'s golden verdict
+`OK`→`ERR` and expected a red. **The ward passed, and that was nearly filed as a finding
+("exemptions mask the row").**
+
+**The probe was mis-aimed.** `a:b` is `clj:OK / wat:ERR`. Flipping the golden to `ERR` makes it
+`clj:ERR / wat:ERR` — **artificial parity** — so the loop `continue`s at `if wat == clj` and never
+reaches `exemption()`. The ward behaved correctly; the probe asserted nothing.
+
+⛔ **Second occurrence this session of `[[feedback_a_green_from_a_mis_aimed_probe_is_indistinguishable_from_a_working_gate]]`** —
+in a session where the orchestrator wrote that exact warning into another brief. The valid probe
+flips a **parity** row (`42`), and that one goes red.
+
+## One real, MINOR weakness — reported, not fixed
+
+An **exempted** row is skipped once verdicts differ, so if `clojure.edn`'s verdict ever changes such
+that a divergence *disappears*, the row becomes plain parity and the exemption lingers **with no
+signal**. Stale exemptions are therefore undetectable. This is housekeeping, not a correctness hole:
+every *unexempted* divergence is still caught, proven above. A cure would assert that each
+`exemption()` entry corresponds to an actual current divergence. **Not in this stone.**
+
+**VERDICT: ACCEPTED.** Pushing.
