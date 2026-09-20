@@ -161,6 +161,33 @@ Those two items are **already designed**, as the last two stones of arc 251's ca
 | **8a-ii** the binder namespace unforgeable | refused at the READER — no-form, not a check | ✅ landed |
 | **8b** invert the normalizer | `Identifier` stores `(ns, name)` — ✅ `71c9f2f58`. ⚠ **The INVERSION half may still be owed**: `resolve/normalize.rs` still reads as Symbol→Keyword ("normalize all namespaced symbol refs"). **Confirm before drawing 8c.** | ⚠ partial |
 | **8c** **close the check hole (#95)** | ✅ **LANDED `bc93125aa`, pushed.** Floor 5919/5919, clippy 0, census `no STOP-8`. ⛔ **The REAL cause was neither the design's nor the brief's:** `check_program` walked **pre-normalization `FunctionBody` snapshots**, so the class was **every namespaced-symbol call inside a function body**. Fix: normalize stored bodies after residue normalization — one path, no second dispatch. Verified on main: `(user/f "boom")` → `TypeMismatch ":user::f: parameter #1 expects i64; got String"`, **byte-identical to the colon spelling**. | ✅ |
+### ⚠ 2026-09-19 — THE EDN SOURCE OF TRUTH IS IN QUESTION (builder's pivot)
+
+Builder: *"there must be only one source of truth for edn compliance… our pivot is attack wat-edn
+crate as its correctness is now in question."*
+
+**Measured:** `wat-edn` and `wat-reader` are **two different languages**, diverging on **12 of 29**
+probed cases in BOTH directions. `wat-reader` implements no `#` dispatch beyond `#{}`, so **wat
+cannot read back the EDN it prints** — `#wat.core/Span {…}` reads as 2 forms (a symbol literally
+named `"#wat.core/Span"`, then a map). `wat-edn` deviates from the EDN spec on 4 confirmed rows
+(`a:b`, `a#b` refused — the spec allows `: #` as non-first constituents; duplicate map keys and set
+elements accepted AND KEPT, since `Map` is a `Vec` of pairs).
+
+⛔ **The orchestrator asserted a spec sentence that does not exist** (*"as is `clojure.core//`"*) and
+reported a bug that may not be one — the spec says `/` "can be used once only". `value.rs:312`
+carries the same false claim. **Two careful readings of four spec sentences produced two opposite
+wrong answers**, which is why the cure is the differential oracle, not more reading.
+
+⭐ **Brief drawn: `docs/arc/2026/05/218-wat-edn-impeccable/BRIEF-STONE-218.7-the-oracle-runs-to-dry.md`.**
+The clj-differential ward already exists and is correctly designed; its **corpus is 72 hand-written
+cases** with every failing case absent and zero multi-slash or big-int rows. The stone is to
+**generate** the corpus and run the ward **to dry**. ⛔ It also records that **arc 219's premise does
+not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence permitting them.
+**The ruling stands until the builder rules; do not revert it.**
+
+⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
+highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
+
 | **8d** **the reader/printer flip** | ⭐ **BRIEF DRAWN + PRE-FLIGHTED** `BRIEF-STONE-251.8d-the-corpus-flip.md`. ⛔ **The tool ALREADY EXISTS** (`to-faithful-clojure.wat` → `:wat::fix::fix-text`), works, idempotent — 8d is *"make the migration survive the corpus"*, not *"write the migration"*. **Corpus census, all 2,140 files: 2,021 OK · 99 class-B · 20 class-C · 0 class-A.** Real size: **67,065 source lines** across 2,021 files. ⛔ **THE SEAM'S OLD NUMBERS WERE ALL WRONG** (said 169,845 `::` over 2,440 of 2,483 files; truth is 2,190 tracked, 2,140 to flip). Proposed as 3 stones — builder rules the split. | ⭐ **NEXT** |
 
 ### ✅ THE HOLE IS CLOSED (8c landed 2026-09-19) — and BOTH prior diagnoses were wrong
