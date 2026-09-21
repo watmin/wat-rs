@@ -207,6 +207,30 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.6 LANDED 2026-09-21 — rete's `:when` adopts the door. **Delta 66 → 61**
+
+Floor 5953/5953, clippy 0, census clean, 0 corpus `.wat` converted.
+⭐ **Two independent deltas agreed EXACTLY** — 66 → 61, and the classification matched row for row
+(UR 23 · rete 16 · defsurface 8 · programbody 3 · unknown 1). A first for this arc.
+**`canonical_identity` is now rete's clause-head / fact-bind-type / constraint-head key** — one
+dispatch, Keyword or Symbol, ⛔ **not a second Symbol arm**.
+⭐ **Non-vacuity held:** `(?k <- :k)` is **still `MalformedClause`**; the symbol head is legal, the
+retired arrow is not.
+
+⛔ **TWELFTH CORRECTION — the brief was wrong.** It said *"ask the registry, `is_known_type`"*, but
+`classify_rete_clause` is documented *"Independent of TypeEnv, by SHAPE alone"*. The executor
+canonicalized **first** and kept the `::` test, because a namespaced type has `::` after canonical
+identity and a field does not. **Same discriminator, spelling-independent, module independence
+preserved.**
+
+⭐ **"Measure before touching" found a FAIL-OPEN nobody asked about:** `check_fence_interior` was
+Keyword-only and **silently skipped** let/match shadow checks and constraint typing on converted
+interiors. **Skipped, not failing.** Wired through the same door.
+
+⛔ **NEXT — the remaining 16 are `:then`, not `:when`:** `validate_then_form` requires
+`fact_items[0]` to be a `WatAST::Keyword`. A **fourth** keyword-only slot, sibling of the three this
+stone routed. Confirmed **not** synthesised — source literals only.
+
 ### ✅ 251.8d-i-b LANDED 2026-09-21 — **the arrow is GONE for rete binds.** Delta baseline now **66**
 
 Floor 5946/5946, clippy 0, census clean.

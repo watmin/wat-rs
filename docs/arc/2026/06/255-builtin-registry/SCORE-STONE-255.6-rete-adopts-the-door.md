@@ -117,3 +117,71 @@ Predicted **+7** (4 dual-spelling + 1 clojure constraint-head + 2 freeze probes)
 - `probe_arc255_6_rete_adopts_the_door` (accept + retired-arrow refuse) — pass
 
 Floor / workspace clippy / census: orchestrator. Do not push. Do not start 8d-ii.
+
+---
+
+# ORCHESTRATOR'S WEIGH — independent re-run, 2026-09-21. **ACCEPTED.**
+
+| row | result |
+|---|---|
+| `scripts/floor.sh` | ✅ **5953/5953 passed**, exit 0 |
+| clippy `-D warnings --all-targets --workspace` | ✅ **0** |
+| `census.sh --diff` | ✅ `no STOP-8` |
+| no corpus `.wat` converted | ✅ **0** |
+| ⭐ **THE DELTA — my tree, freshly re-converted** | **66 → 61.** Classification matches the SCORE **row for row**: UR 23 · rete 16 · defsurface 8 · programbody 3 · unknown 1 |
+
+⭐ **Two independent measurements, identical numbers AND identical classification.** That has not
+happened before in this arc — earlier stones agreed on direction and net but not on every row.
+
+## ⭐ NON-VACUITY BOTH WAYS — the widening did not leak
+
+```
+(vrm/F (?k <- :k))   retired arrow  → MalformedClause   ← STILL REFUSED
+(vrm/F (?k :- :k))   current form   → accepted
+```
+
+**The symbol fact-pattern head is now legal; the retired arrow is not.** Verified on the binary,
+which is exactly what a stone that loosens a parser owes.
+
+## ⭐ THE TWELFTH CORRECTION — and the executor was right
+
+**The brief said: *"Ask the registry — `is_known_type`. Replace the character test."*** ⛔ **Wrong.**
+`classify_rete_clause` is documented *"Independent of TypeEnv, by SHAPE alone"*, and the orchestrator's
+instruction would have introduced a registry dependency into a module that deliberately has none.
+
+**What it did instead:** canonicalize **first**, then keep the `::` test — because after
+`canonical_identity` a namespaced type *has* `::` (`weather/ColdAndWindy` → `:weather::ColdAndWindy`)
+and a field `:k` does not. ⭐ **Same discriminator, now spelling-independent, module independence
+preserved.** Better than the instruction, and it said so plainly.
+
+## ⭐ "MEASURED, THEN TOUCHED" — and it found a FAIL-OPEN
+
+The brief flagged `expr_is_provably_boolean` as *"same gate, different question — measure before
+touching."* It measured, and found **more than asked**:
+
+| site | measured | acted |
+|---|---|---|
+| `expr_is_provably_boolean` | converted `:where` interiors do **not** reach it today, but **would** after head unification — a Keyword-only gate there is a **silent `false`** | wired through the same door |
+| ⭐ **`check_fence_interior`** | converted interiors **do** reach it, and Keyword-only **FAIL-OPENED** — silently skipping let/match shadow checks and constraint typing | wired through the same door |
+
+⛔ **A fail-open is worse than a red**: the checks were being skipped, not failing. **That was not in
+the brief. Measuring found it.**
+
+## ⛔ THE FINDING — the remaining 16 are `:then`, not `:when`
+
+```
+validate_then_form: fact_items[0] must be WatAST::Keyword
+converted `(weather/ColdAndWindy :location ?loc)` → MalformedClause
+```
+
+The 5 closed files failed on **`:when`**; the 16 remaining fail on **`:then` insert heads** — a
+**fourth** keyword-only slot, the sibling of the three this stone routed. ⭐ **The brief said *"name
+it and do not force it"* and it did.** That is the fourth consecutive stone where the finding is the
+most valuable output.
+
+It also checked the generator class unprompted: `wat/query.wat` mints a fact-**bind** (already `:-`),
+and **no constructor of `(Type/Name …)` clause heads exists** — so `:then` is a source-literal
+problem, not a synthesised one.
+
+**VERDICT: ACCEPTED.** The stone met its own gate: `:when` is through the door, and the residue is
+named rather than forced.
