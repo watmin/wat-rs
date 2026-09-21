@@ -139,6 +139,29 @@ pub(crate) fn parametric_heads_unify(h1: &str, h2: &str) -> bool {
         || crate::edn::render::type_denotation(&a) == crate::edn::render::type_denotation(&b)
 }
 
+/// Reconstruct a **call-head** keyword from a clojure `ns/name` split.
+///
+/// If `ns` names a type, join with `/` (Type/method). Otherwise join with
+/// `::` (namespace-qualified function). ⛔ Do not use capitalisation — ask
+/// the registry. Identity reconstruction (`canonical_identity` /
+/// `ns_to_wat_path`) stays `::` always: a type *name* `my.Counter/Req`
+/// is not a method.
+///
+/// Last-segment-is-a-type cannot tell `:wat::core::Option/expect` (slash,
+/// 82 names) from `:wat::core::Bytes::to-hex` (`::`, 5 names) — both are
+/// `Type/member` to the joiner and different keys in the registry.
+///
+/// `edn/render.rs` cannot call `TypeEnv` (cycle: types uses canonical_identity).
+pub(crate) fn reconstruct_call_path(ns: &str, name: &str, types: &TypeEnv) -> String {
+    // rune:lint(one-variant-separator, namespace) — ns dots → `::`; method join is `/` or `::`
+    let ns_kw = format!(":{}", ns.replace('.', "::"));
+    if types.is_known_type(&ns_kw) {
+        format!("{ns_kw}/{name}")
+    } else {
+        crate::edn::render::ns_to_wat_path(ns, name)
+    }
+}
+
 /// STONE-defservice-emits-the-binder (arc 109) — the ONE renderer for a parametric type
 /// reference's surviving spelling, `check::format_type`'s companion the way
 /// `parametric_head_fqdn` is `TypeExpr::Parametric.head`'s. `head` is already prefixed
@@ -7315,6 +7338,24 @@ mod tests {
     /// `BARE_CONTAINER_HEADS` directly (never a transcribed copy), so this test
     /// cannot drift from `check.rs`'s own source of truth: any future addition
     /// to either const is automatically covered.
+    #[test]
+    fn stone_255_3_registry_decides_the_join() {
+        let env = TypeEnv::with_builtins();
+        assert_eq!(
+            reconstruct_call_path("wat.core.Option", "expect", &env),
+            ":wat::core::Option/expect"
+        );
+        assert_eq!(
+            reconstruct_call_path("wat.core", "map", &env),
+            ":wat::core::map"
+        );
+        // Identity of a type name stays `::` — not this door.
+        assert_eq!(
+            crate::edn::render::canonical_identity("wat.core/Option"),
+            ":wat::core::Option"
+        );
+    }
+
     #[test]
     fn stone_255_1_wat_type_has_members() {
         let env = TypeEnv::with_builtins();

@@ -9,13 +9,12 @@
 //!
 //! ## Mapping
 //!
-//! Given `a.b/c` — split on the LAST `/` → ns=`a.b`, name=`c` — the keyword FQDN is
-//! `ns_to_wat_path(ns, name)` = `:` + ns(`.`→`::`) + `::` + name
-//! (`wat.core/+` → `:wat::core::+`). If it passes the resolution predicate the symbol
-//! rewrites to that keyword; otherwise a located error names the unknown entity. There
-//! is NO `Type/member` fallback — see the NOTE in `resolve_namespaced_symbol` for why a
-//! `/`-preserving candidate is structurally unreachable, and the named latent gap for
-//! type-member symbol heads.
+//! Given `a.b/c` — split on the LAST `/` → ns=`a.b`, name=`c` — the **call-head**
+//! keyword is `reconstruct_call_path`: last namespace segment a
+//! known type → join with `/` (`wat.core.Option/expect` → `:wat::core::Option/expect`);
+//! otherwise `ns_to_wat_path` (`wat.core/+` → `:wat::core::+`). Identity of a type
+//! *name* stays `::` always — that door cannot see call vs name position. See the
+//! NOTE in `resolve_namespaced_symbol`.
 //!
 //! ## Special-form boundary discipline
 //!
@@ -503,9 +502,12 @@ fn resolve_namespaced_symbol(
     let namespace = wat_reader::identifier::receiver(symbol_text);
     let local_name = wat_reader::identifier::method(symbol_text);
 
-    // `ns_to_wat_path` replaces `.` with `::` and joins with `::`:
-    // `wat.core/+` → `:wat::core::+`.
-    let primary = ns_to_wat_path(namespace, local_name);
+    // 255.3 — the registry decides the join. `wat.core/map` → `::`;
+    // `wat.core.Option/expect` → `/` because `Option` is a type.
+    let primary = match sym.types() {
+        Some(env) => crate::types::reconstruct_call_path(namespace, local_name, env),
+        None => ns_to_wat_path(namespace, local_name),
+    };
 
     if is_resolvable_call_head(&primary, sym, macros) {
         return Ok(WatAST::Keyword(primary, span.clone()));
@@ -532,21 +534,11 @@ fn resolve_namespaced_symbol(
         return Ok(WatAST::Keyword(primary, span.clone()));
     }
 
-    // NOTE — there is intentionally NO `Type/member` fallback (purgare, 251.1b ward).
-    // A `/`-preserving candidate (`:wat::core::HashMap/length`) is structurally
-    // unreachable: for any `:wat::`/`:rust::` head the PRIMARY already passes
-    // `is_resolvable_call_head` via the reserved-prefix shortcut (it accepts the
-    // namespace without leaf validation), so primary-fail never happens for the
-    // reserved namespaces; and non-reserved entities register under `:ns::name`
-    // keys (never `:ns/name`), so a `/`-shaped candidate matches nothing there either.
-    // LATENT GAP, named not buried: a type-member SYMBOL head (`wat.core.HashMap/length`)
-    // normalizes to `:wat::core::HashMap::length`, which passes resolve but is NOT the
-    // runtime op (`:wat::core::HashMap/length`), so it would not dispatch. No current
-    // program uses symbol-head type-members — the corpus is keyword-spelled.
-    // rune:exigere(attested-arc) — correct `Type/member` symbol normalization lands when
-    // symbol-head type-members first appear, at arc 251 stone 251.5 (HARD-CUT the
-    // keyword-as-type/operator surface); DESIGN at
-    // docs/arc/2026/06/251-types-as-forms/DESIGN.md.
+    // 255.3 — `reconstruct_call_path` is the Type/member join for a *call* symbol.
+    // Last-segment-is-a-type is necessary and not sufficient: the wire has two
+    // live member joins (`:wat::core::Option/expect` vs `:wat::core::Bytes::to-hex`)
+    // and this door cannot tell them apart. Name/annotation position is a
+    // different class (position grammar), not a second join.
 
     // Primary did not resolve → located error naming the unknown entity.
     Err(UnresolvedReference {
