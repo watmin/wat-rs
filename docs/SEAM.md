@@ -207,6 +207,21 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.1 LANDED 2026-09-21 — identity is the pair. **8d STILL BLOCKED.**
+
+Floor 5936/5936, clippy 0, census clean, no `.wat` converted. **Delta 104 → 97.**
+⭐ Bought: `canonical_identity` (one door, both spellings, one key) · **`wat.type` is REAL**, members
+**derived from denotation** so a future core builtin joins automatically · `one_param_spec` **routed,
+not runed** (`is_binder_marker` moved to `wat-reader`) · **one position, not two** — a call-position
+`wat.type/Vector` now checks · `Infer` kept a marker via a **wall exemption**, after the executor
+reported that denotation *cannot* express "reachable but not a type".
+
+⛔ **RESIDUE ON THE 97 — what 255.2 owes:** `unresolved reference` **66** (gaps 3a+3b, untouched) ·
+`ReteCheckErrors` 12 · ⭐ **`defsurface` declaration 11 — a form the brief never listed (154 files)**
+· `ProgramBodyEvalFailed` 3 · other 3.
+⚠ The count moves slowly because a file with two gaps stays red until both close: gap 1 is CLOSED,
+gap 2 went 54 → 3. **255.2 must DERIVE the declaration-form set, not extend the list by one.**
+
 ### ⛔⛔ 2026-09-20 — 8d IS BLOCKED. THE REGISTRY GOES FIRST. (builder's ruling)
 
 **8d's premise — *"a spelling change over a substrate that already type-checks both"* — is FALSE.**

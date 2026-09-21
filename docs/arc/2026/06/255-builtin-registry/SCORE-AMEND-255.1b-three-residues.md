@@ -66,3 +66,60 @@ at unify/format keeps origin for non-members.
 
 Floor + workspace clippy + census + 19-name sweep + 179-file delta: **not run**.
 Do not push. Do not start 8d-ii.
+
+---
+
+# ORCHESTRATOR'S WEIGH — independent re-run, 2026-09-21. **ACCEPTED.**
+
+| row | result |
+|---|---|
+| `scripts/floor.sh` | ✅ **5936/5936 passed** (8 slow), exit 0 |
+| clippy `-D warnings --all-targets --workspace` | ✅ **0** |
+| `census.sh --diff` | ✅ `no STOP-8` |
+| no `.wat` converted | ✅ 1 file touched, **A**dded (`probe_255_1_wat_type_membership.wat`) — a fixture |
+| the 19 codemod-emitted `wat.type` names | ✅ **0 failures** |
+| ⭐ **one position, not two** | ✅ call `rc=0`, annotation `rc=0`, non-member `rc=1` |
+| ⭐ **THE GATE — 179-file delta** | **104 → 101 → 97** |
+
+## ⭐ WHAT THIS STONE ACTUALLY BOUGHT
+
+- **Identity is the pair.** `canonical_identity` — one door, both spellings in, one key out.
+- **`wat.type` is REAL**, and membership is **derived from denotation**, not hand-listed: *"a future
+  core builtin is a wat.type member automatically."* That is the right shape and it is why the 19
+  names now pass.
+- **`one_param_spec` was routed, not runed** — `is_binder_marker` moved into `wat-reader` as the
+  shared door. A second `:-` recogniser is what this arc exists to delete; the executor refused the
+  cheap escape.
+- **`Infer` came apart from membership.** Asked whether the derivation could express *"reachable but
+  not a type"*, the executor answered **no** and said so, then made annotation-acceptance a **wall
+  exemption** (same class as type vars) instead of forcing it. **That is the reporting this brief
+  asked for, and it is rarer than a fix.**
+- **Two freeze hazards documented at their sites** — a rust-scheme path must not be
+  clojure-round-tripped; a *rendered* form starting with `(` must not be prefixed.
+
+## ⛔ 8d IS STILL BLOCKED — the residue, classified on the 97
+
+| cause | n | status |
+|---|---|---|
+| **`unresolved reference`** — gaps 3a + 3b | **66** | ⛔ **untouched by this stone, exactly as predicted** |
+| `ReteCheckErrors` | 12 | not identity |
+| ⭐ **`malformed :wat::core::defsurface` declaration** | **11** | ⛔ **a declaration form the brief never listed** |
+| `ProgramBodyEvalFailed` (gap 2 tail) | 3 | 54 → 3 → 3 |
+| other (`expected …`, `UnknownNamedType`) | 3 | |
+
+⚠ **THE COUNT MOVES SLOWLY AND THAT IS NOT A FAILURE.** A file carrying two gaps stays red until
+both close, so 104 → 97 understates the work: gap 1 is **closed**, gap 2 went **54 → 3**. The
+executor said this first — *"the regression count is not the residue kind"* — and it was right.
+
+## ⛔ THE EIGHTH BRIEF ERROR — `defsurface`
+
+The brief enumerated `defenum`, `typealias`, `defclause`, `defrecord`, `defstruct`. **It missed
+`defsurface` — 154 files in the corpus**, now 11 of the 97. The brief's own closing line said *"my
+briefs have been corrected seven times across five stones… assume an eighth."* **This is the eighth,
+and it is the same defect the brief warned about: an enumerated list instead of a derived one.**
+`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`.
+
+⇒ **255.2 must DERIVE the set of declaration forms**, not extend the list by one.
+
+**VERDICT: ACCEPTED.** The stone did what it was drawn to do. **8d remains blocked**; the dominant
+residue is the resolution gap (66 of 97), which this stone correctly did not touch.
