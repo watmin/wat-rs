@@ -39,3 +39,66 @@ resolve lets them through and the interceptors do not swallow them.
 - crate clippy `-p wat --all-targets -D warnings` — **0**
 
 Floor / workspace clippy / census / delta: orchestrator. Do not push. Do not start 255.5.
+
+---
+
+# ORCHESTRATOR'S WEIGH — independent re-run, 2026-09-21. **ACCEPTED.**
+
+| row | result |
+|---|---|
+| `scripts/floor.sh` | ✅ **5939/5939 passed**, exit 0 |
+| clippy `-D warnings --all-targets --workspace` | ✅ **0** |
+| `census.sh --diff` | ✅ `no STOP-8` |
+| ⭐ **THE DELTA — my tree, like-for-like** | **80 → 77** |
+
+**Arc so far: 104 → 97 → 80 → 77.**
+
+**Classification (77):** `unresolved reference` **44** (was 47) · `ReteCheckErrors` 16 ·
+`defsurface` 8 · `ProgramBodyEvalFailed` 3 · other 1.
+
+## ⭐ THE TEACHING IS REAL, AND PARITY IS PROVEN — not asserted
+
+The 4b fix claimed the 17 rows now teach; 4c claimed they teach *equally*. **Both verified on the
+built binary:**
+
+```
+:wat::kernel::HandlePool::new  →  "retired; use ':wat::kernel::HandlePool/new' instead"
+   :remedies [#wat.kernel/Remedy {:form ":wat::kernel::HandlePool/new" :kind :retirement …}]
+
+:wat::core::struct (arc-241 control) →
+   :remedies [#wat.kernel/Remedy {:form ":wat::core::defstruct" :kind :retirement …}]
+```
+
+⭐ **Same structured `Remedy`, same `:kind :retirement`, both at CHECK time.** The brief's demand —
+*"one is not a lesser citizen because it arrived through a different resolution path"* — is met and
+**measurable**, not a claim in a SCORE.
+
+## ⭐ THE CURE'S SHAPE IS THE RIGHT ONE — it deleted a door rather than adding one
+
+> *"Deleted the early `infer_list` arm… Intercepting arms now **stand aside** so the existing door
+> can fire: kernel/std prefix silent-accept `&& !is_retired(k)`; rust-scheme dispatch
+> `&& !is_retired(k)`."*
+
+The interceptors were **swallowing** retired heads before the teaching door could see them. The fix
+is two guard clauses that say *"not mine"* — ⛔ **not a second consult.** And the pass-through in
+`is_resolvable_call_head` / `covers` correctly **stays**: letting a retired head survive resolution
+*so check can teach* is the opposite of a second door.
+
+⚠ It also names the precedent it followed — *"same exclusion HOME-9 already used for
+`:wat::std::stat::` / `list`"* — so the shape is the house's, not invented for this stone.
+
+## ⛔ THE WHOLE 255.4 SEQUENCE — four amends, and every red was earned
+
+`28 → 3 → 32 → 0`. Recorded because the middle number matters:
+
+| round | reds | what it taught |
+|---|---|---|
+| strike | 28 | the rename stopped halfway: two **consumers** still required `::` |
+| 4b | 3 | three walls demanded the NEW artifacts prove themselves (non-vacuity, replay fixture, reachability) |
+| 4c | **32** | ⛔ **the teach-fix added a SECOND DOOR** — the arc's own defect, committed by its cure |
+| final | **0** | delete the door, make the interceptors stand aside |
+
+⭐ **The 32 was the most valuable red in the arc.** A plainer message that fires first looks like a
+fix and is a regression in teaching. Only the arc-241 suite could tell the difference, and it did.
+
+**VERDICT: ACCEPTED.**

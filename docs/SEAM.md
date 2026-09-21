@@ -207,6 +207,26 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.4 LANDED 2026-09-21 — ONE member join. **Delta 80 → 77.** Arc: **104 → 97 → 80 → 77**
+
+Floor 5939/5939, clippy 0, census clean. **`Type/member`, always** — builder's Option 2 (4-YES).
+⭐ **One-door find:** `wat-macros/codegen.rs` `method_wat_path` was *generating* the `::` join; one
+`format!` unified `rust.cache`, `rust.sqlite` and the shims at once. Two more emitters found
+(`types.rs`, `wat/service.wat` `surface-forms`).
+⭐ **Retirement rows now TEACH at check time, with parity proven:** `HandlePool::new` and
+`:wat::core::struct` both emit `Remedy {:kind :retirement}`. Not asserted — measured.
+⭐ **`.wat.bad` glob gap caught** — `git ls-files '*.wat'` misses it; the third glob miss in this arc.
+
+⛔ **THE SEQUENCE IS THE LESSON: 28 → 3 → 32 → 0.** The **32** came from the teach-fix adding a
+**SECOND retirement door** — arc 241 already owned teaching, and a plainer message firing first
+*looked* like a fix while regressing what an author is told. **Cure: delete the arm; make the
+interceptors stand aside (`&& !is_retired(k)`).** A second door is the defect this arc exists to
+remove, and it was committed by the arc's own cure three stones after 255.2 refused exactly that.
+
+**Residue (77):** `unresolved reference` **44** · rete 16 · `defsurface` 8 · programbody 3 · other 1.
+**Next: 255.5 — the position grammar** (`:wat::WatAST` + declaration names), which 255.2 proved
+cannot be a predicate over leaves.
+
 ### ✅ 255.3 LANDED 2026-09-21 — the join. ⭐ **DELTA 97 → 80, NET −17** (first real movement)
 
 Floor 5937/5937, clippy 0, census clean, 0 `.wat` converted, test +1.
