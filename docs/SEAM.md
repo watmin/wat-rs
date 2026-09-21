@@ -207,6 +207,31 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 251.8d-i-b LANDED 2026-09-21 — **the arrow is GONE for rete binds.** Delta baseline now **66**
+
+Floor 5946/5946, clippy 0, census clean.
+⭐ **BUILDER'S RULING:** *"the arrow syntax is gone — `<-` and `->` both become `:-`. this is what
+becoming a clojure means."* and *"rete moves to `:-` — it is not exception."*
+⛔ **The orchestrator had drawn the stone to PRESERVE `<-` at 3,853 rete sites — a design decision it
+had no standing to make, inside a codemod-bug brief. The builder caught it. ELEVENTH correction.**
+
+**Surgical dance, measured both ways:** rete-var binds still `<-` = **0**; `fn` param annotations
+still `<-` = **7,028, untouched** (those are 8d-iii's). 327 corpus files, by a recorded,
+replay-fixtured, idempotent codemod (`rete-bind-arrow-to-binder.wat`). Rete now **refuses** `(?k <- :k)`.
+
+⭐ **The stone's real product is a wall that reaches NODE CONSTRUCTORS.** It shipped a red because
+`wat/query.wat` **synthesised** `<-` in a quasiquote where no text rewrite could see it — the same
+shape as 255.4's `method_wat_path`. **A codemod rewrites text; a generator builds the node.**
+`tests/lint/rete_bind_generators.rs` walks the constructor, with two non-vacuity floors and three
+detector self-tests (one positive, two negatives).
+
+⚠ **Delta baseline is now 66, not 64** — this stone moved the live corpus AND the codemod, so the
+prior number was measured against a tree that no longer exists. Not a regression.
+
+⛔ **NEXT CLASS — `ReteCheckErrors` 21, declined THREE times and correctly each time:** they fail on
+**correctly converted** clauses because **rete's `:when` parser wants a KEYWORD head and a
+`::`-keyword fact type**. Independent of the arrow. A **checker** question.
+
 ### ✅ 255.5 LANDED 2026-09-21 — the position flag. ⭐ **Delta 77 → 64.** Arc: **104→97→80→77→64**
 
 Floor 5941/5941, clippy 0, census clean, no corpus `.wat` converted.
