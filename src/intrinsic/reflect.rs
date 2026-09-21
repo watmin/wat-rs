@@ -414,7 +414,7 @@ fn extract_fqdn(
                 Value::wat__core__keyword(k) => Ok((**k).clone()),
                 other => Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
-                        expected: ":wat::core::keyword (an FQDN like :wat::core::Bytes::to-hex)",
+                        expected: ":wat::core::keyword (an FQDN like :wat::core::Bytes/to-hex)",
                         got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                     })
                 .into()),
@@ -445,9 +445,9 @@ fn extract_fqdn(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes::to-hex`
+/// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes/to-hex`
 /// @ret :wat::core::String the handler's Rust source (for intrinsics) or the body's wat source (for user forms)
-/// @example-norun (:wat::core::show-source :wat::core::Bytes::to-hex) #=> "pub (crate) fn eval_bytes_to_hex ..."
+/// @example-norun (:wat::core::show-source :wat::core::Bytes/to-hex) #=> "pub (crate) fn eval_bytes_to_hex ..."
 #[wat_intrinsic(":wat::core::show-source")]
 pub(crate) fn eval_show_source(
     fqdn: &WatAST,
@@ -552,11 +552,11 @@ pub(crate) fn eval_show_source(
 }
 
 /// Render the registry metadata of an intrinsic as a human-readable plain-text
-/// string (with `\n` newlines). The caller prints it: `(println (render-doc :wat::core::Bytes::to-hex))`.
+/// string (with `\n` newlines). The caller prints it: `(println (render-doc :wat::core::Bytes/to-hex))`.
 ///
 /// Format (plain-text, stable):
 /// ```text
-/// :wat::core::Bytes::to-hex
+/// :wat::core::Bytes/to-hex
 ///
 /// <prose>
 ///
@@ -574,9 +574,9 @@ pub(crate) fn eval_show_source(
 /// @Totality         Unreviewed
 /// @ExpandTime    Unreviewed
 /// @Category      Reflection
-/// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes::to-hex`
+/// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes/to-hex`
 /// @ret :wat::core::String a plain-text multi-line String rendering the intrinsic's name, prose, and examples
-/// @example-norun (:wat::core::render-doc :wat::core::Bytes::to-hex) #=> ":wat::core::Bytes::to-hex\n\n..."
+/// @example-norun (:wat::core::render-doc :wat::core::Bytes/to-hex) #=> ":wat::core::Bytes/to-hex\n\n..."
 #[wat_intrinsic(":wat::core::render-doc")]
 pub(crate) fn eval_render_doc(
     fqdn: &WatAST,

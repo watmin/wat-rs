@@ -79,7 +79,7 @@ fn type_check_rejects_wrong_arg_types() {
     let result = startup_from_file("tests/kernel/wat_dispatch_193a.wat.bad");
     wat::assert_startup_error!(result, check
         CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
-            if callee == ":rust::test::MathUtils::add"
+            if callee == ":rust::test::MathUtils/add"
             && param == "#1"
             && expected == "Path(\":wat::core::i64\")"
             && got == "Path(\":wat::core::String\")"

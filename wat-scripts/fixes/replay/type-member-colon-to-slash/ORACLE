@@ -1,0 +1,9 @@
+# ORACLE for type-member-colon-to-slash — header spec, never the tool.
+# Pre-image is synthetic (the live corpus is already rewritten).
+
+spec (:wat::core::Bytes/to-hex x) :: Type::member → Type/member
+spec (:wat::kernel::HandlePool/new "p" v) :: Type::member → Type/member
+spec (:rust::cache::Lru/new 4) :: Type::member → Type/member
+spec-before (:wat::core::Bytes::to-hex x) :: Type::member → Type/member
+spec-before (:wat::kernel::HandlePool::new "p" v) :: Type::member → Type/member
+spec-before (:rust::cache::Lru::new 4) :: Type::member → Type/member

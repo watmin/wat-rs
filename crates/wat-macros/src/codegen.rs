@@ -119,9 +119,9 @@ fn emit_register_body(attr: &WatDispatchAttr, methods: &[&ImplItemFn]) -> syn::R
     Ok(quote! { #(#calls)* })
 }
 
-/// `":rust::lru::LruCache" + "::" + method_name`
+/// `":rust::cache::Lru" + "/" + method_name` — 255.4, one member join.
 fn method_wat_path(attr: &WatDispatchAttr, method: &ImplItemFn) -> String {
-    format!("{}::{}", attr.path, method.sig.ident)
+    format!("{}/{}", attr.path, method.sig.ident)
 }
 
 // ─── Dispatch fn ─────────────────────────────────────────────────────

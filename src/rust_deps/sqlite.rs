@@ -250,7 +250,7 @@ fn select_impl(
 
 #[wat_dispatch(path = ":rust::sqlite::Connection", scope = "thread_owned")]
 impl WatSqliteConnection {
-    /// `:rust::sqlite::Connection::open path` — open or create a sqlite
+    /// `:rust::sqlite::Connection/open path` — open or create a sqlite
     /// file at `path`. No pragmas set (the consumer picks its own policy via
     /// `pragma`); no schema install (the consumer calls `execute-ddl`). A
     /// bad path (e.g. a nonexistent directory) yields `Err(RawFault)`, never
@@ -270,7 +270,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite::Connection::execute_ddl conn ddl` — run a DDL string
+    /// `:rust::sqlite::Connection/execute_ddl conn ddl` — run a DDL string
     /// (CREATE TABLE/INDEX, …) via `execute_batch`. No parameter binding —
     /// for parameterized statements use `execute`.
     pub fn execute_ddl(&self, ddl: String) -> Result<(), (i64, String, String)> {
@@ -279,7 +279,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite::Connection::execute conn sql params` — run a
+    /// `:rust::sqlite::Connection/execute conn sql params` — run a
     /// parameterized DML statement (INSERT/UPDATE/DELETE). Returns rows
     /// affected. `params` arrives as `Vector<Param>`; each element is
     /// decoded via `param_to_tosql` (never panics on a malformed element —
@@ -288,13 +288,13 @@ impl WatSqliteConnection {
         execute_impl(&self.conn, &sql, &params)
     }
 
-    /// `:rust::sqlite::Connection::select conn sql params` — the raw read.
+    /// `:rust::sqlite::Connection/select conn sql params` — the raw read.
     /// Returns one `Vector<Cell>` per row.
     pub fn select(&self, sql: String, params: Vec<Value>) -> Result<Vec<Vec<Value>>, (i64, String, String)> {
         select_impl(&self.conn, &sql, &params)
     }
 
-    /// `:rust::sqlite::Connection::pragma conn name value` — set a pragma
+    /// `:rust::sqlite::Connection/pragma conn name value` — set a pragma
     /// via `conn.pragma_update(None, name, value)`. Substrate is a thin
     /// proxy; the consumer picks its own policy (journal_mode, synchronous,
     /// foreign_keys, …).
@@ -304,7 +304,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite::Connection::begin conn` — `BEGIN;`. Pairs with
+    /// `:rust::sqlite::Connection/begin conn` — `BEGIN;`. Pairs with
     /// `commit` to wrap a batch in one transaction.
     pub fn begin(&self) -> Result<(), (i64, String, String)> {
         self.conn
@@ -312,7 +312,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite::Connection::commit conn` — `COMMIT;`.
+    /// `:rust::sqlite::Connection/commit conn` — `COMMIT;`.
     pub fn commit(&self) -> Result<(), (i64, String, String)> {
         self.conn
             .execute_batch("COMMIT")
@@ -324,7 +324,7 @@ impl WatSqliteConnection {
 
 #[wat_dispatch(path = ":rust::sqlite::ReadConnection", scope = "thread_owned")]
 impl WatSqliteReadConnection {
-    /// `:rust::sqlite::ReadConnection::open_readonly path` — open an
+    /// `:rust::sqlite::ReadConnection/open_readonly path` — open an
     /// EXISTING sqlite file read-only (`SQLITE_OPEN_READ_ONLY`); a missing
     /// file or permission failure yields `Err((i64, String, String))`, never
     /// a panic. `Result<Self, (i64, String, String)>` marshals automatically
@@ -335,7 +335,7 @@ impl WatSqliteReadConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite::ReadConnection::select conn sql params` — the raw
+    /// `:rust::sqlite::ReadConnection/select conn sql params` — the raw
     /// read, identical shape to `Connection::select`; a `ReadConnection`
     /// simply has no other verb registered under its type path (the
     /// capability-honest half).

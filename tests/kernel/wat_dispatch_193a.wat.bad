@@ -5,4 +5,4 @@
 
 
 (:wat::core::defn :my::probe [] -> :wat::core::i64
-  (:rust::test::MathUtils::add "not-an-int" 2))
+  (:rust::test::MathUtils/add "not-an-int" 2))

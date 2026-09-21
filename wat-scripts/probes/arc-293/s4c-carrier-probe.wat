@@ -8,4 +8,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:wat::i64::to-string
-    (:wat::core::length (:my::Counter::surface-forms)))))
+    (:wat::core::length (:my::Counter/surface-forms)))))

@@ -129,7 +129,7 @@ pub(crate) fn eval_keyword_from_string_home(
 /// @Category      Transform
 /// @arg     kw_node :wat::WatAST the Keyword form node converted
 /// @ret     :wat::WatAST a Symbol form node carrying the faithful-Clojure spelling
-/// @example (:wat::keyword::to-symbol (:wat::core::keyword-node ":wat::core::Bytes::to-hex")) #=> wat.core.Bytes/to-hex
+/// @example (:wat::keyword::to-symbol (:wat::core::keyword-node ":wat::core::Bytes/to-hex")) #=> wat.core.Bytes/to-hex
 /// @see     :wat::keyword::to-type-form
 #[wat_intrinsic(":wat::keyword::to-symbol")]
 pub(crate) fn eval_keyword_to_symbol_home(

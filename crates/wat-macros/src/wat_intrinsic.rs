@@ -41,8 +41,8 @@
 //! /// @added 1.0.0
 //! /// @arg bs — the bytes to encode
 //! /// @ret the lowercase hex string, two chars per byte, no separators
-//! /// @example (:wat::core::Bytes::to-hex (:wat::core::Vector 255 0 16)) #=> "ff0010"
-//! #[wat_intrinsic(":wat::core::Bytes::to-hex")]
+//! /// @example (:wat::core::Bytes/to-hex (:wat::core::Vector 255 0 16)) #=> "ff0010"
+//! #[wat_intrinsic(":wat::core::Bytes/to-hex")]
 //! pub(crate) fn bytes_to_hex(
 //!     bs: &WatAST,
 //!     env: &Environment,

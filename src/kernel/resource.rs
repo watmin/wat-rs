@@ -492,7 +492,7 @@ pub(crate) fn eval_deny_prime(
     }
 }
 
-/// `(:wat::kernel::HandlePool::new name handles)` — build a pool of
+/// `(:wat::kernel::HandlePool/new name handles)` — build a pool of
 /// N handles of the same type. `name` surfaces in error messages; the
 /// pool drains as callers `pop` and asserts empty at `finish`.
 ///
@@ -512,7 +512,7 @@ pub(crate) fn eval_handle_pool_new(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::kernel::HandlePool::new".into(),
+                op: ":wat::kernel::HandlePool/new".into(),
                 expected: 2,
                 got: args.len(),
             },
@@ -525,7 +525,7 @@ pub(crate) fn eval_handle_pool_new(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::kernel::HandlePool::new".into(),
+                    op: ":wat::kernel::HandlePool/new".into(),
                     expected: "String",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
@@ -539,7 +539,7 @@ pub(crate) fn eval_handle_pool_new(
             return Err(RuntimeError::new(
                 args[1].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::kernel::HandlePool::new".into(),
+                    op: ":wat::kernel::HandlePool/new".into(),
                     expected: "wat::core::Vector",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
@@ -567,7 +567,7 @@ pub(crate) fn eval_handle_pool_new(
     })
 }
 
-/// `(:wat::kernel::HandlePool::pop pool)` — claim one handle. Returns
+/// `(:wat::kernel::HandlePool/pop pool)` — claim one handle. Returns
 /// the claimed value. If the pool is empty, returns a
 /// MalformedForm error naming the pool — callers are expected to
 /// pop exactly the count they committed to at construction.
@@ -581,7 +581,7 @@ pub(crate) fn eval_handle_pool_pop(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::kernel::HandlePool::pop".into(),
+                op: ":wat::kernel::HandlePool/pop".into(),
                 expected: 1,
                 got: args.len(),
             },
@@ -594,7 +594,7 @@ pub(crate) fn eval_handle_pool_pop(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::kernel::HandlePool::pop".into(),
+                    op: ":wat::kernel::HandlePool/pop".into(),
                     expected: "wat::kernel::HandlePool",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
@@ -610,7 +610,7 @@ pub(crate) fn eval_handle_pool_pop(
         Err(_) => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::kernel::HandlePool::pop".into(),
+                head: ":wat::kernel::HandlePool/pop".into(),
                 reason: format!(
                     "{}: no handles left to claim (pool drained or mis-counted at construction)",
                     name
@@ -621,7 +621,7 @@ pub(crate) fn eval_handle_pool_pop(
     }
 }
 
-/// `(:wat::kernel::HandlePool::finish pool)` — assert the pool is
+/// `(:wat::kernel::HandlePool/finish pool)` — assert the pool is
 /// empty and return `:()`. Callers call this at the end of wiring to
 /// catch orphaned handles BEFORE any thread runs. If handles remain
 /// (an orphan — typically a mis-counted handle budget at
@@ -638,7 +638,7 @@ pub(crate) fn eval_handle_pool_finish(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::kernel::HandlePool::finish".into(),
+                op: ":wat::kernel::HandlePool/finish".into(),
                 expected: 1,
                 got: args.len(),
             },
@@ -651,7 +651,7 @@ pub(crate) fn eval_handle_pool_finish(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::kernel::HandlePool::finish".into(),
+                    op: ":wat::kernel::HandlePool/finish".into(),
                     expected: "wat::kernel::HandlePool",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
@@ -662,7 +662,7 @@ pub(crate) fn eval_handle_pool_finish(
     let remaining = rx.len();
     if remaining != 0 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::kernel::HandlePool::finish".into(),
+            head: ":wat::kernel::HandlePool/finish".into(),
             reason: format!(
                 "{}: {} orphaned handle(s) — deadlock risk (every handle must be claimed before finish)",
                 name, remaining

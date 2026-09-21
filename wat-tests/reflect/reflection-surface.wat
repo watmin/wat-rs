@@ -13,20 +13,20 @@
 (:wat::test::deftest :wat-tests::reflect::show-source-of-bytes-to-hex
   
   (:wat::test::assert-contains
-    (:wat::core::show-source :wat::core::Bytes::to-hex)
+    (:wat::core::show-source :wat::core::Bytes/to-hex)
     "eval_bytes_to_hex"))
 
 ;; render-doc renders metadata-of into a human String (with newlines); the caller
 ;; prints it. A String IS a clean EDN value — the newlines render on println.
-;; "lowercase" proves the PROSE is rendered (not just the name); "Bytes::to-hex"
+;; "lowercase" proves the PROSE is rendered (not just the name); "Bytes/to-hex"
 ;; proves the name/signature line is rendered.
 (:wat::test::deftest :wat-tests::reflect::render-doc-of-bytes-to-hex
   
   (:wat::core::let
-    [rendered (:wat::core::render-doc :wat::core::Bytes::to-hex)]
+    [rendered (:wat::core::render-doc :wat::core::Bytes/to-hex)]
     (:wat::core::do
       (:wat::test::assert-contains rendered "lowercase")
-      (:wat::test::assert-contains rendered "Bytes::to-hex")
+      (:wat::test::assert-contains rendered "Bytes/to-hex")
       ;; @see is rendered end-to-end: to-hex's "See also" points at its inverse,
       ;; from-hex — proving @see is declared (corpus), rendered (render-doc), and
       ;; checked (the dangling-ref test) on the pilot, not carried-but-dark.

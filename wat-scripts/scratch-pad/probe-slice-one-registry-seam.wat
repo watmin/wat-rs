@@ -156,10 +156,10 @@
      _  (:wat::kernel::println
           (:seam::row "D fence pure?  Bytes::to-hex "
                       (:wat::rete::pure?
-                        (:wat::core::quote (:wat::core::Bytes::to-hex (:wat::core::Vector 255 0 16))))))
+                        (:wat::core::quote (:wat::core::Bytes/to-hex (:wat::core::Vector 255 0 16))))))
      ;; …and the SAME verb through the registry's own reflection surface. The two answers side
      ;; by side ARE the finding. (Called, not quoted — a first draft printed the quoted FORM and
      ;; measured nothing.)
      _  (:wat::kernel::println "D metadata-of  Bytes::to-hex (the registry's own answer) =")
-     _  (:wat::kernel::println (:wat::runtime::metadata-of :wat::core::Bytes::to-hex))]
+     _  (:wat::kernel::println (:wat::runtime::metadata-of :wat::core::Bytes/to-hex))]
     (:wat::kernel::println "-- A = the lowering; B/C = controls; D = the seam --")))

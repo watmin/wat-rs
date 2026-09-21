@@ -19,7 +19,7 @@
 //! EDN-representable data is a wat-record, not a `Value::Struct`; that's the
 //! builder doctrine, and it's what makes the named field accessors work). GREEN:
 //! a `Vector` of `:wat::intrinsic::Example` records including
-//! `:wat::core::Bytes::to-hex` (`run = true`).
+//! `:wat::core::Bytes/to-hex` (`run = true`).
 
 use wat::freeze::{call_beside_value, StartupError};
 use wat::runtime::Value;
@@ -60,11 +60,11 @@ fn examples_seam_returns_bytes_to_hex_runnable() {
         })
         .find(|sf| match sf.first() {
             Some(Value::wat__core__keyword(k)) => {
-                k.trim_start_matches(':') == "wat::core::Bytes::to-hex"
+                k.trim_start_matches(':') == "wat::core::Bytes/to-hex"
             }
             _ => false,
         })
-        .expect("seam must return wat__core__Record :wat::intrinsic::Example values including Bytes::to-hex");
+        .expect("seam must return wat__core__Record :wat::intrinsic::Example values including Bytes/to-hex");
 
     // Field order = declaration order: [fqdn, expr, expected, run, pure, det] — run at index 3.
     assert!(

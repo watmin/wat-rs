@@ -7566,7 +7566,7 @@ fn eval_metadata_of(
     // `Some((HashMap :- [keyword Value]))`, carrying the auto-derived baseline.
     // Arc 255.1b-iv-c: all values are PLAIN wat Values (not holon-AST-wrapped);
     // the three closed-domain fields use Value::Enum (Kind/DefinedIn/Layer).
-    // Seamless reflection parity — a `:wat::core::Bytes::to-hex` reflects like
+    // Seamless reflection parity — a `:wat::core::Bytes/to-hex` reflects like
     // a user `defn`. ZERO eval behavior change: the handler dispatch route is
     // untouched; this only READS the baseline the registry already carries.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
@@ -18934,7 +18934,7 @@ mod tests {
     fn bytes_to_hex_emits_lowercase_no_separators() {
         // 0xde 0xad 0xbe 0xef → "deadbeef" (lowercase, no spaces).
         let src = r#"
-            (:wat::core::Bytes::to-hex
+            (:wat::core::Bytes/to-hex
               (:wat::core::Vector :- [:u8]
                 (:wat::core::u8 222)   ;; 0xde
                 (:wat::core::u8 173)   ;; 0xad
@@ -18958,9 +18958,9 @@ mod tests {
                   (:wat::core::u8 2)
                   (:wat::core::u8 254)
                   (:wat::core::u8 255))
-               hex (:wat::core::Bytes::to-hex bs1)
+               hex (:wat::core::Bytes/to-hex bs1)
                maybe-bs2
-                (:wat::core::Bytes::from-hex hex)
+                (:wat::core::Bytes/from-hex hex)
                bs2
                 (:wat::core::match maybe-bs2
                   [:wat::core::Option.Some {:value b} b]
@@ -18979,9 +18979,9 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [mixed
-                (:wat::core::Bytes::from-hex "AbCd")
+                (:wat::core::Bytes/from-hex "AbCd")
                lower
-                (:wat::core::Bytes::from-hex "abcd")]
+                (:wat::core::Bytes/from-hex "abcd")]
               (:wat::core::= mixed lower))
         "#;
         match eval_expr(src).unwrap() {
@@ -18994,7 +18994,7 @@ mod tests {
     fn bytes_from_hex_empty_string_round_trips() {
         // "" → :Some(empty Bytes); to-hex of empty Bytes → "".
         let empty_decode = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "")
+            (:wat::core::match (:wat::core::Bytes/from-hex "")
               [:wat::core::Option.Some {:value b} (:wat::core::length b)]
               [:wat::core::Option.None {} -1])
         "#;
@@ -19003,7 +19003,7 @@ mod tests {
             v => panic!("expected 0 (empty Bytes), got {:?}", v),
         }
         let empty_encode = r#"
-            (:wat::core::Bytes::to-hex (:wat::core::Vector :- [:u8]))
+            (:wat::core::Bytes/to-hex (:wat::core::Vector :- [:u8]))
         "#;
         match eval_expr(empty_encode).unwrap() {
             Value::String(s) => assert_eq!(&*s, ""),
@@ -19014,7 +19014,7 @@ mod tests {
     #[test]
     fn bytes_from_hex_rejects_odd_length() {
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "abc")
+            (:wat::core::match (:wat::core::Bytes/from-hex "abc")
               [:wat::core::Option.Some {:value _} false]
               [:wat::core::Option.None {} true])
         "#;
@@ -19028,7 +19028,7 @@ mod tests {
     fn bytes_from_hex_rejects_non_hex_chars() {
         // "zz" — z is not a hex character.
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "zz")
+            (:wat::core::match (:wat::core::Bytes/from-hex "zz")
               [:wat::core::Option.Some {:value _} false]
               [:wat::core::Option.None {} true])
         "#;
@@ -19042,7 +19042,7 @@ mod tests {
     fn bytes_from_hex_rejects_0x_prefix() {
         // Per DESIGN Q6: no `0x` tolerance in v1.
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "0xdead")
+            (:wat::core::match (:wat::core::Bytes/from-hex "0xdead")
               [:wat::core::Option.Some {:value _} false]
               [:wat::core::Option.None {} true])
         "#;
@@ -19054,7 +19054,7 @@ mod tests {
 
     #[test]
     fn bytes_to_hex_arity_mismatch() {
-        let err = eval_expr("(:wat::core::Bytes::to-hex)").unwrap_err();
+        let err = eval_expr("(:wat::core::Bytes/to-hex)").unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -19062,7 +19062,7 @@ mod tests {
 
     #[test]
     fn bytes_from_hex_arity_mismatch() {
-        let err = eval_expr("(:wat::core::Bytes::from-hex)").unwrap_err();
+        let err = eval_expr("(:wat::core::Bytes/from-hex)").unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -20373,11 +20373,11 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [pool
-                (:wat::kernel::HandlePool::new "test" (:wat::core::Vector :- [:i64] 1 2 3))
-               a (:wat::kernel::HandlePool::pop pool)
-               b (:wat::kernel::HandlePool::pop pool)
-               c (:wat::kernel::HandlePool::pop pool)
-               _ (:wat::kernel::HandlePool::finish pool)]
+                (:wat::kernel::HandlePool/new "test" (:wat::core::Vector :- [:i64] 1 2 3))
+               a (:wat::kernel::HandlePool/pop pool)
+               b (:wat::kernel::HandlePool/pop pool)
+               c (:wat::kernel::HandlePool/pop pool)
+               _ (:wat::kernel::HandlePool/finish pool)]
               (:wat::i64::+ (:wat::i64::+ a b) c))
         "#;
         match eval_expr(src).unwrap() {
@@ -20391,8 +20391,8 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((pool
-                (:wat::kernel::HandlePool::new "empty" (:wat::core::Vector :- [:i64])))
-               (_ (:wat::kernel::HandlePool::pop pool)))
+                (:wat::kernel::HandlePool/new "empty" (:wat::core::Vector :- [:i64])))
+               (_ (:wat::kernel::HandlePool/pop pool)))
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
@@ -20406,8 +20406,8 @@ mod tests {
         let src = r#"
             (:wat::core::let
               ((pool
-                (:wat::kernel::HandlePool::new "orphaned" (:wat::core::Vector :- [:i64] 1 2 3)))
-               (_ (:wat::kernel::HandlePool::finish pool)))
+                (:wat::kernel::HandlePool/new "orphaned" (:wat::core::Vector :- [:i64] 1 2 3)))
+               (_ (:wat::kernel::HandlePool/finish pool)))
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
@@ -20421,8 +20421,8 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [pool
-                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::Vector :- [:i64]))
-               _ (:wat::kernel::HandlePool::pop pool)]
+                (:wat::kernel::HandlePool/new "named-pool" (:wat::core::Vector :- [:i64]))
+               _ (:wat::kernel::HandlePool/pop pool)]
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
@@ -20537,7 +20537,7 @@ mod tests {
     #[test]
     fn handle_pool_refuses_non_string_name() {
         let src = r#"
-            (:wat::kernel::HandlePool::new 42 (:wat::core::Vector :- [:i64]))
+            (:wat::kernel::HandlePool/new 42 (:wat::core::Vector :- [:i64]))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(

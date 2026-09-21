@@ -100,15 +100,12 @@ pub(super) fn check_form(
             // Additional :rust::* enforcement: the call head must be
             // covered by a `(:wat::core::use! :rust::Type)` declaration
             // SOMEWHERE in the program. The declared type path prefixes
-            // the method path — `:rust::lru::LruCache::new` is covered
-            // by a use! of `:rust::lru::LruCache`.
+            // the method path — `:rust::cache::Lru/new` is covered
+            // by a use! of `:rust::cache::Lru` (255.4 member join).
             if head.starts_with(":rust::") {
-                // `:rust::Type::method` is covered by a `use!` of `:rust::Type`
-                // iff `head` equals `decl` or starts with `decl` followed by `::`.
-                // Checked allocation-free (path segments are ASCII, so `decl.len()`
-                // is always a char boundary) rather than building `format!("{decl}::")`
-                // per declaration per call head.
-                let covered = use_decls.covers(head);
+                // Covered iff `head` equals `decl` or starts with `decl`
+                // followed by `/` (live) or `::` (retired). Allocation-free.
+                let covered = use_decls.covers(head) || crate::remedy::is_retired(head);
                 if !covered {
                     unresolved.push(UnresolvedReference {
                         path: head.clone(),
@@ -282,6 +279,11 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     // return severs the four rungs beneath it, and measured 600 of 845 corpus files refusing
     // instead of 97.
     if crate::intrinsic::registry().contains(head) {
+        return true;
+    }
+    // 255.4 — a retired call head must reach check (door 1) so the ledger
+    // teaches, instead of dying here as UnresolvedReference with no help.
+    if crate::remedy::is_retired(head) {
         return true;
     }
     // 255.1 — wat.type is a real namespace. A member is a known name in

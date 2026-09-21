@@ -534,10 +534,7 @@ fn resolve_namespaced_symbol(
         return Ok(WatAST::Keyword(primary, span.clone()));
     }
 
-    // 255.3 — `reconstruct_call_path` is the Type/member join for a *call* symbol.
-    // Last-segment-is-a-type is necessary and not sufficient: the wire has two
-    // live member joins (`:wat::core::Option/expect` vs `:wat::core::Bytes::to-hex`)
-    // and this door cannot tell them apart. Name/annotation position is a
+    // 255.4 — the member join is `/`, always. Name/annotation position is a
     // different class (position grammar), not a second join.
 
     // Primary did not resolve → located error naming the unknown entity.

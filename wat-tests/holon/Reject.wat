@@ -28,7 +28,7 @@
 ;; Helper visible to the test body — bundle-or-fail wraps the
 ;; BundleResult match into a single-shot HolonAST producer for
 ;; small-arity bundles where capacity is never exceeded.
-(:wat::core::defn :wat-tests::holon::Reject::bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
+(:wat::core::defn :wat-tests::holon::Reject/bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
   (:wat::core::match
          (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] a b))
 
@@ -42,12 +42,12 @@
      noise (:wat::holon::to-holon "noise")
      ;; x contains y plus a noise atom — x has a real y-component.
      x
-      (:wat-tests::holon::Reject::bundle-or-fail y noise)
+      (:wat-tests::holon::Reject/bundle-or-fail y noise)
      residual (:wat::holon::Reject x y)]
     (:wat::test::assert-eq (:wat::holon::presence? y residual) false)))
 
 
-(:wat::core::defn :wat-tests::holon::Reject::project-bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
+(:wat::core::defn :wat-tests::holon::Reject/project-bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
   (:wat::core::match
          (:wat::holon::Bundle (:wat::core::Vector :- [:wat::holon::HolonAST] a b))
 
@@ -62,6 +62,6 @@
      ;; x contains y plus a noise atom — x has a real y-component
      ;; for Project to preserve.
      x
-      (:wat-tests::holon::Reject::project-bundle-or-fail y noise)
+      (:wat-tests::holon::Reject/project-bundle-or-fail y noise)
      shadow (:wat::holon::Project x y)]
     (:wat::test::assert-eq (:wat::holon::presence? y shadow) true)))

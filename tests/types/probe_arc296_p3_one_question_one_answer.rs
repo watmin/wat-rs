@@ -8,7 +8,7 @@
 //!
 //! ```text
 //!   same name, same program, NO user use!:
-//!     resolve   (call head)    :rust::sqlite::Connection::open   REFUSED
+//!     resolve   (call head)    :rust::sqlite::Connection/open   REFUSED
 //!     is-type?                 :rust::sqlite::Connection         false
 //!     the WALL  (annotation)   [c <- :rust::sqlite::Connection]  ACCEPTED   ⛔ the outlier
 //! ```
@@ -120,7 +120,7 @@ fn a_user_annotation_without_its_own_use_is_refused() {
     assert_eq!(
         check("user_annotation_without_user_use"),
         1,
-        "resolve refuses `:rust::sqlite::Connection::open` in this exact program; the \
+        "resolve refuses `:rust::sqlite::Connection/open` in this exact program; the \
          annotation position must not be more permissive than the call position"
     );
 }

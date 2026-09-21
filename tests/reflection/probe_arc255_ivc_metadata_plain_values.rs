@@ -16,7 +16,7 @@
 //! `Value::Enum`s parsed from the doc (`wat_doc::Purity`/`Determinism`), not derived
 //! bools — see `src/intrinsic/mod.rs`'s header, "CORRECTED 2026-08-25". Verified live
 //! this session (`wat-scripts/scratch-pad/255-p3/dump-to-hex-metadata.wat`):
-//! `metadata-of(:wat::core::Bytes::to-hex)` puts `:purity #wat.runtime/Purity.Pure`
+//! `metadata-of(:wat::core::Bytes/to-hex)` puts `:purity #wat.runtime/Purity.Pure`
 //! and `:determinism #wat.runtime/Determinism.Deterministic` — enums, not bools.
 //!
 //! THE CONTRACT (as shipped):
@@ -40,7 +40,7 @@
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
-/// just-eval (rubric): the metadata-of(:wat::core::Bytes::to-hex) call lives in
+/// just-eval (rubric): the metadata-of(:wat::core::Bytes/to-hex) call lives in
 /// the co-located fixture (`:user::to-hex-metadata`), driven via `call_beside_value`;
 /// the Rust side inspects the returned `Some(HashMap)`. The `_fqdn` arg is kept
 /// for call-site readability (the fixture pins the single fqdn under test).
@@ -78,7 +78,7 @@ fn assert_enum(v: &Value, type_path: &str, variant: &str) {
 
 #[test]
 fn metadata_of_emits_plain_values_and_enums_not_holon_ast() {
-    let map = metadata_of(":wat::core::Bytes::to-hex");
+    let map = metadata_of(":wat::core::Bytes/to-hex");
 
     // The five closed-domain fields are enums (as shipped — see the module doc
     // above for the re-diagnosis; :purity/:determinism replaced the never-shipped

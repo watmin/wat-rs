@@ -935,7 +935,7 @@
                             acc
                             (:wat::core::let
                               [sf-kw (:wat::keyword::from-string
-                                       (:wat::string::interpolate "{s-str}::surface-forms" :s-str s-str))]
+                                       (:wat::string::interpolate "{s-str}/surface-forms" :s-str s-str))]
                               (:wat::core::conj acc `(~sf-kw)))))
                         (:wat::core::Vector :- [:wat::WatAST])
                         peers-surfaces)
@@ -2511,7 +2511,7 @@
      ;; proto-str = the surface fqdn (`:satisfies` is mandatory; `:ops` is retired), so the carrier
      ;; name is `<surface>::surface-forms`.
      surface-forms-kw (:wat::keyword::from-string
-                        (:wat::string::interpolate "{proto-base}::surface-forms" :proto-base proto-base))
+                        (:wat::string::interpolate "{proto-base}/surface-forms" :proto-base proto-base))
      ;; Arc 278 S4d: concat the OWN surface's forms + every :peers surface's forms + own internals.
      ;; `concat` is strictly binary, so we build a LEFT-nested chain (order-preserving):
      ;;   (concat (concat … (concat (OwnSurface::surface-forms) (S1::surface-forms)) …) own-forms-call)

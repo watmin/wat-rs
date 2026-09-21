@@ -1,0 +1,6 @@
+;; pre-image for type-member-colon-to-slash — Type::member keywords rewrite; slash and nested types stay.
+(:wat::core::Bytes::to-hex x)
+(:wat::kernel::HandlePool::new "p" v)
+(:rust::cache::Lru::new 4)
+(:wat::core::Bytes/to-hex x)
+(:wat::cache::Cache::GetRequest)

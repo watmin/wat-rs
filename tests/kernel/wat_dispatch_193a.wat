@@ -4,15 +4,15 @@
 (:wat::core::use! :rust::test::MathUtils)
 
 (:wat::core::defn :my::compute-add [] -> :wat::core::i64
-  (:rust::test::MathUtils::add 40 2))
+  (:rust::test::MathUtils/add 40 2))
 
 (:wat::core::defn :my::compute-some [] -> :wat::core::i64
-  (:wat::core::match (:rust::test::MathUtils::maybe_double 21) 
+  (:wat::core::match (:rust::test::MathUtils/maybe_double 21) 
     [:wat::core::Option.Some {:value v} v]
     [:wat::core::Option.None {} -1]))
 
 (:wat::core::defn :my::compute-none [] -> :wat::core::i64
-  (:wat::core::match (:rust::test::MathUtils::maybe_double 0) 
+  (:wat::core::match (:rust::test::MathUtils/maybe_double 0) 
     [:wat::core::Option.Some {:value v} v]
     [:wat::core::Option.None {} -1]))
 

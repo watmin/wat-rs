@@ -55,6 +55,12 @@ pub(crate) fn retirement_table_names() -> Vec<&'static str> {
     retirement::retirement_table_names()
 }
 
+/// Exact table hit? Used by resolve so a retired call head reaches check
+/// (door 1) instead of dying as `UnresolvedReference` with no teaching.
+pub(crate) fn is_retired(needle: &str) -> bool {
+    retirement_lookup(needle).is_some()
+}
+
 /// A single ranked remedy offered to the user when their input is rejected.
 ///
 /// Remedies are sorted ascending by `score()` (closest first); ties broken

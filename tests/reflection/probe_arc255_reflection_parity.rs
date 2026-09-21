@@ -49,7 +49,7 @@ fn user_form_metadata_is_some() -> bool {
     }
 }
 
-/// The full metadata-of(:wat::core::Bytes::to-hex) map via the co-located fixture.
+/// The full metadata-of(:wat::core::Bytes/to-hex) map via the co-located fixture.
 fn metadata_of_map(_name_kw: &str) -> std::collections::HashMap<Value, Value> {
     match call_beside_value(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
         Value::Option(o) => match o.as_ref() {
@@ -110,7 +110,7 @@ fn user_form_carries_guaranteed_baseline() {
 // not yet WRITTEN; and the capability they waited on HAS ANSWERED SINCE `7b99d123`
 // (2026-06-21). Verified live this session:
 //
-//   (:wat::runtime::metadata-of :wat::core::Bytes::to-hex)
+//   (:wat::runtime::metadata-of :wat::core::Bytes/to-hex)
 //   ⇒ Some [{:name :wat.core.Bytes/to-hex :arity 1 :kind Intrinsic :defined-in Rust
 //            :layer Substrate :purity Pure :determinism Deterministic
 //            :doc "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`. …" …}]
@@ -133,7 +133,7 @@ fn user_form_carries_guaranteed_baseline() {
 /// to see (keys + values). Run with `--nocapture`.
 #[test]
 fn dump_bytes_to_hex_metadata() {
-    let map = metadata_of_map(":wat::core::Bytes::to-hex");
+    let map = metadata_of_map(":wat::core::Bytes/to-hex");
     let mut keys: Vec<String> = map
         .keys()
         .map(|k| match k {
@@ -142,7 +142,7 @@ fn dump_bytes_to_hex_metadata() {
         })
         .collect();
     keys.sort();
-    println!("metadata-of(:wat::core::Bytes::to-hex) =>");
+    println!("metadata-of(:wat::core::Bytes/to-hex) =>");
     for k in &keys {
         let v = get(&map, k).unwrap();
         // iv-c: values are now plain wat Values (not HolonAST-wrapped).

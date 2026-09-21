@@ -62,7 +62,7 @@
 //! — the exact mechanism". So the conversion is now MECHANICALLY available and
 //! what remains is a genuine design call: does the no-hidden-failures law reach
 //! a programming-error input, or stop at a fallible one? Converting changes a
-//! SHIPPED public surface (`:wat::cache::Lru::new` would return a Result every
+//! SHIPPED public surface (`:wat::cache::Lru/new` would return a Result every
 //! caller must match) and must move `wat/cache.wat` in the same breath.
 //!
 //! Tracked as a NOTE in arc 109, which owns `src/rust_deps/`:
@@ -91,7 +91,7 @@ pub struct WatCacheLru {
 #[wat_dispatch(path = ":rust::cache::Lru", scope = "thread_owned", type_params = "K,V")]
 #[allow(clippy::mutable_key_type)]
 impl WatCacheLru {
-    /// `:rust::cache::Lru::new capacity` — a cache bounded at `capacity`
+    /// `:rust::cache::Lru/new capacity` — a cache bounded at `capacity`
     /// entries. The returned value is a `ThreadOwnedCell<WatCacheLru>` inside a
     /// `Value::RustOpaque`; the cell binds to the calling thread.
     ///
@@ -100,7 +100,7 @@ impl WatCacheLru {
     /// to wat as a `RuntimeError`. See the module doc's failure-surface note.
     pub fn new(capacity: i64) -> Self {
         if capacity <= 0 {
-            panic!(":rust::cache::Lru::new: capacity must be positive; got {capacity}");
+            panic!(":rust::cache::Lru/new: capacity must be positive; got {capacity}");
         }
         let cap = NonZeroUsize::new(capacity as usize).expect("capacity > 0 checked above");
         WatCacheLru {
@@ -108,7 +108,7 @@ impl WatCacheLru {
         }
     }
 
-    /// `:rust::cache::Lru::put cache k v` — insert or update, bumping `k` to
+    /// `:rust::cache::Lru/put cache k v` — insert or update, bumping `k` to
     /// MRU. Returns `Some((k, v))` for the pair DISPLACED by this insert —
     /// either the capacity-driven eviction of the least-recently-used entry, or
     /// the previous binding when `k` was already present — and `None` when the
@@ -124,32 +124,32 @@ impl WatCacheLru {
     pub fn put(&mut self, k: Value, v: Value) -> Option<(Value, Value)> {
         if !value_is_hashable(&k) {
             panic!(
-                ":rust::cache::Lru::put: key must be a hashable value; got {}",
+                ":rust::cache::Lru/put: key must be a hashable value; got {}",
                 k.type_name()
             );
         }
         self.inner.push(k, v)
     }
 
-    /// `:rust::cache::Lru::get cache k` — `Some(v)` on a hit (which bumps `k`
+    /// `:rust::cache::Lru/get cache k` — `Some(v)` on a hit (which bumps `k`
     /// to MRU), `None` on a miss. A non-hashable key panics — see the module doc.
     pub fn get(&mut self, k: Value) -> Option<Value> {
         if !value_is_hashable(&k) {
             panic!(
-                ":rust::cache::Lru::get: key must be a hashable value; got {}",
+                ":rust::cache::Lru/get: key must be a hashable value; got {}",
                 k.type_name()
             );
         }
         self.inner.get(&k).cloned()
     }
 
-    /// `:rust::cache::Lru::len cache` — current entry count (never above
+    /// `:rust::cache::Lru/len cache` — current entry count (never above
     /// capacity). Read-only: does NOT touch LRU order.
     pub fn len(&self) -> i64 {
         self.inner.len() as i64
     }
 
-    /// `:rust::cache::Lru::is_empty cache` — `true` iff the cache holds no
+    /// `:rust::cache::Lru/is_empty cache` — `true` iff the cache holds no
     /// entries. Read-only; does not touch LRU order.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()

@@ -356,6 +356,36 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
             back to a Vector if the caller needs one") },
     // Arc 255 STONE sort$native — the `'` native-impl marker becomes the `$native` convention.
     RetirementEntry { retired: ":wat::core::sort'", replacement: ":wat::core::sort$native", note: None }, // rune:lint(retired-name) — retirement-table entry: the retired string must stay byte-exact for retirement_lookup to match a caller who still types sort'
+    // Arc 255.4 — one member join. Type::member retires in favour of Type/member.
+    // Derived from the live registry (wat_intrinsic + wat_dispatch + wat/cache.wat
+    // defn names). Do not add Record::def — already retired to defrecord (293.2).
+    RetirementEntry { retired: ":wat::core::Bytes::to-hex", replacement: ":wat::core::Bytes/to-hex", note: None },
+    RetirementEntry { retired: ":wat::core::Bytes::from-hex", replacement: ":wat::core::Bytes/from-hex", note: None },
+    RetirementEntry { retired: ":wat::kernel::HandlePool::new", replacement: ":wat::kernel::HandlePool/new", note: None },
+    RetirementEntry { retired: ":wat::kernel::HandlePool::pop", replacement: ":wat::kernel::HandlePool/pop", note: None },
+    RetirementEntry { retired: ":wat::kernel::HandlePool::finish", replacement: ":wat::kernel::HandlePool/finish", note: None },
+    RetirementEntry { retired: ":wat::cache::Lru::new", replacement: ":wat::cache::Lru/new", note: None },
+    RetirementEntry { retired: ":wat::cache::Lru::put", replacement: ":wat::cache::Lru/put", note: None },
+    RetirementEntry { retired: ":wat::cache::Lru::get", replacement: ":wat::cache::Lru/get", note: None },
+    RetirementEntry { retired: ":wat::cache::Lru::len", replacement: ":wat::cache::Lru/len", note: None },
+    RetirementEntry { retired: ":wat::cache::HolographicLru::new", replacement: ":wat::cache::HolographicLru/new", note: None },
+    RetirementEntry { retired: ":wat::cache::HolographicLru::put", replacement: ":wat::cache::HolographicLru/put", note: None },
+    RetirementEntry { retired: ":wat::cache::HolographicLru::get", replacement: ":wat::cache::HolographicLru/get", note: None },
+    RetirementEntry { retired: ":wat::cache::HolographicLru::len", replacement: ":wat::cache::HolographicLru/len", note: None },
+    RetirementEntry { retired: ":rust::cache::Lru::new", replacement: ":rust::cache::Lru/new", note: None },
+    RetirementEntry { retired: ":rust::cache::Lru::put", replacement: ":rust::cache::Lru/put", note: None },
+    RetirementEntry { retired: ":rust::cache::Lru::get", replacement: ":rust::cache::Lru/get", note: None },
+    RetirementEntry { retired: ":rust::cache::Lru::len", replacement: ":rust::cache::Lru/len", note: None },
+    RetirementEntry { retired: ":rust::cache::Lru::is_empty", replacement: ":rust::cache::Lru/is_empty", note: None },
+    RetirementEntry { retired: ":rust::sqlite::Connection::open", replacement: ":rust::sqlite::Connection/open", note: None },
+    RetirementEntry { retired: ":rust::sqlite::Connection::execute_ddl", replacement: ":rust::sqlite::Connection/execute_ddl", note: None },
+    RetirementEntry { retired: ":rust::sqlite::Connection::execute", replacement: ":rust::sqlite::Connection/execute", note: None },
+    RetirementEntry { retired: ":rust::sqlite::Connection::select", replacement: ":rust::sqlite::Connection/select", note: None },
+    RetirementEntry { retired: ":rust::sqlite::Connection::pragma", replacement: ":rust::sqlite::Connection/pragma", note: None },
+    RetirementEntry { retired: ":rust::sqlite::Connection::begin", replacement: ":rust::sqlite::Connection/begin", note: None },
+    RetirementEntry { retired: ":rust::sqlite::Connection::commit", replacement: ":rust::sqlite::Connection/commit", note: None },
+    RetirementEntry { retired: ":rust::sqlite::ReadConnection::open_readonly", replacement: ":rust::sqlite::ReadConnection/open_readonly", note: None },
+    RetirementEntry { retired: ":rust::sqlite::ReadConnection::select", replacement: ":rust::sqlite::ReadConnection/select", note: None },
 ];
 
 /// Look up `needle` in the retirement table.

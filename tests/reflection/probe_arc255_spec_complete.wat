@@ -16,7 +16,7 @@
 (:wat::core::defn :user::render-yields [] -> :wat::core::String
   (:wat::core::render-doc :wat::intrinsic::yields-witness))
 (:wat::core::defn :user::render-to-hex [] -> :wat::core::String
-  (:wat::core::render-doc :wat::core::Bytes::to-hex))
+  (:wat::core::render-doc :wat::core::Bytes/to-hex))
 (:wat::core::defn :user::render-variadic [] -> :wat::core::String
   (:wat::core::render-doc :wat::intrinsic::variadic-args-measurement))
 
@@ -25,4 +25,4 @@
 ;; declared (Option :- [(HashMap :- [keyword HolonAST])]) mirrors its documented shape.
 (:wat::core::defn :user::to-hex-metadata []
   -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::holon::HolonAST])])
-  (:wat::runtime::metadata-of :wat::core::Bytes::to-hex))
+  (:wat::runtime::metadata-of :wat::core::Bytes/to-hex))

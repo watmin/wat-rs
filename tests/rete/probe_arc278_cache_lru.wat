@@ -12,13 +12,13 @@
 
 (:wat::test::deftest :user::cache_lru
   (:wat::core::let
-    [cache (:wat::cache::Lru::new 2)
-     e1    (:wat::cache::Lru::put cache :a 1)   ;; under cap  -> None
-     e2    (:wat::cache::Lru::put cache :b 2)   ;; at cap     -> None
-     e3    (:wat::cache::Lru::put cache :c 3)   ;; over cap   -> Some Entry{:a 1}
-     got-b (:wat::cache::Lru::get cache :b)     ;; still present
-     got-a (:wat::cache::Lru::get cache :a)     ;; evicted
-     n     (:wat::cache::Lru::len cache)]
+    [cache (:wat::cache::Lru/new 2)
+     e1    (:wat::cache::Lru/put cache :a 1)   ;; under cap  -> None
+     e2    (:wat::cache::Lru/put cache :b 2)   ;; at cap     -> None
+     e3    (:wat::cache::Lru/put cache :c 3)   ;; over cap   -> Some Entry{:a 1}
+     got-b (:wat::cache::Lru/get cache :b)     ;; still present
+     got-a (:wat::cache::Lru/get cache :a)     ;; evicted
+     n     (:wat::cache::Lru/len cache)]
 
     (:wat::test::assert-eq e1 :wat::core::Option.None)
     (:wat::test::assert-eq e2 :wat::core::Option.None)
@@ -39,11 +39,11 @@
 ;; assertions are that the SECOND value wins on `get`, and `len` stays 1 — no duplicate slot.
 (:wat::test::deftest :user::cache_lru_put_overwrites
   (:wat::core::let
-    [cache (:wat::cache::Lru::new 16)
-     e1    (:wat::cache::Lru::put cache :k 1)   ;; first write -> None (nothing displaced)
-     e2    (:wat::cache::Lru::put cache :k 99)  ;; overwrite   -> Some Entry{:key :k :value 1}
-     got   (:wat::cache::Lru::get cache :k)
-     n     (:wat::cache::Lru::len cache)]
+    [cache (:wat::cache::Lru/new 16)
+     e1    (:wat::cache::Lru/put cache :k 1)   ;; first write -> None (nothing displaced)
+     e2    (:wat::cache::Lru/put cache :k 99)  ;; overwrite   -> Some Entry{:key :k :value 1}
+     got   (:wat::cache::Lru/get cache :k)
+     n     (:wat::cache::Lru/len cache)]
 
     (:wat::test::assert-eq e1 :wat::core::Option.None)
     (:wat::test::assert-eq e2 (:wat::core::Option.Some {:value (:wat::cache::Entry :key :k :value 1)}))
@@ -67,21 +67,21 @@
 ;; round-trip — put a holon key + value, get back the value.
 (:wat::test::deftest :user::cache_lru_holon_key_roundtrip
   (:wat::core::let
-    [cache (:wat::cache::Lru::new 16)
+    [cache (:wat::cache::Lru/new 16)
      k     (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :the-form)))
-     _put  (:wat::cache::Lru::put cache k 42)
-     got   (:wat::cache::Lru::get cache k)]
+     _put  (:wat::cache::Lru/put cache k 42)
+     got   (:wat::cache::Lru/get cache k)]
     (:wat::test::assert-eq got (:wat::core::Option.Some {:value 42}))))
 
 ;; distinguishes — structurally distinct holons land in distinct cache slots (no false
 ;; positives): storing under k1 and probing k2 must miss.
 (:wat::test::deftest :user::cache_lru_holon_key_distinguishes
   (:wat::core::let
-    [cache (:wat::cache::Lru::new 16)
+    [cache (:wat::cache::Lru/new 16)
      k1    (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :a)))
      k2    (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :b)))
-     _put  (:wat::cache::Lru::put cache k1 1)
-     got   (:wat::cache::Lru::get cache k2)]
+     _put  (:wat::cache::Lru/put cache k1 1)
+     got   (:wat::cache::Lru/get cache k2)]
     (:wat::test::assert-eq got :wat::core::Option.None)))
 
 ;; structural-equal — two holons built INDEPENDENTLY but structurally equal MUST collide in the
@@ -90,7 +90,7 @@
 ;; k1 would never be visible under k2.
 (:wat::test::deftest :user::cache_lru_holon_key_structural_equal
   (:wat::core::let
-    [cache (:wat::cache::Lru::new 16)
+    [cache (:wat::cache::Lru/new 16)
      k1
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :role)))
@@ -99,6 +99,6 @@
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :role)))
         (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :filler))))
-     _put  (:wat::cache::Lru::put cache k1 99)
-     got   (:wat::cache::Lru::get cache k2)]
+     _put  (:wat::cache::Lru/put cache k1 99)
+     got   (:wat::cache::Lru/get cache k2)]
     (:wat::test::assert-eq got (:wat::core::Option.Some {:value 99}))))

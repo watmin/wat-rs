@@ -4990,7 +4990,7 @@ fn infer_list(
                     k, args, head_span, env, locals, fresh, subst,
                 );
             }
-            _ if k.starts_with(":rust::") => {
+            _ if k.starts_with(":rust::") && !crate::remedy::is_retired(k) => {
                 let result = dispatch_rust_scheme(k, head_span, args, env, locals, fresh, subst);
                 let (val, mut scheme_errors) = result.into_parts();
                 local_errors.append(&mut scheme_errors);
@@ -5127,6 +5127,10 @@ fn infer_list(
                 // stone's own rider, not named in the brief's Rooms list.
                 && !k.starts_with(":wat::std::stat::")
                 && !k.starts_with(":wat::std::list::")
+                // 255.4 — retired Type::member (HandlePool::new) must reach Door 1
+                // below, same exclusion as stat/list. Not a second consult: this
+                // arm must not intercept so the existing door can teach.
+                && !crate::remedy::is_retired(k)
                 && env.get(k).is_none()
                 // Arc 259 S2c-ii-b — stdlib defclauses under :wat::kernel:: have no
                 // scheme (the stub is removed by register_stdlib_defclauses) but DO
@@ -5557,12 +5561,11 @@ fn infer_list(
                         CheckResult::partial_with(ret, local_errors)
                     };
                 }
-                // Surface found but `method_name` is not any member (Field or Method) — unknown callee.
-                local_errors.push(CheckError {
-                    span: head_span.clone(),
-                    kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
-                });
-                return CheckResult::errs(local_errors);
+                // 255.4 — `/` is the Type/member join for BOTH surface methods
+                // and ordinary fns under a type name (`<S>/surface-forms`).
+                // Runtime already falls through when the name is not a surface
+                // member; check must match. A second UnknownCallee here ate
+                // the generated carrier.
             }
         }
 
@@ -20686,7 +20689,7 @@ fn register_builtins(env: &mut CheckEnv) {
     //   pop    : ∀T. (:HandlePool :- [T]) -> :T
     //   finish : ∀T. (:HandlePool :- [T]) -> :()
     env.register(
-        ":wat::kernel::HandlePool::new".into(),
+        ":wat::kernel::HandlePool/new".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![
@@ -20704,7 +20707,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::kernel::HandlePool::pop".into(),
+        ":wat::kernel::HandlePool/pop".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Parametric {
@@ -20716,7 +20719,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::kernel::HandlePool::finish".into(),
+        ":wat::kernel::HandlePool/finish".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Parametric {
@@ -20785,7 +20788,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // odd length / non-hex character. Empty string round-trips to
     // empty Bytes.
     env.register(
-        ":wat::core::Bytes::to-hex".into(),
+        ":wat::core::Bytes/to-hex".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
@@ -20794,7 +20797,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::Bytes::from-hex".into(),
+        ":wat::core::Bytes/from-hex".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],

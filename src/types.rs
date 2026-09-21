@@ -139,21 +139,43 @@ pub(crate) fn parametric_heads_unify(h1: &str, h2: &str) -> bool {
         || crate::edn::render::type_denotation(&a) == crate::edn::render::type_denotation(&b)
 }
 
+/// A colon-joined Type::member (`:ns::Type::method`). 255.4 retired this
+/// spelling; the live registry uses `/`. Nested type *names*
+/// (`:wat::cache::Cache::GetRequest`) stay `::` — their last segment is
+/// PascalCase, not a method. `cfg(test)`: the floor builds release without
+/// tests; the integration lint carries its own copy (cannot see `pub(crate)`).
+#[cfg(test)]
+pub(crate) fn is_colon_joined_type_member(name: &str) -> bool {
+    if name.contains('/') {
+        return false;
+    }
+    let Some((prefix, member)) = name.rsplit_once("::") else { // rune:lint(one-variant-separator, namespace) — last ns join, not enum/variant
+        return false;
+    };
+    let type_seg = match prefix.rsplit_once("::") { // rune:lint(one-variant-separator, namespace) — type segment of a path
+        Some((_, leaf)) => leaf,
+        None => prefix,
+    };
+    let Some(tc) = type_seg.chars().next() else {
+        return false;
+    };
+    let Some(mc) = member.chars().next() else {
+        return false;
+    };
+    tc.is_ascii_uppercase() && (mc.is_ascii_lowercase() || mc == '_')
+}
+
 /// Reconstruct a **call-head** keyword from a clojure `ns/name` split.
 ///
-/// If `ns` names a type, join with `/` (Type/method). Otherwise join with
+/// If `ns` names a type, join with `/` (Type/member). Otherwise join with
 /// `::` (namespace-qualified function). ⛔ Do not use capitalisation — ask
 /// the registry. Identity reconstruction (`canonical_identity` /
 /// `ns_to_wat_path`) stays `::` always: a type *name* `my.Counter/Req`
-/// is not a method.
-///
-/// Last-segment-is-a-type cannot tell `:wat::core::Option/expect` (slash,
-/// 82 names) from `:wat::core::Bytes::to-hex` (`::`, 5 names) — both are
-/// `Type/member` to the joiner and different keys in the registry.
+/// is not a method. 255.4: a member join is `/`, always.
 ///
 /// `edn/render.rs` cannot call `TypeEnv` (cycle: types uses canonical_identity).
 pub(crate) fn reconstruct_call_path(ns: &str, name: &str, types: &TypeEnv) -> String {
-    // rune:lint(one-variant-separator, namespace) — ns dots → `::`; method join is `/` or `::`
+    // rune:lint(one-variant-separator, namespace) — ns dots → `::`; member join is `/`
     let ns_kw = format!(":{}", ns.replace('.', "::"));
     if types.is_known_type(&ns_kw) {
         format!("{ns_kw}/{name}")
@@ -3479,9 +3501,9 @@ fn synthesize_surface_protocol(
     ])
 }
 
-/// Arc 278 S4c — build the `<S>::surface-forms` carrier: a 0-arg `defn` returning a
+/// Arc 278 S4c — build the `<S>/surface-forms` carrier: a 0-arg `defn` returning a
 /// `(Vector :- [WatAST])` of the peer surface's own forms (here, the whole post-expansion
-/// `defsurface` form). `defservice` concats `(<S>::surface-forms)` into its shipped
+/// `defsurface` form). `defservice` concats `(<S>/surface-forms)` into its shipped
 /// `service-forms` bundle so a forked child re-registers the surface's protocol
 /// (its `:messages` records + the synthesized `::Op`/`::Reply`) at a fresh startup.
 ///
@@ -3494,9 +3516,8 @@ fn synthesize_surface_protocol(
 /// `defn` macro form would never be expanded and would go unregistered.
 fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: Span) -> WatAST {
     use crate::scope::Identifier;
-    // rune:lint(one-variant-separator, namespace) — names a 0-arg carrier FUNCTION under the
-    // surface's namespace; `surface-forms` is a def symbol, not a type's own path.
-    let carrier_name = format!("{}::surface-forms", surface_name);
+    // 255.4 — Type/member join. The carrier is a 0-arg fn under the surface type.
+    let carrier_name = format!("{}/surface-forms", surface_name);
     let forms_body = WatAST::List(
         vec![
             WatAST::Keyword(":wat::core::forms".into(), span.clone()),
@@ -7349,10 +7370,37 @@ mod tests {
             reconstruct_call_path("wat.core", "map", &env),
             ":wat::core::map"
         );
+        // 255.4 — Bytes/to-hex is the same join as Option/expect.
+        assert_eq!(
+            reconstruct_call_path("wat.core.Bytes", "to-hex", &env),
+            ":wat::core::Bytes/to-hex"
+        );
         // Identity of a type name stays `::` — not this door.
         assert_eq!(
             crate::edn::render::canonical_identity("wat.core/Option"),
             ":wat::core::Option"
+        );
+    }
+
+    /// 255.4 — a live registration is never a colon-joined Type::member.
+    #[test]
+    fn stone_255_4_no_colon_joined_type_member_in_the_registry() {
+        let mut hits: Vec<String> = Vec::new();
+        for e in crate::intrinsic::registry().all_entries() {
+            if is_colon_joined_type_member(e.name) {
+                hits.push(format!("intrinsic {}", e.name));
+            }
+        }
+        for s in crate::rust_deps::registry().symbols() {
+            if is_colon_joined_type_member(s) {
+                hits.push(format!("rust_deps {s}"));
+            }
+        }
+        hits.sort();
+        assert!(
+            hits.is_empty(),
+            "colon-joined Type::member still registered:\n{}",
+            hits.join("\n")
         );
     }
 

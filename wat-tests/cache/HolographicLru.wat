@@ -21,12 +21,12 @@
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-similarity-not-equality
   (:wat::core::let
     [store
-      (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 10)
+      (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10)
      k (:wat::holon::Thermometer 50.0 0.0 100.0)
      v (:wat::holon::leaf :answer-for-fifty)
-     _ (:wat::cache::HolographicLru::put store k v)
+     _ (:wat::cache::HolographicLru/put store k v)
      probe (:wat::holon::Thermometer 50.01 0.0 100.0)
-     got (:wat::cache::HolographicLru::get store probe)]
+     got (:wat::cache::HolographicLru/get store probe)]
     (:wat::test::assert-eq got (:wat::core::Option.Some {:value v}))))
 
 ;; ─── ★ dual eviction — the one that catches a real bug ──────────────────────────────────────
@@ -36,16 +36,16 @@
 ;; and `:c` must still be present.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-dual-eviction
   (:wat::core::let
-    [store (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 2)
+    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2)
      a (:wat::holon::leaf :a)
      b (:wat::holon::leaf :b)
      c (:wat::holon::leaf :c)
-     _ (:wat::cache::HolographicLru::put store a (:wat::holon::leaf :val-a))
-     _ (:wat::cache::HolographicLru::put store b (:wat::holon::leaf :val-b))
-     _ (:wat::cache::HolographicLru::put store c (:wat::holon::leaf :val-c))
-     got-a (:wat::cache::HolographicLru::get store a)
-     got-b (:wat::cache::HolographicLru::get store b)
-     got-c (:wat::cache::HolographicLru::get store c)]
+     _ (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a))
+     _ (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b))
+     _ (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c))
+     got-a (:wat::cache::HolographicLru/get store a)
+     got-b (:wat::cache::HolographicLru/get store b)
+     got-c (:wat::cache::HolographicLru/get store c)]
     (:wat::test::assert-eq got-a :wat::core::Option.None)
     (:wat::test::assert-eq got-b (:wat::core::Option.Some {:value (:wat::holon::leaf :val-b)}))
     (:wat::test::assert-eq got-c (:wat::core::Option.Some {:value (:wat::holon::leaf :val-c)}))))
@@ -56,17 +56,17 @@
 ;; `Hologram/find`'s matched-key return actually drives the LRU bump inside `get`.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-get-bumps-recency
   (:wat::core::let
-    [store (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 2)
+    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2)
      a (:wat::holon::leaf :a)
      b (:wat::holon::leaf :b)
      c (:wat::holon::leaf :c)
-     _ (:wat::cache::HolographicLru::put store a (:wat::holon::leaf :val-a))
-     _ (:wat::cache::HolographicLru::put store b (:wat::holon::leaf :val-b))
-     _ (:wat::cache::HolographicLru::get store a)
-     _ (:wat::cache::HolographicLru::put store c (:wat::holon::leaf :val-c))
-     got-a (:wat::cache::HolographicLru::get store a)
-     got-b (:wat::cache::HolographicLru::get store b)
-     got-c (:wat::cache::HolographicLru::get store c)]
+     _ (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a))
+     _ (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b))
+     _ (:wat::cache::HolographicLru/get store a)
+     _ (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c))
+     got-a (:wat::cache::HolographicLru/get store a)
+     got-b (:wat::cache::HolographicLru/get store b)
+     got-c (:wat::cache::HolographicLru/get store c)]
     (:wat::test::assert-eq got-a (:wat::core::Option.Some {:value (:wat::holon::leaf :val-a)}))
     (:wat::test::assert-eq got-b :wat::core::Option.None)
     (:wat::test::assert-eq got-c (:wat::core::Option.Some {:value (:wat::holon::leaf :val-c)}))))
@@ -81,10 +81,10 @@
 ;; the reason the record exists. Targets `Hologram/find` directly.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-find-returns-match-record
   (:wat::core::let
-    [store (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 10)
+    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10)
      k (:wat::holon::Thermometer 50.0 0.0 100.0)
      v (:wat::holon::leaf :answer-for-fifty)
-     _ (:wat::cache::HolographicLru::put store k v)
+     _ (:wat::cache::HolographicLru/put store k v)
      probe (:wat::holon::Thermometer 50.01 0.0 100.0)
      hologram (:wat::cache::HolographicLru/hologram store)]
     (:wat::core::match (:wat::holon::Hologram/find hologram probe)
@@ -103,10 +103,10 @@
 ;; count.
 (:wat::test::deftest :wat-tests::cache::HolographicLru::test-len-agrees-with-bound
   (:wat::core::let
-    [store (:wat::cache::HolographicLru::new (:wat::holon::filter-coincident) 3)
-     _ (:wat::cache::HolographicLru::put store (:wat::holon::leaf :k1) (:wat::holon::leaf :v1))
-     _ (:wat::cache::HolographicLru::put store (:wat::holon::leaf :k2) (:wat::holon::leaf :v2))
-     _ (:wat::cache::HolographicLru::put store (:wat::holon::leaf :k3) (:wat::holon::leaf :v3))
-     _ (:wat::cache::HolographicLru::put store (:wat::holon::leaf :k4) (:wat::holon::leaf :v4))
-     n (:wat::cache::HolographicLru::len store)]
+    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 3)
+     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k1) (:wat::holon::leaf :v1))
+     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k2) (:wat::holon::leaf :v2))
+     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k3) (:wat::holon::leaf :v3))
+     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k4) (:wat::holon::leaf :v4))
+     n (:wat::cache::HolographicLru/len store)]
     (:wat::test::assert-eq n 3)))

@@ -156,7 +156,7 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
-/// `(:wat::kernel::HandlePool::new name handles)` → `(:wat::kernel::HandlePool :- [T])`.
+/// `(:wat::kernel::HandlePool/new name handles)` → `(:wat::kernel::HandlePool :- [T])`.
 /// Builds a pool of N handles of the same type. `name` surfaces in error
 /// messages; the pool drains as callers `pop` and asserts empty at
 /// `finish` — FOUNDATION's claim-or-panic discipline.
@@ -170,7 +170,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @arg     name :wat::core::String the pool's name, surfaced in pop/finish error messages
 /// @arg     handles (:wat::core::Vector :- [T]) the handles to pool, in claim order
 /// @ret     (:wat::kernel::HandlePool :- [T]) the built pool
-/// @example-norun (:wat::kernel::HandlePool::new "workers" handles) #=> #wat.kernel/HandlePool{}
+/// @example-norun (:wat::kernel::HandlePool/new "workers" handles) #=> #wat.kernel/HandlePool{}
 // Registered `TypeScheme` — `check.rs:18169` — gate LIVE.
 //
 // Deciding line for `@Category Resource`: `runtime.rs:26895`
@@ -184,7 +184,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 // multi-consumer semantics); given the same `handles` vector, the pool's
 // content and claim order are a pure function of the input — no external
 // actor, no wait.
-#[wat_intrinsic(":wat::kernel::HandlePool::new")]
+#[wat_intrinsic(":wat::kernel::HandlePool/new")]
 pub(crate) fn eval_handle_pool_new(
     name: &WatAST,
     handles: &WatAST,
@@ -195,7 +195,7 @@ pub(crate) fn eval_handle_pool_new(
     crate::kernel::resource::eval_handle_pool_new(&[name.clone(), handles.clone()], env, sym, list_span)
 }
 
-/// `(:wat::kernel::HandlePool::pop pool)` → `:T`. Claims one handle from
+/// `(:wat::kernel::HandlePool/pop pool)` → `:T`. Claims one handle from
 /// the pool. Empty pool → a `MalformedForm` naming the pool: callers are
 /// expected to pop exactly the count they committed to at construction.
 ///
@@ -207,7 +207,7 @@ pub(crate) fn eval_handle_pool_new(
 /// @Category      Resource
 /// @arg     pool (:wat::kernel::HandlePool :- [T]) the pool to claim from
 /// @ret     :T the claimed handle
-/// @example-norun (:wat::kernel::HandlePool::pop pool) #=> handle-0
+/// @example-norun (:wat::kernel::HandlePool/pop pool) #=> handle-0
 // Registered `TypeScheme` — `check.rs:18187` — gate LIVE.
 //
 // Deciding line for `@Category Resource`: `runtime.rs:26964`
@@ -221,7 +221,7 @@ pub(crate) fn eval_handle_pool_new(
 // single-owner discipline (no concurrent popper) makes the claim order —
 // and therefore the outcome for a given call sequence — a pure function
 // of construction order, not an external race.
-#[wat_intrinsic(":wat::kernel::HandlePool::pop")]
+#[wat_intrinsic(":wat::kernel::HandlePool/pop")]
 pub(crate) fn eval_handle_pool_pop(
     pool: &WatAST,
     env: &Environment,
@@ -231,7 +231,7 @@ pub(crate) fn eval_handle_pool_pop(
     crate::kernel::resource::eval_handle_pool_pop(std::slice::from_ref(pool), env, sym, list_span)
 }
 
-/// `(:wat::kernel::HandlePool::finish pool)` → `:()`. Asserts the pool is
+/// `(:wat::kernel::HandlePool/finish pool)` → `:()`. Asserts the pool is
 /// fully drained (no orphaned handles) and returns `:()`. Orphans →
 /// `MalformedForm` naming the pool and the orphan count — FOUNDATION's
 /// Pipeline Discipline rule 2, catching a mis-counted handle budget
@@ -245,7 +245,7 @@ pub(crate) fn eval_handle_pool_pop(
 /// @Category      Resource
 /// @arg     pool (:wat::kernel::HandlePool :- [T]) the pool to check is drained
 /// @ret     :wat::core::nil always `:()` on success
-/// @example-norun (:wat::kernel::HandlePool::finish pool) #=> #wat.core/nil{}
+/// @example-norun (:wat::kernel::HandlePool/finish pool) #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:18199` — gate LIVE.
 //
 // Deciding line for `@Category Resource`: `runtime.rs:27021`
@@ -276,7 +276,7 @@ pub(crate) fn eval_handle_pool_pop(
 // external actor's timing/state not fixed by the call's own arguments?" — this
 // is Nondeterministic. It applied that test to `accept`/`close`/`signal` and
 // missed its own instance.
-#[wat_intrinsic(":wat::kernel::HandlePool::finish")]
+#[wat_intrinsic(":wat::kernel::HandlePool/finish")]
 pub(crate) fn eval_handle_pool_finish(
     pool: &WatAST,
     env: &Environment,
