@@ -44,9 +44,15 @@ mod error;
 pub(crate) use error::*;
 
 use crate::ast::WatAST;
+use crate::form_match::{canonical_identity_of, identity_text};
 use crate::rete::clause::{classify_constraint_head, classify_rete_clause, ConstraintSpelling, ReteClauseShape};
 use crate::span::Span;
 use crate::types::{EnumVariant, TypeDef, TypeEnv};
+
+/// Literal-name class: rust-scheme and clojure spellings of one head.
+fn head_is(ast: &WatAST, rust_scheme: &str) -> bool {
+    canonical_identity_of(ast).as_deref() == Some(rust_scheme)
+}
 
 // ─── Error types (Pattern A: span at the outer struct, kind carries variant data) ────────────
 
@@ -131,13 +137,15 @@ inventory::submit! {
 /// (`Boundary::AllData`) or a quasiquote template. A `make-query` / `make-rule`
 /// sitting inside is a payload for another world, not a live form in *this* freeze.
 fn rete_walk_skips_children(items: &[WatAST]) -> bool {
-    match items.first() {
-        Some(WatAST::Keyword(k, _)) => matches!(
-            crate::resolve::boundary::quote_boundary(k),
+    // Literal-name: quote/quasiquote/forms. Canonicalize the head; quote_boundary
+    // stores rust-scheme. A converted `(wat.core/quote …)` must still skip.
+    match items.first().and_then(canonical_identity_of) {
+        Some(id) => matches!(
+            crate::resolve::boundary::quote_boundary(&id),
             crate::resolve::boundary::Boundary::AllData
                 | crate::resolve::boundary::Boundary::Quasiquote
         ),
-        _ => false,
+        None => false,
     }
 }
 
@@ -148,8 +156,7 @@ fn rete_walk_skips_children(items: &[WatAST]) -> bool {
 fn walk_for_make_rule(forms: &mut [WatAST], types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
     for f in forms.iter_mut() {
         if let WatAST::List(items, _) = f {
-            let is_make_rule =
-                matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::rete::make-rule");
+            let is_make_rule = items.first().is_some_and(|h| head_is(h, ":wat::rete::make-rule"));
             if is_make_rule {
                 validate_rule_when_and_reorder_then(items, types, errors);
                 continue;
@@ -168,8 +175,7 @@ fn walk_for_make_rule(forms: &mut [WatAST], types: &TypeEnv, errors: &mut Vec<Re
 fn walk_for_make_query(forms: &[WatAST], types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
     for f in forms {
         if let WatAST::List(items, _) = f {
-            let is_make_query =
-                matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::rete::make-query");
+            let is_make_query = items.first().is_some_and(|h| head_is(h, ":wat::rete::make-query"));
             if is_make_query {
                 validate_query_when(items, types, errors);
                 continue;
@@ -779,17 +785,18 @@ fn then_operand_declared_type(
             binds.get(sym.as_str()).cloned()
         }
         WatAST::List(items, _) if !items.is_empty() => {
-            let WatAST::Keyword(head, _) = &items[0] else { return None };
-            if kwargs_construct_head(head) {
-                if let Some(WatAST::Keyword(ty, _)) = items.get(1) {
+            // Type-extraction: constructor / kwargs-construct type slot. Not Keyword-only.
+            let head = canonical_identity_of(&items[0])?;
+            if kwargs_construct_head(&head) {
+                if let Some(ty) = items.get(1).and_then(identity_text) {
                     return Some(format!(":{}", type_env_name(ty)));
                 }
                 return None;
             }
-            if lookup_fields(types, &type_env_name(head)).is_some() {
-                return Some(format!(":{}", type_env_name(head)));
+            if lookup_fields(types, &type_env_name(&head)).is_some() {
+                return Some(format!(":{}", type_env_name(&head)));
             }
-            if let Some((enum_path, variant)) = wat_reader::identifier::decompose_variant(head) {
+            if let Some((enum_path, variant)) = wat_reader::identifier::decompose_variant(&head) {
                 let enum_key = if enum_path.starts_with(':') {
                     enum_path.to_string()
                 } else {
@@ -887,32 +894,14 @@ fn parametric_type_head(t: &str) -> Option<String> {
 }
 
 fn kwargs_construct_head(head: &str) -> bool {
-    let h = head.trim_start_matches(':');
-    h == "wat::core::kwargs-construct" || h.ends_with("kwargs-construct")
+    crate::edn::render::canonical_identity(head) == ":wat::core::kwargs-construct"
 }
 
-/// TypeEnv keys are colon-FQDNs (`:wat::grep::Capture`). A Keyword may store that,
-/// or the slash-path `wat.grep/Capture`.
+/// TypeEnv key without the leading colon. ONE door — not a second slash-to-`::` parser.
 fn type_env_name(kw: &str) -> String {
-    let k = kw.trim_start_matches(':');
-    // rune:lint(one-variant-separator, namespace) — checks whether a TypeEnv keyword is already
-    // the colon-FQDN form (vs. the slash-path form) by namespace-separator presence; a type
-    // name's own spelling check, not a variant tag.
-    if k.contains("::") {
-        k.to_string()
-    } else if k.contains('/') {
-        // Through the ONE door — `identifier::receiver`/`method` are the sanctioned readers
-        // for `/`-structure; a hand-rolled `rsplit_once('/')` here is a SECOND name parser
-        // (STONE-one-name-grammar, arc 109) and the lint says so by name.
-        let ns = wat_reader::identifier::receiver(k);
-        let name = wat_reader::identifier::method(k);
-        // rune:lint(one-variant-separator, namespace) — composes a colon-FQDN type name from a
-        // slash-path's namespace (dot-joined, converted to `::`) and leaf; a type name, not an
-        // enum variant.
-        format!("{}::{name}", ns.replace('.', "::"))
-    } else {
-        k.to_string()
-    }
+    crate::edn::render::canonical_identity(kw)
+        .trim_start_matches(':')
+        .to_string()
 }
 
 /// Arc 278 BRIEF-construction-total-three-walls.md #1/#3 — walk a `:then` item's value-position
@@ -1006,8 +995,9 @@ fn walk_nested_constructors(
     // `WatAST::List` bind above before ever reaching a pattern; a `cond` clause is a List but its
     // `items[0]` is a call form, so keyword extraction fails and it falls through harmlessly. An
     // arm for any of them would be a dead branch no mutation could redden.
-    if let Some(WatAST::Keyword(head, _)) = items.first() {
-        if crate::rete::vocabulary::resolve_core_name(head) == ":wat::core::match" {
+    // Literal-name: `match` (core or rete twin). Canonicalize before resolve_core_name.
+    if let Some(id) = items.first().and_then(canonical_identity_of) {
+        if crate::rete::vocabulary::resolve_core_name(&id) == ":wat::core::match" {
             if let Some(scrutinee) = items.get(1) {
                 walk_nested_constructors(scrutinee, rule_name, types, binds, errors);
             }
@@ -1055,20 +1045,23 @@ fn walk_nested_constructors(
     // The enum-variant sibling branch below keeps reading the same slot: an enum variant is NOT
     // lowered, and when the lowered head is present the slot holds a record type, on which
     // `enum_variant_ctor` is `None` anyway.
-    let type_idx = match &items[0] {
-        WatAST::Keyword(h, _) if h == ":wat::core::kwargs-construct" => 1,
-        _ => 0,
+    let type_idx = if items
+        .first()
+        .is_some_and(|h| head_is(h, ":wat::core::kwargs-construct"))
+    {
+        1
+    } else {
+        0
     };
-    // STOP-3: the type slot is NOT assumed to be a keyword. The macro always emits one, but a
-    // hand-written `(:wat::core::kwargs-construct x 1)` over a non-keyword is expressible. Such a
-    // form falls through to the generic recursion below rather than widening the match blind.
-    if let Some(WatAST::Keyword(head, _)) = items.get(type_idx) {
+    // Type-extraction: constructor-type slot is Keyword **or** Symbol. A non-name
+    // (`(:wat::core::kwargs-construct x 1)`) still falls through (STOP-3).
+    if let Some(raw) = items.get(type_idx).and_then(identity_text) {
+        let head = crate::edn::render::canonical_identity(raw);
         let args = &items[type_idx + 1..];
         // Bare aggregate-type constructor head. `lookup_fields` is the same door
-        // `validate_then_form` uses (`:{fact_type}` key); `types.get(head)` misses when
-        // the Keyword's stored name has no leading colon.
-        if lookup_fields(types, &type_env_name(head)).is_some() {
-            let nested_type = type_env_name(head);
+        // `validate_then_form` uses (`:{fact_type}` key).
+        if lookup_fields(types, &type_env_name(&head)).is_some() {
+            let nested_type = type_env_name(&head);
             let field_names = lookup_fields(types, &nested_type).unwrap_or_default();
             // D11 — the DECLARED type of each nested field, index-aligned with `field_names`, the
             // same pairing `validate_then_form` makes at the top level. Both accessors read the
@@ -1235,7 +1228,7 @@ fn walk_nested_constructors(
             // need to. Kept main's version whole; `binds` was already threaded into the recursive
             // calls below on this tree, same as everywhere else in this function.
             let expected =
-                crate::rete::matcher::enum_variant_ctor(types, head).map(|(_, _, n)| n);
+                crate::rete::matcher::enum_variant_ctor(types, &head).map(|(_, _, n)| n);
             if let Some(expected) = expected {
                 let got = if expected == 0 {
                     crate::rete::eval_insert::rete_enum_unit_arg_count(args)
@@ -1285,15 +1278,17 @@ fn validate_then_form(
             return;
         }
     };
-    let type_kw = match &fact_items[0] {
-        WatAST::Keyword(k, _) => k.clone(),
-        other => {
-            let form_copy = other.clone();
-            errors.push(malformed(fact_span, rule_name, "", &form_copy));
-            return;
-        }
+    // Type-extraction: `:then` fact head. Symbol `weather/ColdAndWindy` is the
+    // same type as Keyword `:weather::ColdAndWindy`. A non-name head is still
+    // MalformedClause (diagnosed, not skipped).
+    let Some(raw) = identity_text(&fact_items[0]) else {
+        let form_copy = fact_items[0].clone();
+        errors.push(malformed(fact_span, rule_name, "", &form_copy));
+        return;
     };
-    let fact_type = type_kw.trim_start_matches(':').to_string();
+    let fact_type = crate::edn::render::canonical_identity(raw)
+        .trim_start_matches(':')
+        .to_string();
     let field_names = match lookup_fields(types, &fact_type) {
         Some(f) => f,
         // Arc 278 Stone B (DESIGN-STONE-then-is-a-vector-of-singular-facts.md § "Stone B") —
@@ -1578,10 +1573,8 @@ mod tests {
     fn find_make_rule(forms: &[WatAST]) -> Option<&Vec<WatAST>> {
         for f in forms {
             if let WatAST::List(items, _) = f {
-                if let Some(WatAST::Keyword(k, _)) = items.first() {
-                    if k == ":wat::rete::make-rule" {
-                        return Some(items);
-                    }
+                if items.first().is_some_and(|h| head_is(h, ":wat::rete::make-rule")) {
+                    return Some(items);
                 }
                 if let Some(found) = find_make_rule(items) {
                     return Some(found);

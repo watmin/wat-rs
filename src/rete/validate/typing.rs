@@ -883,10 +883,13 @@ fn resolve_operand_type(
         // same standard the three sources above already meet, applied to the operand shape
         // fix-list F made legal and nobody came back to type.
         WatAST::List(items, _) => {
-            let Some(WatAST::Keyword(head, _)) = items.first() else {
+            // Type-extraction: rete-op head in a nested call. Canonicalize so
+            // `wat.rete.i64/+` hits the same row as `:wat::rete::i64::+`.
+            let Some(raw) = items.first().and_then(crate::form_match::identity_text) else {
                 return OperandType::ComputedNotDerivableHere;
             };
-            let Some(row) = crate::rete::vocabulary::rete_op_for(head) else {
+            let id = crate::edn::render::canonical_identity(raw);
+            let Some(row) = crate::rete::vocabulary::rete_op_for(&id) else {
                 // A non-rete head in operand position is LAW A's finding, reported by its own
                 // path. Not a type question, and not this function's to answer.
                 return OperandType::ComputedNotDerivableHere;

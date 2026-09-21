@@ -255,6 +255,11 @@ pub(crate) fn identity_text(ast: &WatAST) -> Option<&str> {
     }
 }
 
+/// Keyword or Symbol → the one TypeEnv / vocabulary key.
+pub(crate) fn canonical_identity_of(ast: &WatAST) -> Option<String> {
+    identity_text(ast).map(crate::edn::render::canonical_identity)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

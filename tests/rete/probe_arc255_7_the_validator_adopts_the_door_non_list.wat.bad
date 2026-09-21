@@ -1,0 +1,5 @@
+;; 255.7 — a non-list :then item is still MalformedClause (diagnosed, not skipped).
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
+(:wat::rete::defrule :weather::bad-then
+  :when [(weather/ColdAndWindy (?loc :- :location))]
+  :then [42])
