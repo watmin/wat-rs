@@ -207,6 +207,44 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ⛔ 2026-09-21 — 251.8d-ii STOPPED (again), and 255.8 IS DRAWN
+
+**The stdlib CONVERTS and does not LOAD.** 8d-ii's redraw converted all 64 `wat/*.wat`
+(`64/64 changed`, dry-run byte-identical to the applied run, `cargo build --release` exit 0) — and
+the new binary **dies in startup, before it reads any file**:
+
+```
+#wat.type/UnknownNamedType {:message "annotation names unknown type
+  :wat::telemetry::Journal::QueryMetricsRequest — not a declared type,
+  not a type variable, and not a builtin"}
+```
+
+⭐ **Two witnesses, different first names** (pass 2 died on `:wat::query::Store::EnsureSchemaRequest`)
+— `validate_named_type_annotations` walks `env.iter()` and returns the FIRST miss, and `HashMap`
+order changes per process. **Named, not dismissed as a flake.** `wat/` was restored; recovery proven.
+
+⛔ **CAUSE: 255.3, not the codemod.** A nested type name is **registered** with `::` by
+`canonical_identity`/`ns_to_wat_path` and **resolved** with `/` by `reconstruct_call_path`, because
+the namespace's last segment (`Journal`) is itself a known type — so the join treats the tail as a
+**member**. `canonical_identity` leaves a string already containing `::` alone, so the `/` never
+folds back. **Reproduced minimally by the orchestrator in 3 lines:**
+`(wat.core/defrecord my.Journal/Req …)` + `[r :- my.Journal/Req]` → `:path ":my::Journal/Req"`;
+the `:my::Journal::Req` spelling is CLEAN.
+
+⛔⛔ **`src/types.rs:172-174` — the function's own doc states the rule its body breaks:**
+> *"a type name `my.Counter/Req` is not a method. Identity reconstruction stays `::` always."*
+
+⭐ **`Type/member` and `Namespace.Type/NestedType` are the SAME SHAPE.** 255.3 already measured that
+last-segment-is-a-type is **necessary and not sufficient**; 255.4 answered one half by unifying the
+member join on `/`. **255.8 is the other half.** ⚠ If a type annotation is reaching a function named
+for CALL paths, the bug may be the **routing**, not the join. ⛔ A second predicate inside
+`reconstruct_call_path` is the shape this arc has rejected four times (255.4 cost 32 reds).
+
+**Stone: `255-builtin-registry/BRIEF-STONE-255.8-a-namespace-that-is-also-a-type.md`** (`6b10437c5`).
+Gate: the minimal repro clean **and** `Option/expect` still a member (4,501 sites) in ONE test; a
+converted stdlib binary that STARTS, built from copies; **0 live `.wat` converted**. Delta baseline
+**49**. **8d-ii re-runs after it** — its conversion is already proven; only the load fails.
+
 ### ✅ 255.7 LANDED 2026-09-21 — the validator adopts the door. ⭐ **ReteCheckErrors 16 → 0**
 
 Floor 5957/5957, clippy 0, census clean, 0 corpus `.wat` converted. **Delta 61 → 49.**
