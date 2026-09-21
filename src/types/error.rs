@@ -26,7 +26,10 @@ pub struct TypeError {
 impl TypeError {
     /// The ONE door for construction.
     pub fn new(span: Span, kind: TypeErrorKind) -> Self {
-        Self { span, kind: Box::new(kind) }
+        Self {
+            span,
+            kind: Box::new(kind),
+        }
     }
     /// The ONE door for reading the kind.
     pub fn kind(&self) -> &TypeErrorKind {
@@ -163,13 +166,9 @@ pub enum TypeErrorKind {
     ///
     /// Arc 138 slice 2 — names the outermost type keyword
     /// (the keyword whose inner argument carries the illegal colon).
-    InnerColonInCompoundArg {
-        raw: String,
-        offending: String,
-    },
+    InnerColonInCompoundArg { raw: String, offending: String },
 
     // ─── Stone 237.1 — typeunion declaration errors ─────────────────────────
-
     /// A typeunion's member graph, traced through the currently-registered
     /// typeunions, closes a cycle. Detected at registration time so
     /// unification cannot loop at use. Example:
@@ -200,7 +199,6 @@ pub enum TypeErrorKind {
     },
 
     // ─── Stone S-A — typesub (is-a hierarchy) errors ───────────────────────
-
     /// A `register_subtype(child, parent, span)` call would close a cycle
     /// in the typesub hierarchy — `parent` is already a transitive subtype
     /// of `child`. Refused at registration time so `is_subtype` cannot loop.
@@ -208,7 +206,6 @@ pub enum TypeErrorKind {
     CyclicSubtype { child: String, parent: String },
 
     // ─── Arc 293.W — containment rule ──────────────────────────────────────
-
     /// A portable aggregate (Record | HolonRecord) declared a field whose type
     /// is non-portable (e.g. a Struct). Such a field cannot be reconstructed
     /// from EDN bytes on the far side of a comms boundary, so a portable
@@ -281,7 +278,6 @@ pub enum TypeErrorKind {
         path: String,
     },
 }
-
 
 impl fmt::Display for TypeErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

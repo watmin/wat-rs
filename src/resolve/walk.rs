@@ -281,6 +281,9 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     if crate::intrinsic::registry().contains(head) {
         return true;
     }
+    if crate::special_forms::lookup_special_form(head).is_some() {
+        return true;
+    }
     // 255.4 — a retired call head must reach check (door 1) so the ledger
     // teaches, instead of dying here as UnresolvedReference with no help.
     if crate::remedy::is_retired(head) {
@@ -316,6 +319,13 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     if sym.get(head).is_some() {
         return true;
     }
+    // A defclause's stub Function is removed when the ClauseSet lands in
+    // `runtime_def_values`. The checker dispatches on that value; the
+    // resolver has to see the same name or the call dies as unresolved
+    // after the stub is gone.
+    if sym.has_def_value(head) {
+        return true;
+    }
     // Stone 241.9 — unit enum variants are stored in `sym.unit_variants`
     // (not `sym.functions`) after `register_enum_methods` (step 6.5).
     // In defenum's positional grammar, unit variant arms in `match` appear
@@ -342,19 +352,15 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     // can dispatch to the right impl.
     if head.contains('/') {
         let stem = wat_reader::identifier::receiver(head);
-        // Arc 293.4b — surface-method call heads (`:S/method`).
-        //
-        // A head `:S/method` where the stem names a `TypeDef::Surface` is a
-        // surface-method call — e.g. `:t::Shape/area`. The resolver accepts these
-        // so they survive to the type-checker (which verifies the receiver satisfies
-        // S and the method is declared) and the runtime dispatcher (which routes to
-        // `:<T>/<method>` by concrete type).
-        //
-        // `sym.types` is pre-attached at step 6.97 (freeze/env.rs) BEFORE this
-        // resolve pass runs, so the TypeDef::Surface lookup is safe here.
-        if let Some(types) = sym.types() {
-            if matches!(types.get(stem), Some(crate::types::TypeDef::Surface(_))) {
-                return true;
+        let tail = wat_reader::identifier::method(head);
+        // `Surface/Nested.Variant` is a nested type's variant, not a method.
+        // Accepting it here kept the `/` spelling and the map-ctor never saw
+        // the `::` name the enum was registered under.
+        if wat_reader::identifier::decompose_variant(tail).is_none() {
+            if let Some(types) = sym.types() {
+                if matches!(types.get(stem), Some(crate::types::TypeDef::Surface(_))) {
+                    return true;
+                }
             }
         }
     }

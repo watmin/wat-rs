@@ -24,36 +24,46 @@ pub(crate) fn collect_use_declarations(
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-            if head == ":wat::core::use!" {
-                // Expect exactly one keyword argument.
-                if items.len() != 2 {
+        let Some(head_node) = items.first() else {
+            return;
+        };
+        let Some(head) = crate::declare::parse::head_fqdn(head_node) else {
+            return;
+        };
+        if head.as_ref() == ":wat::core::use!" {
+            let head_span = head_node.span();
+            if items.len() != 2 {
+                unresolved.push(UnresolvedReference {
+                    path: head.into_owned(),
+                    context: "(:wat::core::use! :rust::Path) expects exactly one keyword argument",
+                    span: head_span.clone(),
+                });
+                return;
+            }
+            // `rust.cache/Lru` and `:rust::cache::Lru` are the same shim path.
+            let (path, path_span) = match &items[1] {
+                WatAST::Keyword(k, span) => (crate::edn::render::canonical_identity(k), span),
+                WatAST::Symbol(id, span) if id.is_reference() => {
+                    (crate::edn::render::canonical_identity(id.as_str()), span)
+                }
+                other => {
                     unresolved.push(UnresolvedReference {
-                        path: head.clone(),
-                        context:
-                            "(:wat::core::use! :rust::Path) expects exactly one keyword argument",
-                        span: head_span.clone(),
+                        path: head.into_owned(),
+                        context: "(:wat::core::use! ...) argument must be a keyword path",
+                        span: other.span().clone(),
                     });
                     return;
                 }
-                if let WatAST::Keyword(path, path_span) = &items[1] {
-                    if !registry.has_type(path) {
-                        unresolved.push(UnresolvedReference {
-                            path: path.clone(),
-                            context: "rust symbol not available in wat; declare it via its shim",
-                            span: path_span.clone(),
-                        });
-                        return;
-                    }
-                    use_decls.declare(path.clone());
-                } else {
-                    unresolved.push(UnresolvedReference {
-                        path: head.clone(),
-                        context: "(:wat::core::use! ...) argument must be a keyword path",
-                        span: head_span.clone(),
-                    });
-                }
+            };
+            if !registry.has_type(&path) {
+                unresolved.push(UnresolvedReference {
+                    path,
+                    context: "rust symbol not available in wat; declare it via its shim",
+                    span: path_span.clone(),
+                });
+                return;
             }
+            use_decls.declare(path);
         }
     }
 }

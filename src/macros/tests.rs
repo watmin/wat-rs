@@ -1,12 +1,19 @@
-use super::*;
 use super::expand;
+use super::*;
 use crate::ast::WatAST;
 use crate::scope::Identifier;
 
 /// Parse `src`, register defmacros, and return `(registry, rest_forms, env, sym)`.
 /// Panics on parse or registration failure — for success-path setup only.
 /// Tests that exercise error paths call `expand_src` directly (which propagates errors).
-fn expand_setup(src: &str) -> (MacroRegistry, Vec<WatAST>, crate::runtime::Environment, crate::runtime::SymbolTable) {
+fn expand_setup(
+    src: &str,
+) -> (
+    MacroRegistry,
+    Vec<WatAST>,
+    crate::runtime::Environment,
+    crate::runtime::SymbolTable,
+) {
     let forms = crate::parse_all!(src).expect("parse ok");
     let mut reg = MacroRegistry::new();
     let rest = register_defmacros(forms, &mut reg).expect("register_defmacros ok");
@@ -35,7 +42,14 @@ fn expand_keeping_defmacros(src: &str) -> super::ExpandBatch {
     let sym = crate::runtime::SymbolTable::default();
     let mut out = Vec::with_capacity(rest.len());
     for form in rest {
-        out.push(expand::expand_form(form, &mut reg, 0, &env, &sym, crate::resolve::Privilege::User)?);
+        out.push(expand::expand_form(
+            form,
+            &mut reg,
+            0,
+            &env,
+            &sym,
+            crate::resolve::Privilege::User,
+        )?);
     }
     Ok(out)
 }
@@ -59,7 +73,10 @@ fn stdlib_privilege_bypasses_reserved_prefix_on_register() {
     // Unprivileged (the user-expansion path): a :wat:: macro still halts — the gate holds.
     let mut reg = MacroRegistry::new();
     match reg.register(def.clone(), crate::resolve::Privilege::User) {
-        Err(MacroError { kind: MacroErrorKind::ReservedPrefix(_), .. }) => {}
+        Err(MacroError {
+            kind: MacroErrorKind::ReservedPrefix(_),
+            ..
+        }) => {}
         other => panic!("expected ReservedPrefix without privilege; got {other:?}"),
     }
 
@@ -87,7 +104,13 @@ fn malformed_quasiquote_body_wrong_arity_fails_with_malformed_template() {
     )
     .unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::MalformedTemplate { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::MalformedTemplate { .. },
+                ..
+            }
+        ),
         "expected MalformedTemplate for (:wat::core::quasiquote a b) body (wrong arity); got: {:?}",
         err
     );
@@ -128,7 +151,8 @@ fn expand_keeping_defmacros_keeps_vs_expand_src_strips() {
     // expand_src: the generated defmacro is registered and stripped — no output forms.
     let stripped = expand_src(src).expect("expand_src ok");
     assert_eq!(
-        stripped.len(), 0,
+        stripped.len(),
+        0,
         "expand_src must strip the generated defmacro (registers it instead); got: {:?}",
         stripped
     );
@@ -426,7 +450,9 @@ fn extract_typed_binding_sym(form: &WatAST) -> Identifier {
     };
     let pair = match &bindings[0] {
         WatAST::List(b, _) => b,
-        _ => panic!("extract_typed_binding_sym: expected binding-pair at bindings[0]; got non-List"),
+        _ => {
+            panic!("extract_typed_binding_sym: expected binding-pair at bindings[0]; got non-List")
+        }
     };
     let typed_name = match &pair[0] {
         WatAST::List(tn, _) => tn,
@@ -499,7 +525,13 @@ fn reserved_prefix_macro_rejected() {
         r#"(:wat::core::defmacro :wat::std::MyMacro [x <- :wat::WatAST] -> :wat::WatAST `~x)"#,
     )
     .unwrap_err();
-    assert!(matches!(err, MacroError { kind: MacroErrorKind::ReservedPrefix(_), .. }));
+    assert!(matches!(
+        err,
+        MacroError {
+            kind: MacroErrorKind::ReservedPrefix(_),
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -515,7 +547,13 @@ fn duplicate_defmacro_with_divergent_body_rejected() {
         "#,
     )
     .unwrap_err();
-    assert!(matches!(err, MacroError { kind: MacroErrorKind::DuplicateMacro(_), .. }));
+    assert!(matches!(
+        err,
+        MacroError {
+            kind: MacroErrorKind::DuplicateMacro(_),
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -530,7 +568,52 @@ fn duplicate_defmacro_structurally_equivalent_is_noop() {
         (:my::m 42)
         "#,
     );
-    assert!(result.is_ok(), "byte-equivalent re-decl should succeed; got {:?}", result);
+    assert!(
+        result.is_ok(),
+        "byte-equivalent re-decl should succeed; got {:?}",
+        result
+    );
+}
+
+#[test]
+fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
+    // The builtin kwargs companion is the keyword spelling. A converted
+    // defrecord emits the symbol spelling of that same body. Identity, so
+    // the second registration is a no-op. A member `/` is not that identity:
+    // `wat.core.Option/expect` canonicalizes to `::`, and the keyword keeps `/`.
+    let same = expand_src(
+        r#"
+        (:wat::core::defmacro :my::m [& call-args <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
+          (:wat::core::let [_kc-type (:wat::core::keyword-node ":my::m")]
+            `(:wat::core::kwargs-construct ~_kc-type ~@call-args)))
+        (wat.core/defmacro :my::m [& call-args :- (wat.core/Vector :- [wat/WatAST])] :- wat/WatAST
+          (wat.core/let [_kc-type (wat.core/keyword-node ":my::m")]
+            `(wat.core/kwargs-construct ~_kc-type ~@call-args)))
+        "#,
+    );
+    assert!(
+        same.is_ok(),
+        "symbol spelling of the same companion must no-op; got {:?}",
+        same
+    );
+
+    let member = expand_src(
+        r#"
+        (:wat::core::defmacro :my::m2 [] -> :wat::WatAST `(:wat::core::Option/expect x "m"))
+        (:wat::core::defmacro :my::m2 [] -> :wat::WatAST `(wat.core.Option/expect x "m"))
+        "#,
+    );
+    assert!(
+        matches!(
+            member,
+            Err(MacroError {
+                kind: MacroErrorKind::DuplicateMacro(_),
+                ..
+            })
+        ),
+        "a member join is not the :: identity; got {:?}",
+        member
+    );
 }
 
 #[test]
@@ -545,7 +628,13 @@ fn macro_arity_mismatch() {
         "#,
     )
     .unwrap_err();
-    assert!(matches!(err, MacroError { kind: MacroErrorKind::ArityMismatch { .. }, .. }));
+    assert!(matches!(
+        err,
+        MacroError {
+            kind: MacroErrorKind::ArityMismatch { .. },
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -564,7 +653,13 @@ fn variadic_macro_arity_too_few_uses_arity_too_few_variant() {
     )
     .unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::ArityTooFew { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::ArityTooFew { .. },
+                ..
+            }
+        ),
         "expected ArityTooFew for variadic macro called with too-few args; got: {:?}",
         err
     );
@@ -592,7 +687,13 @@ fn program_body_producing_non_ast_rejected() {
         "#,
     )
     .unwrap_err();
-    assert!(matches!(err, MacroError { kind: MacroErrorKind::MalformedTemplate { .. }, .. }));
+    assert!(matches!(
+        err,
+        MacroError {
+            kind: MacroErrorKind::MalformedTemplate { .. },
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -604,7 +705,13 @@ fn splice_non_list_arg_rejected() {
         "#,
     )
     .unwrap_err();
-    assert!(matches!(err, MacroError { kind: MacroErrorKind::SpliceNotSequence { .. }, .. }));
+    assert!(matches!(
+        err,
+        MacroError {
+            kind: MacroErrorKind::SpliceNotSequence { .. },
+            ..
+        }
+    ));
 }
 
 // ─── Non-macro forms pass through unchanged ─────────────────────────
@@ -780,7 +887,10 @@ fn unquote_of_literal_returns_literal() {
     // A list whose head is NOT a keyword — treated as already-substituted
     // literal (backward-compat heuristic: head must be Keyword to eval).
     let list = WatAST::List(
-        vec![WatAST::IntLit(1, crate::rust_caller_span!()), WatAST::IntLit(2, crate::rust_caller_span!())],
+        vec![
+            WatAST::IntLit(1, crate::rust_caller_span!()),
+            WatAST::IntLit(2, crate::rust_caller_span!()),
+        ],
         crate::rust_caller_span!(),
     );
     let out = expand::unquote_argument(&list, &bindings, &env, &sym).unwrap();
@@ -922,7 +1032,13 @@ fn arc138_macro_error_message_carries_span() {
         rendered
     );
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::ArityMismatch { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::ArityMismatch { .. },
+                ..
+            }
+        ),
         "expected ArityMismatch, got: {:?}",
         err
     );
@@ -962,10 +1078,7 @@ fn substitute_bindings_recurses_into_list() {
     bindings.insert("x".into(), WatAST::IntLit(42, span.clone()));
     let sym = WatAST::Symbol(Identifier::bare("x"), span.clone());
     let list = WatAST::List(
-        vec![
-            WatAST::Keyword(":head".into(), span.clone()),
-            sym,
-        ],
+        vec![WatAST::Keyword(":head".into(), span.clone()), sym],
         span.clone(),
     );
     let out = expand::substitute_bindings(&list, &bindings);
@@ -1148,7 +1261,13 @@ fn depth_limit_exceeded_on_self_recursive_macro() {
     )
     .unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::ExpansionDepthExceeded { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::ExpansionDepthExceeded { .. },
+                ..
+            }
+        ),
         "expected ExpansionDepthExceeded; got: {:?}",
         err
     );
@@ -1204,7 +1323,13 @@ fn impure_computed_unquote_refused_with_refused_in_macro() {
     );
     let err = expand::unquote_argument(&impure_form, &bindings, &env, &sym).unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::RefusedInMacro { .. },
+                ..
+            }
+        ),
         "expected RefusedInMacro for impure kernel head; got: {:?}",
         err
     );
@@ -1248,7 +1373,13 @@ fn malformed_defmacro_wrong_item_count() {
     )
     .unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::MalformedDefmacro { .. },
+                ..
+            }
+        ),
         "expected MalformedDefmacro for wrong item count; got: {:?}",
         err
     );
@@ -1263,7 +1394,13 @@ fn malformed_defmacro_non_keyword_name() {
     )
     .unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::MalformedDefmacro { .. },
+                ..
+            }
+        ),
         "expected MalformedDefmacro for non-keyword name; got: {:?}",
         err
     );
@@ -1278,7 +1415,13 @@ fn malformed_defmacro_non_vector_argspec() {
     )
     .unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::MalformedDefmacro { .. },
+                ..
+            }
+        ),
         "expected MalformedDefmacro for non-vector argspec; got: {:?}",
         err
     );
@@ -1287,12 +1430,15 @@ fn malformed_defmacro_non_vector_argspec() {
 /// (d) Missing/non-`->` arrow symbol (e.g. `=>` instead of `->`).
 #[test]
 fn malformed_defmacro_missing_arrow() {
-    let err = expand_src(
-        r#"(:wat::core::defmacro :my::m [x <- :AST] => :AST `~x)"#,
-    )
-    .unwrap_err();
+    let err = expand_src(r#"(:wat::core::defmacro :my::m [x <- :AST] => :AST `~x)"#).unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::MalformedDefmacro { .. },
+                ..
+            }
+        ),
         "expected MalformedDefmacro for missing -> arrow; got: {:?}",
         err
     );
@@ -1307,7 +1453,13 @@ fn malformed_defmacro_non_keyword_return_type() {
     )
     .unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::MalformedDefmacro { .. },
+                ..
+            }
+        ),
         "expected MalformedDefmacro for non-keyword return type; got: {:?}",
         err
     );
@@ -1328,7 +1480,13 @@ fn register_stdlib_bypasses_reserved_prefix_gate() {
     .expect("parse ok");
     let err = register_defmacros(user_forms, &mut reg).unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::ReservedPrefix(_), .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::ReservedPrefix(_),
+                ..
+            }
+        ),
         "expected ReservedPrefix for :wat::std::* via register; got {:?}",
         err
     );
@@ -1345,7 +1503,11 @@ fn register_stdlib_bypasses_reserved_prefix_gate() {
     let call = crate::parse_all!(r#"(:wat::std::TestMacro 99)"#).expect("parse ok");
     let out = expand_all(call, &mut reg, &env, &sym).unwrap();
     assert_eq!(out.len(), 1);
-    assert!(matches!(&out[0], WatAST::IntLit(99, _)), "expected IntLit(99); got {:?}", out[0]);
+    assert!(
+        matches!(&out[0], WatAST::IntLit(99, _)),
+        "expected IntLit(99); got {:?}",
+        out[0]
+    );
 }
 
 // ─── Arc 249 — is_pure_total deny-list: macroexpand excluded ────────────────
@@ -1385,7 +1547,13 @@ fn macroexpand_in_computed_unquote_refused_with_refused_in_macro() {
     );
     let err = expand::unquote_argument(&macroexpand_form, &bindings, &env, &sym).unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::RefusedInMacro { .. },
+                ..
+            }
+        ),
         "expected RefusedInMacro for :wat::core::macroexpand-1 in computed unquote; got: {:?}",
         err
     );
@@ -1421,7 +1589,13 @@ fn impure_fn_body_passed_to_hof_refused_with_refused_in_macro() {
     );
     let err = eval::validate_pure_total(&hof_form).unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::RefusedInMacro { .. },
+                ..
+            }
+        ),
         "expected RefusedInMacro for kernel head inside a HOF'd fn body; got: {:?}",
         err
     );
@@ -1475,7 +1649,13 @@ fn signature_of_fn_literal_fn_arg_is_signature_only() {
     );
     let err = eval::validate_pure_total(&reflect_bad).unwrap_err();
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::RefusedInMacro { .. },
+                ..
+            }
+        ),
         "non-fn argument to signature-of-fn must still be validated; got: {:?}",
         err
     );
@@ -1565,8 +1745,7 @@ fn register_stdlib_duplicate_divergent_body_returns_duplicate_macro_error() {
         r#"(:wat::core::defmacro :wat::std::DivMac [x <- :wat::WatAST] -> :wat::WatAST `~x)"#
     )
     .expect("parse ok");
-    register_stdlib_defmacros(first_forms, &mut reg)
-        .expect("first registration must succeed");
+    register_stdlib_defmacros(first_forms, &mut reg).expect("first registration must succeed");
 
     // Second registration — body is `42` (a different body, structurally divergent).
     let second_forms = crate::parse_all!(
@@ -1576,7 +1755,13 @@ fn register_stdlib_duplicate_divergent_body_returns_duplicate_macro_error() {
     let err = register_stdlib_defmacros(second_forms, &mut reg)
         .expect_err("second registration with divergent body must fail");
     assert!(
-        matches!(err, MacroError { kind: MacroErrorKind::DuplicateMacro(_), .. }),
+        matches!(
+            err,
+            MacroError {
+                kind: MacroErrorKind::DuplicateMacro(_),
+                ..
+            }
+        ),
         "expected DuplicateMacro for divergent re-registration; got: {:?}",
         err
     );

@@ -113,7 +113,9 @@ pub(super) fn macro_eval_pre_validated(
         match e.kind() {
             crate::runtime::RuntimeErrorKind::MacroAbort { message } => MacroError {
                 span,
-                kind: MacroErrorKind::MalformedTemplate { reason: message.clone() },
+                kind: MacroErrorKind::MalformedTemplate {
+                    reason: message.clone(),
+                },
             },
             _ => MacroError {
                 span,
@@ -431,7 +433,9 @@ fn is_expand_time_legal(head: &str) -> bool {
         // it here would refuse that verb at the one place it is allowed to be called.
         return matches!(
             e.expand_time,
-            wat_doc::ExpandTime::Legal | wat_doc::ExpandTime::ExpandOnly | wat_doc::ExpandTime::Preserving
+            wat_doc::ExpandTime::Legal
+                | wat_doc::ExpandTime::ExpandOnly
+                | wat_doc::ExpandTime::Preserving
         );
     }
     // ★ THE RESIDUE — arc 255 Stone expand-T4b. NOT a hand-list of "which verbs are
@@ -502,10 +506,7 @@ fn is_expand_time_legal(head: &str) -> bool {
     //     by a rider noticing.
     //   ReadOutcome / Error field access — `ReadOutcome::Forms`,
     //     `ReadOutcome::Malformed`, `Error/message`
-    matches!(
-        head,
-        | ":wat::core::i64/to-f64"
-        | ":wat::core::i64/to-string"
+    matches!(head, |":wat::core::i64/to-f64"| ":wat::core::i64/to-string"
         | ":wat::core::List?"
         | ":wat::core::count"
         | ":wat::core::into"
@@ -517,8 +518,7 @@ fn is_expand_time_legal(head: &str) -> bool {
         | ":wat::core::stream->pvec"
         | ":wat::core::ReadOutcome.Forms"
         | ":wat::core::ReadOutcome.Malformed"
-        | ":wat::core::Error/message"
-    )
+        | ":wat::core::Error/message")
 }
 
 // ─── The mirror wall — arc 255 Stone expand-only-the-mirror-wall ─────────────
@@ -546,28 +546,31 @@ fn is_expand_time_legal(head: &str) -> bool {
 pub(super) fn refuse_expand_only_in_program(form: &WatAST) -> Result<(), MacroError> {
     match form {
         WatAST::List(items, span) => {
-            if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
                 // Declaration form: the WHOLE form is not walked as program code. This is
                 // the one place an ExpandOnly verb is legal, and it is unreachable from here.
-                if head == ":wat::core::defmacro" {
+                // Symbol `(wat.core/defmacro …)` is the same declaration.
+                if head.as_ref() == ":wat::core::defmacro" {
                     return Ok(());
                 }
                 // Data, not code — reuse resolve::boundary's established classification
                 // (quote/forms/holon::literal are AllData; quasiquote is its own pole).
                 if matches!(
-                    crate::resolve::boundary::quote_boundary(head),
+                    crate::resolve::boundary::quote_boundary(head.as_ref()),
                     crate::resolve::boundary::Boundary::AllData
                         | crate::resolve::boundary::Boundary::Quasiquote
                 ) {
                     return Ok(());
                 }
                 let is_expand_only = crate::intrinsic::registry()
-                    .lookup_entry(head)
+                    .lookup_entry(head.as_ref())
                     .is_some_and(|e| matches!(e.expand_time, wat_doc::ExpandTime::ExpandOnly));
                 if is_expand_only {
                     return Err(MacroError {
                         span: span.clone(),
-                        kind: MacroErrorKind::ExpandOnlyOutsideMacro { head: head.clone() },
+                        kind: MacroErrorKind::ExpandOnlyOutsideMacro {
+                            head: head.into_owned(),
+                        },
                     });
                 }
             }

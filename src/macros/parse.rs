@@ -62,11 +62,12 @@ pub fn retract_divergent_stdlib_macros(
 }
 
 pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
-    matches!(
-        form,
-        WatAST::List(items, _)
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::defmacro")
-    )
+    match form {
+        WatAST::List(items, _) => items.first().is_some_and(|h| {
+            crate::declare::parse::head_fqdn(h).as_deref() == Some(":wat::core::defmacro")
+        }),
+        _ => false,
+    }
 }
 
 /// Parse `(:wat::core::defmacro :name::path [p <- :T ...] -> :Ret body)`.
@@ -154,11 +155,15 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
             }
         };
 
-    // items[1] must be the macro name keyword.
+    // Name slot: keyword or namespaced symbol, one identity (`ns_to_wat_path`).
+    // A converted `(wat.core/defmacro wat.core/kwargs-lower …)` is the same macro.
     let name = match name_item {
         WatAST::Keyword(k, _) => k,
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+        }
         other => {
-            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "macro name (item 1) must be a keyword-path (e.g. `:my::macro`)".into() } });
+            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "macro name (item 1) must be a keyword-path or namespaced symbol (e.g. `:my::macro`)".into() } });
         }
     };
 
@@ -175,11 +180,13 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         return Err(MacroError { span: arrow_item.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected `->` or `:-` after argspec Vector".into() } });
     }
 
-    // Return-type keyword.
+    // Return type is not stored. Keyword, symbol, or a type form — same
+    // surfaces `parse_type_node` accepts. The old keyword-only check refused
+    // `:- wat/WatAST`.
     match &rettype_item {
-        WatAST::Keyword(_, _) => {}
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {}
         other => {
-            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected return-type keyword after `->`".into() } });
+            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected a return type after `->` or `:-`".into() } });
         }
     }
 

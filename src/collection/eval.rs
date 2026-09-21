@@ -10,8 +10,8 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{
-    eval_inner, value_is_key_hashable, value_is_set_hashable, EvalBreak, Environment,
-    RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
+    eval_inner, value_is_key_hashable, value_is_set_hashable, Environment, EvalBreak, RuntimeError,
+    RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
 use std::collections::{HashMap, HashSet};
@@ -27,11 +27,15 @@ use std::sync::Arc;
 pub(crate) fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/length".into(),
-            expected: "(Vector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Vector/length".into(),
+                expected: "(Vector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -39,11 +43,15 @@ pub(crate) fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__List(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/length".into(),
-            expected: "(List :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::List/length".into(),
+                expected: "(List :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -51,11 +59,15 @@ pub(crate) fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/length".into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashMap/length".into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -63,11 +75,15 @@ pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/length".into(),
-            expected: "(HashSet :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashSet/length".into(),
+                expected: "(HashSet :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -76,33 +92,45 @@ pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/empty?".into(),
-            expected: "(Vector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Vector/empty?".into(),
+                expected: "(Vector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 pub(crate) fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/empty?".into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashMap/empty?".into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 pub(crate) fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/empty?".into(),
-            expected: "(HashSet :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashSet/empty?".into(),
+                expected: "(HashSet :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -110,11 +138,15 @@ pub(crate) fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__List(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/empty?".into(),
-            expected: "(List :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::List/empty?".into(),
+                expected: "(List :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -129,11 +161,15 @@ pub(crate) fn vector_contains_q_inner(container: &Value, item: &Value) -> Result
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/contains?".into(),
-            expected: "(Vector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Vector/contains?".into(),
+                expected: "(Vector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -145,15 +181,22 @@ pub(crate) fn list_contains_q_inner(container: &Value, item: &Value) -> Result<V
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/contains?".into(),
-            expected: "(List :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::List/contains?".into(),
+                expected: "(List :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
-pub(crate) fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn hashmap_contains_key_q_inner(
+    container: &Value,
+    key: &Value,
+) -> Result<Value, EvalBreak> {
     match container {
         Value::wat__std__HashMap(m) => {
             // Stone 216.5c — native HashMap::contains_key via Value: Hash + Eq.
@@ -164,15 +207,22 @@ pub(crate) fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Re
             }
             Ok(Value::bool(m.contains_key(key)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/contains-key?".into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashMap/contains-key?".into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
-pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn hashset_contains_q_inner(
+    container: &Value,
+    item: &Value,
+) -> Result<Value, EvalBreak> {
     match container {
         Value::wat__std__HashSet(s) => {
             // Stone 216.5b — native HashSet::contains via Value: Hash + Eq.
@@ -184,11 +234,15 @@ pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Resul
             }
             Ok(Value::bool(s.contains(item)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/contains?".into(),
-            expected: "(HashSet :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashSet/contains?".into(),
+                expected: "(HashSet :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -200,11 +254,15 @@ pub(crate) fn vector_get_inner(container: &Value, index: &Value) -> Result<Value
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::Vector/get".into(),
-                        expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(other))
-                    }).into());
+                    return Err(RuntimeError::new(
+                        crate::rust_caller_span!(),
+                        RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::core::Vector/get".into(),
+                            expected: "i64 index",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        },
+                    )
+                    .into());
                 }
             };
             if i < 0 || (i as usize) >= xs.len() {
@@ -213,11 +271,15 @@ pub(crate) fn vector_get_inner(container: &Value, index: &Value) -> Result<Value
                 Ok(Value::Option(Arc::new(Some(xs[i as usize].clone()))))
             }
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/get".into(),
-            expected: "(Vector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Vector/get".into(),
+                expected: "(Vector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -229,26 +291,32 @@ pub(crate) fn list_get_inner(container: &Value, index: &Value) -> Result<Value, 
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::List/get".into(),
-                        expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(other))
-                    }).into());
+                    return Err(RuntimeError::new(
+                        crate::rust_caller_span!(),
+                        RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::core::List/get".into(),
+                            expected: "i64 index",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        },
+                    )
+                    .into());
                 }
             };
             if i < 0 || (i as usize) >= xs.len() {
                 Ok(Value::Option(Arc::new(None)))
             } else {
-                Ok(Value::Option(Arc::new(
-                    xs.iter().nth(i as usize).cloned(),
-                )))
+                Ok(Value::Option(Arc::new(xs.iter().nth(i as usize).cloned())))
             }
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/get".into(),
-            expected: "(List :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::List/get".into(),
+                expected: "(List :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -265,11 +333,15 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/get".into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashMap/get".into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -284,11 +356,15 @@ pub(crate) fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value
             out.push(item.clone());
             Ok(Value::Vec(Arc::new(out)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/conj".into(),
-            expected: "(Vector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Vector/conj".into(),
+                expected: "(Vector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -302,11 +378,15 @@ pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, 
             out.push_front(item.clone());
             Ok(Value::wat__core__List(Arc::new(out)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/conj".into(),
-            expected: "(List :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::List/conj".into(),
+                expected: "(List :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -334,11 +414,15 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
             out.insert(item.clone());
             Ok(Value::wat__std__HashSet(Arc::new(out)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/conj".into(),
-            expected: "(HashSet :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashSet/conj".into(),
+                expected: "(HashSet :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -350,7 +434,11 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
 // appear as map keys (guarded by `value_is_key_hashable`). The lint is a false positive
 // for the Value variants actually used as HashMap keys (all structurally pure).
 #[allow(clippy::mutable_key_type)]
-pub(crate) fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn hashmap_assoc_inner(
+    container: &Value,
+    k: &Value,
+    v: &Value,
+) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::HashMap/assoc";
     match container {
         Value::wat__std__HashMap(m) => {
@@ -368,11 +456,15 @@ pub(crate) fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Re
             new_map.insert(k.clone(), v.clone());
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -394,11 +486,15 @@ pub(crate) fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value
             new_map.remove(k);
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -413,11 +509,15 @@ pub(crate) fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> 
             let ks: Vec<Value> = m.keys().cloned().collect();
             Ok(Value::Vec(Arc::new(ks)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -429,11 +529,15 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
             let vs: Vec<Value> = m.values().cloned().collect();
             Ok(Value::Vec(Arc::new(vs)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(HashMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(HashMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -504,11 +608,15 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
             }
         }
         // Left side is not an ordered container.
-        _ => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T]), (PersistentVector :- [T]), or (List :- [T])",
-            got: Box::new(ValueSnapshot::of(left))
-        }).into()),
+        _ => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(Vector :- [T]), (PersistentVector :- [T]), or (List :- [T])",
+                got: Box::new(ValueSnapshot::of(left)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -523,26 +631,37 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
 pub(crate) fn persistentmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentMap(m) => Ok(Value::i64(m.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentMap/length".into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentMap/length".into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 pub(crate) fn persistentmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentMap(m) => Ok(Value::bool(m.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentMap/empty?".into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentMap/empty?".into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
-pub(crate) fn persistentmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn persistentmap_contains_key_q_inner(
+    container: &Value,
+    key: &Value,
+) -> Result<Value, EvalBreak> {
     match container {
         Value::wat__core__PersistentMap(m) => {
             if !value_is_key_hashable(key) {
@@ -550,11 +669,15 @@ pub(crate) fn persistentmap_contains_key_q_inner(container: &Value, key: &Value)
             }
             Ok(Value::bool(m.contains_key(key)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentMap/contains-key?".into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentMap/contains-key?".into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -569,18 +692,26 @@ pub(crate) fn persistentmap_get_inner(container: &Value, key: &Value) -> Result<
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentMap/get".into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentMap/get".into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 /// `(:wat::core::PersistentMap/assoc pm k v)` — persistent insert.
 /// Returns a NEW PersistentMap with (k → v) added; the original `pm` is UNCHANGED.
 /// Array copies the pair slice; Trie shares (`PMap::assoc`).
-pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn persistentmap_assoc_inner(
+    container: &Value,
+    k: &Value,
+    v: &Value,
+) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentMap/assoc";
     match container {
         Value::wat__core__PersistentMap(m) => {
@@ -592,13 +723,19 @@ pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value)
                 }).into());
             }
             // PMap::assoc returns a NEW map — Array copies the pair slice; Trie shares.
-            Ok(Value::wat__core__PersistentMap(m.assoc(k.clone(), v.clone())))
+            Ok(Value::wat__core__PersistentMap(
+                m.assoc(k.clone(), v.clone()),
+            ))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -614,39 +751,47 @@ pub(crate) fn persistentmap_dissoc_inner(container: &Value, k: &Value) -> Result
             }
             Ok(Value::wat__core__PersistentMap(m.dissoc(k)))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 pub(crate) fn persistentmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentMap/keys";
     match container {
-        Value::wat__core__PersistentMap(m) => {
-            Ok(Value::Vec(Arc::new(m.keys())))
-        }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        Value::wat__core__PersistentMap(m) => Ok(Value::Vec(Arc::new(m.keys()))),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 pub(crate) fn persistentmap_values_inner(container: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentMap/values";
     match container {
-        Value::wat__core__PersistentMap(m) => {
-            Ok(Value::Vec(Arc::new(m.values())))
-        }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(PersistentMap :- [K V])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        Value::wat__core__PersistentMap(m) => Ok(Value::Vec(Arc::new(m.values()))),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -661,13 +806,17 @@ pub(crate) fn eval_persistentmap_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if !args.len().is_multiple_of(2) {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::PersistentMap".into(),
-            reason: format!(
-                "arity must be even (alternating key/value pairs); got {}",
-                args.len()
-            )
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::PersistentMap".into(),
+                reason: format!(
+                    "arity must be even (alternating key/value pairs); got {}",
+                    args.len()
+                ),
+            },
+        )
+        .into());
     }
     let mut pairs: Vec<(Value, Value)> = Vec::with_capacity(args.len() / 2);
     for pair in args.chunks(2) {
@@ -682,7 +831,9 @@ pub(crate) fn eval_persistentmap_ctor(
         }
         pairs.push((k, v));
     }
-    Ok(Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs)))
+    Ok(Value::wat__core__PersistentMap(
+        crate::value::pmap::PMap::from_pairs(pairs),
+    ))
 }
 
 // ─── Arc-278-A2 — Record ops (get/contains?/length/empty?) ─────────────────
@@ -703,11 +854,17 @@ pub(crate) fn record_get_inner(
     // Arc 293.R2.1 — Aggregate (Record/HolonRecord).
     let agg = match record {
         Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => a,
-        other => return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: ":wat::core::Record instance",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::Record instance",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
     // Extract the bare field name from the keyword (strip leading colon).
     let key_name = match key {
@@ -715,27 +872,52 @@ pub(crate) fn record_get_inner(
             let s = k.as_ref().as_str();
             s.strip_prefix(':').unwrap_or(s).to_string()
         }
-        other => return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: ":wat::core::keyword field name",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::keyword field name",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
     // Resolve field index via RecordDef.
     let type_key = format!(":{}", agg.class);
-    let types = sym.types().ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
-        head: OP.into(),
-        reason: "record get requires the type registry".into()
-    }))?;
+    let types = sym.types().ok_or_else(|| {
+        RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "record get requires the type registry".into(),
+            },
+        )
+    })?;
     let record_def = match types.get(&type_key) {
         Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
-        _ => return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("record class :{} is not registered in the TypeEnv", agg.class)
-        }).into()),
+        _ => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "record class :{} is not registered in the TypeEnv",
+                        agg.class
+                    ),
+                },
+            )
+            .into())
+        }
     };
-    match record_def.field_names().position(|n| n == key_name.as_str()) {
-        Some(idx) => Ok(Value::Option(std::sync::Arc::new(Some(agg.fields[idx].clone())))),
+    match record_def
+        .field_names()
+        .position(|n| n == key_name.as_str())
+    {
+        Some(idx) => Ok(Value::Option(std::sync::Arc::new(Some(
+            agg.fields[idx].clone(),
+        )))),
         None => Ok(Value::Option(std::sync::Arc::new(None))),
     }
 }
@@ -754,36 +936,64 @@ pub(crate) fn record_contains_field_q_inner(
     const OP: &str = ":wat::core::Record/contains?";
     let agg = match record {
         Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => a,
-        other => return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: ":wat::core::Record instance",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::Record instance",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
     let key_name = match key {
         Value::wat__core__keyword(k) => {
             let s = k.as_ref().as_str();
             s.strip_prefix(':').unwrap_or(s).to_string()
         }
-        other => return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: ":wat::core::keyword field name",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::keyword field name",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into())
+        }
     };
     let type_key = format!(":{}", agg.class);
-    let types = sym.types().ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
-        head: OP.into(),
-        reason: "record contains? requires the type registry".into()
-    }))?;
+    let types = sym.types().ok_or_else(|| {
+        RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "record contains? requires the type registry".into(),
+            },
+        )
+    })?;
     let record_def = match types.get(&type_key) {
         Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
-        _ => return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("record class :{} is not registered in the TypeEnv", agg.class)
-        }).into()),
+        _ => {
+            return Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "record class :{} is not registered in the TypeEnv",
+                        agg.class
+                    ),
+                },
+            )
+            .into())
+        }
     };
-    Ok(Value::bool(record_def.field_names().any(|n| n == key_name.as_str())))
+    Ok(Value::bool(
+        record_def.field_names().any(|n| n == key_name.as_str()),
+    ))
 }
 
 /// Arc-278-A2 — `record_length_inner`: field count of a Record.
@@ -793,12 +1003,18 @@ pub(crate) fn record_contains_field_q_inner(
 pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/length";
     match record {
-        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => Ok(Value::i64(a.fields.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: ":wat::core::Record instance",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => {
+            Ok(Value::i64(a.fields.len() as i64))
+        }
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Record instance",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -809,12 +1025,18 @@ pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/empty?";
     match record {
-        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => Ok(Value::bool(a.fields.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: ":wat::core::Record instance",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => {
+            Ok(Value::bool(a.fields.is_empty()))
+        }
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Record instance",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -829,36 +1051,51 @@ pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn persistentvector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentVector(pv) => Ok(Value::i64(pv.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentVector/length".into(),
-            expected: "(PersistentVector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentVector/length".into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 pub(crate) fn persistentvector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentVector(pv) => Ok(Value::bool(pv.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentVector/empty?".into(),
-            expected: "(PersistentVector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentVector/empty?".into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
-pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn persistentvector_contains_q_inner(
+    container: &Value,
+    item: &Value,
+) -> Result<Value, EvalBreak> {
     match container {
         Value::wat__core__PersistentVector(pv) => {
             let found = pv.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentVector/contains?".into(),
-            expected: "(PersistentVector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentVector/contains?".into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -866,46 +1103,66 @@ pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value)
 /// Arc-278-0b: mirrors std `Vector/get` — returns `Some(elem)` on hit, `None` on out-of-bounds.
 /// Safe: never raises on OOB (use `(:wat::core::PersistentVector/contains? pv i)` to guard
 /// before unwrapping if needed, but `None` is the preferred signal).
-pub(crate) fn persistentvector_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn persistentvector_get_inner(
+    container: &Value,
+    index: &Value,
+) -> Result<Value, EvalBreak> {
     match container {
         Value::wat__core__PersistentVector(pv) => {
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::PersistentVector/get".into(),
-                        expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(other))
-                    }).into());
+                    return Err(RuntimeError::new(
+                        crate::rust_caller_span!(),
+                        RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::core::PersistentVector/get".into(),
+                            expected: "i64 index",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        },
+                    )
+                    .into());
                 }
             };
             if i < 0 || (i as usize) >= pv.len() {
                 Ok(Value::Option(Arc::new(None)))
             } else {
-                Ok(Value::Option(Arc::new(Some(pv.get(i as usize).cloned().unwrap()))))
+                Ok(Value::Option(Arc::new(Some(
+                    pv.get(i as usize).cloned().unwrap(),
+                ))))
             }
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentVector/get".into(),
-            expected: "(PersistentVector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentVector/get".into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 /// `(:wat::core::PersistentVector/conj pv elem)` — persistent append.
 /// Returns a NEW PersistentVector with `elem` appended; the original `pv` is UNCHANGED.
 /// Array copies the Vec (below threshold) or promotes; Tree shares the RRB spine.
-pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn persistentvector_conj_inner(
+    container: &Value,
+    item: &Value,
+) -> Result<Value, EvalBreak> {
     match container {
-        Value::wat__core__PersistentVector(pv) => {
-            Ok(Value::wat__core__PersistentVector(pv.push_back(item.clone())))
-        }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::PersistentVector/conj".into(),
-            expected: "(PersistentVector :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        Value::wat__core__PersistentVector(pv) => Ok(Value::wat__core__PersistentVector(
+            pv.push_back(item.clone()),
+        )),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentVector/conj".into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -927,22 +1184,30 @@ pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Re
 pub(crate) fn vector_extend_inner(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Vector/extend";
     let Value::Vec(l) = to else {
-        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(Vector :- [T])",
-            got: Box::new(ValueSnapshot::of(to))
-        }).into());
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(Vector :- [T])",
+                got: Box::new(ValueSnapshot::of(to)),
+            },
+        )
+        .into());
     };
     // Size for the FINAL length up front — the whole point is one allocation, not N.
     let extra = match from {
         Value::Vec(r) => r.len(),
         Value::wat__core__PersistentVector(r) => r.len(),
         other => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "(Vector :- [T]) or (PersistentVector :- [T])",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "(Vector :- [T]) or (PersistentVector :- [T])",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     };
     let mut out: Vec<Value> = Vec::with_capacity(l.len() + extra);
@@ -975,11 +1240,15 @@ pub(crate) fn vector_extend_inner(to: &Value, from: &Value) -> Result<Value, Eva
 pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentVector/concat";
     let Value::wat__core__PersistentVector(l) = to else {
-        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "(PersistentVector :- [T])",
-            got: Box::new(ValueSnapshot::of(to))
-        }).into());
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(PersistentVector :- [T])",
+                got: Box::new(ValueSnapshot::of(to)),
+            },
+        )
+        .into());
     };
     if l.is_empty() {
         return match from {
@@ -991,11 +1260,15 @@ pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "(Vector :- [T]) or (PersistentVector :- [T])",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into()),
+            other => Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "(Vector :- [T]) or (PersistentVector :- [T])",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into()),
         };
     }
     let mut out = l.clone();
@@ -1011,11 +1284,15 @@ pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<
             }
         }
         other => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "(Vector :- [T]) or (PersistentVector :- [T])",
-                got: Box::new(ValueSnapshot::of(other))
-            }).into());
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "(Vector :- [T]) or (PersistentVector :- [T])",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
         }
     }
     Ok(Value::wat__core__PersistentVector(out))
@@ -1458,11 +1735,15 @@ pub(crate) fn eval_vector_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector".into(),
-            expected: 1,
-            got: 0
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::Vector".into(),
+                expected: 1,
+                got: 0,
+            },
+        )
+        .into());
     }
     // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
     // too, routed through `parse_type_node` (the substrate's one door reading
@@ -1473,20 +1754,28 @@ pub(crate) fn eval_vector_ctor(
     // merely shape-matched — so a malformed list is still rejected.
     match &args[0] {
         WatAST::Keyword(_, _) => {}
-        list @ WatAST::List(_, _) => {
-            crate::types::parse_type_node(list).map_err(|e| RuntimeError::new(
-                e.span().clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::Vector".into(),
-                    reason: e.to_string(),
-                },
-            ))?;
+        // Symbol: converted `wat/WatAST` inside `(Vector :- [wat/WatAST])`.
+        // Vector: fn-type bracket. List: `(Head :- [T])`. Same door as parse_type_node.
+        node @ (WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _)) => {
+            crate::types::parse_type_node(node).map_err(|e| {
+                RuntimeError::new(
+                    e.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::Vector".into(),
+                        reason: e.to_string(),
+                    },
+                )
+            })?;
         }
         _ => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::Vector".into(),
-                reason: "first argument must be a `(Head :- [T …])` type form".into()
-            }).into());
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::Vector".into(),
+                    reason: "first argument must be a `(Head :- [T …])` type form".into(),
+                },
+            )
+            .into());
         }
     }
     // rune:perspicere(mumble-alias) — Result<Vec<_>, _> turbofish reads better than a
@@ -1506,44 +1795,69 @@ pub(crate) fn eval_hashmap_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() < 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::HashMap".into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
     }
-    // Arc 109 ③ — widen to accept the `:-` reference FORM `(Head :- [args])` too (a
-    // `WatAST::List`), matching `:wat::program::self-peer`'s identical widening
-    // (`crate::declare::parse::is_type_arg_shaped`) — this shape check validates and discards;
-    // neither arg's content is otherwise consumed here.
-    if !crate::declare::parse::is_type_arg_shaped(&args[0]) {
-        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); first argument is not one".into()
-        }).into());
-    }
-    if !crate::declare::parse::is_type_arg_shaped(&args[1]) {
-        return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); second argument is not one".into()
-        }).into());
+    // Keyword | List stay on `is_type_arg_shaped` (byte-identical). Symbol and the
+    // fn-type Vector are the other two `parse_type_node` shapes. A converted
+    // `(HashMap :- [wat.core/String wat/WatAST])` peels to two symbols; the
+    // shape test refused them and `format`'s macro body died at startup.
+    for (node, which) in [(&args[0], "first"), (&args[1], "second")] {
+        if crate::declare::parse::is_type_arg_shaped(node) {
+            continue;
+        }
+        match node {
+            WatAST::Symbol(_, _) | WatAST::Vector(_, _) => {
+                crate::types::parse_type_node(node).map_err(|e| {
+                    RuntimeError::new(
+                        e.span().clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: ":wat::core::HashMap".into(),
+                            reason: e.to_string(),
+                        },
+                    )
+                })?;
+            }
+            _ => {
+                return Err(RuntimeError::new(
+                    node.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::HashMap".into(),
+                        reason: format!(
+                            "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); {which} argument is not one"
+                        ),
+                    },
+                )
+                .into());
+            }
+        }
     }
     let pairs = &args[2..];
     if !pairs.len().is_multiple_of(2) {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashMap".into(),
-            reason: format!(
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::HashMap".into(),
+                reason: format!(
                 "arity after :K :V type args must be even (alternating key/value pairs); got {}",
                 pairs.len()
-            )
-        }).into());
+            ),
+            },
+        )
+        .into());
     }
     // Stone 216.5c — HashMap<Value, Value> native storage; hashmap_key crutch removed.
     // Guard: reject opaque-handle keys before they reach Hash::hash (unreachable!()).
     // Arc strategy: build map locally, wrap in Arc once.
     #[allow(clippy::mutable_key_type)]
-    let mut map: HashMap<Value, Value> =
-        HashMap::with_capacity(pairs.len() / 2);
+    let mut map: HashMap<Value, Value> = HashMap::with_capacity(pairs.len() / 2);
     for pair in pairs.chunks(2) {
         let k = eval_inner(&pair[0], env, sym)?.value_owned();
         let v = eval_inner(&pair[1], env, sym)?.value_owned();
@@ -1573,11 +1887,15 @@ pub(crate) fn eval_hashset_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet".into(),
-            expected: 1,
-            got: 0
-        }).into());
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: ":wat::core::HashSet".into(),
+                expected: 1,
+                got: 0,
+            },
+        )
+        .into());
     }
     // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
     // too, routed through `parse_type_node` (the substrate's one door reading
@@ -1588,20 +1906,26 @@ pub(crate) fn eval_hashset_ctor(
     // merely shape-matched — so a malformed list is still rejected.
     match &args[0] {
         WatAST::Keyword(_, _) => {}
-        list @ WatAST::List(_, _) => {
-            crate::types::parse_type_node(list).map_err(|e| RuntimeError::new(
-                e.span().clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::HashSet".into(),
-                    reason: e.to_string(),
-                },
-            ))?;
+        node @ (WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _)) => {
+            crate::types::parse_type_node(node).map_err(|e| {
+                RuntimeError::new(
+                    e.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::HashSet".into(),
+                        reason: e.to_string(),
+                    },
+                )
+            })?;
         }
         _ => {
-            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::HashSet".into(),
-                reason: "first argument must be a `(Head :- [T …])` type form".into()
-            }).into());
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::HashSet".into(),
+                    reason: "first argument must be a `(Head :- [T …])` type form".into(),
+                },
+            )
+            .into());
         }
     }
     // Stone 216.5b — native HashSet<Value> insert. Value implements Hash + Eq
@@ -1629,11 +1953,15 @@ pub(crate) fn eval_hashset_ctor(
 pub(crate) fn tuple_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Tuple(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Tuple/length".into(),
-            expected: "Tuple",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Tuple/length".into(),
+                expected: "Tuple",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -1641,11 +1969,15 @@ pub(crate) fn tuple_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn tuple_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Tuple(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Tuple/empty?".into(),
-            expected: "Tuple",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Tuple/empty?".into(),
+                expected: "Tuple",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -1654,17 +1986,27 @@ pub(crate) fn watastlist_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::List(children, _) => Ok(Value::i64(children.len() as i64)),
-            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::WatAST::List/length".into(),
-                expected: "WatAST::List",
-                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
-            }).into()),
+            other => Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::WatAST::List/length".into(),
+                    expected: "WatAST::List",
+                    got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(
+                        other.clone(),
+                    )))),
+                },
+            )
+            .into()),
         },
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::WatAST::List/length".into(),
-            expected: "WatAST",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/length".into(),
+                expected: "WatAST",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -1673,17 +2015,27 @@ pub(crate) fn watastlist_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::List(children, _) => Ok(Value::bool(children.is_empty())),
-            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::WatAST::List/empty?".into(),
-                expected: "WatAST::List",
-                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
-            }).into()),
+            other => Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::WatAST::List/empty?".into(),
+                    expected: "WatAST::List",
+                    got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(
+                        other.clone(),
+                    )))),
+                },
+            )
+            .into()),
         },
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::WatAST::List/empty?".into(),
-            expected: "WatAST",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/empty?".into(),
+                expected: "WatAST",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -1695,36 +2047,53 @@ pub(crate) fn tuple_contains_q_inner(container: &Value, item: &Value) -> Result<
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Tuple/contains?".into(),
-            expected: "Tuple",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::Tuple/contains?".into(),
+                expected: "Tuple",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
 /// seq-1b — `WatAstList/contains?`: scan children of a WatAST::List; wraps each child as
 /// `Value::wat__WatAST` for comparison with `item`.
-pub(crate) fn watastlist_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+pub(crate) fn watastlist_contains_q_inner(
+    container: &Value,
+    item: &Value,
+) -> Result<Value, EvalBreak> {
     match container {
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::List(children, _) => {
-                let found = children.iter().any(|c| {
-                    Value::wat__WatAST(Arc::new(c.clone())) == *item
-                });
+                let found = children
+                    .iter()
+                    .any(|c| Value::wat__WatAST(Arc::new(c.clone())) == *item);
                 Ok(Value::bool(found))
             }
-            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::WatAST::List/contains?".into(),
-                expected: "WatAST::List",
-                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
-            }).into()),
+            other => Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::WatAST::List/contains?".into(),
+                    expected: "WatAST::List",
+                    got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(
+                        other.clone(),
+                    )))),
+                },
+            )
+            .into()),
         },
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::WatAST::List/contains?".into(),
-            expected: "WatAST",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/contains?".into(),
+                expected: "WatAST",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -1737,32 +2106,46 @@ pub(crate) fn watastlist_get_inner(container: &Value, index: &Value) -> Result<V
                 let i = match index {
                     Value::i64(n) => *n,
                     other => {
-                        return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                            op: ":wat::WatAST::List/get".into(),
-                            expected: "i64 index",
-                            got: Box::new(ValueSnapshot::of(other))
-                        }).into());
+                        return Err(RuntimeError::new(
+                            crate::rust_caller_span!(),
+                            RuntimeErrorKind::TypeMismatch {
+                                op: ":wat::WatAST::List/get".into(),
+                                expected: "i64 index",
+                                got: Box::new(ValueSnapshot::of(other)),
+                            },
+                        )
+                        .into());
                     }
                 };
                 if i < 0 || (i as usize) >= children.len() {
                     Ok(Value::Option(Arc::new(None)))
                 } else {
-                    Ok(Value::Option(Arc::new(Some(
-                        Value::wat__WatAST(Arc::new(children[i as usize].clone()))
-                    ))))
+                    Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(
+                        children[i as usize].clone(),
+                    ))))))
                 }
             }
-            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-                op: ":wat::WatAST::List/get".into(),
-                expected: "WatAST::List",
-                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
-            }).into()),
+            other => Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::WatAST::List/get".into(),
+                    expected: "WatAST::List",
+                    got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(
+                        other.clone(),
+                    )))),
+                },
+            )
+            .into()),
         },
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::WatAST::List/get".into(),
-            expected: "WatAST",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/get".into(),
+                expected: "WatAST",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -1780,11 +2163,15 @@ pub(crate) fn hashset_get_inner(container: &Value, item: &Value) -> Result<Value
                 Ok(Value::Option(Arc::new(None)))
             }
         }
-        other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/get".into(),
-            expected: "(HashSet :- [T])",
-            got: Box::new(ValueSnapshot::of(other))
-        }).into()),
+        other => Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::HashSet/get".into(),
+                expected: "(HashSet :- [T])",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
     }
 }
 
@@ -1862,13 +2249,26 @@ mod arc109_two_iii_ctor_guard_widening {
         let args = vec![kw(":wat::core::i64"), i64_lit(1), i64_lit(2), i64_lit(3)];
         let v = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
             .unwrap_or_else(|e| panic!("keyword-typed Vector ctor must still eval: {e:?}"));
-        assert_eq!(v, Value::Vec(std::sync::Arc::new(vec![Value::i64(1), Value::i64(2), Value::i64(3)])));
+        assert_eq!(
+            v,
+            Value::Vec(std::sync::Arc::new(vec![
+                Value::i64(1),
+                Value::i64(2),
+                Value::i64(3)
+            ]))
+        );
     }
 
     #[test]
     fn row3_hashset_ctor_keyword_first_arg_unchanged() {
         let (env, sym) = env_sym();
-        let args = vec![kw(":wat::core::i64"), i64_lit(1), i64_lit(2), i64_lit(2), i64_lit(3)];
+        let args = vec![
+            kw(":wat::core::i64"),
+            i64_lit(1),
+            i64_lit(2),
+            i64_lit(2),
+            i64_lit(3),
+        ];
         let v = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
             .unwrap_or_else(|e| panic!("keyword-typed HashSet ctor must still eval: {e:?}"));
         match v {

@@ -23,11 +23,11 @@
 //! call site (`check.rs`'s surface-method-call arm). Monomorphic surfaces
 //! (`type_params` empty) take the identity path throughout — unaffected.
 
-use wat_macros::wat_special_form_impl;
 use crate::ast::WatAST;
 use crate::span::Span;
+use wat_macros::wat_special_form_impl;
 
-use super::{Nature, SurfaceDef, SurfaceMember, TypeDef, TypeExpr, TypeError, TypeErrorKind};
+use super::{Nature, SurfaceDef, SurfaceMember, TypeDef, TypeError, TypeErrorKind, TypeExpr};
 
 const HEAD: &str = ":wat::core::defsurface";
 
@@ -56,7 +56,10 @@ where
     R: FnMut(&str) -> Option<(Vec<TypeExpr>, TypeExpr)>,
 {
     surface.members.iter().all(|member| match member {
-        SurfaceMember::Field { name: mname, ty: mty } => {
+        SurfaceMember::Field {
+            name: mname,
+            ty: mty,
+        } => {
             // Arc 293.4d — Field member: satisfied by a struct field with an assignable type
             // OR by a `:<T>/<name>` accessor (method / extend-type) that returns an assignable
             // type. This lets a foreign type back a Field member with an extend-type method.
@@ -75,11 +78,21 @@ where
             }
             // Fall through to the method resolver (for foreign types with extend-type).
             if let Some((_, defn_ret)) = resolve_method(mname) {
-                return member_type_satisfied(&defn_ret, mty, &surface.type_params, &mut is_assignable);
+                return member_type_satisfied(
+                    &defn_ret,
+                    mty,
+                    &surface.type_params,
+                    &mut is_assignable,
+                );
             }
             false
         }
-        SurfaceMember::Method { name: mname, args: margs, ret: mret, .. } => {
+        SurfaceMember::Method {
+            name: mname,
+            args: margs,
+            ret: mret,
+            ..
+        } => {
             // Method member: a `defn :T/<name>` must exist with an assignable sig.
             // The resolver forms the key `":<T>/<name>"` from the candidate type context
             // and returns (defn_arg_types, defn_ret) from env.schemes.
@@ -88,7 +101,8 @@ where
                 // or in part, e.g. `Address'<S,R>`) from one of its own type params (Arc 170
                 // C2: a placeholder, satisfied by construction — `member_type_satisfied`
                 // recurses through parametric shapes to find embedded placeholders).
-                if !member_type_satisfied(&defn_ret, mret, &surface.type_params, &mut is_assignable) {
+                if !member_type_satisfied(&defn_ret, mret, &surface.type_params, &mut is_assignable)
+                {
                     return false;
                 }
                 // If the surface member declared explicit arg-type constraints (non-empty
@@ -101,14 +115,23 @@ where
                 // graph, recurses to a stack overflow. The real per-position constraints are args 1..;
                 // self-to-self is never checked. (Bare `[self]` left `fixed_params` empty, masking this.)
                 if margs.fixed_params.len() > 1 {
-                    let member_arg_types: Vec<&TypeExpr> =
-                        margs.fixed_params.iter().skip(1).map(|(_, ty)| ty).collect();
+                    let member_arg_types: Vec<&TypeExpr> = margs
+                        .fixed_params
+                        .iter()
+                        .skip(1)
+                        .map(|(_, ty)| ty)
+                        .collect();
                     let defn_rest: Vec<&TypeExpr> = defn_arg_types.iter().skip(1).collect();
                     if defn_rest.len() < member_arg_types.len() {
                         return false;
                     }
                     for (defn_ty, member_ty) in defn_rest.iter().zip(member_arg_types.iter()) {
-                        if !member_type_satisfied(defn_ty, member_ty, &surface.type_params, &mut is_assignable) {
+                        if !member_type_satisfied(
+                            defn_ty,
+                            member_ty,
+                            &surface.type_params,
+                            &mut is_assignable,
+                        ) {
                             return false;
                         }
                     }
@@ -177,8 +200,14 @@ where
     }
     match (defn_ty, member_ty) {
         (
-            TypeExpr::Parametric { head: dh, args: dargs },
-            TypeExpr::Parametric { head: mh, args: margs },
+            TypeExpr::Parametric {
+                head: dh,
+                args: dargs,
+            },
+            TypeExpr::Parametric {
+                head: mh,
+                args: margs,
+            },
         ) if dh == mh && dargs.len() == margs.len() => dargs
             .iter()
             .zip(margs.iter())
@@ -271,7 +300,9 @@ fn parse_method_member_sig(
                 let params: Vec<String> = items
                     .iter()
                     .filter_map(|item| match item {
-                        WatAST::Symbol(id, _) if !id.is_reference() => Some(id.as_str().to_string()),
+                        WatAST::Symbol(id, _) if !id.is_reference() => {
+                            Some(id.as_str().to_string())
+                        }
                         _ => None,
                     })
                     .collect();
@@ -319,7 +350,9 @@ fn parse_method_member_sig(
                 items,
                 HEAD,
                 vec_span,
-                crate::argspec::ParseOptions { allow_rest_binder: false },
+                crate::argspec::ParseOptions {
+                    allow_rest_binder: false,
+                },
             ) {
                 Ok(spec) => spec,
                 Err(_) => {
@@ -376,16 +409,15 @@ fn parse_method_member_sig(
     // function return is the bracket `[arg… :-> ret]`. `parse_type_node` is the substrate's
     // one door for all four spellings — the same door the argspec slot above already uses,
     // which is why the ARGUMENT types migrated cleanly while the RETURN type did not.
-    let ret = super::parse_type_node(&rest[2]).map_err(|e| TypeError::new(
-        rest[2].span().clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: format!(
-                "bad return type in method member `{}`: {}",
-                method_name, e
-            ),
-        },
-    ))?;
+    let ret = super::parse_type_node(&rest[2]).map_err(|e| {
+        TypeError::new(
+            rest[2].span().clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: format!("bad return type in method member `{}`: {}", method_name, e),
+            },
+        )
+    })?;
 
     // Arc 278 #16 Stone 16.0 — OPTIONAL kwargs OPTIONS MAP after `-> :RetType`.
     // Everything past `rest[3]` is an order-INDEPENDENT sequence of
@@ -557,26 +589,30 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     let mut iter = args.into_iter().peekable();
 
     // Slot 0 — name keyword.
-    let name_kw = iter.next().ok_or_else(|| TypeError::new(
-        decl_span.clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: "expected :Name after (:wat::core::defsurface ...)".into(),
-        },
-    ))?;
+    let name_kw = iter.next().ok_or_else(|| {
+        TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: "expected :Name after (:wat::core::defsurface ...)".into(),
+            },
+        )
+    })?;
     let (name, name_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
     let type_params = super::take_declared_binder(HEAD, name_params, name_kw.span(), &mut iter)?;
 
     // `:nature :<root>` — MANDATORY.
-    let next = iter.next().ok_or_else(|| TypeError::new(
-        decl_span.clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: "`:nature` is mandatory — write \
+    let next = iter.next().ok_or_else(|| {
+        TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: "`:nature` is mandatory — write \
                      (:wat::core::defsurface :Name :nature :<nature-root> :features [members])"
-                .into(),
-        },
-    ))?;
+                    .into(),
+            },
+        )
+    })?;
     match &next {
         WatAST::Keyword(k, _) if k == ":nature" => {}
         WatAST::Keyword(k, _) if k == ":features" => {
@@ -601,13 +637,15 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
         }
     }
     // nature value keyword.
-    let val_node = iter.next().ok_or_else(|| TypeError::new(
-        decl_span.clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: ":nature needs a value keyword".into(),
-        },
-    ))?;
+    let val_node = iter.next().ok_or_else(|| {
+        TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: ":nature needs a value keyword".into(),
+            },
+        )
+    })?;
     let nature_raw = match &val_node {
         WatAST::Keyword(v, _) => v.as_str(),
         WatAST::Symbol(id, _) => id.as_str(),
@@ -660,13 +698,15 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 },
             ));
         }
-        let msg_vec = iter.next().ok_or_else(|| TypeError::new(
-            decl_span.clone(),
-            TypeErrorKind::MalformedDecl {
-                head: HEAD.into(),
-                reason: ":messages needs a `[ <defrecord/defenum forms> ]` vector".into(),
-            },
-        ))?;
+        let msg_vec = iter.next().ok_or_else(|| {
+            TypeError::new(
+                decl_span.clone(),
+                TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: ":messages needs a `[ <defrecord/defenum forms> ]` vector".into(),
+                },
+            )
+        })?;
         let msg_items = match msg_vec {
             WatAST::Vector(items, _) => items,
             other => {
@@ -674,7 +714,9 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                     other.span().clone(),
                     TypeErrorKind::MalformedDecl {
                         head: HEAD.into(),
-                        reason: ":messages value must be a Vector `[ (defrecord …) (defenum …) … ]`".into(),
+                        reason:
+                            ":messages value must be a Vector `[ (defrecord …) (defenum …) … ]`"
+                                .into(),
                     },
                 ));
             }
@@ -778,13 +820,15 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     }
 
     // The member-vector: the next arg after the :features keyword.
-    let members_node = iter.next().ok_or_else(|| TypeError::new(
-        decl_span.clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: ":features needs a `[members]` vector".into(),
-        },
-    ))?;
+    let members_node = iter.next().ok_or_else(|| {
+        TypeError::new(
+            decl_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: ":features needs a `[members]` vector".into(),
+            },
+        )
+    })?;
 
     // Arc 293.4d-fix — STRUCTURAL invariant: the member vector is the LAST arg; nothing follows it.
     if let Some(extra) = iter.next() {
@@ -867,7 +911,13 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     // checked — a message type always carries a `::`.)
     if let Some(msgs_span) = &messages_span {
         for m in &members {
-            if let SurfaceMember::Method { name: mname, args, ret, .. } = m {
+            if let SurfaceMember::Method {
+                name: mname,
+                args,
+                ret,
+                ..
+            } = m
+            {
                 let mut refs: Vec<String> = Vec::new();
                 // request payload is the arg AFTER `self` (args[1]); `self` (args[0]) is the
                 // surface itself and is never a message — exclude it.
@@ -928,11 +978,14 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
 /// the companion defmacro. defenum (no companion) passes through unchanged.
 fn unwrap_message_decl(form: &WatAST) -> &WatAST {
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(h, _)) = items.first() {
-            if h == ":wat::core::do" {
-                if let Some(child) = items.get(1) {
-                    return unwrap_message_decl(child);
-                }
+        if items
+            .first()
+            .and_then(crate::declare::parse::head_fqdn)
+            .as_deref()
+            == Some(":wat::core::do")
+        {
+            if let Some(child) = items.get(1) {
+                return unwrap_message_decl(child);
             }
         }
     }
@@ -1026,7 +1079,9 @@ fn flush_field_items(
         field_items,
         HEAD,
         member_span,
-        crate::argspec::ParseOptions { allow_rest_binder: false },
+        crate::argspec::ParseOptions {
+            allow_rest_binder: false,
+        },
     )
     .map_err(TypeError::from)?;
 
@@ -1067,9 +1122,11 @@ mod tests {
         surf.members
             .iter()
             .find_map(|m| match m {
-                SurfaceMember::Method { name: n, max_request_bytes, .. } if n == name => {
-                    Some(*max_request_bytes)
-                }
+                SurfaceMember::Method {
+                    name: n,
+                    max_request_bytes,
+                    ..
+                } if n == name => Some(*max_request_bytes),
                 _ => None,
             })
             .unwrap_or_else(|| panic!("no method member named {name:?}"))
@@ -1104,7 +1161,9 @@ mod tests {
             "(:wat::core::defsurface :t::Bad :nature :wat::core::Struct :features [\
                (write-logs [self <- :t::Bad] -> :t::Resp :max-request-bytes -5)])",
         )
-        .expect_err("`:max-request-bytes -5` (non-positive) must be a LOCATED error, not silently accepted");
+        .expect_err(
+            "`:max-request-bytes -5` (non-positive) must be a LOCATED error, not silently accepted",
+        );
         // It is a MalformedDecl carrying the surface head (the surrounding surface-parse shape).
         match err.kind() {
             TypeErrorKind::MalformedDecl { .. } => {}

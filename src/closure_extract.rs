@@ -1376,7 +1376,7 @@ fn walk_match_form(
                     }
                     crate::match_arm::MatchArm::Variant { path, pairs, .. } => {
                         collect_pattern_bindings(
-                            &WatAST::Keyword((*path).into(), arm.span().clone()),
+                            &WatAST::Keyword(path.as_ref().to_owned(), arm.span().clone()),
                             &mut arm_locals,
                             state,
                         )?;

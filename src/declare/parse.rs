@@ -254,15 +254,19 @@ pub(crate) fn parse_defalias_form(form: &WatAST) -> Option<(String, String)> {
     if head.as_ref() != ":wat::core::defalias" {
         return None;
     }
-    let alias = match &items[1] {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => return None,
-    };
-    let target = match &items[2] {
-        WatAST::Keyword(k, _) => k.clone(),
-        _ => return None,
-    };
+    let alias = alias_name_token(&items[1])?;
+    let target = alias_name_token(&items[2])?;
     Some((alias, target))
+}
+
+fn alias_name_token(node: &WatAST) -> Option<String> {
+    match node {
+        WatAST::Keyword(k, _) => Some(crate::edn::render::canonical_identity(k)),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            Some(crate::edn::render::canonical_identity(id.as_str()))
+        }
+        _ => None,
+    }
 }
 
 /// Stone 241.8 — detect `(:wat::core::defstruct :Name ...)` shape.
@@ -581,6 +585,9 @@ pub(crate) fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, A
     // keyword directly (empty type params, same as before every call this stdlib path saw).
     let (name, raw_type_params): (String, Vec<String>) = match &items[1] {
         WatAST::Keyword(k, _) => (k.clone(), Vec::new()),
+        WatAST::Symbol(s, _) if s.is_reference() => {
+            (crate::edn::render::ns_to_wat_path(s.receiver(), s.method()), Vec::new())
+        }
         _ => return None,
     };
     // items[2] must be a `(:wat::core::fn ARGS-VECTOR -> :RET body...)` list.

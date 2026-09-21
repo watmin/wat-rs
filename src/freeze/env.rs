@@ -24,21 +24,21 @@ use crate::check::{
     validate_aggregate_containment, validate_arc170_legacy_callsites,
     validate_bare_legacy_primitives, validate_named_type_annotations, CheckError, CheckErrors,
 };
-use crate::macros::{
-    expand_all, expand_all_with, expand_once, register_aggregate_kwargs_companions,
-    register_defmacros, register_stdlib_defmacros, retract_divergent_stdlib_macros, MacroRegistry,
-};
 use crate::declare::preregister::{preregister_acronyms, preregister_stdlib_defclause_stub};
 use crate::declare::register::{
     register_aggregate_methods, register_defines, register_enum_methods, register_newtype_methods,
     register_stdlib_defines, register_stdlib_runtime_defs, register_struct_methods,
     register_type_predicates,
 };
+use crate::load::stdlib::stdlib_forms;
+use crate::macros::{
+    expand_all, expand_all_with, expand_once, register_aggregate_kwargs_companions,
+    register_defmacros, register_stdlib_defmacros, retract_divergent_stdlib_macros, MacroRegistry,
+};
 use crate::resolve::{
     normalize_stored_function_bodies, normalize_symbol_refs, resolve_references, ResolveError,
 };
 use crate::runtime::{Environment, EvalBreak, SymbolTable};
-use crate::load::stdlib::stdlib_forms;
 use crate::span::Span;
 use crate::types::{
     register_stdlib_types, register_stdlib_types_replacing, register_types_with_acronyms, TypeEnv,
@@ -226,9 +226,7 @@ fn walk_type_forms(
     }
     if let WatAST::List(items, _) = &form {
         if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
-            if let Some(body_start) =
-                crate::macros::expand::container_body_start(head.as_ref())
-            {
+            if let Some(body_start) = crate::macros::expand::container_body_start(head.as_ref()) {
                 for child in items.iter().skip(body_start).cloned() {
                     walk_type_forms(child, macros, env, sym, kept)?;
                 }
@@ -267,10 +265,92 @@ fn span_covers(outer: &Span, inner: &Span) -> bool {
 }
 
 fn top_level_form_for_span(forms: &[WatAST], span: &Span) -> Option<WatAST> {
-    forms
-        .iter()
-        .find(|f| span_covers(f.span(), span))
-        .cloned()
+    forms.iter().find(|f| span_covers(f.span(), span)).cloned()
+}
+
+/// Names of types the source declares, so expand-time `reconstruct_call_path`
+/// can join a member before `register_types` runs. Membership only — the
+/// real `TypeDef` is still built by the registration pass.
+fn seed_declared_type_names(forms: &[WatAST], env: &mut crate::types::TypeEnv) {
+    fn one(form: &WatAST, env: &mut crate::types::TypeEnv) {
+        match form {
+            WatAST::List(items, _) => {
+                if let Some(name) = declaration_type_name(items) {
+                    env.register_use_declared_leaf(name);
+                }
+                for child in items {
+                    one(child, env);
+                }
+            }
+            WatAST::Vector(items, _) | WatAST::Set(items, _) => {
+                for child in items {
+                    one(child, env);
+                }
+            }
+            WatAST::Map(pairs, _) => {
+                for (k, v) in pairs {
+                    one(k, env);
+                    one(v, env);
+                }
+            }
+            _ => {}
+        }
+    }
+    for form in forms {
+        one(form, env);
+    }
+}
+
+fn rekey_type_member_functions(sym: &mut crate::runtime::SymbolTable) {
+    let Some(types) = sym.types().cloned() else {
+        return;
+    };
+    let names: Vec<String> = sym.functions_iter().map(|(n, _)| n.clone()).collect();
+    for name in names {
+        // rune:lint(one-variant-separator, namespace) — last `::` of a stored function name
+        let Some((parent, method)) = name.rsplit_once("::") else {
+            continue;
+        };
+        // `Enum.Variant` is a variant path (`decompose_variant`), not a method.
+        // Rekeying it onto `/` makes the map-ctor look up a type that was
+        // registered with `::`.
+        if method.is_empty()
+            || method.contains('/')
+            || wat_reader::identifier::prime(method)
+            || wat_reader::identifier::decompose_variant(&name).is_some()
+            || !types.is_known_type(parent)
+        {
+            continue;
+        }
+        let member = format!("{parent}/{method}");
+        if member == name {
+            continue;
+        }
+        if let Some(func) = sym.remove_function(&name) {
+            sym.register_function(member, func);
+        }
+    }
+}
+
+fn declaration_type_name(items: &[WatAST]) -> Option<String> {
+    let head = crate::declare::parse::head_fqdn(items.first()?)?;
+    match head.as_ref() {
+        ":wat::core::defrecord"
+        | ":wat::core::defstruct"
+        | ":wat::core::defenum"
+        | ":wat::core::defsurface"
+        | ":wat::core::typealias"
+        | ":wat::holon::defrecord" => {}
+        _ => return None,
+    }
+    match items.get(1)? {
+        WatAST::Keyword(k, _) => Some(crate::edn::render::canonical_identity(k)),
+        WatAST::Symbol(id, _) if id.is_reference() => Some(crate::edn::render::ns_to_wat_path(
+            id.receiver(),
+            id.method(),
+        )),
+        _ => None,
+    }
 }
 
 /// Build the full registered environment from already-parsed,
@@ -300,6 +380,7 @@ fn top_level_form_for_span(forms: &[WatAST], span: &Span) -> Option<WatAST> {
 /// - 7.6. `register_stdlib_runtime_defs`
 ///
 /// NOT included (caller responsibility):
+///
 /// - Step 3: `resolve_loads` (caller passes already-loaded forms)
 /// - Step 7.5: config-flag propagation (`redef_allowed`, `eval_redef_allowed`)
 /// - Step 8: `check_program`
@@ -353,6 +434,17 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // expand_all so defservice's pascal->kebab-in call at expand time can
     // consult the registry.
     let mut macro_sym = SymbolTable::default();
+    // Macro bodies eval during expand, before register_types. A converted
+    // `(wat.core.Option/expect …)` must still join as a member. Builtins are
+    // the registry that exists at this point. Stdlib types are not registered
+    // yet, but their NAMES are already in the source — seed membership so
+    // `reconstruct_call_path` can see `wat.spawn.Locus/launch` as a member
+    // while `defservice` is evaluating. This env is expand-only; the real
+    // `TypeEnv` is built later and replaces nothing here.
+    let mut expand_types = crate::types::TypeEnv::with_builtins();
+    seed_declared_type_names(&stdlib_post_macros, &mut expand_types);
+    seed_declared_type_names(&post_macro_reg, &mut expand_types);
+    macro_sym.types_insert(std::sync::Arc::new(expand_types));
     preregister_acronyms(&post_macro_reg, &mut macro_sym).map_err(|e| match e {
         EvalBreak::Diagnostic(re) => StartupError::Runtime(re),
         EvalBreak::Signal(_) => {
@@ -448,22 +540,21 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     let stdlib_runtime_def_forms: Vec<WatAST> = stdlib_residue
         .into_iter()
         .filter(|form| {
-            if let WatAST::List(items, _) = form {
-                matches!(
-                    items.first(),
-                    Some(WatAST::Keyword(k, _))
-                        if matches!(
-                            k.as_str(),
-                            ":wat::core::defclause"
-                                | ":wat::core::extend-type"
-                                // Arc 255 escape-hatch — scalar stdlib `def` forms
-                                // (e.g. MAX-READLN-BYTES) must reach runtime_def_values.
-                                | ":wat::core::def"
-                        )
+            let WatAST::List(items, _) = form else {
+                return false;
+            };
+            // Symbol `(wat.core/defclause …)` is the same form as the keyword.
+            // A keyword-only filter left the 0-param stub in place.
+            matches!(
+                items.first().and_then(crate::declare::parse::head_fqdn).as_deref(),
+                Some(
+                    ":wat::core::defclause"
+                        | ":wat::core::extend-type"
+                        // Arc 255 escape-hatch — scalar stdlib `def` forms
+                        // (e.g. MAX-READLN-BYTES) must reach runtime_def_values.
+                        | ":wat::core::def"
                 )
-            } else {
-                false
-            }
+            )
         })
         .collect();
     let mut residue = register_defines(post_types, &mut symbols)?;
@@ -536,6 +627,11 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //       data (via `symbols.set_types(Arc::new(types.clone()))`); the early
     //       attach here is strictly for the resolve pass.
     symbols.types_insert(std::sync::Arc::new(types.clone()));
+    // A defn name `wat.cache.Lru/new` is stored by `ns_to_wat_path` as
+    // `:wat::cache::Lru::new`. The call site asks `reconstruct_call_path`,
+    // and Lru is a type, so the call is `:wat::cache::Lru/new`. Rekey the
+    // function to the member join once the type env exists.
+    rekey_type_member_functions(&mut symbols);
 
     // Arc 278 #88 v2 — THE DEFINITION-SITE CHECK for every `(:wat::rete::core::defn …)`
     // collected at step 3b used to run HERE (step 6.975), stamping `Function::rete` on
@@ -595,6 +691,9 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         preregister_extend_type_in_do_let(form, &mut symbols)
             .map_err(|e| StartupError::Runtime(Box::new(e)))?;
     }
+    // extend-type / defclause bodies are stored from the pre-normalize
+    // capture. The pass above only saw functions registered before it.
+    normalize_stored_function_bodies(&mut symbols, &macros)?;
 
     // 7.8 — Arc 294 item 9a (DESIGN-rete-defrule-wall.md) lifted into a pluggable
     // `FreezeValidator` extension point (mirrors step 6.8's `RestrictionEntry` drain, same
@@ -700,11 +799,11 @@ fn preregister_extend_type_in_do_let(
         WatAST::List(items, _) => items,
         _ => return Ok(()),
     };
-    let head = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => return Ok(()),
+    let head = match items.first().and_then(crate::declare::parse::head_fqdn) {
+        Some(k) => k,
+        None => return Ok(()),
     };
-    match head {
+    match head.as_ref() {
         ":wat::core::extend-type" => {
             crate::declare::register::register_extend_type_surface_impls(form, symbols, false)
         }

@@ -1017,20 +1017,27 @@ fn metadata_describe(v: &WatAST) -> String {
 /// `:wat::runtime::Determinism::Preserving` silently satisfy `:purity`. A
 /// bare `:Preserving` (no path at all) is rejected the same way a bare
 /// `:Pure` is: neither names which enum it came from.
-fn enum_symbol_variant<'a>(v: &'a WatAST, wat_type_path: &str) -> Option<&'a str> {
+fn enum_symbol_leaf(kw: &str, wat_type_path: &str) -> Option<String> {
+    match wat_reader::identifier::decompose_variant(kw) {
+        Some((parent, variant)) if parent == wat_type_path && !variant.is_empty() => {
+            Some(variant.to_string())
+        }
+        _ => None,
+    }
+}
+
+fn enum_symbol_variant(v: &WatAST, wat_type_path: &str) -> Option<String> {
+    // Through the ONE door — `decompose_variant` splits an enum from its
+    // variant. A converted axis value is the symbol `wat.runtime/Purity.Pure`,
+    // the same identity as `:wat::runtime::Purity.Pure`.
     match v {
-        WatAST::Keyword(k, _) => {
-            // Through the ONE door — `decompose_variant` is the sanctioned reader for
-            // "split an enum from its variant". This was a hand-rolled BYTE-level
-            // decomposition (`as_bytes()[..].starts_with(b"::")` plus prefix arithmetic)
-            // and it is a genuine variant site: the leaf it returns is parsed as the
-            // enum itself (`variant.parse::<$enum_ty>()` in `read_axis!`).
-            match wat_reader::identifier::decompose_variant(k) {
-                Some((parent, variant)) if parent == wat_type_path && !variant.is_empty() => {
-                    Some(variant)
-                }
-                _ => None,
-            }
+        WatAST::Keyword(k, _) => enum_symbol_leaf(k, wat_type_path),
+        WatAST::Symbol(id, _) if id.as_str().contains('/') => {
+            let ns = wat_reader::identifier::receiver(id.as_str());
+            let name = wat_reader::identifier::method(id.as_str());
+            // rune:lint(one-variant-separator, namespace) — clojure ns dots to `::`, same as ns_to_wat_path
+            let kw = format!(":{}::{}", ns.replace('.', "::"), name);
+            enum_symbol_leaf(&kw, wat_type_path)
         }
         _ => None,
     }

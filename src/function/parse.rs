@@ -429,7 +429,7 @@ fn parse_defclause_clause(
             } else {
                 i += 1;
             }
-        } else if matches!(&rest[i], WatAST::Symbol(s, _) if s.as_str() == "->") {
+        } else if crate::types::is_return_arrow(&rest[i]) {
             if arrow_pos.is_none() {
                 arrow_pos = Some(i);
                 i += 2; // skip -> + :T
@@ -515,7 +515,34 @@ fn parse_defclause_clause(
             // `src/function/parse.rs:178`. Additive only — the `Keyword`
             // arm above is untouched, so the keyword path stays
             // byte-identical.
-            list @ WatAST::List(_, _) => crate::types::parse_type_node(list).map_err(|e| {
+            WatAST::Symbol(id, _) => {
+                // A namespaced symbol is a type. A bare symbol is a type only
+                // when it is a type-parameter letter (`T`, `Xt`). `n` is the
+                // value, and stays rejected.
+                let te = crate::types::parse_type_node(&rest[type_pos]).map_err(|e| {
+                    RuntimeError::new(
+                        e.span().clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: head.into(),
+                            reason: e.to_string(),
+                        },
+                    )
+                })?;
+                if !id.is_reference() && !crate::check::is_type_param_letter(&te) {
+                    return Err(RuntimeError::new(
+                        rest[type_pos].span().clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: head.into(),
+                            reason: "defclause clause `->` must be followed by a return type keyword; \
+                                     got symbol"
+                                .into(),
+                        },
+                    ));
+                }
+                te
+            }
+            node @ (WatAST::List(_, _) | WatAST::Vector(_, _)) => {
+                crate::types::parse_type_node(node).map_err(|e| {
                 RuntimeError::new(
                     e.span().clone(),
                     RuntimeErrorKind::MalformedForm {
@@ -523,7 +550,8 @@ fn parse_defclause_clause(
                         reason: e.to_string(),
                     },
                 )
-            })?,
+            })?
+            }
             other => {
                 return Err(RuntimeError::new(
                     other.span().clone(),
@@ -1004,7 +1032,9 @@ pub(crate) fn parse_extend_type_form(
     // keyword like `:t::Robot` always parses; only a malformed one falls back to `None`).
     let (type_name, type_te) = match &items[1] {
         WatAST::Keyword(k, _) => (k.clone(), crate::types::parse_type_node(&items[1]).ok()),
-        node @ WatAST::List(_, _) => {
+        // A namespaced symbol is the same type identity as its keyword.
+        // `parse_type_node` maps it through `ns_to_wat_path` (always `::`).
+        node @ (WatAST::List(_, _) | WatAST::Symbol(_, _)) => {
             let te = crate::types::parse_type_node(node).map_err(|e| {
                 RuntimeError::new(
                     node.span().clone(),
@@ -1051,7 +1081,7 @@ pub(crate) fn parse_extend_type_form(
     // arm has no analogous "raw string": a malformed List already errored out above via `?`.
     let (protocol_te, protocol_name_raw) = match &items[2] {
         WatAST::Keyword(k, _) => (crate::types::parse_type_expr(k).ok(), k.clone()),
-        node @ WatAST::List(_, _) => {
+        node @ (WatAST::List(_, _) | WatAST::Symbol(_, _)) => {
             let te = crate::types::parse_type_node(node).map_err(|e| {
                 RuntimeError::new(
                     node.span().clone(),

@@ -707,14 +707,19 @@ fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut Infe
         {
             Some(args.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh()))
         }
-        TypeExpr::Path(p)
-            if p == ":wat::core::Vector"
-                || p == ":wat::core::List"
-                || p == ":wat::core::PersistentVector"
-                || p == ":wat::stream::Stream"
-                || p == ":wat::core::Seqable" =>
-        {
-            Some(fresh.fresh())
+        TypeExpr::Path(p) => {
+            // `wat.type/PersistentVector` is `:wat::type::…` until denotation.
+            let denoted = crate::edn::render::type_denotation(p);
+            if denoted == ":wat::core::Vector"
+                || denoted == ":wat::core::List"
+                || denoted == ":wat::core::PersistentVector"
+                || denoted == ":wat::stream::Stream"
+                || denoted == ":wat::core::Seqable"
+            {
+                Some(fresh.fresh())
+            } else {
+                None
+            }
         }
         _ => None,
     }

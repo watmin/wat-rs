@@ -88,10 +88,7 @@ pub enum TypeExpr {
     /// the parse layer.
     Path(String),
     /// `(:wat::core::Vector :- [T])`, `(:wat::core::HashMap :- [K V])`, `(:my::ns::Container :- [wat::holon::HolonAST f64])`.
-    Parametric {
-        head: String,
-        args: Vec<TypeExpr>,
-    },
+    Parametric { head: String, args: Vec<TypeExpr> },
     /// `:fn(T,U)->R`. Function type — arguments and return.
     Fn {
         args: Vec<TypeExpr>,
@@ -135,8 +132,44 @@ pub(crate) fn parametric_head_fqdn(head: &str) -> String {
 pub(crate) fn parametric_heads_unify(h1: &str, h2: &str) -> bool {
     let a = parametric_head_fqdn(h1);
     let b = parametric_head_fqdn(h2);
-    a == b
-        || crate::edn::render::type_denotation(&a) == crate::edn::render::type_denotation(&b)
+    a == b || crate::edn::render::type_denotation(&a) == crate::edn::render::type_denotation(&b)
+}
+
+/// Structural equality through the denotation door. `wat.type/i64` and
+/// `:wat::core::i64` are one path. The ruling-A field lock compares parsed
+/// variant fields to a `:wat::core::i64` literal; a converted `wat.type/i64`
+/// stores `:wat::type::i64` and must still match.
+pub(crate) fn type_exprs_same(a: &TypeExpr, b: &TypeExpr) -> bool {
+    match (a, b) {
+        (TypeExpr::Path(p), TypeExpr::Path(q)) => {
+            p == q || crate::edn::render::type_denotation(p) == crate::edn::render::type_denotation(q)
+        }
+        (
+            TypeExpr::Parametric { head: h1, args: a1 },
+            TypeExpr::Parametric { head: h2, args: a2 },
+        ) => {
+            parametric_heads_unify(h1, h2)
+                && a1.len() == a2.len()
+                && a1.iter().zip(a2).all(|(x, y)| type_exprs_same(x, y))
+        }
+        (TypeExpr::Fn { args: a1, ret: r1 }, TypeExpr::Fn { args: a2, ret: r2 }) => {
+            a1.len() == a2.len()
+                && a1.iter().zip(a2).all(|(x, y)| type_exprs_same(x, y))
+                && type_exprs_same(r1, r2)
+        }
+        (TypeExpr::Tuple(a1), TypeExpr::Tuple(a2)) => {
+            a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| type_exprs_same(x, y))
+        }
+        (TypeExpr::Var(i), TypeExpr::Var(j)) => i == j,
+        _ => false,
+    }
+}
+
+fn field_shapes_same(a: &[(String, TypeExpr)], b: &[(String, TypeExpr)]) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|((n1, t1), (n2, t2))| n1 == n2 && type_exprs_same(t1, t2))
 }
 
 /// A colon-joined Type::member (`:ns::Type::method`). 255.4 retired this
@@ -149,10 +182,12 @@ pub(crate) fn is_colon_joined_type_member(name: &str) -> bool {
     if name.contains('/') {
         return false;
     }
-    let Some((prefix, member)) = name.rsplit_once("::") else { // rune:lint(one-variant-separator, namespace) — last ns join, not enum/variant
+    // rune:lint(one-variant-separator, namespace) — last ns join of a type/member path, not an enum variant
+    let Some((prefix, member)) = name.rsplit_once("::") else {
         return false;
     };
-    let type_seg = match prefix.rsplit_once("::") { // rune:lint(one-variant-separator, namespace) — type segment of a path
+    // rune:lint(one-variant-separator, namespace) — the type segment above that join
+    let type_seg = match prefix.rsplit_once("::") {
         Some((_, leaf)) => leaf,
         None => prefix,
     };
@@ -182,6 +217,27 @@ pub(crate) fn reconstruct_call_path(ns: &str, name: &str, types: &TypeEnv) -> St
     } else {
         crate::edn::render::ns_to_wat_path(ns, name)
     }
+}
+
+/// The other join of a call path: `/method` ↔ `::method`. Not a second
+/// predicate inside [`reconstruct_call_path`]. Callers ask the registry
+/// which spelling it holds and use this only when the primary misses.
+pub(crate) fn other_join_spelling(primary: &str) -> Option<String> {
+    if primary.contains('/') {
+        let parent = wat_reader::identifier::receiver(primary);
+        let method = wat_reader::identifier::method(primary);
+        if !parent.is_empty() && !method.is_empty() && !method.contains(':') {
+            // rune:lint(one-variant-separator, namespace) — the one `/` flipped back to the namespace join
+            return Some(format!("{parent}::{method}"));
+        }
+        return None;
+    }
+    let parent = wat_reader::identifier::path(primary); // rune:lint(one-variant-separator, namespace) — last namespace segment, flipped onto the member join
+    let method = wat_reader::identifier::leaf(primary); // rune:lint(one-variant-separator, namespace) — that segment
+    if parent.is_empty() || method.is_empty() || method.contains('/') {
+        return None;
+    }
+    Some(format!("{parent}/{method}"))
 }
 
 /// STONE-defservice-emits-the-binder (arc 109) — the ONE renderer for a parametric type
@@ -276,7 +332,9 @@ impl Nature {
     /// Arc 293.W.2b — the purity predicate (was renamed from the symptom-name to the cause-name).
     /// Arc 293 S3-Nature-2 — `Peer` joins `Struct` on the impure side: a peer holds a live channel
     /// (crosses no comms; only its address does — the circuit / 293.W `:ephemeral`-only rule).
-    pub fn is_pure(&self) -> bool { !matches!(self, Nature::Struct | Nature::Peer) }
+    pub fn is_pure(&self) -> bool {
+        !matches!(self, Nature::Struct | Nature::Peer)
+    }
 
     /// Arc 293 K1a — the capability-ladder rank (the balanced trit). A required `:nature` on a surface
     /// is a FLOOR, not an exact kind: a candidate satisfies it iff `candidate.rank() >= required.rank()`.
@@ -312,11 +370,11 @@ impl Nature {
     /// Returns `None` for anything that is not a nature-root symbol.
     pub fn from_root_keyword(kw: &str) -> Option<Nature> {
         match crate::edn::render::canonical_identity(kw).as_str() {
-            ":wat::core::Struct"  => Some(Nature::Struct),
-            ":wat::core::Record"        => Some(Nature::Record),
+            ":wat::core::Struct" => Some(Nature::Struct),
+            ":wat::core::Record" => Some(Nature::Record),
             ":wat::holon::Record" => Some(Nature::HolonRecord),
             ":wat::kernel::Peer" => Some(Nature::Peer),
-            _                     => None,
+            _ => None,
         }
     }
 }
@@ -341,15 +399,17 @@ pub enum Purity {
 impl Purity {
     /// The purity wall for enums: a `Pure` enum's values cross address spaces; an `Impure` enum's never do.
     /// Read by `is_pure_type`'s enum arm (mirrors `Nature::is_pure`).
-    pub fn is_pure(&self) -> bool { matches!(self, Purity::Pure) }
+    pub fn is_pure(&self) -> bool {
+        matches!(self, Purity::Pure)
+    }
 
     /// The single canonical marker-keyword → purity map, for `parse_defenum`'s mandatory marker.
     /// Returns `None` for anything that is not one of the two `:wat::enum::*` markers.
     pub fn from_marker_keyword(kw: &str) -> Option<Purity> {
         match crate::edn::render::canonical_identity(kw).as_str() {
-            ":wat::enum::Pure"   => Some(Purity::Pure),
+            ":wat::enum::Pure" => Some(Purity::Pure),
             ":wat::enum::Impure" => Some(Purity::Impure),
-            _                    => None,
+            _ => None,
         }
     }
 }
@@ -369,8 +429,8 @@ impl Purity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AggregateDef {
     pub name: String,
-    pub type_params: Vec<String>,         // structs use; records leave empty
-    pub fields: Vec<(String, TypeExpr)>,  // always-typed (D2)
+    pub type_params: Vec<String>, // structs use; records leave empty
+    pub fields: Vec<(String, TypeExpr)>, // always-typed (D2)
     pub nature: Nature,
     /// Arc 203 — access-control restrictions. Struct-only; always `None` for records.
     pub restrictions: Option<StructRestrictions>,
@@ -765,14 +825,17 @@ impl TypeEnv {
     /// `None` for those names. See `builtin_names`'s field doc.
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
         let id = crate::edn::render::canonical_identity(name);
-        self.types.get(name).or_else(|| self.types.get(&id)).or_else(|| {
-            let denoted = crate::edn::render::type_denotation(&id);
-            if denoted != id {
-                self.types.get(&denoted)
-            } else {
-                None
-            }
-        })
+        self.types
+            .get(name)
+            .or_else(|| self.types.get(&id))
+            .or_else(|| {
+                let denoted = crate::edn::render::type_denotation(&id);
+                if denoted != id {
+                    self.types.get(&denoted)
+                } else {
+                    None
+                }
+            })
     }
 
     /// 2a4 — the stdlib-mode door's private copy only. A divergent re-declaration
@@ -909,11 +972,7 @@ impl TypeEnv {
     }
 
     /// Arc 138 slice 2 — span-carrying variant of [`Self::register_stdlib`].
-    pub fn register_stdlib_with_span(
-        &mut self,
-        def: TypeDef,
-        span: Span,
-    ) -> Result<(), TypeError> {
+    pub fn register_stdlib_with_span(&mut self, def: TypeDef, span: Span) -> Result<(), TypeError> {
         self.register_validated(def, span, crate::resolve::Privilege::Stdlib)
     }
 
@@ -936,48 +995,54 @@ impl TypeEnv {
             Some(e) if e == &def => crate::resolve::Existing::Equivalent,
             Some(_) => crate::resolve::Existing::Divergent,
         };
-        crate::resolve::register(&name, privilege, existing, &span, || -> Result<(), TypeError> {
-            // Reject cyclic aliases BEFORE insertion so `expand_alias` can
-            // assume every alias in the registry is non-cyclic.
-            if let TypeDef::Alias(alias) = &def {
-                check_alias_no_cycle(&name, &alias.expr, self, &span)?;
-            }
-            // Stone 237.1 — reject typeunions with invalid members or cycles.
-            if let TypeDef::Union(union) = &def {
-                validate_union_members(&name, &union.members, &span)?;
-                check_union_no_cycle(&name, &union.members, self, &span)?;
-            }
-            // Arc 293 inheritance annihilation — wire subtype edge derived from nature.
-            // parse_aggregate rejected any non-nature-root parent, so root_keyword() always
-            // names a registered builtin. No ":wat::core::Value" skip needed: every parsed
-            // aggregate registers :Name <: nature.root_keyword().
-            if let TypeDef::Aggregate(agg) = &def {
-                let root = agg.nature.root_keyword();
-                self.types.insert(name.clone(), def);
-                return self.register_subtype(&name, root, span.clone());
-            }
-            // Arc 278 the string-wrap annihilation — a `:nature :wat::core::Record` surface
-            // IS a subtype of `:wat::core::Record`, exactly like a concrete Record aggregate:
-            // every value satisfying the surface is a record, so `:wat::core::Error <:
-            // :wat::core::Record`. Without this edge a record accessor (param `:wat::core::Record`)
-            // rejects a surface-typed value — e.g. `(:wat::core::Fault/message
-            // (:wat::kernel::Failure/error f))`, where `Failure/error` yields `:wat::core::Error`.
-            // Restricted to Nature::Record ONLY: a `:nature :HolonRecord` surface must NOT gain a
-            // `<: :wat::holon::Record` edge — that would let `is_subtype` short-circuit the holon
-            // NATURE LADDER (a non-holon foreign type could then satisfy a holon-floor surface;
-            // see probe_arc293_holder_ladder_foreign). Struct/Peer surfaces are unaffected.
-            if let TypeDef::Surface(surf) = &def {
-                if surf.nature == Some(Nature::Record) {
-                    let root = Nature::Record.root_keyword();
-                    if name != root {
-                        self.types.insert(name.clone(), def);
-                        return self.register_subtype(&name, root, span.clone());
+        crate::resolve::register(
+            &name,
+            privilege,
+            existing,
+            &span,
+            || -> Result<(), TypeError> {
+                // Reject cyclic aliases BEFORE insertion so `expand_alias` can
+                // assume every alias in the registry is non-cyclic.
+                if let TypeDef::Alias(alias) = &def {
+                    check_alias_no_cycle(&name, &alias.expr, self, &span)?;
+                }
+                // Stone 237.1 — reject typeunions with invalid members or cycles.
+                if let TypeDef::Union(union) = &def {
+                    validate_union_members(&name, &union.members, &span)?;
+                    check_union_no_cycle(&name, &union.members, self, &span)?;
+                }
+                // Arc 293 inheritance annihilation — wire subtype edge derived from nature.
+                // parse_aggregate rejected any non-nature-root parent, so root_keyword() always
+                // names a registered builtin. No ":wat::core::Value" skip needed: every parsed
+                // aggregate registers :Name <: nature.root_keyword().
+                if let TypeDef::Aggregate(agg) = &def {
+                    let root = agg.nature.root_keyword();
+                    self.types.insert(name.clone(), def);
+                    return self.register_subtype(&name, root, span.clone());
+                }
+                // Arc 278 the string-wrap annihilation — a `:nature :wat::core::Record` surface
+                // IS a subtype of `:wat::core::Record`, exactly like a concrete Record aggregate:
+                // every value satisfying the surface is a record, so `:wat::core::Error <:
+                // :wat::core::Record`. Without this edge a record accessor (param `:wat::core::Record`)
+                // rejects a surface-typed value — e.g. `(:wat::core::Fault/message
+                // (:wat::kernel::Failure/error f))`, where `Failure/error` yields `:wat::core::Error`.
+                // Restricted to Nature::Record ONLY: a `:nature :HolonRecord` surface must NOT gain a
+                // `<: :wat::holon::Record` edge — that would let `is_subtype` short-circuit the holon
+                // NATURE LADDER (a non-holon foreign type could then satisfy a holon-floor surface;
+                // see probe_arc293_holder_ladder_foreign). Struct/Peer surfaces are unaffected.
+                if let TypeDef::Surface(surf) = &def {
+                    if surf.nature == Some(Nature::Record) {
+                        let root = Nature::Record.root_keyword();
+                        if name != root {
+                            self.types.insert(name.clone(), def);
+                            return self.register_subtype(&name, root, span.clone());
+                        }
                     }
                 }
-            }
-            self.types.insert(name.clone(), def);
-            Ok(())
-        })?;
+                self.types.insert(name.clone(), def);
+                Ok(())
+            },
+        )?;
         Ok(())
     }
 
@@ -1080,7 +1145,12 @@ impl TypeEnv {
     /// the `TypeDef` registry — a tag can derive regardless of whether it has a
     /// `TypeDef` entry. This mirrors Clojure's hierarchy being independent of what
     /// the tags ARE.
-    pub fn register_subtype(&mut self, child: &str, parent: &str, span: Span) -> Result<(), TypeError> {
+    pub fn register_subtype(
+        &mut self,
+        child: &str,
+        parent: &str,
+        span: Span,
+    ) -> Result<(), TypeError> {
         // Cycle check: if parent is already transitively is-a child, adding this
         // edge closes a cycle.
         if is_subtype(parent, child, self) {
@@ -1280,14 +1350,20 @@ impl TypeEnv {
                 // separately and the composed name comes back out of `build`, so the
                 // singleton's own `name` field and what the gate sees are the SAME
                 // string, composed exactly once.
-                self.register_variant_type(&e.name, v.name(), privilege, span.clone(), move |name| {
-                    TypeDef::Enum(EnumDef {
-                        name,
-                        type_params: variant_type_params,
-                        purity: variant_purity,
-                        variants: vec![variant_clone],
-                    })
-                })?;
+                self.register_variant_type(
+                    &e.name,
+                    v.name(),
+                    privilege,
+                    span.clone(),
+                    move |name| {
+                        TypeDef::Enum(EnumDef {
+                            name,
+                            type_params: variant_type_params,
+                            purity: variant_purity,
+                            variants: vec![variant_clone],
+                        })
+                    },
+                )?;
                 self.register_subtype(&fqdn, &e.name, span)?;
             }
         }
@@ -1429,7 +1505,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // ⛔ ARC 296 K — GENERATED FROM WAT. The AliasDef literal is DELETED; this
     // row is now emitted from `(:wat::core::typealias :wat::holon::BundleResult …)`
     // in `wat/holon.wat`.
-    ::wat_source_derive::wat_alias_register_from!(env, "wat/holon.wat", ":wat::holon::BundleResult");
+    ::wat_source_derive::wat_alias_register_from!(
+        env,
+        "wat/holon.wat",
+        ":wat::holon::BundleResult"
+    );
 
     // :wat::holon::Holons — arc 033. Typealias for the ubiquitous
     // "list of holons" shape that Bundle takes as input and that
@@ -1569,7 +1649,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // wat::WatAST, the terminal value as wat::holon::HolonAST. The
     // consumer drives the loop, feeding StepNext.form back in until
     // StepTerminal arrives.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
     ::wat_source_derive::wat_enum_register_from!(env, "wat/eval.wat", ":wat::eval::StepResult");
 
     // Arc 070 — (:wat::eval::WalkStep :- [A]) — what the visitor passed to
@@ -1588,7 +1668,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Generic over A so the consumer's accumulator can be any
     // type — cache, trace, counter, tier, etc.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
     ::wat_source_derive::wat_enum_register_from!(env, "wat/eval.wat", ":wat::eval::WalkStep");
 
     // Arc 170 — :wat::core::ReadOutcome — what `:wat::core::read-string` returns.
@@ -1663,7 +1743,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::Option");
     ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::Result");
 
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/core.wat`.
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/core.wat`.
     ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::ReadOutcome");
 
     // Arc 277 — `:wat::core::ReadWithCommentsOutcome` — what
@@ -1672,8 +1752,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // core (registered here, in a fresh TypeEnv), not to a late-loading
     // stdlib defrecord. Comment *elements* stay `:wat::fmt::Comment` (wat-side);
     // only the outcome type the verb hands back is core.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/core.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/core.wat", ":wat::core::ReadWithCommentsOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/core.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/core.wat",
+        ":wat::core::ReadWithCommentsOutcome"
+    );
 
     // Arc 278 Stone 1 (`wat --mcp`) — (:wat::edn::ReadJsonOutcome :- [T]) — what
     // `:wat::edn::read-json` returns.
@@ -1702,7 +1786,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // ordinary decoded data — a String/HashMap/record — never a live resource, unlike
     // `(ReadlnOutcome :- [T])`'s T which can be), and `:wat::core::Error` is Record-natured. Marking it
     // Impure would bar it from pure aggregates and the wire for nothing.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
     ::wat_source_derive::wat_enum_register_from!(env, "wat/edn.wat", ":wat::edn::ReadJsonOutcome");
 
     // `:wat::edn::ReadForeignOutcome<T>` — what `:wat::edn::read-foreign` returns.
@@ -1713,8 +1797,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     //   :Value     [value <- T] — the decoded value (ForeignRecord / ForeignVariant / typed)
     //   :Malformed [cause]      — the EDN text did not parse, or did not decode
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/edn.wat", ":wat::edn::ReadForeignOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/edn.wat",
+        ":wat::edn::ReadForeignOutcome"
+    );
 
     // Arc 170 — :wat::kernel::ReadFrameOutcome — what `:wat::kernel::read-frame` returns.
     //
@@ -1765,8 +1853,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Impure — it is I/O — and a sibling of the caller-facing `*Outcome` family
     // (RecvOutcome / SendOutcome / ConnectOutcome), so a reader already knows the shape.
     // Named by an intueri cast (2026-07-28), which also caught the frame-vs-line lie.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::ReadFrameOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::ReadFrameOutcome"
+    );
 
     // Arc 170 closure #24 — (:wat::kernel::ReadlnOutcome :- [T]) — what `readln` returns.
     //
@@ -1796,8 +1888,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // rides with it. Named `Datum` and not `Value` to avoid colliding with
     // `:wat::core::Value`, the universal top; not `Line`, which is taken one layer down
     // for the raw text and would re-tell the frame-vs-line lie the 2026-07-28 cast caught.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::ReadlnOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::ReadlnOutcome"
+    );
 
     // Arc 170 stdin-joins-the-lock-step — :wat::io::IOReader::ReadFrameOutcome — what
     // `:wat::io::IOReader/read-frame` returns.
@@ -1824,8 +1920,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // process-wide stop request is neither — `(Option :- [String])` had no third state to
     // carry it, so this dedicated enum replaces it. See `eval_ioreader_read_frame`'s
     // doc comment (`src/io.rs`) for the poll that produces `Stopped`.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/io.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/io.wat", ":wat::io::IOReader::ReadFrameOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/io.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/io.wat",
+        ":wat::io::IOReader::ReadFrameOutcome"
+    );
 
     // Arc 170 — (:wat::eval::FormOutcome :- [T]) — what `:wat::eval-with-defs!` returns:
     // the outcome of handing ONE form to a world built from a definition set.
@@ -1878,7 +1978,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // TYPES already use (StepResult, WalkStep above); `:wat::core::` would have been
     // drift, and a bare `Outcome` would read ambiguously beside
     // `:wat::service::Outcome` in the defservice handler that is its first consumer.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/eval.wat`.
     ::wat_source_derive::wat_enum_register_from!(env, "wat/eval.wat", ":wat::eval::FormOutcome");
 
     // :wat::kernel::LociDiedError — the ONE loci-agnostic death report
@@ -1918,7 +2018,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // The three EDN-tag string compares that used to key on `"wat.kernel.LociDiedError"`
     // source from the generated enum (`wat_enum_from!` in `src/kernel/error.rs`), so
     // a next wire change cannot unhook them silently.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::LociDiedError");
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::LociDiedError"
+    );
 
     // :wat::kernel::Location — a point in a source file. Populated by
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
@@ -1988,7 +2092,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Failure …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
     // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::Failure");
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::Failure"
+    );
 
     // :wat::kernel::AssertionFailure — arc 278 (DESIGN-loci-died-error.md): the
     // registered record that the panic-hook `#wat.kernel/AssertionFailure {…}`
@@ -2003,7 +2111,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::AssertionFailure …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
     // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::AssertionFailure");
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::AssertionFailure"
+    );
 
     // :wat::kernel::StopAccepted — arc 170 "stopping is a protocol" Phase 2. The shutdown worker's
     // one notice, emitted exactly once on STDOUT (via the primed StdOut service, never a raw fd-1
@@ -2016,7 +2128,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::StopAccepted …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
     // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopAccepted");
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::StopAccepted"
+    );
 
     // :wat::kernel::StopFailure — one service's failed stop, inside a `StopFailed`. `cause` carries
     // the STRUCTURED `:wat::core::Error` the failure already is (see `runtime.rs`'s
@@ -2028,7 +2144,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::StopFailure …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
     // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailure");
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::StopFailure"
+    );
 
     // :wat::kernel::StopFailed — arc 170 "stopping is a protocol", the builder's silent-drop-annihilation
     // ruling. The shutdown worker no longer discards an ask's (or the `StopAccepted` announce's) error —
@@ -2041,7 +2161,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::StopFailed …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
     // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailed");
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::StopFailed"
+    );
 
     // (:wat::kernel::RecvOutcome :- [O]) — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
@@ -2062,8 +2186,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // design's own note, Impure is the honest fixed purity (a Pure marking would lie the moment O
     // is a live resource). O carries the peer's output element type ((WalkStep :- [A]) is the parametric
     // precedent).
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::RecvOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::RecvOutcome"
+    );
 
     // (:wat::stream::NextOutcome :- [T]) — Arc 118.11a (stone A of two, "mint next +
     // NextOutcome", DESIGN-STONE-118.11a). The matchable outcome of
@@ -2086,8 +2214,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // purely additive — no existing verb moves, no call site migrates onto `next` yet.
     // (Stone 118.B3 has since DELETED the `forced: OnceLock` memo this comment used to say was
     // untouched; the migration it anticipated happened in 118.B2/B2b. Both are done.)
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/stream.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/stream.wat", ":wat::stream::NextOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/stream.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/stream.wat",
+        ":wat::stream::NextOutcome"
+    );
 
     // :wat::kernel::SendOutcome — Arc 278 the send'-outcome wall (Phase 1,
     // DESIGN-send-outcome-wall.md): the send-side twin of (RecvOutcome :- [O]) above.
@@ -2114,8 +2246,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // marking it Impure would LIE (claim its values are locus-bound when they are not).
     // Registered as a builtin for the same load-order reason as RecvOutcome — send' is used
     // inside the stdlib before any wat defenum would load.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::SendOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::SendOutcome"
+    );
 
     // :wat::kernel::TrySendOutcome — Arc 278 the send'-outcome wall Phase 3a
     // (BRIEF-send-wall-3a-try-send-outcome.md): `try-send'`'s OWN outcome type,
@@ -2138,8 +2274,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                    symmetric with SendOutcome::Lost above.
     // PURE for the same reason SendOutcome is (see above) — non-parametric, only
     // pure data (three nullary variants + a pure `LociDiedError` record).
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::TrySendOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::TrySendOutcome"
+    );
 
     // :wat::kernel::CloseOutcome — Arc 278 peer-lifecycle Strike 2 (the close'
     // OUTCOME WALL, BRIEF-close-outcome-wall.md). `close'` (:wat::kernel::-restricted
@@ -2161,8 +2301,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Failure — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
     // Registered as a builtin for the same load-order reason as SendOutcome — close' is a
     // kernel intrinsic used before any wat defenum would load.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::CloseOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::CloseOutcome"
+    );
 
     // :wat::kernel::Signal — Arc 278 process-signal-owner-to-child stone
     // (DESIGN-STONE-process-signal-owner-to-child.md § "The shape";
@@ -2200,8 +2344,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // KILLS you — any process on the box can send any signal. One concept,
     // two honest shapes for two different directions of control, not an
     // inconsistency to unify.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::Signal");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::Signal"
+    );
 
     // :wat::kernel::SignalOutcome — the matchable outcome of
     // `(:wat::kernel::signal proc sig)` (BRIEF-process-signal-p2-mint.md).
@@ -2226,8 +2374,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is intercepted before the syscall (the same "peer already closed" guard
     // close' itself uses) — a live `signal` call can never observe ESRCH. Two
     // arms and a raise, per the stone's own named fallback for this outcome.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::SignalOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::SignalOutcome"
+    );
 
     // :wat::edn::Validation — Arc 278 the REQUEST-MALFORMED wall (Stone 1,
     // DESIGN-request-malformed-input-sanitization.md). The outcome of
@@ -2255,7 +2407,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // PURE — three Strings/String-vectors and a nullary variant; fully
     // EDN-reconstructable. Registered as a builtin because the defservice-generated
     // serve loop matches on it, before any wat defenum would load.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/edn.wat`.
     ::wat_source_derive::wat_enum_register_from!(env, "wat/edn.wat", ":wat::edn::Validation");
 
     // (:wat::kernel::AcceptOutcome :- [R S]) — Arc 278 peer-lifecycle Strike 3 (the accept'
@@ -2281,8 +2433,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // resource. R,S carry the peer's wire element types (the parametric precedent).
     // Registered as a builtin for the same load-order reason as RecvOutcome — accept' is a
     // kernel verb usable inside the stdlib before any wat defenum would load.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::AcceptOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::AcceptOutcome"
+    );
 
     // (:wat::kernel::ConnectOutcome :- [S R]) — Arc 278 peer-lifecycle Strike 4 (the connect'
     // OUTCOME WALL, BRIEF-connect-outcome-wall.md — the LAST peer-lifecycle wall). The
@@ -2319,8 +2475,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // peer is a live resource. S,R carry the peer's wire element types. Registered as a
     // builtin for the same load-order reason as AcceptOutcome — connect' is a kernel verb
     // usable inside the stdlib before any wat defenum would load.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::ConnectOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::ConnectOutcome"
+    );
 
     // :wat::holon::VectorDecodeOutcome — Arc 278 the dimension-heresy strike
     // (BRIEF-dimension-heresy-screams.md). `:wat::holon::bytes-vector` used to
@@ -2357,8 +2517,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // it), and every other field is a bare `i64`. Registered as a builtin
     // (peer with the other outcome walls) for load-order robustness, though
     // `bytes-vector` itself has zero wat-corpus callers today.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::VectorDecodeOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/holon.wat",
+        ":wat::holon::VectorDecodeOutcome"
+    );
 
     // :wat::holon::CombineOutcome — Arc 278 the dimension-heresy strike, part
     // 2. `vector-bind` / `vector-bundle` / `vector-blend` each RAISED a
@@ -2383,8 +2547,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                        cross a boundary.
     // PURE, for the same reason `VectorDecodeOutcome` is: a bare `Vector` +
     // two `i64`s, all EDN-reconstructable.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::CombineOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/holon.wat",
+        ":wat::holon::CombineOutcome"
+    );
 
     // :wat::holon::DegenerateSide — Arc 278 the cosine outcome wall
     // (BRIEF-cosine-outcome-wall.md, DESIGN-STONE-where-admits-only-rete-ops.md
@@ -2400,8 +2568,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // operand names (mirroring `pair_values_to_vectors`'s `target`/`reference`
     // callers use), not invented ones.
     // PURE — three nullary variants, no fields at all.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::DegenerateSide");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/holon.wat",
+        ":wat::holon::DegenerateSide"
+    );
 
     // :wat::holon::CosineOutcome — Arc 278 the cosine outcome wall. `cosine`
     // had two domain holes, both dishonest: a dimension mismatch raised
@@ -2432,8 +2604,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // (itself pure), and two i64s. Fully EDN-reconstructable / wire-crossable;
     // marking it Impure would lie. Registered as a builtin, peer with the
     // other outcome walls in this family (`CombineOutcome`, `VectorDecodeOutcome`).
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::CosineOutcome");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/holon.wat",
+        ":wat::holon::CosineOutcome"
+    );
 
     // :wat::holon::DotOutcome — Arc 278 the cosine outcome wall's sibling for
     // `dot`. TWO enums, not one shared with `CosineOutcome` — `dot` performs
@@ -2450,7 +2626,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                        (one fact reached by two routes through the
     //                        shared `pair_values_to_vectors` guard).
     // PURE, for the same reason `CosineOutcome` is.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/holon.wat`.
     ::wat_source_derive::wat_enum_register_from!(env, "wat/holon.wat", ":wat::holon::DotOutcome");
 
     // :wat::kernel::RunResult — the matchable outcome of running a program:
@@ -2482,8 +2658,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // marking it Impure would lie. Registered as a builtin (like its two sibling
     // outcome walls) because `run-thread'` constructs it inside the stdlib, before
     // any wat `defenum` would load.
-        // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/kernel/outcomes.wat", ":wat::kernel::RunResult");
+    // ⛔ ARC 296 J — GENERATED FROM WAT. Prose + variants live in `wat/kernel/outcomes.wat`.
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/kernel/outcomes.wat",
+        ":wat::kernel::RunResult"
+    );
 
     // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).
     // The struct collapsed into (:wat::kernel::Process :- [I O]) — both
@@ -2512,7 +2692,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::kernel::StartupError …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
     // source of truth; Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StartupError");
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/kernel/diagnostics.wat",
+        ":wat::kernel::StartupError"
+    );
 
     // :wat::holon::CoincidentExplanation — arc 069 diagnostic record
     // returned by `:wat::holon::coincident-explain`. Bundles the raw
@@ -2528,7 +2712,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::holon::CoincidentExplanation …)`
     // in `wat/holon.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
     // Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/holon.wat", ":wat::holon::CoincidentExplanation");
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/holon.wat",
+        ":wat::holon::CoincidentExplanation"
+    );
 
     // :wat::holon::Match — the result of `:wat::holon::Hologram/find`. A Hologram
     // matches by SIMILARITY, so the key `find` hands back is not necessarily the
@@ -2552,15 +2740,51 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // source of truth (`wat/runtime-typeinfo.wat`); these macros emit the
     // TypeEnv registrations. Order matches the file: unit enums, then the
     // two records the tagged enums name, then the tagged enums, then TypeInfo.
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeKind");
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeNature");
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypePurity");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeField");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeVariant");
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeSurfaceMember");
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeBody");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::TypeInfo");
-    ::wat_source_derive::wat_enum_register_from!(env, "wat/runtime-typeinfo.wat", ":wat::runtime::DeclaredTypes");
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypeKind"
+    );
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypeNature"
+    );
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypePurity"
+    );
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypeField"
+    );
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypeVariant"
+    );
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypeSurfaceMember"
+    );
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypeBody"
+    );
+    ::wat_source_derive::wat_record_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::TypeInfo"
+    );
+    ::wat_source_derive::wat_enum_register_from!(
+        env,
+        "wat/runtime-typeinfo.wat",
+        ":wat::runtime::DeclaredTypes"
+    );
 
     // :wat::core::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
     // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per
@@ -2599,7 +2823,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // ⛔ ARC 296 K NAMED FLOOR — `:wat::core::Record` is what `defrecord` produces.
     // Declaring it with `defrecord` is the concept declaring itself. The wall admits
     // this literal iff `Nature::from_root_keyword(name)` is `Some`.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef {
+        nature: Nature::Record,
         name: ":wat::core::Record".into(),
         type_params: vec![],
         fields: vec![],
@@ -2628,7 +2853,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // ⛔ ARC 296 K NAMED FLOOR — `:wat::holon::Record` is the holonic-record nature
     // root; same impossibility as `:wat::core::Record`. The wall admits this
     // literal iff `Nature::from_root_keyword(name)` is `Some`.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::HolonRecord,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef {
+        nature: Nature::HolonRecord,
         name: ":wat::holon::Record".into(),
         type_params: vec![],
         fields: vec![],
@@ -2637,8 +2863,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Seed the built-in typesub root: `:wat::holon::Record` is-a `:wat::core::Record`.
     // Cannot cycle (fresh registry with no edges yet); `expect` is correct here.
     // built-in root hierarchy seed — no source form exists; unreachable cycle path (two distinct roots).
-    env.register_subtype(":wat::holon::Record", ":wat::core::Record", crate::rust_caller_span!())
-        .expect("built-in typesub root cannot cycle");
+    env.register_subtype(
+        ":wat::holon::Record",
+        ":wat::core::Record",
+        crate::rust_caller_span!(),
+    )
+    .expect("built-in typesub root cannot cycle");
 
     // Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
     // enum's variants as `:wat::core::Error`-satisfying decode records so a
@@ -2676,7 +2906,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
             .fields
             .iter()
             .map(|(edn_key, wat_path)| {
-                ((*edn_key).to_string(), TypeExpr::Path((*wat_path).to_string()))
+                (
+                    (*edn_key).to_string(),
+                    TypeExpr::Path((*wat_path).to_string()),
+                )
             })
             .collect();
         env.register_builtin(TypeDef::Aggregate(AggregateDef {
@@ -2853,7 +3086,10 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
     };
     let floor = || -> Vec<(String, TypeExpr)> {
         vec![
-            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
+            (
+                "message".into(),
+                TypeExpr::Path(":wat::core::String".into()),
+            ),
             ("location".into(), TypeExpr::Path(":wat::core::Span".into())),
             (
                 "causes".into(),
@@ -2872,20 +3108,34 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
         ("UnknownFunction", vec![("path".into(), string())]), // ← the cache-probe gate
         (
             "ArityMismatch",
-            vec![("op".into(), string()), ("expected".into(), i64t()), ("got".into(), i64t())],
+            vec![
+                ("op".into(), string()),
+                ("expected".into(), i64t()),
+                ("got".into(), i64t()),
+            ],
         ),
-        ("MalformedForm", vec![("head".into(), string()), ("reason".into(), string())]),
+        (
+            "MalformedForm",
+            vec![("head".into(), string()), ("reason".into(), string())],
+        ),
         ("ParamShadowsBuiltin", vec![("name".into(), string())]),
         ("DivisionByZero", vec![]),
         (
             "IntegerOverflow",
-            vec![("op".into(), string()), ("a".into(), i64t()), ("b".into(), i64t())],
+            vec![
+                ("op".into(), string()),
+                ("a".into(), i64t()),
+                ("b".into(), i64t()),
+            ],
         ),
         ("DuplicateDefine", vec![("name".into(), string())]),
         ("ReservedPrefix", vec![("prefix".into(), string())]),
         ("UnnamespacedName", vec![("name".into(), string())]),
         ("DottedName", vec![("name".into(), string())]),
-        ("DeclarationInExpressionPosition", vec![("head".into(), string())]),
+        (
+            "DeclarationInExpressionPosition",
+            vec![("head".into(), string())],
+        ),
         ("EvalForbidsMutationForm", vec![("head".into(), string())]),
         ("UserMainMissing", vec![]),
         ("ChannelDisconnected", vec![("op".into(), string())]),
@@ -2898,11 +3148,17 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
         // `message` collides with the floor → floor-only + these two.
         (
             "AssertionFailed",
-            vec![("actual".into(), opt_string()), ("expected".into(), opt_string())],
+            vec![
+                ("actual".into(), opt_string()),
+                ("expected".into(), opt_string()),
+            ],
         ),
         (
             "SandboxScopeLeak",
-            vec![("offending-name".into(), string()), ("outer-define-span".into(), span())],
+            vec![
+                ("offending-name".into(), string()),
+                ("outer-define-span".into(), span()),
+            ],
         ),
         ("ServiceNotRunning", vec![("op".into(), string())]),
         (
@@ -3051,7 +3307,10 @@ fn synthesize_surface_protocol(
     // i64 field type (see `TypeExpr::Path(":wat::core::i64")` throughout, e.g. wat/query.wat).
     const RTL_VARIANT: &str = "RequestTooLarge";
     let rtl_fields: Vec<(String, TypeExpr)> = vec![
-        ("bytes".to_string(), TypeExpr::Path(":wat::core::i64".into())),
+        (
+            "bytes".to_string(),
+            TypeExpr::Path(":wat::core::i64".into()),
+        ),
         ("cap".to_string(), TypeExpr::Path(":wat::core::i64".into())),
     ];
     // Arc 278 Stone 2 (ANNIHILATE the knob) — the SHAPE sibling of the size variant, and now
@@ -3093,8 +3352,14 @@ fn synthesize_surface_protocol(
                 args: vec![TypeExpr::Path(":wat::core::String".to_string())],
             },
         ),
-        ("expected".to_string(), TypeExpr::Path(":wat::core::String".into())),
-        ("got".to_string(), TypeExpr::Path(":wat::core::String".into())),
+        (
+            "expected".to_string(),
+            TypeExpr::Path(":wat::core::String".into()),
+        ),
+        (
+            "got".to_string(),
+            TypeExpr::Path(":wat::core::String".into()),
+        ),
     ];
     // Ruling A binds SERVICEABLE ops — the wire ops of a service. Only a `:nature
     // :wat::kernel::Peer` surface is a service (its ops' returns ARE `<Op>Response`s
@@ -3104,7 +3369,13 @@ fn synthesize_surface_protocol(
     let enforce_rtl_lock = surface.nature == Some(Nature::Peer);
 
     for member in &surface.members {
-        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, .. } = member
+        let SurfaceMember::Method {
+            name,
+            args,
+            ret,
+            max_request_bytes_explicit,
+            ..
+        } = member
         else {
             continue; // Field members are data, not operations.
         };
@@ -3265,9 +3536,7 @@ fn synthesize_surface_protocol(
 
         // The purity gate: BOTH request and response must cross (EDN-serializable). Any impure
         // sig → in-thread-only surface → synthesize nothing (293.W would reject an impure enum).
-        if !crate::check::is_pure_type(&request_ty, env)
-            || !crate::check::is_pure_type(ret, env)
-        {
+        if !crate::check::is_pure_type(&request_ty, env) || !crate::check::is_pure_type(ret, env) {
             return Ok(vec![]);
         }
 
@@ -3309,10 +3578,11 @@ fn synthesize_surface_protocol(
         // task #75's `TypeExpr` accessor exists to delete across ~137 sites; when that
         // lands, this becomes one of its call sites.
         let resp_lookup: Option<String> = ret.base_fqdn();
-        if enforce_rtl_lock { if let Some(resp_path) = resp_lookup.as_ref() {
-            match env.get(resp_path) {
-                Some(TypeDef::Aggregate(_)) => {
-                    return Err(TypeError::new(
+        if enforce_rtl_lock {
+            if let Some(resp_path) = resp_lookup.as_ref() {
+                match env.get(resp_path) {
+                    Some(TypeDef::Aggregate(_)) => {
+                        return Err(TypeError::new(
                         decl_span.clone(),
                         TypeErrorKind::MalformedVariant {
                             enum_name: resp_path.clone(),
@@ -3329,15 +3599,15 @@ fn synthesize_surface_protocol(
                             remedies: vec![],
                         },
                     ));
-                }
-                Some(TypeDef::Enum(EnumDef { variants, .. })) => {
-                    let well_shaped = variants.iter().any(|v| {
-                        matches!(v,
+                    }
+                    Some(TypeDef::Enum(EnumDef { variants, .. })) => {
+                        let well_shaped = variants.iter().any(|v| {
+                            matches!(v,
                             EnumVariant::Tagged { name: vn, fields }
-                                if vn == RTL_VARIANT && *fields == rtl_fields)
-                    });
-                    if !well_shaped {
-                        return Err(TypeError::new(
+                                if vn == RTL_VARIANT && field_shapes_same(fields, &rtl_fields))
+                        });
+                        if !well_shaped {
+                            return Err(TypeError::new(
                             decl_span.clone(),
                             TypeErrorKind::MalformedVariant {
                                 enum_name: resp_path.clone(),
@@ -3352,21 +3622,21 @@ fn synthesize_surface_protocol(
                                 remedies: vec![],
                             },
                         ));
-                    }
-                    // Arc 278 Stone 2 — the SHAPE half, same lock, same site, same standing.
-                    // `wat/service.wat` generates the request-shape guard unconditionally into
-                    // every op's dispatch arm; on a violation it replies with THIS variant and
-                    // keeps serving. Omitting it would make the generated guard reference a
-                    // variant that does not exist — so the omission is a located error here,
-                    // where the author can see which op and which surface, rather than an
-                    // unresolved path inside expanded macro output.
-                    let rm_shaped = variants.iter().any(|v| {
-                        matches!(v,
+                        }
+                        // Arc 278 Stone 2 — the SHAPE half, same lock, same site, same standing.
+                        // `wat/service.wat` generates the request-shape guard unconditionally into
+                        // every op's dispatch arm; on a violation it replies with THIS variant and
+                        // keeps serving. Omitting it would make the generated guard reference a
+                        // variant that does not exist — so the omission is a located error here,
+                        // where the author can see which op and which surface, rather than an
+                        // unresolved path inside expanded macro output.
+                        let rm_shaped = variants.iter().any(|v| {
+                            matches!(v,
                             EnumVariant::Tagged { name: vn, fields }
-                                if vn == RM_VARIANT && *fields == rm_fields)
-                    });
-                    if !rm_shaped {
-                        return Err(TypeError::new(
+                                if vn == RM_VARIANT && field_shapes_same(fields, &rm_fields))
+                        });
+                        if !rm_shaped {
+                            return Err(TypeError::new(
                             decl_span.clone(),
                             TypeErrorKind::MalformedVariant {
                                 enum_name: resp_path.clone(),
@@ -3385,14 +3655,15 @@ fn synthesize_surface_protocol(
                                 remedies: vec![],
                             },
                         ));
+                        }
                     }
+                    // Non-Path ret, or a ret that resolves to a Newtype/Alias/Union/Surface, or an
+                    // as-yet-unregistered path — out of this lock's scope (each has its own
+                    // diagnostic elsewhere). Only records and enums are Response candidates.
+                    _ => {}
                 }
-                // Non-Path ret, or a ret that resolves to a Newtype/Alias/Union/Surface, or an
-                // as-yet-unregistered path — out of this lock's scope (each has its own
-                // diagnostic elsewhere). Only records and enums are Response candidates.
-                _ => {}
             }
-        } }
+        }
 
         // Variant name = PascalCase(method-name) via the EXISTING kebab→pascal conversion
         // (`put` → `Put`, `scan-index` → `ScanIndex`), threading the surface's namespace
@@ -3533,7 +3804,10 @@ fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: S
         vec![
             WatAST::Keyword(":wat::core::Vector".into(), span.clone()),
             WatAST::Keyword(":-".into(), span.clone()),
-            WatAST::Vector(vec![WatAST::Keyword(":wat::WatAST".into(), span.clone())], span.clone()),
+            WatAST::Vector(
+                vec![WatAST::Keyword(":wat::WatAST".into(), span.clone())],
+                span.clone(),
+            ),
         ],
         span.clone(),
     );
@@ -3570,7 +3844,11 @@ fn build_op_budget_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
         .members
         .iter()
         .filter_map(|member| match member {
-            SurfaceMember::Method { name, max_request_bytes, .. } => {
+            SurfaceMember::Method {
+                name,
+                max_request_bytes,
+                ..
+            } => {
                 // `surface.name` already carries the leading `:` sigil (matches every other
                 // `WatAST::Keyword` string in this codebase) — do NOT prepend another.
                 let const_name =
@@ -3616,7 +3894,11 @@ fn register_types_impl(
                 // so we can (a) register each message type-decl and (b) emit the `<S>::surface-forms`
                 // carrier (a `(Vector :- [WatAST])` of the surface's own forms) that `defservice` concats
                 // into its shipped `service-forms` bundle.
-                let surface_form_clone = if head == "defsurface" { Some(form.clone()) } else { None };
+                let surface_form_clone = if head == "defsurface" {
+                    Some(form.clone())
+                } else {
+                    None
+                };
                 // Arc 170 — retain the ORIGINAL decl form (clone BEFORE `parse_type_decl`
                 // consumes it) so freeze can ship it verbatim instead of reconstructing.
                 // Generalizes `surface_form_clone` to every decl head. Stored only for
@@ -3655,7 +3937,14 @@ fn register_types_impl(
                         if let Some(ref sform) = surface_form_clone {
                             // The carrier ships the whole (post-expansion) defsurface form; the child
                             // re-registers messages + re-synthesizes `::Op`/`::Reply` from it identically.
-                            surface_carrier = Some((surf.name.clone(), build_surface_forms_carrier(&surf.name, sform.clone(), decl_span.clone())));
+                            surface_carrier = Some((
+                                surf.name.clone(),
+                                build_surface_forms_carrier(
+                                    &surf.name,
+                                    sform.clone(),
+                                    decl_span.clone(),
+                                ),
+                            ));
                         }
                         // Arc 278 #16.2 — one `<S>::<OP>-MAX-REQUEST-BYTES` runtime const per
                         // serviceable op, so `serve-op-arms` can reference the budget by keyword.
@@ -3671,7 +3960,9 @@ fn register_types_impl(
                     }
                     // Arc 293 S1 — the wire-protocol enums (`::Op` / `::Reply`) when the method
                     // sigs are pure. Same `register` closure → same privilege as the surface.
-                    d.extend(synthesize_surface_protocol(surf, env, acronyms, &decl_span)?);
+                    d.extend(synthesize_surface_protocol(
+                        surf, env, acronyms, &decl_span,
+                    )?);
                     // Arc 278 — the surface-minted op alias (BRIEF-surface-minted-op-alias-
                     // stone.md, scout answer in BRIEF-surface-minted-op-alias-scout.md). Mint
                     // one `TypeDef::Alias` per op with a request arg, named
@@ -3685,7 +3976,13 @@ fn register_types_impl(
                     // nameable, because Rust — which DOES hold `:features` at registration time
                     // — mints the uniform alias name and the macro just names it.
                     for member in &surf.members {
-                        if let SurfaceMember::Method { name: op_name, args, ret, .. } = member {
+                        if let SurfaceMember::Method {
+                            name: op_name,
+                            args,
+                            ret,
+                            ..
+                        } = member
+                        {
                             if let Some((_, request_ty)) = args.fixed_params.get(1) {
                                 d.push(TypeDef::Alias(AliasDef {
                                     // rune:lint(one-variant-separator, type-path) — sets the
@@ -3747,10 +4044,7 @@ fn register_types_impl(
 /// declarations nested inside those spliced do/let blocks are registered in
 /// the TypeEnv. Mirrors the splice-recursion pattern already used by
 /// `preregister_fn_defs_in_do`/`_in_let` in `src/runtime.rs`.
-pub fn register_types(
-    forms: Vec<WatAST>,
-    env: &mut TypeEnv,
-) -> Result<Vec<WatAST>, TypeError> {
+pub fn register_types(forms: Vec<WatAST>, env: &mut TypeEnv) -> Result<Vec<WatAST>, TypeError> {
     register_types_with_acronyms(forms, env, &HashMap::new())
 }
 
@@ -3855,11 +4149,11 @@ fn splice_type_decls(
         WatAST::List(items, span) => (items, span),
         other => return Ok(other),
     };
-    let head_kw = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => return Ok(WatAST::List(items, span)),
+    let head_kw = match items.first().and_then(crate::declare::parse::head_fqdn) {
+        Some(k) => k,
+        None => return Ok(WatAST::List(items, span)),
     };
-    match head_kw {
+    match head_kw.as_ref() {
         ":wat::core::do" => {
             let mut new_children = Vec::with_capacity(items.len());
             let mut iter = items.into_iter();
@@ -3908,6 +4202,9 @@ fn splice_type_decls(
             let decl_span = span.clone();
             let child = match items.get(1) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                }
                 _ => {
                     return Err(TypeError::new(
                         decl_span,
@@ -3920,6 +4217,9 @@ fn splice_type_decls(
             };
             let parent = match items.get(2) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                }
                 _ => {
                     return Err(TypeError::new(
                         decl_span,
@@ -3952,6 +4252,9 @@ fn splice_type_decls(
             // re-render through it rather than hand-rolling a second stringifier.
             let type_name = match items.get(1) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                }
                 Some(node @ WatAST::List(_, _)) => {
                     crate::check::format_type(&parse_type_node(node)?)
                 }
@@ -3985,6 +4288,9 @@ fn splice_type_decls(
             // Renders the FULL name, exactly as the TARGET arm above now does.
             let protocol_name = match items.get(2) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                    crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                }
                 Some(node @ WatAST::List(_, _)) => {
                     crate::check::format_type(&parse_type_node(node)?)
                 }
@@ -4007,11 +4313,15 @@ fn splice_type_decls(
 }
 
 fn splice_type_decls_user(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, TypeError> {
-    splice_type_decls(form, env, &|env, def, span| env.register_with_span(def, span))
+    splice_type_decls(form, env, &|env, def, span| {
+        env.register_with_span(def, span)
+    })
 }
 
 fn splice_type_decls_stdlib(form: WatAST, env: &mut TypeEnv) -> Result<WatAST, TypeError> {
-    splice_type_decls(form, env, &|env, def, span| env.register_stdlib_with_span(def, span))
+    splice_type_decls(form, env, &|env, def, span| {
+        env.register_stdlib_with_span(def, span)
+    })
 }
 
 pub(crate) fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
@@ -4187,7 +4497,6 @@ fn parse_type_decl(
     Ok(def)
 }
 
-
 /// Stone 241.9 — parse a `(:wat::core::defenum :Name :V1 :V2 [f <- :T ...] ...)` declaration.
 ///
 /// Positional variant grammar with one-token look-ahead (FORM-COLLAPSE verdict D):
@@ -4237,16 +4546,23 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     // their locus). One of `:wat::enum::Pure` | `:wat::enum::Impure`, positional, immediately after
     // the name. No default — a default would mask intent (the surface-`:nature`-mandatory rule).
     // Being namespaced, it is unmistakable from the bare Capitalized variant keywords that follow.
-    let purity = match iter.next() {
-        Some(WatAST::Keyword(k, _)) if Purity::from_marker_keyword(&k).is_some() => {
-            Purity::from_marker_keyword(&k).unwrap()
-        }
-        Some(WatAST::Symbol(id, _)) if Purity::from_marker_keyword(id.as_str()).is_some() => {
-            Purity::from_marker_keyword(id.as_str()).unwrap()
-        }
-        other => {
+    let purity_node = iter.next();
+    // `wat.enum/Pure` and `:wat::enum::Pure` are the same marker.
+    let purity_kw = match &purity_node {
+        Some(WatAST::Keyword(k, _)) => Some(crate::edn::render::canonical_identity(k)),
+        Some(WatAST::Symbol(id, _)) if id.is_reference() => Some(
+            crate::edn::render::ns_to_wat_path(id.receiver(), id.method()),
+        ),
+        _ => None,
+    };
+    let purity = match purity_kw.as_deref().and_then(Purity::from_marker_keyword) {
+        Some(p) => p,
+        None => {
             return Err(TypeError::new(
-                other.as_ref().map(|n| n.span().clone()).unwrap_or_else(|| decl_span.clone()),
+                purity_node
+                    .as_ref()
+                    .map(|n| n.span().clone())
+                    .unwrap_or_else(|| decl_span.clone()),
                 TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
@@ -4254,7 +4570,9 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                          one of :wat::enum::Pure (values hold only data; serialize to EDN; cross \
                          address spaces) | :wat::enum::Impure (values may hold live resources; \
                          never cross); got {}",
-                        other.map(|n| format!("{:?}", n)).unwrap_or_else(|| "end of form".into()),
+                        purity_node
+                            .map(|n| format!("{:?}", n))
+                            .unwrap_or_else(|| "end of form".into()),
                     ),
                 },
             ));
@@ -4266,7 +4584,10 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
 
     // Discriminate: does args[1] look like a metadata-map?
     // Arc 257 slice 1: is_metadata_map() accepts WatAST::Map and legacy HashMap List.
-    let is_metadata = remaining.first().map(|n| n.is_metadata_map()).unwrap_or(false);
+    let is_metadata = remaining
+        .first()
+        .map(|n| n.is_metadata_map())
+        .unwrap_or(false);
     let (metadata_node_opt, variant_args): (Option<WatAST>, Vec<WatAST>) = if is_metadata {
         let mut it = remaining.into_iter();
         let meta = it.next().unwrap();
@@ -4279,13 +4600,15 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     // We validate the structure but don't extend EnumDef with per-variant metadata.
     if let Some(ref meta_node) = metadata_node_opt {
         // Arc 257 slice 1: use metadata_map_pairs() to handle both Map and legacy List.
-        let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError::new(
-            meta_node.span().clone(),
-            TypeErrorKind::MalformedDecl {
-                head: HEAD.into(),
-                reason: "malformed metadata-map (internal structure corrupt)".into(),
-            },
-        ))?;
+        let pairs = meta_node.metadata_map_pairs().ok_or_else(|| {
+            TypeError::new(
+                meta_node.span().clone(),
+                TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "malformed metadata-map (internal structure corrupt)".into(),
+                },
+            )
+        })?;
         // Empty {} → pairs.len() == 0 → REJECTED (FORM-COLLAPSE D4).
         if pairs.is_empty() {
             return Err(TypeError::new(
@@ -4326,15 +4649,21 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
         let item = &variant_args[vi];
         match item {
             WatAST::Keyword(k, _) => {
-                let variant_name = k.strip_prefix(':').ok_or_else(|| TypeError::new(
-                    item.span().clone(),
-                    TypeErrorKind::MalformedVariant {
-                        enum_name: name.clone(),
-                        offending: format!("{:?}", k),
-                        reason: "defenum variant must be a keyword starting with ':'".to_string(),
-                        remedies: vec![],
-                    },
-                ))?.to_string();
+                let variant_name = k
+                    .strip_prefix(':')
+                    .ok_or_else(|| {
+                        TypeError::new(
+                            item.span().clone(),
+                            TypeErrorKind::MalformedVariant {
+                                enum_name: name.clone(),
+                                offending: format!("{:?}", k),
+                                reason: "defenum variant must be a keyword starting with ':'"
+                                    .to_string(),
+                                remedies: vec![],
+                            },
+                        )
+                    })?
+                    .to_string();
 
                 // One-token look-ahead: peek at the NEXT item.
                 let next = variant_args.get(vi + 1);
@@ -4345,11 +4674,20 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                             vec_items,
                             HEAD,
                             vec_span,
-                            crate::argspec::ParseOptions { allow_rest_binder: false },
+                            crate::argspec::ParseOptions {
+                                allow_rest_binder: false,
+                            },
                         )
                         .map_err(TypeError::from)?;
-                        let fields: Vec<(String, crate::types::TypeExpr)> = argspec.fixed_params.into_iter().map(|(id, ty)| (id.as_str().to_owned(), ty)).collect();
-                        variants.push(EnumVariant::Tagged { name: variant_name, fields });
+                        let fields: Vec<(String, crate::types::TypeExpr)> = argspec
+                            .fixed_params
+                            .into_iter()
+                            .map(|(id, ty)| (id.as_str().to_owned(), ty))
+                            .collect();
+                        variants.push(EnumVariant::Tagged {
+                            name: variant_name,
+                            fields,
+                        });
                         vi += 2; // consume keyword + vector
                     }
                     // Next is a keyword (or end-of-args) → UNIT variant.
@@ -4437,9 +4775,10 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     }
     // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
     let inner = match &inner_kw {
-        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
-            parse_type_node(&inner_kw)?
-        }
+        WatAST::Keyword(_, _)
+        | WatAST::Symbol(_, _)
+        | WatAST::List(_, _)
+        | WatAST::Vector(_, _) => parse_type_node(&inner_kw)?,
         other => {
             return Err(TypeError::new(
                 decl_span,
@@ -4488,9 +4827,10 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     }
     // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
     let expr = match &expr_kw {
-        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
-            parse_type_node(&expr_kw)?
-        }
+        WatAST::Keyword(_, _)
+        | WatAST::Symbol(_, _)
+        | WatAST::List(_, _)
+        | WatAST::Vector(_, _) => parse_type_node(&expr_kw)?,
         other => {
             return Err(TypeError::new(
                 decl_span,
@@ -4565,7 +4905,10 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
         let item_span = item.span().clone();
         // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
         match &item {
-            WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
+            WatAST::Keyword(_, _)
+            | WatAST::Symbol(_, _)
+            | WatAST::List(_, _)
+            | WatAST::Vector(_, _) => {
                 members.push(parse_type_node(&item)?);
             }
             other => {
@@ -4589,13 +4932,16 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     }))
 }
 
-
 /// Arc 293 decl-a — thin alias for `structtype` dispatch.
 ///
 /// `structtype` args (from `parse_type_decl`): `[name_kw, {meta_node}?, fields_node]` (2 or 3 items).
 /// Injects `:wat::core::Struct` as `parent` at position [1] and delegates to `parse_aggregate`.
 #[wat_special_form_impl(":wat::core::structtype", role = declare)]
-fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result<TypeDef, TypeError> {
+fn parse_structtype(
+    args: Vec<WatAST>,
+    decl_span: Span,
+    env: &TypeEnv,
+) -> Result<TypeDef, TypeError> {
     let mut new_args = Vec::with_capacity(args.len() + 1);
     let mut iter = args.into_iter().peekable();
     // name kw at [0] stays first.
@@ -4616,7 +4962,10 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result
         }
     }
     // Inject :wat::core::Struct as the parent, AFTER the name (and its binder, if any).
-    new_args.push(WatAST::Keyword(":wat::core::Struct".to_string(), crate::rust_caller_span!()));
+    new_args.push(WatAST::Keyword(
+        ":wat::core::Struct".to_string(),
+        crate::rust_caller_span!(),
+    ));
     // Remaining args (optional metadata + fields).
     new_args.extend(iter);
     parse_aggregate(new_args, decl_span, "structtype", env)
@@ -4644,7 +4993,12 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result
 ///
 /// `head` is the caller-supplied surface form name used in error messages ("aggregatetype",
 /// "structtype", "recordtype") — preserves existing error text for each alias.
-fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: &TypeEnv) -> Result<TypeDef, TypeError> {
+fn parse_aggregate(
+    args: Vec<WatAST>,
+    decl_span: Span,
+    head: &'static str,
+    env: &TypeEnv,
+) -> Result<TypeDef, TypeError> {
     // Arc 109 binder strike α — the 3..=4 gate can no longer fire on the raw
     // `args.len()` upfront: a binder-bearing form widens by 2 (name, `:-`,
     // `[T]`, parent, [meta], fields) before any of it is consumed. Count the
@@ -4671,8 +5025,13 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
 
     let parent_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
 
+    // A nature root is a type name. `wat.core/Record` and `:wat::core::Record`
+    // are that name. Identity, not the Keyword variant.
     let parent = match &parent_kw {
-        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Keyword(k, _) => crate::edn::render::canonical_identity(k),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+        }
         other => {
             return Err(TypeError::new(
                 decl_span,
@@ -4725,10 +5084,19 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
     let restrictions = if ctor_whitelist.is_empty() && field_restrictions.is_empty() {
         None
     } else {
-        Some(StructRestrictions { ctor_whitelist, field_restrictions })
+        Some(StructRestrictions {
+            ctor_whitelist,
+            field_restrictions,
+        })
     };
 
-    Ok(TypeDef::Aggregate(AggregateDef { name, type_params, fields, nature, restrictions }))
+    Ok(TypeDef::Aggregate(AggregateDef {
+        name,
+        type_params,
+        fields,
+        nature,
+        restrictions,
+    }))
 }
 
 // Arc 293 decl-a — `parse_recordtype` ABSORBED into `parse_aggregate` (arc 293 decl-a).
@@ -4778,13 +5146,15 @@ fn parse_declared_name(
     };
     // Identity is the (namespace, name) pair; the TypeEnv key is the
     // rust-scheme keyword spelling of that pair (`:wat::core::Option`).
-    let stripped = raw.strip_prefix(':').ok_or_else(|| TypeError::new(
-        name_span.clone(),
-        TypeErrorKind::MalformedName {
-            raw: raw.clone(),
-            reason: "declared name must be namespaced".into(),
-        },
-    ))?;
+    let stripped = raw.strip_prefix(':').ok_or_else(|| {
+        TypeError::new(
+            name_span.clone(),
+            TypeErrorKind::MalformedName {
+                raw: raw.clone(),
+                reason: "declared name must be namespaced".into(),
+            },
+        )
+    })?;
     // Arc 109 ③ — angle brackets are ILLEGAL for a declaration's own name.
     // `<T>` used to be sniffed and split into (base, params) here; that
     // spelling is now refused outright. The binder marker
@@ -4909,14 +5279,16 @@ fn take_declared_binder<I: Iterator<Item = WatAST>>(
             },
         ));
     }
-    let vec_node = iter.next().ok_or_else(|| TypeError::new(
-        binder_kw.span().clone(),
-        TypeErrorKind::MalformedDecl {
-            head: head.into(),
-            reason: "`:-` binder must be followed by a `[...]` vector of type-parameter names"
-                .into(),
-        },
-    ))?;
+    let vec_node = iter.next().ok_or_else(|| {
+        TypeError::new(
+            binder_kw.span().clone(),
+            TypeErrorKind::MalformedDecl {
+                head: head.into(),
+                reason: "`:-` binder must be followed by a `[...]` vector of type-parameter names"
+                    .into(),
+            },
+        )
+    })?;
     let items = match vec_node {
         WatAST::Vector(items, _) => items,
         other => {
@@ -5005,13 +5377,15 @@ pub(crate) fn parse_type_expr_from_source(text: &str) -> Result<TypeExpr, TypeEr
 /// keyword span (the type-registration call chain in this file) use
 /// this entry point so emitted errors prefix `<file>:<line>:<col>:`.
 pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, TypeError> {
-    let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError::new(
-        span.clone(),
-        TypeErrorKind::MalformedTypeExpr {
-            raw: kw.into(),
-            reason: "type expression keyword must begin with ':'".into(),
-        },
-    ))?;
+    let stripped = kw.strip_prefix(':').ok_or_else(|| {
+        TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
+                raw: kw.into(),
+                reason: "type expression keyword must begin with ':'".into(),
+            },
+        )
+    })?;
     let expr = parse_type_inner(stripped, kw, true, span)?;
     reject_any(&expr, kw, span)?;
     Ok(expr)
@@ -5031,13 +5405,15 @@ pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, Type
 /// into `None` for best-effort audit scanning; that silence is why it cannot be
 /// reused here.
 pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<TypeExpr, TypeError> {
-    let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError::new(
-        span.clone(),
-        TypeErrorKind::MalformedTypeExpr {
-            raw: kw.into(),
-            reason: "type expression keyword must begin with ':'".into(),
-        },
-    ))?;
+    let stripped = kw.strip_prefix(':').ok_or_else(|| {
+        TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
+                raw: kw.into(),
+                reason: "type expression keyword must begin with ':'".into(),
+            },
+        )
+    })?;
     let expr = parse_type_inner(stripped, kw, false, span)?;
     reject_any(&expr, kw, span)?;
     Ok(expr)
@@ -5288,11 +5664,12 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
                 span.clone(),
                 TypeErrorKind::MalformedTypeExpr {
                     raw: format!("({} …)", raw_head),
-                    reason: "a parametric type must declare its parameters with the `:- [types...]` \
+                    reason:
+                        "a parametric type must declare its parameters with the `:- [types...]` \
                               binder — `(Head A B …)` (bare positional) and `(Head [A B …])` \
                               (unmarked bracket) are retired spellings. Canonical: \
                               `(Head :- [A B …])`."
-                        .into(),
+                            .into(),
                 },
             ));
         }
@@ -5312,7 +5689,10 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
         // arg list that fails to unify against it.
         TypeExpr::Path(format!(":{}", raw_head))
     } else {
-        TypeExpr::Parametric { head: raw_head, args }
+        TypeExpr::Parametric {
+            head: raw_head,
+            args,
+        }
     };
     // Re-use reject_any to enforce the :Any ban in parametric/tuple form heads/args.
     reject_any(&result, &format!("({}…)", items[0].variant_name()), span)?;
@@ -5541,24 +5921,26 @@ fn parse_fn_body(
     span: &Span,
 ) -> Result<TypeExpr, TypeError> {
     // body is `T,U)->R` — find the matching `)` at depth 0.
-    let close = find_matching_close(body, '(', ')').ok_or_else(|| TypeError::new(
-        span.clone(),
-        TypeErrorKind::MalformedTypeExpr {
-            raw: original.into(),
-            reason: "fn type missing matching ')'".into(),
-        },
-    ))?;
+    let close = find_matching_close(body, '(', ')').ok_or_else(|| {
+        TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
+                raw: original.into(),
+                reason: "fn type missing matching ')'".into(),
+            },
+        )
+    })?;
     let args_part = &body[..close];
     let tail = &body[close + 1..];
-    let ret_part = tail
-        .strip_prefix("->")
-        .ok_or_else(|| TypeError::new(
+    let ret_part = tail.strip_prefix("->").ok_or_else(|| {
+        TypeError::new(
             span.clone(),
             TypeErrorKind::MalformedTypeExpr {
                 raw: original.into(),
                 reason: "fn type missing '->' before return".into(),
             },
-        ))?;
+        )
+    })?;
     let args = if args_part.trim().is_empty() {
         Vec::new()
     } else {
@@ -5604,7 +5986,12 @@ fn parse_type_list(
     // is what admits `Tuple<A,B,>`'s trailing comma.
     let (tail, init) = pieces.split_last().expect("split yields >= 1 piece");
     for piece in init {
-        out.push(parse_type_inner(piece.trim(), original, canonicalize, span)?);
+        out.push(parse_type_inner(
+            piece.trim(),
+            original,
+            canonicalize,
+            span,
+        )?);
     }
     if !tail.trim().is_empty() {
         out.push(parse_type_inner(tail.trim(), original, canonicalize, span)?);
@@ -5736,9 +6123,7 @@ pub fn expand_alias(expr: &TypeExpr, env: &TypeEnv) -> TypeExpr {
             TypeExpr::Parametric { head, args } => {
                 let qualified = parametric_head_fqdn(head);
                 match env.get(&qualified) {
-                    Some(TypeDef::Alias(alias))
-                        if alias.type_params.len() == args.len() =>
-                    {
+                    Some(TypeDef::Alias(alias)) if alias.type_params.len() == args.len() => {
                         let mapping: std::collections::HashMap<String, TypeExpr> = alias
                             .type_params
                             .iter()
@@ -5827,7 +6212,9 @@ fn check_alias_reaches(
             if name == target_name {
                 return Err(TypeError::new(
                     span.clone(),
-                    TypeErrorKind::CyclicAlias { name: target_name.to_string() },
+                    TypeErrorKind::CyclicAlias {
+                        name: target_name.to_string(),
+                    },
                 ));
             }
             if let Some(TypeDef::Alias(alias)) = env.get(name) {
@@ -5842,7 +6229,9 @@ fn check_alias_reaches(
             if qualified == target_name {
                 return Err(TypeError::new(
                     span.clone(),
-                    TypeErrorKind::CyclicAlias { name: target_name.to_string() },
+                    TypeErrorKind::CyclicAlias {
+                        name: target_name.to_string(),
+                    },
                 ));
             }
             if let Some(TypeDef::Alias(alias)) = env.get(&qualified) {
@@ -5886,13 +6275,17 @@ fn validate_union_members(name: &str, members: &[TypeExpr], span: &Span) -> Resu
     if members.is_empty() {
         return Err(TypeError::new(
             span.clone(),
-            TypeErrorKind::EmptyUnion { name: name.to_string() },
+            TypeErrorKind::EmptyUnion {
+                name: name.to_string(),
+            },
         ));
     }
     if members.len() == 1 {
         return Err(TypeError::new(
             span.clone(),
-            TypeErrorKind::SingleMemberUnion { name: name.to_string() },
+            TypeErrorKind::SingleMemberUnion {
+                name: name.to_string(),
+            },
         ));
     }
     for member in members {
@@ -5957,7 +6350,9 @@ fn check_union_member_reaches(
         if name == target_name {
             return Err(TypeError::new(
                 span.clone(),
-                TypeErrorKind::CyclicUnion { name: target_name.to_string() },
+                TypeErrorKind::CyclicUnion {
+                    name: target_name.to_string(),
+                },
             ));
         }
         // Walk through registered typeunions recursively.
@@ -5992,6 +6387,12 @@ fn check_union_member_reaches(
 /// Acyclic: edges are registered acyclically (see [`TypeEnv::register_subtype`]);
 /// the `visited` guard also bounds the walk defensively.
 pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
+    // `wat.type/Record` and `:wat::core::Record` are one type. Edges are
+    // stored under the core spelling.
+    let sub_owned = crate::edn::render::type_denotation(sub);
+    let sup_owned = crate::edn::render::type_denotation(sup);
+    let sub = sub_owned.as_str();
+    let sup = sup_owned.as_str();
     if sub == sup {
         return true; // reflexive
     }
@@ -6097,11 +6498,15 @@ mod tests {
     fn a_minted_declaration_name_with_angles_is_refused() {
         let span = crate::span::Span::new(std::sync::Arc::new("<test>".to_string()), 0, 0);
         // Never lexed: built directly, exactly as a macro's `keyword-node` would.
-        let minted = WatAST::Keyword(":wat::core::Vector<wat::core::i64>".to_string(), span.clone());
+        let minted = WatAST::Keyword(
+            ":wat::core::Vector<wat::core::i64>".to_string(),
+            span.clone(),
+        );
         let err = parse_declared_name(":wat::core::defrecord", &minted, &span)
             .expect_err("a MINTED angle-bracket declaration name must be REFUSED");
         let msg = format!("{err:?}");
-        assert!( // rune:lint(loose-assert) — a targeted presence over a large structured diagnostic; the assertion names the REMEDY the wall teaches, which is the whole of its contract.
+        assert!(
+            // rune:lint(loose-assert) — a targeted presence over a large structured diagnostic; the assertion names the REMEDY the wall teaches, which is the whole of its contract.
             msg.contains("write `Head :- [T …]`"),
             "the wall must teach the surviving spelling, not merely refuse; got: {msg}"
         );
@@ -6137,10 +6542,16 @@ mod tests {
     #[test]
     fn parametric_head_fqdn_is_idempotent_and_prepends_exactly_once() {
         // the ordinary case: a bare parametric head gains its colon
-        assert_eq!(parametric_head_fqdn("wat::core::Vector"), ":wat::core::Vector");
+        assert_eq!(
+            parametric_head_fqdn("wat::core::Vector"),
+            ":wat::core::Vector"
+        );
         // ★ the case the deleted defensive branches existed for: already prefixed,
         //   returned UNCHANGED — never `"::wat::core::Vector"`
-        assert_eq!(parametric_head_fqdn(":wat::core::Vector"), ":wat::core::Vector");
+        assert_eq!(
+            parametric_head_fqdn(":wat::core::Vector"),
+            ":wat::core::Vector"
+        );
         // applying it twice is applying it once
         let once = parametric_head_fqdn("wat::kernel::Peer");
         assert_eq!(parametric_head_fqdn(&once), once);
@@ -6151,10 +6562,15 @@ mod tests {
             head: "wat::core::Vector".to_string(),
             args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
         };
-        assert_eq!(parametric.base_fqdn().as_deref(), Some(":wat::core::Vector"));
+        assert_eq!(
+            parametric.base_fqdn().as_deref(),
+            Some(":wat::core::Vector")
+        );
         // a Path already carries its colon and must not gain a second one
         assert_eq!(
-            TypeExpr::Path(":wat::core::i64".to_string()).base_fqdn().as_deref(),
+            TypeExpr::Path(":wat::core::i64".to_string())
+                .base_fqdn()
+                .as_deref(),
             Some(":wat::core::i64"),
         );
         // variants with no nameable head say so rather than fabricating one
@@ -6171,7 +6587,10 @@ mod tests {
             WatAST::Keyword(s.to_string(), crate::rust_caller_span!())
         }
         fn sym(s: &str) -> WatAST {
-            WatAST::Symbol(crate::scope::Identifier::bare(s), crate::rust_caller_span!())
+            WatAST::Symbol(
+                crate::scope::Identifier::bare(s),
+                crate::rust_caller_span!(),
+            )
         }
         fn vec_of(items: Vec<WatAST>) -> WatAST {
             WatAST::Vector(items, crate::rust_caller_span!())
@@ -6184,7 +6603,10 @@ mod tests {
             let (peeled, rest) = peel_param_spec(&args);
             assert!(peeled.is_none());
             assert_eq!(rest.len(), 2);
-            assert!(std::ptr::eq(rest.as_ptr(), args.as_ptr()), "rest must be the SAME slice, not a copy");
+            assert!(
+                std::ptr::eq(rest.as_ptr(), args.as_ptr()),
+                "rest must be the SAME slice, not a copy"
+            );
         }
 
         /// `:- []` — the empty binder is EXPRESSED, never absent. Must be
@@ -6193,7 +6615,11 @@ mod tests {
         fn empty_bracket_marker_peels_to_some_empty_never_none() {
             let args = vec![kw(":-"), vec_of(vec![])];
             let (peeled, rest) = peel_param_spec(&args);
-            assert_eq!(peeled, Some(&[][..]), "`:- []` must peel to Some(&[]), not None");
+            assert_eq!(
+                peeled,
+                Some(&[][..]),
+                "`:- []` must peel to Some(&[]), not None"
+            );
             assert!(rest.is_empty());
         }
 
@@ -6217,7 +6643,10 @@ mod tests {
         fn marker_followed_by_non_vector_is_left_unpeeled() {
             let args = vec![kw(":-"), sym("not-a-vector")];
             let (peeled, rest) = peel_param_spec(&args);
-            assert!(peeled.is_none(), "a malformed binder must not silently peel");
+            assert!(
+                peeled.is_none(),
+                "a malformed binder must not silently peel"
+            );
             assert_eq!(rest.len(), 2, "args must be returned whole, untouched");
         }
 
@@ -6243,19 +6672,31 @@ mod tests {
     #[test]
     fn arc115_inner_colon_fqdn_rejected() {
         let r = parse_type_expr(":Result<:wat::core::String,:wat::kernel::ThreadDiedError>");
-        assert!(r.is_err(), "should reject inner colon on FQDN args; got: {:?}", r);
+        assert!(
+            r.is_err(),
+            "should reject inner colon on FQDN args; got: {:?}",
+            r
+        );
     }
 
     #[test]
     fn arc115_inner_colon_in_fn_args_rejected() {
         let r = parse_type_expr(":fn(:i64)->bool");
-        assert!(r.is_err(), "should reject inner colon on fn arg; got: {:?}", r);
+        assert!(
+            r.is_err(),
+            "should reject inner colon on fn arg; got: {:?}",
+            r
+        );
     }
 
     #[test]
     fn arc115_inner_colon_in_fn_ret_rejected() {
         let r = parse_type_expr(":fn(i64)->:bool");
-        assert!(r.is_err(), "should reject inner colon on fn ret; got: {:?}", r);
+        assert!(
+            r.is_err(),
+            "should reject inner colon on fn ret; got: {:?}",
+            r
+        );
     }
 
     #[test]
@@ -6412,7 +6853,10 @@ mod tests {
     #[test]
     fn unit_variant_enum() {
         // Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-        let (env, _) = collect(r#"(:wat::core::defenum :my::Direction :wat::enum::Pure :up :down :left :right)"#).unwrap();
+        let (env, _) = collect(
+            r#"(:wat::core::defenum :my::Direction :wat::enum::Pure :up :down :left :right)"#,
+        )
+        .unwrap();
         if let TypeDef::Enum(e) = env.get(":my::Direction").unwrap() {
             assert_eq!(e.variants.len(), 4);
             assert!(matches!(&e.variants[0], EnumVariant::Unit(n) if n == "up"));
@@ -6497,7 +6941,8 @@ mod tests {
 
     #[test]
     fn simple_newtype() {
-        let (env, _) = collect(r#"(:wat::core::newtype :my::trading::Price :wat::core::f64)"#).unwrap();
+        let (env, _) =
+            collect(r#"(:wat::core::newtype :my::trading::Price :wat::core::f64)"#).unwrap();
         if let TypeDef::Newtype(n) = env.get(":my::trading::Price").unwrap() {
             assert_eq!(n.inner, TypeExpr::Path(":wat::core::f64".into()));
         } else {
@@ -6533,7 +6978,9 @@ mod tests {
     fn parametric_typealias() {
         // Arc 109 ③ — angle-bracket decl-name AND reference both retired: `Head :- [T]`
         // siblings for the decl, `(Head :- [T])` in parens for the reference.
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Series :- [T] (:wat::core::Vector :- [T]))"#).unwrap();
+        let (env, _) =
+            collect(r#"(:wat::core::typealias :my::Series :- [T] (:wat::core::Vector :- [T]))"#)
+                .unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Series").unwrap() {
             assert_eq!(a.type_params, vec!["T".to_string()]);
             assert_eq!(
@@ -6550,7 +6997,10 @@ mod tests {
 
     #[test]
     fn typealias_function_type() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Predicate :fn(wat::holon::HolonAST)->wat::core::bool)"#).unwrap();
+        let (env, _) = collect(
+            r#"(:wat::core::typealias :my::Predicate :fn(wat::holon::HolonAST)->wat::core::bool)"#,
+        )
+        .unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Predicate").unwrap() {
             match &a.expr {
                 TypeExpr::Fn { args, ret } => {
@@ -6627,7 +7077,8 @@ mod tests {
         // The SUBJECT is unchanged: these assert the aggregate field parser and the name
         // validation, both of which `structtype` reaches through the identical `parse_aggregate`.
         // Stone 241.8 — migrated from :wat::core::struct to defstruct.
-        let err = collect(r#"(:wat::core::structtype :wat::core::MyStruct [x <- :f64])"#).unwrap_err();
+        let err =
+            collect(r#"(:wat::core::structtype :wat::core::MyStruct [x <- :f64])"#).unwrap_err();
         assert!(matches!(err.kind(), TypeErrorKind::ReservedPrefix { .. }));
 
         let err = collect(r#"(:wat::core::structtype :wat::holon::Bad [x <- :f64])"#).unwrap_err();
@@ -6781,9 +7232,8 @@ mod tests {
         // Arc 109 ③ — same structural-form migration as `type_expr_parametric` above; the
         // inner `fn(i32)->i32` stays string-spelled (non-parametric fn args are still legal
         // in the flat form) as one arg of the outer reference form.
-        let form =
-            crate::parse_one!("(:wat::core::HashMap :- [:wat::core::String :fn(i32)->i32])")
-                .unwrap();
+        let form = crate::parse_one!("(:wat::core::HashMap :- [:wat::core::String :fn(i32)->i32])")
+            .unwrap();
         let t = parse_type_node(&form).unwrap();
         match t {
             TypeExpr::Parametric { head, args } => {
@@ -6880,7 +7330,11 @@ mod tests {
         // The comma-depth-tracking coverage `parse_tuple_body` still needs is carried by
         // `type_expr_tuple_with_nested_tuple` below instead (nested PARENS, still legal).
         let r = parse_type_expr(":(Vec<i64>,HashMap<String,i64>)");
-        assert!(r.is_err(), "expected angle-bracket tuple element to be REFUSED; got: {:?}", r);
+        assert!(
+            r.is_err(),
+            "expected angle-bracket tuple element to be REFUSED; got: {:?}",
+            r
+        );
     }
 
     #[test]
@@ -6888,7 +7342,10 @@ mod tests {
         // The comma-depth-tracking coverage the retired `type_expr_tuple_with_nested_parametric`
         // carried, over a shape that is STILL legal: nested tuples via parens. Nested commas at
         // depth > 0 (inside either inner tuple) must not split the outer tuple.
-        let t = parse_type_expr(":((wat::core::i64,wat::core::String),(wat::core::bool,wat::core::f64))").unwrap();
+        let t = parse_type_expr(
+            ":((wat::core::i64,wat::core::String),(wat::core::bool,wat::core::f64))",
+        )
+        .unwrap();
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 2);
@@ -6912,10 +7369,15 @@ mod tests {
         // underflowing to -1, so the comma AFTER the arrow was never seen as a top-level split:
         // the whole tail collapsed into one opaque `Path("wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64")`.
         // It must parse as a 2-element Tuple: [Fn(i64)->i64, i64].
-        let t = parse_type_expr(":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64)").unwrap();
+        let t = parse_type_expr(":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64)")
+            .unwrap();
         match t {
             TypeExpr::Tuple(elements) => {
-                assert_eq!(elements.len(), 2, "Fn(...)->T arrow must not swallow the trailing comma: {elements:?}");
+                assert_eq!(
+                    elements.len(),
+                    2,
+                    "Fn(...)->T arrow must not swallow the trailing comma: {elements:?}"
+                );
                 match &elements[0] {
                     TypeExpr::Fn { args, ret } => {
                         assert_eq!(args.len(), 1);
@@ -6969,9 +7431,15 @@ mod tests {
                 assert_eq!(head, "wat::core::Result");
                 assert_eq!(args.len(), 2);
                 assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
-                assert_eq!(args[1], TypeExpr::Path(":wat::holon::CapacityExceeded".into()));
+                assert_eq!(
+                    args[1],
+                    TypeExpr::Path(":wat::holon::CapacityExceeded".into())
+                );
             }
-            other => panic!("expected expanded Result<HolonAST,CapacityExceeded>, got {:?}", other),
+            other => panic!(
+                "expected expanded Result<HolonAST,CapacityExceeded>, got {:?}",
+                other
+            ),
         }
     }
 
@@ -7062,12 +7530,12 @@ mod tests {
     fn expand_then_register(src: &str) -> Result<TypeEnv, TypeError> {
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut reg = crate::macros::MacroRegistry::new();
-        let rest = crate::macros::register_defmacros(forms, &mut reg)
-            .expect("register_defmacros ok");
+        let rest =
+            crate::macros::register_defmacros(forms, &mut reg).expect("register_defmacros ok");
         let renv = crate::runtime::Environment::default();
         let sym = crate::runtime::SymbolTable::default();
-        let expanded = crate::macros::expand_all(rest, &mut reg, &renv, &sym)
-            .expect("expand_all ok");
+        let expanded =
+            crate::macros::expand_all(rest, &mut reg, &renv, &sym).expect("expand_all ok");
         let mut env = TypeEnv::with_builtins();
         register_types(expanded, &mut env)?;
         Ok(env)
@@ -7089,7 +7557,11 @@ mod tests {
         )
         .expect_err("a record-typed op-Response must be a located ruling-A error");
         match err.kind() {
-            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+            TypeErrorKind::MalformedVariant {
+                enum_name,
+                offending,
+                ..
+            } => {
                 assert_eq!(enum_name, ":t::Bad::FooResponse");
                 assert_eq!(offending, "RequestTooLarge");
             }
@@ -7112,7 +7584,11 @@ mod tests {
         )
         .expect_err("an enum Response lacking RequestTooLarge must be a located ruling-A error");
         match err.kind() {
-            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+            TypeErrorKind::MalformedVariant {
+                enum_name,
+                offending,
+                ..
+            } => {
                 assert_eq!(enum_name, ":t::Bad2::FooResponse");
                 assert_eq!(offending, "RequestTooLarge");
             }
@@ -7136,7 +7612,11 @@ mod tests {
         )
         .expect_err("a mis-shaped RequestTooLarge (non-i64 fields) must be a located error");
         match err.kind() {
-            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+            TypeErrorKind::MalformedVariant {
+                enum_name,
+                offending,
+                ..
+            } => {
                 assert_eq!(enum_name, ":t::Bad3::FooResponse");
                 assert_eq!(offending, "RequestTooLarge");
             }
@@ -7164,7 +7644,11 @@ mod tests {
         )
         .expect_err("an enum Response lacking RequestMalformed must be a located error");
         match err.kind() {
-            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+            TypeErrorKind::MalformedVariant {
+                enum_name,
+                offending,
+                ..
+            } => {
                 assert_eq!(enum_name, ":t::Bad4::FooResponse");
                 assert_eq!(offending, "RequestMalformed");
             }
@@ -7193,11 +7677,17 @@ mod tests {
         )
         .expect_err("a mis-shaped RequestMalformed (String path) must be a located error");
         match err.kind() {
-            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+            TypeErrorKind::MalformedVariant {
+                enum_name,
+                offending,
+                ..
+            } => {
                 assert_eq!(enum_name, ":t::Bad5::FooResponse");
                 assert_eq!(offending, "RequestMalformed");
             }
-            other => panic!("expected MalformedVariant (malformed RequestMalformed); got {other:?}"),
+            other => {
+                panic!("expected MalformedVariant (malformed RequestMalformed); got {other:?}")
+            }
         }
     }
 
@@ -7503,7 +7993,11 @@ mod tests {
             ":rust::crossbeam_channel::Receiver",
         ] {
             assert!(env.contains(name), "{name:?} must be contains-true");
-            assert_eq!(env.get(name), None, "{name:?} must be get-None (membership, not structure)");
+            assert_eq!(
+                env.get(name),
+                None,
+                "{name:?} must be get-None (membership, not structure)"
+            );
         }
     }
 

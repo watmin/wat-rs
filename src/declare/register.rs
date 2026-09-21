@@ -576,7 +576,10 @@ pub fn register_stdlib_runtime_defs(
                     continue; // malformed; check already caught it
                 }
                 let name = match &def_items[1] {
-                    WatAST::Keyword(k, _) => k.clone(),
+                    WatAST::Keyword(k, _) => crate::edn::render::canonical_identity(k),
+                    WatAST::Symbol(id, _) if id.is_reference() => {
+                        crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                    }
                     _ => continue,
                 };
                 // If 4 items, def_items[2] is metadata-map and def_items[3] is expr.

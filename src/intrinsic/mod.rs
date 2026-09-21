@@ -814,6 +814,11 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
             }
         }
 
+        // `:wat::core::seqable->stream` has a bespoke check arm and a runtime
+        // arm, and no TypeScheme, so the fold above cannot see it. It used to
+        // be a wat defclause; the native replacement kept the name.
+        r.register_membership(":wat::core::seqable->stream");
+
         r
     })
 }

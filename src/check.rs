@@ -6572,7 +6572,7 @@ fn infer_match(
             }
             crate::match_arm::MatchArm::Variant { path, pairs, .. } => {
                 match cover_variant_arm(
-                    path,
+                    path.as_ref(),
                     pairs,
                     arm.span(),
                     &shape,
@@ -7107,32 +7107,34 @@ fn cover_variant_arm(
 
 fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) -> MatchShape {
     for arm in arms {
-        if let WatAST::Vector(items, _) = arm {
-            match items.as_slice() {
-                [WatAST::Keyword(k, _), WatAST::Map(_, _), _] => {
-                    match crate::match_arm::builtin_variant(k) {
-                        Some(crate::match_arm::BuiltinVariant::OptionSome)
-                        | Some(crate::match_arm::BuiltinVariant::OptionNone) => {
-                            return MatchShape::Option(fresh.fresh());
-                        }
-                        Some(crate::match_arm::BuiltinVariant::ResultOk)
-                        | Some(crate::match_arm::BuiltinVariant::ResultErr) => {
-                            return MatchShape::Result(fresh.fresh(), fresh.fresh());
-                        }
-                        None => {
-                            if let Some((enum_path, _)) = wat_reader::identifier::decompose_variant(k) {
-                                if matches!(
-                                    env.types().get(enum_path),
-                                    Some(crate::types::TypeDef::Enum(_))
-                                ) {
-                                    return enum_match_shape(enum_path.to_string(), env, fresh);
-                                }
-                            }
-                        }
+        // `parse_match_arm` is the one reader of an arm head, keyword or
+        // symbol. A keyword-only sniff here classified every converted
+        // enum match as Open.
+        let Ok(parsed) = crate::match_arm::parse_match_arm(arm) else {
+            continue;
+        };
+        let crate::match_arm::MatchArm::Variant { path, .. } = parsed else {
+            continue;
+        };
+        let path = path.as_ref();
+        match crate::match_arm::builtin_variant(path) {
+            Some(crate::match_arm::BuiltinVariant::OptionSome)
+            | Some(crate::match_arm::BuiltinVariant::OptionNone) => {
+                return MatchShape::Option(fresh.fresh());
+            }
+            Some(crate::match_arm::BuiltinVariant::ResultOk)
+            | Some(crate::match_arm::BuiltinVariant::ResultErr) => {
+                return MatchShape::Result(fresh.fresh(), fresh.fresh());
+            }
+            None => {
+                if let Some((enum_path, _)) = wat_reader::identifier::decompose_variant(path) {
+                    if matches!(
+                        env.types().get(enum_path),
+                        Some(crate::types::TypeDef::Enum(_))
+                    ) {
+                        return enum_match_shape(enum_path.to_string(), env, fresh);
                     }
                 }
-                [WatAST::Map(_, _), _] => {}
-                _ => {}
             }
         }
     }
@@ -7916,6 +7918,29 @@ fn check_subpattern(
                 if crate::match_arm::is_namespaced_variant(k) =>
             {
                 check_nested_variant_map(k, pairs, pat.span(), expected_ty, env, bindings, errors)
+            }
+            [WatAST::Symbol(id, _), WatAST::Map(pairs, _)] if id.is_reference() => {
+                let canon = crate::edn::render::canonical_identity(id.as_str());
+                if crate::match_arm::is_namespaced_variant(&canon) {
+                    check_nested_variant_map(
+                        &canon,
+                        pairs,
+                        pat.span(),
+                        expected_ty,
+                        env,
+                        bindings,
+                        errors,
+                    )
+                } else {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant arm head `{canon}` is not namespaced; write `<enum>.<Variant>`"
+                        ),
+                        remedies: vec![],
+                    } });
+                    None
+                }
             }
             _ => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -10478,7 +10503,7 @@ fn is_wire_marker(ty: &TypeExpr) -> bool {
     matches!(ty, TypeExpr::Path(p) if p == ":wat::kernel::Wire")
 }
 
-fn is_type_param_letter(ty: &TypeExpr) -> bool {
+pub(crate) fn is_type_param_letter(ty: &TypeExpr) -> bool {
     match ty {
         TypeExpr::Var(_) => true,
         TypeExpr::Path(p) => {
@@ -13321,8 +13346,9 @@ mod arc109_two_iii_check_time_ctor_guard_widening {
 /// `infer_ordering` (`< > <= >=`) — both comparison-family checkers
 /// undo 237.8a's cross-numeric deletion the same way, for numerics only.
 fn is_numeric_check_path(p: &str) -> bool {
+    let p = crate::edn::render::type_denotation(p);
     matches!(
-        p,
+        p.as_str(),
         ":wat::core::i64" | ":wat::core::f64" | ":wat::core::bigint" | ":wat::core::rational"
     )
 }
@@ -13547,7 +13573,11 @@ fn is_type_equatable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
     match &resolved {
         TypeExpr::Var(_) => true, // unreachable given the is_type_param_letter guard above; kept for exhaustiveness
         TypeExpr::Fn { .. } => false, // no `Value::wat__core__fn` arm in `values_equal` — the hole
-        TypeExpr::Path(p) => match p.as_str() {
+        TypeExpr::Path(p) => {
+            // `wat.type/i64` is `:wat::type::i64` until denotation. The gate
+            // lists the core spelling; `format_type` already prints that.
+            let denoted = crate::edn::render::type_denotation(p);
+            match denoted.as_str() {
             ":wat::core::i64"
             | ":wat::core::u8"
             | ":wat::core::f64"
@@ -13577,7 +13607,8 @@ fn is_type_equatable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
                     .iter()
                     .all(|m| is_type_equatable(m, subst, types)),
                 Some(crate::types::TypeDef::Surface(_)) | None => false,
-            },
+            }
+        }
         },
         TypeExpr::Parametric { head, args } => match head.as_str() {
             "wat::core::Vector" => args.first().is_none_or(|el| is_type_equatable(el, subst, types)),
@@ -13657,8 +13688,10 @@ fn is_type_orderable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
     }
     match &resolved {
         TypeExpr::Var(_) => true, // unresolved — defer to runtime
-        TypeExpr::Path(p) => matches!(
-            p.as_str(),
+        TypeExpr::Path(p) => {
+            let denoted = crate::edn::render::type_denotation(p);
+            matches!(
+            denoted.as_str(),
             ":wat::core::i64"
                 | ":wat::core::u8"
                 | ":wat::core::f64"
@@ -13669,7 +13702,8 @@ fn is_type_orderable(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> bool {
                 | ":wat::time::Duration"
                 // Arc 148 slice 3 — algebra Vector (bit-exact i8 lex via values_compare).
                 | ":wat::holon::Vector"
-        ),
+            )
+        },
         TypeExpr::Parametric { head, args } => match head.as_str() {
             "wat::core::Vector" => args.first().is_none_or(|el| is_type_orderable(el, subst, types)),
             "wat::core::Option" => args.first().is_none_or(|el| is_type_orderable(el, subst, types)),

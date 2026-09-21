@@ -133,9 +133,19 @@ fn normalize_form(
         // Exhaustive match: a new boundary variant is a compile error here until
         // handled, so walk and normalize cannot drift on the boundary-head set.
         WatAST::List(items, span) => {
-            let boundary = match items.first() {
-                Some(WatAST::Keyword(k, _)) => quote_boundary(k),
-                _ => Boundary::Ordinary,
+            // Symbol `(wat.core/match …)` is the same boundary as the keyword.
+            let head_id = items.first().and_then(crate::declare::parse::head_fqdn);
+            let boundary = match head_id.as_deref() {
+                Some(h) => quote_boundary(h),
+                None => Boundary::Ordinary,
+            };
+            // `head_fqdn` classifies a symbol head (`wat.core/match`) as the
+            // boundary, but the checker matches the keyword node. Leaving the
+            // symbol in place made every match arm infer as a value vector.
+            let items = if matches!(boundary, Boundary::Ordinary) {
+                items
+            } else {
+                rewrite_boundary_head(items, sym, macros, errors)
             };
             // Arc 255 Stone ② — `(Head :- [T …] rest…)` is a TYPE BINDER. `peel_param_spec`
             // is arc 109's one door for this triple; `items.len() >= 3` guards it against
@@ -194,8 +204,8 @@ fn normalize_form(
                 .into_iter()
                 .map(|(k, v)| {
                     (
-                        normalize_form(k, sym, macros, errors),
-                        normalize_form(v, sym, macros, errors),
+                        normalize_value_position(k, sym, macros, errors),
+                        normalize_value_position(v, sym, macros, errors),
                     )
                 })
                 .collect();
@@ -215,6 +225,29 @@ fn normalize_form(
         // ref to rewrite — pass through unchanged.
         other => other,
     }
+}
+
+/// Rewrite a boundary form's symbol head to the keyword the checker matches.
+/// Arguments stay on the boundary (the caller already classified them).
+fn rewrite_boundary_head(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut iter = items.into_iter();
+    let Some(head) = iter.next() else {
+        return Vec::new();
+    };
+    let head = if matches!(&head, WatAST::Symbol(id, _) if id.is_reference()) {
+        normalize_form(head, sym, macros, errors)
+    } else {
+        head
+    };
+    let mut out = Vec::with_capacity(1 + iter.size_hint().0);
+    out.push(head);
+    out.extend(iter);
+    out
 }
 
 /// Ordinary list children: type slots after a return arrow; name slot at
@@ -245,7 +278,7 @@ fn normalize_ordinary_list(
         } else if prev_return_arrow {
             normalize_type_slot(c, sym, macros, errors)
         } else {
-            normalize_form(c, sym, macros, errors)
+            normalize_value_position(c, sym, macros, errors)
         };
         out.push(new);
         prev_return_arrow = this_return_arrow;
@@ -267,7 +300,7 @@ fn normalize_vector_items(
         let new = if prev_ann {
             normalize_type_slot(c, sym, macros, errors)
         } else {
-            normalize_form(c, sym, macros, errors)
+            normalize_value_position(c, sym, macros, errors)
         };
         out.push(new);
         prev_ann = this_ann;
@@ -275,8 +308,40 @@ fn normalize_vector_items(
     out
 }
 
+/// A name in value position, not a call head. A scalar `def` such as
+/// `wat.kernel/STDIO-WRITE-CHUNK-CHARS` is a keyword literal until runtime
+/// registration; requiring it to already be a function is what made the
+/// converted constant unresolved while the keyword spelling loaded.
+/// Nested lists are still calls — their heads stay on [`normalize_form`].
+fn normalize_value_position(
+    node: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    match node {
+        WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
+            match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, false) {
+                Ok(kw) => kw,
+                Err(_) => {
+                    let namespace = wat_reader::identifier::receiver(ident.as_str());
+                    let local_name = wat_reader::identifier::method(ident.as_str());
+                    WatAST::Keyword(ns_to_wat_path(namespace, local_name), span.clone())
+                }
+            }
+        }
+        other => normalize_form(other, sym, macros, errors),
+    }
+}
+
 /// A type slot — annotation, return, nested parametric arg, tuple element.
-/// The ONE door: `also_accept_type = true`.
+///
+/// Not a call head. `resolve_namespaced_symbol` runs `reconstruct_call_path`,
+/// which joins `my.Journal/Req` as a member (`:my::Journal/Req`) because
+/// `Journal` is a type. The declaration registered the identity
+/// `:my::Journal::Req` via `ns_to_wat_path`. Same door as
+/// [`normalize_name_slot`] and [`normalize_type_vector`]. The annotation
+/// wall, not this pass, says whether the name is a real type.
 fn normalize_type_slot(
     node: WatAST,
     sym: &SymbolTable,
@@ -285,13 +350,9 @@ fn normalize_type_slot(
 ) -> WatAST {
     match node {
         WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
-            match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, true) {
-                Ok(kw) => kw,
-                Err(e) => {
-                    errors.push(e);
-                    node
-                }
-            }
+            let namespace = wat_reader::identifier::receiver(ident.as_str());
+            let local_name = wat_reader::identifier::method(ident.as_str());
+            WatAST::Keyword(ns_to_wat_path(namespace, local_name), span.clone())
         }
         WatAST::List(items, span)
             if items.len() >= 3 && crate::types::peel_param_spec(&items[1..]).0.is_some() =>
@@ -593,6 +654,24 @@ fn normalize_quasiquote_template(
     }
 }
 
+fn name_is_registered(head: &str, sym: &SymbolTable, macros: &MacroRegistry) -> bool {
+    crate::intrinsic::registry().contains(head)
+        || sym.get(head).is_some()
+        || sym.has_def_value(head)
+        || macros.contains(head)
+}
+
+/// A binding the call will actually reach: a function, a defclause value, or
+/// a macro. Intrinsic membership includes retired spellings, which are not
+/// this.
+fn name_has_binding(head: &str, sym: &SymbolTable, macros: &MacroRegistry) -> bool {
+    sym.get(head).is_some()
+        || sym.has_def_value(head)
+        || macros.contains(head)
+        || crate::intrinsic::registry().lookup_entry(head).is_some()
+        || crate::rust_deps::registry().get_symbol(head).is_some()
+}
+
 /// Map a namespaced symbol name (`wat.core/+`) to its keyword FQDN candidate
 /// (`:wat::core::+`) and validate it resolves. Returns the rewritten
 /// `WatAST::Keyword` on success, or a located `UnresolvedReference` error.
@@ -626,8 +705,21 @@ fn resolve_namespaced_symbol(
         None => ns_to_wat_path(namespace, local_name),
     };
 
+    if let Some(alt) = crate::types::other_join_spelling(&primary) {
+        // The symbol landed on a spelling with no function (`Lru::new`,
+        // `Lru::put`). The registry holds the other join. A keyword author
+        // of a retired form never reaches this function.
+        if name_has_binding(&alt, sym, macros) && !name_has_binding(&primary, sym, macros) {
+            return Ok(WatAST::Keyword(alt, span.clone()));
+        }
+    }
     if is_resolvable_call_head(&primary, sym, macros) {
         return Ok(WatAST::Keyword(primary, span.clone()));
+    }
+    if let Some(alt) = crate::types::other_join_spelling(&primary) {
+        if name_is_registered(&alt, sym, macros) {
+            return Ok(WatAST::Keyword(alt, span.clone()));
+        }
     }
 
     // Arc 255 Stone ② — the binder-head union's second acceptance. Routed

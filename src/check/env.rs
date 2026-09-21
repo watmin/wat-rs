@@ -315,7 +315,7 @@ impl<'a> CheckEnv<'a> {
     ) -> Result<(), crate::resolve::Rejection> {
         let existing = match self.schemes.get(&name) {
             None => crate::resolve::Existing::Absent,
-            Some(prev) if prev == &scheme => crate::resolve::Existing::Equivalent,
+            Some(prev) if schemes_same(prev, &scheme) => crate::resolve::Existing::Equivalent,
             Some(_) => crate::resolve::Existing::Divergent,
         };
         // Arc 296 stone I — no form span at this call site (`from_symbols` replays an
@@ -328,6 +328,24 @@ impl<'a> CheckEnv<'a> {
         })?;
         Ok(())
     }
+}
+
+fn schemes_same(a: &crate::check::TypeScheme, b: &crate::check::TypeScheme) -> bool {
+    a.type_params == b.type_params
+        && a.params.len() == b.params.len()
+        && a.params
+            .iter()
+            .zip(&b.params)
+            .all(|(x, y)| crate::types::type_exprs_same(x, y))
+        && crate::types::type_exprs_same(&a.ret, &b.ret)
+        && match (&a.rest_param_type, &b.rest_param_type) {
+            (None, None) => true,
+            (Some(x), Some(y)) => crate::types::type_exprs_same(x, y),
+            _ => false,
+        }
+}
+
+impl<'a> CheckEnv<'a> {
 
     /// Look up a function or builtin scheme by FQDN. For `def`-bound value types
     /// use `get_defined_value_type`; for defclause dispatch use `get_defclause_clauses`.

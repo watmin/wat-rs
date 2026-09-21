@@ -15,7 +15,7 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use std::collections::HashMap;
 
-use super::{SurfaceMember, TypeDef, TypeEnv, TypeExpr, TypeError, TypeErrorKind};
+use super::{SurfaceMember, TypeDef, TypeEnv, TypeError, TypeErrorKind, TypeExpr};
 
 const HEAD: &str = ":wat::core::defstruct";
 
@@ -49,9 +49,7 @@ type ParsedStructMeta = (Vec<String>, HashMap<String, Vec<String>>);
 /// - `:field-metadata {field → {meta}}` — per-field restriction maps.
 ///
 /// Unknown keys are silently accepted (D5).
-pub(super) fn parse_defstruct_metadata(
-    meta_node: WatAST,
-) -> Result<ParsedStructMeta, TypeError> {
+pub(super) fn parse_defstruct_metadata(meta_node: WatAST) -> Result<ParsedStructMeta, TypeError> {
     let mut ctor_whitelist: Vec<String> = Vec::new();
     let mut field_restrictions: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -66,20 +64,24 @@ pub(super) fn parse_defstruct_metadata(
             },
         ));
     }
-    let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError::new(
-        meta_node.span().clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: "malformed metadata-map (internal structure corrupt)".into(),
-        },
-    ))?;
+    let pairs = meta_node.metadata_map_pairs().ok_or_else(|| {
+        TypeError::new(
+            meta_node.span().clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: "malformed metadata-map (internal structure corrupt)".into(),
+            },
+        )
+    })?;
     // Empty {} → pairs.len() == 0 → REJECTED per FORM-COLLAPSE-NOTES.
     if pairs.is_empty() {
         return Err(TypeError::new(
             meta_node.span().clone(),
             TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
-                reason: "empty `{}` metadata-map is illegal (use no metadata-map arg for plain struct)".into(),
+                reason:
+                    "empty `{}` metadata-map is illegal (use no metadata-map arg for plain struct)"
+                        .into(),
             },
         ));
     }
@@ -110,7 +112,9 @@ pub(super) fn parse_defstruct_metadata(
                                         item.span().clone(),
                                         TypeErrorKind::MalformedDecl {
                                             head: HEAD.into(),
-                                            reason: ":restricted-to entries must be keywords or symbols".into(),
+                                            reason:
+                                                ":restricted-to entries must be keywords or symbols"
+                                                    .into(),
                                         },
                                     ));
                                 }
@@ -159,13 +163,15 @@ fn parse_field_metadata_key(
             },
         ));
     }
-    let fm_pairs = val.metadata_map_pairs().ok_or_else(|| TypeError::new(
-        val.span().clone(),
-        TypeErrorKind::MalformedDecl {
-            head: HEAD.into(),
-            reason: "malformed :field-metadata map (internal structure corrupt)".into(),
-        },
-    ))?;
+    let fm_pairs = val.metadata_map_pairs().ok_or_else(|| {
+        TypeError::new(
+            val.span().clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: "malformed :field-metadata map (internal structure corrupt)".into(),
+            },
+        )
+    })?;
     for (fk_node, fmeta) in &fm_pairs {
         // field identifier — Keyword with optional leading colon stripped to get bare name.
         // In the Map literal form {witness {meta}}, `witness` must be written as
@@ -197,16 +203,18 @@ fn parse_field_metadata_key(
                 },
             ));
         }
-        let fpairs = fmeta.metadata_map_pairs().ok_or_else(|| TypeError::new(
-            fmeta.span().clone(),
-            TypeErrorKind::MalformedDecl {
-                head: HEAD.into(),
-                reason: format!(
-                    "malformed :field-metadata for field '{}' (corrupt structure)",
-                    field_sym
-                ),
-            },
-        ))?;
+        let fpairs = fmeta.metadata_map_pairs().ok_or_else(|| {
+            TypeError::new(
+                fmeta.span().clone(),
+                TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: format!(
+                        "malformed :field-metadata for field '{}' (corrupt structure)",
+                        field_sym
+                    ),
+                },
+            )
+        })?;
         // Parse inner keys: recognize :restricted-to.
         let mut field_wlist: Vec<String> = Vec::new();
         for (fkey_node, fval) in &fpairs {
@@ -303,28 +311,48 @@ pub(super) fn parse_aggregate_fields(
         &field_items,
         head,
         &field_span,
-        crate::argspec::ParseOptions { allow_rest_binder: false },
+        crate::argspec::ParseOptions {
+            allow_rest_binder: false,
+        },
     )
     .map_err(TypeError::from)?;
-    Ok(argspec.fixed_params.into_iter().map(|(id, ty)| (id.as_str().to_owned(), ty)).collect())
+    Ok(argspec
+        .fixed_params
+        .into_iter()
+        .map(|(id, ty)| (id.as_str().to_owned(), ty))
+        .collect())
 }
 
 /// Arc 293 surface-splice — match `(:wat::core::unquote-splicing :Surface)`, the reader's
 /// `~@:Surface` node (`crates/wat-reader/src/parser.rs:353`). Returns the surface keyword
 /// when `item` is that exact shape; `None` otherwise (an ordinary field-triple element).
 fn splice_target(item: &WatAST) -> Option<String> {
-    if let WatAST::List(items, _) = item {
-        if items.len() == 2 {
-            if let (WatAST::Keyword(head_kw, _), WatAST::Keyword(surface_kw, _)) =
-                (&items[0], &items[1])
-            {
-                if head_kw == ":wat::core::unquote-splicing" {
-                    return Some(surface_kw.clone());
-                }
-            }
-        }
+    let WatAST::List(items, _) = item else {
+        return None;
+    };
+    if items.len() != 2 {
+        return None;
     }
-    None
+    // `~@` reads as `:wat::core::unquote-splicing`. A converted target is the
+    // symbol `wat.service/InvocationCore`; the keyword spelling is the same name.
+    let head_ok = match &items[0] {
+        WatAST::Keyword(k, _) => k == ":wat::core::unquote-splicing",
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            crate::edn::render::ns_to_wat_path(id.receiver(), id.method())
+                == ":wat::core::unquote-splicing"
+        }
+        _ => false,
+    };
+    if !head_ok {
+        return None;
+    }
+    match &items[1] {
+        WatAST::Keyword(k, _) => Some(crate::edn::render::canonical_identity(k)),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            Some(crate::edn::render::ns_to_wat_path(id.receiver(), id.method()))
+        }
+        _ => None,
+    }
 }
 
 /// Parse the field-vector node, expanding any `~@:Surface` splice elements against the
@@ -470,7 +498,9 @@ fn flush_field_run(
         run,
         head,
         field_span,
-        crate::argspec::ParseOptions { allow_rest_binder: false },
+        crate::argspec::ParseOptions {
+            allow_rest_binder: false,
+        },
     )
     .map_err(TypeError::from)?;
     raw.extend(

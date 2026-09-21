@@ -44,8 +44,10 @@ pub enum MatchArm<'a> {
         body: &'a WatAST,
     },
     /// Namespaced variant head + key-first map pattern + body.
+    /// `path` is the identity (`:Enum.Variant`). A keyword head is borrowed;
+    /// a reference-symbol head is owned because `canonical_identity` builds it.
     Variant {
-        path: &'a str,
+        path: std::borrow::Cow<'a, str>,
         path_span: &'a Span,
         pairs: &'a [(WatAST, WatAST)],
         body: &'a WatAST,
@@ -96,7 +98,32 @@ pub fn parse_match_arm(arm: &WatAST) -> Result<MatchArm<'_>, MatchArmError> {
                     });
                 }
                 Ok(MatchArm::Variant {
-                    path: k,
+                    path: std::borrow::Cow::Borrowed(k.as_str()),
+                    path_span,
+                    pairs,
+                    body,
+                })
+            }
+            // Same arm. A converted `[wat.core/ReadOutcome.Forms {:forms f} f]`
+            // is the keyword spelling's identity, not a third element count.
+            [WatAST::Symbol(id, path_span), WatAST::Map(pairs, _), body] if id.is_reference() => {
+                let canon = crate::edn::render::canonical_identity(id.as_str());
+                if let Some(repl) = retired_bare_variant(&canon) {
+                    return Err(MatchArmError {
+                        span: path_span.clone(),
+                        reason: format!("the bare variant spelling is retired; write `{repl}`"),
+                    });
+                }
+                if !is_namespaced_variant(&canon) {
+                    return Err(MatchArmError {
+                        span: path_span.clone(),
+                        reason: format!(
+                            "variant arm head `{canon}` is not namespaced; write `<enum>.<Variant>`"
+                        ),
+                    });
+                }
+                Ok(MatchArm::Variant {
+                    path: std::borrow::Cow::Owned(canon),
                     path_span,
                     pairs,
                     body,

@@ -73,7 +73,11 @@ impl MacroRegistry {
     /// for user source) — no ambient flag. Arc 054: a byte-equivalent re-registration is a
     /// no-op; a divergent one errors DuplicateMacro; a new reserved-prefix name from User
     /// errors ReservedPrefix.
-    pub fn register(&mut self, def: MacroDef, privilege: crate::resolve::Privilege) -> Result<(), MacroError> {
+    pub fn register(
+        &mut self,
+        def: MacroDef,
+        privilege: crate::resolve::Privilege,
+    ) -> Result<(), MacroError> {
         use crate::resolve::Existing;
         let existing = match self.macros.get(&def.name) {
             None => Existing::Absent,
@@ -82,10 +86,16 @@ impl MacroRegistry {
         };
         let name = def.name.clone();
         let span = def.span.clone();
-        crate::resolve::register(&name, privilege, existing, &span, || -> Result<(), MacroError> {
-            self.macros.insert(def.name.clone(), def);
-            Ok(())
-        })?;
+        crate::resolve::register(
+            &name,
+            privilege,
+            existing,
+            &span,
+            || -> Result<(), MacroError> {
+                self.macros.insert(def.name.clone(), def);
+                Ok(())
+            },
+        )?;
         Ok(())
     }
 
@@ -101,7 +111,6 @@ impl MacroRegistry {
             _ => {}
         }
     }
-
 }
 
 /// Arc 054 — structural equivalence check for two `MacroDef` values.
@@ -109,6 +118,42 @@ impl MacroRegistry {
 /// Compares params + rest_param + body AST for structural equivalence,
 /// span-agnostic. Ignores `name` (it's the registry key, identical by
 /// construction).
+///
+/// A reference symbol and the keyword of its identity are the same node.
+/// `register_aggregate_kwargs_companions` bakes the keyword spelling before
+/// expand; a converted `defrecord` then emits the symbol spelling of that
+/// same companion. Byte equality called that a second macro. Identity does
+/// not. `canonical_identity` is the door: a string that already contains
+/// `::` keeps a member `/` (`:wat::core::Option/expect`), and a clojure
+/// `Type/method` symbol becomes `::`, so the two stay divergent.
 fn macro_structurally_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
-    a.params == b.params && a.rest_param == b.rest_param && a.body == b.body
+    a.params == b.params && a.rest_param == b.rest_param && ast_same_identity(&a.body, &b.body)
+}
+
+fn ast_same_identity(a: &crate::ast::WatAST, b: &crate::ast::WatAST) -> bool {
+    use crate::ast::WatAST;
+    match (a, b) {
+        (WatAST::Keyword(ka, _), WatAST::Keyword(kb, _)) => {
+            crate::edn::render::canonical_identity(ka) == crate::edn::render::canonical_identity(kb)
+        }
+        (WatAST::Symbol(sa, _), WatAST::Symbol(sb, _)) => sa == sb,
+        (WatAST::Keyword(k, _), WatAST::Symbol(id, _))
+        | (WatAST::Symbol(id, _), WatAST::Keyword(k, _)) => {
+            id.is_reference()
+                && crate::edn::render::canonical_identity(id.as_str())
+                    == crate::edn::render::canonical_identity(k)
+        }
+        (WatAST::List(xs, _), WatAST::List(ys, _))
+        | (WatAST::Vector(xs, _), WatAST::Vector(ys, _))
+        | (WatAST::Set(xs, _), WatAST::Set(ys, _)) => {
+            xs.len() == ys.len() && xs.iter().zip(ys).all(|(x, y)| ast_same_identity(x, y))
+        }
+        (WatAST::Map(xs, _), WatAST::Map(ys, _)) => {
+            xs.len() == ys.len()
+                && xs.iter().zip(ys).all(|((ak, av), (bk, bv))| {
+                    ast_same_identity(ak, bk) && ast_same_identity(av, bv)
+                })
+        }
+        _ => a == b,
+    }
 }

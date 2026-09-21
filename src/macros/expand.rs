@@ -1,15 +1,15 @@
 use crate::ast::WatAST;
-use crate::span::Span;
-use crate::scope::{fresh_scope, ScopeId};
 use crate::runtime::{Environment, SymbolTable, Value};
+use crate::scope::{fresh_scope, ScopeId};
+use crate::span::Span;
 use crate::value::TrackedValue;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::error::{MacroError, MacroErrorKind};
 use super::eval::refuse_expand_only_in_program;
-use super::registry::{MacroDef, MacroRegistry};
 use super::parse::{is_defmacro_form, parse_defmacro_form};
+use super::registry::{MacroDef, MacroRegistry};
 
 /// Maximum nesting depth for macro expansion. Enforced in `expand_form`
 /// to guard against infinite-recursive macros. Defined here (next to
@@ -100,8 +100,11 @@ pub fn expand_all_with(
 /// Returns `true` if `form` is a `(:wat::core::defsurface ...)` form.
 fn is_defsurface_form(form: &WatAST) -> bool {
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
-            return head == ":wat::core::defsurface";
+        if let Some(head) = items.first() {
+            // Keyword or Symbol. A converted `(wat.core/defsurface …)` must
+            // still hoist `:messages`, or those records never register.
+            return crate::declare::parse::head_fqdn(head).as_deref()
+                == Some(":wat::core::defsurface");
         }
     }
     false
@@ -144,10 +147,9 @@ fn hoist_top_level_form(
         let rebuilt = hoist_defmacros_from_container(expanded, registry, privilege)?;
         match rebuilt {
             WatAST::List(items, span) => {
-                let is_do = matches!(
-                    items.first(),
-                    Some(WatAST::Keyword(h, _)) if h == ":wat::core::do"
-                );
+                let is_do = items.first().is_some_and(|h| {
+                    crate::declare::parse::head_fqdn(h).as_deref() == Some(":wat::core::do")
+                });
                 if is_do {
                     // A macro-emission `do` is a registration WRAPPER, never a
                     // value-position do (see `hoist_defmacros_from_container`'s
@@ -248,7 +250,9 @@ fn hoist_surface_messages(
 /// [`is_do_or_let_containing_defmacro`] and [`hoist_defmacros_from_container`]
 /// so the two can never drift on which items are "head/bindings" vs "body".
 pub(crate) fn container_body_start(head: &str) -> Option<usize> {
-    match head {
+    // Identity, so a converted `wat.core/do` / `wat.core/let` is the same container.
+    let id = crate::edn::render::canonical_identity(head);
+    match id.as_str() {
         ":wat::core::do" => Some(1),
         ":wat::core::let" => Some(2),
         _ => None,
@@ -270,12 +274,11 @@ pub(crate) fn container_body_start(head: &str) -> Option<usize> {
 /// fixpoint), so self-emission composes at any nesting, in any do/let mix.
 fn is_do_or_let_containing_defmacro(form: &WatAST) -> bool {
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if let Some(body_start) = container_body_start(head) {
-                return items
-                    .iter()
-                    .skip(body_start)
-                    .any(|child| is_defmacro_form(child) || is_do_or_let_containing_defmacro(child));
+        if let Some(head) = items.first().and_then(crate::declare::parse::head_fqdn) {
+            if let Some(body_start) = container_body_start(head.as_ref()) {
+                return items.iter().skip(body_start).any(|child| {
+                    is_defmacro_form(child) || is_do_or_let_containing_defmacro(child)
+                });
             }
         }
     }
@@ -315,12 +318,12 @@ fn hoist_defmacros_from_container(
         WatAST::List(items, span) => (items, span),
         other => return Ok(other), // guard: caller guarantees it's a List
     };
-    let body_start = match items.first() {
-        Some(WatAST::Keyword(head, _)) => match container_body_start(head) {
+    let body_start = match items.first().and_then(crate::declare::parse::head_fqdn) {
+        Some(head) => match container_body_start(head.as_ref()) {
             Some(n) => n,
             None => return Ok(WatAST::List(items, span)), // guard: not a do/let
         },
-        _ => return Ok(WatAST::List(items, span)),
+        None => return Ok(WatAST::List(items, span)),
     };
     let mut new_items = Vec::with_capacity(items.len());
     let mut iter = items.into_iter();
@@ -340,10 +343,13 @@ fn hoist_defmacros_from_container(
             // in a nested let body). Recurse to register the nested defmacro,
             // then apply the do-flattens/let-wraps policy documented above.
             let rebuilt = hoist_defmacros_from_container(child, registry, privilege)?;
-            let is_do = matches!(
-                &rebuilt,
-                WatAST::List(inner, _) if matches!(inner.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::do")
-            );
+            let is_do = matches!(&rebuilt, WatAST::List(inner, _) if {
+                inner
+                    .first()
+                    .and_then(crate::declare::parse::head_fqdn)
+                    .as_deref()
+                    == Some(":wat::core::do")
+            });
             match rebuilt {
                 WatAST::List(inner, _) if is_do => new_items.extend(inner.into_iter().skip(1)),
                 other => new_items.push(other),
@@ -404,7 +410,14 @@ pub fn expand_fully(
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     let mut scratch = registry.clone();
-    expand_form(form, &mut scratch, 0, env, sym, crate::resolve::Privilege::User)
+    expand_form(
+        form,
+        &mut scratch,
+        0,
+        env,
+        sym,
+        crate::resolve::Privilege::User,
+    )
 }
 
 /// Expand a single form. Recursively expands children, then checks
@@ -438,7 +451,9 @@ pub(super) fn expand_form(
     if expansion_depth >= EXPANSION_DEPTH_LIMIT {
         return Err(MacroError {
             span: form.span().clone(), // Pattern B: the form being expanded
-            kind: MacroErrorKind::ExpansionDepthExceeded { limit: EXPANSION_DEPTH_LIMIT },
+            kind: MacroErrorKind::ExpansionDepthExceeded {
+                limit: EXPANSION_DEPTH_LIMIT,
+            },
         });
     }
 
@@ -454,8 +469,15 @@ pub(super) fn expand_form(
             // arguments — data for another world — were macro-expanded in the parent's).
             // Both variants are named on purpose: `quasiquote` classifies as
             // `Boundary::Quasiquote`, not `AllData`, and its behaviour must not change.
-            if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if matches!(crate::resolve::boundary::quote_boundary(head), crate::resolve::boundary::Boundary::AllData | crate::resolve::boundary::Boundary::Quasiquote) {
+            if let Some(head) = items
+                .first()
+                .and_then(crate::form_match::canonical_identity_of)
+            {
+                if matches!(
+                    crate::resolve::boundary::quote_boundary(&head),
+                    crate::resolve::boundary::Boundary::AllData
+                        | crate::resolve::boundary::Boundary::Quasiquote
+                ) {
                     return Ok(WatAST::List(items, list_span));
                 }
             }
@@ -471,13 +493,26 @@ pub(super) fn expand_form(
             // aggregate-shaped pattern head (e.g. `:test::PaperResolved`) that is now a
             // registered kwargs companion macro, firing `kwargs-lower` on raw DSL clauses
             // as if they were kv-pairs.
-            if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if matches!(crate::resolve::boundary::quote_boundary(head), crate::resolve::boundary::Boundary::MatchesSubject) {
+            if let Some(head) = items
+                .first()
+                .and_then(crate::form_match::canonical_identity_of)
+            {
+                if matches!(
+                    crate::resolve::boundary::quote_boundary(&head),
+                    crate::resolve::boundary::Boundary::MatchesSubject
+                ) {
                     let mut iter = items.into_iter();
                     let mut new_items = Vec::with_capacity(2);
                     new_items.push(iter.next().expect("head keyword just matched"));
                     if let Some(subject) = iter.next() {
-                        new_items.push(expand_form(subject, registry, expansion_depth + 1, env, sym, privilege)?);
+                        new_items.push(expand_form(
+                            subject,
+                            registry,
+                            expansion_depth + 1,
+                            env,
+                            sym,
+                            privilege,
+                        )?);
                     }
                     new_items.extend(iter); // pattern (items[2..]) — DSL data, untouched
                     return Ok(WatAST::List(new_items, list_span));
@@ -499,9 +534,23 @@ pub(super) fn expand_form(
             // immediately above for the identical hazard: expand a condition PATTERN as code
             // (STOP-2) and its aggregate-shaped head — a registered kwargs companion macro
             // post arc-294 item 9a — fires `kwargs-lower` on raw DSL clauses.
-            if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if matches!(crate::resolve::boundary::quote_boundary(head), crate::resolve::boundary::Boundary::MakeRule) {
-                    return expand_make_rule(items, list_span, registry, expansion_depth, env, sym, privilege);
+            if let Some(head) = items
+                .first()
+                .and_then(crate::form_match::canonical_identity_of)
+            {
+                if matches!(
+                    crate::resolve::boundary::quote_boundary(&head),
+                    crate::resolve::boundary::Boundary::MakeRule
+                ) {
+                    return expand_make_rule(
+                        items,
+                        list_span,
+                        registry,
+                        expansion_depth,
+                        env,
+                        sym,
+                        privilege,
+                    );
                 }
             }
 
@@ -568,10 +617,19 @@ pub(super) fn expand_form(
                     let head_span = head_span.clone();
                     let args = rest_after_marker.to_vec();
                     let expanded = {
-                        let def = registry.get(head).expect("contains checked immediately above");
+                        let def = registry
+                            .get(head)
+                            .expect("contains checked immediately above");
                         expand_macro_call(def, args, list_span.clone(), head_span, env, sym)?
                     };
-                    return expand_form(expanded, registry, expansion_depth + 1, env, sym, privilege);
+                    return expand_form(
+                        expanded,
+                        registry,
+                        expansion_depth + 1,
+                        env,
+                        sym,
+                        privilege,
+                    );
                 }
             }
 
@@ -590,18 +648,42 @@ pub(super) fn expand_form(
                             ident.method(),
                             env,
                         ),
-                        None => crate::edn::render::ns_to_wat_path(
-                            ident.receiver(),
-                            ident.method(),
-                        ),
+                        None => {
+                            crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method())
+                        }
                     };
-                    if registry.contains(&primary) {
-                        let args = items[1..].to_vec();
+                    // A defmacro name is stored with `ns_to_wat_path` (`::`).
+                    // A call whose parent is a type reconstructs to `/`. Ask
+                    // the registry which spelling it holds.
+                    let macro_name = if registry.contains(&primary) {
+                        primary
+                    } else {
+                        crate::types::other_join_spelling(&primary)
+                            .filter(|alt| registry.contains(alt))
+                            .unwrap_or(primary)
+                    };
+                    // Same type-reference guard as the keyword arm above.
+                    // `(wat.spawn/Launched :- [S R])` is a type, not a call of
+                    // Launched's kwargs companion.
+                    let (type_args, rest_after_marker) =
+                        crate::types::peel_param_spec(&items[1..]);
+                    let is_type_reference = type_args.is_some() && rest_after_marker.is_empty();
+                    if registry.contains(&macro_name) && !is_type_reference {
+                        let args = rest_after_marker.to_vec();
                         let expanded = {
-                            let def = registry.get(&primary).expect("contains checked immediately above");
+                            let def = registry
+                                .get(&macro_name)
+                                .expect("contains checked immediately above");
                             expand_macro_call(def, args, list_span.clone(), head_span, env, sym)?
                         };
-                        return expand_form(expanded, registry, expansion_depth + 1, env, sym, privilege);
+                        return expand_form(
+                            expanded,
+                            registry,
+                            expansion_depth + 1,
+                            env,
+                            sym,
+                            privilege,
+                        );
                     }
                 }
             }
@@ -611,35 +693,45 @@ pub(super) fn expand_form(
             // NEXT sibling is expanded (see this fn's doc for why). `container_body_start`
             // is the shared head/bindings-vs-body fact (`do` → 1, `let` → 2), so this walk
             // can never drift from `is_do_or_let_containing_defmacro` /
-            // `hoist_defmacros_from_container` on which items are body. The head keyword
+            // `hoist_defmacros_from_container` on which items are body. The head
             // and (for `let`) the bindings vector are expanded exactly as the plain
             // child-walk below would — only the BODY tail is order-sensitive.
-            if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if let Some(body_start) = container_body_start(head) {
-                    let mut out = Vec::with_capacity(items.len());
-                    let mut iter = items.into_iter();
-                    for _ in 0..body_start {
-                        match iter.next() {
-                            Some(head_or_bindings) => out.push(expand_form(
-                                head_or_bindings, registry, expansion_depth + 1, env, sym, privilege,
-                            )?),
-                            // A `let` shorter than its own head+bindings is malformed; leave
-                            // it to the checker's diagnostic rather than inventing one here.
-                            None => break,
-                        }
+            // Identity, not the Keyword variant: a converted `(wat.core/do …)` is the
+            // same container. `head_fqdn`'s borrow ends with this statement.
+            let body_start = items
+                .first()
+                .and_then(crate::declare::parse::head_fqdn)
+                .and_then(|head| container_body_start(head.as_ref()));
+            if let Some(body_start) = body_start {
+                let mut out = Vec::with_capacity(items.len());
+                let mut iter = items.into_iter();
+                for _ in 0..body_start {
+                    match iter.next() {
+                        Some(head_or_bindings) => out.push(expand_form(
+                            head_or_bindings,
+                            registry,
+                            expansion_depth + 1,
+                            env,
+                            sym,
+                            privilege,
+                        )?),
+                        // A `let` shorter than its own head+bindings is malformed; leave
+                        // it to the checker's diagnostic rather than inventing one here.
+                        None => break,
                     }
-                    for child in iter {
-                        let expanded = expand_form(child, registry, expansion_depth + 1, env, sym, privilege)?;
-                        if is_defmacro_form(&expanded) {
-                            // The ONE registration path (`parse_defmacro_form` → `register`),
-                            // the same pair `hoist_top_level_form` uses. Register-only: the
-                            // form stays in `out` for the hoist pass to strip/splice.
-                            registry.register(parse_defmacro_form(expanded.clone())?, privilege)?;
-                        }
-                        out.push(expanded);
-                    }
-                    return Ok(WatAST::List(out, list_span));
                 }
+                for child in iter {
+                    let expanded =
+                        expand_form(child, registry, expansion_depth + 1, env, sym, privilege)?;
+                    if is_defmacro_form(&expanded) {
+                        // The ONE registration path (`parse_defmacro_form` → `register`),
+                        // the same pair `hoist_top_level_form` uses. Register-only: the
+                        // form stays in `out` for the hoist pass to strip/splice.
+                        registry.register(parse_defmacro_form(expanded.clone())?, privilege)?;
+                    }
+                    out.push(expanded);
+                }
+                return Ok(WatAST::List(out, list_span));
             }
 
             // NOT a macro call — recurse into children so nested macros in ordinary code
@@ -712,17 +804,38 @@ fn expand_make_rule(
     let mut iter = items.into_iter();
     let mut out = Vec::with_capacity(4);
     out.extend(iter.next()); // make-rule head, as-is
-    // items[1]: rule name — ordinary code.
+                             // items[1]: rule name — ordinary code.
     if let Some(name) = iter.next() {
-        out.push(expand_form(name, registry, expansion_depth + 1, env, sym, privilege)?);
+        out.push(expand_form(
+            name,
+            registry,
+            expansion_depth + 1,
+            env,
+            sym,
+            privilege,
+        )?);
     }
     // items[2]: quoted :when vector — expand only each where-form's body.
     if let Some(when_arg) = iter.next() {
-        out.push(expand_make_rule_when(when_arg, registry, expansion_depth + 1, env, sym, privilege)?);
+        out.push(expand_make_rule_when(
+            when_arg,
+            registry,
+            expansion_depth + 1,
+            env,
+            sym,
+            privilege,
+        )?);
     }
     // items[3]: quoted :then vector — a fact-form's VALUE positions are code.
     if let Some(then_arg) = iter.next() {
-        out.push(expand_make_rule_then(then_arg, registry, expansion_depth + 1, env, sym, privilege)?);
+        out.push(expand_make_rule_then(
+            then_arg,
+            registry,
+            expansion_depth + 1,
+            env,
+            sym,
+            privilege,
+        )?);
     }
     // items[4..]: any trailing args — untouched data.
     out.extend(iter);
@@ -757,8 +870,11 @@ fn expand_make_rule_then(
     sym: &SymbolTable,
     privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
-    let WatAST::List(qitems, qspan) = then_arg else { return Ok(then_arg) };
-    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    let WatAST::List(qitems, qspan) = then_arg else {
+        return Ok(then_arg);
+    };
+    let is_quote =
+        matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
     if !is_quote {
         return Ok(WatAST::List(qitems, qspan));
     }
@@ -766,7 +882,14 @@ fn expand_make_rule_then(
     let mut new_q = Vec::with_capacity(2);
     new_q.extend(qiter.next()); // quote head, as-is
     if let Some(vec_node) = qiter.next() {
-        new_q.push(expand_make_rule_facts(vec_node, registry, expansion_depth + 1, env, sym, privilege)?);
+        new_q.push(expand_make_rule_facts(
+            vec_node,
+            registry,
+            expansion_depth + 1,
+            env,
+            sym,
+            privilege,
+        )?);
     }
     new_q.extend(qiter); // shouldn't appear in a well-formed quote; conservative
     Ok(WatAST::List(new_q, qspan))
@@ -782,10 +905,19 @@ fn expand_make_rule_facts(
     sym: &SymbolTable,
     privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
-    let WatAST::Vector(facts, vspan) = vec_node else { return Ok(vec_node) };
+    let WatAST::Vector(facts, vspan) = vec_node else {
+        return Ok(vec_node);
+    };
     let mut new_facts = Vec::with_capacity(facts.len());
     for fact in facts {
-        new_facts.push(expand_make_rule_fact(fact, registry, expansion_depth + 1, env, sym, privilege)?);
+        new_facts.push(expand_make_rule_fact(
+            fact,
+            registry,
+            expansion_depth + 1,
+            env,
+            sym,
+            privilege,
+        )?);
     }
     Ok(WatAST::Vector(new_facts, vspan))
 }
@@ -811,7 +943,9 @@ fn expand_make_rule_fact(
     sym: &SymbolTable,
     privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
-    let WatAST::List(fitems, fspan) = fact else { return Ok(fact) };
+    let WatAST::List(fitems, fspan) = fact else {
+        return Ok(fact);
+    };
     if fitems.is_empty() {
         return Ok(WatAST::List(fitems, fspan));
     }
@@ -822,7 +956,14 @@ fn expand_make_rule_fact(
         // `:field` keywords; in positional shape every index past the head is a value.
         let is_value = i > 0 && (!kwargs || i % 2 == 0);
         if is_value {
-            new_f.push(expand_form(item, registry, expansion_depth + 1, env, sym, privilege)?);
+            new_f.push(expand_form(
+                item,
+                registry,
+                expansion_depth + 1,
+                env,
+                sym,
+                privilege,
+            )?);
         } else {
             new_f.push(item);
         }
@@ -847,8 +988,11 @@ fn expand_make_rule_when(
     sym: &SymbolTable,
     privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
-    let WatAST::List(qitems, qspan) = when_arg else { return Ok(when_arg) };
-    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    let WatAST::List(qitems, qspan) = when_arg else {
+        return Ok(when_arg);
+    };
+    let is_quote =
+        matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
     if !is_quote {
         return Ok(WatAST::List(qitems, qspan));
     }
@@ -856,7 +1000,14 @@ fn expand_make_rule_when(
     let mut new_q = Vec::with_capacity(2);
     new_q.extend(qiter.next()); // quote head, as-is
     if let Some(vec_node) = qiter.next() {
-        new_q.push(expand_make_rule_conditions(vec_node, registry, expansion_depth + 1, env, sym, privilege)?);
+        new_q.push(expand_make_rule_conditions(
+            vec_node,
+            registry,
+            expansion_depth + 1,
+            env,
+            sym,
+            privilege,
+        )?);
     }
     new_q.extend(qiter); // shouldn't appear in a well-formed quote; conservative
     Ok(WatAST::List(new_q, qspan))
@@ -872,10 +1023,19 @@ fn expand_make_rule_conditions(
     sym: &SymbolTable,
     privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
-    let WatAST::Vector(conds, vspan) = vec_node else { return Ok(vec_node) };
+    let WatAST::Vector(conds, vspan) = vec_node else {
+        return Ok(vec_node);
+    };
     let mut new_conds = Vec::with_capacity(conds.len());
     for cond in conds {
-        new_conds.push(expand_make_rule_condition(cond, registry, expansion_depth + 1, env, sym, privilege)?);
+        new_conds.push(expand_make_rule_condition(
+            cond,
+            registry,
+            expansion_depth + 1,
+            env,
+            sym,
+            privilege,
+        )?);
     }
     Ok(WatAST::Vector(new_conds, vspan))
 }
@@ -913,7 +1073,9 @@ fn expand_make_rule_condition(
     sym: &SymbolTable,
     privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
-    let WatAST::List(citems, cspan) = cond else { return Ok(cond) };
+    let WatAST::List(citems, cspan) = cond else {
+        return Ok(cond);
+    };
     let head_kw: Option<String> = match citems.first() {
         Some(WatAST::Keyword(h, _)) => Some(h.clone()),
         _ => None,
@@ -926,7 +1088,14 @@ fn expand_make_rule_condition(
         // A `where` fence: its body is CODE, expanded to fixpoint. Unchanged.
         Some(h) if crate::resolve::boundary::is_where_form(h) => {
             for body in citer {
-                new_c.push(expand_form(body, registry, expansion_depth + 1, env, sym, privilege)?);
+                new_c.push(expand_form(
+                    body,
+                    registry,
+                    expansion_depth + 1,
+                    env,
+                    sym,
+                    privilege,
+                )?);
             }
         }
         // ⛔ A COMBINATOR'S ITEMS ARE NESTED **CONDITIONS**, NOT CLAUSES — recurse as conditions,
@@ -937,7 +1106,12 @@ fn expand_make_rule_condition(
         Some(":wat::rete::and" | ":wat::rete::or" | ":wat::rete::not" | ":wat::rete::exists") => {
             for inner in citer {
                 new_c.push(expand_make_rule_condition(
-                    inner, registry, expansion_depth + 1, env, sym, privilege,
+                    inner,
+                    registry,
+                    expansion_depth + 1,
+                    env,
+                    sym,
+                    privilege,
                 )?);
             }
         }
@@ -963,7 +1137,12 @@ fn expand_make_rule_condition(
         None => {
             for item in citer {
                 new_c.push(expand_make_rule_condition(
-                    item, registry, expansion_depth + 1, env, sym, privilege,
+                    item,
+                    registry,
+                    expansion_depth + 1,
+                    env,
+                    sym,
+                    privilege,
                 )?);
             }
         }
@@ -1019,17 +1198,17 @@ pub(super) fn expand_macro_call(
     let mut bindings: HashMap<String, WatAST> = HashMap::new();
     let mut iter = args.into_iter();
     for param in &def.params {
-        bindings.insert(
-            param.clone(),
-            iter.next().expect("arity checked above"),
-        );
+        bindings.insert(param.clone(), iter.next().expect("arity checked above"));
     }
     if let Some(rest_name) = &def.rest_param {
         let rest: Vec<WatAST> = iter.collect();
         // Rest-list wrapper inherits the call-site span — the
         // `,@rest` splice drops these into the template's
         // surrounding context.
-        bindings.insert(rest_name.clone(), WatAST::List(rest, call_site_span.clone()));
+        bindings.insert(
+            rest_name.clone(),
+            WatAST::List(rest, call_site_span.clone()),
+        );
     }
 
     // rune:sequi(host-idiom) — fresh_scope() draws a process-global AtomicU64
@@ -1049,7 +1228,16 @@ pub(super) fn expand_macro_call(
     // `expand_template` below, so pushing once here (RAII pop on return)
     // covers both uniformly and matches "one push per macro invocation."
     let _mcs = crate::value::MacroCallSiteGuard::push(call_site_span.clone(), def.name.clone());
-    let expanded = expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)?;
+    let expanded = expand_template(
+        &def.body,
+        &bindings,
+        macro_scope,
+        &def.name,
+        &call_site_span,
+        def.rest_param.as_deref(),
+        env,
+        sym,
+    )?;
     // Arc 170: a macro that rewrites a user's call (e.g. kwargs-lower rewriting
     // `(svc/start …)` into `(svc/start$impl …)`) must not leave the template's OWN
     // file/line as the only frame a user-facing failure can report. `restamp_unknown_spans`
@@ -1071,7 +1259,12 @@ pub(super) fn expand_macro_call(
     // This is an identity check against the exact string used to look up THIS expansion,
     // not a spelling-based inference of provenance (contrast the recurring
     // `ends_with("'")`-style class this repo already knows to be wrong).
-    Ok(restamp_unknown_spans(expanded, &call_site_span, &head_span, &def.name))
+    Ok(restamp_unknown_spans(
+        expanded,
+        &call_site_span,
+        &head_span,
+        &def.name,
+    ))
 }
 
 /// Arc 170: repoint every node in `form` whose span's file differs from
@@ -1113,7 +1306,12 @@ pub(super) fn expand_macro_call(
 /// Exhaustive over every `WatAST` variant on purpose — no `_ =>` catch-all — so a new
 /// variant added later fails to compile here instead of silently passing through
 /// unrestamped.
-fn restamp_unknown_spans(form: WatAST, call_site: &Span, head_span: &Span, head_name: &str) -> WatAST {
+fn restamp_unknown_spans(
+    form: WatAST,
+    call_site: &Span,
+    head_span: &Span,
+    head_name: &str,
+) -> WatAST {
     fn restamp_span(span: &Span, call_site: &Span) -> Span {
         if span.file != call_site.file {
             call_site.clone()
@@ -1146,35 +1344,47 @@ fn restamp_unknown_spans(form: WatAST, call_site: &Span, head_span: &Span, head_
         }
         WatAST::Symbol(v, s) => WatAST::Symbol(v, restamp_span(&s, call_site)),
         WatAST::List(items, s) => {
-            let is_nested_defmacro = matches!(
-                items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::defmacro"
-            );
+            let is_nested_defmacro = items
+                .first()
+                .and_then(crate::declare::parse::head_fqdn)
+                .as_deref()
+                == Some(":wat::core::defmacro");
             if is_nested_defmacro {
                 WatAST::List(items, restamp_span(&s, call_site))
             } else {
                 WatAST::List(
-                    items.into_iter().map(|c| restamp_unknown_spans(c, call_site, head_span, head_name)).collect(),
+                    items
+                        .into_iter()
+                        .map(|c| restamp_unknown_spans(c, call_site, head_span, head_name))
+                        .collect(),
                     restamp_span(&s, call_site),
                 )
             }
         }
         WatAST::Vector(items, s) => WatAST::Vector(
-            items.into_iter().map(|c| restamp_unknown_spans(c, call_site, head_span, head_name)).collect(),
+            items
+                .into_iter()
+                .map(|c| restamp_unknown_spans(c, call_site, head_span, head_name))
+                .collect(),
             restamp_span(&s, call_site),
         ),
         WatAST::Map(pairs, s) => WatAST::Map(
             pairs
                 .into_iter()
-                .map(|(k, v)| (
-                    restamp_unknown_spans(k, call_site, head_span, head_name),
-                    restamp_unknown_spans(v, call_site, head_span, head_name),
-                ))
+                .map(|(k, v)| {
+                    (
+                        restamp_unknown_spans(k, call_site, head_span, head_name),
+                        restamp_unknown_spans(v, call_site, head_span, head_name),
+                    )
+                })
                 .collect(),
             restamp_span(&s, call_site),
         ),
         WatAST::Set(items, s) => WatAST::Set(
-            items.into_iter().map(|c| restamp_unknown_spans(c, call_site, head_span, head_name)).collect(),
+            items
+                .into_iter()
+                .map(|c| restamp_unknown_spans(c, call_site, head_span, head_name))
+                .collect(),
             restamp_span(&s, call_site),
         ),
     }
@@ -1221,7 +1431,15 @@ fn expand_template(
             WatAST::List(items, _) => match quasiquote_inner(items) {
                 Some(body) => {
                     // Well-formed: `(:wat::core::quasiquote X)`.
-                    expand_quasiquote_body(body, bindings, macro_scope, macro_name, call_site_span, env, sym)
+                    expand_quasiquote_body(
+                        body,
+                        bindings,
+                        macro_scope,
+                        macro_name,
+                        call_site_span,
+                        env,
+                        sym,
+                    )
                 }
                 None => {
                     // Quasiquote-headed but wrong arity (0 or ≥2 body forms).
@@ -1244,7 +1462,15 @@ fn expand_template(
     } else {
         // Program-body path: consumes `rest_param` to bind the variadic rest as Value::Vec;
         // `macro_scope` is unused here (no sets-of-scopes tagging; hygiene enforced by Gate E).
-        expand_program_body(template, bindings, macro_name, call_site_span, rest_param, env, sym)
+        expand_program_body(
+            template,
+            bindings,
+            macro_name,
+            call_site_span,
+            rest_param,
+            env,
+            sym,
+        )
     }
 }
 
@@ -1261,7 +1487,16 @@ fn expand_quasiquote_body(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    walk_template(qb, bindings, macro_scope, macro_name, call_site_span, 1, env, sym)
+    walk_template(
+        qb,
+        bindings,
+        macro_scope,
+        macro_name,
+        call_site_span,
+        1,
+        env,
+        sym,
+    )
 }
 
 /// New program-body path (arc 249 stone 249.2b-ii).
@@ -1307,16 +1542,16 @@ fn expand_program_body(
                 WatAST::List(items, _) => items.as_slice(),
                 // expand_macro_call always wraps rest args in WatAST::List; any other
                 // shape means the caller violated the invariant.
-                _ => unreachable!("rest-param binding is always WatAST::List per expand_macro_call"),
+                _ => {
+                    unreachable!("rest-param binding is always WatAST::List per expand_macro_call")
+                }
             };
             let vals: Vec<Value> = elems
                 .iter()
                 .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
                 .collect();
-            builder = builder.bind_unknown_span(
-                name.clone(),
-                TrackedValue::from(Value::Vec(Arc::new(vals))),
-            );
+            builder = builder
+                .bind_unknown_span(name.clone(), TrackedValue::from(Value::Vec(Arc::new(vals))));
         } else {
             // Fixed param: bind as a quoted form-value (Value::wat__WatAST).
             builder = builder.bind_unknown_span(
@@ -1431,7 +1666,10 @@ pub(super) fn validate_macro_definition(
     super::eval::validate_pure_total(body).map_err(|e| MacroError {
         span: defmacro_span.clone(),
         kind: MacroErrorKind::MalformedDefmacro {
-            reason: format!("program-body macro purity check failed at definition: {}", e.kind),
+            reason: format!(
+                "program-body macro purity check failed at definition: {}",
+                e.kind
+            ),
         },
     })
 }
@@ -1567,12 +1805,9 @@ fn flatten_template_children(
     let mut out = Vec::with_capacity(items.len());
     for child in items {
         if let WatAST::List(child_items, _) = child {
-            if let Some(splice_arg) =
-                match_unquote(child_items, ":wat::core::unquote-splicing")
-            {
+            if let Some(splice_arg) = match_unquote(child_items, ":wat::core::unquote-splicing") {
                 if depth == 1 {
-                    let spliced =
-                        splice_argument(splice_arg, bindings, macro_name, env, sym)?;
+                    let spliced = splice_argument(splice_arg, bindings, macro_name, env, sym)?;
                     out.extend(spliced);
                     continue;
                 } else {
@@ -1678,10 +1913,7 @@ fn walk_template(
                 )?;
                 return Ok(WatAST::List(
                     vec![
-                        WatAST::Keyword(
-                            ":wat::core::quasiquote".into(),
-                            call_site_span.clone(),
-                        ),
+                        WatAST::Keyword(":wat::core::quasiquote".into(), call_site_span.clone()),
                         inner,
                     ],
                     call_site_span.clone(),
@@ -1705,10 +1937,7 @@ fn walk_template(
                     )?;
                     return Ok(WatAST::List(
                         vec![
-                            WatAST::Keyword(
-                                ":wat::core::unquote".into(),
-                                call_site_span.clone(),
-                            ),
+                            WatAST::Keyword(":wat::core::unquote".into(), call_site_span.clone()),
                             inner,
                         ],
                         call_site_span.clone(),
@@ -1766,8 +1995,26 @@ fn walk_template(
         WatAST::Map(pairs, _) => {
             let mut out_pairs: Vec<(WatAST, WatAST)> = Vec::with_capacity(pairs.len());
             for (k, v) in pairs {
-                let wk = walk_template(k, bindings, macro_scope, macro_name, call_site_span, depth, env, sym)?;
-                let wv = walk_template(v, bindings, macro_scope, macro_name, call_site_span, depth, env, sym)?;
+                let wk = walk_template(
+                    k,
+                    bindings,
+                    macro_scope,
+                    macro_name,
+                    call_site_span,
+                    depth,
+                    env,
+                    sym,
+                )?;
+                let wv = walk_template(
+                    v,
+                    bindings,
+                    macro_scope,
+                    macro_name,
+                    call_site_span,
+                    depth,
+                    env,
+                    sym,
+                )?;
                 out_pairs.push((wk, wv));
             }
             Ok(WatAST::Map(out_pairs, call_site_span.clone()))
@@ -1775,7 +2022,16 @@ fn walk_template(
         WatAST::Set(items, _) => {
             let mut out: Vec<WatAST> = Vec::with_capacity(items.len());
             for child in items {
-                out.push(walk_template(child, bindings, macro_scope, macro_name, call_site_span, depth, env, sym)?);
+                out.push(walk_template(
+                    child,
+                    bindings,
+                    macro_scope,
+                    macro_name,
+                    call_site_span,
+                    depth,
+                    env,
+                    sym,
+                )?);
             }
             Ok(WatAST::Set(out, call_site_span.clone()))
         }
@@ -1872,7 +2128,9 @@ pub(super) fn unquote_argument(
             Some(bound) => Ok(bound.clone()),
             None => Err(MacroError {
                 span: sym_span.clone(), // Pattern A: symbol span
-                kind: MacroErrorKind::UnboundMacroParam { name: ident.as_str().to_owned() },
+                kind: MacroErrorKind::UnboundMacroParam {
+                    name: ident.as_str().to_owned(),
+                },
             }),
         },
         // Arc 143 slice 2: a List whose head is a Keyword is a callable
@@ -1887,13 +2145,11 @@ pub(super) fn unquote_argument(
             // instead of running. Hash-IS-identity determinism is enforced by
             // construction. See docs/arc/2026/06/249-total-pure-macros/DESIGN-STONE-249.2b.md.
             let val = crate::macros::eval::macro_eval(&substituted, env, sym)?.value_owned();
-            crate::runtime::value_to_watast(",(expr)", val, span.clone()).map_err(|e| {
-                MacroError {
-                    span: span.clone(),
-                    kind: MacroErrorKind::MalformedTemplate {
-                        reason: format!("computed unquote value_to_watast failed: {}", e),
-                    },
-                }
+            crate::runtime::value_to_watast(",(expr)", val, span.clone()).map_err(|e| MacroError {
+                span: span.clone(),
+                kind: MacroErrorKind::MalformedTemplate {
+                    reason: format!("computed unquote value_to_watast failed: {}", e),
+                },
             })
         }
         // Already-substituted literal (from a `,,X` outer pass or any
@@ -1922,12 +2178,12 @@ fn splice_argument(
 ) -> super::ExpandBatch {
     match arg {
         WatAST::Symbol(ident, sym_span) => {
-            let bound = bindings
-                .get(ident.as_str())
-                .ok_or_else(|| MacroError {
-                    span: sym_span.clone(), // Pattern A: symbol span
-                    kind: MacroErrorKind::UnboundMacroParam { name: ident.as_str().to_owned() },
-                })?;
+            let bound = bindings.get(ident.as_str()).ok_or_else(|| MacroError {
+                span: sym_span.clone(), // Pattern A: symbol span
+                kind: MacroErrorKind::UnboundMacroParam {
+                    name: ident.as_str().to_owned(),
+                },
+            })?;
             match bound {
                 WatAST::List(items, _) => Ok(items.clone()),
                 // Arc 200 Gap 1 — Vector-bound symbols splice identically

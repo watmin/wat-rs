@@ -42,8 +42,7 @@
 
 use crate::ast::WatAST;
 use crate::declare::parse::{
-    is_declaration_form, is_declaration_head, is_type_arg_shaped,
-    parse_type_slot,
+    is_declaration_form, is_declaration_head, is_type_arg_shaped, parse_type_slot,
 };
 use crate::declare::register::{meta_has_doc_axis_key, register_runtime_defs};
 // Arc 109 Stone the-declare-home — test-only after the move: the lib target has no
@@ -934,7 +933,11 @@ pub enum ClauseRegPhase {
 /// Non-fn, non-registered, non-form heads delegate to [`eval`]
 /// so error handling (NotCallable, UnboundSymbol, primitive
 /// dispatch, `Some`/`Ok`/`Err` constructors) is unchanged.
-pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_tail(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let (items, list_span) = match ast {
         WatAST::List(items, span) if !items.is_empty() => (items, span.clone()),
         _ => return eval_inner(ast, env, sym).map(|tv| tv.value_owned()),
@@ -1071,7 +1074,8 @@ pub(crate) fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> R
                         .iter()
                         .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
                         .collect::<Result<Vec<_>, _>>()?;
-                    let (idx, _scope) = crate::function::select_defclause_clause(&cs, &vals, &list_span, sym)?;
+                    let (idx, _scope) =
+                        crate::function::select_defclause_clause(&cs, &vals, &list_span, sym)?;
                     let clause = &cs.clauses[idx];
                     // ⚠ `:ensure` is a POST-condition — it runs AFTER the body, and a tail call
                     // abandons the frame it would return into. An ensure-bearing clause therefore
@@ -1422,7 +1426,6 @@ fn eval_or(
     Ok(Value::bool(false))
 }
 
-
 /// Mirrors [`eval_if_tail`]'s shape: every operand but the LAST keeps the ordinary strict,
 /// checked evaluation (short-circuiting `false`); the last operand is handed to [`eval_tail`] so
 /// a self- or mutually-recursive tail call underneath it reuses the native stack frame instead of
@@ -1770,15 +1773,29 @@ pub(crate) fn eval_inner(
             Value::Unit,
             Provenance::Literal { span: span.clone() },
         )),
-        WatAST::Symbol(ident, span) => env
-            .lookup(crate::scope::env_key(ident).as_ref(), span)
-            .ok_or_else(|| {
-                RuntimeError::new(
-                    span.clone(),
-                    RuntimeErrorKind::UnboundSymbol(ident.as_str().to_owned()),
-                )
-            })
-            .map_err(EvalBreak::from),
+        WatAST::Symbol(ident, span) => {
+            if let Some(tv) = env.lookup(crate::scope::env_key(ident).as_ref(), span) {
+                return Ok(tv);
+            }
+            // A reference symbol in value position is the keyword it names.
+            // `launch-head-kw :wat::spawn::Locus/launch` converts to the symbol
+            // `wat.spawn.Locus/launch`; the macro stores that keyword, it does
+            // not look the symbol up. Same join as a call head.
+            if ident.is_reference() {
+                let kw = match sym.types() {
+                    Some(types) => {
+                        crate::types::reconstruct_call_path(ident.receiver(), ident.method(), types)
+                    }
+                    None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
+                };
+                return eval_inner(&WatAST::Keyword(kw, span.clone()), env, sym);
+            }
+            Err(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::UnboundSymbol(ident.as_str().to_owned()),
+            )
+            .into())
+        }
         // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
         // TrackedValue directly; non-producer arms wrap with .into_tracked()).
         WatAST::List(items, span) => eval_list(items, span, env, sym),
@@ -1869,6 +1886,19 @@ fn eval_list(
     match head {
         // dispatch_keyword_head now returns TrackedValue (propagates producer provenance).
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
+        WatAST::Symbol(ident, _span) if ident.is_reference() => {
+            // Call head, not a local. Macro bodies are evaluated during expand,
+            // before normalize, so a converted `(wat.core/let …)` arrives here
+            // as a symbol. Same join as `resolve_namespaced_symbol`: registry
+            // when we have one, else identity (`ns_to_wat_path`).
+            let primary = match sym.types() {
+                Some(types) => {
+                    crate::types::reconstruct_call_path(ident.receiver(), ident.method(), types)
+                }
+                None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
+            };
+            dispatch_keyword_head(&primary, rest, list_span, env, sym)
+        }
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
             // Arc 233 Stone 233.2.k: keep TrackedValue so NotCallable errors
@@ -1952,7 +1982,8 @@ fn dispatch_keyword_head(
         // that function's own copy of this check for why the same placement there does NOT
         // reach a rete-prefixed head the same way.
         if let Some(core) = entry.alias_of {
-            return dispatch_keyword_head_value(core, args, list_span, env, sym).map(TrackedValue::from);
+            return dispatch_keyword_head_value(core, args, list_span, env, sym)
+                .map(TrackedValue::from);
         }
         if entry.purity == wat_doc::Purity::Unevaluated {
             return Err(RuntimeError::new(
@@ -2702,7 +2733,13 @@ fn dispatch_keyword_head_value(
         //
         // Arc 234 Stone 234.4 — slash-form alias for i64::to-f64 (untouched — a
         // different naming scheme, not part of this stone's `::`-retirement).
-        ":wat::core::i64/to-f64" => crate::numeric::convert::eval_i64_to_f64(args, list_span, env, sym, ":wat::core::i64/to-f64"),
+        ":wat::core::i64/to-f64" => crate::numeric::convert::eval_i64_to_f64(
+            args,
+            list_span,
+            env,
+            sym,
+            ":wat::core::i64/to-f64",
+        ),
         // `:wat::string::to-i64` / `to-f64` / `to-bool` are REGISTERED now
         // (`intrinsic/string.rs`, arc 255 home #4 phase 2) — no arm here; see the
         // registry-hoist note a few dozen lines up this match.
@@ -2747,7 +2784,13 @@ fn dispatch_keyword_head_value(
         // `docs/arc/2026/06/255-builtin-registry/NOTE-equality-is-argued-proven-partial-and-held.md`.
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
-        ":wat::core::i64/to-string" => crate::numeric::convert::eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
+        ":wat::core::i64/to-string" => crate::numeric::convert::eval_i64_to_string(
+            args,
+            list_span,
+            env,
+            sym,
+            ":wat::core::i64/to-string",
+        ),
 
         // Arc 255 Stone F — the `String/` namespace aliases (Stone 237.3) that lived here
         // (concat/starts-with?/ends-with?/contains?/empty?) are RETIRED. Their replacement is
@@ -2999,9 +3042,16 @@ fn dispatch_keyword_head_value(
         // means a form added later to this cluster inherits the fix instead of
         // re-earning the bug; peeling inside each helper was ten edits, ten chances to
         // miss one, and no guarantee for an eleventh.
-        head @ (":wat::eval-ast!" | ":wat::eval-with-defs!" | ":wat::eval-step!"
-        | ":wat::eval::walk" | ":wat::eval-edn!" | ":wat::eval-file!" | ":wat::eval-digest!"
-        | ":wat::eval-digest-string!" | ":wat::eval-signed!" | ":wat::eval-signed-string!") => {
+        head @ (":wat::eval-ast!"
+        | ":wat::eval-with-defs!"
+        | ":wat::eval-step!"
+        | ":wat::eval::walk"
+        | ":wat::eval-edn!"
+        | ":wat::eval-file!"
+        | ":wat::eval-digest!"
+        | ":wat::eval-digest-string!"
+        | ":wat::eval-signed!"
+        | ":wat::eval-signed-string!") => {
             let (_binder, args) = crate::types::peel_param_spec(args);
             match head {
                 ":wat::eval-ast!" => eval_form_ast(args, env, sym, list_span),
@@ -3614,9 +3664,9 @@ fn dispatch_keyword_head_value(
             // directly (`def_value(other)` just below already does, unstripped).
             // Arc 296 M — enum variant map ctor. Intercept BEFORE the
             // synthesized positional Function (tagged) / UnknownFunction (unit).
-            if let Some(result) = crate::record::construct::try_eval_enum_map_ctor(
-                other, args, list_span, env, sym,
-            ) {
+            if let Some(result) =
+                crate::record::construct::try_eval_enum_map_ctor(other, args, list_span, env, sym)
+            {
                 return result;
             }
             let func = match sym.get(other) {
@@ -3643,7 +3693,9 @@ fn dispatch_keyword_head_value(
                             // Stone 237.2 — defclause-bound value dispatch.
                             Value::wat__core__clauses(cs) => {
                                 let cs = cs.clone();
-                                return crate::function::eval_call_to_defclause(cs, args, list_span, env, sym);
+                                return crate::function::eval_call_to_defclause(
+                                    cs, args, list_span, env, sym,
+                                );
                             }
                             other_val => {
                                 return Err(RuntimeError::new(
@@ -3710,7 +3762,10 @@ fn dispatch_keyword_head_value(
                         synth_args.push(WatAST::Keyword(other.to_string(), list_span.clone()));
                         synth_args.extend(args.iter().cloned());
                         return crate::record::construct::eval_kwargs_construct(
-                            &synth_args, list_span, env, sym,
+                            &synth_args,
+                            list_span,
+                            env,
+                            sym,
                         );
                     }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
@@ -5081,10 +5136,13 @@ pub(crate) fn eval_keyword_from_string(
         },
     )?;
     if angle_type_head_in_name(&s) {
-        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::keyword::from-string".into(),
-            reason: angle_minted_name_reason(&s),
-        })
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::keyword::from-string".into(),
+                reason: angle_minted_name_reason(&s),
+            },
+        )
         .into());
     }
     if s.starts_with(':') {
@@ -5219,7 +5277,12 @@ fn eval_apply(
     // refused by the keyword gate below. `combined` is already the evaluated args, which is
     // precisely what the value-level entry wants.
     if let Value::wat__core__clauses(cs) = &head_val {
-        return crate::function::eval_call_to_defclause_with_vals(cs.clone(), combined, &list_span, sym);
+        return crate::function::eval_call_to_defclause_with_vals(
+            cs.clone(),
+            combined,
+            &list_span,
+            sym,
+        );
     }
 
     // Step 6 — keyword-valued head: extract name + dispatch chain.
@@ -6775,9 +6838,9 @@ pub(crate) fn eval_assoc(
             MapContainer::PersistentMap => {
                 crate::collection::eval::persistentmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val)
             }
-            MapContainer::Record => {
-                crate::record::update::record_assoc_inner(arg0_val, arg1_val, arg2_val, list_span, sym)
-            }
+            MapContainer::Record => crate::record::update::record_assoc_inner(
+                arg0_val, arg1_val, arg2_val, list_span, sym,
+            ),
         },
         Some(_) => Err(RuntimeError::new(
             list_span.clone(),
@@ -6856,7 +6919,11 @@ pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
 // `intrinsic/special/stream_lazy.rs`'s thin `role = eval` delegate (needed because this fn's
 // own 3-param signature — no `sym` — does not fit the canonical 4-param `NativeHandler` shape,
 // same asymmetry `eval_quote`/`eval_fn` hit) can call it from another module. Body untouched.
-pub(crate) fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_lazy_seq(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -7240,7 +7307,8 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
             span,
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "primitive (i64/f64/rational/bigint/bool/String/keyword/nil) or :wat::WatAST",
+                expected:
+                    "primitive (i64/f64/rational/bigint/bool/String/keyword/nil) or :wat::WatAST",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -7688,17 +7756,26 @@ fn eval_metadata_of(
             // `ToEnumValue::to_enum_value` calls the registry branch makes, fed from
             // `DocComment`'s typed fields instead of `IntrinsicEntry`'s. Same `Value::Enum`
             // over the same `wat_doc` enum type either way — the fix the NOTE asked for.
-            put(":purity", crate::intrinsic::ToEnumValue::to_enum_value(&doc.purity));
+            put(
+                ":purity",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.purity),
+            );
             put(
                 ":determinism",
                 crate::intrinsic::ToEnumValue::to_enum_value(&doc.determinism),
             );
-            put(":totality", crate::intrinsic::ToEnumValue::to_enum_value(&doc.totality));
+            put(
+                ":totality",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.totality),
+            );
             put(
                 ":expand-time",
                 crate::intrinsic::ToEnumValue::to_enum_value(&doc.expand_time),
             );
-            put(":category", crate::intrinsic::ToEnumValue::to_enum_value(&doc.category));
+            put(
+                ":category",
+                crate::intrinsic::ToEnumValue::to_enum_value(&doc.category),
+            );
             // :defined-in — a fact at THIS site: this branch is reached only from
             // `sym.binding_metadata`, which only a wat `defn`/`def` populates (STOP-4). Not a
             // default beside a derived field — the registry branch above is the ONLY other
@@ -7714,11 +7791,7 @@ fn eval_metadata_of(
             // inspection. `:yields` is omitted here too (named gap — see `DocContractEmit`).
             put(":doc", Value::String(Arc::new(doc.prose.clone())));
             put(":added", Value::String(Arc::new(doc.added.clone())));
-            emit_doc_contract(
-                &mut put,
-                &doc_contract_from_comment(&doc),
-                name_ast.span(),
-            )?;
+            emit_doc_contract(&mut put, &doc_contract_from_comment(&doc), name_ast.span())?;
             Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(
                 Arc::new(map),
             )))))
@@ -7773,7 +7846,6 @@ fn eval_metadata_of(
 
 // Arc 109 Stone — the reflect home — `resolve_aggregate_def_for_reflection` moved to `src/reflect/verbs.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
-
 
 // Arc 109 Stone — the reflect home — `eval_form_matches` moved to `src/reflect/match.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -8393,15 +8465,11 @@ fn eval_vector(
 ///
 /// **Totality ground — `Partial`, on TWO independent raises, neither shared with `Vector`'s own
 /// `Partial` ground above (a different constructor, a different pair of mechanisms):**
-///  1. `eval_hashmap_ctor` raises `MalformedForm` when `args[0]`/`args[1]` (post-splice) fails
-///     `is_type_arg_shaped` (`src/declare/parse.rs:996-998` — `Keyword | List` only), the exact
-///     same TWO-vs-FOUR-shape gap `Vector`'s ground above proves: `infer_hashmap_constructor`'s
-///     own `parse_param_spec_slot` calls (`check.rs:14703-14710`) accept the SAME four
-///     `parse_type_node` shapes for `K`/`V` that `is_type_arg_shaped` refuses two of. Measured: a
-///     well-typed `(HashMap :- [[:wat::core::i64 :-> :wat::core::bool] :wat::core::i64])` — `K`
-///     spelled with the fn-type bracket surface — passes `--check` with zero errors
-///     (`wat-scripts/scratch-pad/probe-hashmap-fn-type-bracket.wat`) and raises `MalformedForm`
-///     at eval time.
+///  1. `eval_hashmap_ctor` raises `MalformedForm` when `args[0]`/`args[1]` (post-splice) is
+///     not a type form. Keyword and List stay on `is_type_arg_shaped`. Symbol and the
+///     fn-type Vector go through `parse_type_node` — the same four shapes
+///     `infer_hashmap_constructor` already accepted at check time. A node outside
+///     those shapes still raises.
 ///  2. `eval_hashmap_ctor` raises `TypeMismatch` on a non-hashable key via
 ///     `value_is_key_hashable` (`src/runtime.rs:6527-6529`, delegating to `value_is_hashable`,
 ///     `:6498-6514` — excludes `fn`/`Sender`/`Receiver`/`HandlePool`/`ChildHandle`/`RustOpaque`/
@@ -8607,10 +8675,7 @@ fn bind_map_value(
         WatAST::Symbol(s, _) if s.as_str() == "_" => Ok(Some(env.clone())),
         WatAST::Symbol(s, _) => Ok(Some(
             env.child()
-                .bind_unknown_span(
-                    crate::scope::env_key(s),
-                    TrackedValue::from(value.clone()),
-                )
+                .bind_unknown_span(crate::scope::env_key(s), TrackedValue::from(value.clone()))
                 .build(),
         )),
         WatAST::List(items, span) => match items.first() {
@@ -8741,7 +8806,8 @@ fn match_variant_map(
         },
         None => match value {
             Value::Enum(ev) => {
-                let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
+                let composed =
+                    wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
                 if composed != path {
                     return Ok(None);
                 }
@@ -8794,7 +8860,15 @@ fn eval_parsed_arm(
             path_span,
             pairs,
             ..
-        } => match_variant_map(path, path_span, pairs, scrutinee, env, sym, arm_span),
+        } => match_variant_map(
+            path.as_ref(),
+            path_span,
+            pairs,
+            scrutinee,
+            env,
+            sym,
+            arm_span,
+        ),
     }
 }
 
@@ -8883,9 +8957,7 @@ pub(crate) fn try_match_pattern(
         // via the built-in `Option` enum registration in `types.rs`). Additive
         // recognition, same move as `:wat::core::nil` (`types.rs:1056`): a third
         // spelling is added beside the existing two; nothing is removed.
-        WatAST::Keyword(k, span)
-            if k == ":None" || k == ":wat::core::None" =>
-        {
+        WatAST::Keyword(k, span) if k == ":None" || k == ":wat::core::None" => {
             Err(RuntimeError::new(
                 span.clone(),
                 RuntimeErrorKind::MalformedForm {
@@ -8895,14 +8967,10 @@ pub(crate) fn try_match_pattern(
             )
             .into())
         }
-        WatAST::Keyword(k, _)
-            if k == ":wat::core::Option.None" =>
-        {
-            match value {
-                Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
-                _ => Ok(None),
-            }
-        }
+        WatAST::Keyword(k, _) if k == ":wat::core::Option.None" => match value {
+            Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
         // Arc 055 — literal sub-patterns compare by equality.
         WatAST::IntLit(n, _) => match value {
             Value::i64(v) if v == n => Ok(Some(outer.clone())),
@@ -8944,7 +9012,8 @@ pub(crate) fn try_match_pattern(
         // upstream by the checker; here we just compare paths.
         WatAST::Keyword(k, _) => match value {
             Value::Enum(ev) => {
-                let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
+                let composed =
+                    wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
                 if composed == *k && ev.fields.is_empty() {
                     Ok(Some(outer.clone()))
                 } else {
@@ -9084,7 +9153,10 @@ pub(crate) fn try_match_pattern(
                 // chaining.
                 WatAST::Keyword(variant_path, _) => match value {
                     Value::Enum(ev) => {
-                        let composed = wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
+                        let composed = wat_reader::identifier::compose_variant(
+                            &ev.type_path,
+                            &ev.variant_name,
+                        );
                         if composed != *variant_path {
                             return Ok(None);
                         }
@@ -9268,7 +9340,6 @@ pub(crate) fn try_match_pattern(
         .into()),
     }
 }
-
 
 /// `(:wat::core::type <any-value>) -> :wat::core::String` — arc 234 Stone 234.0.
 ///
@@ -10269,7 +10340,6 @@ fn eval_subtype(
 
 // ─── Arc 294.c.2a — aggregate-new + build_holon_hologram ─────────────────────
 
-
 // Arc 109 Stone — the record home — `eval_aggregate_new` moved to `src/record/construct.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
@@ -10297,7 +10367,6 @@ fn eval_subtype(
 // Arc 109 Stone — the record home — `eval_to_core_record` moved to `src/record/project.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-
 // ─── End Arc 293 K3 ───────────────────────────────────────────────────────────
 
 // Arc 109 Stone — the record home — `eval_record_field_at` moved to `src/record/access.rs`
@@ -10324,15 +10393,11 @@ fn eval_subtype(
 // Arc 109 Stone — the record home — `eval_record_assoc` moved to `src/record/update.rs`
 // (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-
 // ─── Algebra-core UpperCall runtime construction ────────────────────────
-
 
 // ─── Arc 074 — Substrate floor accessors ────────────────────────────
 
-
 // ─── Arc 076 — therm-routed Hologram + filtered-argmax ─────────────
-
 
 // ─── Arc 228 — Pascal-Case collection classifier-wrap constructors ────────────
 //
@@ -10340,7 +10405,6 @@ fn eval_subtype(
 // Bind(Atom("ClassName"), Bundle(items)) per the typed-entities doctrine.
 // The outer Bind carries the classifier; the inner Bundle carries the data.
 // Type recovery: extract the classifier-atom from the outer Bind.
-
 
 // ─── Arc 226 Stone 226.1 — Type predicates (classifier-name match) ───────────
 //
@@ -10360,7 +10424,6 @@ fn eval_subtype(
 //
 // Non-HolonAST values (bare i64, String, etc.) are accepted but return false —
 // the absence of a classifier is an honest "not this type" signal.
-
 
 // Arc 109 Stone — holon into parity — `PairedVectors` moved to
 // `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
@@ -10607,7 +10670,6 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
     }
 }
 
-
 // Arc 109 Stone — holon into parity — `cosine_outcome_from_values` moved to
 // `src/holon/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
@@ -10663,7 +10725,6 @@ pub(crate) fn builtin_enum_variant_names(type_path: &str, variant: &str) -> Arc<
 // No universe metadata in the bytes — per DESIGN Q5: the seed is
 // the receiver's responsibility to know. V + K + F three-factor
 // verification UX.
-
 
 // ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
 //
@@ -10887,7 +10948,6 @@ fn eval_str(
     let s = crate::string::render_str_total(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(s)))
 }
-
 
 // ─── Function application ───────────────────────────────────────────────
 
@@ -11138,8 +11198,8 @@ pub fn apply_function(
 // Moved to crate::value::frame (Stone 251.2a). Re-exported below for
 // in-module use.
 
-use crate::value::{replace_top_frame, FrameGuard};
 use crate::value::FrameInfo;
+use crate::value::{replace_top_frame, FrameGuard};
 
 // ─── Seven eval forms ────────────────────────────────────────────────────
 //
@@ -11403,7 +11463,11 @@ pub(crate) fn require_encoding_ctx<'a>(
 /// Arc 077: the program runs at one d. Read it from the ambient
 /// `EncodingCtx`. Returns `NoEncodingCtx` if no ctx is attached
 /// (test harnesses that bypass freeze).
-pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span) -> Result<usize, EvalBreak> {
+pub(crate) fn program_dim(
+    op: &'static str,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<usize, EvalBreak> {
     let ctx = require_encoding_ctx(op, sym, list_span)?;
     Ok(ctx.dim_count)
 }
@@ -11419,11 +11483,7 @@ pub(crate) fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span)
 // Arc 109 Stone B — the seven kernel sub-modules — `eval_listener_prime` moved to
 // `src/kernel/resource.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-::wat_source_derive::wat_field_names_from!(
-    BOUND_FIELDS,
-    "wat/spawn.wat",
-    ":wat::spawn::Bound"
-);
+::wat_source_derive::wat_field_names_from!(BOUND_FIELDS, "wat/spawn.wat", ":wat::spawn::Bound");
 // Arc 109 Stone B — the seven kernel sub-modules — `bound_names` moved to
 // `src/kernel/source.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
@@ -12660,7 +12720,6 @@ pub(crate) fn eval_form_against_defs(
     Ok((form_outcome("Evaluated", vec![result]), Some(session_sym)))
 }
 
-
 // ─── Incremental evaluator (arc 068) — :wat::eval-step! ─────────────
 //
 // `:wat::eval-step!` performs ONE call-by-value reduction at the
@@ -13090,7 +13149,6 @@ fn step_form(form: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Step
     }
 }
 
-
 /// Dispatcher for a `List` form. Recognizes the head keyword and
 /// chooses the matching rule: special forms (if / let / match) get
 /// dedicated rewrites; pure ops descend leftmost-non-canonical and
@@ -13406,7 +13464,6 @@ fn step_holon_descend_then_fire(
         list_span.clone(),
     )?))
 }
-
 
 /// `(:wat::core::if cond then else)` — five-arg shape per
 /// arc 023. If `cond` is a canonical `BoolLit`, project to the chosen
@@ -13804,9 +13861,7 @@ fn is_match_canonical(form: &WatAST) -> bool {
                 let s = k.as_str();
                 if matches!(
                     s,
-                    ":wat::core::Option.Some"
-                        | ":wat::core::Result.Ok"
-                        | ":wat::core::Result.Err"
+                    ":wat::core::Option.Some" | ":wat::core::Result.Ok" | ":wat::core::Result.Err"
                 ) && items.len() >= 2
                 {
                     return items[1..].iter().all(is_match_canonical);
@@ -14348,14 +14403,22 @@ pub(crate) fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, Eva
 /// Parse a source string and evaluate all forms in sequence under the
 /// constrained-eval discipline. Returns the value of the last form
 /// (or Unit if the program was empty).
-pub(crate) fn parse_and_run(source: &str, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn parse_and_run(
+    source: &str,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let forms = parse_program(source, ":wat::eval-edn!")?;
     run_program(&forms, env, sym)
 }
 
 /// Run a sequence of pre-parsed forms under the constrained-eval
 /// discipline: each form has mutation heads refused before execution.
-pub(crate) fn run_program(forms: &[WatAST], env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn run_program(
+    forms: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let mut last = Value::Unit;
     for form in forms {
         last = run_constrained(form, env, sym)?;
@@ -14365,7 +14428,11 @@ pub(crate) fn run_program(forms: &[WatAST], env: &Environment, sym: &SymbolTable
 
 /// Refuse mutation forms in the given AST, then delegate to the
 /// normal `eval` dispatcher against the (frozen) symbol table.
-pub(crate) fn run_constrained(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+pub(crate) fn run_constrained(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     refuse_mutation_forms_in(ast)?;
     eval_inner(ast, env, sym).map(|tv| tv.value_owned())
 }
@@ -14481,22 +14548,24 @@ pub(crate) fn reply_failed_reason(v: &Value) -> Option<String> {
     // `message` String (arc 278 — Failure carries the error structurally; the Fault's
     // fields are [message, location, causes]).
     match e.fields.first() {
-        Some(Value::Aggregate(a)) if a.class.as_ref() == "wat::kernel::Failure" => match a.fields.first() {
-            // The `error` field: read its `message` (Fault field[0]).
-            Some(Value::Aggregate(err)) => match err.fields.first() {
-                Some(Value::String(s)) => Some((**s).clone()),
+        Some(Value::Aggregate(a)) if a.class.as_ref() == "wat::kernel::Failure" => {
+            match a.fields.first() {
+                // The `error` field: read its `message` (Fault field[0]).
+                Some(Value::Aggregate(err)) => match err.fields.first() {
+                    Some(Value::String(s)) => Some((**s).clone()),
+                    _ => Some(
+                        "service replied Reply::Failed (protocol-tier decode failure) with an \
+                     unreadable cause"
+                            .to_string(),
+                    ),
+                },
                 _ => Some(
                     "service replied Reply::Failed (protocol-tier decode failure) with an \
-                     unreadable cause"
+                 unreadable cause"
                         .to_string(),
                 ),
-            },
-            _ => Some(
-                "service replied Reply::Failed (protocol-tier decode failure) with an \
-                 unreadable cause"
-                    .to_string(),
-            ),
-        },
+            }
+        }
         Some(other) => Some(format!(
             "service replied Reply::Failed (protocol-tier decode failure); cause: {:?}",
             other
@@ -14581,8 +14650,8 @@ pub(crate) fn reply_failed_reason(v: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value::snapshot_call_stack;
     use crate::config::Config;
+    use crate::value::snapshot_call_stack;
     use std::sync::OnceLock;
 
     /// The stdlib is the standard library — always available, without
@@ -14764,7 +14833,8 @@ mod tests {
             other => panic!("StartupError cause must be a typed record; got {other:?}"),
         };
         assert_eq!(
-            agg.class.as_ref(), "wat::runtime::UnknownFunction",
+            agg.class.as_ref(),
+            "wat::runtime::UnknownFunction",
             "cause is the typed RuntimeError record"
         );
 
@@ -14782,7 +14852,11 @@ mod tests {
         // :location — a REAL located #wat.core/Span record, never nil.
         match field(1) {
             Value::Aggregate(loc) => {
-                assert_eq!(loc.class.as_ref(), "wat::core::Span", ":location is a typed Span")
+                assert_eq!(
+                    loc.class.as_ref(),
+                    "wat::core::Span",
+                    ":location is a typed Span"
+                )
             }
             other => panic!(":location must be a typed Span record (never nil); got {other:?}"),
         }
@@ -15164,18 +15238,9 @@ mod tests {
 
     #[test]
     fn f64_abs_handles_sign_and_zero() {
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::f64::abs 3.5)").unwrap()),
-            3.5
-        );
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::f64::abs -3.5)").unwrap()),
-            3.5
-        );
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::f64::abs 0.0)").unwrap()),
-            0.0
-        );
+        assert_eq!(expect_f64(eval_expr("(:wat::f64::abs 3.5)").unwrap()), 3.5);
+        assert_eq!(expect_f64(eval_expr("(:wat::f64::abs -3.5)").unwrap()), 3.5);
+        assert_eq!(expect_f64(eval_expr("(:wat::f64::abs 0.0)").unwrap()), 0.0);
     }
 
     #[test]
@@ -15247,10 +15312,7 @@ mod tests {
     #[test]
     fn math_exp_round_trips_with_ln() {
         // exp(0) == 1.0 exactly.
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::math::exp 0.0)").unwrap()),
-            1.0
-        );
+        assert_eq!(expect_f64(eval_expr("(:wat::math::exp 0.0)").unwrap()), 1.0);
         // exp(1) ≈ e.
         let v = expect_f64(eval_expr("(:wat::math::exp 1.0)").unwrap());
         assert!((v - std::f64::consts::E).abs() < 1e-12, "got {}", v);
@@ -15263,10 +15325,7 @@ mod tests {
     fn math_exp_accepts_i64_promotion() {
         // :wat::math:: permits i64 → f64 promotion (matches
         // ln/sin/cos siblings); :wat::core::f64 namespace does not.
-        assert_eq!(
-            expect_f64(eval_expr("(:wat::math::exp 0)").unwrap()),
-            1.0
-        );
+        assert_eq!(expect_f64(eval_expr("(:wat::math::exp 0)").unwrap()), 1.0);
     }
 
     #[test]
@@ -15329,8 +15388,7 @@ mod tests {
             Value::String(s) => format!("\"{}\"", s),
             _ => panic!("expected String"),
         };
-        let round =
-            expect_some(eval_expr(&format!("(:wat::string::to-i64 {})", s_lit)).unwrap());
+        let round = expect_some(eval_expr(&format!("(:wat::string::to-i64 {})", s_lit)).unwrap());
         assert_eq!(expect_i64(round), 12345);
     }
 
@@ -15702,7 +15760,8 @@ mod tests {
             Value::Result(r) => match &*r {
                 Err(err) => match err {
                     Value::Aggregate(sv)
-                        if sv.nature == Nature::Struct && sv.class.as_ref() == "wat::core::EvalError" =>
+                        if sv.nature == Nature::Struct
+                            && sv.class.as_ref() == "wat::core::EvalError" =>
                     {
                         let kind = match &sv.fields[0] {
                             Value::String(s) => (**s).clone(),
@@ -15814,8 +15873,7 @@ mod tests {
         // Old: (Atom (quote form)) — Atom accepted WatAST (polymorphic, now retired).
         // New: (from-wat (quote form)) — the honest directional verb.
         let result =
-            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2)))")
-                .unwrap();
+            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2)))").unwrap();
         assert!(matches!(result, Value::holon__HolonAST(_)));
     }
 
@@ -15845,8 +15903,8 @@ mod tests {
         // (leading colon stripped). Assertions flipped from as_symbol() to as_keyword().
         //
         // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST inputs.
-        let v = eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))")
-            .unwrap();
+        let v =
+            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))").unwrap();
         let h = match v {
             Value::holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
@@ -15955,8 +16013,8 @@ mod tests {
         // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
         //
         // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST (quoted form) inputs.
-        let v = eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))")
-            .unwrap();
+        let v =
+            eval_expr("(:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 40 2)))").unwrap();
         let h = match v {
             Value::holon__HolonAST(h) => h,
             other => panic!("expected Holon, got {:?}", other),
@@ -17450,8 +17508,10 @@ mod tests {
 
     #[test]
     fn take_more_than_length_returns_full_vec() {
-        match eval_expr("(:wat::core::into [] (:wat::core::take (:wat::core::Vector :- [:i64] 1 2) 99))")
-            .unwrap()
+        match eval_expr(
+            "(:wat::core::into [] (:wat::core::take (:wat::core::Vector :- [:i64] 1 2) 99))",
+        )
+        .unwrap()
         {
             Value::Vec(items) => assert_eq!(items.len(), 2),
             v => panic!("expected Vec, got {:?}", v),
@@ -17649,27 +17709,19 @@ mod tests {
 
     #[test]
     fn f64_max_of_picks_largest() {
-        let v = expect_some(
-            eval_expr("(:wat::f64::max-of -1.5 4.2 2.0 4.2 0.0)")
-                .unwrap(),
-        );
+        let v = expect_some(eval_expr("(:wat::f64::max-of -1.5 4.2 2.0 4.2 0.0)").unwrap());
         assert_eq!(expect_f64(v), 4.2);
     }
 
     #[test]
     fn f64_min_of_picks_smallest() {
-        let v = expect_some(
-            eval_expr("(:wat::f64::min-of -1.5 4.2 2.0 -1.5 0.0)")
-                .unwrap(),
-        );
+        let v = expect_some(eval_expr("(:wat::f64::min-of -1.5 4.2 2.0 -1.5 0.0)").unwrap());
         assert_eq!(expect_f64(v), -1.5);
     }
 
     #[test]
     fn f64_max_of_singleton_returns_single() {
-        let v = expect_some(
-            eval_expr("(:wat::f64::max-of 7.5)").unwrap(),
-        );
+        let v = expect_some(eval_expr("(:wat::f64::max-of 7.5)").unwrap());
         assert_eq!(expect_f64(v), 7.5);
     }
 
@@ -17924,8 +17976,8 @@ mod tests {
 
     #[test]
     fn assoc_arity_mismatch() {
-        let err =
-            eval_expr(r#"(:wat::core::assoc (:wat::core::HashMap :- [:String :i64]) "k")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::assoc (:wat::core::HashMap :- [:String :i64]) "k")"#)
+            .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18024,7 +18076,8 @@ mod tests {
 
     #[test]
     fn concat_non_vec_arg_rejected() {
-        let err = eval_expr(r#"(:wat::core::concat (:wat::core::Vector :- [:i64] 1) 42)"#).unwrap_err();
+        let err =
+            eval_expr(r#"(:wat::core::concat (:wat::core::Vector :- [:i64] 1) 42)"#).unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }))
         );
@@ -18106,8 +18159,8 @@ mod tests {
 
     #[test]
     fn dissoc_arity_mismatch() {
-        let err =
-            eval_expr(r#"(:wat::core::dissoc (:wat::core::HashMap :- [:String :i64]))"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::dissoc (:wat::core::HashMap :- [:String :i64]))"#)
+            .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18170,8 +18223,9 @@ mod tests {
 
     #[test]
     fn keys_arity_mismatch() {
-        let err = eval_expr(r#"(:wat::core::keys (:wat::core::HashMap :- [:String :i64]) "extra")"#)
-            .unwrap_err();
+        let err =
+            eval_expr(r#"(:wat::core::keys (:wat::core::HashMap :- [:String :i64]) "extra")"#)
+                .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18230,8 +18284,9 @@ mod tests {
 
     #[test]
     fn values_arity_mismatch() {
-        let err = eval_expr(r#"(:wat::core::values (:wat::core::HashMap :- [:String :i64]) "extra")"#)
-            .unwrap_err();
+        let err =
+            eval_expr(r#"(:wat::core::values (:wat::core::HashMap :- [:String :i64]) "extra")"#)
+                .unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -18438,7 +18493,9 @@ mod tests {
         // Arc 216.5a + 216.5b: Value: Hash + Eq is canonical; HashSet
         // storage is Arc<HashSet<Value>>. Composite elements are accepted
         // natively — the pre-antidote "primitives-only" restriction is gone.
-        let result = eval_expr(r#"(:wat::core::HashSet :- [(:wat::core::Vector :- [:i64])] (:wat::core::Vector :- [:i64] 1 2))"#);
+        let result = eval_expr(
+            r#"(:wat::core::HashSet :- [(:wat::core::Vector :- [:i64])] (:wat::core::Vector :- [:i64] 1 2))"#,
+        );
         assert!(
             result.is_ok(),
             "composite element should construct HashSet; got {:?}",
@@ -18661,7 +18718,8 @@ mod tests {
 
     #[test]
     fn seq_remove_at_on_vector_drops_the_index() {
-        match eval_expr("(:wat::seq::remove-at (:wat::core::Vector :- [:i64] 10 20 30) 1)").unwrap() {
+        match eval_expr("(:wat::seq::remove-at (:wat::core::Vector :- [:i64] 10 20 30) 1)").unwrap()
+        {
             Value::Vec(items) => {
                 let ns: Vec<i64> = items
                     .iter()
@@ -19102,7 +19160,10 @@ mod tests {
             show_str("(:wat::core::show (:wat::core::Option.Some {:value 1}))"),
             "(Some 1)"
         );
-        assert_eq!(show_str("(:wat::core::show :wat::core::Option.None)"), ":None");
+        assert_eq!(
+            show_str("(:wat::core::show :wat::core::Option.None)"),
+            ":None"
+        );
         assert_eq!(
             show_str(r#"(:wat::core::show (:wat::core::Result.Ok {:value "hi"}))"#),
             "(Ok \"hi\")"
@@ -20883,10 +20944,7 @@ mod tests {
             "wat::core::i64"
         );
         assert_eq!(
-            expect_string(
-                eval_expr("(:wat::keyword::to-string :wat::core::Vector)")
-                    .unwrap()
-            ),
+            expect_string(eval_expr("(:wat::keyword::to-string :wat::core::Vector)").unwrap()),
             "wat::core::Vector"
         );
     }
@@ -20917,16 +20975,12 @@ mod tests {
         let cases = [
             (":foo", "foo"),
             (":wat::core::i64", "wat::core::i64"),
-            (
-                ":wat::kernel::Receiver",
-                "wat::kernel::Receiver",
-            ),
+            (":wat::kernel::Receiver", "wat::kernel::Receiver"),
         ];
         for (kw, expected_text) in &cases {
             // to-string strips colon
-            let text = expect_string(
-                eval_expr(&format!("(:wat::keyword::to-string {})", kw)).unwrap(),
-            );
+            let text =
+                expect_string(eval_expr(&format!("(:wat::keyword::to-string {})", kw)).unwrap());
             assert_eq!(&text, expected_text, "to-string({}) should strip ':'", kw);
             // from-string(to-string(k)) == k
             let roundtrip = eval_expr(&format!(
@@ -21225,8 +21279,9 @@ mod tests {
     fn walk_compare_bool(src: &str) -> bool {
         let clause = crate::parse_one!(src).expect("parse");
         let sym = SymbolTable::new();
-        let (passed, _env) = crate::reflect::r#match::walk_match_clause(&clause, &[], &[], Environment::new(), &sym)
-            .expect("walk_match_clause");
+        let (passed, _env) =
+            crate::reflect::r#match::walk_match_clause(&clause, &[], &[], Environment::new(), &sym)
+                .expect("walk_match_clause");
         passed
     }
 
