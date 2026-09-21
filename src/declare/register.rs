@@ -1086,137 +1086,35 @@ pub fn register_aggregate_methods(
             // colon-free (e.g., `"myapp::Voltage"`). `agg.name` = `":myapp::Voltage"`.
             let class_no_colon = agg.name.trim_start_matches(':').to_string();
 
-            let accessor_body = if use_class_check {
-                // Build:
-                //   (:wat::core::Record/field-at
-                //     (:wat::core::Option/expect
-                //       (:wat::core::if
-                //         (:wat::core::= (:wat::core::type self) "<class-no-colon>")
-                //         -> (:wat::core::Option :- [:wat::core::Record])
-                //         (:wat::core::Some self)
-                //         :wat::core::None)
-                //       (:wat::string::concat "<msg-prefix>" (:wat::core::type self)))
-                //     <own_idx>)
-                let msg_prefix = format!(
-                    "{}/{}: expected receiver of class {}, got class :",
-                    agg.name, field_name, agg.name
-                );
-                WatAST::List(
-                    vec![
-                        WatAST::Keyword(
-                            ":wat::core::Record/field-at".into(),
-                            crate::rust_caller_span!(),
-                        ),
-                        WatAST::List(
-                            vec![
-                                WatAST::Keyword(
-                                    ":wat::core::Option/expect".into(),
-                                    crate::rust_caller_span!(),
-                                ),
-                                // if-form: (if cond -> :Type then else)
-                                WatAST::List(
-                                    vec![
-                                        WatAST::Keyword(
-                                            ":wat::core::if".into(),
-                                            crate::rust_caller_span!(),
-                                        ),
-                                        // condition: (= (type self) "class-no-colon")
-                                        WatAST::List(
-                                            vec![
-                                                WatAST::Keyword(
-                                                    ":wat::core::=".into(),
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                                WatAST::List(
-                                                    vec![
-                                                        WatAST::Keyword(
-                                                            ":wat::core::type".into(),
-                                                            crate::rust_caller_span!(),
-                                                        ),
-                                                        WatAST::Symbol(
-                                                            crate::scope::Identifier::bare("self"),
-                                                            crate::rust_caller_span!(),
-                                                        ),
-                                                    ],
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                                WatAST::StringLit(
-                                                    class_no_colon,
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                            ],
-                                            crate::rust_caller_span!(),
-                                        ),
-                                        // then: (:wat::core::Option::Some {:value self})
-                                        WatAST::List(
-                                            vec![
-                                                WatAST::Keyword(
-                                                    ":wat::core::Option.Some".into(),
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                                WatAST::Map(
-                                                    vec![(
-                                                        WatAST::Keyword(
-                                                            ":value".into(),
-                                                            crate::rust_caller_span!(),
-                                                        ),
-                                                        WatAST::Symbol(
-                                                            crate::scope::Identifier::bare("self"),
-                                                            crate::rust_caller_span!(),
-                                                        ),
-                                                    )],
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                            ],
-                                            crate::rust_caller_span!(),
-                                        ),
-                                        // else: (:wat::core::Option::None {})
-                                        WatAST::List(
-                                            vec![
-                                                WatAST::Keyword(
-                                                    ":wat::core::Option.None".into(),
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                                WatAST::Map(vec![], crate::rust_caller_span!()),
-                                            ],
-                                            crate::rust_caller_span!(),
-                                        ),
-                                    ],
-                                    crate::rust_caller_span!(),
-                                ),
-                                // message: (string::concat msg_prefix (type self))
-                                WatAST::List(
-                                    vec![
-                                        WatAST::Keyword(
-                                            ":wat::string::concat".into(),
-                                            crate::rust_caller_span!(),
-                                        ),
-                                        WatAST::StringLit(msg_prefix, crate::rust_caller_span!()),
-                                        WatAST::List(
-                                            vec![
-                                                WatAST::Keyword(
-                                                    ":wat::core::type".into(),
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                                WatAST::Symbol(
-                                                    crate::scope::Identifier::bare("self"),
-                                                    crate::rust_caller_span!(),
-                                                ),
-                                            ],
-                                            crate::rust_caller_span!(),
-                                        ),
-                                    ],
-                                    crate::rust_caller_span!(),
-                                ),
-                            ],
-                            crate::rust_caller_span!(),
-                        ),
-                        WatAST::IntLit(own_idx as i64, crate::rust_caller_span!()),
-                    ],
-                    crate::rust_caller_span!(),
-                )
-            } else {
-                // Struct or generic Record/HolonRecord: bare struct-field (type system enforces).
+            // Arc the-little-wat/accessor — the class check stays; the ERROR MESSAGE stops
+            // being built on the success path.
+            //
+            // The old body handed `(:wat::string::concat <prefix> (:wat::core::type self))` to
+            // `:wat::core::Option/expect`, which is `#[wat_intrinsic]`, not
+            // `#[wat_special_form]` — so both of its arguments are evaluated by ordinary
+            // call-by-value. That made a SECOND `type` call and a string concatenation run on
+            // every SUCCESSFUL field read, and then discarded them.
+            //
+            // Measured, ns per field read (min of 3, 20k x 10 reads, against an empty-loop
+            // control of the same shape; `the-little-wat` bench, the same method as its F-096):
+            //
+            //     struct-field alone ............ 1761   <- what a struct and a GENERIC record get
+            //     + the class check ............. 2146
+            //     + the eager message ........... 8650
+            //     the shipped accessor .......... 9238   (control: lands on the line above)
+            //     THIS BODY ..................... 2211   <- 4.2x
+            //
+            // So the check was never the cost: it is ~1.0 us, and the discarded message was
+            // ~5.8 us, 80% of the overhead. `:wat::core::if` IS a `#[wat_special_form]`, so
+            // putting the whole failure expression in the else arm makes it lazy — the error
+            // text, the `Option`, and the second `type` call are now built only when the
+            // receiver really is the wrong class. The diagnostic is byte-for-byte what it was.
+            //
+            // The remaining ~450 ns over a bare `struct-field` is the check itself, and it is
+            // here only because this accessor's parameter is typed `:wat::core::Record` for
+            // backward compatibility. Give it the specific record type — as Struct and generic
+            // Record/HolonRecord accessors already have — and `use_class_check` deletes.
+            let field_read = || {
                 WatAST::List(
                     vec![
                         WatAST::Keyword(
@@ -1231,6 +1129,93 @@ pub fn register_aggregate_methods(
                     ],
                     crate::rust_caller_span!(),
                 )
+            };
+            let accessor_body = if use_class_check {
+                let msg_prefix = format!(
+                    "{}/{}: expected receiver of class {}, got class :",
+                    agg.name, field_name, agg.name
+                );
+                let type_of_self = || {
+                    WatAST::List(
+                        vec![
+                            WatAST::Keyword(
+                                ":wat::core::type".into(),
+                                crate::rust_caller_span!(),
+                            ),
+                            WatAST::Symbol(
+                                crate::scope::Identifier::bare("self"),
+                                crate::rust_caller_span!(),
+                            ),
+                        ],
+                        crate::rust_caller_span!(),
+                    )
+                };
+                // (:wat::core::= (:wat::core::type self) "<class-no-colon>")
+                let cond = WatAST::List(
+                    vec![
+                        WatAST::Keyword(":wat::core::=".into(), crate::rust_caller_span!()),
+                        type_of_self(),
+                        WatAST::StringLit(class_no_colon, crate::rust_caller_span!()),
+                    ],
+                    crate::rust_caller_span!(),
+                );
+                // (:wat::string::concat "<msg-prefix>" (:wat::core::type self)) — else arm only
+                let message = WatAST::List(
+                    vec![
+                        WatAST::Keyword(
+                            ":wat::string::concat".into(),
+                            crate::rust_caller_span!(),
+                        ),
+                        WatAST::StringLit(msg_prefix, crate::rust_caller_span!()),
+                        type_of_self(),
+                    ],
+                    crate::rust_caller_span!(),
+                );
+                // (:wat::core::Record/field-at
+                //   (:wat::core::Option/expect (:wat::core::Option.None {}) <message>)
+                //   <own_idx>)
+                let raise = WatAST::List(
+                    vec![
+                        WatAST::Keyword(
+                            ":wat::core::Record/field-at".into(),
+                            crate::rust_caller_span!(),
+                        ),
+                        WatAST::List(
+                            vec![
+                                WatAST::Keyword(
+                                    ":wat::core::Option/expect".into(),
+                                    crate::rust_caller_span!(),
+                                ),
+                                WatAST::List(
+                                    vec![
+                                        WatAST::Keyword(
+                                            ":wat::core::Option.None".into(),
+                                            crate::rust_caller_span!(),
+                                        ),
+                                        WatAST::Map(vec![], crate::rust_caller_span!()),
+                                    ],
+                                    crate::rust_caller_span!(),
+                                ),
+                                message,
+                            ],
+                            crate::rust_caller_span!(),
+                        ),
+                        WatAST::IntLit(own_idx as i64, crate::rust_caller_span!()),
+                    ],
+                    crate::rust_caller_span!(),
+                );
+                WatAST::List(
+                    vec![
+                        WatAST::Keyword(":wat::core::if".into(), crate::rust_caller_span!()),
+                        cond,
+                        field_read(),
+                        raise,
+                    ],
+                    crate::rust_caller_span!(),
+                )
+            } else {
+                // Struct or generic Record/HolonRecord: bare struct-field (type system enforces).
+                field_read()
             };
             let accessor_func = Function {
                 name: Some(accessor_path.clone()),
