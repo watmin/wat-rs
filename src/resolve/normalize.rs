@@ -158,11 +158,10 @@ fn normalize_form(
                 return WatAST::List(new_items, span);
             }
             let new_items = match boundary {
-                // Ordinary call: every child is live code — rewrite throughout.
-                Boundary::Ordinary => items
-                    .into_iter()
-                    .map(|c| normalize_form(c, sym, macros, errors))
-                    .collect(),
+                // Ordinary call: 255.5 — a child after a return arrow is a
+                // type slot (`also_accept_type`); items[1] of a declare form
+                // is a name, not a reference.
+                Boundary::Ordinary => normalize_ordinary_list(items, sym, macros, errors),
                 // quote / forms / define: every argument is data. A quoted
                 // `(wat.core/+ ...)` must keep its symbol, not be rewritten.
                 Boundary::AllData => items,
@@ -182,12 +181,10 @@ fn normalize_form(
             WatAST::List(new_items, span)
         }
 
-        // Vector: recurse uniformly (no boundary guards needed).
+        // Vector: a child after a param-annotation arrow (`<-` / `:-`) is a
+        // type slot. Other children are ordinary (match-arm bodies, value vecs).
         WatAST::Vector(items, span) => {
-            let new_items = items
-                .into_iter()
-                .map(|c| normalize_form(c, sym, macros, errors))
-                .collect();
+            let new_items = normalize_vector_items(items, sym, macros, errors);
             WatAST::Vector(new_items, span)
         }
 
@@ -217,6 +214,126 @@ fn normalize_form(
         // Leaf nodes (and a bare Symbol without `/`) carry no namespaced symbol
         // ref to rewrite — pass through unchanged.
         other => other,
+    }
+}
+
+/// Ordinary list children: type slots after a return arrow; name slot at
+/// items[1] of a declare-role form. Derived from `is_return_arrow` and
+/// `is_declare_role_head` — not a form list.
+fn normalize_ordinary_list(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut iter = items.into_iter();
+    let Some(head) = iter.next() else {
+        return out;
+    };
+    let new_head = normalize_form(head, sym, macros, errors);
+    let is_declare = match &new_head {
+        WatAST::Keyword(k, _) => crate::intrinsic::is_declare_role_head(k),
+        _ => false,
+    };
+    out.push(new_head);
+    let mut prev_return_arrow = false;
+    for (idx, c) in (1usize..).zip(iter) {
+        let this_return_arrow = crate::types::is_return_arrow(&c);
+        let new = if is_declare && idx == 1 {
+            normalize_name_slot(c, sym, macros, errors)
+        } else if prev_return_arrow {
+            normalize_type_slot(c, sym, macros, errors)
+        } else {
+            normalize_form(c, sym, macros, errors)
+        };
+        out.push(new);
+        prev_return_arrow = this_return_arrow;
+    }
+    out
+}
+
+/// Vector children: the sibling after `<-` / `:-` is a type annotation.
+fn normalize_vector_items(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut prev_ann = false;
+    for c in items {
+        let this_ann = crate::types::is_param_annotation_arrow(&c);
+        let new = if prev_ann {
+            normalize_type_slot(c, sym, macros, errors)
+        } else {
+            normalize_form(c, sym, macros, errors)
+        };
+        out.push(new);
+        prev_ann = this_ann;
+    }
+    out
+}
+
+/// A type slot — annotation, return, nested parametric arg, tuple element.
+/// The ONE door: `also_accept_type = true`.
+fn normalize_type_slot(
+    node: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    match node {
+        WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
+            match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, true) {
+                Ok(kw) => kw,
+                Err(e) => {
+                    errors.push(e);
+                    node
+                }
+            }
+        }
+        WatAST::List(items, span)
+            if items.len() >= 3 && crate::types::peel_param_spec(&items[1..]).0.is_some() =>
+        {
+            WatAST::List(
+                normalize_type_binder_form(items, sym, macros, errors),
+                span,
+            )
+        }
+        WatAST::List(items, span) => {
+            let new_items = items
+                .into_iter()
+                .map(|c| normalize_type_slot(c, sym, macros, errors))
+                .collect();
+            WatAST::List(new_items, span)
+        }
+        WatAST::Vector(items, span) => {
+            let new_items = items
+                .into_iter()
+                .map(|c| normalize_type_slot(c, sym, macros, errors))
+                .collect();
+            WatAST::Vector(new_items, span)
+        }
+        other => normalize_form(other, sym, macros, errors),
+    }
+}
+
+/// Declaration name: rewrite to the identity keyword. Not a reference,
+/// not a type slot — do not ask `is_resolvable_call_head`.
+fn normalize_name_slot(
+    node: WatAST,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> WatAST {
+    match node {
+        WatAST::Symbol(ref ident, ref span) if ident.is_reference() => {
+            let namespace = wat_reader::identifier::receiver(ident.as_str());
+            let local_name = wat_reader::identifier::method(ident.as_str());
+            WatAST::Keyword(ns_to_wat_path(namespace, local_name), span.clone())
+        }
+        other => normalize_form(other, sym, macros, errors),
     }
 }
 
@@ -525,9 +642,11 @@ fn resolve_namespaced_symbol(
     // Arc 255 Stone ⑤-E — `:wat::type::` is a TYPE-ONLY namespace: a name under
     // it is never a call head, in ANY position, so it is asked the TYPE
     // question regardless of `also_accept_type`. The namespace IS the
-    // position; `normalize` carries no position context and needs none. Routed
-    // through the same one door (`TypeEnv::is_known_type`) so the
-    // `:wat::type::` → `:wat::core::` canonicalization is never reimplemented.
+    // position for wat.type. Other type namespaces (`wat`, `wat.core`,
+    // `wat.time`, `wat.rete`) also hold functions, so they need the flag
+    // (255.5). Routed through the same one door (`TypeEnv::is_known_type`) so
+    // the `:wat::type::` → `:wat::core::` canonicalization is never
+    // reimplemented.
     if primary.starts_with(":wat::type::")
         && sym.types().is_some_and(|types| types.is_known_type(&primary))
     {
@@ -590,9 +709,9 @@ fn normalize_type_binder_form(
 /// skipping call-head validation let `(my.app/totally-bogus :- [i64] 1)`
 /// through silently).
 ///
-/// Widened in THIS position only, via `resolve_namespaced_symbol`'s
-/// `also_accept_type` flag — never inside the ordinary Symbol arm above, where
-/// a type is not a legal call target.
+/// Widened via `resolve_namespaced_symbol`'s `also_accept_type` flag —
+/// binder heads (Stone ②) and 255.5 type slots (annotation, return,
+/// nested parametric args, tuple elements). Call position stays `false`.
 fn normalize_type_binder_head(
     head: WatAST,
     sym: &SymbolTable,

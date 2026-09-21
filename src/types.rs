@@ -4824,6 +4824,12 @@ pub(crate) fn is_return_arrow(node: &WatAST) -> bool {
     node.is_bare_symbol("->") || is_binder_marker(node)
 }
 
+/// Param-spec annotation arrow: `<-` or `:-`. The same predicate
+/// `argspec::parse_triple` uses — one door for "the next sibling is a type".
+pub(crate) fn is_param_annotation_arrow(node: &WatAST) -> bool {
+    node.is_bare_symbol("<-") || is_binder_marker(node)
+}
+
 /// STONE-finish-the-param-spec (arc 109) — the ONE door that peels the
 /// `(marker, [types], rest…)` TRIPLE. `is_binder_marker`, just above, answers
 /// only *"is this node `:-`"*; every consumer that also needed the type list

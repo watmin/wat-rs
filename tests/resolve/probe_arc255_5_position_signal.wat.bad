@@ -1,0 +1,3 @@
+;; 255.5 negative control — a type in CALL position must still fail.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (wat.time/Instant))
