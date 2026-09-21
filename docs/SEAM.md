@@ -207,6 +207,31 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.3 LANDED 2026-09-21 — the join. ⭐ **DELTA 97 → 80, NET −17** (first real movement)
+
+Floor 5937/5937, clippy 0, census clean, 0 `.wat` converted, test +1.
+⭐ **Two trees, identical net:** executor 101 → 84, orchestrator 97 → 80. Arc so far: **104 → 97 → 80.**
+`unresolved reference` **68 → 47**.
+
+**What landed:** `types::reconstruct_call_path` asks the registry whether the namespace's last
+segment is a TYPE and joins with `/` when it is — ⛔ **not capitalisation**. Routed through
+`resolve/normalize.rs` and `macros/expand.rs`. `ns_to_wat_path` unchanged (cannot import TypeEnv —
+cycle), so **call** reconstruction asks the registry while type *names* stay `::`.
+⭐ **This is why the registry had to come first:** the question *"is the last segment a type?"* only
+became answerable when `wat.type` got members in 255.1.
+
+⛔ **2 newly broken, and the cause is the finding:** both on `:wat::core::Bytes/to-hex`. **The
+member's join is a SECOND registry fact.** Measured corpus-wide: **4,501 `Type/method` vs 83
+`Type::method`** — the door is right 98.2% and wrong for a legacy minority, and both look identical
+to "is the last segment a type?".
+
+⭐ **BUILDER'S QUESTION FOR 255.4 — why are there two member joins at all?** 4,501 vs 83 is drift,
+not design. (1) teach the door the second fact, keeping both spellings forever; or (2) **unify the
+registry on one join**, deleting the question. The campaign's standing preference is the no-form rung.
+
+**Not started:** the position grammar (`:wat::WatAST` 79 occurrences + declaration names). The
+executor STOPPED after step 1 as instructed, so the two causes stay attributable.
+
 ### ✅ 255.2 LANDED 2026-09-21 — the arrow door. **Delta FLAT at 97. 8d still blocked.**
 
 Floor 5936/5936, clippy 0, census clean, 0 `.wat` converted, test delta +0.
