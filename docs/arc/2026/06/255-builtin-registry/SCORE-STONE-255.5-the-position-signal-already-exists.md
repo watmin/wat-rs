@@ -91,3 +91,67 @@ Predicted **+2**. `cargo nextest list --release -p wat`: **5319** (was 5317).
 - `probe_arc255_5_position_signal` (accept + call-position refuse) — pass
 
 Floor / workspace clippy / census: orchestrator. Do not push. Do not start 8d-ii.
+
+---
+
+# ORCHESTRATOR'S WEIGH — independent re-run, 2026-09-21. **ACCEPTED.**
+
+| row | result |
+|---|---|
+| `scripts/floor.sh` | ✅ **5941/5941 passed**, exit 0 |
+| clippy `-D warnings --all-targets --workspace` | ✅ **0** |
+| `census.sh --diff` | ✅ `no STOP-8` |
+| no corpus `.wat` converted | ✅ |
+| ⭐ **THE DELTA — my tree, like-for-like** | **77 → 64. NET −13.** |
+
+**Arc: 104 → 97 → 80 → 77 → 64.** Two trees again agree on the direction and closely on the net
+(executor 81 → 66 = −15; orchestrator 77 → 64 = −13).
+
+**Classification (64):** `unresolved reference` **21** (was 44) · `ReteCheckErrors` 21 ·
+`defsurface` 8 · `ProgramBodyEvalFailed` 3 · `UnknownNamedType` 1.
+
+⭐ **`:wat::WatAST` — 65 occurrences, the single largest path in the arc — is GONE**, along with
+`Instant` / `Overlay` / `HolonAST` as annotation URs. `unresolved reference` has more than halved.
+
+## ⭐ THE NON-VACUITY CONTROL HELD — the widening did not leak
+
+This stone **loosens** a check, so the row that mattered was proof it did not loosen everything.
+Measured on the built binary, **call** position:
+
+```
+(wat.time/Instant)  → UnresolvedReference
+(wat/WatAST)        → UnresolvedReference
+(wat.core/i64)      → UnresolvedReference
+```
+
+⭐ **A type is now accepted where a type belongs and still refused where it does not.** That is the
+whole claim of the stone, and it is measured rather than asserted.
+
+## ⭐ THE METHOD IS WHAT MADE THIS ARC WORK — recorded for the next one
+
+The class closed here is the one 255.2 attacked with **three predicates over leaves**, each of which
+**raised** the count (116 · 108 · 114). The cure was not a cleverer predicate — it was noticing that
+**the signal already existed and was set for exactly one slot**.
+
+| stone | what it added | delta |
+|---|---|---|
+| 255.1 | identity is the pair; `wat.type` gets members | 104 → 97 |
+| 255.2 | the arrow door — **and three measured dead ends** | 97 → 97 |
+| 255.3 | the registry decides the join — *needed 255.1's members* | 97 → 80 |
+| 255.4 | one member join; retirement teaches | 80 → 77 |
+| **255.5** | **wire the existing position flag to the slots that need it** | **77 → 64** |
+
+⛔ **255.2 looks like the stone that did nothing and is the one that made 255.5 possible.** Its
+*negative* result — "a predicate over leaves cannot do this" — is what stopped a fourth predicate
+being tried and pointed at the layer where the answer was.
+
+## Residue (64) — what 8d still needs
+
+| cause | n | note |
+|---|---|---|
+| `ReteCheckErrors` | **21** | ⚠ **now the largest class.** Never classified — *"classify before assuming"* still stands |
+| `unresolved reference` | 21 | declaration names (`probe-homog`), functions (`mem-store::start`), `rete::core::defn`, and ⚠ `not-a-special-form` ×3 which is a **deliberate negative-test name and should stay** |
+| `defsurface` | 8 | the `:messages` completeness slot, not the arrow |
+| `ProgramBodyEvalFailed` · `UnknownNamedType` | 4 | gap-2 tail |
+
+**VERDICT: ACCEPTED.**

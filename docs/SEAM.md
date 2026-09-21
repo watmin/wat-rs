@@ -207,6 +207,27 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.5 LANDED 2026-09-21 — the position flag. ⭐ **Delta 77 → 64.** Arc: **104→97→80→77→64**
+
+Floor 5941/5941, clippy 0, census clean, no corpus `.wat` converted.
+⭐ **`:wat::WatAST` — 65 occurrences, the arc's single largest path — is GONE**; `unresolved
+reference` **44 → 21**.
+**The cure was not a new mechanism:** `normalize.rs` already had `also_accept_type` and a general
+`is_known_type` acceptance behind it — **set for exactly ONE slot** (`normalize_type_binder_head`).
+Annotation slots travelled the general walk with `false`, so a known type was asked the *reference*
+question. The stone wires the existing flag to the type slots.
+⭐ **Non-vacuity control HELD:** `(wat.time/Instant)`, `(wat/WatAST)`, `(wat.core/i64)` are **still
+refused in CALL position**. The widening did not leak.
+
+⛔ **THE ARC'S METHOD, worth carrying forward:** 255.2 moved the count by **zero** and is the stone
+that made 255.5 possible — its *negative* result ("a predicate over leaves cannot do this", three
+attempts at 116/108/114) stopped a fourth predicate and named the layer. And 255.3 needed 255.1's
+`wat.type` members to ask "is the last segment a type?" at all.
+
+**Residue (64):** ⚠ `ReteCheckErrors` **21 — now the largest class, never classified** ·
+`unresolved reference` 21 (declaration names, functions, and `not-a-special-form` ×3 which is a
+deliberate negative-test name) · `defsurface` 8 (`:messages` slot) · gap-2 tail 4.
+
 ### ✅ 255.4 LANDED 2026-09-21 — ONE member join. **Delta 80 → 77.** Arc: **104 → 97 → 80 → 77**
 
 Floor 5939/5939, clippy 0, census clean. **`Type/member`, always** — builder's Option 2 (4-YES).
