@@ -606,9 +606,8 @@ pub(crate) fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, A
         _ => return None,
     };
     // Arrow check.
-    match &fn_items[2] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => return None,
+    if !crate::types::is_return_arrow(&fn_items[2]) {
+        return None;
     }
     // Return type.
     let ret_type = match &fn_items[3] {
@@ -742,9 +741,8 @@ pub(crate) fn try_parse_user_variadic_def_fn_form(
         return Ok(None);
     }
     // Arrow check.
-    match &fn_items[2] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => return Ok(None),
+    if !crate::types::is_return_arrow(&fn_items[2]) {
+        return Ok(None);
     }
     // Return type.
     let ret_type = match &fn_items[3] {

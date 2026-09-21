@@ -160,21 +160,18 @@ pub(crate) fn eval_holon_from_holon(
     // When args.len() == 3: args[0] = holon expr, args[1] = `->` symbol, args[2] = type keyword.
     let _hint_is_hashmap = if args.len() == 3 {
         // Validate `->` symbol.
-        match &args[1] {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-            other => {
-                return Err(RuntimeError::new(
-                    other.span().clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!(
-                            "expected `->` at position 2 for type annotation; got {}",
-                            other.variant_name()
-                        ),
-                    },
-                )
-                .into());
-            }
+        if !crate::types::is_return_arrow(&args[1]) {
+            return Err(RuntimeError::new(
+                args[1].span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "expected `->` or `:-` at position 2 for type annotation; got {}",
+                        args[1].variant_name()
+                    ),
+                },
+            )
+            .into());
         }
         // Check if the type keyword starts with :wat::core::HashMap.
         // Keywords include the leading colon in their value (":wat::core::HashMap").

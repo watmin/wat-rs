@@ -4774,6 +4774,12 @@ pub(crate) fn is_binder_marker(node: &WatAST) -> bool {
     wat_reader::is_binder_marker(node)
 }
 
+/// Annotation arrow: the legacy `->` symbol or the `:-` binder. Any slot
+/// that accepted exactly one must accept both (255.2).
+pub(crate) fn is_return_arrow(node: &WatAST) -> bool {
+    node.is_bare_symbol("->") || is_binder_marker(node)
+}
+
 /// STONE-finish-the-param-spec (arc 109) — the ONE door that peels the
 /// `(marker, [types], rest…)` TRIPLE. `is_binder_marker`, just above, answers
 /// only *"is this node `:-`"*; every consumer that also needed the type list

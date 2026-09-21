@@ -354,22 +354,19 @@ fn parse_method_member_sig(
         }
     };
 
-    // Item 2 (of `rest`): `->` arrow Symbol.
-    match &rest[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(TypeError::new(
-                other.span().clone(),
-                TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: format!(
-                        "expected `->` symbol after argspec in method member `{}`; got {}",
-                        method_name,
-                        other.variant_name()
-                    ),
-                },
-            ))
-        }
+    // Item 2 (of `rest`): annotation arrow (`->` or `:-`).
+    if !crate::types::is_return_arrow(&rest[1]) {
+        return Err(TypeError::new(
+            rest[1].span().clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: format!(
+                    "expected `->` or `:-` after argspec in method member `{}`; got {}",
+                    method_name,
+                    rest[1].variant_name()
+                ),
+            },
+        ));
     }
 
     // Item 3 (of `rest`): the return TYPE.

@@ -190,8 +190,7 @@ pub(in crate::function) fn parse_fn_signature_prefix(
     // dual-read alias for the legacy `->` return arrow. The `->` arrow HARD-CUTs at
     // 251.5. (This is the fn-SIGNATURE arrow at sig[1], distinct from the `->`
     // threading-macro call head and from the `:->` fn-TYPE arrow of 251.4c.)
-    let is_annotation_arrow =
-        sig[1].is_bare_symbol("->") || crate::types::is_binder_marker(&sig[1]);
+    let is_annotation_arrow = crate::types::is_return_arrow(&sig[1]);
     if !is_annotation_arrow {
         return Err(ParseStep {
             span: sig[1].span().clone(),
@@ -800,7 +799,7 @@ pub(crate) fn parse_defclause_form(
         let after_name = &items[2..];
         if after_name.len() >= 2 {
             match (&after_name[0], &after_name[1]) {
-                (WatAST::Symbol(s, _), WatAST::Keyword(k, _)) if s.as_str() == "->" => {
+                (arrow, WatAST::Keyword(k, _)) if crate::types::is_return_arrow(arrow) => {
                     let ret = parse_type_keyword(k)?;
                     (Some(ret), 4usize) // items[0]=head items[1]=name items[2]='-> items[3]=:T items[4..]=clauses
                 }
@@ -1201,7 +1200,7 @@ pub(crate) fn parse_extend_type_form(
         // If body_items starts with Symbol("->") followed by a Keyword, strip them and
         // capture the return type; otherwise use :nil as the placeholder (protocol path).
         let (body_forms, clause_return_type) = if body_items.len() >= 3
-            && matches!(&body_items[0], WatAST::Symbol(arrow, _) if arrow.as_str() == "->")
+            && crate::types::is_return_arrow(&body_items[0])
         {
             match &body_items[1] {
                 WatAST::Keyword(ret_kw, _) => {

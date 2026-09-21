@@ -474,7 +474,7 @@ fn collect_entry_file_inner(
                 if head.starts_with(":wat::config::")
                     && head.ends_with('!')
                     // rune:lint(one-variant-separator, namespace) — last segment of a config setter head, not a variant
-                    && wat_reader::identifier::leaf(head).starts_with("set-") =>
+                    && wat_reader::identifier::leaf(&head).starts_with("set-") =>
             {
                 head.to_string()
             }
@@ -753,10 +753,11 @@ fn collect_entry_file_inner(
 /// If `form` is a `WatAST::List` whose first element is a `Keyword`,
 /// return that keyword's string. Otherwise return `None` (signaling
 /// "not a setter-shaped form").
-fn setter_head_of(form: &WatAST) -> Option<&str> {
+fn setter_head_of(form: &WatAST) -> Option<String> {
     match form {
         WatAST::List(items, _) => match items.first()? {
-            WatAST::Keyword(k, _) => Some(k),
+            WatAST::Keyword(k, _) => Some(crate::edn::render::canonical_identity(k)),
+            WatAST::Symbol(id, _) => Some(crate::edn::render::canonical_identity(id.as_str())),
             _ => None,
         },
         _ => None,

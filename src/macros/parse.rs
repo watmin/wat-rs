@@ -170,9 +170,9 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         }
     };
 
-    // Arrow symbol `->` must follow argspec.
-    if !arrow_item.is_bare_symbol("->") {
-        return Err(MacroError { span: arrow_item.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected `->` symbol after argspec Vector".into() } });
+    // Annotation arrow (`->` or `:-`) must follow argspec.
+    if !crate::types::is_return_arrow(&arrow_item) {
+        return Err(MacroError { span: arrow_item.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected `->` or `:-` after argspec Vector".into() } });
     }
 
     // Return-type keyword.
