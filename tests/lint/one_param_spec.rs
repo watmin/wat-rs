@@ -111,6 +111,11 @@ fn only_types_rs_peels_a_param_spec() {
         if rel.ends_with("src/types.rs") {
             continue;
         }
+        // Shared node test: wat-source-derive cannot import `wat` (cycle).
+        // `types::is_binder_marker` wraps this; peel_param_spec stays in types.rs.
+        if rel.ends_with("crates/wat-reader/src/ast.rs") {
+            continue;
+        }
         let Ok(src) = std::fs::read_to_string(f) else { continue };
 
         for (idx, line) in src.lines().enumerate() {

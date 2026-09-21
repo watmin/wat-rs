@@ -611,29 +611,31 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             reason: ":nature needs a value keyword".into(),
         },
     ))?;
-    let nature_val = match &val_node {
-        WatAST::Keyword(v, _) => match Nature::from_root_keyword(v.as_str()) {
-            Some(h) => h,
-            None => return Err(TypeError::new(
-                val_node.span().clone(),
-                TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: format!(
-                        ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer); got {}",
-                        v
-                    ),
-                },
-            )),
-        },
+    let nature_raw = match &val_node {
+        WatAST::Keyword(v, _) => v.as_str(),
+        WatAST::Symbol(id, _) => id.as_str(),
         other => {
             return Err(TypeError::new(
                 other.span().clone(),
                 TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
-                    reason: ":nature value must be a keyword (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer)".into(),
+                    reason: ":nature value must be a keyword or namespaced symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, :wat::kernel::Peer, or wat.kernel/Peer)".into(),
                 },
             ));
         }
+    };
+    let nature_val = match Nature::from_root_keyword(nature_raw) {
+        Some(h) => h,
+        None => return Err(TypeError::new(
+            val_node.span().clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: format!(
+                    ":nature value must be a nature-root (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer); got {}",
+                    nature_raw
+                ),
+            },
+        )),
     };
 
     // OPTIONAL `:messages [ <defrecord/defenum forms> ]` — arc 278 S4c.

@@ -4980,6 +4980,11 @@ pub(crate) fn eval_keyword_to_string(
         // Value::wat__WatAST(Keyword)): same stripping as the keyword-value arm.
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::Keyword(k, _) => k.clone(),
+            // 255.1 — a namespaced symbol is the same (namespace, name) pair as
+            // its keyword spelling. Macro name slots (`defrecord`/`defstruct`)
+            // call this on the declaration name; after the flip that node is a
+            // Symbol. Identity, not a second verb.
+            WatAST::Symbol(id, _) => crate::edn::render::canonical_identity(id.as_str()),
             _ => {
                 return Err(RuntimeError::new(
                     arg_span,
@@ -5022,6 +5027,7 @@ pub(crate) fn keyword_to_string_value(v: &Value) -> Option<Value> {
         Value::wat__core__keyword(k) => k.to_string(),
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::Keyword(k, _) => k.clone(),
+            WatAST::Symbol(id, _) => crate::edn::render::canonical_identity(id.as_str()),
             _ => return None,
         },
         _ => return None,

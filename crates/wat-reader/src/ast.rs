@@ -212,6 +212,18 @@ impl PartialEq for WatAST {
     }
 }
 
+/// `:-` is wat's ONE parameterization operator. Keyword or Symbol — both
+/// spellings are the marker. The wat crate's `types::is_binder_marker` /
+/// `peel_param_spec` wrap this; `wat-source-derive` calls it directly
+/// (cannot import `wat` without a cycle).
+pub fn is_binder_marker(node: &WatAST) -> bool {
+    match node {
+        WatAST::Keyword(k, _) if k == ":-" => true,
+        WatAST::Symbol(id, _) if id.as_str() == ":-" => true,
+        _ => false,
+    }
+}
+
 impl WatAST {
     /// Borrow the span this node was parsed from.
     pub fn span(&self) -> &Span {

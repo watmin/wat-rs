@@ -88,8 +88,9 @@ use quote::quote;
 /// "an empty one"; `:- []` returns `Some(&[])`, matching `peel_param_spec`'s rule that
 /// the empty binder is EXPRESSED, not absent.
 fn binder_vector(items: &[wat_reader::WatAST]) -> Option<&[wat_reader::WatAST]> {
-    let is_marker = matches!(items.get(2), Some(wat_reader::WatAST::Keyword(k, _)) if k == ":-"); // rune:lint(one-param-spec) — this crate depends only on wat-reader (cycle: wat-macros -> wat-doc -> this), so it cannot reach `crate::types::peel_param_spec` in the `wat` crate; re-derives the identical test wat_reader-only, at THE crate's single recogniser which both readers call.
-    if !is_marker {
+    // THE door is `wat_reader::is_binder_marker` (wrapped by `types::is_binder_marker`
+    // in the wat crate). This crate cannot import `wat` (cycle).
+    if !items.get(2).is_some_and(wat_reader::is_binder_marker) {
         return None;
     }
     match items.get(3) {
@@ -98,10 +99,44 @@ fn binder_vector(items: &[wat_reader::WatAST]) -> Option<&[wat_reader::WatAST]> 
     }
 }
 
-fn declared_name(items: &[wat_reader::WatAST]) -> Option<(&str, usize)> {
-    let wat_reader::WatAST::Keyword(name, _) = items.get(1)? else { return None };
+/// Compile-time sibling of `wat::edn::render::canonical_identity`. This crate
+/// cannot import `wat` (cycle: wat-macros → wat-doc → this). Identity is the
+/// `(namespace, name)` pair; the key is the rust-scheme keyword.
+fn canonical_identity(s: &str) -> String {
+    // Compile-time sibling of `wat::edn::render::canonical_identity`.
+    // `::` ⇒ rust-scheme (prefix `:` if needed), including `/` in the leaf.
+    if s.contains("::") { // rune:lint(one-variant-separator, namespace) — rust-scheme path detector (`::` in a FQDN); not enum/variant
+        if s.starts_with(':') || s.starts_with('(') {
+            return s.to_string();
+        }
+        return format!(":{s}");
+    }
+    if !s.starts_with(':') {
+        if let Some((ns, name)) = s.split_once('/') {
+            return format!(":{}::{}", ns.replace('.', "::"), name); // rune:lint(one-variant-separator, namespace) — clojure ns/name → rust-scheme TypeEnv key; not enum/variant
+        }
+        return s.to_string();
+    }
+    if let Some(body) = s.strip_prefix(':') {
+        if let Some((ns, name)) = body.split_once('/') {
+            return format!(":{}::{}", ns.replace('.', "::"), name); // rune:lint(one-variant-separator, namespace) — dotted-keyword ns/name → rust-scheme TypeEnv key; not enum/variant
+        }
+    }
+    s.to_string()
+}
+
+fn form_identity(node: &wat_reader::WatAST) -> Option<String> {
+    match node {
+        wat_reader::WatAST::Keyword(k, _) => Some(canonical_identity(k)),
+        wat_reader::WatAST::Symbol(id, _) => Some(canonical_identity(id.as_str())),
+        _ => None,
+    }
+}
+
+fn declared_name(items: &[wat_reader::WatAST]) -> Option<(String, usize)> {
+    let name = form_identity(items.get(1)?)?;
     let has_binder = binder_vector(items).is_some();
-    Some((name.as_str(), if has_binder { 4 } else { 2 }))
+    Some((name, if has_binder { 4 } else { 2 }))
 }
 
 /// Type-parameter names from a `:- [T …]` binder, in declaration order.
@@ -250,7 +285,7 @@ fn expand_wat_enum_from(args: &WatEnumFromArgs) -> syn::Result<TokenStream> {
     let mut found = false;
     for form in &forms {
         let wat_reader::WatAST::List(items, _) = form else { continue };
-        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        let Some(head) = items.first().and_then(form_identity) else { continue };
         if head != ":wat::core::defenum" { continue }
         let Some((tp, payload)) = declared_name(items) else { continue };
         if tp != want { continue }
@@ -436,7 +471,7 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
 
     for form in &forms {
         let wat_reader::WatAST::List(items, _) = form else { continue };
-        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        let Some(head) = items.first().and_then(form_identity) else { continue };
         let this_nature = match head.as_str() {
             ":wat::core::defrecord" => "Record",
             ":wat::core::defstruct" => "Struct",
@@ -601,7 +636,7 @@ fn expand_wat_alias_register_from(args: &WatRecordFromArgs) -> syn::Result<Token
 
     for form in &forms {
         let wat_reader::WatAST::List(items, _) = form else { continue };
-        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        let Some(head) = items.first().and_then(form_identity) else { continue };
         if head != ":wat::core::typealias" {
             continue;
         }
@@ -709,7 +744,7 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
 
     for form in &forms {
         let wat_reader::WatAST::List(items, _) = form else { continue };
-        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        let Some(head) = items.first().and_then(form_identity) else { continue };
         if head != ":wat::core::defenum" {
             continue;
         }
@@ -722,14 +757,14 @@ fn expand_wat_enum_register_from(args: &WatRecordFromArgs) -> syn::Result<TokenS
             syn::Error::new_spanned(&args.type_path, format!("`{want}`: {m}"))
         })?;
 
-        let Some(wat_reader::WatAST::Keyword(marker, _)) = items.get(payload) else {
+        let Some(marker) = items.get(payload).and_then(form_identity) else {
             return Err(syn::Error::new_spanned(
                 &args.type_path,
                 format!("`{want}` in `{}`: expected a `:wat::enum::Pure|Impure` marker after the name", abs.display()),
             ));
         };
         match marker.as_str() {
-            ":wat::enum::Pure" | ":wat::enum::Impure" => purity_kw = Some(marker.clone()),
+            ":wat::enum::Pure" | ":wat::enum::Impure" => purity_kw = Some(marker),
             other => {
                 return Err(syn::Error::new_spanned(
                     &args.type_path,
@@ -997,7 +1032,7 @@ fn field_names_of(src: &str, file: &str, want: &str) -> Result<Vec<String>, Stri
         .map_err(|e| format!("wat parse error in `{file}`: {e:?}"))?;
     for form in &forms {
         let wat_reader::WatAST::List(items, _) = form else { continue };
-        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        let Some(head) = items.first().and_then(form_identity) else { continue };
         if head != ":wat::core::defrecord" && head != ":wat::core::defstruct" { continue }
         let Some((tp, payload)) = declared_name(items) else { continue };
         if tp != want { continue }
@@ -1127,7 +1162,7 @@ fn enum_variant_field_names_of(src: &str, file: &str, want_type: &str, want_vari
         .map_err(|e| format!("wat parse error in `{file}`: {e:?}"))?;
     for form in &forms {
         let wat_reader::WatAST::List(items, _) = form else { continue };
-        let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
+        let Some(head) = items.first().and_then(form_identity) else { continue };
         if head != ":wat::core::defenum" { continue }
         let Some((tp, payload)) = declared_name(items) else { continue };
         if tp != want_type { continue }

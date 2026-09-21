@@ -284,6 +284,14 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     if crate::intrinsic::registry().contains(head) {
         return true;
     }
+    // 255.1 — wat.type is a real namespace. A member is a known name in
+    // every position (annotation already asks TypeEnv; call position must
+    // too). Non-members fall through and fail like any other unknown head.
+    if head.starts_with(":wat::type::")
+        && sym.types().is_some_and(|t| t.is_known_type(head))
+    {
+        return true;
+    }
     // `:rust::*` has its OWN authority, and it is not the registry — a rust path is legal iff a
     // `(:wat::core::use! :rust::Type)` declaration covers it, and `check_form` (the
     // `head.starts_with(":rust::")` block, just above the call to this predicate) already asks

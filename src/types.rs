@@ -130,6 +130,15 @@ pub(crate) fn parametric_head_fqdn(head: &str) -> String {
     }
 }
 
+/// Same denotation door as Path unify / `format_type`. `wat.type/Vector` and
+/// `wat.core/Vector` are one head.
+pub(crate) fn parametric_heads_unify(h1: &str, h2: &str) -> bool {
+    let a = parametric_head_fqdn(h1);
+    let b = parametric_head_fqdn(h2);
+    a == b
+        || crate::edn::render::type_denotation(&a) == crate::edn::render::type_denotation(&b)
+}
+
 /// STONE-defservice-emits-the-binder (arc 109) — the ONE renderer for a parametric type
 /// reference's surviving spelling, `check::format_type`'s companion the way
 /// `parametric_head_fqdn` is `TypeExpr::Parametric.head`'s. `head` is already prefixed
@@ -257,7 +266,7 @@ impl Nature {
     /// Called by both the surface `:nature` parser and `parse_aggregate`.
     /// Returns `None` for anything that is not a nature-root symbol.
     pub fn from_root_keyword(kw: &str) -> Option<Nature> {
-        match kw {
+        match crate::edn::render::canonical_identity(kw).as_str() {
             ":wat::core::Struct"  => Some(Nature::Struct),
             ":wat::core::Record"        => Some(Nature::Record),
             ":wat::holon::Record" => Some(Nature::HolonRecord),
@@ -292,7 +301,7 @@ impl Purity {
     /// The single canonical marker-keyword → purity map, for `parse_defenum`'s mandatory marker.
     /// Returns `None` for anything that is not one of the two `:wat::enum::*` markers.
     pub fn from_marker_keyword(kw: &str) -> Option<Purity> {
-        match kw {
+        match crate::edn::render::canonical_identity(kw).as_str() {
             ":wat::enum::Pure"   => Some(Purity::Pure),
             ":wat::enum::Impure" => Some(Purity::Impure),
             _                    => None,
@@ -626,18 +635,17 @@ impl TypeEnv {
     /// does NOT gain the same `||`: a builtin leaf's whole point is that it
     /// has no structure to return.
     pub fn contains(&self, name: &str) -> bool {
-        self.types.contains_key(name) || self.builtin_names.contains(name)
-    }
-
-    /// Canonicalize `:wat::type::X` → `:wat::core::X`. Every store answers
-    /// `false` for a `:wat::type::` spelling; callers must not forget this.
-    fn canonicalize_type_kw<'b>(kw: &'b str) -> std::borrow::Cow<'b, str> {
-        match kw.strip_prefix(":wat::type::") {
-            // rune:lint(one-variant-separator, namespace) — rewrites the namespace segment
-            // `wat::type` to its canonical `wat::core` alias; `tail` is the unchanged leaf.
-            Some(tail) => std::borrow::Cow::Owned(format!(":wat::core::{tail}")),
-            None => std::borrow::Cow::Borrowed(kw),
+        let id = crate::edn::render::canonical_identity(name);
+        if self.types.contains_key(&id) || self.builtin_names.contains(&id) {
+            return true;
         }
+        // wat.type/X is a member iff wat.core/X is — derived from denotation,
+        // never a hand-list of tails. The old `canonicalize_type_kw` alias
+        // forwarded every spelling; a real namespace must reach at least
+        // that far.
+        let denoted = crate::edn::render::type_denotation(&id);
+        denoted != id
+            && (self.types.contains_key(&denoted) || self.builtin_names.contains(&denoted))
     }
 
     /// ONE classifier: Declared (`get` is Some) then Builtin (`builtin_names` ∪
@@ -645,21 +653,33 @@ impl TypeEnv {
     /// A name that is a `TypeDef` answers Declared even if a builtin store also
     /// holds it (`:wat::core::Option`/`Result`).
     pub(crate) fn classify<'b>(&'b self, kw: &str) -> TypeMembership<'b> {
-        let canonical = Self::canonicalize_type_kw(kw);
-        if let Some(def) = self.get(canonical.as_ref()) {
+        let canonical = crate::edn::render::canonical_identity(kw);
+        let denoted = crate::edn::render::type_denotation(&canonical);
+        if let Some(def) = self
+            .types
+            .get(kw)
+            .or_else(|| self.types.get(&canonical))
+            .or_else(|| self.types.get(&denoted))
+        {
             return TypeMembership::Declared(def);
         }
-        let stripped = canonical.strip_prefix(':').unwrap_or(canonical.as_ref());
-        if self.builtin_names.contains(canonical.as_ref())
+        let stripped = denoted.strip_prefix(':').unwrap_or(denoted.as_str());
+        if self.builtin_names.contains(&canonical)
+            || self.builtin_names.contains(&denoted)
             || crate::runtime::is_builtin_primitive(stripped)
         {
             return TypeMembership::Builtin;
         }
-        if self.is_subtype_parent(canonical.as_ref()) {
+        if self.is_subtype_parent(&canonical) || self.is_subtype_parent(&denoted) {
+            let parent = if self.is_subtype_parent(&canonical) {
+                canonical.as_str()
+            } else {
+                denoted.as_str()
+            };
             let mut children: Vec<String> = self
                 .subtype_edges
                 .iter()
-                .filter(|(_, parents)| parents.iter().any(|p| p == canonical.as_ref()))
+                .filter(|(_, parents)| parents.iter().any(|p| p == parent))
                 .map(|(child, _)| child.clone())
                 .collect();
             children.sort();
@@ -699,7 +719,15 @@ impl TypeEnv {
     /// membership (`contains` → true) but no `TypeDef` to return, so this stays
     /// `None` for those names. See `builtin_names`'s field doc.
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
-        self.types.get(name)
+        let id = crate::edn::render::canonical_identity(name);
+        self.types.get(name).or_else(|| self.types.get(&id)).or_else(|| {
+            let denoted = crate::edn::render::type_denotation(&id);
+            if denoted != id {
+                self.types.get(&denoted)
+            } else {
+                None
+            }
+        })
     }
 
     /// 2a4 — the stdlib-mode door's private copy only. A divergent re-declaration
@@ -2721,6 +2749,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ] {
         env.register_builtin_leaf(name);
     }
+    // 255.1 — `nil` is the unit type (`TypeExpr::Tuple([])`), not a Path leaf,
+    // so it never went through `register_builtin_leaf`. Denotation makes
+    // `wat.type/nil` a member once `:wat::core::nil` is.
+    env.register_use_declared_leaf(":wat::core::nil");
 }
 
 /// Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
@@ -4165,6 +4197,9 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
         Some(WatAST::Keyword(k, _)) if Purity::from_marker_keyword(&k).is_some() => {
             Purity::from_marker_keyword(&k).unwrap()
         }
+        Some(WatAST::Symbol(id, _)) if Purity::from_marker_keyword(id.as_str()).is_some() => {
+            Purity::from_marker_keyword(id.as_str()).unwrap()
+        }
         other => {
             return Err(TypeError::new(
                 other.as_ref().map(|n| n.span().clone()).unwrap_or_else(|| decl_span.clone()),
@@ -4682,26 +4717,28 @@ fn parse_declared_name(
 ) -> Result<(String, Vec<String>), TypeError> {
     let name_span = form.span().clone();
     let raw = match form {
-        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Keyword(k, _) => crate::edn::render::canonical_identity(k),
+        WatAST::Symbol(id, _) => crate::edn::render::canonical_identity(id.as_str()),
         other => {
             return Err(TypeError::new(
                 decl_span.clone(),
                 TypeErrorKind::MalformedDecl {
                     head: head.into(),
                     reason: format!(
-                        "name must be a keyword; got {}",
+                        "name must be a keyword or namespaced symbol; got {}",
                         other.variant_name()
                     ),
                 },
             ))
         }
     };
-    // Strip the colon but keep the rest as the key for TypeEnv.
+    // Identity is the (namespace, name) pair; the TypeEnv key is the
+    // rust-scheme keyword spelling of that pair (`:wat::core::Option`).
     let stripped = raw.strip_prefix(':').ok_or_else(|| TypeError::new(
         name_span.clone(),
         TypeErrorKind::MalformedName {
             raw: raw.clone(),
-            reason: "keyword must begin with ':'".into(),
+            reason: "declared name must be namespaced".into(),
         },
     ))?;
     // Arc 109 ③ — angle brackets are ILLEGAL for a declaration's own name.
@@ -4734,7 +4771,7 @@ fn parse_declared_name(
 /// macro-dispatch guard peeks it at index 1 to decline `(Head :- [args])` as a
 /// value expression before the head's registered companion macro can fire.
 pub(crate) fn is_binder_marker(node: &WatAST) -> bool {
-    matches!(node, WatAST::Keyword(k, _) if k == ":-")
+    wat_reader::is_binder_marker(node)
 }
 
 /// STONE-finish-the-param-spec (arc 109) — the ONE door that peels the
@@ -5117,13 +5154,15 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
             ))
         }
     };
-    // Arc 251.2 alias: `wat::type::` → `wat::core::` (dual-read, mirrors parse_type_inner ~line 2374).
-    let raw_head = match raw_head.strip_prefix("wat::type::") {
-        // rune:lint(one-variant-separator, namespace) — same `wat::type::` -> `wat::core::`
-        // namespace canonicalization as `is_known_type` above, unprefixed spelling here.
-        Some(tail) => format!("wat::core::{}", tail),
-        None => raw_head,
+    // Identity only. Denotation is the unify/format door, so a non-member
+    // `wat.type/Bogus` head keeps its origin for "not a member of wat.type".
+    let head_kw = if raw_head.starts_with(':') {
+        raw_head
+    } else {
+        format!(":{raw_head}")
     };
+    let id = crate::edn::render::canonical_identity(&head_kw);
+    let raw_head = id.strip_prefix(':').unwrap_or(&id).to_string();
     // Parse args recursively.
     //
     // Arc 109 step ① originally accepted a bare bracketed type-param group
@@ -5207,7 +5246,8 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // `(wat.type/Tuple A B)` → `TypeExpr::Tuple([A,B])`; the empty `(wat.type/Tuple)` → the
     // 0-tuple. This is the faithful-Clojure spelling of the legacy `:(A,B)` keyword tuple
     // (both produce the SAME `TypeExpr::Tuple`, so they unify identically).
-    let result = if raw_head == "wat::core::Tuple" {
+    let denoted_head = crate::edn::render::type_denotation(&format!(":{raw_head}"));
+    let result = if denoted_head == ":wat::core::Tuple" {
         TypeExpr::Tuple(args)
     } else if via_binder && args.is_empty() {
         // STONE-exactly-one-call-position — `(Head :- [])` IS `Head`: the empty
@@ -5391,13 +5431,9 @@ fn parse_type_inner(
     // is deferred to the 251.5 hard-cut (see DESIGN-STONE-251.2.md). The audit
     // walk (`canonicalize=false`) preserves source spelling, and only ATOM paths
     // reach this arm — parametric heads parse via the `<>`/`()` branches above.
-    let raw_path = match (canonicalize, raw_path.strip_prefix(":wat::type::")) {
-        // rune:lint(one-variant-separator, namespace) — same canonicalization, colon-prefixed
-        // spelling, for the audit-walk path.
-        (true, Some(tail)) => format!(":wat::core::{}", tail),
-        _ => raw_path,
-    };
-    if canonicalize && raw_path == ":wat::core::nil" {
+    let raw_path = crate::edn::render::canonical_identity(&raw_path);
+    let denoted = crate::edn::render::type_denotation(&raw_path);
+    if canonicalize && denoted == ":wat::core::nil" {
         return Ok(TypeExpr::Tuple(vec![]));
     }
     // Arc 163 slice 3f + 3h — FQDN IS the canonical storage form.
@@ -7273,6 +7309,46 @@ mod tests {
     /// `BARE_CONTAINER_HEADS` directly (never a transcribed copy), so this test
     /// cannot drift from `check.rs`'s own source of truth: any future addition
     /// to either const is automatically covered.
+    #[test]
+    fn stone_255_1_wat_type_has_members() {
+        let env = TypeEnv::with_builtins();
+        // Membership is is_known_type (classify), derived from denotation —
+        // not a hand-list of wat.type tails, not TypeEnv::contains (char/Tuple
+        // are primitives, not TypeEnv leaves).
+        assert!(env.is_known_type(":wat::type::i64"));
+        assert!(env.is_known_type("wat.type/i64"));
+        assert!(env.is_known_type(":wat::type::Vector"));
+        assert!(env.is_known_type("wat.type/Vector"));
+        assert!(env.is_known_type("wat.core/i64"));
+        assert!(!env.is_known_type("wat.type/nope"));
+        assert!(!env.is_known_type(":wat::type::nope"));
+        assert_eq!(env.get(":wat::type::i64"), None);
+        // Every core primitive the old alias forwarded is a wat.type member.
+        for n in crate::runtime::BUILTIN_PRIMITIVES {
+            if let Some(tail) = n.strip_prefix("wat::core::") {
+                let wt = format!("wat.type/{tail}");
+                assert!(
+                    env.is_known_type(&wt),
+                    "{wt} must be a wat.type member (denotation of :{n})"
+                );
+            }
+        }
+        assert!(!env.is_known_type("wat.type/Infer"));
+        assert!(env.is_known_type("wat.type/Struct"));
+        assert!(!env.is_known_type("wat.type/Bogus"));
+    }
+
+    #[test]
+    fn stone_255_1_declared_symbol_name_is_the_same_key() {
+        let src = r#"(wat.core/defenum t/Color wat.enum/Pure :Red :Blue)"#;
+        let (env, _) = collect(src).expect("symbol-named defenum must register");
+        assert!(
+            env.is_known_type(":t::Color"),
+            "wat.core/defenum t/Color must be the same TypeEnv key as :t::Color"
+        );
+        assert!(env.is_known_type("t/Color"));
+    }
+
     #[test]
     fn stone_255b_row5_every_bare_primitive_and_container_head_is_registered() {
         let env = TypeEnv::with_builtins();

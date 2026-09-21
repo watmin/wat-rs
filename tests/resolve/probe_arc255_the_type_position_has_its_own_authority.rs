@@ -147,9 +147,9 @@ fn check_output(case: &str) -> String {
 /// SPLIT — which is exactly the alarm wanted.
 fn refused_as_unknown_named_type(case: &str) {
     assert_eq!(check(case), 1, "{case}: expected the type wall to refuse");
-    wat::assert_edn_eq!(
+    wat::assert_edn_matches_file!(
         check_output(case),
-        include_str!("probe_arc255_the_type_position_has_its_own_authority__unknown_named_type.edn")
+        "probe_arc255_the_type_position_has_its_own_authority__unknown_named_type.edn"
     );
 }
 
@@ -190,7 +190,14 @@ fn a_bogus_type_in_a_defenum_variant_field_is_refused() {
 /// (`bogus_in_head`), the two spellings have stopped agreeing.
 #[test]
 fn the_keyword_spelling_is_refused_by_the_same_wall() {
-    refused_as_unknown_named_type("bogus_keyword_spelling");
+    // `:wat::core::Bogus` is not a wat.type spelling — generic unknown-type
+    // prose. Split from the wat.type/Bogus golden: the ruling's non-vacuity
+    // row names wat.type members distinctly.
+    assert_eq!(check("bogus_keyword_spelling"), 1, "bogus_keyword_spelling: expected the type wall to refuse");
+    wat::assert_edn_matches_file!(
+        check_output("bogus_keyword_spelling"),
+        "probe_arc255_the_type_position_has_its_own_authority__unknown_named_type_core.edn"
+    );
     assert_eq!(
         check("bogus_keyword_spelling"),
         check("bogus_in_head"),

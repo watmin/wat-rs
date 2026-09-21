@@ -1,0 +1,3 @@
+;; 255.1 — non-vacuity: a name that is NOT a member of wat.type is refused
+;; as "not a member of wat.type", not a generic unknown type.
+(:wat::core::defn :user::nope [x <- wat.type/nope] -> :wat::core::nil nil)

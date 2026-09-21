@@ -16673,7 +16673,10 @@ pub(crate) fn unify(
             unify_union_with_other(p, other, types)
         }
         (TypeExpr::Path(p1), TypeExpr::Path(p2)) => {
-            if p1 == p2 {
+            if p1 == p2
+                || crate::edn::render::type_denotation(p1)
+                    == crate::edn::render::type_denotation(p2)
+            {
                 Ok(())
             } else {
                 Err(UnifyError)
@@ -16682,12 +16685,12 @@ pub(crate) fn unify(
         // 293.W.2f — bare `Status` (T unknown) unifies with `(Status :- [T])` /
         // `(Status :- [Shared])`. Same residual as 2-arg Address.
         (TypeExpr::Path(p), TypeExpr::Parametric { head, args })
-            if crate::types::parametric_head_fqdn(head) == *p && !args.is_empty() =>
+            if crate::types::parametric_heads_unify(head, p) && !args.is_empty() =>
         {
             Ok(())
         }
         (TypeExpr::Parametric { head, args }, TypeExpr::Path(p))
-            if crate::types::parametric_head_fqdn(head) == *p && !args.is_empty() =>
+            if crate::types::parametric_heads_unify(head, p) && !args.is_empty() =>
         {
             Ok(())
         }
@@ -16703,7 +16706,7 @@ pub(crate) fn unify(
             // (Bound :- [S R]) unifies with (Bound :- [S R T]); (Launched :- [S R Sh Lu]) unifies
             // with (Launched :- [S R Sh Lu T]). Same-head n vs n+1 also covers
             // (Handle :- [K V]) ↔ (Handle :- [K V T]) when the extra slot is the transport.
-            if h1 == h2 {
+            if h1 == h2 || crate::types::parametric_heads_unify(h1, h2) {
                 let n_fixed = match h1.as_str() {
                     "wat::kernel::Address" | "wat::spawn::Bound" => Some(2),
                     "wat::spawn::Launched" => Some(4),
@@ -16735,7 +16738,7 @@ pub(crate) fn unify(
                     return Ok(());
                 }
             }
-            if h1 != h2 || a1.len() != a2.len() {
+            if !crate::types::parametric_heads_unify(h1, h2) || a1.len() != a2.len() {
                 return Err(UnifyError);
             }
             for (x, y) in a1.iter().zip(a2.iter()) {
@@ -18064,9 +18067,20 @@ pub(crate) fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> Type
 /// Arc 143 — exposed so `runtime.rs` helpers can render a `TypeExpr`
 /// as a keyword string for AST reconstruction in the three introspection
 /// primitives (`lookup-define`, `signature-of-defn`, `body-of`).
+/// Render a stored Path through the same denotation door parametric heads
+/// use at parse (`type_denotation`). A `wat.type/i64` argument then prints
+/// as `:wat::core::i64`, matching a `wat.type/Vector` head. Infer is a
+/// marker — keep its wat.type spelling.
+fn format_type_path(p: &str) -> String {
+    if crate::edn::render::canonical_identity(p) == crate::types::INFER_TYPE_PATH {
+        return crate::types::INFER_TYPE_PATH.to_string();
+    }
+    crate::edn::render::type_denotation(p)
+}
+
 pub fn format_type(t: &TypeExpr) -> String {
     match t {
-        TypeExpr::Path(p) => p.clone(),
+        TypeExpr::Path(p) => format_type_path(p),
         // STONE-defservice-emits-the-binder (arc 109) — `Head<A,B>` retired even as
         // DISPLAY text: it is user-facing (a type-mismatch's `expected`/`got` fields) and a
         // reader that refuses the angle spelling must never teach it back. Args recurse
@@ -18074,7 +18088,7 @@ pub fn format_type(t: &TypeExpr) -> String {
         // standalone keyword/form in the binder VECTOR, not text embedded inside `<…>` —
         // it needs its own leading colon, exactly what a fresh top-level render gives it.
         TypeExpr::Parametric { head, args } => {
-            let head_kw = format!(":{head}");
+            let head_kw = format_type_path(&format!(":{head}"));
             let inner: Vec<_> = args.iter().map(format_type).collect();
             crate::types::render_binder_ref(&head_kw, &inner)
         }
@@ -18138,10 +18152,15 @@ pub fn format_type(t: &TypeExpr) -> String {
 /// for inner type arguments where the leading `:` is omitted).
 fn format_type_inner(t: &TypeExpr) -> String {
     match t {
-        TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p).to_string(),
+        TypeExpr::Path(p) => {
+            let p = format_type_path(p);
+            p.strip_prefix(':').unwrap_or(&p).to_string()
+        }
         // STONE-defservice-emits-the-binder — same retirement as `format_type`'s arm above,
         // colon-stripped convention preserved (this is the nested/inner-position renderer).
         TypeExpr::Parametric { head, args } => {
+            let head = format_type_path(&format!(":{head}"));
+            let head = head.strip_prefix(':').unwrap_or(&head);
             let inner: Vec<_> = args.iter().map(format_type_inner).collect();
             crate::types::render_binder_ref(head, &inner)
         }

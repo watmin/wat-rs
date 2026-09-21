@@ -3574,6 +3574,59 @@ pub(crate) fn ns_to_wat_path(ns: &str, name: &str) -> String {
     format!(":{}::{}", ns.replace('.', "::"), name)
 }
 
+/// A name's identity is the `(namespace, name)` pair, not its spelling.
+///
+/// Stone 255.1: both `:wat::core::Option` and `wat.core/Option` (and the
+/// dotted-keyword `:wat.core/Option`) produce the TypeEnv key
+/// `:wat::core::Option`. Does **not** rewrite `wat.type` → `wat.core`;
+/// that namespace is real (members in `TypeEnv`).
+pub(crate) fn canonical_identity(s: &str) -> String {
+    // Rust-scheme paths contain `::` — including variant paths
+    // (`StdIn.read-frame::Request`, `.` is the enum/variant separator) and
+    // surface-op aliases (`StdOut::write/Request`, `/` is Type/method in the
+    // leaf). Do NOT clojure-round-trip: that would turn `.` into `::` and
+    // `/` into `::`. Dotted-keyword `:wat.core/Option` has `/` and no `::`.
+    if s.contains("::") { // rune:lint(one-variant-separator, namespace) — rust-scheme path detector (`::` in a FQDN); not enum/variant
+        // Rendered parametric forms `(:wat::core::Vector :- […])` contain `::`
+        // but are not a path to prefix.
+        if s.starts_with(':') || s.starts_with('(') {
+            return s.to_string();
+        }
+        return format!(":{s}");
+    }
+    if !s.starts_with(':') {
+        if let Some((ns, name)) = s.split_once('/') {
+            return ns_to_wat_path(ns, name);
+        }
+        return s.to_string();
+    }
+    if let Some(body) = s.strip_prefix(':') {
+        if let Some((ns, name)) = body.split_once('/') {
+            return ns_to_wat_path(ns, name);
+        }
+    }
+    s.to_string()
+}
+
+/// TypeExpr storage key: a `wat.type/X` **member** denotes the same
+/// builtin as `wat.core/X`. Non-members are left as identity so the
+/// caller can refuse them as "not a member of wat.type".
+pub(crate) fn type_denotation(s: &str) -> String {
+    let id = canonical_identity(s);
+    if let Some(tail) = id.strip_prefix(":wat::type::") {
+        // rune:lint(one-variant-separator, namespace) — wat.type member → core denotation
+        return format!(":wat::core::{tail}");
+    }
+    id
+}
+
+/// Is this identity a `wat.type/…` spelling (either dialect)?
+pub(crate) fn is_wat_type_spelling(s: &str) -> bool {
+    let id = canonical_identity(s);
+    // rune:lint(one-variant-separator, namespace) — wat.type identity prefix
+    id.starts_with(":wat::type::")
+}
+
 /// Inverse of [`ns_to_wat_path`]: a wat rust-scheme call-head/reference KEYWORD
 /// (`:wat::core::if`) → a faithful-Clojure SYMBOL string (`wat.core/if`). The `::`↔`.`/`/`
 /// path grammar lives here, beside its forward — never re-encoded in wat (that would be a
@@ -3704,6 +3757,35 @@ mod canonical_head_name_tests {
 #[cfg(test)]
 mod restriction_entry_match_tests {
     use super::{canonicalize_restriction_entry, restriction_entry_matches};
+
+    #[test]
+    fn identity_is_the_pair_not_the_spelling() {
+        use super::canonical_identity;
+        assert_eq!(
+            canonical_identity(":wat::core::Option"),
+            ":wat::core::Option"
+        );
+        assert_eq!(canonical_identity("wat.core/Option"), ":wat::core::Option");
+        assert_eq!(canonical_identity(":wat.core/Option"), ":wat::core::Option");
+        assert_eq!(canonical_identity("wat.type/i64"), ":wat::type::i64");
+        assert_eq!(canonical_identity(":wat::type::i64"), ":wat::type::i64");
+        assert_eq!(
+            canonical_identity(":wat::kernel::StdIn.read-frame::Request"),
+            ":wat::kernel::StdIn.read-frame::Request"
+        );
+        assert_eq!(
+            canonical_identity(":wat::kernel::StdOut::write/Request"),
+            ":wat::kernel::StdOut::write/Request"
+        );
+        assert_eq!(
+            canonical_identity("wat::kernel::StdOut::write/Request"),
+            ":wat::kernel::StdOut::write/Request"
+        );
+        assert_eq!(
+            canonical_identity("(:wat::capability::Dialable :- [:wat::kernel::StdIn::Op])"),
+            "(:wat::capability::Dialable :- [:wat::kernel::StdIn::Op])"
+        );
+    }
 
     #[test]
     fn keyword_and_symbol_prefix_both_admit_the_namespace() {

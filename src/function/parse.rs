@@ -728,14 +728,15 @@ pub(crate) fn parse_defclause_form(
 
     // items[1] must be the name keyword.
     let name = match &items[1] {
-        WatAST::Keyword(k, _) => k.clone(),
+        WatAST::Keyword(k, _) => crate::edn::render::canonical_identity(k),
+        WatAST::Symbol(id, _) => crate::edn::render::canonical_identity(id.as_str()),
         other => {
             return Err(RuntimeError::new(
                 other.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: HEAD.into(),
                     reason: format!(
-                        "defclause first arg must be a keyword name (e.g. `:my::name`); got {}",
+                        "defclause first arg must be a keyword or namespaced symbol (e.g. `:my::name` or `my/name`); got {}",
                         other.variant_name()
                     ),
                 },

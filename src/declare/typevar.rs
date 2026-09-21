@@ -225,6 +225,11 @@ fn consider_named_path(
     if is_type_var_path(p) {
         return;
     }
+    // Infer is a type-position MARKER, not a type. Denotation cannot make it
+    // a member without making `is-type?` true. Accepted here; classify stays Unknown.
+    if crate::edn::render::canonical_identity(p) == crate::types::INFER_TYPE_PATH {
+        return;
+    }
     let stripped = p.strip_prefix(':').unwrap_or(p);
     if bound.iter().any(|b| b == stripped) {
         return;

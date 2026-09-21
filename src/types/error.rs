@@ -428,11 +428,20 @@ impl fmt::Display for TypeErrorKind {
                  but that discrimination must be written, not inferred. Remove \"{param}\" from \
                  {decl}'s param-spec, or use it."
             ),
-            TypeErrorKind::UnknownNamedType { path } => write!(
-                f,
-                "annotation names unknown type {path} — not a declared type, not a type variable, \
-                 and not a builtin"
-            ),
+            TypeErrorKind::UnknownNamedType { path } => {
+                if crate::edn::render::is_wat_type_spelling(path) {
+                    write!(
+                        f,
+                        "not a member of wat.type: {path}"
+                    )
+                } else {
+                    write!(
+                        f,
+                        "annotation names unknown type {path} — not a declared type, not a type variable, \
+                         and not a builtin"
+                    )
+                }
+            }
         }
     }
 }

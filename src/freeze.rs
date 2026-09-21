@@ -1707,7 +1707,7 @@ pub fn validate_user_main_not_useless(frozen: &FrozenWorld) -> Result<(), String
 /// the parser accepts.
 pub fn format_type_expr(t: &TypeExpr) -> String {
     match t {
-        TypeExpr::Path(p) => p.clone(),
+        TypeExpr::Path(p) => crate::check::format_type(&crate::types::TypeExpr::Path(p.clone())),
         // STONE-close-the-last-two-channels (arc 109) — a second live copy of
         // `check::format_type`'s Parametric arm, found still emitting the retired
         // `Head<A,B>` suffix spelling (channel 1's defect, missed by that stone because
