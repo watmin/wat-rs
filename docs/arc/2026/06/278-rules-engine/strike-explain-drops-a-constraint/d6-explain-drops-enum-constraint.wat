@@ -23,7 +23,7 @@
 
 (:wat::rete::defrule :d6::hit
   :when
-  [(:d6::Reading (?n <- :n) (?g <- :grade)
+  [(:d6::Reading (?n :- :n) (?g :- :grade)
                  (:wat::rete::i64::> ?n 5)
                  (:wat::rete::core::enum::= ?g :d6::Grade.Hi))]
   :then

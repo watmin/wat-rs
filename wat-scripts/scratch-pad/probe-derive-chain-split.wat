@@ -62,14 +62,14 @@
 
 (:wat::rete::defquery :dc::q-Out
   :params []
-  :when [(?fact <- :dc::Out)])
+  :when [(?fact :- :dc::Out)])
 
 
 ;; ── the workload, copied from grid/node-share.wat (namespace changed only) ───
 
 (:wat::core::defn :dc::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:dc::A (?k <- :k)))
-                    b-c     (:wat::core::quasiquote (:dc::B (?k <- :k)))
+  (:wat::core::let [a-c     (:wat::core::quasiquote (:dc::A (?k :- :k)))
+                    b-c     (:wat::core::quasiquote (:dc::B (?k :- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::core::= (:wat::core::unquote i)

@@ -9,7 +9,7 @@
 
 (:wat::rete::defquery :fan::q-Pair
   :params []
-  :when [(?fact <- :fan::Pair)])
+  :when [(?fact :- :fan::Pair)])
 
 
 ;; seed Left(k,f)+Right(k,f) for f in 0..fanout, threaded onto session s, for one key k.
@@ -26,8 +26,8 @@
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
                     keys   (:wat::core::Option/expect   (:wat::core::get params 0) "[keys fanout]")
                     fanout (:wat::core::Option/expect   (:wat::core::get params 1) "[keys fanout]")
-                    c1   (:wat::core::quote (:fan::Left  (?k <- :key) (?l <- :lid)))
-                    c2   (:wat::core::quote (:fan::Right (?k <- :key) (?r <- :rid)))
+                    c1   (:wat::core::quote (:fan::Left  (?k :- :key) (?l :- :lid)))
+                    c2   (:wat::core::quote (:fan::Right (?k :- :key) (?r :- :rid)))
                     rhs  (:wat::core::quote (:fan::Pair ?k ?l ?r))
                     rule (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
                     s0   (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

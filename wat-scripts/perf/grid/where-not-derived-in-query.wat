@@ -34,8 +34,8 @@
 (:wat::core::defrecord :wndq::Hit [k <- :wat::core::i64])
 
 ;; S2 and S3 exist ONLY by derivation. Nothing inserts either.
-(:wat::rete::defrule :wndq::r1 :when [(:wndq::S1 (?k <- :k))] :then [(:wndq::S2 :k ?k)])
-(:wat::rete::defrule :wndq::r2 :when [(:wndq::S2 (?k <- :k))] :then [(:wndq::S3 :k ?k)])
+(:wat::rete::defrule :wndq::r1 :when [(:wndq::S1 (?k :- :k))] :then [(:wndq::S2 :k ?k)])
+(:wat::rete::defrule :wndq::r2 :when [(:wndq::S2 (?k :- :k))] :then [(:wndq::S3 :k ?k)])
 
 ;; The same negation in a RULE — the contrast that answers "is a query stratified the way a rule
 ;; is?" in the output itself rather than in a comment.
@@ -45,8 +45,8 @@
 
 (:wat::rete::defquery :wndq::q-not-S2 :params [] :when [(:wat::rete::not (:wndq::S2))])
 (:wat::rete::defquery :wndq::q-not-S3 :params [] :when [(:wat::rete::not (:wndq::S3))])
-(:wat::rete::defquery :wndq::q-Hit    :params [] :when [(?fact <- :wndq::Hit)])
-(:wat::rete::defquery :wndq::q-S2     :params [] :when [(?fact <- :wndq::S2)])
+(:wat::rete::defquery :wndq::q-Hit    :params [] :when [(?fact :- :wndq::Hit)])
+(:wat::rete::defquery :wndq::q-S2     :params [] :when [(?fact :- :wndq::S2)])
 
 (:wat::core::defn :wndq::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println

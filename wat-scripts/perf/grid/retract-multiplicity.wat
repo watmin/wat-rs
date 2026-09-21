@@ -34,7 +34,7 @@
 
 (:wat::rete::defquery :rm::q-Out
   :params []
-  :when [(?fact <- :rm::Out)])
+  :when [(?fact :- :rm::Out)])
 
 
 ;; build-rules — the single join: Out(k) :- F(k) AND G(k). Two equal F(k) × one G(k) fire
@@ -43,8 +43,8 @@
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "out"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quote (:rm::F (?k <- :k)))
-        (:wat::core::quote (:rm::G (?k <- :k))))
+        (:wat::core::quote (:rm::F (?k :- :k)))
+        (:wat::core::quote (:rm::G (?k :- :k))))
       :rhs (:wat::core::PersistentVector
         (:wat::core::quote (:rm::Out ?k))))))
 

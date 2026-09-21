@@ -34,18 +34,18 @@
 
 ;; ARM A — equality against a variant constructor in :where
 (:wat::rete::defrule :user::enum-eq-in-where
-  :when [(:user::EnumNode (?i <- :id) (?k <- :kind))
+  :when [(:user::EnumNode (?i :- :id) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:user::NodeKind.List {})))]
   :then [(:user::HitA :id ?i)])
 
 ;; ARM C — the CONTROL. Same shape, String. Must pass, or the probe proves nothing.
 (:wat::rete::defrule :user::string-eq-in-where
-  :when [(:user::StrNode (?i <- :id) (?k <- :kind))
+  :when [(:user::StrNode (?i :- :id) (?k :- :kind))
          (:wat::rete::where (:wat::rete::string::= ?k "list"))]
   :then [(:user::HitC :id ?i)])
 
-(:wat::rete::defquery :user::q-HitA :params [] :when [(?fact <- :user::HitA)])
-(:wat::rete::defquery :user::q-HitC :params [] :when [(?fact <- :user::HitC)])
+(:wat::rete::defquery :user::q-HitA :params [] :when [(?fact :- :user::HitA)])
+(:wat::rete::defquery :user::q-HitC :params [] :when [(?fact :- :user::HitC)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -12,21 +12,21 @@
 (:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])
 
 (:wat::rete::defrule :usr::hot-rule
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
+  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
   :then [(:usr::Hot :c ?c)])
 
 (:wat::rete::defrule :usr::warn-rule
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
+  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
   :then [(:usr::Warn :c ?c)])
 
 (:wat::rete::defquery :usr::q-Hot
   :params []
-  :when [(?fact <- :usr::Hot)])
+  :when [(?fact :- :usr::Hot)])
 
 
 (:wat::rete::defquery :usr::q-Warn
   :params []
-  :when [(?fact <- :usr::Warn)])
+  :when [(?fact :- :usr::Warn)])
 
 
 ;; deduce-one: fire ONE seed from the fresh template, flat-map its deductions into a (PV :- [Value])

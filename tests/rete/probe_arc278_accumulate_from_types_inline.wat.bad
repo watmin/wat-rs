@@ -9,5 +9,5 @@
 (:wat::core::defrecord :tai::Reading [location <- :wat::core::String  value <- :wat::core::i64])
 
 (:wat::rete::defrule :tai::inline-is-typed
-  :when [(:tai::Reading (?v <- :value) (:wat::rete::string::= ?v "nope"))]
+  :when [(:tai::Reading (?v :- :value) (:wat::rete::string::= ?v "nope"))]
   :then [])

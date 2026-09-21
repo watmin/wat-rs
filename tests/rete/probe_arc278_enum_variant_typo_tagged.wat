@@ -23,10 +23,10 @@
 
 ;; The constraint names the tagged variant BARE — there is no such value.
 (:wat::rete::defrule :tg::good
-  :when [(:tg::Req (?k <- :k) (:wat::rete::core::enum::= :grade :tg::P.Hi))]
+  :when [(:tg::Req (?k :- :k) (:wat::rete::core::enum::= :grade :tg::P.Hi))]
   :then [(:tg::Hit :k ?k)])
 
-(:wat::rete::defquery :tg::q :params [] :when [(?f <- :tg::Hit)])
+(:wat::rete::defquery :tg::q :params [] :when [(?f :- :tg::Hit)])
 
 (:wat::core::defn :tg::fire [] -> :wat::core::i64
   (:wat::core::let

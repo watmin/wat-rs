@@ -6,14 +6,14 @@
 
 (:wat::rete::defrule :wg::cold-gate
   :when
-  [(:weather::Temperature (?c <- :celsius))
+  [(:weather::Temperature (?c :- :celsius))
    (:wat::rete::where (:wat::rete::i64::> ?c 0))]
   :then
   [(:wg::Gate :celsius ?c)])
 
 (:wat::rete::defquery :wg::q-Gate
   :params []
-  :when [(?fact <- :wg::Gate)])
+  :when [(?fact :- :wg::Gate)])
 
 
 ;; 1 — the where PASSES: Temp(5), (> 5 0) true → exactly one Gate derived.

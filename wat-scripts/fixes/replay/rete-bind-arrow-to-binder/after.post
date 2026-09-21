@@ -1,0 +1,8 @@
+; near-miss: param annotation is not a rete binding — leave <-
+(:wat::core::defn :u::hit [x <- :wat::core::i64] -> :wat::core::nil
+  nil)
+; rete field binding: arrow converts, field name stays
+(?k :- :k)
+(:vrm::F (?k :- :k))
+; near-miss: already-binder spelling stays
+(?k :- :k)

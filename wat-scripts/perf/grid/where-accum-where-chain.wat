@@ -30,23 +30,23 @@
 
 ;; ROW 1 — the AGREEING CONTROL: station, accumulate, ONE where.
 (:wat::rete::defrule :wawc::one-where
-  :when [(:wawc::Station (?loc <- :loc))
-         (?n <- (:wat::rete::acc::count) :from (:wawc::Reading (?loc <- :loc)))
+  :when [(:wawc::Station (?loc :- :loc))
+         (?n :- (:wat::rete::acc::count) :from (:wawc::Reading (?loc :- :loc)))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))]
   :then [(:wawc::Busy :loc ?loc :n ?n)])
 
 ;; ROW 2 — the same rule plus ONE trailing tautology. A `:where` that is true for every token
 ;; cannot remove a match, so this must derive exactly what row 1 derives.
 (:wat::rete::defrule :wawc::two-wheres
-  :when [(:wawc::Station (?loc <- :loc))
-         (?n <- (:wat::rete::acc::count) :from (:wawc::Reading (?loc <- :loc)))
+  :when [(:wawc::Station (?loc :- :loc))
+         (?n :- (:wat::rete::acc::count) :from (:wawc::Reading (?loc :- :loc)))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))
          (:wat::rete::where (:wat::rete::i64::> 1 0))]
   :then [(:wawc::Busy :loc ?loc :n ?n)])
 
 (:wat::rete::defquery :wawc::q-Busy
   :params []
-  :when [(?fact <- :wawc::Busy)])
+  :when [(?fact :- :wawc::Busy)])
 
 (:wat::core::defn :wawc::sum-n [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::foldl

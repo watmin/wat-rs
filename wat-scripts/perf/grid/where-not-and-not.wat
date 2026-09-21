@@ -14,26 +14,26 @@
 (:wat::rete::defrule :wnan::lead
   :when [(:wat::rete::not
            (:wat::rete::and
-             (:wnan::Temp (?c <- :c))
-             (:wat::rete::not (:wnan::Cold (?c <- :c)))))]
+             (:wnan::Temp (?c :- :c))
+             (:wat::rete::not (:wnan::Cold (?c :- :c)))))]
   :then [(:wnan::Hit :k 1)])
 
 (:wat::rete::defrule :wnan::nested
-  :when [(:wnan::Wind (?l <- :loc))
+  :when [(:wnan::Wind (?l :- :loc))
          (:wat::rete::not
            (:wat::rete::and
-             (:wnan::Temp (?l <- :loc) (?c <- :c))
-             (:wat::rete::not (:wnan::Cold (?c <- :c)))))]
+             (:wnan::Temp (?l :- :loc) (?c :- :c))
+             (:wat::rete::not (:wnan::Cold (?c :- :c)))))]
   :then [(:wnan::At :loc ?l)])
 
 (:wat::rete::defquery :wnan::q-Hit
   :params []
-  :when [(?fact <- :wnan::Hit)])
+  :when [(?fact :- :wnan::Hit)])
 
 
 (:wat::rete::defquery :wnan::q-At
   :params []
-  :when [(?fact <- :wnan::At)])
+  :when [(?fact :- :wnan::At)])
 
 
 (:wat::core::defn :wnan::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

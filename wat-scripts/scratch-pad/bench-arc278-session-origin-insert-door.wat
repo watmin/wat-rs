@@ -20,7 +20,7 @@
 (:wat::config::rete::set-max-session-bytes! 400000000000)
 
 (:wat::core::defrecord :bd::Edge [a <- :wat::core::i64  b <- :wat::core::i64])
-(:wat::rete::defrule :bd::noop :when [(:bd::Edge (?a <- :a))] :then [])
+(:wat::rete::defrule :bd::noop :when [(:bd::Edge (?a :- :a))] :then [])
 
 (:wat::core::defn :bd::compile [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :bd) (:wat::core::PersistentVector))

@@ -10,8 +10,8 @@
 (:wat::core::defrecord :dm::Four      [n <- :wat::core::i64])
 (:wat::core::defrecord :dm::Datamancer [n <- :wat::core::i64  sigil <- :wat::core::String])
 
-(:wat::rete::defquery :dm::q-who    :params [] :when [(?who    <- :dm::Datamancer)])
-(:wat::rete::defquery :dm::q-hollow :params [] :when [(?hollow <- :dm::Hollow)])
+(:wat::rete::defquery :dm::q-who    :params [] :when [(?who    :- :dm::Datamancer)])
+(:wat::rete::defquery :dm::q-hollow :params [] :when [(?hollow :- :dm::Hollow)])
 
 (:wat::core::defn :dm::seed-practice [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s

@@ -50,13 +50,13 @@
     (:wat::core::take
       (:wat::core::PersistentVector
         (:wat::rete::Rule :name "r1"
-          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S1 (?k <- :k))))
+          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S1 (?k :- :k))))
           :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S2 ?k))))
         (:wat::rete::Rule :name "r2"
-          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S2 (?k <- :k))))
+          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S2 (?k :- :k))))
           :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S3 ?k))))
         (:wat::rete::Rule :name "r3"
-          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S3 (?k <- :k))))
+          :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S3 (?k :- :k))))
           :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::S4 ?k)))))
       d)))
 
@@ -66,10 +66,10 @@
   (:wat::core::if (:wat::core::= n 0)
     (:wat-tests::rete::fuzz::no-conds)
     (:wat::core::if (:wat::core::= n 1)
-      (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::P1 (?a <- :k))))
+      (:wat::core::PersistentVector (:wat::core::quasiquote (:wat-tests::rete::fuzz::P1 (?a :- :k))))
       (:wat::core::PersistentVector
-        (:wat::core::quasiquote (:wat-tests::rete::fuzz::P1 (?a <- :k)))
-        (:wat::core::quasiquote (:wat-tests::rete::fuzz::P2 (?b <- :k)))))))
+        (:wat::core::quasiquote (:wat-tests::rete::fuzz::P1 (?a :- :k)))
+        (:wat::core::quasiquote (:wat-tests::rete::fuzz::P2 (?b :- :k)))))))
 
 ;; THE FILTER POOL — each entry is a VECTOR of conditions, because some shapes are
 ;; more than one LHS element (accumulate carries its own threshold `where`).
@@ -120,14 +120,14 @@
                     thr  (:wat::i64::rem fp 3)]
     (:wat::core::if (:wat::core::= kind 0)
       (:wat::core::PersistentVector
-        (:wat::core::quasiquote (?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W)))
+        (:wat::core::quasiquote (?n :- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W)))
         ;; PARAMETERIZED: the threshold is generated, not hardcoded, so the
         ;; gate genuinely changes its mind across the space.
         (:wat::core::quasiquote
           (:wat::rete::where (:wat::rete::i64::>= ?n (:wat::core::unquote thr)))))
       (:wat::core::PersistentVector
         (:wat::core::quasiquote
-          (?n <- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v <- :k))))
+          (?n :- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v :- :k))))
         (:wat::core::quasiquote
           (:wat::rete::where (:wat::rete::i64::>= ?n (:wat::core::unquote thr))))))))
 
@@ -137,31 +137,31 @@
     ((:wat::core::= f 0) (:wat-tests::rete::fuzz::no-conds))
     ((:wat::core::= f 1)
       (:wat::core::PersistentVector
-        (:wat::core::quasiquote (:wat::rete::exists (:wat-tests::rete::fuzz::W (?w <- :k))))))
+        (:wat::core::quasiquote (:wat::rete::exists (:wat-tests::rete::fuzz::W (?w :- :k))))))
     ((:wat::core::= f 2)
       (:wat::core::PersistentVector
-        (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::fuzz::G (?g <- :k))))))
+        (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::fuzz::G (?g :- :k))))))
     ((:wat::core::= f 3) (:wat-tests::rete::fuzz::acc-cond fp))
     ;; 4 — intra-condition `:or`, the SECOND of rete's three `or` engines.
     ((:wat::core::= f 4)
       (:wat::core::PersistentVector
         (:wat::core::quasiquote
-          (:wat-tests::rete::fuzz::W (?w <- :k)
+          (:wat-tests::rete::fuzz::W (?w :- :k)
             (:wat::rete::or (:wat::rete::i64::> ?w (:wat::core::unquote fp))
                             (:wat::rete::i64::< ?w 3))))))
     ;; 5 — intra-condition `:not` of a CONSTRAINT (not of a condition).
     ((:wat::core::= f 5)
       (:wat::core::PersistentVector
         (:wat::core::quasiquote
-          (:wat-tests::rete::fuzz::W (?w <- :k)
+          (:wat-tests::rete::fuzz::W (?w :- :k)
             (:wat::rete::not (:wat::rete::i64::> ?w 100))))))
     ;; 6 — top-level `:or` ACROSS conditions: network branches, the first of rete's three `or`
     ;; engines, and the only one that binds a DIFFERENT variable per branch.
     ((:wat::core::= f 6)
       (:wat::core::PersistentVector
         (:wat::core::quasiquote
-          (:wat::rete::or (:wat-tests::rete::fuzz::P1 (?a <- :k))
-                          (:wat-tests::rete::fuzz::W (?w <- :k))))))
+          (:wat::rete::or (:wat-tests::rete::fuzz::P1 (?a :- :k))
+                          (:wat-tests::rete::fuzz::W (?w :- :k))))))
     ;; 7 — `:not` over a DERIVED class. STRATIFICATION: S2 exists only because the chain derives
     ;; it, so the answer must depend on the depth dimension. This is where family C lived.
     (:else
@@ -441,19 +441,19 @@
 ;; `acc-cond` DID stop reaching it — thresholds were 1,2,3 and the `Option`/None arm needs 0 —
 ;; and this gate is what that mistake bought.
 (:wat::rete::defquery :wat-tests::rete::fuzz::nv-count-1 :params []
-  :when [(?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W))
+  :when [(?n :- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W))
          (:wat::rete::where (:wat::rete::i64::>= ?n 1))])
 
 (:wat::rete::defquery :wat-tests::rete::fuzz::nv-count-0 :params []
-  :when [(?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W))
+  :when [(?n :- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W))
          (:wat::rete::where (:wat::rete::i64::>= ?n 0))])
 
 (:wat::rete::defquery :wat-tests::rete::fuzz::nv-max-1 :params []
-  :when [(?n <- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v <- :k)))
+  :when [(?n :- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v :- :k)))
          (:wat::rete::where (:wat::rete::i64::>= ?n 1))])
 
 (:wat::rete::defquery :wat-tests::rete::fuzz::nv-max-0 :params []
-  :when [(?n <- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v <- :k)))
+  :when [(?n :- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v :- :k)))
          (:wat::rete::where (:wat::rete::i64::>= ?n 0))])
 
 ;; dups=1 — a single `(W 0)`, so count=1 and max=0; retracting it empties the `:from` set.

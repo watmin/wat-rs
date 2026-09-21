@@ -10,7 +10,7 @@
 (:wat::core::defrecord :fsk::Hit [k <- :wat::core::i64])
 
 (:wat::rete::defrule :fsk::r
-  :when [(:fsk::Src (?k <- :k))]
+  :when [(:fsk::Src (?k :- :k))]
   :then [(:fsk::Hit :nope ?k)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

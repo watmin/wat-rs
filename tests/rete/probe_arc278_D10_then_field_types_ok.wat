@@ -17,7 +17,7 @@
 
 ;; rows 1+2: a bound i64 `?var` into `:n`, a String literal into `:t`
 (:wat::rete::defrule :dok::bound-and-literal
-  :when [(:dok::In (?k <- :k))]
+  :when [(:dok::In (?k :- :k))]
   :then [(:dok::Out :n ?k :t "lit")])
 
 (:wat::core::defrecord :dok::Sum [n <- :wat::core::i64  t <- :wat::core::String])
@@ -25,19 +25,19 @@
 ;; AND correct, so the wall must pass it. The negative twin of this row is the `.wat.bad` where
 ;; the same computed i64 goes into a String field.
 (:wat::rete::defrule :dok::computed
-  :when [(:dok::In (?k <- :k) (?s <- :s))]
+  :when [(:dok::In (?k :- :k) (?s :- :s))]
   :then [(:dok::Sum :n (:wat::rete::i64::+ ?k 1 :undefined 0) :t ?s)])
 
 (:wat::core::defrecord :dok::Pos [n <- :wat::core::i64  t <- :wat::core::String])
 ;; row 4: POSITIONAL — args are declaration order by definition, so this exercises the OTHER
 ;; producer arm of the same wall. Both args are well-typed.
 (:wat::rete::defrule :dok::positional
-  :when [(:dok::In (?k <- :k) (?s <- :s))]
+  :when [(:dok::In (?k :- :k) (?s :- :s))]
   :then [(:dok::Pos ?k ?s)])
 
-(:wat::rete::defquery :dok::q-out :params [] :when [(?f <- :dok::Out)])
-(:wat::rete::defquery :dok::q-sum :params [] :when [(?f <- :dok::Sum)])
-(:wat::rete::defquery :dok::q-pos :params [] :when [(?f <- :dok::Pos)])
+(:wat::rete::defquery :dok::q-out :params [] :when [(?f :- :dok::Out)])
+(:wat::rete::defquery :dok::q-sum :params [] :when [(?f :- :dok::Sum)])
+(:wat::rete::defquery :dok::q-pos :params [] :when [(?f :- :dok::Pos)])
 
 (:wat::core::defn :dok::fired [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules

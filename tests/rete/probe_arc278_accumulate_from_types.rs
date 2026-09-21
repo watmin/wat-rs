@@ -122,7 +122,7 @@ fn world(with_threshold: bool, acc: &str, gate: &str) -> String {
     } else {
         ""
     };
-    let threshold_when = if with_threshold { "            (:w3::Threshold (?min <- :min))\n" } else { "" };
+    let threshold_when = if with_threshold { "            (:w3::Threshold (?min :- :min))\n" } else { "" };
     format!(
         "(:wat::core::defrecord :w3::Station [location <- :wat::core::String])\n\
          (:wat::core::defrecord :w3::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
@@ -131,7 +131,7 @@ fn world(with_threshold: bool, acc: &str, gate: &str) -> String {
          \n\
          (:wat::rete::defrule :w3::busy\n\
            :when\n\
-           [(:w3::Station (?loc <- :location))\n\
+           [(:w3::Station (?loc :- :location))\n\
 {threshold_when}\
             {acc}\n\
             (:wat::rete::where {gate})]\n\
@@ -188,7 +188,7 @@ fn busy_count(with_threshold: bool, acc: &str, gate: &str, min: i64, readings: &
 /// row 1 — a PLAIN BIND `:from` inner, native fire, exact count.
 #[test]
 fn plain_bind_compiles_and_fires() {
-    let acc = "(?n <- (:wat::rete::acc::count) :from (:w3::Reading (?loc <- :location)))";
+    let acc = "(?n :- (:wat::rete::acc::count) :from (:w3::Reading (?loc :- :location)))";
     let n = busy_count(false, acc, "(:wat::rete::i64::= ?n 3)", 0, &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3)])
         .expect("plain-bind accumulate must compile and fire");
     assert_eq!(n, 1, "3 Oslo readings, gate = 3 -> fires once");
@@ -197,7 +197,7 @@ fn plain_bind_compiles_and_fires() {
 /// row 2 — a WELL-TYPED inline constraint inside `:from`'s inner filters correctly.
 ///
 /// ⚠ Uses `acc::sum ?v`, not `acc::count`. Driven in `wat-scripts/scratch-pad/arc278-accfrom/`:
-/// `acc::count` with a SECOND bind (`?v <- :value`) present in `:from`'s inner but unconsumed by
+/// `acc::count` with a SECOND bind (`?v :- :value`) present in `:from`'s inner but unconsumed by
 /// the acc-form derives a wrong count (3 real readings -> `n=1`), reproducibly, independent of any
 /// constraint. That is a native-engine accumulate defect (`src/rete/kernel/fire/acc.rs` /
 /// `pass/accumulate.rs`), NOT a validator question — DESIGN.md excludes the reducer body and the
@@ -206,7 +206,7 @@ fn plain_bind_compiles_and_fires() {
 /// fixture uses to keep the CLAIM about the validator, not about an unrelated engine gap.
 #[test]
 fn typed_constraint_compiles_and_fires() {
-    let acc = "(?n <- (:wat::rete::acc::sum ?v) :from (:w3::Reading (?loc <- :location) (?v <- :value) (:wat::rete::i64::> ?v 0)))";
+    let acc = "(?n :- (:wat::rete::acc::sum ?v) :from (:w3::Reading (?loc :- :location) (?v :- :value) (:wat::rete::i64::> ?v 0)))";
     // Only the two positive readings should be summed; the non-positive one is filtered out.
     let n = busy_count(false, acc, "(:wat::rete::i64::= ?n 12)", 0, &[("Oslo", 5), ("Oslo", -1), ("Oslo", 7)])
         .expect("typed-constraint accumulate must compile and fire");
@@ -218,7 +218,7 @@ fn typed_constraint_compiles_and_fires() {
 /// same reason as row 2 above.
 #[test]
 fn earlier_bound_join_var_compiles_and_fires() {
-    let acc = "(?n <- (:wat::rete::acc::sum ?v) :from (:w3::Reading (?loc <- :location) (?v <- :value) (:wat::rete::i64::> ?v ?min)))";
+    let acc = "(?n :- (:wat::rete::acc::sum ?v) :from (:w3::Reading (?loc :- :location) (?v :- :value) (:wat::rete::i64::> ?v ?min)))";
     let n = busy_count(true, acc, "(:wat::rete::i64::= ?n 12)", 3, &[("Oslo", 1), ("Oslo", 5), ("Oslo", 7)])
         .expect("earlier-bound-join accumulate must compile and fire");
     assert_eq!(n, 1, "threshold min=3; 5 + 7 = 12 (of 3 readings, `?v > ?min` filters out 1), gate = 12 -> fires once");
@@ -236,7 +236,7 @@ fn earlier_bound_join_var_compiles_and_fires() {
 /// the `:then` side.
 #[test]
 fn not_knowable_operand_still_compiles() {
-    let acc = "(?n <- (:wat::rete::acc::count) :from (:w3::Reading (?loc <- :location) (?v <- :value) (:wat::rete::i64::= ?v (:wat::rete::core::cond ((:wat::rete::string::= ?loc \"Oslo\") 10) (:else 999)))))";
+    let acc = "(?n :- (:wat::rete::acc::count) :from (:w3::Reading (?loc :- :location) (?v :- :value) (:wat::rete::i64::= ?v (:wat::rete::core::cond ((:wat::rete::string::= ?loc \"Oslo\") 10) (:else 999)))))";
     let world_src = world(false, acc, "(:wat::rete::i64::= ?n 0)");
     let result = startup_from_source(&world_src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()));
     assert!(

@@ -4,14 +4,14 @@
 (:wat::core::defrecord :cd::Src [k <- :cd::K])
 
 (:wat::rete::defrule :cd::go
-  :when [(:cd::Src (?k <- :k))]
+  :when [(:cd::Src (?k :- :k))]
   :then [(:cd::Box :label (:wat::rete::core::cond
            ((:wat::rete::core::enum::= ?k (:cd::K.Bb {})) "bb")
            (:else "other")))])
 
 (:wat::rete::defquery :cd::q-Box
   :params []
-  :when [(:cd::Box (?label <- :label))])
+  :when [(:cd::Box (?label :- :label))])
 
 (:wat::core::defn :user::run [] -> :wat::core::String
   (:wat::core::let

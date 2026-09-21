@@ -113,7 +113,7 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
         "accum-lead-rule-cascade",
         &[3, 2, 3],
         2,
-        "size=[items anchors depth]; Busy(k,n) :- [?n <- acc::count :from Reading] AND Anchor(k). \
+        "size=[items anchors depth]; Busy(k,n) :- [?n :- acc::count :from Reading] AND Anchor(k). \
          The Link cascade is INERT (unread). :derived is enc(k,n) per Busy, sorted not deduped. \
          Expected count = anchors = 2, CONSTANT in depth — constancy IS the assertion, not a \
          formula of the depth dial. Non-vacuity is anchors>0 plus the three-way.",
@@ -210,7 +210,7 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
         "retract-accum-derived",
         &[9],
         10,
-        "size=[depth]; accum-over-derived's shape (Seed anchors [?n <- acc/count :from Step]; \
+        "size=[depth]; accum-over-derived's shape (Seed anchors [?n :- acc/count :from Step]; \
          Step(k):-Step(k-1)), with Step(0) — the accumulate's own :from source AND the \
          cascade's root — duplicated then ONE copy retracted before re-fire. :derived is \
          enc(0,k,0) per derived Step level plus enc(1,0,n) per Tally, sorted not deduped. \
@@ -225,7 +225,7 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
         &[3, 2, 3],
         2,
         "size=[items anchors depth]; accum-lead-rule-cascade's shape (leading \
-         [?n <- acc/count :from Reading] joined to Anchor(k), plus an inert Link cascade), \
+         [?n :- acc/count :from Reading] joined to Anchor(k), plus an inert Link cascade), \
          with Reading(0) duplicated then ONE copy retracted before re-fire. :derived is \
          enc(k,n) per Busy, sorted not deduped. Post-retract Reading population returns to \
          items=3, so n=3 and expected count = anchors = 2, re-derived from the formula \
@@ -261,7 +261,7 @@ const CORRECTNESS_SIZES: &[(&str, &[i64], usize, &str)] = &[
         "userfn-accum-derived",
         &[9],
         10,
-        "size=[depth]; accum-over-derived's shape (Seed anchors [?n <- acc/count :from \
+        "size=[depth]; accum-over-derived's shape (Seed anchors [?n :- acc/count :from \
          Step]; Step(k):-Step(k-1)), with the accumulate's :then head calling a user fn \
          `mk-tally` instead of constructing Tally directly. :derived is enc(0,k,0) per \
          derived Step level plus enc(1,0,n) per Tally, sorted not deduped. Expected count = \

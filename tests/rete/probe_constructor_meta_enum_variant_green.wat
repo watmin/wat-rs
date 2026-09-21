@@ -12,12 +12,12 @@
 (:wat::core::defrecord :cg::Wrap   [s <- :cg::Status])
 
 (:wat::rete::defrule :cg::gather
-  :when [(:cg::Anchor (?x <- :x))]
+  :when [(:cg::Anchor (?x :- :x))]
   :then [(:cg::Wrap :s (:cg::Status.Active {:level 7}))])
 
 (:wat::rete::defquery :cg::q-Wrap
   :params []
-  :when [(:cg::Wrap (?s <- :s))])
+  :when [(:cg::Wrap (?s :- :s))])
 
 
 ;; Fires via the WAT ORACLE.

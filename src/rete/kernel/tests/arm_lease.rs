@@ -328,12 +328,12 @@ const SCOPED_WORK_WORLD: &str = "\
 (:wat::core::defrecord :sw::Wind  [location <- :wat::core::String])\n\
 (:wat::core::defrecord :sw::Match [location <- :wat::core::String])\n\
 \n\
-(:wat::rete::defquery :sw::q-match :params [] :when [(?fact <- :sw::Match)])\n\
+(:wat::rete::defquery :sw::q-match :params [] :when [(?fact :- :sw::Match)])\n\
 \n\
 (:wat::core::defn :sw::the-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::let\n\
-    [c1   (:wat::core::quote (:sw::Temp (?loc <- :location)))\n\
-     c2   (:wat::core::quote (:sw::Wind (?loc <- :location)))\n\
+    [c1   (:wat::core::quote (:sw::Temp (?loc :- :location)))\n\
+     c2   (:wat::core::quote (:sw::Wind (?loc :- :location)))\n\
      rhs  (:wat::core::quote (:sw::Match ?loc))\n\
      rule (:wat::rete::Rule :name \"temp-and-wind\"\n\
             :lhs (:wat::core::PersistentVector c1 c2)\n\

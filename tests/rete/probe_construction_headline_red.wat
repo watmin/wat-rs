@@ -16,7 +16,7 @@
     (:cr::Rate2 :count n)))
 
 (:wat::rete::defrule :cr::compute-bad
-  :when [(:cr::In (?n <- :n))]
+  :when [(:cr::In (?n :- :n))]
   :then [(:cr::make-rate-bad ?n)])
 
 ;; Compiling ALONE must panic (freeze-time-only, mirroring probe_arc278_then_user_forms_impure.wat).

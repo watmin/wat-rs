@@ -364,7 +364,7 @@ fn classify_keyword_constant<'a>(k: &'a str, types: &TypeEnv) -> KeywordConstant
 /// of this a guess? we know the type's value from the record def."* Correct — FOUR exhaustive
 /// sources, in order, and no fallback after them:
 ///   1. a `:field` operand      -> the field's DECLARED type
-///   2. a `?var` operand        -> the field its `(?v <- :field)` bind names, then the field's type
+///   2. a `?var` operand        -> the field its `(?v :- :field)` bind names, then the field's type
 ///   3. a LITERAL operand       -> the literal's own type
 ///   4. a nested CALL operand   -> its head row's declared `ret` (`Alias`/`Fallback` only)
 ///
@@ -731,7 +731,7 @@ fn check_fence_constraint_types(
     }
 }
 
-/// Collect every `(?v <- :field)` bind in the WHOLE rule, resolved to the field's declared type.
+/// Collect every `(?v :- :field)` bind in the WHOLE rule, resolved to the field's declared type.
 ///
 /// Rule-wide, not per-pattern, because a join variable is bound in one condition and compared in
 /// another. `not`/`exists` wrappers are unwrapped so their inner pattern's binds count too.

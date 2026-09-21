@@ -30,19 +30,19 @@
 
 ;; Ok is DERIVED — this is what makes the bag below "a type THIS SET derives".
 (:wat::rete::defrule :l23::ok
-  :when [(:l23::A (?k <- :k))]
+  :when [(:l23::A (?k :- :k))]
   :then [(:l23::Ok :k ?k)])
 
 ;; THE ANCHOR — negation over the derived Ok. Both engines +1 here.
 (:wat::rete::defrule :l23::neg
-  :when [(:l23::A (?k <- :k))
-         (:wat::rete::not (:l23::Ok (?k <- :k)))]
+  :when [(:l23::A (?k :- :k))
+         (:wat::rete::not (:l23::Ok (?k :- :k)))]
   :then [(:l23::Ok2 :k ?k)])
 
 ;; THE MEASUREMENT — accumulate :from over the derived Ok.
 (:wat::rete::defrule :l23::tally
-  :when [(:l23::Seed (?id <- :id))
-         (?n <- (:wat::rete::acc::count) :from (:l23::Ok))]
+  :when [(:l23::Seed (?id :- :id))
+         (?n :- (:wat::rete::acc::count) :from (:l23::Ok))]
   :then [(:l23::Tally :n ?n)])
 
 ;; ─── strike-oracle-negation-recurses PROBE — a `not` nested under `or`/`and`, as a RULE ──────
@@ -60,7 +60,7 @@
 
 ;; C is DERIVED — this is what makes the nested :not below a negation over a produced type.
 (:wat::rete::defrule :l24::mkc
-  :when [(:l24::Seed (?k <- :k))]
+  :when [(:l24::Seed (?k :- :k))]
   :then [(:l24::C :k ?k)])
 
 ;; THE NESTED SHAPE — (or A (and B (not C))). Oracle's rule-negates only recurses when the

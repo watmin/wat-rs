@@ -7,7 +7,7 @@
 
 (:wat::rete::defrule :xr::rule
   :when
-  [(:xr::In (?k <- :k) (?p <- :p) (?h <- :h))
+  [(:xr::In (?k :- :k) (?p :- :p) (?h :- :h))
    (:wat::rete::where
      (:wat::rete::core::and
        (:wat::rete::i64::=
@@ -17,7 +17,7 @@
   :then
   [(:xr::Out :k ?k)])
 
-(:wat::rete::defquery :xr::q :params [] :when [(?fact <- :xr::Out)])
+(:wat::rete::defquery :xr::q :params [] :when [(?fact :- :xr::Out)])
 
 (:wat::core::defn :xr::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert

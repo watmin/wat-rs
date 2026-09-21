@@ -32,19 +32,19 @@
 (:wat::core::defrecord :sqr::Ok   [k <- :wat::core::i64])
 
 (:wat::rete::defrule :sqr::mark-bad
-  :when [(:sqr::Item (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
+  :when [(:sqr::Item (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:sqr::Bad :k ?k)])
 
 ;; stratum 2 — negation over the DERIVED Bad, which is what forces stratification
 (:wat::rete::defrule :sqr::mark-ok
-  :when [(:sqr::Item (?k <- :k)) (:wat::rete::not (:sqr::Bad (?k <- :k)))]
+  :when [(:sqr::Item (?k :- :k)) (:wat::rete::not (:sqr::Bad (?k :- :k)))]
   :then [(:sqr::Ok :k ?k)])
 
-(:wat::rete::defquery :sqr::q-scan :params [] :when [(?fact <- :sqr::Ok)])
+(:wat::rete::defquery :sqr::q-scan :params [] :when [(?fact :- :sqr::Ok)])
 (:wat::rete::defquery :sqr::q-join :params []
-  :when [(:sqr::Ok (?k <- :k)) (:sqr::Item (?k <- :k) (?n <- :name))])
+  :when [(:sqr::Ok (?k :- :k)) (:sqr::Item (?k :- :k) (?n :- :name))])
 (:wat::rete::defquery :sqr::q-exists :params []
-  :when [(:wat::rete::exists (:sqr::Wind (?loc <- :loc)))])
+  :when [(:wat::rete::exists (:sqr::Wind (?loc :- :loc)))])
 
 (:wat::core::defn :sqr::staged [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all

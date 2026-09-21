@@ -15,7 +15,7 @@
 (:wat::core::defrecord :nwu::Outer [k <- :wat::core::i64  inner <- :nwu::Inner])
 
 (:wat::rete::defrule :nwu::r
-  :when [(:nwu::Src (?k <- :k))]
+  :when [(:nwu::Src (?k :- :k))]
   :then [(:nwu::Outer :k ?k :inner (:nwu::Inner :x ?k :nope ?k))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

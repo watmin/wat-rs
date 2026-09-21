@@ -5,5 +5,5 @@
 (:wat::core::defrecord :fit::Src [k <- :fit::Alpha])
 
 (:wat::rete::defrule :fit::same
-  :when [(:fit::Src (?k <- :k))]
+  :when [(:fit::Src (?k :- :k))]
   :then [(:fit::Box :k ?k)])

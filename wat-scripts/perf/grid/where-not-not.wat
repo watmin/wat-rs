@@ -9,10 +9,10 @@
 (:wat::core::defrecord :wnn::Yes  [k <- :wat::core::i64])
 
 (:wat::rete::defrule :wnn::wind-not-not-temp
-  :when [(:wnn::Wind (?loc <- :loc))
+  :when [(:wnn::Wind (?loc :- :loc))
          (:wat::rete::not
            (:wat::rete::not
-             (:wnn::Temp (?loc <- :loc))))]
+             (:wnn::Temp (?loc :- :loc))))]
   :then [(:wnn::Hit :loc ?loc)])
 
 (:wat::rete::defrule :wnn::lead-not-not
@@ -23,12 +23,12 @@
 
 (:wat::rete::defquery :wnn::q-Hit
   :params []
-  :when [(?fact <- :wnn::Hit)])
+  :when [(?fact :- :wnn::Hit)])
 
 
 (:wat::rete::defquery :wnn::q-Yes
   :params []
-  :when [(?fact <- :wnn::Yes)])
+  :when [(?fact :- :wnn::Yes)])
 
 
 (:wat::core::defn :wnn::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

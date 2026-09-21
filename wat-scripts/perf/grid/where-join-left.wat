@@ -16,8 +16,8 @@
 ;; THE HOLE — leftover `?c` lives on the Wind cond, not in a :where.
 (:wat::rete::defrule :wjl::wind-above-temp-inline
   :when
-  [(:wjl::Temp (?loc <- :loc) (?c <- :c))
-   (:wjl::Wind (?loc <- :loc) (?w <- :kph)
+  [(:wjl::Temp (?loc :- :loc) (?c :- :c))
+   (:wjl::Wind (?loc :- :loc) (?w :- :kph)
      (:wat::rete::i64::> ?w ?c))]
   :then
   [(:wjl::Hit :loc ?loc)])
@@ -25,15 +25,15 @@
 ;; CONTROL — same predicate, TestNode after the join. Both engines honor this.
 (:wat::rete::defrule :wjl::wind-above-temp-where
   :when
-  [(:wjl::Temp (?loc <- :loc) (?c <- :c))
-   (:wjl::Wind (?loc <- :loc) (?w <- :kph))
+  [(:wjl::Temp (?loc :- :loc) (?c :- :c))
+   (:wjl::Wind (?loc :- :loc) (?w :- :kph))
    (:wat::rete::where (:wat::rete::i64::> ?w ?c))]
   :then
   [(:wjl::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wjl::q-Hit
   :params []
-  :when [(?fact <- :wjl::Hit)])
+  :when [(?fact :- :wjl::Hit)])
 
 (:wat::core::defn :wjl::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query s (:wjl::q-Hit))))

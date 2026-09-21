@@ -9,12 +9,12 @@
 (:wat::core::defrecord :cr2g::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
 
 (:wat::rete::defrule :cr2g::gather
-  :when [(:cr2g::Anchor (?x <- :x))]
+  :when [(:cr2g::Anchor (?x :- :x))]
   :then [(:cr2g::Rate :count 7 :window 9)])
 
 (:wat::rete::defquery :cr2g::q-Rate
   :params []
-  :when [(:cr2g::Rate (?count <- :count) (?window <- :window))])
+  :when [(:cr2g::Rate (?count :- :count) (?window :- :window))])
 
 
 ;; Fires via the WAT ORACLE.

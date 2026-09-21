@@ -17,7 +17,7 @@
 (:wat::core::defrecord :dps::Bad [n <- :wat::core::i64  t <- :wat::core::String])
 
 (:wat::rete::defrule :dps::bad
-  :when [(:dps::Box (?k <- :k) (?s <- :s))]
+  :when [(:dps::Box (?k :- :k) (?s :- :s))]
   :then [(:dps::Bad ?s ?k)])
 
 ;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.

@@ -38,8 +38,8 @@ fn run_for(n: usize) {
     let world = startup_beside(file!()).expect("startup");
 
     let mut binds = String::from(
-        "   c1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
-            c2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
+        "   c1   (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))\
+            c2   (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))\
             rhs1 (:wat::core::quote (:weather::ColdAndWindy ?loc))\
             rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\
             s0   (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\n",
@@ -93,8 +93,8 @@ fn run_for(n: usize) {
 fn run_native(n: usize) {
     let world = startup_beside(file!()).expect("startup");
     let mut binds = String::from(
-        "   c1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
-            c2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
+        "   c1   (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))\
+            c2   (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))\
             rhs1 (:wat::core::quote (:weather::ColdAndWindy ?loc))\
             rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\
             s0   (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\n",

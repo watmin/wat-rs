@@ -36,9 +36,9 @@ const TRI_CENSUS_WORLD: &str = "\
 \n\
 (:wat::rete::defrule :tri::tri-rule\n\
   :when\n\
-  [(:tri::A (?k <- :key) (?a <- :a))\n\
-   (:tri::B (?k <- :key) (?b <- :b))\n\
-   (:tri::C (?k <- :key) (?c <- :c))]\n\
+  [(:tri::A (?k :- :key) (?a :- :a))\n\
+   (:tri::B (?k :- :key) (?b :- :b))\n\
+   (:tri::C (?k :- :key) (?c :- :c))]\n\
   :then\n\
   [(:tri::Trip ?k ?a ?b ?c)])\n";
 
@@ -180,7 +180,7 @@ fn beta_write_read_traffic() {
 /// Diagnostic — DESIGN-STONE-compiled-rhs.md's zero-allocation gate, not a positive count.
 ///
 /// `bindkey:alloc` is armed inside `matcher.rs`'s two `Value::String(Arc::new(...))` sites
-/// (alpha's `?v <- :field` and the RHS's `resolve_operand`). Alpha is compiled (arc 278
+/// (alpha's `?v :- :field` and the RHS's `resolve_operand`). Alpha is compiled (arc 278
 /// compiled-conditions), and as of this stone the RHS is too: `exec_compiled_rhs` walks a
 /// pre-built `CompiledRhs` program and never re-allocates a `?var` key, so on a fire with BOTH
 /// compiled paths live, `bindkey:alloc` is expected to be EXACTLY ZERO — a fire that still
@@ -488,7 +488,7 @@ fn fanout_three_leftover_split() {
     const QUERY_TAIL: &str = "\n\
 (:wat::rete::defquery :fan::q-Pair\n\
   :params []\n\
-  :when [(?fact <- :fan::Pair)])\n";
+  :when [(?fact :- :fan::Pair)])\n";
 
     let cal = calibrate_mark_ns();
 

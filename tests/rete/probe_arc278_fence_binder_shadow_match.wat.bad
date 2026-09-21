@@ -17,7 +17,7 @@
 (:wat::core::defrecord :fbsm::N [k <- :wat::core::i64])
 
 (:wat::rete::defrule :fbsm::shadow-in-match
-  :when [(:fbsm::N (?k <- :k))
+  :when [(:fbsm::N (?k :- :k))
          (:wat::rete::where
            (:wat::rete::core::match "shadow"
              (?k (:wat::rete::string::= ?k "shadow"))))]

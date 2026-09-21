@@ -59,11 +59,11 @@
 (:wat::rete::defrule :fix::head-keyword->conv
   :when
   [(:fix::Node
-     (?offset     <- :offset)
-     (?len        <- :len)
-     (?kind       <- :kind)
-     (?name       <- :name)
-     (?post-arrow <- :post-arrow)
+     (?offset     :- :offset)
+     (?len        :- :len)
+     (?kind       :- :kind)
+     (?name       :- :name)
+     (?post-arrow :- :post-arrow)
      (:wat::rete::string::= ?kind "keyword"))
    (:wat::rete::where (:fix::head-keyword-str? ?name))
    (:wat::rete::where (:wat::rete::core::not ?post-arrow))
@@ -76,10 +76,10 @@
 (:wat::rete::defrule :fix::arrow->conv
   :when
   [(:fix::Node
-     (?offset <- :offset)
-     (?len    <- :len)
-     (?kind   <- :kind)
-     (?name   <- :name)
+     (?offset :- :offset)
+     (?len    :- :len)
+     (?kind   :- :kind)
+     (?name   :- :name)
      (:wat::rete::string::= ?kind "symbol"))
    (:wat::rete::where (:wat::rete::core::or
                         (:wat::rete::string::= ?name "<-")
@@ -92,11 +92,11 @@
 (:wat::rete::defrule :fix::type-keyword->conv
   :when
   [(:fix::Node
-     (?offset     <- :offset)
-     (?len        <- :len)
-     (?kind       <- :kind)
-     (?name       <- :name)
-     (?post-arrow <- :post-arrow)
+     (?offset     :- :offset)
+     (?len        :- :len)
+     (?kind       :- :kind)
+     (?name       :- :name)
+     (?post-arrow :- :post-arrow)
      (:wat::rete::string::= ?kind "keyword"))
    (:wat::rete::where (:wat::rete::core::or
                         ?post-arrow
@@ -106,15 +106,15 @@
 
 (:wat::rete::defquery :fix::q-HeadConv
   :params []
-  :when [(:fix::HeadConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
+  :when [(:fix::HeadConv (?offset :- :offset) (?len :- :len) (?name :- :name))])
 
 (:wat::rete::defquery :fix::q-ArrowConv
   :params []
-  :when [(:fix::ArrowConv (?offset <- :offset) (?len <- :len))])
+  :when [(:fix::ArrowConv (?offset :- :offset) (?len :- :len))])
 
 (:wat::rete::defquery :fix::q-TypeConv
   :params []
-  :when [(:fix::TypeConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
+  :when [(:fix::TypeConv (?offset :- :offset) (?len :- :len) (?name :- :name))])
 
 
 ;; ── per-scenario named entries — one asserted Node, fired, queried ────────────────

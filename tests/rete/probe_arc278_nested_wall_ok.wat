@@ -12,10 +12,10 @@
 (:wat::core::defrecord :nwo::Outer [k <- :wat::core::i64  inner <- :nwo::Inner])
 
 (:wat::rete::defrule :nwo::r
-  :when [(:nwo::Src (?k <- :k))]
+  :when [(:nwo::Src (?k :- :k))]
   :then [(:nwo::Outer :k ?k :inner (:nwo::Inner :x ?k :y ?k))])
 
-(:wat::rete::defquery :nwo::q :params [] :when [(?f <- :nwo::Outer)])
+(:wat::rete::defquery :nwo::q :params [] :when [(?f :- :nwo::Outer)])
 
 (:wat::core::defn :nwo::fire [] -> :wat::core::i64
   (:wat::core::let

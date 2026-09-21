@@ -62,62 +62,62 @@
 ;; Structure mirrors the 8a/8b probe rule exactly: [anchor] [?n <- (acc) :from …] => insert.
 (:wat::rete::defrule :acc::count-rule
   :when
-  [(:acc::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::count) :from (:acc::Reading (?g <- :g)))]
+  [(:acc::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::count) :from (:acc::Reading (?g :- :g)))]
   :then
   [(:acc::CountF ?g ?n)])
 
 (:wat::rete::defrule :acc::sum-rule
   :when
-  [(:acc::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::sum ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
+  [(:acc::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::sum ?v) :from (:acc::Reading (?g :- :g) (?v :- :v)))]
   :then
   [(:acc::SumF ?g ?n)])
 
 (:wat::rete::defrule :acc::min-rule
   :when
-  [(:acc::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::min ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
+  [(:acc::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::min ?v) :from (:acc::Reading (?g :- :g) (?v :- :v)))]
   :then
   [(:acc::MinF ?g ?n)])
 
 (:wat::rete::defrule :acc::max-rule
   :when
-  [(:acc::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::max ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
+  [(:acc::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::max ?v) :from (:acc::Reading (?g :- :g) (?v :- :v)))]
   :then
   [(:acc::MaxF ?g ?n)])
 
 (:wat::rete::defrule :acc::exists-rule
   :when
-  [(:acc::Group (?g <- :g))
-   (:wat::rete::exists (:acc::Reading (?g <- :g)))]
+  [(:acc::Group (?g :- :g))
+   (:wat::rete::exists (:acc::Reading (?g :- :g)))]
   :then
   [(:acc::ExistsF ?g)])
 
 (:wat::rete::defquery :acc::q-CountF
   :params []
-  :when [(?fact <- :acc::CountF)])
+  :when [(?fact :- :acc::CountF)])
 
 
 (:wat::rete::defquery :acc::q-SumF
   :params []
-  :when [(?fact <- :acc::SumF)])
+  :when [(?fact :- :acc::SumF)])
 
 
 (:wat::rete::defquery :acc::q-MinF
   :params []
-  :when [(?fact <- :acc::MinF)])
+  :when [(?fact :- :acc::MinF)])
 
 
 (:wat::rete::defquery :acc::q-MaxF
   :params []
-  :when [(?fact <- :acc::MaxF)])
+  :when [(?fact :- :acc::MaxF)])
 
 
 (:wat::rete::defquery :acc::q-ExistsF
   :params []
-  :when [(?fact <- :acc::ExistsF)])
+  :when [(?fact :- :acc::ExistsF)])
 
 
 ;; val g j — the deterministic reading value at (group g, index j): (g*31 + j*17) mod 1000.

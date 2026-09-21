@@ -25,7 +25,7 @@
      lifted-node (:wat::core::keyword-node lifted-str)]
     `(:wat::core::do
        ;; the LIFTED body — ordinary top-level code, computed name
-       (:wat::core::defn ~lifted-node [?c <- :wat::core::i64] -> :wat::core::bool
+       (:wat::core::defn ~lifted-node [?c :- :wat::core::i64] -> :wat::core::bool
          (:wat::i64::> ?c 100))
        ;; the consumer — mentions the lifted fn, then calls it
        (:wat::core::defn ~name [] -> :wat::core::bool

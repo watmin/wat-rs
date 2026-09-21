@@ -781,7 +781,7 @@ mod rete_wall_probe {
 (:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
 (:wat::rete::defrule :alert::unattended
   :when
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius))]
+  [(:weather::Temperature (?loc :- :location) (?c :- :celsius))]
   :then
   [(:alert::Unattended :location ?loc)])
 "#;
@@ -824,7 +824,7 @@ mod rete_wall_probe {
             "field names in declaration order"
         );
 
-        // The clause itself is a well-formed bind — `(?loc <- :location)`, a List, not a bare
+        // The clause itself is a well-formed bind — `(?loc :- :location)`, a List, not a bare
         // keyword (the shape the 9a corruption injected; see `src/rete/validate.rs`'s
         // `corrupt_when_clause_is_a_located_error` for that case).
         assert!(

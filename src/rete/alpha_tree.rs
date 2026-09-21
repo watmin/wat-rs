@@ -314,7 +314,7 @@ fn walk(node: &AlphaDiscNode, fields: &[Value], out: &mut Vec<i64>) {
 /// not constrain this field," which puts it on the wildcard edge — always walked, never pruned
 /// away. This is the over-approximation contract, by construction.
 fn analyze_condition(clauses: &[WatAST], field_names: &[String]) -> HashMap<usize, Value> {
-    // Pass 1: `(?v <- :field)` binds, so a later `(:wat::core::= ?v <literal>)` can be traced
+    // Pass 1: `(?v :- :field)` binds, so a later `(:wat::core::= ?v <literal>)` can be traced
     // back to a field name. Recurses into `:wat::rete::and` (still AND semantics at any depth);
     // a bind that only lives inside `or`/`not` cannot be trusted for the ENCLOSING scope's
     // clauses, but since a `?v` used across those clauses would be the same var, the ordinary
@@ -392,7 +392,7 @@ fn field_literal_pair(
         WatAST::Symbol(name, _) if name.as_str().starts_with('?') => {
             var_to_field.get(name.as_str())?.clone()
         }
-        // A direct field reference, `:field`, with no preceding `(?v <- :field)` bind —
+        // A direct field reference, `:field`, with no preceding `(?v :- :field)` bind —
         // `resolve_operand`'s own reading of a bare Keyword operand.
         WatAST::Keyword(k, _) => k.strip_prefix(':').unwrap_or(k).to_string(),
         _ => return None,

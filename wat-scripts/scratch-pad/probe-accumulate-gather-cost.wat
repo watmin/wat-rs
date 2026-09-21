@@ -90,62 +90,62 @@
 
 (:wat::rete::defrule :acp::count-rule
   :when
-  [(:acp::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::count) :from (:acp::Reading (?g <- :g)))]
+  [(:acp::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::count) :from (:acp::Reading (?g :- :g)))]
   :then
   [(:acp::CountF ?g ?n)])
 
 (:wat::rete::defrule :acp::sum-rule
   :when
-  [(:acp::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::sum ?v) :from (:acp::Reading (?g <- :g) (?v <- :v)))]
+  [(:acp::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::sum ?v) :from (:acp::Reading (?g :- :g) (?v :- :v)))]
   :then
   [(:acp::SumF ?g ?n)])
 
 (:wat::rete::defrule :acp::min-rule
   :when
-  [(:acp::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::min ?v) :from (:acp::Reading (?g <- :g) (?v <- :v)))]
+  [(:acp::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::min ?v) :from (:acp::Reading (?g :- :g) (?v :- :v)))]
   :then
   [(:acp::MinF ?g ?n)])
 
 (:wat::rete::defrule :acp::max-rule
   :when
-  [(:acp::Group (?g <- :g))
-   (?n <- (:wat::rete::acc::max ?v) :from (:acp::Reading (?g <- :g) (?v <- :v)))]
+  [(:acp::Group (?g :- :g))
+   (?n :- (:wat::rete::acc::max ?v) :from (:acp::Reading (?g :- :g) (?v :- :v)))]
   :then
   [(:acp::MaxF ?g ?n)])
 
 (:wat::rete::defrule :acp::exists-rule
   :when
-  [(:acp::Group (?g <- :g))
-   (:wat::rete::exists (:acp::Reading (?g <- :g)))]
+  [(:acp::Group (?g :- :g))
+   (:wat::rete::exists (:acp::Reading (?g :- :g)))]
   :then
   [(:acp::ExistsF ?g)])
 
 (:wat::rete::defquery :acp::q-CountF
   :params []
-  :when [(?fact <- :acp::CountF)])
+  :when [(?fact :- :acp::CountF)])
 
 
 (:wat::rete::defquery :acp::q-SumF
   :params []
-  :when [(?fact <- :acp::SumF)])
+  :when [(?fact :- :acp::SumF)])
 
 
 (:wat::rete::defquery :acp::q-MinF
   :params []
-  :when [(?fact <- :acp::MinF)])
+  :when [(?fact :- :acp::MinF)])
 
 
 (:wat::rete::defquery :acp::q-MaxF
   :params []
-  :when [(?fact <- :acp::MaxF)])
+  :when [(?fact :- :acp::MaxF)])
 
 
 (:wat::rete::defquery :acp::q-ExistsF
   :params []
-  :when [(?fact <- :acp::ExistsF)])
+  :when [(?fact :- :acp::ExistsF)])
 
 
 (:wat::core::defn :acp::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64

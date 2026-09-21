@@ -24,17 +24,17 @@
 (:wat::core::defrecord :clw::SeenControl [k <- :wat::core::i64])
 
 (:wat::rete::defrule :clw::r
-  :when [(:clw::N (?k <- :k) (:wat::rete::where (:wat::rete::core::bool::= true true)))]
+  :when [(:clw::N (?k :- :k) (:wat::rete::where (:wat::rete::core::bool::= true true)))]
   :then [(:clw::Seen :k ?k)])
 
 ;; CONTROL — identical shape, clause-level `where` simply deleted. Must derive, or the harness
 ;; itself (fact insertion, field read, `:then`) is broken and the where-arm's zero proves nothing.
 (:wat::rete::defrule :clw::r-control
-  :when [(:clw::N (?k <- :k))]
+  :when [(:clw::N (?k :- :k))]
   :then [(:clw::SeenControl :k ?k)])
 
-(:wat::rete::defquery :clw::q-seen :params [] :when [(?f <- :clw::Seen)])
-(:wat::rete::defquery :clw::q-seen-control :params [] :when [(?f <- :clw::SeenControl)])
+(:wat::rete::defquery :clw::q-seen :params [] :when [(?f :- :clw::Seen)])
+(:wat::rete::defquery :clw::q-seen-control :params [] :when [(?f :- :clw::SeenControl)])
 
 (:wat::core::defn :clw::fired [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules

@@ -257,19 +257,19 @@ fn accum_fire_phase_census() {
 const ACCUM_QUERY_TAIL: &str = "\n\
 (:wat::rete::defquery :apx::q-CountF\n\
   :params []\n\
-  :when [(?fact <- :apx::CountF)])\n\
+  :when [(?fact :- :apx::CountF)])\n\
 (:wat::rete::defquery :apx::q-SumF\n\
   :params []\n\
-  :when [(?fact <- :apx::SumF)])\n\
+  :when [(?fact :- :apx::SumF)])\n\
 (:wat::rete::defquery :apx::q-MinF\n\
   :params []\n\
-  :when [(?fact <- :apx::MinF)])\n\
+  :when [(?fact :- :apx::MinF)])\n\
 (:wat::rete::defquery :apx::q-MaxF\n\
   :params []\n\
-  :when [(?fact <- :apx::MaxF)])\n\
+  :when [(?fact :- :apx::MaxF)])\n\
 (:wat::rete::defquery :apx::q-ExistsF\n\
   :params []\n\
-  :when [(?fact <- :apx::ExistsF)])\n";
+  :when [(?fact :- :apx::ExistsF)])\n";
 
 /// Rank accum `[200 200]` FIRE with vs without the five grid queries
 /// (`DESIGN-STONE-accum-class-index`). Census compiles without queries.

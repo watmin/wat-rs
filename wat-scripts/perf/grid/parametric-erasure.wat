@@ -85,22 +85,22 @@
    oracle-ns      <- :wat::core::i64])
 
 (:wat::rete::defrule :pe::r-box
-  :when  [(:pe::Box (?k <- :k) (?v <- :v))]
+  :when  [(:pe::Box (?k :- :k) (?v :- :v))]
   :then  [(:pe::Hit ?k)])
 
 (:wat::rete::defrule :pe::r-plain
-  :when  [(:pe::Plain (?k <- :k))]
+  :when  [(:pe::Plain (?k :- :k))]
   :then  [(:pe::PlainHit ?k)])
 
 ;; ★ The JOIN arm — Box's alpha delta consumed as SLOT INDICES into `wm.alpha[aid]`.
 (:wat::rete::defrule :pe::r-pair
-  :when  [(:pe::Box (?k <- :k) (?v <- :v))
-          (:pe::Plain (?k <- :k))]
+  :when  [(:pe::Box (?k :- :k) (?v :- :v))
+          (:pe::Plain (?k :- :k))]
   :then  [(:pe::Pair ?k)])
 
-(:wat::rete::defquery :pe::q-hit   :params [] :when [(?fact <- :pe::Hit)])
-(:wat::rete::defquery :pe::q-plain :params [] :when [(?fact <- :pe::PlainHit)])
-(:wat::rete::defquery :pe::q-pair  :params [] :when [(?fact <- :pe::Pair)])
+(:wat::rete::defquery :pe::q-hit   :params [] :when [(?fact :- :pe::Hit)])
+(:wat::rete::defquery :pe::q-plain :params [] :when [(?fact :- :pe::PlainHit)])
+(:wat::rete::defquery :pe::q-pair  :params [] :when [(?fact :- :pe::Pair)])
 
 ;; encode tag k — canonical single-i64 witness (Hit=0, PlainHit=1, Pair=2). `items` is far below
 ;; 1,000,000 at every size this axis is run at, so the encoding is injective here.

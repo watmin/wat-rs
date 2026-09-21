@@ -3,10 +3,10 @@
 (:wat::core::defrecord :exp::Temp [c <- :wat::core::i64])
 (:wat::core::defrecord :exp::Hit [c <- :wat::core::i64])
 
-(:wat::rete::defquery :exp::q-Hit :params [] :when [(?fact <- :exp::Hit)])
+(:wat::rete::defquery :exp::q-Hit :params [] :when [(?fact :- :exp::Hit)])
 
 (:wat::rete::defrule :exp::cool
-  :when [(:exp::Temp (?c <- :c))
+  :when [(:exp::Temp (?c :- :c))
          (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:exp::Hit ?c)])
 
@@ -20,7 +20,7 @@
 ;;
 ;; `(c + 5) < 20` selects the c=10 fact and rejects c=30, the same two seeds the other rules use.
 (:wat::rete::defrule :exp::cool-computed
-  :when [(:exp::Temp (?c <- :c)
+  :when [(:exp::Temp (?c :- :c)
            (:wat::rete::i64::< (:wat::rete::i64::+ :c 5 :undefined 0) 20))]
   :then [(:exp::Hit ?c)])
 
@@ -116,17 +116,17 @@
 (:wat::core::defrecord :sn::Ok  [k <- :wat::core::i64])
 
 (:wat::rete::defrule :sn::mark-bad
-  :when [(:sn::A (?k <- :k))
+  :when [(:sn::A (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:sn::Bad :k ?k)])
 
 (:wat::rete::defrule :sn::ok
-  :when [(:sn::A (?k <- :k))
-         (:wat::rete::not (:sn::Bad (?k <- :k)))]
+  :when [(:sn::A (?k :- :k))
+         (:wat::rete::not (:sn::Bad (?k :- :k)))]
   :then [(:sn::Ok :k ?k)])
 
-(:wat::rete::defquery :sn::q-Bad :params [] :when [(?fact <- :sn::Bad)])
-(:wat::rete::defquery :sn::q-Ok  :params [] :when [(?fact <- :sn::Ok)])
+(:wat::rete::defquery :sn::q-Bad :params [] :when [(?fact :- :sn::Bad)])
+(:wat::rete::defquery :sn::q-Ok  :params [] :when [(?fact :- :sn::Ok)])
 
 (:wat::core::defn :sn::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert

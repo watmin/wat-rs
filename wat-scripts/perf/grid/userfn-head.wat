@@ -52,27 +52,27 @@
   (:ufh::Rate :count k))
 
 (:wat::rete::defrule :ufh::bad
-  :when [(:ufh::Src (?k <- :k))
+  :when [(:ufh::Src (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::= ?k -1))]
   :then [(:ufh::Bad :k ?k)])
 
 (:wat::rete::defrule :ufh::via
-  :when [(:ufh::Src (?k <- :k))
-         (:wat::rete::not (:ufh::Bad (?k <- :k)))]
+  :when [(:ufh::Src (?k :- :k))
+         (:wat::rete::not (:ufh::Bad (?k :- :k)))]
   :then [(:ufh::mk-rate ?k)])
 
 (:wat::rete::defrule :ufh::out
-  :when [(:ufh::Rate (?n <- :count))]
+  :when [(:ufh::Rate (?n :- :count))]
   :then [(:ufh::Out :n ?n)])
 
 (:wat::rete::defquery :ufh::q-Rate
   :params []
-  :when [(?fact <- :ufh::Rate)])
+  :when [(?fact :- :ufh::Rate)])
 
 
 (:wat::rete::defquery :ufh::q-Out
   :params []
-  :when [(?fact <- :ufh::Out)])
+  :when [(?fact :- :ufh::Out)])
 
 
 (:wat::core::defn :ufh::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])

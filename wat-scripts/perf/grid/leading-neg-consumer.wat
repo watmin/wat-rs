@@ -86,7 +86,7 @@
 
 (:wat::rete::defquery :lnc::q-Final
   :params []
-  :when [(?fact <- :lnc::Final)])
+  :when [(?fact :- :lnc::Final)])
 
 
 ;; THE WITNESS CHAIN: a LEADING :exists producing Signal, consumed positively by Ok
@@ -97,35 +97,35 @@
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "signal"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quote (:wat::rete::exists (:lnc::Wind (?loc <- :loc)))))
+        (:wat::core::quote (:wat::rete::exists (:lnc::Wind (?loc :- :loc)))))
       :rhs (:wat::core::PersistentVector
         (:wat::core::quote (:lnc::Signal ?loc))))
     (:wat::rete::Rule :name "ok"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quote (:lnc::Signal (?loc <- :loc)))
-        (:wat::core::quote (:wat::rete::not (:lnc::Bad (?loc <- :loc)))))
+        (:wat::core::quote (:lnc::Signal (?loc :- :loc)))
+        (:wat::core::quote (:wat::rete::not (:lnc::Bad (?loc :- :loc)))))
       :rhs (:wat::core::PersistentVector
         (:wat::core::quote (:lnc::Ok ?loc))))
     (:wat::rete::Rule :name "final"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quote (:lnc::Ok  (?loc <- :loc)))
-        (:wat::core::quote (:lnc::Tag (?loc <- :loc))))
+        (:wat::core::quote (:lnc::Ok  (?loc :- :loc)))
+        (:wat::core::quote (:lnc::Tag (?loc :- :loc))))
       :rhs (:wat::core::PersistentVector
         (:wat::core::quote (:lnc::Final ?loc))))
     (:wat::rete::Rule :name "r2"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S1 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S1 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S2 ?k))))
     (:wat::rete::Rule :name "r3"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S2 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S2 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S3 ?k))))
     (:wat::rete::Rule :name "r4"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S3 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S3 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S4 ?k))))
     (:wat::rete::Rule :name "r5"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S4 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S4 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S5 ?k))))
     (:wat::rete::Rule :name "r6"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S5 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S5 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lnc::S6 ?k))))))
 
 ;; Seed: Wind(i) TWICE for each i in [0,items), Tag(i) once for each i, plus one S1 to

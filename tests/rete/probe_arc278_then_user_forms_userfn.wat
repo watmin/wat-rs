@@ -34,13 +34,13 @@
   (:wat::rete::core::PersistentVector/first rs :undefined (:tf::Rate :count 0)))
 
 (:wat::rete::defrule :tf::gather
-  :when [(:tf::Anchor (?x <- :x))
-         (?rates <- (:wat::rete::acc::all) :from (:tf::Rate (?c <- :count)))]
+  :when [(:tf::Anchor (?x :- :x))
+         (?rates :- (:wat::rete::acc::all) :from (:tf::Rate (?c :- :count)))]
   :then [(:tf::first-rate ?rates)])
 
 (:wat::rete::defquery :tf::q-Rate
   :params []
-  :when [(:tf::Rate (?count <- :count))])
+  :when [(:tf::Rate (?count :- :count))])
 
 
 (:wat::core::defn :test::compile-tf [] -> :wat::rete::Session

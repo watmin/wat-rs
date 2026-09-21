@@ -4,13 +4,13 @@
 
 ;; R1: A → B (single input match)
 (:wat::rete::defrule :c::r1
-  :when [(:c::A (?k <- :k))]
+  :when [(:c::A (?k :- :k))]
   :then [(:c::B ?k)])
 
 ;; R2: B JOIN A (derived B joined with the ORIGINAL input A, same k) → C
 (:wat::rete::defrule :c::r2
-  :when [(:c::B (?k <- :k))
-         (:c::A (?k <- :k))]
+  :when [(:c::B (?k :- :k))
+         (:c::A (?k :- :k))]
   :then [(:c::C ?k)])
 
 (:wat::rete::defquery :c::q-A

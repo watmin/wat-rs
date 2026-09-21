@@ -10,8 +10,8 @@
 
 (:wat::rete::defrule :wf::bad-acc
   :when
-  [(:weather::Temperature (?c <- :celsius))
-   (?s <- (:wf::partial-fold ?c) :from (:weather::Temperature (?c2 <- :celsius)))]
+  [(:weather::Temperature (?c :- :celsius))
+   (?s :- (:wf::partial-fold ?c) :from (:weather::Temperature (?c2 :- :celsius)))]
   :then
   [(:wf::Gate :celsius ?c)])
 

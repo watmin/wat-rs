@@ -703,18 +703,20 @@ fn computed_fields_are_provably_finite(form: &WatAST, sym: &SymbolTable) -> Opti
 
 /// Is `?v` bound, somewhere in this rule's `:when`, from `field` of fact type `ty`?
 ///
-/// A binding is the three-element form `(?v <- :field)` inside a condition whose head is the fact
-/// type — `(:gc::N (?k <- :k))`. Requiring the SAME type and the SAME field is what makes the
+/// A binding is the three-element form `(?v :- :field)` inside a condition whose head is the fact
+/// type — `(:gc::N (?k :- :k))`. Requiring the SAME type and the SAME field is what makes the
 /// measure apply to the thing being stepped: a fence on some other record's `:k` bounds nothing
 /// about this one.
 fn binds_var_from(lhs: &[WatAST], ty: &str, field: &str, var: &str) -> bool {
     fn is_binding(form: &WatAST, field: &str, var: &str) -> bool {
         let WatAST::List(parts, _) = form else { return false };
-        let [WatAST::Symbol(v, _), WatAST::Symbol(arrow, _), WatAST::Keyword(f, _)] = &parts[..]
+        let [WatAST::Symbol(v, _), arrow, WatAST::Keyword(f, _)] = &parts[..]
         else {
             return false;
         };
-        arrow.as_str() == "<-" && v.as_str() == var && f.trim_start_matches(':') == field
+        crate::types::is_binder_marker(arrow)
+            && v.as_str() == var
+            && f.trim_start_matches(':') == field
     }
     lhs.iter().any(|cond| {
         let WatAST::List(items, _) = cond else { return false };

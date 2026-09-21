@@ -10,14 +10,14 @@
 
 (:wat::rete::defquery :afs::q-Hot
   :params []
-  :when [(?fact <- :afs::Hot)])
+  :when [(?fact :- :afs::Hot)])
 
 
 ;; One condition, one matching fact (25) and one non-matching fact (15, fails > 20); RHS derives
 ;; :afs::Hot from the matching fact only.
 (:wat::core::defn :afs::built [] -> :wat::rete::Session
   (:wat::core::let
-    [cond  (:wat::core::quote (:afs::Temp (?t <- :value) (:wat::rete::i64::> ?t 20)))
+    [cond  (:wat::core::quote (:afs::Temp (?t :- :value) (:wat::rete::i64::> ?t 20)))
      rhs1  (:wat::core::quote (:afs::Hot ?t))
      rule  (:wat::rete::Rule :name "afs" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector rhs1))
      sess0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:afs::q-Hot))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])

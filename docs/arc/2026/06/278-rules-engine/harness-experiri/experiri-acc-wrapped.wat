@@ -7,7 +7,7 @@
   (:wat::rete::vector::length xs))
 
 (:wat::rete::defrule :probe::acc
-  :when  [(?n <- (:probe::len ?v) :from (:probe::In (?v <- :v)))]
+  :when  [(?n :- (:probe::len ?v) :from (:probe::In (?v :- :v)))]
   :then  [(:probe::Out :n ?n)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

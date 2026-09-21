@@ -71,14 +71,14 @@
 ;; the ONE rule: per Station, fold the user sum-of-squares over that location's Readings → Agg.
 (:wat::rete::defrule :ur::flag
   :when
-  [(:ur::Station (?loc <- :loc))
-   (?s <- (:ur::sum-of-squares ?v) :from (:ur::Reading (?loc <- :loc) (?v <- :value)))]
+  [(:ur::Station (?loc :- :loc))
+   (?s :- (:ur::sum-of-squares ?v) :from (:ur::Reading (?loc :- :loc) (?v :- :value)))]
   :then
   [(:ur::Agg ?loc ?s)])
 
 (:wat::rete::defquery :ur::q-Agg
   :params []
-  :when [(?fact <- :ur::Agg)])
+  :when [(?fact :- :ur::Agg)])
 
 
 ;; seed-loc session loc reads — stage Station(loc) then Reading(loc, (loc+j) mod 7) for j in [0,reads).

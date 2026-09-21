@@ -21,16 +21,16 @@
 (:wat::core::defrecord :d7w::NarrowHit [k <- :wat::core::i64])
 
 (:wat::rete::defrule :d7w::rw
-  :when [(:d7w::Wide (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e)
-                     (?f <- :f) (?g <- :g) (?h <- :h) (?i <- :i))]
+  :when [(:d7w::Wide (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e)
+                     (?f :- :f) (?g :- :g) (?h :- :h) (?i :- :i))]
   :then [(:d7w::WideHit ?a)])
 
 (:wat::rete::defrule :d7w::rn
-  :when [(:d7w::Narrow (?k <- :k))]
+  :when [(:d7w::Narrow (?k :- :k))]
   :then [(:d7w::NarrowHit ?k)])
 
-(:wat::rete::defquery :d7w::qw :params [] :when [(?fact <- :d7w::WideHit)])
-(:wat::rete::defquery :d7w::qn :params [] :when [(?fact <- :d7w::NarrowHit)])
+(:wat::rete::defquery :d7w::qw :params [] :when [(?fact :- :d7w::WideHit)])
+(:wat::rete::defquery :d7w::qn :params [] :when [(?fact :- :d7w::NarrowHit)])
 
 (:wat::core::defn :d7w::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
 

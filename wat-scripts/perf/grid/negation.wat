@@ -46,7 +46,7 @@
 
 (:wat::rete::defquery :neg::q-Ok
   :params []
-  :when [(?fact <- :neg::Ok)])
+  :when [(?fact :- :neg::Ok)])
 
 
 ;; build-rules — the single-rule set: Ok(k) :- Item(k) AND NOT Bad(k).
@@ -55,8 +55,8 @@
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "ok"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quasiquote (:neg::Item (?k <- :k)))
-        (:wat::core::quasiquote (:wat::rete::not (:neg::Bad (?k <- :k)))))
+        (:wat::core::quasiquote (:neg::Item (?k :- :k)))
+        (:wat::core::quasiquote (:wat::rete::not (:neg::Bad (?k :- :k)))))
       :rhs (:wat::core::PersistentVector
         (:wat::core::quasiquote (:neg::Ok ?k))))))
 

@@ -28,22 +28,22 @@
   (:a2::Rate :count k))
 
 (:wat::rete::defrule :a2::bad
-  :when [(:a2::Src (?k <- :k))
+  :when [(:a2::Src (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:a2::Bad :k ?k)])
 
 (:wat::rete::defrule :a2::via
-  :when [(:a2::Src (?k <- :k))
-         (:wat::rete::not (:a2::Bad (?k <- :k)))]
+  :when [(:a2::Src (?k :- :k))
+         (:wat::rete::not (:a2::Bad (?k :- :k)))]
   :then [(:a2::mk-rate ?k)])
 
 (:wat::rete::defrule :a2::out
-  :when [(:a2::Rate (?n <- :count))]
+  :when [(:a2::Rate (?n :- :count))]
   :then [(:a2::Out :n ?n)])
 
-(:wat::rete::defquery :a2::q-Rate :params [] :when [(?f <- :a2::Rate)])
-(:wat::rete::defquery :a2::q-Out  :params [] :when [(?f <- :a2::Out)])
-(:wat::rete::defquery :a2::q-Bad  :params [] :when [(?f <- :a2::Bad)])
+(:wat::rete::defquery :a2::q-Rate :params [] :when [(?f :- :a2::Rate)])
+(:wat::rete::defquery :a2::q-Out  :params [] :when [(?f :- :a2::Out)])
+(:wat::rete::defquery :a2::q-Bad  :params [] :when [(?f :- :a2::Bad)])
 
 (:wat::core::defn :a2::readback [s <- :wat::rete::Session]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])

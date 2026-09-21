@@ -9,18 +9,18 @@
 
 (:wat::rete::defrule :woa::really-cold-or-cold-and-windy
   :when [(:wat::rete::or
-           (:woa::Temp (?loc <- :loc) (?c <- :c)
+           (:woa::Temp (?loc :- :loc) (?c :- :c)
              (:wat::rete::i64::< ?c 0))
            (:wat::rete::and
-             (:woa::Temp (?loc <- :loc) (?c <- :c)
+             (:woa::Temp (?loc :- :loc) (?c :- :c)
                (:wat::rete::i64::< ?c 20))
-             (:woa::Wind (?loc <- :loc) (?w <- :kph)
+             (:woa::Wind (?loc :- :loc) (?w :- :kph)
                (:wat::rete::i64::> ?w 30))))]
   :then [(:woa::Hit :loc ?loc)])
 
 (:wat::rete::defquery :woa::q-Hit
   :params []
-  :when [(?fact <- :woa::Hit)])
+  :when [(?fact :- :woa::Hit)])
 
 
 (:wat::core::defn :woa::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

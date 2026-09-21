@@ -468,14 +468,14 @@ fn class_scan_harvest_includes_input() {
 (:wat::core::defrecord :hs::T [x <- :wat::core::i64])\n\
 (:wat::core::defrecord :hs::U [x <- :wat::core::i64])\n\
 (:wat::rete::defrule :hs::never\n\
-  :when [(:hs::T (?x <- :x) (:wat::rete::i64::< ?x 0))]\n\
+  :when [(:hs::T (?x :- :x) (:wat::rete::i64::< ?x 0))]\n\
   :then [(:hs::U ?x)])\n\
 (:wat::rete::defquery :hs::q-T\n\
   :params []\n\
-  :when [(?fact <- :hs::T)])\n\
+  :when [(?fact :- :hs::T)])\n\
 (:wat::rete::defquery :hs::q-U\n\
   :params []\n\
-  :when [(?fact <- :hs::U)])\n";
+  :when [(?fact :- :hs::U)])\n";
     let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("input-scan world should freeze");
     let src = "(:wat::core::match (:wat::rete::fire-rules\n\

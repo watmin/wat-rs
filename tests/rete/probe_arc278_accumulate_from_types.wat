@@ -23,16 +23,16 @@
 
 ;; row 1 — a PLAIN BIND, no clauses beyond it. The shape the `:from` arm already handled.
 (:wat::rete::defrule :tac::plain-bind
-  :when [(:tac::Station (?loc <- :location))
-         (?n <- (:wat::rete::acc::count) :from (:tac::Reading (?loc <- :location)))]
+  :when [(:tac::Station (?loc :- :location))
+         (?n :- (:wat::rete::acc::count) :from (:tac::Reading (?loc :- :location)))]
   :then [])
 
 ;; row 2 — a WELL-TYPED inline constraint inside `:from`'s inner. `?v` is bound to `:value` (i64);
 ;; `i64::>` is the matching comparator. This is exactly the shape the widened check must accept.
 (:wat::rete::defrule :tac::typed-constraint
-  :when [(:tac::Station (?loc <- :location))
-         (?n <- (:wat::rete::acc::count)
-             :from (:tac::Reading (?loc <- :location) (?v <- :value)
+  :when [(:tac::Station (?loc :- :location))
+         (?n :- (:wat::rete::acc::count)
+             :from (:tac::Reading (?loc :- :location) (?v :- :value)
                      (:wat::rete::i64::> ?v 0)))]
   :then [])
 
@@ -41,10 +41,10 @@
 ;; join — and only the `:field` side is schema-checked (DESIGN-rete-defrule-wall.md). A cure that
 ;; cannot resolve an earlier bind from inside the recursed `:from` walk would wrongly refuse this.
 (:wat::rete::defrule :tac::earlier-join
-  :when [(:tac::Station (?loc <- :location))
-         (:tac::Threshold (?min <- :min))
-         (?n <- (:wat::rete::acc::count)
-             :from (:tac::Reading (?loc <- :location) (?v <- :value)
+  :when [(:tac::Station (?loc :- :location))
+         (:tac::Threshold (?min :- :min))
+         (?n :- (:wat::rete::acc::count)
+             :from (:tac::Reading (?loc :- :location) (?v :- :value)
                      (:wat::rete::i64::> ?v ?min)))]
   :then [])
 
@@ -61,9 +61,9 @@
 ;; (Compile-only, like its fence ancestor — the runtime behavior of `cond` inside a `:from` filter
 ;; is not this fixture's claim.)
 (:wat::rete::defrule :tac::not-knowable
-  :when [(:tac::Station (?loc <- :location))
-         (?n <- (:wat::rete::acc::count)
-             :from (:tac::Reading (?loc <- :location) (?v <- :value)
+  :when [(:tac::Station (?loc :- :location))
+         (?n :- (:wat::rete::acc::count)
+             :from (:tac::Reading (?loc :- :location) (?v :- :value)
                      (:wat::rete::i64::= ?v
                        (:wat::rete::core::cond
                          ((:wat::rete::string::= ?loc "Oslo") 10)

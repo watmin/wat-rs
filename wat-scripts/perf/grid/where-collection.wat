@@ -112,7 +112,7 @@
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wc::conds [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid))))
+  (:wat::core::quasiquote (:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid))))
 
 (:wat::core::defn :wc::ins [] -> :wat::WatAST
   (:wat::core::quasiquote (:wc::Hit ?k)))
@@ -121,7 +121,7 @@
 ;; tags-len in {0..5}, bound in {0..7}; simulated => 48/200.
 (:wat::rete::defrule :wc::length-bound
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) ?b))]
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) ?b))]
   :then
   [(:wc::Hit ?k)])
 
@@ -132,7 +132,7 @@
 ;; Simulated => 54/200.
 (:wat::rete::defrule :wc::get-const
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
                                  (:wat::rete::i64::> (:wat::rete::vector::get ?t 2 :undefined 0) 5))]
   :then
   [(:wc::Hit ?k)])
@@ -140,7 +140,7 @@
 ;; ROW 3 — MEMBERSHIP. tags contains 6. Simulated => 38/200.
 (:wat::rete::defrule :wc::contains
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::vector::contains? ?t 6))]
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where (:wat::rete::vector::contains? ?t 6))]
   :then
   [(:wc::Hit ?k)])
 
@@ -149,7 +149,7 @@
 ;; get(grid,0) -> Some inner, length(inner)>1; None -> false. Simulated => 66/200.
 (:wat::rete::defrule :wc::nested
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::i64::> (:wat::rete::vector::length ?g) 0)
                                    (:wat::rete::i64::>
@@ -164,7 +164,7 @@
 ;; and then recurses into the closure body (plain `i64::+`) — see header. Simulated => 150/200.
 (:wat::rete::defrule :wc::fold-sum-bound
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
                                  (:wat::rete::i64::>
                                    (:wat::rete::core::foldl
                                      (:wat::rete::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
@@ -179,7 +179,7 @@
 ;; Simulated => 34/200.
 (:wat::rete::defrule :wc::get-dynamic
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
                                  (:wat::rete::i64::> (:wat::rete::vector::get ?t ?b :undefined 0) 3))]
   :then
   [(:wc::Hit ?k)])
@@ -189,7 +189,7 @@
 ;; where-shapes.wat row 5, but the argument is a collection, not a scalar). Simulated => 30/200.
 (:wat::rete::defrule :wc::userfn
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wc::heavy? ?t))]
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where (:wc::heavy? ?t))]
   :then
   [(:wc::Hit ?k)])
 
@@ -199,7 +199,7 @@
 ;; Simulated => 57/200 (includes all 34 empty-tags facts).
 (:wat::rete::defrule :wc::fold-every-even
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
                                  (:wat::rete::core::foldl
                                    (:wat::rete::core::fn [acc <- :wat::core::bool x <- :wat::core::i64] -> :wat::core::bool
                                      (:wat::rete::core::and acc (:wat::rete::i64::= 0 (:wat::rete::i64::mod x 2 :undefined 0))))
@@ -212,7 +212,7 @@
 ;; without raising. Simulated => 38/200.
 (:wat::rete::defrule :wc::fold-some-zero
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
                                  (:wat::rete::core::foldl
                                    (:wat::rete::core::fn [acc <- :wat::core::bool x <- :wat::core::i64] -> :wat::core::bool
                                      (:wat::rete::core::or acc (:wat::rete::i64::= x 0)))
@@ -225,7 +225,7 @@
 ;; get(grid,0) -> Some inner, sum(inner) > bound; None -> false. Simulated => 76/200.
 (:wat::rete::defrule :wc::nested-fold-bound
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
+  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::i64::> (:wat::rete::vector::length ?g) 0)
                                    (:wat::rete::i64::>
@@ -239,7 +239,7 @@
 
 (:wat::rete::defquery :wc::q-Hit
   :params []
-  :when [(?fact <- :wc::Hit)])
+  :when [(?fact :- :wc::Hit)])
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.

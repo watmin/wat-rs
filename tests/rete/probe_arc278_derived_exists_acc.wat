@@ -10,30 +10,30 @@
 (:wat::core::defrecord :dea::Tally [n <- :wat::core::i64])
 
 (:wat::rete::defrule :dea::mark-bad
-  :when [(:dea::A (?k <- :k))
+  :when [(:dea::A (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:dea::Bad :k ?k)])
 
 (:wat::rete::defrule :dea::ok
-  :when [(:dea::A (?k <- :k))
-         (:wat::rete::not (:dea::Bad (?k <- :k)))]
+  :when [(:dea::A (?k :- :k))
+         (:wat::rete::not (:dea::Bad (?k :- :k)))]
   :then [(:dea::Ok :k ?k)])
 
 (:wat::rete::defrule :dea::seen
-  :when [(:dea::A (?k <- :k))
-         (:wat::rete::exists (:dea::Ok (?k <- :k)))]
+  :when [(:dea::A (?k :- :k))
+         (:wat::rete::exists (:dea::Ok (?k :- :k)))]
   :then [(:dea::Seen :k ?k)])
 
 (:wat::rete::defrule :dea::tally
-  :when [(:dea::Seed (?id <- :id))
-         (?n <- (:wat::rete::acc::count) :from (:dea::Ok))
+  :when [(:dea::Seed (?id :- :id))
+         (?n :- (:wat::rete::acc::count) :from (:dea::Ok))
          (:wat::rete::where (:wat::rete::i64::= ?n 1))]
   :then [(:dea::Tally :n ?n)])
 
-(:wat::rete::defquery :dea::q-Bad   :params [] :when [(?f <- :dea::Bad)])
-(:wat::rete::defquery :dea::q-Ok    :params [] :when [(?f <- :dea::Ok)])
-(:wat::rete::defquery :dea::q-Seen  :params [] :when [(?f <- :dea::Seen)])
-(:wat::rete::defquery :dea::q-Tally :params [] :when [(?f <- :dea::Tally)])
+(:wat::rete::defquery :dea::q-Bad   :params [] :when [(?f :- :dea::Bad)])
+(:wat::rete::defquery :dea::q-Ok    :params [] :when [(?f :- :dea::Ok)])
+(:wat::rete::defquery :dea::q-Seen  :params [] :when [(?f :- :dea::Seen)])
+(:wat::rete::defquery :dea::q-Tally :params [] :when [(?f :- :dea::Tally)])
 
 (:wat::core::defn :dea::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:dea::mark-bad) (:dea::ok) (:dea::seen) (:dea::tally)))

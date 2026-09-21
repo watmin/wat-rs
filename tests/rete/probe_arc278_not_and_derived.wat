@@ -7,19 +7,19 @@
 (:wat::core::defrecord :nad::Ok  [k <- :wat::core::i64])
 
 (:wat::rete::defrule :nad::mark-bad
-  :when [(:nad::A (?k <- :k))
+  :when [(:nad::A (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:nad::Bad :k ?k)])
 
 (:wat::rete::defrule :nad::ok
-  :when [(:nad::A (?k <- :k))
+  :when [(:nad::A (?k :- :k))
          (:wat::rete::not
            (:wat::rete::and
-             (:nad::Bad (?k <- :k))))]
+             (:nad::Bad (?k :- :k))))]
   :then [(:nad::Ok :k ?k)])
 
-(:wat::rete::defquery :nad::q-Bad :params [] :when [(?f <- :nad::Bad)])
-(:wat::rete::defquery :nad::q-Ok  :params [] :when [(?f <- :nad::Ok)])
+(:wat::rete::defquery :nad::q-Bad :params [] :when [(?f :- :nad::Bad)])
+(:wat::rete::defquery :nad::q-Ok  :params [] :when [(?f :- :nad::Ok)])
 
 (:wat::core::defn :nad::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s (:nad::A :k 1) (:nad::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))

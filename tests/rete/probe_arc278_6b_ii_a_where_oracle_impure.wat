@@ -6,14 +6,14 @@
 
 (:wat::rete::defrule :wf::bad-gate
   :when
-  [(:weather::Temperature (?c <- :celsius))
+  [(:weather::Temperature (?c :- :celsius))
    (:wat::rete::where (:wat::core::record? (:wat::io::IOReader/open-file "x")))]
   :then
   [(:wf::Gate :celsius ?c)])
 
 (:wat::rete::defquery :wf::q-Gate
   :params []
-  :when [(?fact <- :wf::Gate)])
+  :when [(?fact :- :wf::Gate)])
 
 
 ;; 4 — the compile FENCE rejects an impure `where` (io): compiling the rule raises.

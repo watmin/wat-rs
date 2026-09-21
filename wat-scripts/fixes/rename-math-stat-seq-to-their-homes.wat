@@ -63,9 +63,9 @@
 ;; ── the finder — five rules over wat/grep.wat's stdlib fact base ───────────────────────────
 
 (:wat::rete::defrule :hms::math
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind — a string literal's span
          ;; covers its surrounding quotes while its `name` does not, so splicing the unquoted
          ;; replacement into that span would corrupt the literal into unquoted keyword syntax.
@@ -82,9 +82,9 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :hms::stat
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::std::stat::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -98,9 +98,9 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :hms::zip
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::zip"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -110,9 +110,9 @@
                        (:wat::grep::Capture :name "new" :value ":wat::seq::zip")))])
 
 (:wat::rete::defrule :hms::window
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::window"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -122,9 +122,9 @@
                        (:wat::grep::Capture :name "new" :value ":wat::seq::window")))])
 
 (:wat::rete::defrule :hms::remove-at
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::std::list::remove-at"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -141,8 +141,8 @@
 
 (:wat::rete::defquery :hms::q-match
   :params []
-  :when [(:wat::grep::Match (?line <- :line) (?col <- :col)
-           (?end-line <- :end-line) (?end-col <- :end-col) (?captures <- :captures))])
+  :when [(:wat::grep::Match (?line :- :line) (?col :- :col)
+           (?end-line :- :end-line) (?end-col :- :end-col) (?captures :- :captures))])
 
 (:wat::core::defn :hms::second-capture
   [captures <- (:wat::core::PersistentVector :- [:wat::grep::Capture])]

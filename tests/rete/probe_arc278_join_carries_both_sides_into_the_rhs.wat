@@ -29,11 +29,11 @@
                                    kph <- :wat::core::i64])
 
 (:wat::rete::defrule :jb::both-sides
-  :when [(:jb::Temp (?loc <- :loc) (?c <- :celsius))
-         (:jb::Wind (?loc <- :loc) (?k <- :kph))]
+  :when [(:jb::Temp (?loc :- :loc) (?c :- :celsius))
+         (:jb::Wind (?loc :- :loc) (?k :- :kph))]
   :then [(:jb::Both :loc ?loc :celsius ?c :kph ?k)])
 
-(:wat::rete::defquery :jb::q :params [] :when [(?fact <- :jb::Both)])
+(:wat::rete::defquery :jb::q :params [] :when [(?fact :- :jb::Both)])
 
 (:wat::core::defn :jb::staged [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all

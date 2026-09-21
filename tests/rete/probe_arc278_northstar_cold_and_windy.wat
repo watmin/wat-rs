@@ -8,19 +8,19 @@
 (:wat::rete::defrule :weather::cold-and-windy
   :when
   [(:weather::Temperature
-     (?loc <- :location)
-     (?c   <- :celsius)
+     (?loc :- :location)
+     (?c   :- :celsius)
      (:wat::rete::i64::< ?c 20))
    (:weather::WindSpeed
-     (?loc <- :location)
-     (?k   <- :kph)
+     (?loc :- :location)
+     (?k   :- :kph)
      (:wat::rete::i64::> ?k 30))]
   :then
   [(:weather::ColdAndWindy :location ?loc)])
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
-  :when [(?fact <- :weather::ColdAndWindy)])
+  :when [(?fact :- :weather::ColdAndWindy)])
 
 
 ;; The lifecycle, value-threaded: collect → compile → insert → insert → fire → query, then COUNT the

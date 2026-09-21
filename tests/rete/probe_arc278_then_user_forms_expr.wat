@@ -8,12 +8,12 @@
 (:wat::core::defrecord :tf::Rate [count <- :wat::core::i64])
 
 (:wat::rete::defrule :tf::compute
-  :when [(:tf::In (?n <- :n))]
+  :when [(:tf::In (?n :- :n))]
   :then [(:tf::Rate :count (:wat::rete::i64::+ ?n 1 :undefined 0))])
 
 (:wat::rete::defquery :tf::q-Rate
   :params []
-  :when [(:tf::Rate (?count <- :count))])
+  :when [(:tf::Rate (?count :- :count))])
 
 
 (:wat::core::defn :test::compile-tf [] -> :wat::rete::Session

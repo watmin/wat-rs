@@ -11,13 +11,13 @@
 
 (:wat::rete::defrule :probe::per-type-ordering
   :when
-  [(:probe::Reading (?loc <- :location) (:wat::rete::i64::> :value 10))]
+  [(:probe::Reading (?loc :- :location) (:wat::rete::i64::> :value 10))]
   :then
   [(:probe::Hot :location ?loc)])
 
 (:wat::rete::defquery :probe::q-Hot
   :params []
-  :when [(?fact <- :probe::Hot)])
+  :when [(?fact :- :probe::Hot)])
 
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64

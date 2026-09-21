@@ -44,10 +44,10 @@
 (:wat::core::defrecord :d11r::Outer [i <- :d11r::Inner])
 
 (:wat::rete::defrule :d11r::ok
-  :when [(:d11r::Box (?k <- :k))]
+  :when [(:d11r::Box (?k :- :k))]
   :then [(:d11r::Outer :i (:d11r::Inner :n ?k))])          ;; i64 into i64, NESTED — the CONTROL
 
-(:wat::rete::defquery :d11r::qo :params [] :when [(?f <- :d11r::Outer)])
+(:wat::rete::defquery :d11r::qo :params [] :when [(?f :- :d11r::Outer)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

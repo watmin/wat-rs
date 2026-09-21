@@ -48,19 +48,19 @@
 
 (:wat::rete::defquery :aod::q-Step
   :params []
-  :when [(?fact <- :aod::Step)])
+  :when [(?fact :- :aod::Step)])
 
 
 (:wat::rete::defquery :aod::q-Tally
   :params []
-  :when [(?fact <- :aod::Tally)])
+  :when [(?fact :- :aod::Tally)])
 
 
 ;; build-step k — Step(k) :- Step(k-1). Level literals spliced via quasiquote, same as
 ;; deep-cascade's per-level rule. One generated rule per level, not a self-recursive where.
 (:wat::core::defn :aod::build-step [k <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
-                    c (:wat::core::quasiquote (:aod::Step (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
+                    c (:wat::core::quasiquote (:aod::Step (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:aod::Step (:wat::core::unquote k)))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
       :lhs (:wat::core::PersistentVector c)
@@ -70,8 +70,8 @@
 (:wat::core::defn :aod::tally-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "tally"
     :lhs (:wat::core::PersistentVector
-      (:wat::core::quote (:aod::Seed (?id <- :id)))
-      (:wat::core::quote (?n <- (:wat::rete::acc::count) :from (:aod::Step))))
+      (:wat::core::quote (:aod::Seed (?id :- :id)))
+      (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:aod::Step))))
     :rhs (:wat::core::PersistentVector
       (:wat::core::quote (:aod::Tally ?n)))))
 

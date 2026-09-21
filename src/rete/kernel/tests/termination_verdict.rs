@@ -33,18 +33,18 @@ const WORLD: &str = "\
 (:wat::core::defrecord :a5p::A [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :a5p::B [k <- :wat::core::i64])\n\
 (:wat::rete::defrule :a5p::plain\n\
-  :when [(:a5p::A (?k <- :k))]\n\
+  :when [(:a5p::A (?k :- :k))]\n\
   :then [(:a5p::B :k ?k)])\n\
 \n\
 (:wat::core::defrecord :a5v::In  [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :a5v::Out [k <- :wat::core::i64])\n\
 (:wat::rete::defrule :a5v::computes\n\
-  :when [(:a5v::In (?k <- :k))]\n\
+  :when [(:a5v::In (?k :- :k))]\n\
   :then [(:a5v::Out :k (:wat::rete::i64::+ ?k 1 :undefined 0))])\n\
 \n\
 (:wat::core::defrecord :a5d::N [k <- :wat::core::i64])\n\
 (:wat::rete::defrule :a5d::diverges\n\
-  :when [(:a5d::N (?k <- :k))\n\
+  :when [(:a5d::N (?k :- :k))\n\
          (:wat::rete::where (:wat::rete::i64::> ?k 500))]\n\
   :then [(:a5d::N :k (:wat::rete::i64::+ ?k 1 :undefined 0))])\n\
 ";

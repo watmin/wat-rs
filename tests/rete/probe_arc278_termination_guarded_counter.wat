@@ -26,12 +26,12 @@
 
 (:wat::rete::defrule :gc::count-up
   :when
-  [(:gc::N (?k <- :k))
+  [(:gc::N (?k :- :k))
    (:wat::rete::where (:wat::rete::i64::< ?k 500))]
   :then
   [(:gc::N :k (:wat::rete::i64::+ ?k 1 :undefined 0))])
 
-(:wat::rete::defquery :gc::q :params [] :when [(?fact <- :gc::N)])
+(:wat::rete::defquery :gc::q :params [] :when [(?fact :- :gc::N)])
 
 ;; No println before compile-all — the same lesson the fn-head fixture records: announcing
 ;; "compiled" first prints whether or not the compile then fails.

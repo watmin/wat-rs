@@ -14,7 +14,7 @@
   (:wat::rete::i64::+ n 1 :undefined 0))
 
 (:wat::rete::defrule :tf::compute-bad
-  :when [(:tf::In (?n <- :n))]
+  :when [(:tf::In (?n :- :n))]
   :then [(:tf::compute-scalar ?n)])
 
 (:wat::core::defn :user::run-compile [] -> :wat::core::i64

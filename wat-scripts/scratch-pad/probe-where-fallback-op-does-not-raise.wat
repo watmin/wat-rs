@@ -49,14 +49,14 @@
 ;; substitute :undefined's fallback (-999) and let the rule fire normally.
 (:wat::rete::defrule :pfo::add-in-where
   :when
-  [(:pfo::Big (?k <- :k) (?n <- :n))
+  [(:pfo::Big (?k :- :k) (?n :- :n))
    (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::+ ?n 1 :undefined -999) -1000000))]
   :then
   [(:pfo::Hit ?k (:wat::rete::i64::+ ?n 1 :undefined -999))])
 
 (:wat::rete::defquery :pfo::q-Hit
   :params []
-  :when [(?fact <- :pfo::Hit)])
+  :when [(?fact :- :pfo::Hit)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

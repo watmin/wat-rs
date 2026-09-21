@@ -21,7 +21,7 @@
 
 (:wat::rete::defrule :d6u::hit
   :when
-  [(:d6u::Reading (?n <- :n) (?g <- :grade)
+  [(:d6u::Reading (?n :- :n) (?g :- :grade)
                   (:wat::rete::i64::> ?n 5)
                   (:wat::rete::core::enum::= ?g :d6u::Grade.Hi))]
   :then

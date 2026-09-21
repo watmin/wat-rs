@@ -1193,7 +1193,7 @@ pub(crate) struct QueryClassScan {
 }
 
 /// Alphas that exist only to feed QueryNodes (Alpha → RootJoin → Query).
-/// `(?fact <- :Type)` with no field constraints.
+/// `(?fact :- :Type)` with no field constraints.
 pub(crate) fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashMap<i64, QueryClassScan> {
     let mut q_joins: HashSet<i64> = HashSet::new();
     for &jid in &arm.kind_ids.join_parent {

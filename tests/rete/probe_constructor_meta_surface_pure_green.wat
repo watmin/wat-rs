@@ -17,12 +17,12 @@
 (:wat::core::defstruct :cg::Handle [label <- :wat::core::i64])
 
 (:wat::rete::defrule :cg::gather
-  :when [(:cg::Anchor (?x <- :x))]
+  :when [(:cg::Anchor (?x :- :x))]
   :then [(:cg::Handle :label ?x)])
 
 (:wat::rete::defquery :cg::q-Handle
   :params []
-  :when [(:cg::Handle (?label <- :label))])
+  :when [(:cg::Handle (?label :- :label))])
 
 
 (:wat::core::defn :user::run [] -> :wat::core::i64

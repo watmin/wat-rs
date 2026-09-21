@@ -22,12 +22,12 @@
 (:wat::core::defrecord :cg::Outer  [inner <- :cg::Inner])
 
 (:wat::rete::defrule :cg::gather
-  :when [(:cg::Anchor (?x <- :x))]
+  :when [(:cg::Anchor (?x :- :x))]
   :then [(:cg::Outer :inner (:cg::Inner :x 5))])
 
 (:wat::rete::defquery :cg::q-Outer
   :params []
-  :when [(:cg::Outer (?inner <- :inner))])
+  :when [(:cg::Outer (?inner :- :inner))])
 
 
 ;; Fires via the WAT ORACLE.

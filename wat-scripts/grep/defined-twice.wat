@@ -43,8 +43,8 @@
 (:wat::core::defrecord :dt::Defines    [id <- :wat::core::i64  name <- :wat::core::String])
 
 (:wat::rete::defrule :dt::declarator
-  :when [(:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where
@@ -56,21 +56,21 @@
   :then [(:dt::Declarator :parent ?p)])
 
 (:wat::rete::defrule :dt::defines
-  :when [(:dt::Declarator (?p <- :parent))
-         (:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+  :when [(:dt::Declarator (?p :- :parent))
+         (:wat::grep::Node  (?id :- :id) (?p :- :parent) (?i :- :index))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
          (:wat::rete::where (:wat::rete::i64::= ?i 1))]
   :then [(:dt::Defines :id ?id :name ?n)])
 
 ;; ★ THE SELF-JOIN — the same condition twice, `?n` shared, `?a < ?b` keeping one of each mirror
 (:wat::rete::defrule :dt::twice
-  :when [(:dt::Defines (?a <- :id) (?n <- :name))
-         (:dt::Defines (?b <- :id) (?n <- :name))
+  :when [(:dt::Defines (?a :- :id) (?n :- :name))
+         (:dt::Defines (?b :- :id) (?n :- :name))
          ;; the ordering guard, back where it belongs: immediately after the two conditions
          ;; whose variables it relates, before the span lookup that only the survivor needs.
          (:wat::rete::where (:wat::rete::i64::< ?a ?b))
-         (:wat::grep::Span (?b <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))]
+         (:wat::grep::Span (?b :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "defined-more-than-once-in-one-file"

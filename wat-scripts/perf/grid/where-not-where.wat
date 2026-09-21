@@ -8,15 +8,15 @@
 (:wat::core::defrecord :wnw::Hit  [a <- :wat::core::String b <- :wat::core::String])
 
 (:wat::rete::defrule :wnw::not-same-loc
-  :when [(:wnw::Temp (?a <- :loc))
-         (:wnw::Wind (?b <- :loc))
+  :when [(:wnw::Temp (?a :- :loc))
+         (:wnw::Wind (?b :- :loc))
          (:wat::rete::not
            (:wat::rete::where (:wat::rete::string::= ?a ?b)))]
   :then [(:wnw::Hit :a ?a :b ?b)])
 
 (:wat::rete::defquery :wnw::q-Hit
   :params []
-  :when [(?fact <- :wnw::Hit)])
+  :when [(?fact :- :wnw::Hit)])
 
 
 (:wat::core::defn :wnw::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

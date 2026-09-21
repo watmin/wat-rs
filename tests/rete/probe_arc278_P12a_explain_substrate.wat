@@ -8,20 +8,20 @@
 
 (:wat::rete::defrule :weather::cold-and-windy
   :when
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::rete::i64::< ?c 0))
-   (:weather::WindSpeed   (?loc <- :location) (?k <- :kph)     (:wat::rete::i64::> ?k 30))]
+  [(:weather::Temperature (?loc :- :location) (?c :- :celsius) (:wat::rete::i64::< ?c 0))
+   (:weather::WindSpeed   (?loc :- :location) (?k :- :kph)     (:wat::rete::i64::> ?k 30))]
   :then
   [(:weather::ColdAndWindy ?c ?k)])
 
 (:wat::rete::defrule :weather::alert
   :when
-  [(:weather::ColdAndWindy (?c <- :celsius) (?k <- :kph))]
+  [(:weather::ColdAndWindy (?c :- :celsius) (?k :- :kph))]
   :then
   [(:weather::WeatherAlert :celsius ?c :kph ?k)])
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
-  :when [(?fact <- :weather::ColdAndWindy)])
+  :when [(?fact :- :weather::ColdAndWindy)])
 
 
 (:wat::core::defn :test::compile-weather [] -> :wat::rete::Session

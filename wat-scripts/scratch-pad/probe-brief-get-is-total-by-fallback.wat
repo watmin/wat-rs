@@ -32,14 +32,14 @@
 ;; would — that is exactly the totality the brief's ruling buys).
 (:wat::rete::defrule :g278get::big-at-0
   :when
-  [(:g278get::PV (?v <- :v))
+  [(:g278get::PV (?v :- :v))
    (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::get ?v 0 :undefined -1) 5))]
   :then
   [(:g278get::Hit 1)])
 
 (:wat::rete::defquery :g278get::q-Hit
   :params []
-  :when [(?fact <- :g278get::Hit)])
+  :when [(?fact :- :g278get::Hit)])
 
 
 (:wat::core::defn :g278get::row7 [] -> :wat::core::nil

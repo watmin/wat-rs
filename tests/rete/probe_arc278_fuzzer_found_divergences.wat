@@ -13,24 +13,24 @@
 ;; qB1 (one where) agrees at 1. qB2 differs ONLY by a trailing, trivially-true
 ;; second where — and native drops to 0 while the oracle holds at 1.
 (:wat::rete::defquery :user::qB1 :params []
-  :when [(:user::P1 (?a <- :k))
-         (?n <- (:wat::rete::acc::count) :from (:user::W))
+  :when [(:user::P1 (?a :- :k))
+         (?n :- (:wat::rete::acc::count) :from (:user::W))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
 
 (:wat::rete::defquery :user::qB2 :params []
-  :when [(:user::P1 (?a <- :k))
-         (?n <- (:wat::rete::acc::count) :from (:user::W))
+  :when [(:user::P1 (?a :- :k))
+         (?n :- (:wat::rete::acc::count) :from (:user::W))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))
          (:wat::rete::where (:wat::rete::i64::> 1 0))])
 
 ;; ── A — a LEADING accumulate emits one row per FIXPOINT ROUND ───────────────
 ;; The chain is inert: it derives S2/S3 and touches nothing the query reads. Its
 ;; only role is to make the fixpoint iterate. Rows track that count exactly.
-(:wat::rete::defrule :user::r1 :when [(:user::S1 (?k <- :k))] :then [(:user::S2 :k ?k)])
-(:wat::rete::defrule :user::r2 :when [(:user::S2 (?k <- :k))] :then [(:user::S3 :k ?k)])
+(:wat::rete::defrule :user::r1 :when [(:user::S1 (?k :- :k))] :then [(:user::S2 :k ?k)])
+(:wat::rete::defrule :user::r2 :when [(:user::S2 (?k :- :k))] :then [(:user::S3 :k ?k)])
 
 (:wat::rete::defquery :user::qA :params []
-  :when [(?n <- (:wat::rete::acc::count) :from (:user::W))
+  :when [(?n :- (:wat::rete::acc::count) :from (:user::W))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
 
 ;; ── C — `:not` over a DERIVED class ignores the derivation ─────────────────
@@ -43,7 +43,7 @@
 
 ;; The control that makes the claim airtight: is S2 actually there?
 (:wat::rete::defquery :user::qS2 :params []
-  :when [(?fact <- :user::S2)])
+  :when [(?fact :- :user::S2)])
 
 (:wat::core::defn :user::two
   [q <- :wat::rete::Query  rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
@@ -66,7 +66,7 @@
 (:wat::core::defn :user::one-rule [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r1"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:user::S1 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:user::S1 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:user::S2 ?k))))))
 
 ;; [B1-native B1-oracle  B2-native B2-oracle  A2-native A2-oracle  A3-native A3-oracle]

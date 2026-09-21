@@ -20,7 +20,7 @@ fn world(acc: &str, gate: &str) -> String {
          \n\
          (:wat::rete::defrule :w::busy\n\
            :when\n\
-           [(:w::Station (?loc <- :location))\n\
+           [(:w::Station (?loc :- :location))\n\
             {acc}\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
@@ -58,8 +58,8 @@ fn busy_count(fire_fn: &str, acc: &str, gate: &str, readings: &[(&str, i64)]) ->
     }
 }
 
-const COUNT: &str = "(?n <- (:wat::rete::acc::count) :from (:w::Reading (?loc <- :location)))";
-const SUM: &str = "(?n <- (:wat::rete::acc::sum ?v) :from (:w::Reading (?loc <- :location) (?v <- :value)))";
+const COUNT: &str = "(?n :- (:wat::rete::acc::count) :from (:w::Reading (?loc :- :location)))";
+const SUM: &str = "(?n :- (:wat::rete::acc::sum ?v) :from (:w::Reading (?loc :- :location) (?v :- :value)))";
 
 /// Assert native fire == oracle fire == `expect` for the given accumulate rule + facts.
 fn diff(acc: &str, gate: &str, readings: &[(&str, i64)], expect: i64) {

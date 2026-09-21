@@ -107,7 +107,7 @@
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wsc::conds [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o))))
+  (:wat::core::quasiquote (:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o))))
 
 (:wat::core::defn :wsc::ins [] -> :wat::WatAST
   (:wat::core::quasiquote (:wsc::Hit ?k)))
@@ -122,7 +122,7 @@
 ;; 90 - 15 = 75 pass on the not-n branch.  Total: 15 + 75 = 90/180.
 (:wat::rete::defrule :wsc::if-whole
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::if ?n
                                    (:wat::rete::i64::> ?a 1)
                                    (:wat::rete::i64::< ?a 2)))]
@@ -137,7 +137,7 @@
 ;; which only 6 qualifies -- 1 of every 18 -- so 10 across [0,180). 80 - 10 = 70/180.
 (:wat::rete::defrule :wsc::if-nested-cmp
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::i64::>
                                    (:wat::rete::core::if ?n ?a ?b)
                                    4))]
@@ -153,7 +153,7 @@
 ;; Total: 90/180.
 (:wat::rete::defrule :wsc::if-chain-whole
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::if (:wat::rete::i64::= ?a 0)
                                    true
                                    (:wat::rete::core::if (:wat::rete::i64::= ?a 1)
@@ -172,7 +172,7 @@
 ;; identical blocks => 22*5 = 110/180.
 (:wat::rete::defrule :wsc::let-twice
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::let [s (:wat::rete::i64::+ ?a ?b :undefined 0)]
                                    (:wat::rete::core::and
                                      (:wat::rete::i64::> s 4)
@@ -186,7 +186,7 @@
 ;; {1,2,3} => 3 of every 4 residues => 135/180.
 (:wat::rete::defrule :wsc::let-call-cse
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::let [c (:wsc::bump ?a)]
                                    (:wat::rete::core::and
                                      (:wat::rete::i64::> c 1)
@@ -200,7 +200,7 @@
 ;; residues => 90/180.
 (:wat::rete::defrule :wsc::match-i64
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::match ?a
                                    [0 false]
                                    [1 true]
@@ -215,7 +215,7 @@
 ;; which 29 are multiples of 3 (93..177 step 3) => 89 - 29 = 60/180.
 (:wat::rete::defrule :wsc::option-match
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::match ?o
                                    [:wat::core::Option.Some {:value v} (:wat::rete::i64::> v 90)]
                                    [:wat::core::Option.None {} false]))]
@@ -229,7 +229,7 @@
 ;; i=18 (s=2); i=12(3),24(6),30(5) fail both => 3 of 6 per block * 5 blocks (180/36) = 15/180.
 (:wat::rete::defrule :wsc::deep-nest
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::let [s (:wat::rete::i64::+ ?a ?b :undefined 3)]
                                    (:wat::rete::core::and
                                      ?n
@@ -248,7 +248,7 @@
 ;; Total: 0 + 50 = 50/180.
 (:wat::rete::defrule :wsc::if-let-arm
   :when
-  [(:wsc::Req (?k <- :k) (?a <- :a) (?b <- :b) (?n <- :n) (?o <- :o)) (:wat::rete::where
+  [(:wsc::Req (?k :- :k) (?a :- :a) (?b :- :b) (?n :- :n) (?o :- :o)) (:wat::rete::where
                                  (:wat::rete::core::if ?n
                                    (:wat::rete::core::let [s (:wat::rete::i64::+ ?a ?b :undefined 0)]
                                      (:wat::rete::i64::> s 8))
@@ -258,7 +258,7 @@
 
 (:wat::rete::defquery :wsc::q-Hit
   :params []
-  :when [(?fact <- :wsc::Hit)])
+  :when [(?fact :- :wsc::Hit)])
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.

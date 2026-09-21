@@ -59,7 +59,7 @@
                                            (:wat::core::concat
                                              (:wat::core::Vector :- [:wat::WatAST]
                                                (:wat::keyword::to-type-form ch2))
-                                             (:wat::fix::fix-seq rest3 false))))
+                                             (:wat::fix::fix-seq rest3 false false))))
                                      (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::typeunion")
                                        (:wat::core::if (:wat::core::empty? rest2)
                                          (:wat::core::Vector :- [:wat::WatAST])
@@ -68,8 +68,8 @@
                                            (:wat::core::concat
                                              (:wat::core::Vector :- [:wat::WatAST]
                                                (:migrate::fix-type-vector uch2))
-                                             (:wat::fix::fix-seq urest false))))
-                                       (:wat::fix::fix-seq rest2 false)))]
+                                             (:wat::fix::fix-seq urest false false))))
+                                       (:wat::fix::fix-seq rest2 false false)))]
           (:wat::core::with-children node
             (:wat::core::concat
               (:wat::core::Vector :- [:wat::WatAST] fixed-head)

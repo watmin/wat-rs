@@ -71,9 +71,9 @@
 ;; ── the finder — six rules over wat/grep.wat's stdlib fact base ─────────────────────────
 
 (:wat::rete::defrule :rn::core-persistentvector-slash
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's
          ;; `nameable?`) — a string literal's span covers its surrounding quotes while its
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
@@ -92,9 +92,9 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :rn::core-vector-slash
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-persistentvector-slash's comment.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::Vector/"))]
@@ -117,9 +117,9 @@
 ;; rune:lint(rete-name-unminted) :wat::rete::core::Vector/get — the exact OLD rete-spelled name :rn::rete-vector-get's fence searches for and rewrites.
 
 (:wat::rete::defrule :rn::rete-persistentvector-length
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::rete::core::PersistentVector/length"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -129,9 +129,9 @@
                        (:wat::grep::Capture :name "new" :value ":wat::rete::vector::length")))])
 
 (:wat::rete::defrule :rn::rete-persistentvector-contains
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::rete::core::PersistentVector/contains?"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -141,9 +141,9 @@
                        (:wat::grep::Capture :name "new" :value ":wat::rete::vector::contains?")))])
 
 (:wat::rete::defrule :rn::rete-persistentvector-get
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::rete::core::PersistentVector/get"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -153,9 +153,9 @@
                        (:wat::grep::Capture :name "new" :value ":wat::rete::vector::get")))])
 
 (:wat::rete::defrule :rn::rete-vector-get
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::rete::core::Vector/get"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -172,8 +172,8 @@
 
 (:wat::rete::defquery :rn::q-match
   :params []
-  :when [(:wat::grep::Match (?line <- :line) (?col <- :col)
-           (?end-line <- :end-line) (?end-col <- :end-col) (?captures <- :captures))])
+  :when [(:wat::grep::Match (?line :- :line) (?col :- :col)
+           (?end-line :- :end-line) (?end-col :- :end-col) (?captures :- :captures))])
 
 ;; second-capture — a typed wrapper around `second`. `PersistentVector/get`'s value type is a
 ;; fresh metavariable until something FORCES it concrete; a Tuple-constructor slot does that

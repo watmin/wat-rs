@@ -8,14 +8,14 @@
 
 (:wat::rete::defrule :wb::big-gate
   :when
-  [(:weather::Temperature (?c <- :celsius))
+  [(:weather::Temperature (?c :- :celsius))
    (:wat::rete::where (:test::big? ?c))]
   :then
   [(:wb::Gate :celsius ?c)])
 
 (:wat::rete::defquery :wb::q-Gate
   :params []
-  :when [(?fact <- :wb::Gate)])
+  :when [(?fact :- :wb::Gate)])
 
 
 ;; 3 — a USER-fn predicate in the where works through the network: big?(150) → one Gate.

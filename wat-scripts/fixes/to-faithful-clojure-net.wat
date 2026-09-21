@@ -46,12 +46,12 @@
 ;; ══ LAYER 1 · TOKEN TYPING ══════════════════════════════════════════════════
 ;; G1 keyword?
 (:wat::rete::defrule :fix::g1-keyword
-  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::string::= ?kind "keyword"))]
+  :when [(:fix::Node (?off :- :offset) (?kind :- :kind) (:wat::rete::string::= ?kind "keyword"))]
   :then [(:fix::Keyword ?off)])
 
 ;; G2 symbol?
 (:wat::rete::defrule :fix::g2-symbol
-  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::string::= ?kind "symbol"))]
+  :when [(:fix::Node (?off :- :offset) (?kind :- :kind) (:wat::rete::string::= ?kind "symbol"))]
   :then [(:fix::Symbol ?off)])
 
 ;; G3 genuine?  — span source-len == name-len (a desugared sigil never passes; THE SKIP)
@@ -64,8 +64,8 @@
 ;; 0/-0) before landing this: identical hit sets both ways every time. See
 ;; `docs/arc/2026/06/278-rules-engine/strike-fence-interior-types/SCORE.md`.
 (:wat::rete::defrule :fix::g3-genuine
-  :when [(:fix::Keyword (?off <- :offset))
-         (:fix::Node (?off <- :offset) (?len <- :len) (?slen <- :span-len))
+  :when [(:fix::Keyword (?off :- :offset))
+         (:fix::Node (?off :- :offset) (?len :- :len) (?slen :- :span-len))
          (:wat::rete::where (:wat::rete::i64::= ?slen ?len))]
   :then [(:fix::Genuine ?off)])
 
@@ -84,8 +84,8 @@
 ;; driven over 7 inputs (empty, no-colon, namespaced, single-colon, trailing/leading colons,
 ;; unicode), all AGREE, see SCORE.md. `:fix::has-ns?` itself is left alone, per DESIGN.
 (:wat::rete::defrule :fix::g4-namespaced
-  :when [(:fix::Genuine (?off <- :offset))
-         (:fix::Node (?off <- :offset) (?name <- :name))
+  :when [(:fix::Genuine (?off :- :offset))
+         (:fix::Node (?off :- :offset) (?name :- :name))
          (:wat::rete::where (:wat::rete::string::contains? ?name "::"))]
   :then [(:fix::Namespaced ?off)])
 
@@ -100,8 +100,8 @@
 ;; angle-open-only, angle-close-only, paren-both, paren-open-only, both-angle-paren, neither,
 ;; angle-reversed), all AGREE, see SCORE.md. `:fix::type-shaped?` itself is left alone.
 (:wat::rete::defrule :fix::g5-type-shaped
-  :when [(:fix::Genuine (?off <- :offset))
-         (:fix::Node (?off <- :offset) (?name <- :name))
+  :when [(:fix::Genuine (?off :- :offset))
+         (:fix::Node (?off :- :offset) (?name :- :name))
          (:wat::rete::where (:wat::rete::core::or
                               (:wat::rete::core::and
                                 (:wat::rete::string::contains? ?name "<")
@@ -114,8 +114,8 @@
 ;; ══ LAYER 3 · POSITION (joins) ══════════════════════════════════════════════
 ;; G6 arrow?  — a bare <- / -> symbol
 (:wat::rete::defrule :fix::g6-arrow
-  :when [(:fix::Symbol (?off <- :offset))
-         (:fix::Node (?off <- :offset) (?name <- :name))
+  :when [(:fix::Symbol (?off :- :offset))
+         (:fix::Node (?off :- :offset) (?name :- :name))
          (:wat::rete::where (:wat::rete::core::or (:wat::rete::string::= ?name "<-") (:wat::rete::string::= ?name "->")))]
   :then [(:fix::Arrow ?off)])
 
@@ -140,54 +140,54 @@
 ;; `:wat::core::+` cannot even be driven AT `i64::MAX` (it raises `IntegerOverflow`, which is
 ;; exactly the behaviour a `where` can no longer have) — see SCORE.md.
 (:wat::rete::defrule :fix::g7-post-arrow
-  :when [(:fix::Arrow (?aoff <- :offset))
-         (:fix::Node (?aoff <- :offset) (?p <- :parent) (?ai <- :child-idx))
-         (:fix::Node (?boff <- :offset) (?p <- :parent) (?bi <- :child-idx))
+  :when [(:fix::Arrow (?aoff :- :offset))
+         (:fix::Node (?aoff :- :offset) (?p :- :parent) (?ai :- :child-idx))
+         (:fix::Node (?boff :- :offset) (?p :- :parent) (?bi :- :child-idx))
          (:wat::rete::where (:wat::rete::i64::= ?bi (:wat::rete::i64::+ ?ai 1 :undefined -1)))]
   :then [(:fix::PostArrow ?boff)])
 
 ;; TypeCandidate ← type-shaped OR post-arrow (the ∪, as two trivial gates)
 (:wat::rete::defrule :fix::tc-from-shaped
-  :when [(:fix::TypeShaped (?off <- :offset))]
+  :when [(:fix::TypeShaped (?off :- :offset))]
   :then [(:fix::TypeCandidate ?off)])
 
 (:wat::rete::defrule :fix::tc-from-postarrow
-  :when [(:fix::PostArrow (?off <- :offset))
-         (:fix::Genuine (?off <- :offset))]
+  :when [(:fix::PostArrow (?off :- :offset))
+         (:fix::Genuine (?off :- :offset))]
   :then [(:fix::TypeCandidate ?off)])
 
 ;; ══ LAYER 4 · TERMINAL CLASSIFICATION ═══════════════════════════════════════
 ;; T1 HeadConv ← Namespaced ∩ ¬TypeShaped ∩ ¬PostArrow
 (:wat::rete::defrule :fix::t1-head-conv
-  :when [(:fix::Namespaced (?off <- :offset))
-         (:fix::Node (?off <- :offset) (?len <- :len) (?name <- :name))
-         (:wat::rete::not (:fix::TypeShaped (?off <- :offset)))
-         (:wat::rete::not (:fix::PostArrow (?off <- :offset)))]
+  :when [(:fix::Namespaced (?off :- :offset))
+         (:fix::Node (?off :- :offset) (?len :- :len) (?name :- :name))
+         (:wat::rete::not (:fix::TypeShaped (?off :- :offset)))
+         (:wat::rete::not (:fix::PostArrow (?off :- :offset)))]
   :then [(:fix::HeadConv ?off ?len ?name)])
 
 ;; T2 TypeConv ← TypeCandidate (∩ ¬IfType — added in Stage B)
 (:wat::rete::defrule :fix::t2-type-conv
-  :when [(:fix::TypeCandidate (?off <- :offset))
-         (:fix::Node (?off <- :offset) (?len <- :len) (?name <- :name))]
+  :when [(:fix::TypeCandidate (?off :- :offset))
+         (:fix::Node (?off :- :offset) (?len :- :len) (?name :- :name))]
   :then [(:fix::TypeConv ?off ?len ?name)])
 
 ;; T3 ArrowConv ← Arrow (∩ ¬IfArrow — added in Stage B)
 (:wat::rete::defrule :fix::t3-arrow-conv
-  :when [(:fix::Arrow (?off <- :offset))
-         (:fix::Node (?off <- :offset) (?len <- :len) (?name <- :name))]
+  :when [(:fix::Arrow (?off :- :offset))
+         (:fix::Node (?off :- :offset) (?len :- :len) (?name :- :name))]
   :then [(:fix::ArrowConv ?off ?len ?name)])
 
 (:wat::rete::defquery :fix::q-HeadConv
   :params []
-  :when [(:fix::HeadConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
+  :when [(:fix::HeadConv (?offset :- :offset) (?len :- :len) (?name :- :name))])
 
 (:wat::rete::defquery :fix::q-ArrowConv
   :params []
-  :when [(:fix::ArrowConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
+  :when [(:fix::ArrowConv (?offset :- :offset) (?len :- :len) (?name :- :name))])
 
 (:wat::rete::defquery :fix::q-TypeConv
   :params []
-  :when [(:fix::TypeConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
+  :when [(:fix::TypeConv (?offset :- :offset) (?len :- :len) (?name :- :name))])
 
 
 ;; ══ THE OBSERVATION WALK — emit :fix::Node facts (pure; zero classification) ══

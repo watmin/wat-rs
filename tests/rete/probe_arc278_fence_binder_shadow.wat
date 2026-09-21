@@ -16,13 +16,13 @@
 
 ;; row 1 — the real corpus shape: plain binder holding a rete var's VALUE.
 (:wat::rete::defrule :fbso::plain-let-value
-  :when [(:fbso::N (?k <- :k))
+  :when [(:fbso::N (?k :- :k))
          (:wat::rete::where (:wat::rete::core::let [x ?k] (:wat::rete::i64::> x 100)))]
   :then [])
 
 ;; row 2 — a plain `let` binder feeding a boolean composition (where-control.wat's `let-twice`).
 (:wat::rete::defrule :fbso::plain-let-bool
-  :when [(:fbso::N (?k <- :k))
+  :when [(:fbso::N (?k :- :k))
          (:wat::rete::where
            (:wat::rete::core::let [s (:wat::rete::i64::+ ?k 1 :undefined 0)]
              (:wat::rete::core::and
@@ -33,7 +33,7 @@
 ;; row 3 — a `match` arm's variant PAYLOAD binder is plain (`v`), not `?`-prefixed. Must still
 ;; compile: the deep pattern scan refuses only a `?`-prefixed name, at any depth, not every name.
 (:wat::rete::defrule :fbso::plain-match-payload
-  :when [(:fbso::N (?o <- :o))
+  :when [(:fbso::N (?o :- :o))
          (:wat::rete::where
            (:wat::rete::core::match ?o
              [:wat::core::Option.Some {:value v} (:wat::rete::i64::> v 0)]

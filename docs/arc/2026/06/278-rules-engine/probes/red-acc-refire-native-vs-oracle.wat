@@ -51,28 +51,28 @@
 
 ;; round 1 derives C — so the LAST join's right side is empty during round 1
 (:wat::rete::defrule :d2::mk-c
-  :when [(:d2::Seed (?y <- :y))]
+  :when [(:d2::Seed (?y :- :y))]
   :then [(:d2::C :y ?y)])
 
 ;; filter -> join a -> join b
 (:wat::rete::defrule :d2::chain
-  :when [(:d2::C (?y <- :y))]
+  :when [(:d2::C (?y :- :y))]
   :then [(:d2::Out :x 1 :y ?y)])
 
 ;; an accumulate over the derived Out — a COUNT sees doubled tokens where dedup hides doubled facts
 (:wat::rete::defrule :d2::tally
-  :when [(:d2::Seed (?y <- :y))
-         (?n <- (:wat::rete::acc::count) :from (:d2::Out))]
+  :when [(:d2::Seed (?y :- :y))
+         (?n :- (:wat::rete::acc::count) :from (:d2::Out))]
   :then [(:d2::Tally :n ?n)])
 
 (:wat::rete::defrule :d2::stale
-  :when [(:d2::Tally (?n <- :n))
+  :when [(:d2::Tally (?n :- :n))
          (:wat::rete::where (:wat::rete::i64::= ?n 0))]
   :then [(:d2::Stale :n ?n)])
 
-(:wat::rete::defquery :d2::q-stale :params [] :when [(?f <- :d2::Stale)])
-(:wat::rete::defquery :d2::q-out   :params [] :when [(?f <- :d2::Out)])
-(:wat::rete::defquery :d2::q-tally :params [] :when [(?f <- :d2::Tally)])
+(:wat::rete::defquery :d2::q-stale :params [] :when [(?f :- :d2::Stale)])
+(:wat::rete::defquery :d2::q-out   :params [] :when [(?f :- :d2::Out)])
+(:wat::rete::defquery :d2::q-tally :params [] :when [(?f :- :d2::Tally)])
 
 (:wat::core::defn :d2::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s

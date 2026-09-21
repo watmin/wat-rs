@@ -9,13 +9,13 @@
 (:wat::core::defrecord :tw::ColdWindy [loc <- :wat::core::String])
 
 (:wat::rete::defrule :tw::cold-and-windy
-  :when [(:tw::Temp (?loc <- :loc) (?c <- :c) (:wat::rete::i64::< ?c 20))
-         (:tw::Wind (?loc <- :loc) (?k <- :kph) (:wat::rete::i64::> ?k 30))]
+  :when [(:tw::Temp (?loc :- :loc) (?c :- :c) (:wat::rete::i64::< ?c 20))
+         (:tw::Wind (?loc :- :loc) (?k :- :kph) (:wat::rete::i64::> ?k 30))]
   :then [(:tw::ColdWindy :loc ?loc)])
 
 (:wat::rete::defquery :tw::q-ColdWindy
   :params []
-  :when [(?fact <- :tw::ColdWindy)])
+  :when [(?fact :- :tw::ColdWindy)])
 
 
 (:wat::core::defn :user::stage [] -> :wat::rete::Session

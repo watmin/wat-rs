@@ -165,7 +165,7 @@
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wr::conds [] -> :wat::WatAST
   (:wat::core::quasiquote
-    (:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note))))
+    (:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note))))
 
 (:wat::core::defn :wr::ins [] -> :wat::WatAST
   (:wat::core::quasiquote (:wr::Hit ?k)))
@@ -173,14 +173,14 @@
 ;; ROW 1 — 2-level accessor chain. u2(i) > 8 <=> i mod 13 in {9,10,11,12} -> 60 of 200.
 (:wat::rete::defrule :wr::chain2
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
   :then
   [(:wr::Hit ?k)])
 
 ;; ROW 2 — 3-level accessor chain. w3(i) > 7 <=> i mod 11 in {7,8,9,10} -> 72 of 200.
 (:wat::rete::defrule :wr::chain3
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
                  (:wat::rete::i64::> (:wr::L3/w (:wr::L2/l3 (:wr::Client/l2 ?c))) 7))]
   :then
   [(:wr::Hit ?k)])
@@ -188,7 +188,7 @@
 ;; ROW 3 — 4-level accessor chain. v4(i) > 5 <=> i mod 9 in {6,7,8} -> 66 of 200.
 (:wat::rete::defrule :wr::chain4
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
                  (:wat::rete::i64::>
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
                    5))]
@@ -199,7 +199,7 @@
 ;; <=> i mod 5 in {3,4} -> 80 of 200.
 (:wat::rete::defrule :wr::collection
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
                  (:wat::rete::i64::> (:wat::rete::vector::length (:wr::Client/tags ?c)) 2))]
   :then
   [(:wr::Hit ?k)])
@@ -208,7 +208,7 @@
 ;; bagitemslen(i) > 1 <=> i mod 4 in {2,3} -> 100 of 200.
 (:wat::rete::defrule :wr::record-collection
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
                  (:wat::rete::i64::>
                    (:wat::rete::vector::length (:wr::Bag/items (:wr::Client/bag ?c)))
                    1))]
@@ -219,7 +219,7 @@
 ;; rep(c) > v4-via-4-level-chain(c). rep in [-2,2], v4-chain in [0,8] -> 15 of 200.
 (:wat::rete::defrule :wr::same-var-two-chains
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
                  (:wat::rete::i64::>
                    (:wr::Client/rep ?c)
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))))]
@@ -230,7 +230,7 @@
 ;; compared to each other: rep(c) > rep(c2). rep(i) > rep(j(i)) -> 80 of 200.
 (:wat::rete::defrule :wr::cross-var-scalar
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
   :then
   [(:wr::Hit ?k)])
 
@@ -238,7 +238,7 @@
 ;; rep(i) > 0 <=> i mod 5 in {3,4} -> 80 of 200.
 (:wat::rete::defrule :wr::whole-record-fn
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::rep-pos? ?c))]
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::rep-pos? ?c))]
   :then
   [(:wr::Hit ?k)])
 
@@ -247,7 +247,7 @@
 ;; CALL SHAPE (record-arg vs scalar-arg), which a compiler treats very differently, not the count.
 (:wat::rete::defrule :wr::scalar-fn
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::pos? (:wr::Client/rep ?c)))]
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::pos? (:wr::Client/rep ?c)))]
   :then
   [(:wr::Hit ?k)])
 
@@ -256,7 +256,7 @@
 ;; -> 46 of 200.
 (:wat::rete::defrule :wr::enum-match
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::is-risky? ?st))]
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::is-risky? ?st))]
   :then
   [(:wr::Hit ?k)])
 
@@ -264,7 +264,7 @@
 ;; (i mod 4)==0 -> None (never); else Some(i mod 6), positive needs i mod 6 in {3,4,5} -> 82 of 200.
 (:wat::rete::defrule :wr::option-match
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wr::note-positive? ?nt))]
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::note-positive? ?nt))]
   :then
   [(:wr::Hit ?k)])
 
@@ -272,7 +272,7 @@
 ;; rep(i) > 0 AND v4(i) > 3 -> 44 of 200.
 (:wat::rete::defrule :wr::combined-and
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
                  (:wat::rete::core::and
                    (:wat::rete::i64::> (:wr::Client/rep ?c) 0)
                    (:wat::rete::i64::>
@@ -285,7 +285,7 @@
 ;; u2-chain(c) > u2-chain(c2). u2(i) > u2(j(i)) -> 55 of 200.
 (:wat::rete::defrule :wr::cross-var-chain
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
+  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
                  (:wat::rete::i64::>
                    (:wr::L2/u (:wr::Client/l2 ?c))
                    (:wr::L2/u (:wr::Client/l2 ?c2))))]
@@ -294,7 +294,7 @@
 
 (:wat::rete::defquery :wr::q-Hit
   :params []
-  :when [(?fact <- :wr::Hit)])
+  :when [(?fact :- :wr::Hit)])
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.

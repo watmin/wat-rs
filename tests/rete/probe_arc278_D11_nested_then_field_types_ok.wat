@@ -45,30 +45,30 @@
 (:wat::core::defrecord :d11o::OutE [m <- :d11o::Mid])
 
 (:wat::rete::defrule :d11o::okA
-  :when [(:d11o::In (?k <- :k))]
+  :when [(:d11o::In (?k :- :k))]
   :then [(:d11o::OutA :i (:d11o::Inner :n ?k))])
 
 (:wat::rete::defrule :d11o::okB
-  :when [(:d11o::In (?k <- :k))]
+  :when [(:d11o::In (?k :- :k))]
   :then [(:d11o::OutB :i (:d11o::Inner :n 42))])
 
 (:wat::rete::defrule :d11o::okC
-  :when [(:d11o::In (?k <- :k))]
+  :when [(:d11o::In (?k :- :k))]
   :then [(:d11o::OutC :i (:d11o::Inner :n (:wat::rete::i64::+ ?k 1 :undefined 0)))])
 
 (:wat::rete::defrule :d11o::okD
-  :when [(:d11o::In (?k <- :k))]
+  :when [(:d11o::In (?k :- :k))]
   :then [(:d11o::OutD :o (:d11o::One ?k))])
 
 (:wat::rete::defrule :d11o::okE
-  :when [(:d11o::In (?k <- :k))]
+  :when [(:d11o::In (?k :- :k))]
   :then [(:d11o::OutE :m (:d11o::Mid :i (:d11o::Inner :n ?k)))])
 
-(:wat::rete::defquery :d11o::qa :params [] :when [(?f <- :d11o::OutA)])
-(:wat::rete::defquery :d11o::qb :params [] :when [(?f <- :d11o::OutB)])
-(:wat::rete::defquery :d11o::qc :params [] :when [(?f <- :d11o::OutC)])
-(:wat::rete::defquery :d11o::qd :params [] :when [(?f <- :d11o::OutD)])
-(:wat::rete::defquery :d11o::qe :params [] :when [(?f <- :d11o::OutE)])
+(:wat::rete::defquery :d11o::qa :params [] :when [(?f :- :d11o::OutA)])
+(:wat::rete::defquery :d11o::qb :params [] :when [(?f :- :d11o::OutB)])
+(:wat::rete::defquery :d11o::qc :params [] :when [(?f :- :d11o::OutC)])
+(:wat::rete::defquery :d11o::qd :params [] :when [(?f :- :d11o::OutD)])
+(:wat::rete::defquery :d11o::qe :params [] :when [(?f :- :d11o::OutE)])
 
 (:wat::core::defn :d11o::fired [] -> :wat::rete::Session
   (:wat::core::let

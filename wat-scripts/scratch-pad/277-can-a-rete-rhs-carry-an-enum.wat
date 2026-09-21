@@ -26,12 +26,12 @@
 
 ;; THE QUESTION: an enum-variant constructor in a :then value position.
 (:wat::rete::defrule :user::enum-in-a-rhs
-  :when [(:user::Seed (?i <- :id))]
+  :when [(:user::Seed (?i :- :id))]
   :then [(:user::Broken :id ?i :kind (:user::BreakKind.Block {}))])
 
 (:wat::rete::defquery :user::q-Broken
   :params []
-  :when [(?fact <- :user::Broken)])
+  :when [(?fact :- :user::Broken)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

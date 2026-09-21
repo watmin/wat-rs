@@ -10,10 +10,10 @@
 ;; be touched). This asks for keyword leaves only — the population wat-fix actually rewrites.
 
 (:wat::rete::defrule :nm::rete-i64-op
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.rete.core.i64/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -22,10 +22,10 @@
                        (:wat::grep::Capture :name "old" :value ?n)))])
 
 (:wat::rete::defrule :nm::rete-f64-op
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.rete.core.f64/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec

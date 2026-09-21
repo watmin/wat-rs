@@ -5,11 +5,11 @@
 (:wat::core::defrecord :qhp::Hit  [c <- :wat::core::i64])
 
 (:wat::rete::defrule :qhp::cool
-  :when [(:qhp::Temp (?c <- :c))
+  :when [(:qhp::Temp (?c :- :c))
          (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:qhp::Hit ?c)])
 
-(:wat::rete::defquery :qhp::q-Hit :params [] :when [(?f <- :qhp::Hit)])
+(:wat::rete::defquery :qhp::q-Hit :params [] :when [(?f :- :qhp::Hit)])
 
 (:wat::core::defn :user::protocol [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all

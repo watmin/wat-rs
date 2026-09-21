@@ -8,14 +8,14 @@
 ;; Break names a kind (BreakKind); the emitter computes the rest.
 
 (:wat::rete::defrule :fmt::if-claim
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/if"))]
+  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h :- :id) (?n :- :name) (:wat::rete::string::= ?n "wat.core/if"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 ;; Child 0 is the head, child 1 is the test (stays on the head line),
 ;; so every child from index 2 on starts its own line.
 (:wat::rete::defrule :fmt::if-branch-per-line
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/if"))
-         (:wat::grep::Node  (?br <- :id) (?p <- :parent) (?bi <- :index) (:wat::rete::i64::> ?bi 1))]
+  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h :- :id) (?n :- :name) (:wat::rete::string::= ?n "wat.core/if"))
+         (:wat::grep::Node  (?br :- :id) (?p :- :parent) (?bi :- :index) (:wat::rete::i64::> ?bi 1))]
   :then [(:wat::fmt::Break :id ?br :kind (:wat::fmt::BreakKind.Block {}))])

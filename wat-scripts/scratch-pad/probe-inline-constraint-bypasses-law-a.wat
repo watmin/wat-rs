@@ -31,7 +31,7 @@
 ;; CONTROL — the same predicate through the FENCED surface. Rete-spelled, law-A clean.
 (:wat::rete::defrule :probe::via-where
   :when
-  [(:probe::Reading (?loc <- :location) (?v <- :value))
+  [(:probe::Reading (?loc :- :location) (?v :- :value))
    (:wat::rete::where (:wat::rete::i64::> ?v 10))]
   :then
   [(:probe::Flagged :location ?loc)])
@@ -40,13 +40,13 @@
 ;; generic `>`. It compiles. Law A does not govern the whole LHS.
 (:wat::rete::defrule :probe::via-inline-constraint
   :when
-  [(:probe::Reading (?loc <- :location) (?v <- :value) (:wat::rete::i64::> :value 10))]
+  [(:probe::Reading (?loc :- :location) (?v :- :value) (:wat::rete::i64::> :value 10))]
   :then
   [(:probe::Flagged :location ?loc)])
 
 (:wat::rete::defquery :probe::q-Flagged
   :params []
-  :when [(?fact <- :probe::Flagged)])
+  :when [(?fact :- :probe::Flagged)])
 
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

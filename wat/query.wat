@@ -289,7 +289,7 @@
            (:wat::core::let
              [tkw  (:wat::core::keyword-node
                       (:wat::string::interpolate ":{tstr}" :tstr tstr))
-              cond `(~fact-sym <- ~tkw)]
+              cond `(~fact-sym :- ~tkw)]
              (:wat::core::conj acc
                `(:wat::rete::make-query ~tstr
                   (:wat::core::quote [])

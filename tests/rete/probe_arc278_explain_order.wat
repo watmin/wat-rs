@@ -13,15 +13,15 @@
 (:wat::core::defrecord :vex::Out  [k <- :wat::core::i64])
 (:wat::core::defrecord :vex::Solo [k <- :wat::core::i64])
 
-(:wat::rete::defrule :vex::aaa  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::bbb  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::ccc  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::ddd  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::eee  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::fff  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::ggg  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::zzz  :when [(:vex::In (?k <- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::solo :when [(:vex::In (?k <- :k))] :then [(:vex::Solo :k ?k)])
+(:wat::rete::defrule :vex::aaa  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::bbb  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::ccc  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::ddd  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::eee  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::fff  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::ggg  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::zzz  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
+(:wat::rete::defrule :vex::solo :when [(:vex::In (?k :- :k))] :then [(:vex::Solo :k ?k)])
 
 (:wat::core::defn :vex::session [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert
@@ -80,14 +80,14 @@
 
 (:wat::rete::defrule :orx::either
   :when [(:wat::rete::or
-           (:orx::A1 (?k <- :k))
-           (:orx::A2 (?k <- :k))
-           (:orx::A3 (?k <- :k))
-           (:orx::A4 (?k <- :k))
-           (:orx::A5 (?k <- :k))
-           (:orx::A6 (?k <- :k))
-           (:orx::A7 (?k <- :k))
-           (:orx::A8 (?k <- :k)))]
+           (:orx::A1 (?k :- :k))
+           (:orx::A2 (?k :- :k))
+           (:orx::A3 (?k :- :k))
+           (:orx::A4 (?k :- :k))
+           (:orx::A5 (?k :- :k))
+           (:orx::A6 (?k :- :k))
+           (:orx::A7 (?k :- :k))
+           (:orx::A8 (?k :- :k)))]
   :then [(:orx::Out :k ?k)])
 
 (:wat::core::defn :orx::via-type [ex <- :wat::rete::Explained] -> :wat::core::String

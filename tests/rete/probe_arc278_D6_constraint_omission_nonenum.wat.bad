@@ -25,7 +25,7 @@
 
 (:wat::rete::defrule :d6x::hit
   :when
-  [(:d6x::Reading (?n <- :n) (?v <- :v)
+  [(:d6x::Reading (?n :- :n) (?v :- :v)
                   (:wat::rete::i64::> ?n 5)
                   (:wat::rete::core::enum::not= ?v :d6x::Tag.A))]
   :then

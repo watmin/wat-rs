@@ -15,12 +15,12 @@
   (:cg::Rate :count c :window w))
 
 (:wat::rete::defrule :cg::gather
-  :when [(:cg::Anchor (?x <- :x))]
+  :when [(:cg::Anchor (?x :- :x))]
   :then [(:cg::make-rate 7 9)])
 
 (:wat::rete::defquery :cg::q-Rate
   :params []
-  :when [(:cg::Rate (?count <- :count))])
+  :when [(:cg::Rate (?count :- :count))])
 
 
 ;; Fires via the WAT ORACLE.

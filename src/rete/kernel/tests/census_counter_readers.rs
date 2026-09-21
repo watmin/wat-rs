@@ -69,7 +69,7 @@ fn rematch_compiled_is_nonzero() {
     let world = freeze_src(
         "(:wat::core::defrecord :ccr::T [n <- :wat::core::i64])\n",
     );
-    let cond = crate::parse_one!("(:ccr::T (?n <- :n))").expect("parse cond");
+    let cond = crate::parse_one!("(:ccr::T (?n :- :n))").expect("parse cond");
     let compiled = crate::rete::compiled_cond::compile_alpha_ops(
         &cond,
         &["n".to_string()],

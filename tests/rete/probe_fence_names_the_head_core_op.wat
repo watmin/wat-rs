@@ -9,14 +9,14 @@
 
 (:wat::rete::defrule :wf::bad-gate
   :when
-  [(:weather::Temperature (?c <- :celsius))
+  [(:weather::Temperature (?c :- :celsius))
    (:wat::rete::where (:wat::i64::> ?c 0))]
   :then
   [(:wf::Gate :celsius ?c)])
 
 (:wat::rete::defquery :wf::q-Gate
   :params []
-  :when [(?fact <- :wf::Gate)])
+  :when [(?fact :- :wf::Gate)])
 
 
 (:wat::core::defn :user::run-gate-c5 [] -> :wat::core::i64

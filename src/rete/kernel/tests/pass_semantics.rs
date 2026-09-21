@@ -243,7 +243,7 @@ fn guiding_light_matches_carry_support_chain() {
 // `tests/rete/probe_arc278_join_carries_both_sides_into_the_rhs`.
 /// P11/3a — `root_join_seeds_one_token_per_element`:
 ///
-/// 1-condition rule `(:user::Temp (?t <- :value) (:wat::rete::i64::> ?t 20))`.
+/// 1-condition rule `(:user::Temp (?t :- :value) (:wat::rete::i64::> ?t 20))`.
 /// After alpha+root-join passes with one matching fact inserted (Temp 25):
 ///   (1) exactly one beta node (the RootJoinNode) is populated,
 ///   (2) it holds exactly one Token,
@@ -271,7 +271,7 @@ fn root_join_seeds_one_token_per_element() {
     let session = eval_in(
             &world,
             "(:wat::core::let \
-               [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::i64::> ?t 20)))\
+               [cond  (:wat::core::quote (:user::Temp (?t :- :value) (:wat::rete::i64::> ?t 20)))\
                 rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temp :value 25)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])]\
@@ -367,8 +367,8 @@ fn hash_join_produces_one_token_on_same_loc() {
     let session = eval_in(
             &world,
             "(:wat::core::let \
-               [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
-                c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
+               [c1    (:wat::core::quote (:user::Temperature (?loc :- :location) (?t :- :celsius)))\
+                c2    (:wat::core::quote (:user::WindSpeed (?loc :- :location) (?w :- :kph)))\
                 rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
@@ -482,8 +482,8 @@ fn hash_join_drops_on_mismatched_loc() {
     let session = eval_in(
             &world,
             "(:wat::core::let \
-               [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
-                c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
+               [c1    (:wat::core::quote (:user::Temperature (?loc :- :location) (?t :- :celsius)))\
+                c2    (:wat::core::quote (:user::WindSpeed (?loc :- :location) (?w :- :kph)))\
                 rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 sess1 (:wat::core::match (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
@@ -558,8 +558,8 @@ fn hash_join_no_cross_loc_leakage() {
     let session = eval_in(
             &world,
             "(:wat::core::let \
-               [c1 (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
-                c2 (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
+               [c1 (:wat::core::quote (:user::Temperature (?loc :- :location) (?t :- :celsius)))\
+                c2 (:wat::core::quote (:user::WindSpeed (?loc :- :location) (?w :- :kph)))\
                 rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
                 s0 (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\
                 s1 (:wat::core::match (:wat::rete::insert s0 (:user::Temperature :celsius 15 :location \"Oslo\")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message \"insert: session memory ceiling exceeded while staging\")])\
@@ -651,11 +651,11 @@ const D7_ERASURE_WORLD: &str = r#"
 (:wat::core::defrecord :d7c::PlainHit [k <- :wat::core::i64])
 
 (:wat::rete::defrule :d7c::r-box
-  :when [(:d7c::Box (?k <- :k) (?v <- :v))] :then [(:d7c::Hit ?k)])
+  :when [(:d7c::Box (?k :- :k) (?v :- :v))] :then [(:d7c::Hit ?k)])
 (:wat::rete::defrule :d7c::r-plain
-  :when [(:d7c::Plain (?k <- :k))] :then [(:d7c::PlainHit ?k)])
+  :when [(:d7c::Plain (?k :- :k))] :then [(:d7c::PlainHit ?k)])
 
-(:wat::rete::defquery :d7c::q :params [] :when [(?fact <- :d7c::Hit)])
+(:wat::rete::defquery :d7c::q :params [] :when [(?fact :- :d7c::Hit)])
 
 (:wat::core::defn :d7c::as-record [r <- :wat::core::Record] -> :wat::core::Record r)
 
@@ -769,8 +769,8 @@ fn seed_leaf_occupancy_differential_predicts_a_mixed_class() {
 (:wat::core::defrecord :c16::Box :- [T] [k <- :wat::core::i64  v <- :T])\n\
 (:wat::core::defrecord :c16::Hit [k <- :wat::core::i64])\n\
 (:wat::core::defn :c16::as-record [r <- :wat::core::Record] -> :wat::core::Record r)\n\
-(:wat::rete::defrule :c16::r :when [(:c16::Box (?k <- :k) (?v <- :v))] :then [(:c16::Hit :k ?k)])\n\
-(:wat::rete::defquery :c16::q :params [] :when [(?f <- :c16::Hit)])\n\
+(:wat::rete::defrule :c16::r :when [(:c16::Box (?k :- :k) (?v :- :v))] :then [(:c16::Hit :k ?k)])\n\
+(:wat::rete::defquery :c16::q :params [] :when [(?f :- :c16::Hit)])\n\
 ";
     let world = freeze_src(W);
     let (_fired, diffs) = super::with_leaf_occ_diff(|| {

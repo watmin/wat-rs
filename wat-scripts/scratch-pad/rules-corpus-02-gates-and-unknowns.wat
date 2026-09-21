@@ -80,7 +80,7 @@
 ;; G1 — CONCEPT. `String` and `string` are the same concept; case is a spelling accident.
 ;; The RHS computes (rete ops only), so the normalisation is part of the derivation.
 (:wat::rete::defrule :m::concept-of
-  :when [(:m::Member (?id <- :id) (?p <- :prefix) (?s <- :style))]
+  :when [(:m::Member (?id :- :id) (?p :- :prefix) (?s :- :style))]
   :then [(:m::Concept :id ?id
                       :concept (:wat::rete::string::to-lowercase ?p)
                       :style ?s)])
@@ -88,15 +88,15 @@
 ;; G2 — STYLE SEEN. Project each occurrence down to (concept, style). Two members of the
 ;; same concept in the same style collapse to one fact; two DIFFERENT styles do not.
 (:wat::rete::defrule :m::style-seen
-  :when [(:m::Concept (?c <- :concept) (?s <- :style))]
+  :when [(:m::Concept (?c :- :concept) (?s :- :style))]
   :then [(:m::StyleSeen :concept ?c :style ?s)])
 
 ;; G3 — INCONSISTENT. One concept carrying two distinct styles. This is a SELF-JOIN on the
 ;; derived fact — the shape that finds a contradiction inside a set, which no left-to-right
 ;; walk can see because the two witnesses may be a thousand lines and two files apart.
 (:wat::rete::defrule :m::inconsistent
-  :when [(:m::StyleSeen (?c <- :concept) (?s1 <- :style))
-         (:m::StyleSeen (?c <- :concept) (?s2 <- :style))
+  :when [(:m::StyleSeen (?c :- :concept) (?s1 :- :style))
+         (:m::StyleSeen (?c :- :concept) (?s2 :- :style))
          (:wat::rete::where (:wat::rete::core::not (:wat::rete::string::= ?s1 ?s2)))]
   :then [(:m::Inconsistent :concept ?c)])
 
@@ -104,66 +104,66 @@
 ;; inconsistent. Stratified negation means this fires only after G3 has run to fixpoint —
 ;; the ordering is a property of the rule set, not something a programmer sequenced.
 (:wat::rete::defrule :m::settled
-  :when [(:m::StyleSeen (?c <- :concept))
-         (:wat::rete::not (:m::Inconsistent (?c <- :concept)))]
+  :when [(:m::StyleSeen (?c :- :concept))
+         (:wat::rete::not (:m::Inconsistent (?c :- :concept)))]
   :then [(:m::Settled :concept ?c)])
 
 ;; G4/G5 — TARGET. Requires BOTH unlocks: the concept is settled AND a ruling exists.
 ;; Neither is checked by an `if`; both are joins, so a missing one simply does not fire.
 (:wat::rete::defrule :m::target
-  :when [(:m::Concept (?id <- :id) (?c <- :concept))
-         (:m::Settled (?c <- :concept))
-         (:m::Ruling  (?c <- :concept) (?t <- :target))
-         (:m::Member  (?id <- :id) (?b <- :base))]
+  :when [(:m::Concept (?id :- :id) (?c :- :concept))
+         (:m::Settled (?c :- :concept))
+         (:m::Ruling  (?c :- :concept) (?t :- :target))
+         (:m::Member  (?id :- :id) (?b :- :base))]
   :then [(:m::Target :id ?id :ns ?t :base ?b)])
 
 ;; BISECT probe: same rule minus the Member re-join, to locate why `target` is dark.
 (:wat::core::defrecord :m::TargetNS [concept <- :wat::core::String  ns <- :wat::core::String])
 (:wat::rete::defrule :m::target-ns
-  :when [(:m::Settled (?c <- :concept))
-         (:m::Ruling  (?c <- :concept) (?t <- :target))]
+  :when [(:m::Settled (?c :- :concept))
+         (:m::Ruling  (?c :- :concept) (?t :- :target))]
   :then [(:m::TargetNS :concept ?c :ns ?t)])
 
 ;; ★ THE TYPED UNKNOWN — settled spelling, but no ruling. This is not an error path; it is a
 ;; RESULT. Querying it answers "what do we still not know how to translate, and why".
 (:wat::rete::defrule :m::no-ruling
-  :when [(:m::Settled (?c <- :concept))
-         (:wat::rete::not (:m::Ruling (?c <- :concept)))]
+  :when [(:m::Settled (?c :- :concept))
+         (:wat::rete::not (:m::Ruling (?c :- :concept)))]
   :then [(:m::NoRuling :concept ?c)])
 
 (:wat::rete::defquery :m::q-Concept
   :params []
-  :when [(?fact <- :m::Concept)])
+  :when [(?fact :- :m::Concept)])
 
 
 (:wat::rete::defquery :m::q-StyleSeen
   :params []
-  :when [(?fact <- :m::StyleSeen)])
+  :when [(?fact :- :m::StyleSeen)])
 
 
 (:wat::rete::defquery :m::q-Settled
   :params []
-  :when [(?fact <- :m::Settled)])
+  :when [(?fact :- :m::Settled)])
 
 
 (:wat::rete::defquery :m::q-TargetNS
   :params []
-  :when [(?fact <- :m::TargetNS)])
+  :when [(?fact :- :m::TargetNS)])
 
 
 (:wat::rete::defquery :m::q-Target
   :params []
-  :when [(?fact <- :m::Target)])
+  :when [(?fact :- :m::Target)])
 
 
 (:wat::rete::defquery :m::q-Inconsistent
   :params []
-  :when [(?fact <- :m::Inconsistent)])
+  :when [(?fact :- :m::Inconsistent)])
 
 
 (:wat::rete::defquery :m::q-NoRuling
   :params []
-  :when [(?fact <- :m::NoRuling)])
+  :when [(?fact :- :m::NoRuling)])
 
 
 ;; ─── the seed — REAL spellings, measured from wat/ this session ───────────────

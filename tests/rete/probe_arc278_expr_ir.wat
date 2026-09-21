@@ -3,10 +3,10 @@
 (:wat::core::defrecord :eir::Temp [c <- :wat::core::i64])
 (:wat::core::defrecord :eir::Hit [c <- :wat::core::i64])
 
-(:wat::rete::defquery :eir::q-Hit :params [] :when [(?fact <- :eir::Hit)])
+(:wat::rete::defquery :eir::q-Hit :params [] :when [(?fact :- :eir::Hit)])
 
 (:wat::rete::defrule :eir::cool
-  :when [(:eir::Temp (?c <- :c))
+  :when [(:eir::Temp (?c :- :c))
          (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:eir::Hit ?c)])
 

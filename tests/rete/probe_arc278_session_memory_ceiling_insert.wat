@@ -17,7 +17,7 @@
 (:wat::core::defrecord :ins::Edge [a <- :wat::core::i64  b <- :wat::core::i64])
 
 (:wat::rete::defrule :ins::noop
-  :when [(:ins::Edge (?a <- :a))]
+  :when [(:ins::Edge (?a :- :a))]
   :then [])
 
 (:wat::core::defn :ins::inserted [s <- :wat::rete::Session] -> :wat::rete::InsertOutcome

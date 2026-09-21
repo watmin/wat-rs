@@ -188,8 +188,8 @@ fn binding_cardinality_distribution() {
 (:wat::core::defrecord :bcd::WindSpeed   [kph      <- :wat::core::i64  location <- :wat::core::i64])\n\
 (:wat::core::defrecord :bcd::Cw          [loc <- :wat::core::i64  t <- :wat::core::i64  w <- :wat::core::i64])\n\
 (:wat::core::defn :bcd::seed [n <- :wat::core::i64] -> :wat::rete::Session\n\
-  (:wat::core::let [c1   (:wat::core::quote (:bcd::Temperature (?loc <- :location) (?t <- :celsius)))\n\
-                    c2   (:wat::core::quote (:bcd::WindSpeed (?loc <- :location) (?w <- :kph)))\n\
+  (:wat::core::let [c1   (:wat::core::quote (:bcd::Temperature (?loc :- :location) (?t :- :celsius)))\n\
+                    c2   (:wat::core::quote (:bcd::WindSpeed (?loc :- :location) (?w :- :kph)))\n\
                     rhs1 (:wat::core::quote (:bcd::Cw ?loc ?t ?w))\n\
                     rule (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\n\
                     s0   (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])]\n\

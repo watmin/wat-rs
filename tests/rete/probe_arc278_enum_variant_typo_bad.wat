@@ -24,10 +24,10 @@
 
 ;; CONTROL — the variant EXISTS. Must match exactly the one Hi row.
 (:wat::rete::defrule :evt::good
-  :when [(:evt::Req (?k <- :k) (:wat::rete::core::enum::= :grade :evt::G::Hii))]
+  :when [(:evt::Req (?k :- :k) (:wat::rete::core::enum::= :grade :evt::G::Hii))]
   :then [(:evt::Hit :k ?k)])
 
-(:wat::rete::defquery :evt::q :params [] :when [(?f <- :evt::Hit)])
+(:wat::rete::defquery :evt::q :params [] :when [(?f :- :evt::Hit)])
 
 (:wat::core::defn :evt::fire [] -> :wat::core::i64
   (:wat::core::let

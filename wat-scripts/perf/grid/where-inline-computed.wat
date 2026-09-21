@@ -89,26 +89,26 @@
 
 ;; ROW 1 — INLINE, computed operand. The position and shape that were silently broken.
 (:wat::rete::defrule :wic::inline-gt
-  :when [(:wic::Req (?k <- :k)
+  :when [(:wic::Req (?k :- :k)
            (:wat::rete::i64::> (:wat::rete::i64::+ :k 2 :undefined 0) 100))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 2 — FENCE, the identical predicate. This position always worked; it is the control that
 ;; makes row 1 a comparison rather than an assertion.
 (:wat::rete::defrule :wic::fence-gt
-  :when [(:wic::Req (?k <- :k))
+  :when [(:wic::Req (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::+ ?k 2 :undefined 0) 100))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 3 — INLINE, exact equality. n=1: brackets the answer from both sides.
 (:wat::rete::defrule :wic::inline-eq
-  :when [(:wic::Req (?k <- :k)
+  :when [(:wic::Req (?k :- :k)
            (:wat::rete::i64::= (:wat::rete::i64::+ :k 2 :undefined 0) 100))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 4 — FENCE, exact equality.
 (:wat::rete::defrule :wic::fence-eq
-  :when [(:wic::Req (?k <- :k))
+  :when [(:wic::Req (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::+ ?k 2 :undefined 0) 100))]
   :then [(:wic::Hit :k ?k)])
 
@@ -117,69 +117,69 @@
 ;; `:k` stayed a bare keyword, compared unequal to every i64, and this row read n=0 in BOTH
 ;; engines while every gate was green.
 (:wat::rete::defrule :wic::inline-let-gt
-  :when [(:wic::Req (?k <- :k)
+  :when [(:wic::Req (?k :- :k)
            (:wat::rete::i64::> (:wat::rete::core::let [x :k] x) 100))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 6 — FENCE, the identical predicate. This position always worked, which is exactly what made
 ;; row 5's silence invisible: the same expression answered correctly two lines away.
 (:wat::rete::defrule :wic::fence-let-gt
-  :when [(:wic::Req (?k <- :k))
+  :when [(:wic::Req (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::let [x ?k] x) 100))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 7 — INLINE, exact equality. n=1 brackets a never-match and an always-match from both sides.
 (:wat::rete::defrule :wic::inline-let-eq
-  :when [(:wic::Req (?k <- :k)
+  :when [(:wic::Req (?k :- :k)
            (:wat::rete::i64::= (:wat::rete::core::let [x :k] x) 100))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 8 — FENCE, exact equality.
 (:wat::rete::defrule :wic::fence-let-eq
-  :when [(:wic::Req (?k <- :k))
+  :when [(:wic::Req (?k :- :k))
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::core::let [x ?k] x) 100))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 9 — `cond` as the inline HEAD. Refused until 2026-08-28 with `"alpha 0 cond did not
 ;; compile"` — a refusal that named nothing, because the expander never reached this position.
 (:wat::rete::defrule :wic::inline-cond
-  :when [(:wic::Req (?k <- :k)
+  :when [(:wic::Req (?k :- :k)
            (:wat::rete::core::cond ((:wat::rete::i64::> :k 100) true) (:else false)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 10 — FENCE. `cond` ALWAYS worked here, which is precisely how the inline refusal survived.
 (:wat::rete::defrule :wic::fence-cond
-  :when [(:wic::Req (?k <- :k))
+  :when [(:wic::Req (?k :- :k))
          (:wat::rete::where
            (:wat::rete::core::cond ((:wat::rete::i64::> ?k 100) true) (:else false)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 11 — `let` as the inline HEAD. Provably bool because its BODY is.
 (:wat::rete::defrule :wic::inline-let-head
-  :when [(:wic::Req (?k <- :k)
+  :when [(:wic::Req (?k :- :k)
            (:wat::rete::core::let [x :k] (:wat::rete::i64::> x 100)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 12 — FENCE.
 (:wat::rete::defrule :wic::fence-let-head
-  :when [(:wic::Req (?k <- :k))
+  :when [(:wic::Req (?k :- :k))
          (:wat::rete::where (:wat::rete::core::let [x ?k] (:wat::rete::i64::> x 100)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 13 — `match` as the inline HEAD, on `= 100` so n=1 brackets it from both sides.
 (:wat::rete::defrule :wic::inline-match
-  :when [(:wic::Req (?k <- :k)
+  :when [(:wic::Req (?k :- :k)
            (:wat::rete::core::match (:wat::rete::i64::= :k 100) [true true] [false false]))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 14 — FENCE.
 (:wat::rete::defrule :wic::fence-match
-  :when [(:wic::Req (?k <- :k))
+  :when [(:wic::Req (?k :- :k))
          (:wat::rete::where
            (:wat::rete::core::match (:wat::rete::i64::= ?k 100) [true true] [false false]))]
   :then [(:wic::Hit :k ?k)])
 
-(:wat::rete::defquery :wic::q-Hit :params [] :when [(?fact <- :wic::Hit)])
+(:wat::rete::defquery :wic::q-Hit :params [] :when [(?fact :- :wic::Hit)])
 
 (:wat::core::defn :wic::rule-for [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::cond

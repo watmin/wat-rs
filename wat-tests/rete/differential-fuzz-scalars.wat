@@ -151,11 +151,11 @@
                     op  (:wat::i64::quot oplit nl)
                     li  (:wat::i64::rem oplit nl)]
     (:wat::core::cond
-      ((:wat::core::= ty 0) (:wat::core::quasiquote (:wat-tests::rete::scalars::Ri (?v <- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-i64  op (:wat-tests::rete::scalars::lit-i64 li))))))
-      ((:wat::core::= ty 1) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rf (?v <- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-f64  op (:wat-tests::rete::scalars::lit-f64 li))))))
-      ((:wat::core::= ty 2) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rs (?v <- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-str  op (:wat-tests::rete::scalars::lit-str li))))))
-      ((:wat::core::= ty 3) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rb (?v <- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-bool op (:wat-tests::rete::scalars::lit-bool li))))))
-      (:else                (:wat::core::quasiquote (:wat-tests::rete::scalars::Re (?v <- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-enum op li))))))))
+      ((:wat::core::= ty 0) (:wat::core::quasiquote (:wat-tests::rete::scalars::Ri (?v :- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-i64  op (:wat-tests::rete::scalars::lit-i64 li))))))
+      ((:wat::core::= ty 1) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rf (?v :- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-f64  op (:wat-tests::rete::scalars::lit-f64 li))))))
+      ((:wat::core::= ty 2) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rs (?v :- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-str  op (:wat-tests::rete::scalars::lit-str li))))))
+      ((:wat::core::= ty 3) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rb (?v :- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-bool op (:wat-tests::rete::scalars::lit-bool li))))))
+      (:else                (:wat::core::quasiquote (:wat-tests::rete::scalars::Re (?v :- :v) (:wat::core::unquote (:wat-tests::rete::scalars::c-enum op li))))))))
 
 ;; ── the facts, per type ──────────────────────────────────────────────────────
 ;; DISTINCT values, so a comparison can separate them — the sibling file learned this the hard
@@ -165,11 +165,11 @@
 ;; The join partner condition — binds the SAME `?v`, so the engine must join on it.
 (:wat::core::defn :wat-tests::rete::scalars::partner-cond [ty <- :wat::core::i64] -> :wat::WatAST
   (:wat::core::cond
-    ((:wat::core::= ty 0) (:wat::core::quasiquote (:wat-tests::rete::scalars::Ri2 (?v <- :v))))
-    ((:wat::core::= ty 1) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rf2 (?v <- :v))))
-    ((:wat::core::= ty 2) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rs2 (?v <- :v))))
-    ((:wat::core::= ty 3) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rb2 (?v <- :v))))
-    (:else                (:wat::core::quasiquote (:wat-tests::rete::scalars::Re2 (?v <- :v))))))
+    ((:wat::core::= ty 0) (:wat::core::quasiquote (:wat-tests::rete::scalars::Ri2 (?v :- :v))))
+    ((:wat::core::= ty 1) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rf2 (?v :- :v))))
+    ((:wat::core::= ty 2) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rs2 (?v :- :v))))
+    ((:wat::core::= ty 3) (:wat::core::quasiquote (:wat-tests::rete::scalars::Rb2 (?v :- :v))))
+    (:else                (:wat::core::quasiquote (:wat-tests::rete::scalars::Re2 (?v :- :v))))))
 
 (:wat::core::defn :wat-tests::rete::scalars::facts-i64 [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat-tests::rete::scalars::Ri])
   (:wat::core::into (:wat::core::PersistentVector)

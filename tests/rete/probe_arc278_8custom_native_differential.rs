@@ -1,7 +1,7 @@
 //! Arc 278 stone 8-custom — custom accumulators (any fenced user fold over the gather) + the differential.
 //! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! The accumulator slot accepts a USER fn head (not just the 8 built-ins): `(?r <- (:my-fold ?v) :from (…))`
+//! The accumulator slot accepts a USER fn head (not just the 8 built-ins): `(?r :- (:my-fold ?v) :from (…))`
 //! gathers the `?v` values into a `PV<T>` and applies `my-fold : (PV<T>) -> R`. Known head → built-in
 //! fast-path; else eval the user fn over the gather. The compile fence rejects a fold that is not
 //! (pure ∧ deterministic ∧ total ∧ primitive?). Native `fire-rules` == `fire-rules$oracle`.
@@ -30,8 +30,8 @@ fn world(gate: &str) -> String {
          \n\
          (:wat::rete::defrule :w::flag\n\
            :when\n\
-           [(:w::Station (?loc <- :location))\n\
-            (?s <- (:w::sum-of-squares ?v) :from (:w::Reading (?loc <- :location) (?v <- :value)))\n\
+           [(:w::Station (?loc :- :location))\n\
+            (?s :- (:w::sum-of-squares ?v) :from (:w::Reading (?loc :- :location) (?v :- :value)))\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
            [(:w::Flagged :location ?loc)])\n\
@@ -106,8 +106,8 @@ fn fence_rejects_impure_fold() {
              (:wat::core::length xs)))\n\
          (:wat::rete::defrule :w::bad\n\
            :when\n\
-           [(:w::Reading (?loc <- :location) (?v <- :value))\n\
-            (?s <- (:w::bad-fold ?v) :from (:w::Reading (?loc2 <- :location) (?v2 <- :value)))]\n\
+           [(:w::Reading (?loc :- :location) (?v :- :value))\n\
+            (?s :- (:w::bad-fold ?v) :from (:w::Reading (?loc2 :- :location) (?v2 :- :value)))]\n\
            :then\n\
            [(:w::Flagged :location ?loc)])\n\
          ";

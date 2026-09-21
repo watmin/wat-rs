@@ -20,10 +20,10 @@
 ;; rewrite safe.
 
 (:wat::rete::defrule :fhc::uuid
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.Uuid/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -37,10 +37,10 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :fhc::regex
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::regex::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -54,10 +54,10 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :fhc::list-of
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.List/of"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -67,10 +67,10 @@
                        (:wat::grep::Capture :name "new" :value "wat.core/List")))])
 
 (:wat::rete::defrule :fhc::char-of
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.char/of"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec

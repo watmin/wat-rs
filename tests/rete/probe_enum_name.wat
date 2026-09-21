@@ -5,12 +5,12 @@
 (:wat::core::defrecord :en::Src [k <- :en::K])
 
 (:wat::rete::defrule :en::render
-  :when [(:en::Src (?k <- :k))]
+  :when [(:en::Src (?k :- :k))]
   :then [(:en::Box :label (:wat::rete::core::variant-name ?k))])
 
 (:wat::rete::defquery :en::q-Box
   :params []
-  :when [(:en::Box (?label <- :label))])
+  :when [(:en::Box (?label :- :label))])
 
 (:wat::core::defn :user::direct [] -> :wat::core::String
   (:wat::core::variant-name (:en::K.Bb {})))

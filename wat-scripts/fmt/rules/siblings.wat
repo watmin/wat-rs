@@ -14,34 +14,34 @@
 ;; not match. The emitter still treats a declaration as a layout leaf.
 
 (:wat::rete::defrule :fmt::siblings-fallback-list
-  :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
+  :when [(:wat::grep::Node  (?head :- :id) (?p :- :parent) (?hi :- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::not (:wat::fmt::Claim (?p :- :form)))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.List {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
 (:wat::rete::defrule :fmt::siblings-fallback-vector
-  :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
+  :when [(:wat::grep::Node  (?head :- :id) (?p :- :parent) (?hi :- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::not (:wat::fmt::Claim (?p :- :form)))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Vector {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
 (:wat::rete::defrule :fmt::siblings-fallback-map
-  :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
+  :when [(:wat::grep::Node  (?head :- :id) (?p :- :parent) (?hi :- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::not (:wat::fmt::Claim (?p :- :form)))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Map {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
 (:wat::rete::defrule :fmt::siblings-fallback-set
-  :when [(:wat::grep::Node  (?head <- :id) (?p <- :parent) (?hi <- :index))
+  :when [(:wat::grep::Node  (?head :- :id) (?p :- :parent) (?hi :- :index))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::rete::not (:wat::fmt::Claim (?p <- :form)))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?k <- :kind))
+         (:wat::rete::not (:wat::fmt::Claim (?p :- :form)))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Set {})))]
   :then [(:wat::fmt::Fallback :node ?p)])
 
@@ -49,85 +49,85 @@
 ;; is the authority, not a grammar index. Same shape for `:-` so type-args
 ;; stay on the head line.
 (:wat::rete::defrule :fmt::siblings-explode-list
-  :when [(:wat::fmt::Fallback (?p <- :node))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+  :when [(:wat::fmt::Fallback (?p :- :node))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?fi :- :index) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.List {})))
-         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?ci :- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
-             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::grep::Node  (?arrow :- :id) (?p :- :parent) (?ai :- :index))
+             (:wat::grep::Named (?arrow :- :id) (?an :- :name))
              (:wat::rete::where (:wat::rete::string::= ?an "->"))
              (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
-             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::grep::Node  (?dash :- :id) (?p :- :parent) (?di :- :index))
+             (:wat::grep::Named (?dash :- :id) (?dn :- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind.Block {}))])
 
 (:wat::rete::defrule :fmt::siblings-explode-vector
-  :when [(:wat::fmt::Fallback (?p <- :node))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+  :when [(:wat::fmt::Fallback (?p :- :node))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?fi :- :index) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Vector {})))
-         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?ci :- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
-             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::grep::Node  (?arrow :- :id) (?p :- :parent) (?ai :- :index))
+             (:wat::grep::Named (?arrow :- :id) (?an :- :name))
              (:wat::rete::where (:wat::rete::string::= ?an "->"))
              (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
-             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::grep::Node  (?dash :- :id) (?p :- :parent) (?di :- :index))
+             (:wat::grep::Named (?dash :- :id) (?dn :- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind.Block {}))])
 
 (:wat::rete::defrule :fmt::siblings-explode-map
-  :when [(:wat::fmt::Fallback (?p <- :node))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+  :when [(:wat::fmt::Fallback (?p :- :node))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?fi :- :index) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Map {})))
-         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?ci :- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
-             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::grep::Node  (?arrow :- :id) (?p :- :parent) (?ai :- :index))
+             (:wat::grep::Named (?arrow :- :id) (?an :- :name))
              (:wat::rete::where (:wat::rete::string::= ?an "->"))
              (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
-             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::grep::Node  (?dash :- :id) (?p :- :parent) (?di :- :index))
+             (:wat::grep::Named (?dash :- :id) (?dn :- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind.Block {}))])
 
 (:wat::rete::defrule :fmt::siblings-explode-set
-  :when [(:wat::fmt::Fallback (?p <- :node))
-         (:wat::grep::Node  (?comp <- :id) (?p <- :parent) (?fi <- :index) (?k <- :kind))
+  :when [(:wat::fmt::Fallback (?p :- :node))
+         (:wat::grep::Node  (?comp :- :id) (?p :- :parent) (?fi :- :index) (?k :- :kind))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Set {})))
-         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?ci <- :index))
+         (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?ci :- :index))
          (:wat::rete::where (:wat::rete::i64::> ?ci 0))
          (:wat::rete::where (:wat::rete::i64::>= ?ci ?fi))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?arrow <- :id) (?p <- :parent) (?ai <- :index))
-             (:wat::grep::Named (?arrow <- :id) (?an <- :name))
+             (:wat::grep::Node  (?arrow :- :id) (?p :- :parent) (?ai :- :index))
+             (:wat::grep::Named (?arrow :- :id) (?an :- :name))
              (:wat::rete::where (:wat::rete::string::= ?an "->"))
              (:wat::rete::where (:wat::rete::i64::= ?ai (:wat::rete::i64::- ?ci 1 :undefined 0)))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?dash <- :id) (?p <- :parent) (?di <- :index))
-             (:wat::grep::Named (?dash <- :id) (?dn <- :name))
+             (:wat::grep::Node  (?dash :- :id) (?p :- :parent) (?di :- :index))
+             (:wat::grep::Named (?dash :- :id) (?dn :- :name))
              (:wat::rete::where (:wat::rete::string::= ?dn ":-"))
              (:wat::rete::where (:wat::rete::i64::= ?di (:wat::rete::i64::- ?ci 1 :undefined 0)))))]
   :then [(:wat::fmt::Break :id ?c :kind (:wat::fmt::BreakKind.Block {}))])

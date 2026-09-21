@@ -18,17 +18,17 @@
 
 ;; a node in head position — index 0 of its parent form
 (:wat::rete::defrule :hp::head
-  :when [(:wat::grep::Node (?id <- :id) (?k <- :kind) (?i <- :index))
+  :when [(:wat::grep::Node (?id :- :id) (?k :- :kind) (?i :- :index))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))]
   :then [(:hp::IsHead :id ?id)])
 
 ;; ...whose name is the partial verb
 (:wat::rete::defrule :hp::calls-first
-  :when [(:hp::IsHead (?id <- :id))
-         (:wat::grep::Named (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/first"))
-         (:wat::grep::Span  (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))]
+  :when [(:hp::IsHead (?id :- :id))
+         (:wat::grep::Named (?id :- :id) (?n :- :name) (:wat::rete::string::= ?n "wat.core/first"))
+         (:wat::grep::Span  (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "calls-a-partial-verb"

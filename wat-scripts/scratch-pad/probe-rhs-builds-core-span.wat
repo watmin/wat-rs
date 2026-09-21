@@ -50,7 +50,7 @@
 ;; IN the RHS (it is a property of the run, exactly as the DESIGN argues); `:end` is a real
 ;; `Some(Pos)` built from the bound end coords, because a wat-built Span always knows its end.
 (:wat::rete::defrule :p::build-hit
-  :when [(:p::Loc (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))]
+  :when [(:p::Loc (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))]
   :then [(:p::Hit
            :span (:wat::core::Span
                    :file "a.wat"
@@ -62,7 +62,7 @@
 
 (:wat::rete::defquery :p::q-Hit
   :params []
-  :when [(?fact <- :p::Hit)])
+  :when [(?fact :- :p::Hit)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

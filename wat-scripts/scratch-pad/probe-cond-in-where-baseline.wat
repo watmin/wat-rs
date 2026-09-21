@@ -20,14 +20,14 @@
 
 (:wat::rete::defrule :probe::r1
   :when
-  [(:probe::Req (?a <- :a))
+  [(:probe::Req (?a :- :a))
    (:wat::rete::where (:wat::rete::core::cond (?a true) (:else false)))]
   :then
   [(:probe::Hit :a ?a)])
 
 (:wat::rete::defquery :probe::q-Hit
   :params []
-  :when [(?fact <- :probe::Hit)])
+  :when [(?fact :- :probe::Hit)])
 
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

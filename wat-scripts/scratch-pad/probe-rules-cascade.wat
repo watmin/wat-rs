@@ -14,28 +14,28 @@
 (:wat::core::defrecord :usr::Critical [c <- :wat::core::i64])
 
 (:wat::rete::defrule :usr::hot
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
+  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
   :then [(:usr::Hot :c ?c)])
 (:wat::rete::defrule :usr::alert
-  :when [(:usr::Hot (?c <- :c))]
+  :when [(:usr::Hot (?c :- :c))]
   :then [(:usr::Alert :c ?c)])
 (:wat::rete::defrule :usr::critical
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 90))]
+  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 90))]
   :then [(:usr::Critical :c ?c)])
 
 (:wat::rete::defquery :usr::q-Hot
   :params []
-  :when [(?fact <- :usr::Hot)])
+  :when [(?fact :- :usr::Hot)])
 
 
 (:wat::rete::defquery :usr::q-Alert
   :params []
-  :when [(?fact <- :usr::Alert)])
+  :when [(?fact :- :usr::Alert)])
 
 
 (:wat::rete::defquery :usr::q-Critical
   :params []
-  :when [(?fact <- :usr::Critical)])
+  :when [(?fact :- :usr::Critical)])
 
 
 (:wat::core::defn :usr::fire-one [template <- :wat::rete::Session seed <- :usr::Temp] -> :wat::core::String

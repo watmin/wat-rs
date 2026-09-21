@@ -1017,7 +1017,7 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
 fn lower_fn(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     let arrow = items
         .iter()
-        .position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->"));
+        .position(crate::types::is_return_arrow);
     let Some(arrow) = arrow else {
         return Err(LowerError::unsupported(span.clone(), "fn needs ->".into()));
     };
@@ -1032,9 +1032,9 @@ fn lower_fn(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
                 WatAST::Symbol(id, _) => {
                     param_slots.push(cx.slot(id.as_str()));
                     i += 1;
-                    if i < ps.len() && matches!(&ps[i], WatAST::Symbol(s, _) if s.as_str() == "<-")
+                    if i < ps.len() && crate::types::is_param_annotation_arrow(&ps[i])
                     {
-                        i += 2; // skip <- type
+                        i += 2; // skip <- / :- type (param annotation, not a rete field bind)
                     }
                 }
                 _ => i += 1,

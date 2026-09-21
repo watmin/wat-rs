@@ -10,7 +10,7 @@
 (:wat::core::defrecord :dlt::Bad [n <- :wat::core::i64])
 
 (:wat::rete::defrule :dlt::bad
-  :when [(:dlt::Box (?k <- :k))]
+  :when [(:dlt::Box (?k :- :k))]
   :then [(:dlt::Bad :n "LITERAL-STRING")])
 
 ;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.

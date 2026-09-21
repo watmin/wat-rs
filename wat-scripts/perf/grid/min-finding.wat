@@ -54,7 +54,7 @@
 
 (:wat::rete::defquery :mf::q-Busy
   :params []
-  :when [(?fact <- :mf::Busy)])
+  :when [(?fact :- :mf::Busy)])
 
 
 ;; encode loc n — canonical single-i64 witness for one activated Busy fact. `n` is a station's
@@ -71,9 +71,9 @@
 ;; embeds `(= ?l (unquote prev))` the same way). The accumulate condition mirrors the probe's
 ;; COUNT const exactly: (?n <- (:wat::rete::acc::count) :from (:mf::Reading (?loc <- :loc))).
 (:wat::core::defn :mf::build-rule [threshold <- :wat::core::i64] -> :wat::rete::Rule
-  (:wat::core::let [station-c (:wat::core::quasiquote (:mf::Station (?loc <- :loc)))
+  (:wat::core::let [station-c (:wat::core::quasiquote (:mf::Station (?loc :- :loc)))
                     acc-c     (:wat::core::quasiquote
-                                (?n <- (:wat::rete::acc::count) :from (:mf::Reading (?loc <- :loc))))
+                                (?n :- (:wat::rete::acc::count) :from (:mf::Reading (?loc :- :loc))))
                     where-c   (:wat::core::quasiquote
                                 ;; law A (#57): a `where` admits only :wat::rete:: ops. `?n` is bound by
                                 ;; `(:wat::rete::acc::count)`, whose declared return is a bare i64, and

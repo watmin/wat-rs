@@ -104,7 +104,7 @@ fn an_inline_constraint_names_the_field_keyword_not_the_comparison() {
 /// The BIND-CLAUSE path (`ReteClauseShape::Bind` → `check_field_kw`).
 ///
 /// This path is why `ReteClauseShape::Bind` grew a `field_kw` member. The classifier resolved
-/// `(?b <- :nofield)` through `keyword_payload(&items[2])`, which returns only the TEXT — so the
+/// `(?b :- :nofield)` through `keyword_payload(&items[2])`, which returns only the TEXT — so the
 /// keyword node, and with it the only correct span, was dropped one line before the wall needed
 /// it. POST: line 12, col 39, end col 47.
 ///
@@ -118,7 +118,7 @@ fn a_bind_clause_names_the_field_keyword_not_the_whole_bind() {
     wat::assert_edn_matches_file!(
         err.trim().to_string(),
         "probe_arc278_field_span__bind.edn",
-        "the caret must be `:nofield`, not the whole `(?b <- :nofield)` clause"
+        "the caret must be `:nofield`, not the whole `(?b :- :nofield)` clause"
     );
 }
 

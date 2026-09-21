@@ -30,7 +30,7 @@
 
 (:wat::rete::defquery :dd::q-Pair
   :params []
-  :when [(?fact <- :dd::Pair)])
+  :when [(?fact :- :dd::Pair)])
 
 
 (:wat::core::defn :dd::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
@@ -62,8 +62,8 @@
      items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
      fanout  20
      keys    (:wat::i64::/ items (:wat::i64::* fanout fanout))
-     c1      (:wat::core::quote (:dd::Left  (?k <- :key) (?l <- :lid)))
-     c2      (:wat::core::quote (:dd::Right (?k <- :key) (?r <- :rid)))
+     c1      (:wat::core::quote (:dd::Left  (?k :- :key) (?l :- :lid)))
+     c2      (:wat::core::quote (:dd::Right (?k :- :key) (?r :- :rid)))
      rhs     (:wat::core::quote (:dd::Pair ?k ?l ?r))
      rule    (:wat::rete::Rule :name "dd" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
      staged  (:dd::seed (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:dd::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) keys fanout)

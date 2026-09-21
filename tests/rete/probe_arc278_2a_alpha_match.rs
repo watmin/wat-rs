@@ -7,7 +7,7 @@
 //! wrong type → None.
 //!
 //! The DSL it interprets (its own classifier, NOT classify_clause):
-//!   (?v <- :field)              bind ?v to the fact's :field
+//!   (?v :- :field)              bind ?v to the fact's :field
 //!   (:wat::core::<op> a b)      FQDN constraint; operands ∈ {?var, :field, literal}, resolved purely
 //!   (:wat::rete::and/or/not …)  clause combinators
 //!   (:wat::rete::where …)       stone-6 escape (out of scope here)

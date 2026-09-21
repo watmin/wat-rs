@@ -33,7 +33,7 @@ use crate::form_match::keyword_payload;
 /// stratify / validate. `var` / `acc_form` ride the shape so the classifier is total
 /// over the grammar (callers use `..`).
 pub(crate) enum ReteClauseShape<'a> {
-    /// `(?v <- :field)` — a fresh/cross-condition-join bind.
+    /// `(?v :- :field)` — a fresh/cross-condition-join bind.
     ///
     /// `field_kw` is the `:field` KEYWORD NODE, carried alongside its own colon-stripped text.
     /// The classifier held that node all along and dropped it (`keyword_payload(&items[2])`), so
@@ -64,10 +64,10 @@ pub(crate) enum ReteClauseShape<'a> {
     /// `(:wat::rete::where expr)` — dual duty like `Not`: a clause-level STOP arm (`eval_clause`
     /// always `None`s it — stone 6 territory) or the top-level `where` fence.
     Where(&'a WatAST),
-    /// `(?result-var <- (<acc-form>) :from (<inner>))` — top-level-only accumulate wrapper.
+    /// `(?result-var :- (<acc-form>) :from (<inner>))` — top-level-only accumulate wrapper.
     Accumulate {
         // rune:purgare(shape-contract) — the classifier names the whole
-        // `(?var <- acc-form :from inner)` grammar; current consumers walk `from` only.
+        // `(?var :- acc-form :from inner)` grammar; current consumers walk `from` only.
         // Removing it still compiles — no trait requires it — which is why this is
         // `shape-contract` and not `trait-contract`.
         #[allow(dead_code)] // grammar payload; consumers walk `from` only
@@ -78,7 +78,7 @@ pub(crate) enum ReteClauseShape<'a> {
         acc_form: &'a WatAST,
         from: &'a WatAST,
     },
-    /// `(?p <- :ns::Type clause…)` — top-level fact bind (Clara `[?p <- Type]`).
+    /// `(?p :- :ns::Type clause…)` — top-level fact bind (Clara `[?p :- Type]`).
     /// Discriminated from [`Self::Bind`] by a `::` in the type keyword; from
     /// [`Self::Accumulate`] by a keyword (not a list) after `<-`.
     FactBind {
@@ -359,10 +359,10 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
             if !var_name.starts_with('?') {
                 return ReteClauseShape::Unrecognized;
             }
-            // Fact-bind: (?p <- :ns::Type clause…) — type keyword contains `::`.
-            // Field-bind: (?v <- :field) — bare field keyword, exactly 3 items.
+            // Fact-bind: (?p :- :ns::Type clause…) — type keyword contains `::`.
+            // Field-bind: (?v :- :field) — bare field keyword, exactly 3 items.
             if items.len() >= 3 {
-                let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
+                let is_arrow = crate::types::is_binder_marker(&items[1]);
                 if is_arrow {
                     if let Some(kw) = keyword_payload(&items[2]) {
                         // rune:lint(one-variant-separator, namespace) — detects a fact-bind's
@@ -385,9 +385,9 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
                     return ReteClauseShape::Unrecognized;
                 }
             }
-            // Accumulate: (?result <- (acc-form) :from (inner)) — 5 items, `:from` at [3].
+            // Accumulate: (?result :- (acc-form) :from (inner)) — 5 items, `:from` at [3].
             if items.len() == 5 {
-                let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
+                let is_arrow = crate::types::is_binder_marker(&items[1]);
                 let is_from = matches!(&items[3], WatAST::Keyword(k, _) if k.as_str() == ":from");
                 if is_arrow && is_from {
                     return ReteClauseShape::Accumulate {

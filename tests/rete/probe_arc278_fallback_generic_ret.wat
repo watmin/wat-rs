@@ -27,12 +27,12 @@
 ;; Fires iff first(vs, :undefined -1.0) < 0. The head is +Inf, so it must NOT fire:
 ;; +Inf is the element, not an undefined point, because `first` never promised a float.
 (:wat::rete::defrule :fgr::r
-  :when [(:fgr::Item (?k <- :k) (?vs <- :vs))
+  :when [(:fgr::Item (?k :- :k) (?vs :- :vs))
          (:wat::rete::where
            (:wat::rete::f64::< (:wat::rete::core::PersistentVector/first ?vs :undefined -1.0) 0.0))]
   :then [(:fgr::Hit :k ?k)])
 
-(:wat::rete::defquery :fgr::q :params [] :when [(?fact <- :fgr::Hit)])
+(:wat::rete::defquery :fgr::q :params [] :when [(?fact :- :fgr::Hit)])
 
 (:wat::core::defn :fgr::staged [] -> :wat::rete::Session
   (:wat::core::let [inf (:wat::f64::/ 1.0 0.0)]

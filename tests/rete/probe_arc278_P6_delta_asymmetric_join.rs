@@ -72,10 +72,10 @@ fn q_call(ty: &str) -> String {
 
 /// Build the chain let-expression for `N` input A records. `FIRE_VERB` is a placeholder.
 fn chain_expr(n: usize, query_type: &str) -> String {
-    let r1c = "(:wat::core::quote (:chain::A (?k <- :k)))";
+    let r1c = "(:wat::core::quote (:chain::A (?k :- :k)))";
     let r1t = "(:wat::core::quote (:chain::B ?k))";
-    let r2c1 = "(:wat::core::quote (:chain::B (?k <- :k)))";
-    let r2c2 = "(:wat::core::quote (:chain::A (?k <- :k)))";
+    let r2c1 = "(:wat::core::quote (:chain::B (?k :- :k)))";
+    let r2c2 = "(:wat::core::quote (:chain::A (?k :- :k)))";
     let r2t = "(:wat::core::quote (:chain::C ?k))";
     let q = q_call(query_type);
     let mut binds = format!(
@@ -135,17 +135,17 @@ fn triple_expr(n: usize, query_type: &str) -> String {
     let mut binds = format!(
         "\
         r1 (:wat::rete::Rule :name \"r1\" \
-             :lhs (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k <- :k)))) \
+             :lhs (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k :- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::B ?k))))\n\
         r2 (:wat::rete::Rule :name \"r2\" \
              :lhs (:wat::core::PersistentVector \
-               (:wat::core::quote (:tri::B (?k <- :k))) \
-               (:wat::core::quote (:tri::A (?k <- :k)))) \
+               (:wat::core::quote (:tri::B (?k :- :k))) \
+               (:wat::core::quote (:tri::A (?k :- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::C ?k))))\n\
         r3 (:wat::rete::Rule :name \"r3\" \
              :lhs (:wat::core::PersistentVector \
-               (:wat::core::quote (:tri::C (?k <- :k))) \
-               (:wat::core::quote (:tri::B (?k <- :k)))) \
+               (:wat::core::quote (:tri::C (?k :- :k))) \
+               (:wat::core::quote (:tri::B (?k :- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:tri::D ?k))))\n\
         s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector r1 r2 r3) (:wat::core::PersistentVector {q})) [:wat::rete::CompileOutcome.Compiled {{:session __session}} __session] [:wat::rete::CompileOutcome.MayNotTerminate {{:rule __rule :fact-type __ft}} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\n"
     );
@@ -197,8 +197,8 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
     let rule = "\
         r1 (:wat::rete::Rule :name \"r1\" \
              :lhs (:wat::core::PersistentVector \
-               (:wat::core::quote (:xyz::X (?k <- :k))) \
-               (:wat::core::quote (:xyz::Y (?k <- :k)))) \
+               (:wat::core::quote (:xyz::X (?k :- :k))) \
+               (:wat::core::quote (:xyz::Y (?k :- :k)))) \
              :rhs (:wat::core::PersistentVector (:wat::core::quote (:xyz::Z ?k))))\n\
         s0 (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector r1) (:wat::core::PersistentVector {q})) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message \"compile: the rule set may not terminate\")])\n";
     let q = q_call(query_type);

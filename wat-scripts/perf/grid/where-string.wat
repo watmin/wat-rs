@@ -103,7 +103,7 @@
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wst::conds [] -> :wat::WatAST
   (:wat::core::quasiquote
-    (:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded))))
+    (:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded))))
 
 (:wat::core::defn :wst::ins [] -> :wat::WatAST
   (:wat::core::quasiquote (:wst::Hit ?k)))
@@ -113,7 +113,7 @@
 ;; r=0 is empty (nothing starts a non-empty prefix). One category of five ⇒ 80/400.
 (:wat::rete::defrule :wst::starts-with
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::starts-with? ?n "cat"))]
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where (:wat::rete::string::starts-with? ?n "cat"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -122,7 +122,7 @@
 ;; categories ⇒ 160/400.
 (:wat::rete::defrule :wst::ends-with
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::ends-with? ?n "cat"))]
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where (:wat::rete::string::ends-with? ?n "cat"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -132,7 +132,7 @@
 ;; "zzcat" suffix-match.
 (:wat::rete::defrule :wst::contains
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::contains? ?n "cat"))]
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where (:wat::rete::string::contains? ?n "cat"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -141,7 +141,7 @@
 ;; "no match" cases, but this row asserts the boundary is reachable and exact, not merely never hit.
 (:wat::rete::defrule :wst::empty
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::empty? ?n))]
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where (:wat::rete::string::empty? ?n))]
   :then
   [(:wst::Hit ?k)])
 
@@ -153,7 +153,7 @@
 ;; ⇒ 180/400 over the 10 cycles in [0,400).
 (:wat::rete::defrule :wst::length-bound
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::string::length ?n) ?minlen))]
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::string::length ?n) ?minlen))]
   :then
   [(:wst::Hit ?k)])
 
@@ -165,7 +165,7 @@
 ;; (even,r=2), (even,r=3) = 3 of 10 ⇒ 120/400.
 (:wat::rete::defrule :wst::dynamic-arg
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where
                                  (:wat::rete::string::contains? ?n (:wat::rete::string::concat ?tag "t")))]
   :then
   [(:wst::Hit ?k)])
@@ -174,7 +174,7 @@
 ;; "cat")). Contains ⇒ {r1,r2,r3}; excluding starts-with's {r1} leaves {r2,r3} ⇒ 160/400.
 (:wat::rete::defrule :wst::compose-bool
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::string::contains? ?n "cat")
                                    (:wat::rete::core::not (:wat::rete::string::starts-with? ?n "cat"))))]
@@ -186,7 +186,7 @@
 ;; Independent (CRT, k mod 40) ⇒ 3*4 = 12/40 ⇒ 120/400.
 (:wat::rete::defrule :wst::compose-i64
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::string::contains? ?n "cat")
                                    (:wat::rete::i64::> ?minlen 3)))]
@@ -197,7 +197,7 @@
 ;; See :wst::feline? above: true for r=2, r=3 ⇒ 160/400.
 (:wat::rete::defrule :wst::userfn
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wst::feline? ?n))]
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where (:wst::feline? ?n))]
   :then
   [(:wst::Hit ?k)])
 
@@ -208,7 +208,7 @@
 ;; exactly what the row is for. One of five categories ⇒ 80/400.
 (:wat::rete::defrule :wst::lowercase-chain
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where
                                  (:wat::rete::string::starts-with? (:wat::rete::string::to-lowercase ?n) "dog"))]
   :then
   [(:wst::Hit ?k)])
@@ -223,7 +223,7 @@
 ;; One of five categories ⇒ 80/400.
 (:wat::rete::defrule :wst::shortcircuit-subs
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::i64::>= (:wat::rete::string::length ?n) 3)
                                    (:wat::rete::string::starts-with? (:wat::rete::string::subs ?n 0 3 :undefined "") "cat")))]
@@ -235,13 +235,13 @@
 ;; Half of the stream ⇒ 200/400.
 (:wat::rete::defrule :wst::trim-eq
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::= (:wat::rete::string::trim ?padded) "cat"))]
+  [(:wst::Req (?k :- :k) (?n :- :n) (?tag :- :tag) (?minlen :- :minlen) (?padded :- :padded)) (:wat::rete::where (:wat::rete::string::= (:wat::rete::string::trim ?padded) "cat"))]
   :then
   [(:wst::Hit ?k)])
 
 (:wat::rete::defquery :wst::q-Hit
   :params []
-  :when [(?fact <- :wst::Hit)])
+  :when [(?fact :- :wst::Hit)])
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.

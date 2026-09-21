@@ -51,8 +51,8 @@
 ;; are exactly the shareable prefix under test. Only the trailing `where` carries the per-rule
 ;; literal. `mod` is written as the truncating-division idiom (no native i64 mod).
 (:wat::core::defn :nsp::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsp::A (?k <- :k)))
-                    b-c     (:wat::core::quasiquote (:nsp::B (?k <- :k)))
+  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsp::A (?k :- :k)))
+                    b-c     (:wat::core::quasiquote (:nsp::B (?k :- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::core::= (:wat::core::unquote i)

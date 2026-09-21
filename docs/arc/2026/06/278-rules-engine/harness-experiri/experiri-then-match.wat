@@ -5,7 +5,7 @@
 
 ;; IDENTICAL match expression, three positions. Uncomment one rule at a time.
 (:wat::rete::defrule :probe::in-then
-  :when  [(:probe::In (?k <- :k) (?v <- :v))]
+  :when  [(:probe::In (?k :- :k) (?v :- :v))]
   :then  [(:probe::Out :k ?k :ok (:wat::rete::core::match ?v [:probe::E.A {} true] [:probe::E.B {} false]))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

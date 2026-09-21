@@ -62,7 +62,7 @@
 ;; honest without claiming the network is exercised.
 (:wat::rete::defrule :ins::pass-rule
   :when
-  [(:ins::Reading (?g <- :g))]
+  [(:ins::Reading (?g :- :g))]
   :then
   [(:ins::Out ?g)])
 

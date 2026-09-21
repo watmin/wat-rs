@@ -26,8 +26,8 @@
 
 (:wat::rete::defrule :vsa::classify-cosine
   :when
-  [(:vsa::Catalog (?name <- :name) (?cobs <- :obs))
-   (:vsa::Observation (?obs <- :obs))
+  [(:vsa::Catalog (?name :- :name) (?cobs :- :obs))
+   (:vsa::Observation (?obs :- :obs))
    (:wat::rete::where
      (:wat::rete::f64::>
        (:wat::rete::holon::cosine ?obs ?cobs :undefined 0.0)
@@ -37,23 +37,23 @@
 
 (:wat::rete::defrule :vsa::classify-coincident
   :when
-  [(:vsa::Catalog (?name <- :name) (?cobs <- :obs))
-   (:vsa::Observation (?obs <- :obs))
+  [(:vsa::Catalog (?name :- :name) (?cobs :- :obs))
+   (:vsa::Observation (?obs :- :obs))
    (:wat::rete::where (:wat::rete::holon::coincident? ?obs ?cobs))]
   :then
   [(:vsa::Guess :name ?name)])
 
 (:wat::rete::defrule :vsa::classify-presence
   :when
-  [(:vsa::Catalog (?name <- :name) (?cobs <- :obs))
-   (:vsa::Observation (?obs <- :obs))
+  [(:vsa::Catalog (?name :- :name) (?cobs :- :obs))
+   (:vsa::Observation (?obs :- :obs))
    (:wat::rete::where (:wat::rete::holon::presence? ?obs ?cobs))]
   :then
   [(:vsa::Guess :name ?name)])
 
 (:wat::rete::defrule :vsa::deg-neg1
   :when
-  [(:vsa::Pair (?a <- :a) (?b <- :b))
+  [(:vsa::Pair (?a :- :a) (?b :- :b))
    (:wat::rete::where
      (:wat::rete::f64::=
        (:wat::rete::holon::cosine ?a ?b :undefined -1.0)
@@ -63,7 +63,7 @@
 
 (:wat::rete::defrule :vsa::deg-seven
   :when
-  [(:vsa::Pair (?a <- :a) (?b <- :b))
+  [(:vsa::Pair (?a :- :a) (?b :- :b))
    (:wat::rete::where
      (:wat::rete::f64::=
        (:wat::rete::holon::cosine ?a ?b :undefined 7.0)
@@ -73,11 +73,11 @@
 
 (:wat::rete::defquery :vsa::q-Guess
   :params []
-  :when [(:vsa::Guess (?name <- :name))])
+  :when [(:vsa::Guess (?name :- :name))])
 
 (:wat::rete::defquery :vsa::q-Hit
   :params []
-  :when [(:vsa::Hit (?tag <- :tag))])
+  :when [(:vsa::Hit (?tag :- :tag))])
 
 (:wat::core::defn :vsa::catalog [] -> (:wat::core::PersistentVector :- [:vsa::Catalog])
   (:wat::core::PersistentVector

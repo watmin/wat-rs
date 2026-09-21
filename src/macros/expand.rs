@@ -942,7 +942,7 @@ fn expand_make_rule_condition(
             }
         }
         // A FACT PATTERN. Its head is data (the kwargs hazard above); each clause after it is an
-        // expression unless it is a `(?v <- :field)` bind, which names a field and holds no code.
+        // expression unless it is a `(?v :- :field)` bind, which names a field and holds no code.
         Some(_) => {
             for clause in citer {
                 let is_bind = matches!(
@@ -956,7 +956,7 @@ fn expand_make_rule_condition(
                 });
             }
         }
-        // SYMBOL-headed: an `accumulate` (`(?c <- (:acc…) :from (:Type …))`) or a fact-bind. Its
+        // SYMBOL-headed: an `accumulate` (`(?c :- (:acc…) :from (:Type …))`) or a fact-bind. Its
         // items are conditions and markers, so recurse per item — a marker (`<-`, `:from`) is not
         // a list and returns unchanged, the accumulator form has no clauses to touch, and the
         // `:from` PATTERN gets its own clauses expanded like any other.

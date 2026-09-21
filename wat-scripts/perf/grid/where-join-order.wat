@@ -41,32 +41,32 @@
 ;; ROW 1 — filter BETWEEN the two joins. n > 10 → k in 11..39 => 29/40.
 (:wat::rete::defrule :wjo::where-between
   :when
-  [(:wjo::Left (?k <- :k) (?n <- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k <- :k))]
+  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
+   (:wjo::Right (?k :- :k))]
   :then
   [(:wjo::Hit ?k)])
 
 ;; ROW 2 — joins first, then the same filter. Same set as row 1.
 (:wat::rete::defrule :wjo::join-then-where
   :when
-  [(:wjo::Left (?k <- :k) (?n <- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k <- :k))]
+  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
+   (:wjo::Right (?k :- :k))]
   :then
   [(:wjo::Hit ?k)])
 
 ;; ROW 3 — tighter mid-chain filter. n > 25 → k in 26..39 => 14/40.
 (:wat::rete::defrule :wjo::where-between-hi
   :when
-  [(:wjo::Left (?k <- :k) (?n <- :n) (:wat::rete::i64::> ?n 25))
-   (:wjo::Right (?k <- :k))]
+  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 25))
+   (:wjo::Right (?k :- :k))]
   :then
   [(:wjo::Hit ?k)])
 
 ;; ROW 4 — same tight filter, joins first. Same set as row 3.
 (:wat::rete::defrule :wjo::join-then-where-hi
   :when
-  [(:wjo::Left (?k <- :k) (?n <- :n) (:wat::rete::i64::> ?n 25))
-   (:wjo::Right (?k <- :k))]
+  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 25))
+   (:wjo::Right (?k :- :k))]
   :then
   [(:wjo::Hit ?k)])
 
@@ -74,22 +74,22 @@
 ;; Independent predicates: drop the first filter → 25 keys; drop the second → 29.
 (:wat::rete::defrule :wjo::where-between-then-where
   :when
-  [(:wjo::Left (?k <- :k) (?n <- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k <- :k) (?m <- :m) (:wat::rete::i64::< ?m 25))]
+  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
+   (:wjo::Right (?k :- :k) (?m :- :m) (:wat::rete::i64::< ?m 25))]
   :then
   [(:wjo::Hit ?k)])
 
 ;; ROW 6 — both filters after the join. Same set as row 5.
 (:wat::rete::defrule :wjo::join-then-two-where
   :when
-  [(:wjo::Left (?k <- :k) (?n <- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k <- :k) (?m <- :m) (:wat::rete::i64::< ?m 25))]
+  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
+   (:wjo::Right (?k :- :k) (?m :- :m) (:wat::rete::i64::< ?m 25))]
   :then
   [(:wjo::Hit ?k)])
 
 (:wat::rete::defquery :wjo::q-Hit
   :params []
-  :when [(?fact <- :wjo::Hit)])
+  :when [(?fact :- :wjo::Hit)])
 
 
 (:wat::core::defn :wjo::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])

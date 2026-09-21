@@ -10,23 +10,23 @@
 (:wat::core::defrecord :wqp::Hit  [loc <- :wat::core::String])
 
 (:wat::rete::defrule :wqp::mark
-  :when [(:wqp::Wind (?loc <- :loc) (?w <- :kph)
+  :when [(:wqp::Wind (?loc :- :loc) (?w :- :kph)
            (:wat::rete::i64::> ?w 10))]
   :then [(:wqp::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wqp::temps-at
   :params [?loc]
-  :when [(?n <- (:wat::rete::acc::count) :from (:wqp::Temp (?loc <- :loc)))
-         (:wqp::Wind (?loc <- :loc) (?w <- :kph)
+  :when [(?n :- (:wat::rete::acc::count) :from (:wqp::Temp (?loc :- :loc)))
+         (:wqp::Wind (?loc :- :loc) (?w :- :kph)
            (:wat::rete::i64::> ?w 10))])
 
 (:wat::rete::defquery :wqp::all-wind
   :params []
-  :when [(:wqp::Wind (?loc <- :loc))])
+  :when [(:wqp::Wind (?loc :- :loc))])
 
 (:wat::rete::defquery :wqp::hits
   :params []
-  :when [(:wqp::Hit (?loc <- :loc))])
+  :when [(:wqp::Hit (?loc :- :loc))])
 
 (:wat::core::defn :wqp::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println

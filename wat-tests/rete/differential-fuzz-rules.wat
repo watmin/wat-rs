@@ -62,7 +62,7 @@
   -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::let [lhs (:wat::core::PersistentVector
                           (:wat::core::quasiquote
-                            (:wat-tests::rete::rules::Src (?x <- :x) (?y <- :y))))
+                            (:wat-tests::rete::rules::Src (?x :- :x) (?y :- :y))))
                     r1  (:wat::rete::Rule :name "r1" :lhs lhs
                           :rhs (:wat-tests::rete::rules::then-forms ord arity))
                     r2  (:wat::rete::Rule :name "r2" :lhs lhs
@@ -78,10 +78,10 @@
 ;; transposition, which is the one defect this file exists to see. 1000 exceeds any generated
 ;; value, so no carry can alias two different (a,b) pairs onto one witness.
 (:wat::rete::defquery :wat-tests::rete::rules::q-two :params []
-  :when [(:wat-tests::rete::rules::Two (?a <- :a) (?b <- :b))])
+  :when [(:wat-tests::rete::rules::Two (?a :- :a) (?b :- :b))])
 
 (:wat::rete::defquery :wat-tests::rete::rules::q-alt :params []
-  :when [(:wat-tests::rete::rules::Alt (?a <- :a) (?b <- :b))])
+  :when [(:wat-tests::rete::rules::Alt (?a :- :a) (?b :- :b))])
 
 ;; ── PARAMETERISED queries ────────────────────────────────────────────────────
 ;; RETE-OPEN-WORK 1.3: every fuzzer before this one declared `:params []`. Params are supplied as
@@ -97,7 +97,7 @@
 ;; a transposition clean.
 (:wat::rete::defquery :wat-tests::rete::rules::q-two-at
   :params [?a]
-  :when [(:wat-tests::rete::rules::Two (?a <- :a) (?b <- :b))])
+  :when [(:wat-tests::rete::rules::Two (?a :- :a) (?b :- :b))])
 
 (:wat::core::defn :wat-tests::rete::rules::witness-of
   [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::i64

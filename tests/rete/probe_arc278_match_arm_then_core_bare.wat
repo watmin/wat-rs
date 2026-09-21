@@ -25,12 +25,12 @@
 (:wat::core::defrecord :mac::Out [k <- :wat::core::i64  ok <- :wat::core::bool])
 
 (:wat::rete::defrule :mac::r
-  :when [(:mac::In (?k <- :k) (?v <- :v))]
+  :when [(:mac::In (?k :- :k) (?v :- :v))]
   :then [(:mac::Out :k ?k :ok (:wat::core::match ?v [:mac::E.A {} true] [:mac::E.B {} false]))])
 
 (:wat::rete::defquery :mac::by-ok
   :params [?ok]
-  :when [(:mac::Out (?ok <- :ok) (?k <- :k))])
+  :when [(:mac::Out (?ok :- :ok) (?k :- :k))])
 
 (:wat::core::defn :mac::world [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules

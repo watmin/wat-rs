@@ -19,7 +19,7 @@
 (:wat::core::defrecord :d11b::Outer [i <- :d11b::Inner])
 
 (:wat::rete::defrule :d11b::bad
-  :when [(:d11b::Box (?k <- :k) (?s <- :s))]
+  :when [(:d11b::Box (?k :- :k) (?s :- :s))]
   :then [(:d11b::Outer :i (:d11b::Inner :n ?s))])
 
 ;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate (arc 278 C18).

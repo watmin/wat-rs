@@ -17,8 +17,8 @@
 (:wat::core::defrecord :w5cprobe::ColdAndWindy [location <- :wat::core::String])
 
 (:wat::rete::defrule :w5cprobe::cold-and-windy
-  :when [(:w5cprobe::Temperature (?loc <- :location) (?c <- :celsius) (:wat::rete::i64::< ?c 20))
-         (:w5cprobe::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::rete::i64::> ?k 30))]
+  :when [(:w5cprobe::Temperature (?loc :- :location) (?c :- :celsius) (:wat::rete::i64::< ?c 20))
+         (:w5cprobe::WindSpeed    (?loc :- :location) (?k :- :kph)     (:wat::rete::i64::> ?k 30))]
   :then [(:w5cprobe::ColdAndWindy :location ?loc)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

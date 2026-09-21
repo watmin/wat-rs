@@ -8,23 +8,23 @@
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
-  :when [(?fact <- :weather::ColdAndWindy)])
+  :when [(?fact :- :weather::ColdAndWindy)])
 
 
 (:wat::rete::defquery :weather::q-WeatherAlert
   :params []
-  :when [(?fact <- :weather::WeatherAlert)])
+  :when [(?fact :- :weather::WeatherAlert)])
 
 
 ;; A: Temp+Wind(same loc)→ColdAndWindy; B: ColdAndWindy→WeatherAlert (the cascade chain).
 
 (:wat::core::defn :test::compile-ab [] -> :wat::rete::Session
   (:wat::core::let
-    [ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::rete::i64::< ?t 20)))
-     ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::rete::i64::> ?w 30)))
+    [ca1   (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius) (:wat::rete::i64::< ?t 20)))
+     ca2   (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph) (:wat::rete::i64::> ?w 30)))
      ra1   (:wat::core::quote (:weather::ColdAndWindy ?loc))
      ruleA (:wat::rete::Rule :name "A" :lhs (:wat::core::PersistentVector ca1 ca2) :rhs (:wat::core::PersistentVector ra1))
-     cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))
+     cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc :- :location)))
      rb1   (:wat::core::quote (:weather::WeatherAlert ?loc))
      ruleB (:wat::rete::Rule :name "B" :lhs (:wat::core::PersistentVector cb1) :rhs (:wat::core::PersistentVector rb1))]
     (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))

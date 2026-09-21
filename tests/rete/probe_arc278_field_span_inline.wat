@@ -9,7 +9,7 @@
 (:wat::core::defrecord :fsi::Hit [k <- :wat::core::i64])
 
 (:wat::rete::defrule :fsi::r
-  :when [(:fsi::Src (?k <- :k) (:wat::rete::i64::= :nofield 5))]
+  :when [(:fsi::Src (?k :- :k) (:wat::rete::i64::= :nofield 5))]
   :then [(:fsi::Hit :k ?k)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

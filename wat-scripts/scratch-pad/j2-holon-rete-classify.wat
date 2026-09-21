@@ -16,8 +16,8 @@
 
 (:wat::rete::defrule :j2::classify
   :when
-  [(:j2::Catalog (?name <- :name) (?cobs <- :obs))
-   (:j2::Observation (?obs <- :obs))
+  [(:j2::Catalog (?name :- :name) (?cobs :- :obs))
+   (:j2::Observation (?obs :- :obs))
    (:wat::rete::where
      (:wat::rete::f64::>
        (:wat::rete::holon::cosine ?obs ?cobs :undefined 0.0)
@@ -27,7 +27,7 @@
 
 (:wat::rete::defquery :j2::q-Guess
   :params []
-  :when [(:j2::Guess (?name <- :name))])
+  :when [(:j2::Guess (?name :- :name))])
 
 (:wat::core::defn :j2::catalog [] -> (:wat::core::PersistentVector :- [:j2::Catalog])
   (:wat::core::PersistentVector

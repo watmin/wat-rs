@@ -346,7 +346,7 @@
 
 (:wat::rete::defquery :wat::grep::q-match
   :params []
-  :when [(?fact <- :wat::grep::Match)])
+  :when [(?fact :- :wat::grep::Match)])
 
 ;; ── the driver — :wat::grep::run ────────────────────────────────────────────────────
 ;; DESIGN: docs/arc/2026/06/278-rules-engine/DESIGN-STONE-the-grep-mode.md

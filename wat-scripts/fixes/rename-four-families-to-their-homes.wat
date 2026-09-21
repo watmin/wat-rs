@@ -52,9 +52,9 @@
 ;; 61dd04a3b), the FINDER HALF already proven against the live corpus (239/239).
 
 (:wat::rete::defrule :fhc::uuid
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY, per stone E's rider-found defect: `Written` already excludes string literals (`Named` still fires for STRING
          ;; LITERALS too), and a literal's span covers its quotes while its `name` does not.
          ;; Measured for these ten names: zero genuine string-literal occurrences in the .wat
@@ -73,9 +73,9 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :fhc::regex
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::regex::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -89,9 +89,9 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :fhc::list-of
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::List/of"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -101,9 +101,9 @@
                        (:wat::grep::Capture :name "new" :value ":wat::core::List")))])
 
 (:wat::rete::defrule :fhc::char-of
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::char/of"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -120,8 +120,8 @@
 
 (:wat::rete::defquery :fhc::q-match
   :params []
-  :when [(:wat::grep::Match (?line <- :line) (?col <- :col)
-           (?end-line <- :end-line) (?end-col <- :end-col) (?captures <- :captures))])
+  :when [(:wat::grep::Match (?line :- :line) (?col :- :col)
+           (?end-line :- :end-line) (?end-col :- :end-col) (?captures :- :captures))])
 
 ;; second-capture — a typed wrapper around `second`. `PersistentMap/get`'s value type is a
 ;; fresh metavariable until something FORCES it concrete; a Tuple-constructor slot does that

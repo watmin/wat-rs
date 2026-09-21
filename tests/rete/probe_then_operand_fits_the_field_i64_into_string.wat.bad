@@ -4,7 +4,7 @@
 (:wat::core::defrecord :fit::Num [n <- :wat::core::i64])
 
 (:wat::rete::defrule :fit::arm-a
-  :when [(:fit::Num (?n <- :n))]
+  :when [(:fit::Num (?n :- :n))]
   :then [(:fit::Box :label ?n)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)

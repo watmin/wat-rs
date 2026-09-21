@@ -62,52 +62,52 @@
 
 (:wat::rete::defquery :strat::q-S0
   :params []
-  :when [(?fact <- :strat::S0)])
+  :when [(?fact :- :strat::S0)])
 
 
 (:wat::rete::defquery :strat::q-S1
   :params []
-  :when [(?fact <- :strat::S1)])
+  :when [(?fact :- :strat::S1)])
 
 
 (:wat::rete::defquery :strat::q-S2
   :params []
-  :when [(?fact <- :strat::S2)])
+  :when [(?fact :- :strat::S2)])
 
 
 (:wat::rete::defquery :strat::q-S3
   :params []
-  :when [(?fact <- :strat::S3)])
+  :when [(?fact :- :strat::S3)])
 
 
 (:wat::rete::defquery :strat::q-S4
   :params []
-  :when [(?fact <- :strat::S4)])
+  :when [(?fact :- :strat::S4)])
 
 
 (:wat::rete::defquery :strat::q-S5
   :params []
-  :when [(?fact <- :strat::S5)])
+  :when [(?fact :- :strat::S5)])
 
 
 (:wat::rete::defquery :strat::q-S6
   :params []
-  :when [(?fact <- :strat::S6)])
+  :when [(?fact :- :strat::S6)])
 
 
 (:wat::rete::defquery :strat::q-S7
   :params []
-  :when [(?fact <- :strat::S7)])
+  :when [(?fact :- :strat::S7)])
 
 
 (:wat::rete::defquery :strat::q-S8
   :params []
-  :when [(?fact <- :strat::S8)])
+  :when [(?fact :- :strat::S8)])
 
 
 (:wat::rete::defquery :strat::q-S9
   :params []
-  :when [(?fact <- :strat::S9)])
+  :when [(?fact :- :strat::S9)])
 
 
 ;; encode stratum k — canonical single-i64 witness for one derived S<n> fact.
@@ -141,16 +141,16 @@
 ;; negating stratum `prev`'s derived facts. Same literal-dispatch shape as insert-form.
 (:wat::core::defn :strat::not-pattern [prev <- :wat::core::i64] -> :wat::WatAST
   (:wat::core::cond
-    ((:wat::core::= prev 0) (:wat::core::quasiquote (:wat::rete::not (:strat::S0 (?k <- :k)))))
-    ((:wat::core::= prev 1) (:wat::core::quasiquote (:wat::rete::not (:strat::S1 (?k <- :k)))))
-    ((:wat::core::= prev 2) (:wat::core::quasiquote (:wat::rete::not (:strat::S2 (?k <- :k)))))
-    ((:wat::core::= prev 3) (:wat::core::quasiquote (:wat::rete::not (:strat::S3 (?k <- :k)))))
-    ((:wat::core::= prev 4) (:wat::core::quasiquote (:wat::rete::not (:strat::S4 (?k <- :k)))))
-    ((:wat::core::= prev 5) (:wat::core::quasiquote (:wat::rete::not (:strat::S5 (?k <- :k)))))
-    ((:wat::core::= prev 6) (:wat::core::quasiquote (:wat::rete::not (:strat::S6 (?k <- :k)))))
-    ((:wat::core::= prev 7) (:wat::core::quasiquote (:wat::rete::not (:strat::S7 (?k <- :k)))))
-    ((:wat::core::= prev 8) (:wat::core::quasiquote (:wat::rete::not (:strat::S8 (?k <- :k)))))
-    ((:wat::core::= prev 9) (:wat::core::quasiquote (:wat::rete::not (:strat::S9 (?k <- :k)))))
+    ((:wat::core::= prev 0) (:wat::core::quasiquote (:wat::rete::not (:strat::S0 (?k :- :k)))))
+    ((:wat::core::= prev 1) (:wat::core::quasiquote (:wat::rete::not (:strat::S1 (?k :- :k)))))
+    ((:wat::core::= prev 2) (:wat::core::quasiquote (:wat::rete::not (:strat::S2 (?k :- :k)))))
+    ((:wat::core::= prev 3) (:wat::core::quasiquote (:wat::rete::not (:strat::S3 (?k :- :k)))))
+    ((:wat::core::= prev 4) (:wat::core::quasiquote (:wat::rete::not (:strat::S4 (?k :- :k)))))
+    ((:wat::core::= prev 5) (:wat::core::quasiquote (:wat::rete::not (:strat::S5 (?k :- :k)))))
+    ((:wat::core::= prev 6) (:wat::core::quasiquote (:wat::rete::not (:strat::S6 (?k :- :k)))))
+    ((:wat::core::= prev 7) (:wat::core::quasiquote (:wat::rete::not (:strat::S7 (?k :- :k)))))
+    ((:wat::core::= prev 8) (:wat::core::quasiquote (:wat::rete::not (:strat::S8 (?k :- :k)))))
+    ((:wat::core::= prev 9) (:wat::core::quasiquote (:wat::rete::not (:strat::S9 (?k :- :k)))))
     (:else (:wat::core::Option/expect  :wat::core::Option.None
              (:wat::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {prev-s}"
@@ -174,7 +174,7 @@
 ;; a `let` binding evaluates eagerly regardless of which branch of `conds` gets picked, which
 ;; would call `(not-pattern -1)` for lvl=0 and panic on the MAX_STRATA guard.
 (:wat::core::defn :strat::build-rule [lvl <- :wat::core::i64] -> :wat::rete::Rule
-  (:wat::core::let [item-c  (:wat::core::quasiquote (:strat::Item (?k <- :k)))
+  (:wat::core::let [item-c  (:wat::core::quasiquote (:strat::Item (?k :- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::rete::i64::= ?k

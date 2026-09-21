@@ -1151,7 +1151,7 @@ fn classify_expr(
         //     (:wat::core::defn :cg::make-rate [c <- …  w <- …] -> :cg::Rate
         //       (:cg::Rate :count c :window w))                        ; ← the only way to build one
         //     (:wat::rete::defrule :cg::gather
-        //       :when [(:cg::Anchor (?x <- :x))]
+        //       :when [(:cg::Anchor (?x :- :x))]
         //       :then [(:cg::make-rate 7 9)])
         //
         // Every field supplied, types right, fn pure ∧ det ∧ total. But `defrecord`'s macro lowers
@@ -1325,7 +1325,7 @@ fn classify_expr(
         // head (the entire core corpus) round-trips through `resolve_core_name` unchanged —
         // zero behavior change for anything not in `RETE_OPS`.
         WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::fn") => {
-            match items.iter().position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->")) {
+            match items.iter().position(crate::types::is_return_arrow) {
                 Some(i) => {
                     let body = items.get(i + 2..).ok_or_else(|| {
                         AxisViolation::at(list_span.clone(), "<malformed fn: no body>", axes[0])
@@ -1852,7 +1852,7 @@ fn walk_rete_defn_callees(
                 if core == ":wat::core::fn" {
                     if let Some(i) = items
                         .iter()
-                        .position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->"))
+                        .position(crate::types::is_return_arrow)
                     {
                         for e in items.get(i + 2..).unwrap_or(&[]) {
                             if let Some(hit) = walk_rete_defn_callees(e, gray, black, sym) {

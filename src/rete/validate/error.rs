@@ -33,7 +33,7 @@ pub enum ReteCheckErrorKind {
         fact_type: String,
         clause: String,
     },
-    /// A `(?v <- :field)` bind clause, a constraint operand's `:field` reference, or a
+    /// A `(?v :- :field)` bind clause, a constraint operand's `:field` reference, or a
     /// `:then` kwargs field name does not name a real field of `fact_type`. The free `?v`
     /// side of a bind/constraint is never checked here — only the `:field` side.
     UnknownField {
@@ -341,7 +341,7 @@ pub enum ReteCheckErrorKind {
         /// The offending name, rendered with its leading `?` (e.g. `?k`).
         binder: String,
     },
-    /// A `(?v <- :field)` bind inside a `:not` whose variable is consumed NOWHERE — not by a
+    /// A `(?v :- :field)` bind inside a `:not` whose variable is consumed NOWHERE — not by a
     /// constraint inside the negation, not anywhere else in the rule.
     ///
     /// This is the rete twin of `TypeErrorKind::UnconsumedTypeParam`
@@ -371,7 +371,7 @@ pub enum ReteCheckErrorKind {
         /// The fact type the bind reads a field of, so the error names where to look.
         fact_type: String,
     },
-    /// A `(?v <- :field)` bind inside a `:not` whose variable is referenced OUTSIDE the negation,
+    /// A `(?v :- :field)` bind inside a `:not` whose variable is referenced OUTSIDE the negation,
     /// where it provably cannot have a value.
     ///
     /// Worse than [`Self::UnconsumedWrapperBind`], and the reason this wall is at declaration

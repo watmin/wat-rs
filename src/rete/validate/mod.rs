@@ -438,7 +438,7 @@ fn validate_clause(
     let ClauseCtx { rule_name, fact_type, field_names, .. } = *ctx;
     match classify_rete_clause(clause) {
         ReteClauseShape::Bind { field_kw, .. } => {
-            // The `:field` KEYWORD, not `clause`: this used to hand the whole `(?v <- :field)`
+            // The `:field` KEYWORD, not `clause`: this used to hand the whole `(?v :- :field)`
             // form's span to a producer whose doc promised the field's.
             check_field_kw(field_kw, rule_name, fact_type, field_names, errors);
         }
@@ -494,8 +494,8 @@ fn validate_clause(
 // binder analysis, because under-collecting the bound set would reject LEGAL rules — the one
 // failure a wall must not have. This check never asks whether a variable IS bound. It asks a
 // purely syntactic question: are ALL of this variable's declarations inside one negation? If it
-// is declared anywhere else it is a correlation (`(Station (?loc <- :loc))` then
-// `(:not (Reading (?loc <- :loc)))`, which is "no Reading AT THIS loc") and is left alone. Only a
+// is declared anywhere else it is a correlation (`(Station (?loc :- :loc))` then
+// `(:not (Reading (?loc :- :loc)))`, which is "no Reading AT THIS loc") and is left alone. Only a
 // variable whose sole declaration site is under the negation can be judged, and for that one the
 // answer needs no binder analysis at all.
 //
@@ -1610,7 +1610,7 @@ mod tests {
 (:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
 (:wat::rete::defrule :alert::unattended
   :when
-  [(:weather::Temperature :celsius (?loc <- :location) :location (?c <- :celsius))]
+  [(:weather::Temperature :celsius (?loc :- :location) :location (?c :- :celsius))]
   :then
   [(:alert::Unattended :location ?loc)])
 "#;
@@ -1634,7 +1634,7 @@ mod tests {
 (:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
 (:wat::rete::defrule :alert::unattended
   :when
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius))]
+  [(:weather::Temperature (?loc :- :location) (?c :- :celsius))]
   :then
   [(:alert::Unattended :location ?loc)])
 "#;
@@ -1653,7 +1653,7 @@ mod tests {
 (:wat::core::defrecord :w::S2  [k <- :wat::core::i64])
 (:wat::core::defrecord :w::Hit [k <- :wat::core::i64])
 (:wat::rete::defrule :w::r
-  :when [(:wat::rete::not (:w::S2 (?s <- :k)))]
+  :when [(:wat::rete::not (:w::S2 (?s :- :k)))]
   :then [(:w::Hit :k 1)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
@@ -1680,7 +1680,7 @@ mod tests {
 (:wat::core::defrecord :w::S2  [k <- :wat::core::i64])
 (:wat::core::defrecord :w::Hit [k <- :wat::core::i64])
 (:wat::rete::defrule :w::r
-  :when [(:wat::rete::not (:w::S2 (?s <- :k)))
+  :when [(:wat::rete::not (:w::S2 (?s :- :k)))
          (:wat::rete::where (:wat::rete::i64::>= ?s 0))]
   :then [(:w::Hit :k 1)])
 "#;
@@ -1713,7 +1713,7 @@ mod tests {
 (:wat::core::defrecord :w::Wind [loc <- :wat::core::String])
 (:wat::core::defrecord :w::Hit  [k <- :wat::core::i64])
 (:wat::rete::defrule :w::r
-  :when [(:wat::rete::exists (:w::Wind (?loc <- :loc)))]
+  :when [(:wat::rete::exists (:w::Wind (?loc :- :loc)))]
   :then [(:w::Hit :k 1)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
@@ -1730,8 +1730,8 @@ mod tests {
 (:wat::core::defrecord :w::Reading [loc <- :wat::core::String])
 (:wat::core::defrecord :w::Hit     [loc <- :wat::core::String])
 (:wat::rete::defrule :w::r
-  :when [(:w::Station (?loc <- :loc))
-         (:wat::rete::not (:w::Reading (?loc <- :loc)))]
+  :when [(:w::Station (?loc :- :loc))
+         (:wat::rete::not (:w::Reading (?loc :- :loc)))]
   :then [(:w::Hit :loc ?loc)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
@@ -1747,7 +1747,7 @@ mod tests {
 (:wat::core::defrecord :w::Temp [c <- :wat::core::i64])
 (:wat::core::defrecord :w::Hit  [k <- :wat::core::i64])
 (:wat::rete::defrule :w::r
-  :when [(:wat::rete::not (:w::Temp (?c <- :c) (:wat::rete::i64::< ?c 20)))]
+  :when [(:wat::rete::not (:w::Temp (?c :- :c) (:wat::rete::i64::< ?c 20)))]
   :then [(:w::Hit :k 1)])
 "#;
         let forms = crate::parse_all!(src).expect("parse");
@@ -1800,7 +1800,7 @@ mod tests {
 (:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
 (:wat::rete::defrule :alert::unattended
   :when
-  [(:weather::Temperature (?loc <- :location) (?bad <- :not-a-field))]
+  [(:weather::Temperature (?loc :- :location) (?bad :- :not-a-field))]
   :then
   [(:alert::Unattended :location ?loc)])
 "#;
@@ -1827,7 +1827,7 @@ mod tests {
 (:wat::core::defrecord :alert2::Cold   [location <- :wat::core::String  celsius <- :wat::core::i64])
 (:wat::rete::defrule :alert2::mark-cold
   :when
-  [(:weather2::Temp (?c <- :celsius) (?loc <- :location))]
+  [(:weather2::Temp (?c :- :celsius) (?loc :- :location))]
   :then
   [(:alert2::Cold :celsius ?c :location ?loc)])
 "#;
@@ -1907,7 +1907,7 @@ mod tests {
 (:wat::core::defrecord :probe::Out [k <- :wat::core::String])
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k)
+  [(:probe::In (?k :- :k)
      (:wat::rete::string::= (:wat::rete::i64::+ :v 0 :undefined 0) "x"))]
   :then
   [(:probe::Out :k ?k)])

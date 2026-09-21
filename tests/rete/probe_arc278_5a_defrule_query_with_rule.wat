@@ -6,14 +6,14 @@
 (:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
 (:wat::rete::defrule :weather::cold-and-windy
   :when
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::rete::i64::< ?c 20))
-   (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::rete::i64::> ?k 30))]
+  [(:weather::Temperature (?loc :- :location) (?c :- :celsius) (:wat::rete::i64::< ?c 20))
+   (:weather::WindSpeed    (?loc :- :location) (?k :- :kph)     (:wat::rete::i64::> ?k 30))]
   :then
   [(:weather::ColdAndWindy :location ?loc)])
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
-  :when [(?fact <- :weather::ColdAndWindy)])
+  :when [(?fact :- :weather::ColdAndWindy)])
 
 
 ;; Calling the generated zero-arg fn yields a Rule with the expected name + lhs/rhs arity.

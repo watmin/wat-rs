@@ -28,7 +28,7 @@
 ;; fire-rules), so the network's size must not affect the per-insert cost.
 (:wat::rete::defrule :iac::pass-rule
   :when
-  [(:iac::Reading (?g <- :g))]
+  [(:iac::Reading (?g :- :g))]
   :then
   [(:iac::Out ?g)])
 

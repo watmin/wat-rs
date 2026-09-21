@@ -88,9 +88,9 @@
 ;; ── the finder — three rules over wat/grep.wat's stdlib fact base ───────────────────────
 
 (:wat::rete::defrule :rn::core-hashset-slash
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's
          ;; `nameable?`) — a string literal's span covers its surrounding quotes while its
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
@@ -108,9 +108,9 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :rn::core-list-slash
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-hashset-slash's comment.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::List/"))]
@@ -128,9 +128,9 @@
 ;; rune:lint(rete-name-unminted) :wat::rete::core::List/get — the exact OLD rete-spelled name this rule's :where fence searches the corpus for and rewrites; a recorded codemod's search target, not a call.
 
 (:wat::rete::defrule :rn::rete-list-get
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::= ?n ":wat::rete::core::List/get"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -147,8 +147,8 @@
 
 (:wat::rete::defquery :rn::q-match
   :params []
-  :when [(:wat::grep::Match (?line <- :line) (?col <- :col)
-           (?end-line <- :end-line) (?end-col <- :end-col) (?captures <- :captures))])
+  :when [(:wat::grep::Match (?line :- :line) (?col :- :col)
+           (?end-line :- :end-line) (?end-col :- :end-col) (?captures :- :captures))])
 
 ;; second-capture — a typed wrapper around `second`. See rename-core-vectors-to-their-homes.wat's
 ;; header comment for why this needs an explicit signature (INFER-vs-checking-mode).

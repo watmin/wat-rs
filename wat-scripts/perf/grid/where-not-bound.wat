@@ -12,16 +12,16 @@
 
 (:wat::rete::defrule :wnb::max-not-below
   :when
-  [(:wnb::Station (?loc <- :loc))
-   (?m <- (:wat::rete::acc::max ?v) :from (:wnb::Reading (?loc <- :loc) (?v <- :v)))
-   (:wat::rete::not (:wnb::Reading (?loc <- :loc) (?v <- :v)
+  [(:wnb::Station (?loc :- :loc))
+   (?m :- (:wat::rete::acc::max ?v) :from (:wnb::Reading (?loc :- :loc) (?v :- :v)))
+   (:wat::rete::not (:wnb::Reading (?loc :- :loc) (?v :- :v)
                       (:wat::rete::i64::< ?v ?m)))]
   :then
   [(:wnb::Busy :loc ?loc :n ?m)])
 
 (:wat::rete::defquery :wnb::q-Busy
   :params []
-  :when [(?fact <- :wnb::Busy)])
+  :when [(?fact :- :wnb::Busy)])
 
 
 (:wat::core::defn :wnb::fire [lo <- :wat::core::i64  hi <- :wat::core::i64] -> :wat::rete::Session

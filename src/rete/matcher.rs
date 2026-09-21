@@ -245,14 +245,14 @@ pub(crate) fn pack_alpha_match_option(result: BindPairs) -> Result<Value, EvalBr
 
 // ─── Pure inner matcher ────────────────────────────────────────────────────────
 
-/// A top-level alpha condition: `(:Type clause…)` or `(?p <- :Type clause…)`.
+/// A top-level alpha condition: `(:Type clause…)` or `(?p :- :Type clause…)`.
 pub(crate) struct AlphaPattern<'a> {
     pub fact_var: Option<&'a str>,
     pub type_head: &'a str,
     pub clauses: &'a [WatAST],
 }
 
-/// Parse the B-form `(?p <- :ns::Type …)` or the field-only `(:Type …)`.
+/// Parse the B-form `(?p :- :ns::Type …)` or the field-only `(:Type …)`.
 pub(crate) fn alpha_pattern(cond: &WatAST) -> Option<AlphaPattern<'_>> {
     let items = match cond {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
@@ -280,7 +280,7 @@ pub(crate) fn alpha_pattern(cond: &WatAST) -> Option<AlphaPattern<'_>> {
     }
 }
 
-/// Put the matched fact on `?p` when `cond` is `(?p <- :Type …)`.
+/// Put the matched fact on `?p` when `cond` is `(?p :- :Type …)`.
 pub(crate) fn attach_fact_bind(
     cond: &WatAST,
     fact: &Value,
@@ -496,7 +496,7 @@ fn eval_clause(
     defer_unbound: bool,
 ) -> Option<BindAcc> {
     match classify_rete_clause(clause) {
-        // ── bind clause: (?v <- :field) ──────────────────────────────────────
+        // ── bind clause: (?v :- :field) ──────────────────────────────────────
         ReteClauseShape::Bind { var, field, .. } => {
             let field_value = read_fact_field(fact_fields, field_names, field)?;
             // Bind ?v → field value. If ?v was already bound in this condition,

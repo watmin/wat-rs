@@ -39,30 +39,30 @@
 (:wat::core::defrecord :wpf::Trail [x <- :wat::core::i64])
 
 (:wat::rete::defrule :wpf::r-one
-  :when [(:wpf::A (?id <- :id) (?k <- :k) (:wat::rete::string::= ?k "yes"))
-         (:wpf::B (?id <- :id))]
+  :when [(:wpf::A (?id :- :id) (?k :- :k) (:wat::rete::string::= ?k "yes"))
+         (:wpf::B (?id :- :id))]
   :then [(:wpf::One :x ?id)])
 
 (:wat::rete::defrule :wpf::r-two
-  :when [(:wpf::A (?id <- :id) (?k <- :k) (:wat::rete::string::= ?k "yes"))
-         (:wpf::B (?id <- :id)) (:wpf::C (?id <- :id))]
+  :when [(:wpf::A (?id :- :id) (?k :- :k) (:wat::rete::string::= ?k "yes"))
+         (:wpf::B (?id :- :id)) (:wpf::C (?id :- :id))]
   :then [(:wpf::Two :x ?id)])
 
 (:wat::rete::defrule :wpf::r-four
-  :when [(:wpf::A (?id <- :id) (?k <- :k) (:wat::rete::string::= ?k "yes"))
-         (:wpf::B (?id <- :id)) (:wpf::C (?id <- :id))
-         (:wpf::D (?id <- :id)) (:wpf::E (?id <- :id))]
+  :when [(:wpf::A (?id :- :id) (?k :- :k) (:wat::rete::string::= ?k "yes"))
+         (:wpf::B (?id :- :id)) (:wpf::C (?id :- :id))
+         (:wpf::D (?id :- :id)) (:wpf::E (?id :- :id))]
   :then [(:wpf::Four :x ?id)])
 
 (:wat::rete::defrule :wpf::r-trail
-  :when [(:wpf::A (?id <- :id) (?k <- :k) (:wat::rete::string::= ?k "yes"))
-         (:wpf::B (?id <- :id)) (:wpf::C (?id <- :id))]
+  :when [(:wpf::A (?id :- :id) (?k :- :k) (:wat::rete::string::= ?k "yes"))
+         (:wpf::B (?id :- :id)) (:wpf::C (?id :- :id))]
   :then [(:wpf::Trail :x ?id)])
 
-(:wat::rete::defquery :wpf::q1 :params [] :when [(?fact <- :wpf::One)])
-(:wat::rete::defquery :wpf::q2 :params [] :when [(?fact <- :wpf::Two)])
-(:wat::rete::defquery :wpf::q4 :params [] :when [(?fact <- :wpf::Four)])
-(:wat::rete::defquery :wpf::qt :params [] :when [(?fact <- :wpf::Trail)])
+(:wat::rete::defquery :wpf::q1 :params [] :when [(?fact :- :wpf::One)])
+(:wat::rete::defquery :wpf::q2 :params [] :when [(?fact :- :wpf::Two)])
+(:wat::rete::defquery :wpf::q4 :params [] :when [(?fact :- :wpf::Four)])
+(:wat::rete::defquery :wpf::qt :params [] :when [(?fact :- :wpf::Trail)])
 
 (:wat::core::defn :wpf::staged [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all

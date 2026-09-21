@@ -33,17 +33,17 @@
    col  <- :wat::core::i64])
 
 (:wat::rete::defrule :ls::head-of
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name))
-         (:wat::grep::Span  (?h <- :id) (?l <- :line) (?c <- :col))]
+  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h :- :id) (?n :- :name))
+         (:wat::grep::Span  (?h :- :id) (?l :- :line) (?c :- :col))]
   :then [(:ls::Head :form ?p :name ?n :line ?l :col ?c)])
 
 ;; ★ THE CAPABILITY UNDER TEST: join a DERIVED head fact with a SIBLING child and subtract lines.
 (:wat::rete::defrule :ls::child-offset
-  :when [(:ls::Head         (?p <- :form) (?n <- :name) (?hl <- :line))
-         (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?i <- :index) (?ck <- :kind))
-         (:wat::grep::Span  (?c <- :id) (?cl <- :line) (?cc <- :col) (?cel <- :end-line) (?cec <- :end-col))
-         (:wat::grep::Source (?f <- :file))]
+  :when [(:ls::Head         (?p :- :form) (?n :- :name) (?hl :- :line))
+         (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?i :- :index) (?ck :- :kind))
+         (:wat::grep::Span  (?c :- :id) (?cl :- :line) (?cc :- :col) (?cel :- :end-line) (?cec :- :end-col))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match
            :file ?f :line ?cl :col ?cc :end-line ?cel :end-col ?cec
            :rule "layout"

@@ -6,7 +6,7 @@
 
 (:wat::rete::defrule :wf::bad-then
   :when
-  [(:weather::Temperature (?c <- :celsius))]
+  [(:weather::Temperature (?c :- :celsius))]
   :then
   [(:wat::i64::> ?c 0)])
 

@@ -20,11 +20,11 @@
 (:wat::core::defrecord :oas0::Tally [n <- :wat::core::i64])
 
 (:wat::rete::defrule :oas0::tally
-  :when [(:oas0::Seed (?s <- :y))
-         (?n <- (:wat::rete::acc::count) :from (:oas0::Out))]
+  :when [(:oas0::Seed (?s :- :y))
+         (?n :- (:wat::rete::acc::count) :from (:oas0::Out))]
   :then [(:oas0::Tally :n ?n)])
 
-(:wat::rete::defquery :oas0::q :params [] :when [(?f <- :oas0::Tally)])
+(:wat::rete::defquery :oas0::q :params [] :when [(?f :- :oas0::Tally)])
 
 (:wat::core::defn :oas0::readback [s <- :wat::rete::Session]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
@@ -57,15 +57,15 @@
 (:wat::core::defrecord :oas1::Tally [n <- :wat::core::i64])
 
 (:wat::rete::defrule :oas1::a
-  :when [(:oas1::Seed (?y <- :y))]
+  :when [(:oas1::Seed (?y :- :y))]
   :then [(:oas1::Out :y ?y)])
 
 (:wat::rete::defrule :oas1::tally
-  :when [(:oas1::Seed (?s <- :y))
-         (?n <- (:wat::rete::acc::count) :from (:oas1::Out))]
+  :when [(:oas1::Seed (?s :- :y))
+         (?n :- (:wat::rete::acc::count) :from (:oas1::Out))]
   :then [(:oas1::Tally :n ?n)])
 
-(:wat::rete::defquery :oas1::q :params [] :when [(?f <- :oas1::Tally)])
+(:wat::rete::defquery :oas1::q :params [] :when [(?f :- :oas1::Tally)])
 
 (:wat::core::defn :oas1::readback [s <- :wat::rete::Session]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
@@ -99,24 +99,24 @@
 (:wat::core::defrecord :oas2::Tally [n <- :wat::core::i64])
 
 (:wat::rete::defrule :oas2::a
-  :when [(:oas2::Seed (?y <- :y))]
+  :when [(:oas2::Seed (?y :- :y))]
   :then [(:oas2::Out :y ?y)])
 
 (:wat::rete::defrule :oas2::b
-  :when [(:oas2::Out (?y <- :y))
+  :when [(:oas2::Out (?y :- :y))
          (:wat::rete::where (:wat::rete::i64::= ?y 1))]
   :then [(:oas2::D :y 2)])
 
 (:wat::rete::defrule :oas2::c
-  :when [(:oas2::D (?y <- :y))]
+  :when [(:oas2::D (?y :- :y))]
   :then [(:oas2::Out :y ?y)])
 
 (:wat::rete::defrule :oas2::tally
-  :when [(:oas2::Seed (?s <- :y))
-         (?n <- (:wat::rete::acc::count) :from (:oas2::Out))]
+  :when [(:oas2::Seed (?s :- :y))
+         (?n :- (:wat::rete::acc::count) :from (:oas2::Out))]
   :then [(:oas2::Tally :n ?n)])
 
-(:wat::rete::defquery :oas2::q :params [] :when [(?f <- :oas2::Tally)])
+(:wat::rete::defquery :oas2::q :params [] :when [(?f :- :oas2::Tally)])
 
 (:wat::core::defn :oas2::readback [s <- :wat::rete::Session]
   -> (:wat::core::PersistentVector :- [:wat::core::i64])

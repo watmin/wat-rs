@@ -10,12 +10,12 @@
 (:wat::core::defrecord :tk::Src [x <- :wat::core::i64  y <- :wat::core::i64])
 (:wat::core::defrecord :tk::Two [a <- :wat::core::i64  b <- :wat::core::i64])
 
-(:wat::rete::defquery :tk::q :params [] :when [(:tk::Two (?a <- :a) (?b <- :b))])
+(:wat::rete::defquery :tk::q :params [] :when [(:tk::Two (?a :- :a) (?b :- :b))])
 
 (:wat::core::defn :tk::rule [rhs <- :wat::WatAST] -> :wat::rete::Rule
   (:wat::rete::Rule :name "r"
     :lhs (:wat::core::PersistentVector
-           (:wat::core::quasiquote (:tk::Src (?x <- :x) (?y <- :y))))
+           (:wat::core::quasiquote (:tk::Src (?x :- :x) (?y :- :y))))
     :rhs (:wat::core::PersistentVector rhs)))
 
 (:wat::core::defn :tk::witness [rhs <- :wat::WatAST] -> :wat::core::i64

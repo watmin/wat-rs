@@ -16,10 +16,10 @@
 (:wat::core::defrecord :bt::Out [k <- :wat::core::i64])
 
 (:wat::rete::defrule :bt::r
-  :when [(:bt::In (?k <- :k))]
+  :when [(:bt::In (?k :- :k))]
   :then [(:bt::Out :k ?nope)])
 
-(:wat::rete::defquery :bt::q :params [] :when [(?fact <- :bt::Out)])
+(:wat::rete::defquery :bt::q :params [] :when [(?fact :- :bt::Out)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

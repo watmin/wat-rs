@@ -24,8 +24,8 @@
 
 ;; the unwrap head — a keyword in head position naming Option/expect
 (:wat::rete::defrule :ul::unwrap
-  :when [(:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core.Option/expect"))]
@@ -33,8 +33,8 @@
 
 ;; that unwrap's FIRST ARGUMENT, when the argument is itself a form
 (:wat::rete::defrule :ul::arg
-  :when [(:ul::Unwrap (?outer <- :parent))
-         (:wat::grep::Node (?arg <- :id) (?outer <- :parent) (?ai <- :index) (?ak <- :kind))
+  :when [(:ul::Unwrap (?outer :- :parent))
+         (:wat::grep::Node (?arg :- :id) (?outer :- :parent) (?ai :- :index) (?ak :- :kind))
          (:wat::rete::where (:wat::rete::i64::= ?ai 1))
          (:wat::rete::where (:wat::rete::core::enum::= ?ak (:wat::grep::NodeKind.List {})))]
   :then [(:ul::ArgIsList :outer ?outer :arg ?arg)])
@@ -42,11 +42,11 @@
 ;; ...and that argument's own head is the lookup. Report at the OUTER form's span, because the
 ;; whole expression is the thing a reader wants to see, not one of its two verbs.
 (:wat::rete::defrule :ul::match
-  :when [(:ul::ArgIsList (?outer <- :outer) (?arg <- :arg))
-         (:wat::grep::Node  (?h <- :id) (?arg <- :parent) (?hi <- :index))
-         (:wat::grep::Named (?h <- :id) (?hn <- :name))
-         (:wat::grep::Span  (?outer <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:ul::ArgIsList (?outer :- :outer) (?arg :- :arg))
+         (:wat::grep::Node  (?h :- :id) (?arg :- :parent) (?hi :- :index))
+         (:wat::grep::Named (?h :- :id) (?hn :- :name))
+         (:wat::grep::Span  (?outer :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::i64::= ?hi 0))
          (:wat::rete::where (:wat::rete::string::= ?hn "wat.core.HashMap/get"))]
   :then [(:wat::grep::Match

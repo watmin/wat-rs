@@ -100,11 +100,11 @@ pub(crate) struct BindIntern<'a> {
 /// `resolve_operand` (a list operand is not a field/var/lit).
 #[derive(Clone, Debug)]
 pub(crate) enum Op {
-    /// `(?v <- :field)`, first occurrence of `?v` in its scope: write the field's value into
+    /// `(?v :- :field)`, first occurrence of `?v` in its scope: write the field's value into
     /// `slot` unconditionally (always holds unless the field itself is out of range, which
     /// cannot happen for a condition compiled against its own class's field list).
     Bind { field_idx: usize, slot: usize },
-    /// `(?v <- :field)`, `?v` already bound in this scope: the field's value must equal the
+    /// `(?v :- :field)`, `?v` already bound in this scope: the field's value must equal the
     /// slot's existing value (the runtime conflict check `eval_clause`'s `Bind` arm performs
     /// when `existing` is `Some`).
     BindCheck { field_idx: usize, slot: usize },
@@ -203,7 +203,7 @@ pub(crate) struct CompiledCond {
     /// Leftover `?var` keys this rematch reads from the token seed, in first-seen order.
     /// Not in the zip — a leftover is the left token's bind, not this cond's.
     seed_reads: Arc<[(Value, usize)]>,
-    /// `(?p <- :Type …)` — the fact itself, not a field. Set at compile from
+    /// `(?p :- :Type …)` — the fact itself, not a field. Set at compile from
     /// `alpha_pattern`; fire attaches without walking the cond AST.
     fact_bind: Option<Value>,
     /// Frozen leftover bit — `join_extend` reads this, never re-walks `ops`.
@@ -293,7 +293,7 @@ impl CompiledCond {
         self.has_seed_cmp
     }
 
-    /// `?var`s this cond binds, including `(?p <- :Type …)`.
+    /// `?var`s this cond binds, including `(?p :- :Type …)`.
     pub(crate) fn bind_keys(&self) -> Vec<Value> {
         let mut ks = Vec::with_capacity(self.zip.len() + 1);
         if let Some(k) = &self.fact_bind {
@@ -427,7 +427,7 @@ fn compile_condition_opts(
     ))
 }
 
-/// Put the matched fact on `?p` when this cond is `(?p <- :Type …)`.
+/// Put the matched fact on `?p` when this cond is `(?p :- :Type …)`.
 pub(crate) fn attach_fact(
     compiled: &CompiledCond,
     fact: &Value,
@@ -919,7 +919,7 @@ fn bind_field_refs(
 /// allocation change here is arithmetic rather than a measured win.
 ///
 /// Populate: write pairs into `pool`, `?p` first when this cond is
-/// `(?p <- :Type …)`. Returns the span. Same keys/values/order as
+/// `(?p :- :Type …)`. Returns the span. Same keys/values/order as
 /// `alpha_match_inner` + `attach_fact` (STOP-1).
 #[cfg(test)]
 pub(crate) fn exec_compiled(
@@ -1424,7 +1424,7 @@ mod tests {
 
     #[test]
     fn leftover_seed_cmp_populate_skips_rematch_enforces() {
-        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))")
+        let ast = crate::parse_one!("(:wjl::Wind (?w :- :kph) (:wat::rete::i64::> ?w ?c))")
             .expect("parse leftover cond");
         let fields = vec!["kph".to_string()];
         let compiled = compile_condition_local(&ast, &fields, test_sym()).expect("compile leftover-as-seed");
@@ -1479,7 +1479,7 @@ mod tests {
 
     #[test]
     fn leftover_strict_compile_is_still_fail() {
-        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))")
+        let ast = crate::parse_one!("(:wjl::Wind (?w :- :kph) (:wat::rete::i64::> ?w ?c))")
             .expect("parse leftover cond");
         let fields = vec!["kph".to_string()];
         let compiled = compile_alpha_ops(&ast, &fields, test_sym()).expect("strict compile");
@@ -1519,10 +1519,10 @@ mod tests {
         // these shapes must compile. A None here is the populate-interp hatch
         // coming back.
         let cases = [
-            "(:wjl::Wind (?w <- :kph))",
-            "(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w 30))",
-            "(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))",
-            "(?p <- :wjl::Wind (?w <- :kph))",
+            "(:wjl::Wind (?w :- :kph))",
+            "(:wjl::Wind (?w :- :kph) (:wat::rete::i64::> ?w 30))",
+            "(:wjl::Wind (?w :- :kph) (:wat::rete::i64::> ?w ?c))",
+            "(?p :- :wjl::Wind (?w :- :kph))",
         ];
         for src in cases {
             let ast = crate::parse_one!(src).unwrap_or_else(|_| panic!("parse {src}"));

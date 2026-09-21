@@ -4,17 +4,17 @@
 (:wat::core::defrecord :g7::IsArrow [id <- :wat::core::i64])
 
 (:wat::rete::defrule :g7::arrow
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Symbol {})))
          (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:g7::IsArrow :id ?id)])
 
 (:wat::rete::defrule :g7::match-arrow
-  :when [(:wat::grep::Node (?id <- :id) (?k <- :kind))
-         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:g7::IsArrow (?id <- :id))
-         (:wat::grep::Source (?f <- :file))]
+  :when [(:wat::grep::Node (?id :- :id) (?k :- :kind))
+         (:wat::grep::Span (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:g7::IsArrow (?id :- :id))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match
            :file     ?f
            :line     ?l

@@ -30,10 +30,10 @@
 ;;                            Any Match here means the fold is not live, and the diagnosis is wrong.
 
 (:wat::rete::defrule :pw::span-string-verb
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.string/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -42,10 +42,10 @@
                        (:wat::grep::Capture :name "folded" :value ?n)))])
 
 (:wat::rete::defrule :pw::written-fqdn
-  :when [(:wat::grep::Node    (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named   (?id <- :id) (?n <- :name))
-         (:wat::grep::Written (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source  (?f <- :file))
+  :when [(:wat::grep::Node    (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named   (?id :- :id) (?n :- :name))
+         (:wat::grep::Written (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source  (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::string::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
@@ -54,10 +54,10 @@
                        (:wat::grep::Capture :name "folded" :value ?n)))])
 
 (:wat::rete::defrule :pw::written-string-verb
-  :when [(:wat::grep::Node    (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named   (?id <- :id) (?n <- :name))
-         (:wat::grep::Written (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source  (?f <- :file))
+  :when [(:wat::grep::Node    (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named   (?id :- :id) (?n :- :name))
+         (:wat::grep::Written (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source  (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n "wat.core.string/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec

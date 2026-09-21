@@ -43,12 +43,12 @@
 
 (:wat::rete::defquery :asym::q-B
   :params []
-  :when [(?fact <- :asym::B)])
+  :when [(?fact :- :asym::B)])
 
 
 (:wat::rete::defquery :asym::q-C
   :params []
-  :when [(?fact <- :asym::C)])
+  :when [(?fact :- :asym::C)])
 
 
 ;; encode tag k — canonical single-i64 witness for one derived fact (B=tag 0, C=tag 1).
@@ -62,12 +62,12 @@
 (:wat::core::defn :asym::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r1"
-      :lhs (:wat::core::PersistentVector (:wat::core::quote (:asym::A (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quote (:asym::A (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quote (:asym::B ?k))))
     (:wat::rete::Rule :name "r2"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quote (:asym::B (?k <- :k)))
-        (:wat::core::quote (:asym::A (?k <- :k))))
+        (:wat::core::quote (:asym::B (?k :- :k)))
+        (:wat::core::quote (:asym::A (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quote (:asym::C ?k))))))
 
 ;; seed-items session items — stage A(i) for i in [0, items), threading the staging session.

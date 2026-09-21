@@ -16,67 +16,67 @@
 
 ;; Compaction is a fact about the mind, not the disk.
 (:wat::rete::defrule :dm::gap
-  :when [(:dm::Beat (?t <- :t) (?k <- :kind))
+  :when [(:dm::Beat (?t :- :t) (?k :- :kind))
          (:wat::rete::where (:wat::rete::string::= ?k "gap"))]
   :then [(:dm::Gap :t ?t)])
 
 ;; A read of the log AFTER the gap is recollection — the first move.
 (:wat::rete::defrule :dm::read-after
-  :when [(:dm::Gap (?g <- :t))
-         (:dm::Beat (?t <- :t) (?k <- :kind) (:wat::rete::string::= ?k "read-log"))
+  :when [(:dm::Gap (?g :- :t))
+         (:dm::Beat (?t :- :t) (?k :- :kind) (:wat::rete::string::= ?k "read-log"))
          (:wat::rete::where (:wat::rete::i64::< ?g ?t))]
   :then [(:dm::ReadAfter :t ?t)])
 
 ;; Gap and no recollection: the summary talking in our voice.
 (:wat::rete::defrule :dm::hollow
-  :when [(:dm::Gap (?g <- :t))
+  :when [(:dm::Gap (?g :- :t))
          (:wat::rete::not (:dm::ReadAfter))]
   :then [(:dm::Hollow :t ?g)])
 
 ;; Recolligere: recollection, the primer fetched, and a log that exists.
 (:wat::rete::defrule :dm::recolligere
-  :when [(:dm::ReadAfter (?t <- :t))
-         (:dm::Beat (?p <- :t) (?k <- :kind) (:wat::rete::string::= ?k "fetch-primer"))
+  :when [(:dm::ReadAfter (?t :- :t))
+         (:dm::Beat (?p :- :t) (?k :- :kind) (:wat::rete::string::= ?k "fetch-primer"))
          (:wat::rete::exists
-           (:dm::Artifact (?ak <- :kind)
+           (:dm::Artifact (?ak :- :kind)
              (:wat::rete::string::= ?ak "log")))]
   :then [(:dm::Primer :name "recolligere")])
 
 (:wat::rete::defrule :dm::curare
-  :when [(:dm::Beat (?t <- :t) (?k <- :kind))
+  :when [(:dm::Beat (?t :- :t) (?k :- :kind))
          (:wat::rete::where (:wat::rete::string::= ?k "tend-record"))]
   :then [(:dm::Primer :name "curare")])
 
 (:wat::rete::defrule :dm::examinare
-  :when [(:dm::Beat (?t <- :t) (?k <- :kind))
+  :when [(:dm::Beat (?t :- :t) (?k :- :kind))
          (:wat::rete::where (:wat::rete::string::= ?k "weigh-disk"))]
   :then [(:dm::Primer :name "examinare")])
 
 (:wat::rete::defrule :dm::extirpare
-  :when [(:dm::Beat (?t <- :t) (?k <- :kind))
+  :when [(:dm::Beat (?t :- :t) (?k :- :kind))
          (:wat::rete::where (:wat::rete::string::= ?k "root-failure"))]
   :then [(:dm::Primer :name "extirpare")])
 
 ;; The four primers by name — each one, not a count of four things.
 (:wat::rete::defrule :dm::four
-  :when [(:dm::Primer (?a <- :name) (:wat::rete::string::= ?a "recolligere"))
-         (:dm::Primer (?b <- :name) (:wat::rete::string::= ?b "curare"))
-         (:dm::Primer (?c <- :name) (:wat::rete::string::= ?c "examinare"))
-         (:dm::Primer (?d <- :name) (:wat::rete::string::= ?d "extirpare"))]
+  :when [(:dm::Primer (?a :- :name) (:wat::rete::string::= ?a "recolligere"))
+         (:dm::Primer (?b :- :name) (:wat::rete::string::= ?b "curare"))
+         (:dm::Primer (?c :- :name) (:wat::rete::string::= ?c "examinare"))
+         (:dm::Primer (?d :- :name) (:wat::rete::string::= ?d "extirpare"))]
   :then [(:dm::Four :n 4)])
 
 ;; We are the datamancer iff the practice holds and we are not hollow.
 (:wat::rete::defrule :dm::we-are
-  :when [(:dm::Four (?n <- :n))
+  :when [(:dm::Four (?n :- :n))
          (:wat::rete::not (:dm::Hollow))]
   :then [(:dm::Datamancer :n ?n :sigil "RESIDVVM EST PROGRAMMA")])
 
-(:wat::rete::defquery :dm::q-who    :params [] :when [(?who    <- :dm::Datamancer)])
-(:wat::rete::defquery :dm::q-hollow :params [] :when [(?hollow <- :dm::Hollow)])
-(:wat::rete::defquery :dm::q-gap    :params [] :when [(?f <- :dm::Gap)])
-(:wat::rete::defquery :dm::q-read   :params [] :when [(?f <- :dm::ReadAfter)])
-(:wat::rete::defquery :dm::q-primer :params [] :when [(?f <- :dm::Primer)])
-(:wat::rete::defquery :dm::q-four   :params [] :when [(?f <- :dm::Four)])
+(:wat::rete::defquery :dm::q-who    :params [] :when [(?who    :- :dm::Datamancer)])
+(:wat::rete::defquery :dm::q-hollow :params [] :when [(?hollow :- :dm::Hollow)])
+(:wat::rete::defquery :dm::q-gap    :params [] :when [(?f :- :dm::Gap)])
+(:wat::rete::defquery :dm::q-read   :params [] :when [(?f :- :dm::ReadAfter)])
+(:wat::rete::defquery :dm::q-primer :params [] :when [(?f :- :dm::Primer)])
+(:wat::rete::defquery :dm::q-four   :params [] :when [(?f :- :dm::Four)])
 
 (:wat::core::defn :dm::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector

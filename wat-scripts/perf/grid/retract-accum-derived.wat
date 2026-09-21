@@ -76,18 +76,18 @@
 
 (:wat::rete::defquery :rad::q-Step
   :params []
-  :when [(?fact <- :rad::Step)])
+  :when [(?fact :- :rad::Step)])
 
 
 (:wat::rete::defquery :rad::q-Tally
   :params []
-  :when [(?fact <- :rad::Tally)])
+  :when [(?fact :- :rad::Tally)])
 
 
 ;; build-step k — Step(k) :- Step(k-1). Same as accum-over-derived's per-level rule.
 (:wat::core::defn :rad::build-step [k <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
-                    c (:wat::core::quasiquote (:rad::Step (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
+                    c (:wat::core::quasiquote (:rad::Step (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:rad::Step (:wat::core::unquote k)))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
       :lhs (:wat::core::PersistentVector c)
@@ -98,8 +98,8 @@
 (:wat::core::defn :rad::tally-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "tally"
     :lhs (:wat::core::PersistentVector
-      (:wat::core::quote (:rad::Seed (?id <- :id)))
-      (:wat::core::quote (?n <- (:wat::rete::acc::count) :from (:rad::Step))))
+      (:wat::core::quote (:rad::Seed (?id :- :id)))
+      (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:rad::Step))))
     :rhs (:wat::core::PersistentVector
       (:wat::core::quote (:rad::Tally ?n)))))
 

@@ -10,13 +10,13 @@
 
 (:wat::rete::defrule :probe::untyped-equality
   :when
-  [(:probe::Reading (?loc <- :location) (:wat::core::= :value 42))]
+  [(:probe::Reading (?loc :- :location) (:wat::core::= :value 42))]
   :then
   [(:probe::Hot :location ?loc)])
 
 (:wat::rete::defquery :probe::q-Hot
   :params []
-  :when [(?fact <- :probe::Hot)])
+  :when [(?fact :- :probe::Hot)])
 
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64

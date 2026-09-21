@@ -13,10 +13,10 @@
 (:wat::core::defrecord :cap::N [k <- :wat::core::i64])
 
 (:wat::rete::defrule :cap::grow
-  :when [(:cap::N (?k <- :k))]
+  :when [(:cap::N (?k :- :k))]
   :then [(:cap::N :k (:wat::rete::i64::+ ?k 1 :undefined 0))])
 
-(:wat::rete::defquery :cap::q :params [] :when [(?fact <- :cap::N)])
+(:wat::rete::defquery :cap::q :params [] :when [(?fact :- :cap::N)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The

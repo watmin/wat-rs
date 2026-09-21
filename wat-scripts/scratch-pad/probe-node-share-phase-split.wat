@@ -65,14 +65,14 @@
 
 (:wat::rete::defquery :phase::q-Out
   :params []
-  :when [(?fact <- :phase::Out)])
+  :when [(?fact :- :phase::Out)])
 
 
 ;; ── copied from grid/node-share.wat (namespace changed only) ─────────────────
 
 (:wat::core::defn :phase::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:phase::A (?k <- :k)))
-                    b-c     (:wat::core::quasiquote (:phase::B (?k <- :k)))
+  (:wat::core::let [a-c     (:wat::core::quasiquote (:phase::A (?k :- :k)))
+                    b-c     (:wat::core::quasiquote (:phase::B (?k :- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::core::= (:wat::core::unquote i)

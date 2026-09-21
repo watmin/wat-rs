@@ -88,7 +88,7 @@
 ;; The leading condition is the one every later row shares; only `where-c` varies per row.
 (:wat::rete::defrule :wsh::arith
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where
+  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where
                                 (:wat::rete::i64::= 3
                                   (:wat::rete::i64::- ?k
                                     (:wat::rete::i64::* (:wat::rete::i64::/ ?k 10 :undefined 0) 10 :undefined 0)
@@ -100,7 +100,7 @@
 ;; rep(k) = (k mod 5) - 2, so rep > 0 selects k mod 5 in {3,4} ⇒ 80 of 200.
 (:wat::rete::defrule :wsh::accessor
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wsh::Client/rep ?c) 0))]
+  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wsh::Client/rep ?c) 0))]
   :then
   [(:wsh::Hit ?k)])
 
@@ -108,7 +108,7 @@
 ;; name(k) = "ad"+k when k mod 3 == 0, else "zz"+k ⇒ 67 of 200.
 (:wat::rete::defrule :wsh::string
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::string::starts-with? ?n "ad"))]
+  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::string::starts-with? ?n "ad"))]
   :then
   [(:wsh::Hit ?k)])
 
@@ -116,7 +116,7 @@
 ;; tags(k) has length (k mod 4) ⇒ length > 1 selects k mod 4 in {2,3} ⇒ 100 of 200.
 (:wat::rete::defrule :wsh::collection
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) 1))]
+  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) 1))]
   :then
   [(:wsh::Hit ?k)])
 
@@ -125,7 +125,7 @@
 ;; model and must hand back to the interpreter. It carries the whole compiled-`where` question.
 (:wat::rete::defrule :wsh::userfn
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wsh::big? ?k))]
+  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wsh::big? ?k))]
   :then
   [(:wsh::Hit ?k)])
 
@@ -142,13 +142,13 @@
 ;; NOT a round number, because a count that is easy to guess can match by accident.
 (:wat::rete::defrule :wsh::cross-var
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> ?k ?l))]
+  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::i64::> ?k ?l))]
   :then
   [(:wsh::Hit ?k)])
 
 (:wat::rete::defquery :wsh::q-Hit
   :params []
-  :when [(?fact <- :wsh::Hit)])
+  :when [(?fact :- :wsh::Hit)])
 
 
 ;; build-rules row — THE ROW DISPATCH, and the extension point every future shape lands on.

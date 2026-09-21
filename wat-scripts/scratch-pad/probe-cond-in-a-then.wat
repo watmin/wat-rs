@@ -5,12 +5,12 @@
 
 (:wat::rete::defrule :cr::rule
   :when
-  [(:cr::In (?n <- :n))
+  [(:cr::In (?n :- :n))
    (:wat::rete::where (:wat::rete::core::cond ((:wat::rete::i64::> ?n 5) true) (:else false)))]
   :then
   [(:cr::Out :label (:wat::rete::core::cond ((:wat::rete::i64::> ?n 100) "big") (:else "small")))])
 
-(:wat::rete::defquery :cr::q :params [] :when [(?fact <- :cr::Out)])
+(:wat::rete::defquery :cr::q :params [] :when [(?fact :- :cr::Out)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

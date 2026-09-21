@@ -36,10 +36,10 @@
 (:wat::core::defrecord :d7::Hit [k <- :wat::core::i64])
 
 (:wat::rete::defrule :d7::r
-  :when  [(:d7::Box (?k <- :k) (?v <- :v))]
+  :when  [(:d7::Box (?k :- :k) (?v :- :v))]
   :then  [(:d7::Hit ?k)])
 
-(:wat::rete::defquery :d7::q :params [] :when [(?fact <- :d7::Hit)])
+(:wat::rete::defquery :d7::q :params [] :when [(?fact :- :d7::Hit)])
 
 (:wat::core::defn :d7::hits [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::vec::length

@@ -40,13 +40,13 @@
 
 ;; ── BASELINE — a where body with NO user dep (rete-core only)
 (:wat::rete::defrule :usr::rule-baseline
-  :when [(:usr::Temp (?c <- :c))
+  :when [(:usr::Temp (?c :- :c))
          (:wat::rete::where (:wat::rete::i64::> ?c 100))]
   :then [(:usr::Hot :c ?c)])
 
 ;; ── SUBJECT — identical shape; the where body calls the USER fn instead
 (:wat::rete::defrule :usr::rule-userfn
-  :when [(:usr::Temp (?c <- :c))
+  :when [(:usr::Temp (?c :- :c))
          (:wat::rete::where (:usr::big? ?c))]
   :then [(:usr::Hot :c ?c)])
 

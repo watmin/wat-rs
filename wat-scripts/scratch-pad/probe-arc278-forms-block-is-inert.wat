@@ -47,7 +47,7 @@
     (:wat::core::defrecord :probe278b::Temp [c <- :wat::core::i64])
     (:wat::core::defrecord :probe278b::Hot  [c <- :wat::core::i64])
     (:wat::rete::defrule :probe278b::rule-userfn
-      :when [(:probe278b::Temp (?c <- :c))]
+      :when [(:probe278b::Temp (?c :- :c))]
       :then [(:probe278b::Hot :c ?c)])))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

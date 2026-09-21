@@ -9,16 +9,16 @@
   (:wat::core::let
     [rules (:wat::core::PersistentVector
              (:wat::rete::make-rule "usr::hot-rule"
-               (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))])
+               (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
                (:wat::core::quote [(:usr::Hot :c ?c)]))
              (:wat::rete::make-rule "usr::warn-rule"
-               (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))])
+               (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
                (:wat::core::quote [(:usr::Warn :c ?c)])))
      queries (:wat::core::PersistentVector
                (:wat::rete::make-query "usr::Hot" (:wat::core::quote [])
-                 (:wat::core::quote [(?fact <- :usr::Hot)]))
+                 (:wat::core::quote [(?fact :- :usr::Hot)]))
                (:wat::rete::make-query "usr::Warn" (:wat::core::quote [])
-                 (:wat::core::quote [(?fact <- :usr::Warn)])))
+                 (:wat::core::quote [(?fact :- :usr::Warn)])))
      session (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
      boxed (:r10::Box :template session)
      pulled (:r10::Box/template boxed)

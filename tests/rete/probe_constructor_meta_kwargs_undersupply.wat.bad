@@ -15,7 +15,7 @@
 (:wat::core::defrecord :cr2::Rate   [count <- :wat::core::i64 window <- :wat::core::i64])
 
 (:wat::rete::defrule :cr2::gather
-  :when [(:cr2::Anchor (?x <- :x))]
+  :when [(:cr2::Anchor (?x :- :x))]
   :then [(:cr2::Rate :count 7)])
 
 (:wat::core::defn :user::run [] -> :wat::core::i64 0)

@@ -74,26 +74,26 @@
 ;; THE WITNESS: a LEADING :exists, no parent condition, binding ?loc outward.
 (:wat::rete::defquery :lx::q-exists
   :params []
-  :when [(:wat::rete::exists (:lx::Wind (?loc <- :loc)))])
+  :when [(:wat::rete::exists (:lx::Wind (?loc :- :loc)))])
 
 ;; The inert cascade — five rules carrying S1 to S6, forcing six fixpoint rounds.
 ;; Nothing here mentions Wind; that is the point.
 (:wat::core::defn :lx::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r2"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S1 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S1 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S2 ?k))))
     (:wat::rete::Rule :name "r3"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S2 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S2 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S3 ?k))))
     (:wat::rete::Rule :name "r4"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S3 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S3 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S4 ?k))))
     (:wat::rete::Rule :name "r5"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S4 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S4 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S5 ?k))))
     (:wat::rete::Rule :name "r6"
-      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S5 (?k <- :k))))
+      :lhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S5 (?k :- :k))))
       :rhs (:wat::core::PersistentVector (:wat::core::quasiquote (:lx::S6 ?k))))))
 
 ;; Seed: Wind(i) TWICE for each i in [0, items) — the duplicate is what makes the

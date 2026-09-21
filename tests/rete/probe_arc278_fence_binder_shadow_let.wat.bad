@@ -10,7 +10,7 @@
 (:wat::core::defrecord :fbsl::N [k <- :wat::core::i64])
 
 (:wat::rete::defrule :fbsl::shadow-in-let
-  :when [(:fbsl::N (?k <- :k))
+  :when [(:fbsl::N (?k :- :k))
          (:wat::rete::where
            (:wat::rete::core::let [?k "shadow"]
              (:wat::rete::string::= ?k "shadow")))]

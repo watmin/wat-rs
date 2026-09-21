@@ -29,15 +29,15 @@
 
 (:wat::rete::defquery :cascade::q-Node
   :params []
-  :when [(?fact <- :cascade::Node)])
+  :when [(?fact :- :cascade::Node)])
 
 
 ;; build-rule k — the k-th cascade level: join Node⋈Tag at level (k-1) on ?id, derive Node,Tag at level k.
 ;; The level literals (k-1 in the conditions, k in the inserts) are spliced via quasiquote/unquote.
 (:wat::core::defn :perf::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
-                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
-                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))
+                    c1 (:wat::core::quasiquote (:cascade::Node (?id :- :id) (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
+                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id :- :id) (?m :- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)

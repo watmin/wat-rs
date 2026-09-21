@@ -14,7 +14,7 @@
 
 (:wat::core::defn :test::compile-temp-rule [] -> :wat::rete::Session
   (:wat::core::let
-    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::i64::> ?t 20)))
+    [cond  (:wat::core::quote (:user::Temp (?t :- :value) (:wat::rete::i64::> ?t 20)))
      rule  (:wat::rete::Rule :name "r" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))]
     (:wat::core::match (:wat::rete::compile (:wat::core::PersistentVector rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
 

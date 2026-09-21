@@ -23,8 +23,8 @@ fn world(threshold: i64) -> String {
          \n\
          (:wat::rete::defrule :weather::cold-and-windy\n\
            :when\n\
-           [(:weather::Temperature (?loc <- :location) (?c <- :celsius))\n\
-            (:weather::WindSpeed   (?loc <- :location) (?k <- :kph))\n\
+           [(:weather::Temperature (?loc :- :location) (?c :- :celsius))\n\
+            (:weather::WindSpeed   (?loc :- :location) (?k :- :kph))\n\
             (:wat::rete::where (:wat::rete::i64::> ?c {threshold}))]\n\
            :then\n\
            [(:weather::ColdAndWindy :location ?loc)])\n\

@@ -14,7 +14,7 @@
 (:wat::core::defrecord :d11p::Outer [o <- :d11p::One])
 
 (:wat::rete::defrule :d11p::bad
-  :when [(:d11p::Box (?k <- :k) (?s <- :s))]
+  :when [(:d11p::Box (?k :- :k) (?s :- :s))]
   :then [(:d11p::Outer :o (:d11p::One ?s))])
 
 ;; ⛔ A REAL `main` (arc 278 C18) — see the sibling fixture's note.

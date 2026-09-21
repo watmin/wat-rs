@@ -4,10 +4,10 @@
 (:wat::core::defrecord :fd::F [flag <- :wat::core::bool])
 
 (:wat::rete::defrule :fd::flip
-  :when  [(:fd::F (?b <- :flag))]
+  :when  [(:fd::F (?b :- :flag))]
   :then  [(:fd::F :flag (:wat::rete::core::not ?b))])
 
-(:wat::rete::defquery :fd::q :params [] :when [(?fact <- :fd::F)])
+(:wat::rete::defquery :fd::q :params [] :when [(?fact :- :fd::F)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

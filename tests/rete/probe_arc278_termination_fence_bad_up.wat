@@ -11,12 +11,12 @@
 
 (:wat::rete::defrule :b8::bad-up
   :when
-  [(:b8::N (?k <- :k))
+  [(:b8::N (?k :- :k))
    (:wat::rete::where (:wat::rete::i64::> ?k 500))]
   :then
   [(:b8::N :k (:wat::rete::i64::+ ?k 1 :undefined 0))])
 
-(:wat::rete::defquery :b8::q :params [] :when [(?fact <- :b8::N)])
+(:wat::rete::defquery :b8::q :params [] :when [(?fact :- :b8::N)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match

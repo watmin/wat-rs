@@ -13,58 +13,58 @@
 (:wat::core::defrecord :wqc::Hit  [loc <- :wat::core::String])
 
 (:wat::rete::defrule :wqc::mark
-  :when [(:wqc::Wind (?loc <- :loc) (?w <- :kph)
+  :when [(:wqc::Wind (?loc :- :loc) (?w :- :kph)
            (:wat::rete::i64::> ?w 10))]
   :then [(:wqc::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wqc::q-fields
   :params []
-  :when [(:wqc::Temp (?c <- :c) (?loc <- :loc))])
+  :when [(:wqc::Temp (?c :- :c) (?loc :- :loc))])
 
 (:wat::rete::defquery :wqc::q-plain
   :params []
-  :when [(?fact <- :wqc::Temp)])
+  :when [(?fact :- :wqc::Temp)])
 
 (:wat::rete::defquery :wqc::q-bound
   :params []
-  :when [(?t <- :wqc::Temp (?c <- :c))])
+  :when [(?t :- :wqc::Temp (?c :- :c))])
 
 (:wat::rete::defquery :wqc::q-at
   :params [?loc]
-  :when [(:wqc::Temp (?c <- :c) (?loc <- :loc))])
+  :when [(:wqc::Temp (?c :- :c) (?loc :- :loc))])
 
 (:wat::rete::defquery :wqc::q-join
   :params []
-  :when [(:wqc::Temp (?c <- :c) (?loc <- :loc))
-         (:wqc::Wind (?w <- :kph) (?loc <- :loc))])
+  :when [(:wqc::Temp (?c :- :c) (?loc :- :loc))
+         (:wqc::Wind (?w :- :kph) (?loc :- :loc))])
 
 (:wat::rete::defquery :wqc::q-count-at
   :params [?loc]
-  :when [(?n <- (:wat::rete::acc::count) :from (:wqc::Temp (?loc <- :loc)))])
+  :when [(?n :- (:wat::rete::acc::count) :from (:wqc::Temp (?loc :- :loc)))])
 
 (:wat::rete::defquery :wqc::q-count-wind
   :params [?loc]
-  :when [(?n <- (:wat::rete::acc::count) :from (:wqc::Temp (?loc <- :loc)))
-         (:wqc::Wind (?loc <- :loc))])
+  :when [(?n :- (:wat::rete::acc::count) :from (:wqc::Temp (?loc :- :loc)))
+         (:wqc::Wind (?loc :- :loc))])
 
 (:wat::rete::defquery :wqc::q-no-wind
   :params []
-  :when [(:wqc::Temp (?c <- :c) (?loc <- :loc))
-         (:wat::rete::not (:wqc::Wind (?loc <- :loc)))])
+  :when [(:wqc::Temp (?c :- :c) (?loc :- :loc))
+         (:wat::rete::not (:wqc::Wind (?loc :- :loc)))])
 
 (:wat::rete::defquery :wqc::q-has-wind
   :params []
-  :when [(:wqc::Temp (?c <- :c) (?loc <- :loc))
-         (:wat::rete::exists (:wqc::Wind (?loc <- :loc)))])
+  :when [(:wqc::Temp (?c :- :c) (?loc :- :loc))
+         (:wat::rete::exists (:wqc::Wind (?loc :- :loc)))])
 
 (:wat::rete::defquery :wqc::q-cool
   :params []
-  :when [(:wqc::Temp (?c <- :c) (?loc <- :loc))
+  :when [(:wqc::Temp (?c :- :c) (?loc :- :loc))
          (:wat::rete::where (:wat::rete::i64::< ?c 20))])
 
 (:wat::rete::defquery :wqc::q-Hit
   :params []
-  :when [(:wqc::Hit (?loc <- :loc))])
+  :when [(:wqc::Hit (?loc :- :loc))])
 
 (:wat::core::defn :wqc::has-key
   [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])

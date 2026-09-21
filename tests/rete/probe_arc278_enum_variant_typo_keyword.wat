@@ -27,20 +27,20 @@
 
 ;; ROUTE 1 — a `::`-free keyword constant. Matches row k=1 only.
 (:wat::rete::defrule :kw::plain
-  :when [(:kw::Req (?k <- :k) (:wat::rete::core::keyword::= :tag :alpha))]
+  :when [(:kw::Req (?k :- :k) (:wat::rete::core::keyword::= :tag :alpha))]
   :then [(:kw::Hit :k ?k)])
 
 ;; ROUTE 2 — `::`, prefix names NO registered type. Matches row k=2 only.
 (:wat::rete::defrule :kw::unregistered-prefix
-  :when [(:kw::Req (?k <- :k) (:wat::rete::core::keyword::= :ns :not::an::enum))]
+  :when [(:kw::Req (?k :- :k) (:wat::rete::core::keyword::= :ns :not::an::enum))]
   :then [(:kw::Hit :k ?k)])
 
 ;; ROUTE 3 — `::`, prefix names a registered AGGREGATE, not an enum. Matches row k=3 only.
 (:wat::rete::defrule :kw::aggregate-prefix
-  :when [(:kw::Req (?k <- :k) (:wat::rete::core::keyword::= :rec :kw::Req::foo))]
+  :when [(:kw::Req (?k :- :k) (:wat::rete::core::keyword::= :rec :kw::Req::foo))]
   :then [(:kw::Hit :k ?k)])
 
-(:wat::rete::defquery :kw::q :params [] :when [(?f <- :kw::Hit)])
+(:wat::rete::defquery :kw::q :params [] :when [(?f :- :kw::Hit)])
 
 (:wat::core::defn :kw::fire [] -> :wat::core::i64
   (:wat::core::let

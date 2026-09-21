@@ -28,13 +28,13 @@
 
 (:wat::rete::defrule :nia::pass-rule
   :when
-  [(:nia::Reading (?g <- :g))]
+  [(:nia::Reading (?g :- :g))]
   :then
   [(:nia::Out ?g)])
 
 (:wat::rete::defquery :nia::q-Out
   :params []
-  :when [(?fact <- :nia::Out)])
+  :when [(?fact :- :nia::Out)])
 
 
 (:wat::core::defn :nia::base [] -> :wat::rete::Session

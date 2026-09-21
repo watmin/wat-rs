@@ -30,14 +30,14 @@
 (:wat::core::defrecord :walc::S3 [k <- :wat::core::i64])
 
 ;; The inert chain. Neither rule reads or writes W.
-(:wat::rete::defrule :walc::r1 :when [(:walc::S1 (?k <- :k))] :then [(:walc::S2 :k ?k)])
-(:wat::rete::defrule :walc::r2 :when [(:walc::S2 (?k <- :k))] :then [(:walc::S3 :k ?k)])
+(:wat::rete::defrule :walc::r1 :when [(:walc::S1 (?k :- :k))] :then [(:walc::S2 :k ?k)])
+(:wat::rete::defrule :walc::r2 :when [(:walc::S2 (?k :- :k))] :then [(:walc::S3 :k ?k)])
 
 (:wat::rete::defquery :walc::q-lead :params []
-  :when [(?n <- (:wat::rete::acc::count) :from (:walc::W))
+  :when [(?n :- (:wat::rete::acc::count) :from (:walc::W))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
 
-(:wat::rete::defquery :walc::q-W :params [] :when [(?fact <- :walc::W)])
+(:wat::rete::defquery :walc::q-W :params [] :when [(?fact :- :walc::W)])
 
 (:wat::core::defn :walc::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println

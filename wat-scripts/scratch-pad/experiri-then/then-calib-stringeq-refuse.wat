@@ -6,13 +6,13 @@
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (?v <- :v))]
+  [(:probe::In (?k :- :k) (?v :- :v))]
   :then
   [(:probe::Out :k ?k :ok (:wat::rete::string::= ?v "alpha"))])
 
 (:wat::rete::defquery :probe::q
   :params []
-  :when [(?fact <- :probe::Out)])
+  :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

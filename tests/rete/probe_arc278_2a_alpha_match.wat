@@ -13,7 +13,7 @@
   (:wat::map::get
     (:wat::core::Option/expect
       (:wat::rete::alpha-match
-        (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))
+        (:wat::core::quote (:user::Temp (?t :- :value) (:wat::core::> ?t 20)))
         (:user::Temp :value 25)) "matched")
     "?t"))
 
@@ -21,12 +21,12 @@
 (:wat::core::defn :user::match-rejects-failed-constraint []
   -> (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])])
   (:wat::rete::alpha-match
-    (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))
+    (:wat::core::quote (:user::Temp (?t :- :value) (:wat::core::> ?t 20)))
     (:user::Temp :value 15)))
 
 ;; Condition head :user::Other ≠ fact type :user::Temp → None.
 (:wat::core::defn :user::match-rejects-wrong-type []
   -> (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])])
   (:wat::rete::alpha-match
-    (:wat::core::quote (:user::Other (?t <- :value)))
+    (:wat::core::quote (:user::Other (?t :- :value)))
     (:user::Temp :value 25)))

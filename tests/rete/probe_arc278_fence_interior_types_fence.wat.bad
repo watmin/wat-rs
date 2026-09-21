@@ -14,7 +14,7 @@
 (:wat::core::defrecord :tgb::N [k <- :wat::core::i64])
 
 (:wat::rete::defrule :tgb::fence-is-not-typed
-  :when [(:tgb::N (?k <- :k))
-         (:tgb::N (?j <- :k))
+  :when [(:tgb::N (?k :- :k))
+         (:tgb::N (?j :- :k))
          (:wat::rete::where (:wat::rete::string::= ?k ?j))]
   :then [])

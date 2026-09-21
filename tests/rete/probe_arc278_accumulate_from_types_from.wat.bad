@@ -15,8 +15,8 @@
 (:wat::core::defrecord :taf::Busy    [location <- :wat::core::String  n <- :wat::core::i64])
 
 (:wat::rete::defrule :taf::busy
-  :when [(:taf::Station (?loc <- :location))
-         (?n <- (:wat::rete::acc::count)
-             :from (:taf::Reading (?loc <- :location) (?v <- :value)
+  :when [(:taf::Station (?loc :- :location))
+         (?n :- (:wat::rete::acc::count)
+             :from (:taf::Reading (?loc :- :location) (?v :- :value)
                      (:wat::rete::string::= ?v "nope")))]
   :then [(:taf::Busy :location ?loc :n ?n)])

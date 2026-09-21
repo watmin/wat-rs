@@ -17,7 +17,7 @@
 (:wat::core::defrecord :macb::Out   [k <- :wat::core::i64  inner <- :macb::Inner])
 
 (:wat::rete::defrule :macb::r
-  :when [(:macb::In (?k <- :k) (?v <- :v))]
+  :when [(:macb::In (?k :- :k) (?v :- :v))]
   :then [(:macb::Out :k ?k
            :inner (:wat::rete::core::match ?v
                     [:macb::E.A {} (:macb::Inner :n 10)]
@@ -25,7 +25,7 @@
 
 (:wat::rete::defquery :macb::by-inner
   :params [?inner]
-  :when [(:macb::Out (?inner <- :inner) (?k <- :k))])
+  :when [(:macb::Out (?inner :- :inner) (?k :- :k))])
 
 (:wat::core::defn :macb::world [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules

@@ -92,33 +92,33 @@ const D2_WORLD: &str = "\
 (:wat::core::defrecord :d2::Hit2 [k <- :wat::core::i64])\n\
 \n\
 (:wat::rete::defrule :d2::derive-a\n\
-  :when [(:d2::M (?k <- :k))]\n\
+  :when [(:d2::M (?k :- :k))]\n\
   :then [(:d2::A ?k (:wat::rete::i64::+ ?k 1 :undefined 0))])\n\
 \n\
 (:wat::rete::defrule :d2::derive-b\n\
-  :when [(:d2::M (?k <- :k))]\n\
+  :when [(:d2::M (?k :- :k))]\n\
   :then [(:d2::B ?k)])\n\
 \n\
 (:wat::rete::defrule :d2::derive-c\n\
-  :when [(:d2::M (?k <- :k))]\n\
+  :when [(:d2::M (?k :- :k))]\n\
   :then [(:d2::C ?k)])\n\
 \n\
 (:wat::rete::defrule :d2::chain\n\
-  :when [(:d2::A (?k <- :k) (?v <- :v))\n\
+  :when [(:d2::A (?k :- :k) (?v :- :v))\n\
          (:wat::rete::where (:wat::rete::i64::> ?v 0))\n\
-         (:d2::B (?k <- :k))\n\
-         (:d2::C (?k <- :k))]\n\
+         (:d2::B (?k :- :k))\n\
+         (:d2::C (?k :- :k))]\n\
   :then [(:d2::Hit ?k)])\n\
 \n\
 (:wat::rete::defrule :d2::derive-d\n\
-  :when [(:d2::M (?k <- :k))]\n\
+  :when [(:d2::M (?k :- :k))]\n\
   :then [(:d2::D ?k)])\n\
 \n\
 (:wat::rete::defrule :d2::chain2\n\
-  :when [(:d2::A (?k <- :k) (?v <- :v))\n\
+  :when [(:d2::A (?k :- :k) (?v :- :v))\n\
          (:wat::rete::where (:wat::rete::i64::> ?v 0))\n\
-         (:d2::B (?k <- :k))\n\
-         (:d2::D (?k <- :k))]\n\
+         (:d2::B (?k :- :k))\n\
+         (:d2::D (?k :- :k))]\n\
   :then [(:d2::Hit2 ?k)])\n\
 \n\
 (:wat::core::defn :d2::ins-a [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
@@ -160,21 +160,21 @@ const D2_SINGLE_JOIN_WORLD: &str = "\
 (:wat::core::defrecord :d2::Hit [k <- :wat::core::i64])\n\
 \n\
 (:wat::rete::defrule :d2::derive-a\n\
-  :when [(:d2::M (?k <- :k))]\n\
+  :when [(:d2::M (?k :- :k))]\n\
   :then [(:d2::A ?k (:wat::rete::i64::+ ?k 1 :undefined 0))])\n\
 \n\
 (:wat::rete::defrule :d2::derive-b\n\
-  :when [(:d2::M (?k <- :k))]\n\
+  :when [(:d2::M (?k :- :k))]\n\
   :then [(:d2::B ?k)])\n\
 \n\
 (:wat::rete::defrule :d2::derive-c\n\
-  :when [(:d2::M (?k <- :k))]\n\
+  :when [(:d2::M (?k :- :k))]\n\
   :then [(:d2::C ?k)])\n\
 \n\
 (:wat::rete::defrule :d2::chain\n\
-  :when [(:d2::A (?k <- :k) (?v <- :v))\n\
+  :when [(:d2::A (?k :- :k) (?v :- :v))\n\
          (:wat::rete::where (:wat::rete::i64::> ?v 0))\n\
-         (:d2::B (?k <- :k))]\n\
+         (:d2::B (?k :- :k))]\n\
   :then [(:d2::Hit ?k)])\n\
 \n\
 (:wat::core::defn :d2::ins-a [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\

@@ -34,7 +34,7 @@
 
 ;; ROW 1-2 — inline :or of two constraints on the SAME pattern. Extreme reading.
 (:wat::rete::defrule :woi::extreme
-  :when [(:woi::Reading (?k <- :k) (?v <- :v)
+  :when [(:woi::Reading (?k :- :k) (?v :- :v)
            (:wat::rete::or
              (:wat::rete::i64::> ?v 30)
              (:wat::rete::i64::< ?v 10)))]
@@ -42,14 +42,14 @@
 
 ;; ROW 3 — inline :not of a single constraint. NOT extreme-high.
 (:wat::rete::defrule :woi::not-high
-  :when [(:woi::Reading (?k <- :k) (?v <- :v)
+  :when [(:woi::Reading (?k :- :k) (?v :- :v)
            (:wat::rete::not (:wat::rete::i64::> ?v 30)))]
   :then [(:woi::Hit :k ?k)])
 
 ;; ROW 4 — De Morgan: inline :not of an inline :or. Also the SCOPE-LEAK row: ?hi is
 ;; bound only inside an :or arm and must not escape to the RHS.
 (:wat::rete::defrule :woi::mid
-  :when [(:woi::Reading (?k <- :k) (?v <- :v)
+  :when [(:woi::Reading (?k :- :k) (?v :- :v)
            (:wat::rete::not
              (:wat::rete::or
                (:wat::rete::i64::> ?v 30)
@@ -59,15 +59,15 @@
 ;; ROW 5 — the same inline :or behind a join prefix, so the branch scope is cloned
 ;; from a scope that already carries ?loc rather than from an empty one.
 (:wat::rete::defrule :woi::station-extreme
-  :when [(:woi::Station (?loc <- :loc))
-         (:woi::Reading (?loc <- :loc) (?k <- :k) (?v <- :v)
+  :when [(:woi::Station (?loc :- :loc))
+         (:woi::Reading (?loc :- :loc) (?k :- :k) (?v :- :v)
            (:wat::rete::or
              (:wat::rete::i64::> ?v 30)
              (:wat::rete::i64::< ?v 10)))]
   :then [(:woi::At :loc ?loc)])
 
-(:wat::rete::defquery :woi::q-Hit :params [] :when [(?fact <- :woi::Hit)])
-(:wat::rete::defquery :woi::q-At  :params [] :when [(?fact <- :woi::At)])
+(:wat::rete::defquery :woi::q-Hit :params [] :when [(?fact :- :woi::Hit)])
+(:wat::rete::defquery :woi::q-At  :params [] :when [(?fact :- :woi::At)])
 
 (:wat::core::defn :woi::n-hit [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:wat::rete::query s (:woi::q-Hit))))

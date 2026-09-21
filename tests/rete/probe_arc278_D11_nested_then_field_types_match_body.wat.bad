@@ -21,7 +21,7 @@
 (:wat::core::defrecord :d11m::Outer [i <- :d11m::Inner])
 
 (:wat::rete::defrule :d11m::bad
-  :when [(:d11m::Box (?s <- :s) (?v <- :v))]
+  :when [(:d11m::Box (?s :- :s) (?v :- :v))]
   :then [(:d11m::Outer :i (:wat::rete::core::match ?v
                             (:d11m::E::A (:d11m::Inner :n 1))
                             (:d11m::E::B (:d11m::Inner :n ?s))))])

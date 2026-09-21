@@ -74,7 +74,7 @@
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wsb::conds [] -> :wat::WatAST
-  (:wat::core::quasiquote (:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l))))
+  (:wat::core::quasiquote (:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l))))
 
 (:wat::core::defn :wsb::ins [] -> :wat::WatAST
   (:wat::core::quasiquote (:wsb::Hit ?k)))
@@ -82,35 +82,35 @@
 ;; ROW 1 — and/2. Hit :- Req(…) AND (a and b).  k mod 2==0 and k mod 3==0 => k mod 6==0 => 35/210.
 (:wat::rete::defrule :wsb::and2
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b))]
   :then
   [(:wsb::Hit ?k)])
 
 ;; ROW 2 — or/2. Hit :- Req(…) AND (a or b).  |a|+|b|-|a&b| = 105+70-35 => 140/210.
 (:wat::rete::defrule :wsb::or2
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::or ?a ?b))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::or ?a ?b))]
   :then
   [(:wsb::Hit ?k)])
 
 ;; ROW 3 — not/1. Hit :- Req(…) AND (not c).  210 - 42 => 168/210.
 (:wat::rete::defrule :wsb::not1
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::not ?c))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::not ?c))]
   :then
   [(:wsb::Hit ?k)])
 
 ;; ROW 4 — and/3. (a and b and c).  k mod 30==0 => 7/210.
 (:wat::rete::defrule :wsb::and3
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b ?c))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b ?c))]
   :then
   [(:wsb::Hit ?k)])
 
 ;; ROW 5 — or/3. (a or b or c).  inclusion-exclusion => 154/210.
 (:wat::rete::defrule :wsb::or3
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::or ?a ?b ?c))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::or ?a ?b ?c))]
   :then
   [(:wsb::Hit ?k)])
 
@@ -118,7 +118,7 @@
 ;; (still a PROPER subset — 0 < 1 < 210) to exercise 4-ary `and`, the widest arity this corpus uses.
 (:wat::rete::defrule :wsb::and4
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b ?c ?d))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b ?c ?d))]
   :then
   [(:wsb::Hit ?k)])
 
@@ -127,7 +127,7 @@
 ;; a=false AND b=false (56 of them) => 168 - 56 = 112/210.
 (:wat::rete::defrule :wsb::nest-and-or-not
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
                                  (:wat::rete::core::and (:wat::rete::core::or ?a ?b) (:wat::rete::core::not ?c)))]
   :then
   [(:wsb::Hit ?k)])
@@ -136,7 +136,7 @@
 ;; |a∧b|=35, |c∧d|=6, |a∧b∧c∧d|=1 (inclusion-exclusion on the two conjunctions) => 35+6-1=40/210.
 (:wat::rete::defrule :wsb::nest-or-and-and
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
                                  (:wat::rete::core::or (:wat::rete::core::and ?a ?b) (:wat::rete::core::and ?c ?d)))]
   :then
   [(:wsb::Hit ?k)])
@@ -147,7 +147,7 @@
 ;; here — verify against this program's own `n=` if in doubt, per rule 2).
 (:wat::rete::defrule :wsb::nest3
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::core::or (:wat::rete::core::and ?a ?b) ?c)
                                    (:wat::rete::core::not (:wat::rete::core::and ?c ?d))))]
@@ -158,13 +158,13 @@
 ;; 210 - |a∧b| = 210 - 35 = 175/210 on both rows.
 (:wat::rete::defrule :wsb::demorgan-nand-a
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::not (:wat::rete::core::and ?a ?b)))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::not (:wat::rete::core::and ?a ?b)))]
   :then
   [(:wsb::Hit ?k)])
 
 (:wat::rete::defrule :wsb::demorgan-nand-b
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
                                  (:wat::rete::core::or (:wat::rete::core::not ?a) (:wat::rete::core::not ?b)))]
   :then
   [(:wsb::Hit ?k)])
@@ -173,13 +173,13 @@
 ;; 210 - |a∨b| = 210 - 140 = 70/210 on both rows.
 (:wat::rete::defrule :wsb::demorgan-nor-a
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where (:wat::rete::core::not (:wat::rete::core::or ?a ?b)))]
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::not (:wat::rete::core::or ?a ?b)))]
   :then
   [(:wsb::Hit ?k)])
 
 (:wat::rete::defrule :wsb::demorgan-nor-b
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
                                  (:wat::rete::core::and (:wat::rete::core::not ?a) (:wat::rete::core::not ?b)))]
   :then
   [(:wsb::Hit ?k)])
@@ -189,7 +189,7 @@
 ;; by 5 (6 in each 30-wide tail) => 60 - 12 = 48/210.
 (:wat::rete::defrule :wsb::userfn
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
                                  (:wat::rete::core::and (:wsb::edge? ?k) (:wat::rete::core::not ?c)))]
   :then
   [(:wsb::Hit ?k)])
@@ -206,7 +206,7 @@
 ;; l={1,2,3,4,5,6} respectively; > 20 holds for l in {1,2,3,4} => 4/7 of 210 => 120/210.
 (:wat::rete::defrule :wsb::shortcircuit-and
   :when
-  [(:wsb::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?l <- :l)) (:wat::rete::where
+  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::i64::not= ?l 0)
                                    (:wat::rete::i64::> (:wat::rete::i64::/ 100 ?l :undefined 0) 20)))]
@@ -215,7 +215,7 @@
 
 (:wat::rete::defquery :wsb::q-Hit
   :params []
-  :when [(?fact <- :wsb::Hit)])
+  :when [(?fact :- :wsb::Hit)])
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.

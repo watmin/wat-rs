@@ -5,11 +5,11 @@
 ;; fact base rather than grepping, because `{` also appears inside interpolation strings.
 
 (:wat::rete::defrule :ml::map-node
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
          (:wat::rete::where  (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Map {})))
-         (:wat::grep::Node   (?c <- :id) (?id <- :parent))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?co <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))]
+         (:wat::grep::Node   (?c :- :id) (?id :- :parent))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?co :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?co :end-line ?el :end-col ?ec
            :rule "map-literal"
            :captures (:wat::rete::core::PersistentVector

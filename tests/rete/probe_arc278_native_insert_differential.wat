@@ -15,13 +15,13 @@
 
 (:wat::rete::defrule :nin::pass-rule
   :when
-  [(:nin::Reading (?g <- :g))]
+  [(:nin::Reading (?g :- :g))]
   :then
   [(:nin::Out ?g)])
 
 (:wat::rete::defquery :nin::q-Out
   :params []
-  :when [(?fact <- :nin::Out)])
+  :when [(?fact :- :nin::Out)])
 
 
 (:wat::core::defn :nin::base [] -> :wat::rete::Session

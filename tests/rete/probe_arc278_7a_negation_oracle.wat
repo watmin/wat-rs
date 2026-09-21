@@ -7,14 +7,14 @@
 
 (:wat::rete::defrule :alert::unattended
   :when
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius))
-   (:wat::rete::not (:ops::Maintenance (?loc <- :location)))]
+  [(:weather::Temperature (?loc :- :location) (?c :- :celsius))
+   (:wat::rete::not (:ops::Maintenance (?loc :- :location)))]
   :then
   [(:alert::Unattended :location ?loc)])
 
 (:wat::rete::defquery :alert::q-Unattended
   :params []
-  :when [(?fact <- :alert::Unattended)])
+  :when [(?fact :- :alert::Unattended)])
 
 
 (:wat::core::defn :test::compile-unattended [] -> :wat::rete::Session

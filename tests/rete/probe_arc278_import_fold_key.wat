@@ -20,14 +20,14 @@
 (:wat::core::defrecord :ifk::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])
 
 (:wat::rete::defrule :ifk::sum-rule
-  :when [(:ifk::Group (?g <- :g))
-         (?n <- (:wat::rete::acc::sum ?v) :from (:ifk::Reading (?g <- :g) (?v <- :v)))
+  :when [(:ifk::Group (?g :- :g))
+         (?n :- (:wat::rete::acc::sum ?v) :from (:ifk::Reading (?g :- :g) (?v :- :v)))
          ;; The fence makes the COUNT see the VALUE: SumF derives only if the fold really
          ;; summed to 30, so a silently wrong sum changes the count the probe asserts.
          (:wat::rete::where (:wat::rete::i64::= ?n 30))]
   :then [(:ifk::SumF :g ?g :n ?n)])
 
-(:wat::rete::defquery :ifk::q-Sum :params [] :when [(?f <- :ifk::SumF)])
+(:wat::rete::defquery :ifk::q-Sum :params [] :when [(?f :- :ifk::SumF)])
 
 (:wat::core::defn :ifk::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:ifk::sum-rule)))
@@ -93,12 +93,12 @@
 (:wat::core::defrecord :ifk::TagSum [tag <- :wat::core::String  n <- :wat::core::i64])
 
 (:wat::rete::defrule :ifk::tag-sum-rule
-  :when [(:ifk::Group (?g <- :g))
-         (?n <- (:wat::rete::acc::sum ?v) :from (:ifk::Tagged (?g <- :g) (?v <- :v) (?tag <- :tag)))
+  :when [(:ifk::Group (?g :- :g))
+         (?n :- (:wat::rete::acc::sum ?v) :from (:ifk::Tagged (?g :- :g) (?v :- :v) (?tag :- :tag)))
          (:wat::rete::where (:wat::rete::i64::= ?n 10))]
   :then [(:ifk::TagSum :tag ?tag :n ?n)])
 
-(:wat::rete::defquery :ifk::q-TagSum :params [] :when [(?f <- :ifk::TagSum)])
+(:wat::rete::defquery :ifk::q-TagSum :params [] :when [(?f :- :ifk::TagSum)])
 
 (:wat::core::defn :ifk::tag-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:ifk::tag-sum-rule)))
@@ -164,12 +164,12 @@
 (:wat::core::defrecord :ifk::SlotSum [g <- :wat::core::i64  n <- :wat::core::i64])
 
 (:wat::rete::defrule :ifk::slot-sum-rule
-  :when [(:ifk::Label (?g <- :g) (?v <- :v) (?tag <- :tag))
-         (?n <- (:wat::rete::acc::sum ?v) :from (:ifk::Slotted (?g <- :g) (?v <- :v) (?tag <- :tag)))
+  :when [(:ifk::Label (?g :- :g) (?v :- :v) (?tag :- :tag))
+         (?n :- (:wat::rete::acc::sum ?v) :from (:ifk::Slotted (?g :- :g) (?v :- :v) (?tag :- :tag)))
          (:wat::rete::where (:wat::rete::i64::= ?n 7))]
   :then [(:ifk::SlotSum :g ?g :n ?n)])
 
-(:wat::rete::defquery :ifk::q-SlotSum :params [] :when [(?f <- :ifk::SlotSum)])
+(:wat::rete::defquery :ifk::q-SlotSum :params [] :when [(?f :- :ifk::SlotSum)])
 
 (:wat::core::defn :ifk::slot-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:ifk::slot-sum-rule)))

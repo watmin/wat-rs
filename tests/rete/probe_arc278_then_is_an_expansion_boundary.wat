@@ -32,7 +32,7 @@
 
 ;; kwargs `:then`, macro in the value
 (:wat::rete::defrule :teb::kw
-  :when [(:teb::In (?n <- :n))]
+  :when [(:teb::In (?n :- :n))]
   :then [(:teb::Out :v (:wat::rete::core::cond
                          ((:wat::rete::string::= ?n "a") "was-a")
                          ((:wat::rete::string::= ?n "b") "was-b")
@@ -40,7 +40,7 @@
 
 ;; positional `:then` — every arg past the head is a value
 (:wat::rete::defrule :teb::pos
-  :when [(:teb::In (?n <- :n))]
+  :when [(:teb::In (?n :- :n))]
   :then [(:teb::Pair (:wat::rete::core::cond
                        ((:wat::rete::string::= ?n "a") "pos-a")
                        (:else "pos-other"))
@@ -48,7 +48,7 @@
 
 ;; nested constructor AS a value — head stays data, its own value expands
 (:wat::rete::defrule :teb::nest
-  :when [(:teb::In (?n <- :n))]
+  :when [(:teb::In (?n :- :n))]
   :then [(:teb::Wrap :p (:teb::Pair :a (:wat::rete::core::cond
                                          ((:wat::rete::string::= ?n "a") "nest-a")
                                          (:else "nest-other"))
@@ -57,16 +57,16 @@
 ;; LHS control — the path that already worked, so a regression there is visible too
 (:wat::core::defrecord :teb::LhsOut [v <- :wat::core::String])
 (:wat::rete::defrule :teb::lhs
-  :when [(:teb::In (?n <- :n))
+  :when [(:teb::In (?n :- :n))
          (:wat::rete::where (:wat::rete::core::cond
                               ((:wat::rete::string::= ?n "a") true)
                               (:else false)))]
   :then [(:teb::LhsOut :v ?n)])
 
-(:wat::rete::defquery :teb::q-out  :params [] :when [(?fact <- :teb::Out)])
-(:wat::rete::defquery :teb::q-pair :params [] :when [(?fact <- :teb::Pair)])
-(:wat::rete::defquery :teb::q-wrap :params [] :when [(?fact <- :teb::Wrap)])
-(:wat::rete::defquery :teb::q-lhs  :params [] :when [(?fact <- :teb::LhsOut)])
+(:wat::rete::defquery :teb::q-out  :params [] :when [(?fact :- :teb::Out)])
+(:wat::rete::defquery :teb::q-pair :params [] :when [(?fact :- :teb::Pair)])
+(:wat::rete::defquery :teb::q-wrap :params [] :when [(?fact :- :teb::Wrap)])
+(:wat::rete::defquery :teb::q-lhs  :params [] :when [(?fact :- :teb::LhsOut)])
 
 (:wat::core::defn :teb::fired [n <- :wat::core::String] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::fire-rules

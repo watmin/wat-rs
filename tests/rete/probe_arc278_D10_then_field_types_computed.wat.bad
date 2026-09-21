@@ -20,7 +20,7 @@
 (:wat::core::defrecord :dcp::Bad [t <- :wat::core::String])
 
 (:wat::rete::defrule :dcp::bad
-  :when [(:dcp::Box (?k <- :k))]
+  :when [(:dcp::Box (?k :- :k))]
   :then [(:dcp::Bad :t (:wat::rete::i64::+ ?k 1 :undefined 0))])
 
 ;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.

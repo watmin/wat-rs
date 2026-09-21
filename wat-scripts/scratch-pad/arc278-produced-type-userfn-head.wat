@@ -31,13 +31,13 @@
 
 ;; THE MEASUREMENT — the `:then` head is a user fn returning :pt::Rate.
 (:wat::rete::defrule :pt::via-userfn
-  :when [(:pt::Anchor (?x <- :x))
-         (?rates <- (:wat::rete::acc::all) :from (:pt::Rate (?c <- :count)))]
+  :when [(:pt::Anchor (?x :- :x))
+         (?rates :- (:wat::rete::acc::all) :from (:pt::Rate (?c :- :count)))]
   :then [(:pt::first-rate ?rates)])
 
 ;; THE ANCHOR — an ordinary fact-type head. Both sides must say "pt::Rate".
 (:wat::rete::defrule :pt::plain
-  :when [(:pt::Anchor (?x <- :x))]
+  :when [(:pt::Anchor (?x :- :x))]
   :then [(:pt::Rate :count ?x)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

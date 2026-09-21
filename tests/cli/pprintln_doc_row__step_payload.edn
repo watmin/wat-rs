@@ -73,7 +73,7 @@
           [celsius <- :wat.core/i64])
         (:wat.rete/defrule :probe/step-payload-example-rule
           :when [(:probe/StepPayloadExampleTemp
-                   (?c <- :celsius)
+                   (?c :- :celsius)
                    (:wat.rete.i64/< ?c 20))]
           :then [(:probe/StepPayloadExampleResult ?c)])
         (:wat.core/let

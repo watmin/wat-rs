@@ -85,7 +85,7 @@ use std::sync::Arc;
 /// defect. An un-calibrated position would add a column of findings nobody can trust.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CallSite {
-    /// Inside a fact pattern, beside its bindings: `(:R (?k <- :k) (OP :v 10))`.
+    /// Inside a fact pattern, beside its bindings: `(:R (?k :- :k) (OP :v 10))`.
     InlineConstraint,
     /// Inside a fence clause of its own: `(:wat::rete::where (OP ?v 10))`.
     WhereFence,
@@ -232,10 +232,10 @@ struct Cell {
 fn synth(cell: &Cell, site: CallSite) -> String {
     let condition = match site {
         CallSite::InlineConstraint => {
-            format!("(:probe::In (?k <- :k) {})", cell.expr.replace("{f}", ":v"))
+            format!("(:probe::In (?k :- :k) {})", cell.expr.replace("{f}", ":v"))
         }
         CallSite::WhereFence => format!(
-            "(:probe::In (?k <- :k) (?v <- :v))\n   (:wat::rete::where {})",
+            "(:probe::In (?k :- :k) (?v :- :v))\n   (:wat::rete::where {})",
             cell.expr.replace("{f}", "?v")
         ),
     };
@@ -251,7 +251,7 @@ fn synth(cell: &Cell, site: CallSite) -> String {
 
 (:wat::rete::defquery :probe::q
   :params []
-  :when [(?fact <- :probe::Out)])
+  :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -547,7 +547,7 @@ fn the_two_positions_render_differently_and_now_agree() {
 #[test]
 fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_finding() {
     let good = synth(&i64_gt(), CallSite::InlineConstraint);
-    let broken = good.replace("(?k <- :k)", "(?k <- :nope)");
+    let broken = good.replace("(?k :- :k)", "(?k :- :nope)");
     assert_ne!(good, broken, "the break must actually change the program");
 
     match drive(&broken, i64_gt().op) {
@@ -1298,13 +1298,13 @@ fn a_keyword_constant_is_writable_in_an_inline_constraint() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k)
+  [(:probe::In (?k :- :k)
      (:wat::rete::core::keyword::= :v
        (:wat::rete::keyword::from-string "alpha" :undefined :none)))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1366,12 +1366,12 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k)
+  [(:probe::In (?k :- :k)
      (:wat::rete::i64::= (:wat::rete::core::let [x :v] x) 10))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1413,13 +1413,13 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (?v <- :v))
+  [(:probe::In (?k :- :k) (?v :- :v))
    (:wat::rete::where
      (:wat::rete::i64::= (:wat::rete::core::let [x ?v] x) 10))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1492,11 +1492,11 @@ fn every_provably_boolean_form_is_admitted_inline() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) {predicate})]
+  [(:probe::In (?k :- :k) {predicate})]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1601,11 +1601,11 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (:wat::rete::core::keyword::= :v :alpha))]
+  [(:probe::In (?k :- :k) (:wat::rete::core::keyword::= :v :alpha))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1624,11 +1624,11 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (:wat::rete::core::enum::= :v :probe::E.A))]
+  [(:probe::In (?k :- :k) (:wat::rete::core::enum::= :v :probe::E.A))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1685,11 +1685,11 @@ fn a_keyword_operand_is_a_field_ref_or_a_constant_by_one_rule() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (:wat::rete::core::keyword::= :v :alpha))]
+  [(:probe::In (?k :- :k) (:wat::rete::core::keyword::= :v :alpha))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1756,7 +1756,7 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1774,13 +1774,13 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
 
     // INLINE — `{f}` renders as the bare field keyword; the arm binds from the fact's own field.
     let inline = program(&format!(
-        "(:probe::In (?k <- :k) (:wat::rete::i64::= {} 42))",
+        "(:probe::In (?k :- :k) (:wat::rete::i64::= {} 42))",
         SUM.replace("{SUBJ}", ":p")
     ));
     // FENCE — the control. This position was never the problem, so an inline-only failure is
     // positional rather than the form being broken.
     let fence = program(&format!(
-        "(:probe::In (?k <- :k) (?p <- :p))\n   (:wat::rete::where (:wat::rete::i64::= {} 42))",
+        "(:probe::In (?k :- :k) (?p :- :p))\n   (:wat::rete::where (:wat::rete::i64::= {} 42))",
         SUM.replace("{SUBJ}", "?p")
     ));
     assert_eq!(
@@ -1792,7 +1792,7 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
 
     // ⛔ AN UNDECLARED FIELD RAISES — it does NOT quietly fail to match.
     let typo = program(&format!(
-        "(:probe::In (?k <- :k) (?p <- :p))\n   (:wat::rete::where (:wat::rete::i64::= {} 42))",
+        "(:probe::In (?k :- :k) (?p :- :p))\n   (:wat::rete::where (:wat::rete::i64::= {} 42))",
         "(:wat::rete::core::match ?p ({vz :nope} vz))"
     ));
     let verdict = raw_count(&typo).expect_err("an undeclared field must not be silently non-matching");
@@ -1811,7 +1811,7 @@ fn a_match_hash_destructure_binds_fields_in_both_positions() {
     // `{:keys […]}` is refused BY NAME rather than falling through to a generic "unsupported
     // pattern", so the diagnostic teaches the spelling that works. Core refuses it too.
     let keys = program(&format!(
-        "(:probe::In (?k <- :k) (?p <- :p))\n   (:wat::rete::where (:wat::rete::i64::= {} 42))",
+        "(:probe::In (?k :- :k) (?p :- :p))\n   (:wat::rete::where (:wat::rete::i64::= {} 42))",
         "(:wat::rete::core::match ?p ({:keys [x y]} 1))"
     ));
     let kv = raw_count(&keys).expect_err("keys-destructure is not a match pattern");
@@ -1855,7 +1855,7 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
     // spelling", which is true and beside the point — one field cannot discriminate, because
     // `coincident?(h, h)` is true for every `h`. The hit fact matches; the miss fact does not.
     const HOLON_TAIL: &str = r#"
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1868,12 +1868,12 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
 "#;
     let inline = format!(
         "{HOLON_DECLS}\n(:wat::rete::defrule :probe::rule\n  :when\n  \
-         [(:probe::In (?k <- :k) (:wat::rete::holon::coincident? :v :w))]\n  :then\n  \
+         [(:probe::In (?k :- :k) (:wat::rete::holon::coincident? :v :w))]\n  :then\n  \
          [(:probe::Out :k ?k)])\n{HOLON_TAIL}"
     );
     let fence = format!(
         "{HOLON_DECLS}\n(:wat::rete::defrule :probe::rule\n  :when\n  \
-         [(:probe::In (?k <- :k) (?v <- :v) (?w <- :w))\n   \
+         [(:probe::In (?k :- :k) (?v :- :v) (?w :- :w))\n   \
          (:wat::rete::where (:wat::rete::holon::coincident? ?v ?w))]\n  :then\n  \
          [(:probe::Out :k ?k)])\n{HOLON_TAIL}"
     );
@@ -1897,11 +1897,11 @@ fn a_row_that_declares_bool_is_believed_inline_whatever_its_class() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple :v 99)))]
+  [(:probe::In (?k :- :k) (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple :v 99)))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -1927,11 +1927,11 @@ fn a_mistyped_field_still_names_the_field_and_only_once() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (:wat::rete::i64::> :celcius 5))]
+  [(:probe::In (?k :- :k) (:wat::rete::i64::> :celcius 5))]
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let
@@ -2090,14 +2090,14 @@ fn synth_acc(row: &ReteOp) -> Result<String, String> {
   ({head} xs))
 
 (:wat::rete::defrule :probe::acc
-  :when  [(?a <- ({head} ?v) :from (:probe::In (?v <- :v)))
-          (?b <- (:probe::wrapped ?w) :from (:probe::In (?w <- :v)))
+  :when  [(?a :- ({head} ?v) :from (:probe::In (?v :- :v)))
+          (?b :- (:probe::wrapped ?w) :from (:probe::In (?w :- :v)))
           (:wat::rete::where ({eq} ?a ?b))]
   :then  [(:probe::Out :a ?a :b ?b)])
 
 (:wat::rete::defquery :probe::q
   :params []
-  :when [(?fact <- :probe::Out)])
+  :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let

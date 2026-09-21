@@ -82,7 +82,7 @@
 ;; ROW 1 — THREE bound vars in one predicate. a+b > c+10.  a=i%11, b=i%13, c=i%7 ⇒ 64 of 200.
 (:wat::rete::defrule :wmv::three-var
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where
                  (:wat::rete::i64::> (:wat::rete::i64::+ ?a ?b :undefined 0) (:wat::rete::i64::+ ?c 10 :undefined 1000000)))]
   :then
   [(:wmv::Hit ?k)])
@@ -91,7 +91,7 @@
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 36 of 200.
 (:wat::rete::defrule :wmv::four-var
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where
                  (:wat::rete::i64::=
                    (:wat::rete::i64::mod (:wat::rete::i64::+ ?a ?b :undefined 0) (:wat::rete::i64::+ ?c 1 :undefined 1) :undefined -1)
                    ?d))]
@@ -102,7 +102,7 @@
 ;; (a mod 2 == 0) AND (b > c) AND (d > e).  a=i%11, b=i%13, c=i%7, d=i%5, e=i%3 ⇒ 40 of 200.
 (:wat::rete::defrule :wmv::five-var
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where
                  (:wat::rete::core::and
                    (:wat::rete::i64::= 0 (:wat::rete::i64::mod ?a 2 :undefined 1))
                    (:wat::rete::i64::> ?b ?c)
@@ -115,7 +115,7 @@
 ;; live in both. d=i%5, c=i%7, b=i%13 ⇒ 66 of 200.
 (:wat::rete::defrule :wmv::chain
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where
                  (:wat::rete::core::and (:wat::rete::i64::< ?d ?c) (:wat::rete::i64::< ?c ?b)))]
   :then
   [(:wmv::Hit ?k)])
@@ -123,7 +123,7 @@
 ;; ROW 5 — arithmetic ACROSS vars: (?a + ?b) > ?c.  a=i%11, b=i%13, c=i%7 ⇒ 183 of 200.
 (:wat::rete::defrule :wmv::sum-vars
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::+ ?a ?b :undefined 0) ?c))]
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::+ ?a ?b :undefined 0) ?c))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -131,7 +131,7 @@
 ;; a=i%11, b=i%13, c=i%7, d=i%5 ⇒ 150 of 200.
 (:wat::rete::defrule :wmv::prod-vars
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where
                  (:wat::rete::i64::>
                    (:wat::rete::i64::* ?a ?b :undefined 0)
                    (:wat::rete::i64::+ ?c ?d :undefined 1000000)))]
@@ -143,7 +143,7 @@
 ;; needs to know it is one slot, not three. a=i%11 ⇒ 90 of 200.
 (:wat::rete::defrule :wmv::repeat-var
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where
                  (:wat::rete::i64::>
                    (:wat::rete::i64::- (:wat::rete::i64::* ?a ?a :undefined 0) ?a :undefined 0)
                    20))]
@@ -155,7 +155,7 @@
 ;; to the interpreter — but now over four live slots instead of one. ⇒ 95 of 200.
 (:wat::rete::defrule :wmv::combo-fn
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::combo? ?a ?b ?c ?d))]
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where (:wmv::combo? ?a ?b ?c ?d))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -165,7 +165,7 @@
 ;; c=i%7 ⇒ 71 of 200.
 (:wat::rete::defrule :wmv::mixed-type
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::string::length ?s) ?c))]
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::string::length ?s) ?c))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -177,7 +177,7 @@
 ;; a correctness one. a=i%11 ⇒ 73 of 200.
 (:wat::rete::defrule :wmv::unused-binds
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::i64::= 0 (:wat::rete::i64::mod ?a 3 :undefined 1)))]
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where (:wat::rete::i64::= 0 (:wat::rete::i64::mod ?a 3 :undefined 1)))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -187,7 +187,7 @@
 ;; exactly why every row prints its full set, not just its count.)
 (:wat::rete::defrule :wmv::five-fn
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wmv::pent? ?a ?b ?c ?d ?e))]
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where (:wmv::pent? ?a ?b ?c ?d ?e))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -196,7 +196,7 @@
 ;; — composed with `and` in one predicate. b=i%13, c=i%7, d=i%5, e=i%3 ⇒ 37 of 200.
 (:wat::rete::defrule :wmv::chain-arith
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where
+  [(:wmv::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e) (?s :- :s)) (:wat::rete::where
                  (:wat::rete::core::and
                    (:wat::rete::i64::< ?b ?c)
                    (:wat::rete::i64::> (:wat::rete::i64::+ ?c ?d :undefined 0) (:wat::rete::i64::* ?e 3 :undefined 1000000))))]
@@ -205,7 +205,7 @@
 
 (:wat::rete::defquery :wmv::q-Hit
   :params []
-  :when [(?fact <- :wmv::Hit)])
+  :when [(?fact :- :wmv::Hit)])
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.

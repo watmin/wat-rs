@@ -31,44 +31,44 @@
 (:wat::core::defrecord :d2p::Hit2 [k <- :wat::core::i64])
 
 (:wat::rete::defrule :d2p::derive-a
-  :when [(:d2p::M (?k <- :k))]
+  :when [(:d2p::M (?k :- :k))]
   :then [(:d2p::A ?k (:wat::rete::i64::+ ?k 1 :undefined 0))])
 
 (:wat::rete::defrule :d2p::derive-b
-  :when [(:d2p::M (?k <- :k))]
+  :when [(:d2p::M (?k :- :k))]
   :then [(:d2p::B ?k)])
 
 (:wat::rete::defrule :d2p::derive-c
-  :when [(:d2p::M (?k <- :k))]
+  :when [(:d2p::M (?k :- :k))]
   :then [(:d2p::C ?k)])
 
 (:wat::rete::defrule :d2p::derive-d
-  :when [(:d2p::M (?k <- :k))]
+  :when [(:d2p::M (?k :- :k))]
   :then [(:d2p::D ?k)])
 
 (:wat::rete::defrule :d2p::chain
-  :when [(:d2p::A (?k <- :k) (?v <- :v) (:wat::rete::i64::> ?v 0))
-         (:d2p::B (?k <- :k))
-         (:d2p::C (?k <- :k))]
+  :when [(:d2p::A (?k :- :k) (?v :- :v) (:wat::rete::i64::> ?v 0))
+         (:d2p::B (?k :- :k))
+         (:d2p::C (?k :- :k))]
   :then [(:d2p::Hit ?k)])
 
 (:wat::rete::defrule :d2p::chain2
-  :when [(:d2p::A (?k <- :k) (?v <- :v) (:wat::rete::i64::> ?v 0))
-         (:d2p::B (?k <- :k))
-         (:d2p::D (?k <- :k))]
+  :when [(:d2p::A (?k :- :k) (?v :- :v) (:wat::rete::i64::> ?v 0))
+         (:d2p::B (?k :- :k))
+         (:d2p::D (?k :- :k))]
   :then [(:d2p::Hit2 ?k)])
 
 ;; The FACT observable — deduped by `seen_insert`, so blind to multiplicity by construction.
-(:wat::rete::defquery :d2p::q-hit  :params [] :when [(:d2p::Hit  (?k <- :k))])
-(:wat::rete::defquery :d2p::q-hit2 :params [] :when [(:d2p::Hit2 (?k <- :k))])
+(:wat::rete::defquery :d2p::q-hit  :params [] :when [(:d2p::Hit  (?k :- :k))])
+(:wat::rete::defquery :d2p::q-hit2 :params [] :when [(:d2p::Hit2 (?k :- :k))])
 
 ;; ★ The TOKEN observable — this `:when` mirrors `chain`'s own join chain, so a doubled right
 ;; bucket yields a doubled row count here even though the fact set is unchanged.
 (:wat::rete::defquery :d2p::q-chain
   :params []
-  :when [(:d2p::A (?k <- :k) (?v <- :v) (:wat::rete::i64::> ?v 0))
-         (:d2p::B (?k <- :k))
-         (:d2p::C (?k <- :k))])
+  :when [(:d2p::A (?k :- :k) (?v :- :v) (:wat::rete::i64::> ?v 0))
+         (:d2p::B (?k :- :k))
+         (:d2p::C (?k :- :k))])
 
 (:wat::core::defn :d2p::ins-a [s <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s (:d2p::A :k k :v (:wat::i64::+ k 1))) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert a: ceiling")]))

@@ -13,25 +13,25 @@
 ;; (row 13: `:else` and a call-test take the same shape).
 
 (:wat::rete::defrule :fmt::cond-claim
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/cond"))]
+  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h :- :id) (?n :- :name) (:wat::rete::string::= ?n "wat.core/cond"))]
   :then [(:wat::fmt::Claim :form ?p)])
 
 ;; one CLAUSE per line. Child 0 is the head; every child from index 1 on
 ;; is a clause.
 (:wat::rete::defrule :fmt::cond-clause-per-line
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/cond"))
-         (:wat::grep::Node  (?cl <- :id) (?p <- :parent) (?ci <- :index) (:wat::rete::i64::> ?ci 0))]
+  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h :- :id) (?n :- :name) (:wat::rete::string::= ?n "wat.core/cond"))
+         (:wat::grep::Node  (?cl :- :id) (?p :- :parent) (?ci :- :index) (:wat::rete::i64::> ?ci 0))]
   :then [(:wat::fmt::Break :id ?cl :kind (:wat::fmt::BreakKind.Block {}))])
 
 ;; Claim the clause (body rides; R11 does not explode a call-test) and
 ;; join every clause into one table group so the emitter pads tests to
 ;; the widest, subject to its existing fit test.
 (:wat::rete::defrule :fmt::cond-clause-table
-  :when [(:wat::grep::Node  (?h <- :id) (?p <- :parent) (?i <- :index) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h <- :id) (?n <- :name) (:wat::rete::string::= ?n "wat.core/cond"))
-         (:wat::grep::Node  (?first <- :id) (?p <- :parent) (?fi <- :index) (:wat::rete::i64::= ?fi 1))
-         (:wat::grep::Node  (?cl <- :id) (?p <- :parent) (?ci <- :index) (:wat::rete::i64::> ?ci 0))]
+  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
+         (:wat::grep::Named (?h :- :id) (?n :- :name) (:wat::rete::string::= ?n "wat.core/cond"))
+         (:wat::grep::Node  (?first :- :id) (?p :- :parent) (?fi :- :index) (:wat::rete::i64::= ?fi 1))
+         (:wat::grep::Node  (?cl :- :id) (?p :- :parent) (?ci :- :index) (:wat::rete::i64::> ?ci 0))]
   :then [(:wat::fmt::Claim :form ?cl)
          (:wat::fmt::TableRow :form ?cl :group ?first)])

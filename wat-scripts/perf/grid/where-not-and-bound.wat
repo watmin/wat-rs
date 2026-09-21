@@ -14,26 +14,26 @@
 (:wat::rete::defrule :wnab::not-match-temp
   :when [(:wat::rete::not
            (:wat::rete::and
-             (:wnab::Temp (?c <- :c))
-             (:wnab::Cold (?c <- :c))))]
+             (:wnab::Temp (?c :- :c))
+             (:wnab::Cold (?c :- :c))))]
   :then [(:wnab::Hit :k 1)])
 
 (:wat::rete::defrule :wnab::prior-not-match
-  :when [(:wnab::Wind (?l <- :loc))
+  :when [(:wnab::Wind (?l :- :loc))
          (:wat::rete::not
            (:wat::rete::and
-             (:wnab::Temp (?l <- :loc) (?c <- :c))
-             (:wnab::Cold (?c <- :c))))]
+             (:wnab::Temp (?l :- :loc) (?c :- :c))
+             (:wnab::Cold (?c :- :c))))]
   :then [(:wnab::At :loc ?l)])
 
 (:wat::rete::defquery :wnab::q-Hit
   :params []
-  :when [(?fact <- :wnab::Hit)])
+  :when [(?fact :- :wnab::Hit)])
 
 
 (:wat::rete::defquery :wnab::q-At
   :params []
-  :when [(?fact <- :wnab::At)])
+  :when [(?fact :- :wnab::At)])
 
 
 (:wat::core::defn :wnab::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

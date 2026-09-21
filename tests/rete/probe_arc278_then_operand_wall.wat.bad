@@ -19,7 +19,7 @@
 (:wat::core::defrecord :nf::Out [a <- :wat::core::i64])
 
 (:wat::rete::defrule :nf::compute
-  :when  [(:nf::In (?a <- :a))]
+  :when  [(:nf::In (?a :- :a))]
   :then  [(:nf::Out bogus-bare-symbol)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)

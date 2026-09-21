@@ -27,18 +27,18 @@
 (:wat::core::defrecord :cnb::Extra   [n <- :wat::core::i64])
 
 (:wat::rete::defrule :cnb::plain
-  :when [(:cnb::Station (?loc <- :location))
-         (?n <- (:wat::rete::acc::count) :from (:cnb::Reading (?loc <- :location)))]
+  :when [(:cnb::Station (?loc :- :location))
+         (?n :- (:wat::rete::acc::count) :from (:cnb::Reading (?loc :- :location)))]
   :then [(:cnb::Plain :n ?n)])
 
 ;; identical, plus ONE bind that nothing consumes
 (:wat::rete::defrule :cnb::with-unused-bind
-  :when [(:cnb::Station (?loc <- :location))
-         (?n <- (:wat::rete::acc::count) :from (:cnb::Reading (?loc <- :location) (?v <- :value)))]
+  :when [(:cnb::Station (?loc :- :location))
+         (?n :- (:wat::rete::acc::count) :from (:cnb::Reading (?loc :- :location) (?v :- :value)))]
   :then [(:cnb::Extra :n ?n)])
 
-(:wat::rete::defquery :cnb::q-plain :params [] :when [(?f <- :cnb::Plain)])
-(:wat::rete::defquery :cnb::q-extra :params [] :when [(?f <- :cnb::Extra)])
+(:wat::rete::defquery :cnb::q-plain :params [] :when [(?f :- :cnb::Plain)])
+(:wat::rete::defquery :cnb::q-extra :params [] :when [(?f :- :cnb::Extra)])
 
 (:wat::core::defn :cnb::ins [s <- :wat::rete::Session  f <- :cnb::Reading] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s f) [:wat::rete::InsertOutcome.Inserted {:session __x} __x]

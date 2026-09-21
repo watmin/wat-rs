@@ -26,10 +26,10 @@
   (:fm::N :k (:wat::rete::i64::+ (:fm::N/k n) 1 :undefined 0)))
 
 (:wat::rete::defrule :fm::grow
-  :when [(?n <- :fm::N)]
+  :when [(?n :- :fm::N)]
   :then [(:fm::bump ?n)])
 
-(:wat::rete::defquery :fm::q :params [] :when [(?fact <- :fm::N)])
+(:wat::rete::defquery :fm::q :params [] :when [(?fact :- :fm::N)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The

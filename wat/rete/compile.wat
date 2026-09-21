@@ -874,8 +874,16 @@
             (:wat::core::range 0 n)))
         (:wat::core::PersistentVector)))))
 
-;; cond-bind-keys — `?var` names this condition BINDS (`(?v <- :field)`,
-;; fact-bind `(?p <- :ns::Type …)`, accum result, `:from` inner, `:exists`
+;; bind-arrow? — wat-side of `is_binder_marker`: the node is `:-` (keyword or
+;; symbol). Rete field/fact/accum bindings use this spelling only.
+(:wat::core::defn :wat::rete::bind-arrow? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::let [k (:wat::core::ast-kind node)]
+    (:wat::core::if (:wat::core::if (:wat::core::= k "keyword") true (:wat::core::= k "symbol"))
+      (:wat::core::= (:wat::core::ast-name node) ":-")
+      false)))
+
+;; cond-bind-keys — `?var` names this condition BINDS (`(?v :- :field)`,
+;; fact-bind `(?p :- :ns::Type …)`, accum result, `:from` inner, `:exists`
 ;; inner). `:not` / `:where` bind nothing.
 (:wat::core::defn :wat::rete::cond-bind-keys
   [cond <- :wat::WatAST]
@@ -912,17 +920,10 @@
                 (:wat::core::if
                   (:wat::core::if (:wat::string::starts-with? hnm "?")
                     (:wat::core::if (:wat::core::= n 3)
-                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind
-                                                      (:wat::core::Option/expect
-                                                        (:wat::core::get ch 1)
-                                                        "cond-bind-keys: bind arrow"))
-                                                    "symbol")
-                        (:wat::core::= (:wat::core::ast-name
-                                        (:wat::core::Option/expect
-                                          (:wat::core::get ch 1)
-                                          "cond-bind-keys: bind arrow"))
-                                      "<-")
-                        false)
+                      (:wat::rete::bind-arrow?
+                        (:wat::core::Option/expect
+                          (:wat::core::get ch 1)
+                          "cond-bind-keys: bind arrow"))
                       false)
                     false)
                   (:wat::vector::conj (:wat::core::PersistentVector) hnm)
@@ -980,7 +981,7 @@
                      (:wat::core::range 1 n)))))
               (:wat::core::PersistentVector))))))))
 
-;; cond-is-fact-bind — `(?p <- :ns::Type …)` (Clara `[?p <- Type]`). Type keyword has `::`.
+;; cond-is-fact-bind — `(?p :- :ns::Type …)` (Clara `[?p <- Type]`). Type keyword has `::`.
 (:wat::core::defn :wat::rete::cond-is-fact-bind
   [cond <- :wat::WatAST]
   -> :wat::core::bool
@@ -994,17 +995,10 @@
             (:wat::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
             false)
           (:wat::core::if
-            (:wat::core::if (:wat::core::= (:wat::core::ast-kind
-                                            (:wat::core::Option/expect
-                                              (:wat::core::get ch 1)
-                                              "cond-is-fact-bind: arrow"))
-                                          "symbol")
-              (:wat::core::= (:wat::core::ast-name
-                               (:wat::core::Option/expect
-                                 (:wat::core::get ch 1)
-                                 "cond-is-fact-bind: arrow"))
-                             "<-")
-              false)
+            (:wat::rete::bind-arrow?
+              (:wat::core::Option/expect
+                (:wat::core::get ch 1)
+                "cond-is-fact-bind: arrow"))
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind
                                             (:wat::core::Option/expect
                                               (:wat::core::get ch 2)

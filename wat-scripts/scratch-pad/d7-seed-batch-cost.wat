@@ -35,11 +35,11 @@
 ;; Both conditions are BIND-ONLY over an undiscriminated class, which is exactly
 ;; the shape `undiscriminated_leaves` + `bind_only` admits to the occupancy batch.
 (:wat::rete::defrule :d7p::r
-  :when  [(:d7p::Row   (?k <- :k))
-          (:d7p::Other (?k <- :k))]
+  :when  [(:d7p::Row   (?k :- :k))
+          (:d7p::Other (?k :- :k))]
   :then  [(:d7p::Hit ?k)])
 
-(:wat::rete::defquery :d7p::q :params [] :when [(?fact <- :d7p::Hit)])
+(:wat::rete::defquery :d7p::q :params [] :when [(?fact :- :d7p::Hit)])
 
 (:wat::core::defn :d7p::rows
   [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])

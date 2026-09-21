@@ -25,7 +25,7 @@ fn world(acc: &str, gate: &str) -> String {
          \n\
          (:wat::rete::defrule :w::busy\n\
            :when\n\
-           [(:w::Station (?loc <- :location))\n\
+           [(:w::Station (?loc :- :location))\n\
             {acc}\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
@@ -64,8 +64,8 @@ fn busy_count(acc: &str, gate: &str, readings: &[(&str, i64)]) -> Result<i64, St
     }
 }
 
-const COUNT: &str = "(?n <- (:wat::rete::acc::count) :from (:w::Reading (?loc <- :location)))";
-const SUM: &str = "(?n <- (:wat::rete::acc::sum ?v) :from (:w::Reading (?loc <- :location) (?v <- :value)))";
+const COUNT: &str = "(?n :- (:wat::rete::acc::count) :from (:w::Reading (?loc :- :location)))";
+const SUM: &str = "(?n :- (:wat::rete::acc::sum ?v) :from (:w::Reading (?loc :- :location) (?v :- :value)))";
 
 /// 1 — count binds the EXACT aggregate: 3 Oslo Readings → ?n = 3 (gate `= 3` fires; `= 5` does not).
 #[test]

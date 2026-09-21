@@ -58,7 +58,7 @@
 
 (:wat::rete::defquery :nsh::q-Out
   :params []
-  :when [(?fact <- :nsh::Out)])
+  :when [(?fact :- :nsh::Out)])
 
 
 ;; build-rule i n — the i-th rule of the N-rule set:
@@ -79,8 +79,8 @@
 ;; point were ever reached the token simply fails every rule's `where` (i, the compared literal, is
 ;; always in [0, n) — never -1) rather than silently landing on a plausible wrong match.
 (:wat::core::defn :nsh::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k <- :k)))
-                    b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))
+  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k :- :k)))
+                    b-c     (:wat::core::quasiquote (:nsh::B (?k :- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::rete::i64::= (:wat::core::unquote i)

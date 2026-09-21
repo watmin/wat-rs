@@ -7,11 +7,11 @@
 ;; WHERE FIRST — the reported defect.
 (:wat::rete::defrule :wb::where-first
   :when
-  [(:wb::A (?n <- :n) (:wat::rete::i64::> ?n 5))
-   (:wb::B (?m <- :m))]
+  [(:wb::A (?n :- :n) (:wat::rete::i64::> ?n 5))
+   (:wb::B (?m :- :m))]
   :then [(:wb::Out :n ?n)])
 
-(:wat::rete::defquery :wb::q :params [] :when [(?fact <- :wb::Out)])
+(:wat::rete::defquery :wb::q :params [] :when [(?fact :- :wb::Out)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

@@ -7,14 +7,14 @@
 
 (:wat::rete::defrule :w::watched
   :when
-  [(:w::Station (?loc <- :location))
-   (:wat::rete::exists (:w::Reading (?loc <- :location)))]
+  [(:w::Station (?loc :- :location))
+   (:wat::rete::exists (:w::Reading (?loc :- :location)))]
   :then
   [(:w::Watched :location ?loc)])
 
 (:wat::rete::defquery :w::q-Watched
   :params []
-  :when [(?fact <- :w::Watched)])
+  :when [(?fact :- :w::Watched)])
 
 ;; ── THE MULTIPLICITY INSTRUMENT — a query over the RULE's own shape ──────────────────────────
 ;; `q-Watched` above counts DERIVED FACTS, and that is exactly what cannot see multiplicity:
@@ -30,8 +30,8 @@
 (:wat::rete::defquery :w::q-watched-tokens
   :params []
   :when
-  [(:w::Station (?loc <- :location))
-   (:wat::rete::exists (:w::Reading (?loc <- :location)))])
+  [(:w::Station (?loc :- :location))
+   (:wat::rete::exists (:w::Reading (?loc :- :location)))])
 
 ;; ── THE INSTRUMENT'S OWN CONTROL — proves it can count ABOVE one ─────────────────────────────
 ;; Identical to `q-watched-tokens` in every way but ONE: the `exists` wrapper is gone, leaving a
@@ -43,8 +43,8 @@
 (:wat::rete::defquery :w::q-watched-join
   :params []
   :when
-  [(:w::Station (?loc <- :location))
-   (:w::Reading (?loc <- :location))])
+  [(:w::Station (?loc :- :location))
+   (:w::Reading (?loc :- :location))])
 
 
 (:wat::core::defn :test::compile-watched [] -> :wat::rete::Session

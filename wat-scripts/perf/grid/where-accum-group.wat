@@ -10,18 +10,18 @@
 (:wat::core::defrecord :wag::Busy [loc <- :wat::core::String n <- :wat::core::i64])
 
 (:wat::rete::defrule :wag::count-by-loc
-  :when [(?n <- (:wat::rete::acc::count) :from (:wag::Temp (?loc <- :loc)))]
+  :when [(?n :- (:wat::rete::acc::count) :from (:wag::Temp (?loc :- :loc)))]
   :then [(:wag::Busy :loc ?loc :n ?n)])
 
 (:wat::rete::defrule :wag::acc-first-wind
-  :when [(?n <- (:wat::rete::acc::count) :from (:wag::Temp (?loc <- :loc)))
-         (:wag::Wind (?loc <- :loc) (?w <- :kph)
+  :when [(?n :- (:wat::rete::acc::count) :from (:wag::Temp (?loc :- :loc)))
+         (:wag::Wind (?loc :- :loc) (?w :- :kph)
            (:wat::rete::i64::> ?w 10))]
   :then [(:wag::Busy :loc ?loc :n ?n)])
 
 (:wat::rete::defquery :wag::q-Busy
   :params []
-  :when [(?fact <- :wag::Busy)])
+  :when [(?fact :- :wag::Busy)])
 
 
 (:wat::core::defn :wag::n-busy [s <- :wat::rete::Session] -> :wat::core::i64

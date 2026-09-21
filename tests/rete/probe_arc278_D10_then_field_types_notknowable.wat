@@ -25,7 +25,7 @@
 ;; nk1 — `cond` in value position, filling an i64 field.
 (:wat::core::defrecord :dnk::Nk1 [n <- :wat::core::i64])
 (:wat::rete::defrule :dnk::nk1
-  :when [(:dnk::In (?s <- :s))]
+  :when [(:dnk::In (?s :- :s))]
   :then [(:dnk::Nk1 :n (:wat::rete::core::cond
                          ((:wat::rete::string::= ?s "seed") 11)
                          (:else 99)))])
@@ -34,29 +34,29 @@
 (:wat::core::defrecord :dnk::Holder [p <- :dnk::Pair]) 
 (:wat::core::defrecord :dnk::Nk2    [p <- :dnk::Pair])
 (:wat::rete::defrule :dnk::nk2
-  :when [(:dnk::Holder (?p <- :p))]
+  :when [(:dnk::Holder (?p :- :p))]
   :then [(:dnk::Nk2 :p ?p)])
 
 ;; nk3 — a nested constructor as the value of a record-typed field.
 (:wat::core::defrecord :dnk::Nk3 [p <- :dnk::Pair])
 (:wat::rete::defrule :dnk::nk3
-  :when [(:dnk::In (?s <- :s))]
+  :when [(:dnk::In (?s :- :s))]
   :then [(:dnk::Nk3 :p (:dnk::Pair :a ?s :b "nested"))])
 
 ;; nk4 — a two-stage derivation: nk4b's `?m` is bound from the fact nk4a derived.
 (:wat::core::defrecord :dnk::Nk4a [m <- :wat::core::i64])
 (:wat::core::defrecord :dnk::Nk4b [m <- :wat::core::i64])
 (:wat::rete::defrule :dnk::nk4a
-  :when [(:dnk::In (?k <- :k))]
+  :when [(:dnk::In (?k :- :k))]
   :then [(:dnk::Nk4a :m ?k)])
 (:wat::rete::defrule :dnk::nk4b
-  :when [(:dnk::Nk4a (?m <- :m))]
+  :when [(:dnk::Nk4a (?m :- :m))]
   :then [(:dnk::Nk4b :m ?m)])
 
-(:wat::rete::defquery :dnk::q1 :params [] :when [(?f <- :dnk::Nk1)])
-(:wat::rete::defquery :dnk::q2 :params [] :when [(?f <- :dnk::Nk2)])
-(:wat::rete::defquery :dnk::q3 :params [] :when [(?f <- :dnk::Nk3)])
-(:wat::rete::defquery :dnk::q4 :params [] :when [(?f <- :dnk::Nk4b)])
+(:wat::rete::defquery :dnk::q1 :params [] :when [(?f :- :dnk::Nk1)])
+(:wat::rete::defquery :dnk::q2 :params [] :when [(?f :- :dnk::Nk2)])
+(:wat::rete::defquery :dnk::q3 :params [] :when [(?f :- :dnk::Nk3)])
+(:wat::rete::defquery :dnk::q4 :params [] :when [(?f :- :dnk::Nk4b)])
 
 (:wat::core::defn :dnk::fired [] -> :wat::rete::Session
   (:wat::core::let

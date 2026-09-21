@@ -49,7 +49,7 @@
 (:wat::core::defrecord :tr::Box [k <- :wat::core::i64  s <- :wat::core::String])
 (:wat::core::defrecord :tr::Good [n <- :wat::core::i64])
 (:wat::rete::defrule :tr::ok
-  :when [(:tr::Box (?k <- :k))]
+  :when [(:tr::Box (?k :- :k))]
   :then [(:tr::Good :n ?k)])                    ;; i64 into i64 — the CONTROL
 
 ;; THE SUBJECT, as it stood, now a rule-compile refusal — see
@@ -62,7 +62,7 @@
 ;;   #wat.rete/RhsFieldTypeMismatch — "defrule `tr::bad`: `:then` insert of `:tr::Bad` fills field
 ;;   `:n`, declared `:wat::core::i64` (rete `i64`), with operand `?s`, whose type is `string`"
 
-(:wat::rete::defquery :tr::qg :params [] :when [(?f <- :tr::Good)])
+(:wat::rete::defquery :tr::qg :params [] :when [(?f :- :tr::Good)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

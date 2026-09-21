@@ -33,7 +33,7 @@
 (:wat::core::defrecord :fsn::Outer [k <- :wat::core::i64  inner <- :fsn::Inner])
 
 (:wat::rete::defrule :fsn::r
-  :when [(:fsn::Src (?k <- :k))]
+  :when [(:fsn::Src (?k :- :k))]
   :then [(:fsn::Outer :k ?k :inner (:fsn::Inner :nope ?k))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -5,8 +5,8 @@
 //! `:weather::ColdAndWindy` record, stored in production-memory.
 //! Live mouths: `compile-all`, `insert`, `fire-rules`, `query`.
 //!
-//!   :when  [(:weather::Temperature (?loc <- :location) (?t <- :celsius))
-//!           (:weather::WindSpeed    (?loc <- :location) (?w <- :kph))]
+//!   :when  [(:weather::Temperature (?loc :- :location) (?t :- :celsius))
+//!           (:weather::WindSpeed    (?loc :- :location) (?w :- :kph))]
 //!   :then  [(:weather::ColdAndWindy :location ?loc)]
 //!
 //! - MATCH (same loc): the join yields one Token → the RHS fires → ONE ColdAndWindy("Oslo") in production-memory.

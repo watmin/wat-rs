@@ -4,7 +4,7 @@
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (?v <- :v))
+  [(:probe::In (?k :- :k) (?v :- :v))
    (:wat::rete::where
      (:wat::rete::i64::=
        (:wat::rete::core::reduce
@@ -15,7 +15,7 @@
   :then
   [(:probe::Out :k ?k)])
 
-(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+(:wat::rete::defquery :probe::q :params [] :when [(?fact :- :probe::Out)])
 
 (:wat::core::defn :probe::run [] -> :wat::core::i64
   (:wat::core::let

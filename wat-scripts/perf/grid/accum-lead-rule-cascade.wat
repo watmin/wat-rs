@@ -48,13 +48,13 @@
 
 (:wat::rete::defquery :alrc::q-Busy
   :params []
-  :when [(?fact <- :alrc::Busy)])
+  :when [(?fact :- :alrc::Busy)])
 
 
 ;; Link(k) :- Link(k-1). Generated per depth; Busy never mentions Link.
 (:wat::core::defn :alrc::build-link [k <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
-                    c (:wat::core::quasiquote (:alrc::Link (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
+                    c (:wat::core::quasiquote (:alrc::Link (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:alrc::Link (:wat::core::unquote k)))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
       :lhs (:wat::core::PersistentVector c)
@@ -64,8 +64,8 @@
 (:wat::core::defn :alrc::busy-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "busy"
     :lhs (:wat::core::PersistentVector
-      (:wat::core::quote (?n <- (:wat::rete::acc::count) :from (:alrc::Reading)))
-      (:wat::core::quote (:alrc::Anchor (?k <- :k))))
+      (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:alrc::Reading)))
+      (:wat::core::quote (:alrc::Anchor (?k :- :k))))
     :rhs (:wat::core::PersistentVector
       (:wat::core::quote (:alrc::Busy ?k ?n)))))
 

@@ -19,7 +19,7 @@
 
 (:wat::rete::defrule :probe::score-rule
   :when
-  [(:probe::Item (?tier <- :tier))
+  [(:probe::Item (?tier :- :tier))
    (:wat::rete::where
      (:wat::rete::f64::>
        (:wat::rete::core::cond
@@ -32,7 +32,7 @@
 
 (:wat::rete::defquery :probe::q-Hit
   :params []
-  :when [(?fact <- :probe::Hit)])
+  :when [(?fact :- :probe::Hit)])
 
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

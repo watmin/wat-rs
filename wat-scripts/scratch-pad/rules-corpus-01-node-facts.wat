@@ -56,14 +56,14 @@
 
 ;; RULE A — the arrow. Joins Node x Named on id: a node with NO name never reaches this rule.
 (:wat::rete::defrule :fixr::arrow
-  :when [(:fixr::Node  (?id <- :id) (?k <- :kind) (:wat::rete::string::= ?k "symbol"))
-         (:fixr::Named (?id <- :id) (?n <- :name) (:wat::rete::string::= ?n "<-"))]
+  :when [(:fixr::Node  (?id :- :id) (?k :- :kind) (:wat::rete::string::= ?k "symbol"))
+         (:fixr::Named (?id :- :id) (?n :- :name) (:wat::rete::string::= ?n "<-"))]
   :then [(:fixr::IsArrow :id ?id)])
 
 ;; RULE B — the ::-namespaced call head / reference keyword.
 (:wat::rete::defrule :fixr::head-kw
-  :when [(:fixr::Node  (?id <- :id) (?k <- :kind) (:wat::rete::string::= ?k "keyword"))
-         (:fixr::Named (?id <- :id) (?n <- :name) (:wat::rete::string::contains? ?n "::"))]
+  :when [(:fixr::Node  (?id :- :id) (?k :- :kind) (:wat::rete::string::= ?k "keyword"))
+         (:fixr::Named (?id :- :id) (?n :- :name) (:wat::rete::string::contains? ?n "::"))]
   :then [(:fixr::IsHeadKw :id ?id)])
 
 ;; RULE C — ★ THE ONE THAT REPLACES `prev-arrow?`.
@@ -71,9 +71,9 @@
 ;; (same parent, index - 1), never as carried state. The arrow's own verdict (IsArrow) is the
 ;; join partner, so this rule stands on RULE A's conclusion — the forward chain.
 (:wat::rete::defrule :fixr::type-pos
-  :when [(:fixr::Node    (?id <- :id)  (?p <- :parent) (?i <- :index))
-         (:fixr::Node    (?aid <- :id) (?p <- :parent) (?ai <- :index))
-         (:fixr::IsArrow (?aid <- :id))
+  :when [(:fixr::Node    (?id :- :id)  (?p :- :parent) (?i :- :index))
+         (:fixr::Node    (?aid :- :id) (?p :- :parent) (?ai :- :index))
+         (:fixr::IsArrow (?aid :- :id))
          ;; ★ TOTALITY IS STRUCTURAL: `i64::+` can overflow, so the rete spelling is 4-ary —
          ;; `(+ a b :undefined <fallback>)`. The literal keyword `:undefined` is mandatory and the
          ;; caller MUST name the value the undefined case yields. There is no jump-table opcode for
@@ -83,17 +83,17 @@
 
 (:wat::rete::defquery :fixr::q-IsArrow
   :params []
-  :when [(?fact <- :fixr::IsArrow)])
+  :when [(?fact :- :fixr::IsArrow)])
 
 
 (:wat::rete::defquery :fixr::q-IsHeadKw
   :params []
-  :when [(?fact <- :fixr::IsHeadKw)])
+  :when [(?fact :- :fixr::IsHeadKw)])
 
 
 (:wat::rete::defquery :fixr::q-IsTypePos
   :params []
-  :when [(?fact <- :fixr::IsTypePos)])
+  :when [(?fact :- :fixr::IsTypePos)])
 
 
 ;; ─── the driver — built as a DIFFERENTIAL, because a bare pass proves nothing ─

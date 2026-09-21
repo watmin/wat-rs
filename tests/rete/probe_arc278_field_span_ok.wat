@@ -11,10 +11,10 @@
 (:wat::core::defrecord :fso::Outer [k <- :wat::core::i64  inner <- :fso::Inner])
 
 (:wat::rete::defrule :fso::r
-  :when [(:fso::Src (?k <- :k) (?b <- :k) (:wat::rete::i64::= :k 5))]
+  :when [(:fso::Src (?k :- :k) (?b :- :k) (:wat::rete::i64::= :k 5))]
   :then [(:fso::Outer :k ?k :inner (:fso::Inner :x ?b))])
 
-(:wat::rete::defquery :fso::q :params [] :when [(?f <- :fso::Outer)])
+(:wat::rete::defquery :fso::q :params [] :when [(?f :- :fso::Outer)])
 
 (:wat::core::defn :fso::fire [] -> :wat::core::i64
   (:wat::core::let

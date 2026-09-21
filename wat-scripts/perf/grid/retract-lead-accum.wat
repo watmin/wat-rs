@@ -73,14 +73,14 @@
 
 (:wat::rete::defquery :rla::q-Busy
   :params []
-  :when [(?fact <- :rla::Busy)])
+  :when [(?fact :- :rla::Busy)])
 
 
 ;; Link(k) :- Link(k-1). Generated per depth; Busy never mentions Link. Same as
 ;; accum-lead-rule-cascade's build-link.
 (:wat::core::defn :rla::build-link [k <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
-                    c (:wat::core::quasiquote (:rla::Link (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
+                    c (:wat::core::quasiquote (:rla::Link (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:rla::Link (:wat::core::unquote k)))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
       :lhs (:wat::core::PersistentVector c)
@@ -91,8 +91,8 @@
 (:wat::core::defn :rla::busy-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "busy"
     :lhs (:wat::core::PersistentVector
-      (:wat::core::quote (?n <- (:wat::rete::acc::count) :from (:rla::Reading)))
-      (:wat::core::quote (:rla::Anchor (?k <- :k))))
+      (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:rla::Reading)))
+      (:wat::core::quote (:rla::Anchor (?k :- :k))))
     :rhs (:wat::core::PersistentVector
       (:wat::core::quote (:rla::Busy ?k ?n)))))
 

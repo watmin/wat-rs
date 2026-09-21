@@ -12,12 +12,12 @@
 
 ;; derive Bad for k=2 only
 (:wat::rete::defrule :n::mark-bad
-  :when [(:n::A (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
+  :when [(:n::A (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:n::Bad :k ?k)])
 
 ;; Ok = A with NO Bad (negation over a DERIVED fact — needs stratification)
 (:wat::rete::defrule :n::ok
-  :when [(:n::A (?k <- :k)) (:wat::rete::not (:n::Bad (?k <- :k)))]
+  :when [(:n::A (?k :- :k)) (:wat::rete::not (:n::Bad (?k :- :k)))]
   :then [(:n::Ok :k ?k)])
 
 ;; ── 3-STRATUM negation chain (the harder case: facts must thread across TWO negation layers) ──
@@ -30,38 +30,38 @@
 (:wat::core::defrecord :n3::Safe [k <- :wat::core::i64])
 
 (:wat::rete::defrule :n3::mark-bad
-  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
+  :when [(:n3::A (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:n3::Bad :k ?k)])
 (:wat::rete::defrule :n3::mark-warn
-  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Bad (?k <- :k)))]
+  :when [(:n3::A (?k :- :k)) (:wat::rete::not (:n3::Bad (?k :- :k)))]
   :then [(:n3::Warn :k ?k)])
 (:wat::rete::defrule :n3::mark-safe
-  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Warn (?k <- :k)))]
+  :when [(:n3::A (?k :- :k)) (:wat::rete::not (:n3::Warn (?k :- :k)))]
   :then [(:n3::Safe :k ?k)])
 
 (:wat::rete::defquery :n::q-Bad
   :params []
-  :when [(?fact <- :n::Bad)])
+  :when [(?fact :- :n::Bad)])
 
 
 (:wat::rete::defquery :n::q-Ok
   :params []
-  :when [(?fact <- :n::Ok)])
+  :when [(?fact :- :n::Ok)])
 
 
 (:wat::rete::defquery :n3::q-Bad
   :params []
-  :when [(?fact <- :n3::Bad)])
+  :when [(?fact :- :n3::Bad)])
 
 
 (:wat::rete::defquery :n3::q-Warn
   :params []
-  :when [(?fact <- :n3::Warn)])
+  :when [(?fact :- :n3::Warn)])
 
 
 (:wat::rete::defquery :n3::q-Safe
   :params []
-  :when [(?fact <- :n3::Safe)])
+  :when [(?fact :- :n3::Safe)])
 
 
 ;; ── drivers (parameterized by the fire verb — the ONLY thing the differential varies) ──

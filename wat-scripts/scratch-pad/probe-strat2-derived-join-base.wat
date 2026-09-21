@@ -38,44 +38,44 @@
 ;; SUBJECT — stratum 2: derived THROUGH a negation. `:z::Bad` is never seeded, so the
 ;; negation is satisfied and `S` must (and does) derive.
 (:wat::rete::defrule :z::settled-neg
-  :when [(:z::A (?c <- :c))
-         (:wat::rete::not (:z::Bad (?c <- :c)))]
+  :when [(:z::A (?c :- :c))
+         (:wat::rete::not (:z::Bad (?c :- :c)))]
   :then [(:z::S :c ?c)])
 
 ;; CONTROL — stratum 1: the same conclusion with no negation in its path.
 (:wat::core::defrecord :z::S2  [c <- :wat::core::String])
 (:wat::core::defrecord :z::Out2 [c <- :wat::core::String  t <- :wat::core::String])
 (:wat::rete::defrule :z::settled-plain
-  :when [(:z::A (?c <- :c))]
+  :when [(:z::A (?c :- :c))]
   :then [(:z::S2 :c ?c)])
 
 ;; The IDENTICAL downstream join, once per arm.
 (:wat::rete::defrule :z::out-neg
-  :when [(:z::S (?c <- :c)) (:z::R (?c <- :c) (?t <- :t))]
+  :when [(:z::S (?c :- :c)) (:z::R (?c :- :c) (?t :- :t))]
   :then [(:z::Out :c ?c :t ?t)])
 
 (:wat::rete::defrule :z::out-plain
-  :when [(:z::S2 (?c <- :c)) (:z::R (?c <- :c) (?t <- :t))]
+  :when [(:z::S2 (?c :- :c)) (:z::R (?c :- :c) (?t :- :t))]
   :then [(:z::Out2 :c ?c :t ?t)])
 
 (:wat::rete::defquery :z::q-S
   :params []
-  :when [(?fact <- :z::S)])
+  :when [(?fact :- :z::S)])
 
 
 (:wat::rete::defquery :z::q-S2
   :params []
-  :when [(?fact <- :z::S2)])
+  :when [(?fact :- :z::S2)])
 
 
 (:wat::rete::defquery :z::q-Out2
   :params []
-  :when [(?fact <- :z::Out2)])
+  :when [(?fact :- :z::Out2)])
 
 
 (:wat::rete::defquery :z::q-Out
   :params []
-  :when [(?fact <- :z::Out)])
+  :when [(?fact :- :z::Out)])
 
 
 (:wat::core::defn :z::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil

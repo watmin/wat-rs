@@ -19,22 +19,22 @@ const ACCUM_GATHER_WORLD: &str = "\
 \n\
 (:wat::rete::defrule :agc::count-rule\n\
   :when\n\
-  [(:agc::Group (?g <- :g))\n\
-   (?n <- (:wat::rete::acc::count) :from (:agc::Reading (?g <- :g)))]\n\
+  [(:agc::Group (?g :- :g))\n\
+   (?n :- (:wat::rete::acc::count) :from (:agc::Reading (?g :- :g)))]\n\
   :then\n\
   [(:agc::CountF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :agc::sum-rule\n\
   :when\n\
-  [(:agc::Group (?g <- :g))\n\
-   (?n <- (:wat::rete::acc::sum ?v) :from (:agc::Reading (?g <- :g) (?v <- :v)))]\n\
+  [(:agc::Group (?g :- :g))\n\
+   (?n :- (:wat::rete::acc::sum ?v) :from (:agc::Reading (?g :- :g) (?v :- :v)))]\n\
   :then\n\
   [(:agc::SumF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :agc::exists-rule\n\
   :when\n\
-  [(:agc::Group (?g <- :g))\n\
-   (:wat::rete::exists (:agc::Reading (?g <- :g)))]\n\
+  [(:agc::Group (?g :- :g))\n\
+   (:wat::rete::exists (:agc::Reading (?g :- :g)))]\n\
   :then\n\
   [(:agc::ExistsF ?g)])\n\
 \n\
@@ -119,12 +119,12 @@ fn one_rule_fold_ns(rule: &str, g: i64, w: i64) -> u64 {
 #[test]
 fn fold_cost_with_and_without_the_binding_lookup() {
     const COUNT_RULE: &str = "(:wat::rete::defrule :one::count-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?n <- (:wat::rete::acc::count) :from (:one::Reading (?g <- :g)))]\n\
+  :when [(:one::Group (?g :- :g))\n\
+         (?n :- (:wat::rete::acc::count) :from (:one::Reading (?g :- :g)))]\n\
   :then [(:one::Out ?g ?n)])";
     const SUM_RULE: &str = "(:wat::rete::defrule :one::sum-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?n <- (:wat::rete::acc::sum ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :when [(:one::Group (?g :- :g))\n\
+         (?n :- (:wat::rete::acc::sum ?v) :from (:one::Reading (?g :- :g) (?v :- :v)))]\n\
   :then [(:one::Out ?g ?n)])";
 
     const RUNS: usize = 3;
@@ -217,8 +217,8 @@ fn bind_world_alpha_ns(reading_cond: &str, n: i64) -> u64 {
 /// Diagnostic — one bind vs two binds on the same condition, same facts.
 #[test]
 fn alpha_match_cost_per_binding() {
-    const ONE: &str = "(:bnd::Reading (?g <- :g))";
-    const TWO: &str = "(:bnd::Reading (?g <- :g) (?v <- :v))";
+    const ONE: &str = "(:bnd::Reading (?g :- :g))";
+    const TWO: &str = "(:bnd::Reading (?g :- :g) (?v :- :v))";
     const RUNS: usize = 3;
     let n = 40_000i64;
 
@@ -362,25 +362,25 @@ fn pred_and_exists(g: i64, w: i64) -> u64 {
 
 const DISTINCT_RULE: &str = "\
 (:wat::rete::defrule :one::distinct-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?xs <- (:wat::rete::acc::distinct ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :when [(:one::Group (?g :- :g))\n\
+         (?xs :- (:wat::rete::acc::distinct ?v) :from (:one::Reading (?g :- :g) (?v :- :v)))]\n\
   :then [(:one::Out ?g 0)])";
 const ALL_RULE: &str = "\
 (:wat::rete::defrule :one::all-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?xs <- (:wat::rete::acc::all) :from (:one::Reading (?g <- :g)))]\n\
+  :when [(:one::Group (?g :- :g))\n\
+         (?xs :- (:wat::rete::acc::all) :from (:one::Reading (?g :- :g)))]\n\
   :then [(:one::Out ?g 0)])";
 const GROUP_BY_RULE: &str = "\
 (:wat::rete::defrule :one::group-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (?m <- (:wat::rete::acc::group-by ?v) :from (:one::Reading (?g <- :g) (?v <- :v)))]\n\
+  :when [(:one::Group (?g :- :g))\n\
+         (?m :- (:wat::rete::acc::group-by ?v) :from (:one::Reading (?g :- :g) (?v :- :v)))]\n\
   :then [(:one::Out ?g 0)])";
 const AND_EXISTS_RULE: &str = "\
 (:wat::rete::defrule :one::and-exists-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
+  :when [(:one::Group (?g :- :g))\n\
          (:wat::rete::exists (:wat::rete::and\n\
-           (:one::Reading (?g <- :g) (?v <- :v))\n\
-           (:one::Reading (?g <- :g) (?v <- :v))))]\n\
+           (:one::Reading (?g :- :g) (?v :- :v))\n\
+           (:one::Reading (?g :- :g) (?v :- :v))))]\n\
   :then [(:one::Out ?g 1)])";
 
 /// ★ Every instrumented gather path, not just count+sum+exists-leaf.
@@ -576,8 +576,8 @@ const JOIN_EXTEND_WORLD: &str = "\
     (:wat::core::range 0 keys)))\n\
 \n\
 (:wat::rete::defrule :jx::join-rule\n\
-  :when [(:jx::A (?k <- :k) (?a <- :a))\n\
-         (:jx::B (?k <- :k) (?b <- :b))]\n\
+  :when [(:jx::A (?k :- :k) (?a :- :a))\n\
+         (:jx::B (?k :- :k) (?b :- :b))]\n\
   :then [(:jx::Out ?k ?a ?b)])\n";
 
 /// One HashJoin on this world. The after-hoist prediction is `3 × HASH_JOINS`.
@@ -1042,8 +1042,8 @@ fn predicted_root_join_record_tokens_redden_under_a_per_element_scan() {
 
 const NOT_RULE: &str = "\
 (:wat::rete::defrule :one::not-rule\n\
-  :when [(:one::Group (?g <- :g))\n\
-         (:wat::rete::not (:one::Reading (?g <- :g)))]\n\
+  :when [(:one::Group (?g :- :g))\n\
+         (:wat::rete::not (:one::Reading (?g :- :g)))]\n\
   :then [(:one::Out ?g 1)])";
 
 /// ⛔ R21 exception (finding 33) — grok's own diff shipped this driver with RETIRED syntax
@@ -1106,7 +1106,7 @@ fn print_gather_key_rows(label: &str, denom: &str, rows: &[super::GatherKeyRow])
 fn gather_key_sets_are_measured_per_node_and_alpha() {
     let accum = fire_gather_keys_world(ACCUM_GATHER_WORLD, "agc", "10 80");
     let exists = fire_gather_keys_rule(
-        "(:wat::rete::defrule :one::exists-rule\n  :when [(:one::Group (?g <- :g))\n         (:wat::rete::exists (:one::Reading (?g <- :g)))]\n  :then [(:one::Out ?g 1)])",
+        "(:wat::rete::defrule :one::exists-rule\n  :when [(:one::Group (?g :- :g))\n         (:wat::rete::exists (:one::Reading (?g :- :g)))]\n  :then [(:one::Out ?g 1)])",
         10,
         8,
     );
@@ -1475,24 +1475,24 @@ fn n3_leaf_set_vs_occupancy() {
 (:wat::core::defrecord :n::A   [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :n::Bad [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :n::Ok  [k <- :wat::core::i64])\n\
-(:wat::rete::defquery :n::q-Bad :params [] :when [(?fact <- :n::Bad)])\n\
-(:wat::rete::defquery :n::q-Ok :params [] :when [(?fact <- :n::Ok)])\n\
+(:wat::rete::defquery :n::q-Bad :params [] :when [(?fact :- :n::Bad)])\n\
+(:wat::rete::defquery :n::q-Ok :params [] :when [(?fact :- :n::Ok)])\n\
 (:wat::core::defrecord :n3::A    [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :n3::Bad  [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :n3::Warn [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :n3::Safe [k <- :wat::core::i64])\n\
 (:wat::rete::defrule :n3::mark-bad\n\
-  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]\n\
+  :when [(:n3::A (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]\n\
   :then [(:n3::Bad :k ?k)])\n\
 (:wat::rete::defrule :n3::mark-warn\n\
-  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Bad (?k <- :k)))]\n\
+  :when [(:n3::A (?k :- :k)) (:wat::rete::not (:n3::Bad (?k :- :k)))]\n\
   :then [(:n3::Warn :k ?k)])\n\
 (:wat::rete::defrule :n3::mark-safe\n\
-  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Warn (?k <- :k)))]\n\
+  :when [(:n3::A (?k :- :k)) (:wat::rete::not (:n3::Warn (?k :- :k)))]\n\
   :then [(:n3::Safe :k ?k)])\n\
-(:wat::rete::defquery :n3::q-Bad :params [] :when [(?fact <- :n3::Bad)])\n\
-(:wat::rete::defquery :n3::q-Warn :params [] :when [(?fact <- :n3::Warn)])\n\
-(:wat::rete::defquery :n3::q-Safe :params [] :when [(?fact <- :n3::Safe)])\n\
+(:wat::rete::defquery :n3::q-Bad :params [] :when [(?fact :- :n3::Bad)])\n\
+(:wat::rete::defquery :n3::q-Warn :params [] :when [(?fact :- :n3::Warn)])\n\
+(:wat::rete::defquery :n3::q-Safe :params [] :when [(?fact :- :n3::Safe)])\n\
 ";
     let world = freeze_src(N3);
     let (fired, diffs) = super::with_leaf_occ_diff(|| {

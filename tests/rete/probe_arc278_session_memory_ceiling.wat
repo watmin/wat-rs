@@ -23,10 +23,10 @@
 (:wat::core::defrecord :fd::C [a <- :wat::core::i64  b <- :wat::core::i64])
 
 (:wat::rete::defrule :fd::cross
-  :when [(:fd::A (?x <- :a)) (:fd::B (?y <- :b))]
+  :when [(:fd::A (?x :- :a)) (:fd::B (?y :- :b))]
   :then [(:fd::C :a ?x :b ?y)])
 
-(:wat::rete::defquery :fd::q :params [] :when [(?fact <- :fd::C)])
+(:wat::rete::defquery :fd::q :params [] :when [(?fact :- :fd::C)])
 
 (:wat::core::defn :fd::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::core::foldl

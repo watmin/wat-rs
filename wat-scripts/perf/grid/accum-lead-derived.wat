@@ -67,19 +67,19 @@
 
 (:wat::rete::defquery :ald::q-Step
   :params []
-  :when [(?fact <- :ald::Step)])
+  :when [(?fact :- :ald::Step)])
 
 
 (:wat::rete::defquery :ald::q-Tally
   :params []
-  :when [(?fact <- :ald::Tally)])
+  :when [(?fact :- :ald::Tally)])
 
 
 ;; build-step k — Step(k) :- Step(k-1). Level literals spliced via quasiquote, same as
 ;; accum-over-derived's per-level rule. One generated rule per level.
 (:wat::core::defn :ald::build-step [k <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::i64::- k 1)
-                    c (:wat::core::quasiquote (:ald::Step (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
+                    c (:wat::core::quasiquote (:ald::Step (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
                     t (:wat::core::quasiquote (:ald::Step (:wat::core::unquote k)))]
     (:wat::rete::Rule :name (:wat::i64::to-string k)
       :lhs (:wat::core::PersistentVector c)
@@ -90,7 +90,7 @@
 (:wat::core::defn :ald::tally-rule [] -> :wat::rete::Rule
   (:wat::rete::Rule :name "tally"
     :lhs (:wat::core::PersistentVector
-      (:wat::core::quote (?n <- (:wat::rete::acc::count) :from (:ald::Step))))
+      (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:ald::Step))))
     :rhs (:wat::core::PersistentVector
       (:wat::core::quote (:ald::Tally ?n)))))
 

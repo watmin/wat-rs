@@ -1,0 +1,7 @@
+# ORACLE for rete-bind-arrow-to-binder — HISTORY or header spec, never the tool.
+
+spec (?k :- :k) :: `(?k <- :k)` → `(?k :- :k)`
+spec (:vrm::F (?k :- :k)) :: `(?k <- :k)` → `(?k :- :k)`
+
+spec-before (?k <- :k) :: `(?k <- :k)` → `(?k :- :k)`
+spec-before (:vrm::F (?k <- :k)) :: `(?k <- :k)` → `(?k :- :k)`

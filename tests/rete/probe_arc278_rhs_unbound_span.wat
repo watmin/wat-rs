@@ -12,10 +12,10 @@
 (:wat::core::defrecord :ubs::Out  [k <- :wat::core::i64])
 
 (:wat::rete::defrule :ubs::r
-  :when [(:ubs::Item (?k <- :k))]
+  :when [(:ubs::Item (?k :- :k))]
   :then [(:ubs::Out :k ?missing)])
 
-(:wat::rete::defquery :ubs::q :params [] :when [(?fact <- :ubs::Out)])
+(:wat::rete::defquery :ubs::q :params [] :when [(?fact :- :ubs::Out)])
 
 (:wat::core::defn :user::fire-unbound [] -> :wat::core::i64
   (:wat::core::let [rules (:wat::rete::collect-rules :ubs)

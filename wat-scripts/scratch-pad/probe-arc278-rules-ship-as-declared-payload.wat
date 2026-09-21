@@ -66,7 +66,7 @@
         (:wat::rete::i64::> n 100)))
     (:wat::core::quote
       (:wat::rete::defrule :usr::rule-userfn
-        :when [(:usr::Temp (?c <- :c)) (:wat::rete::where (:usr::big? ?c))]
+        :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
         :then [(:usr::Hot :c ?c)]))))
 
 ;; ── CONTROL payload — byte-identical except `:usr::big?` is NOT named ──────────────────
@@ -76,7 +76,7 @@
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
     (:wat::core::quote
       (:wat::rete::defrule :usr::rule-userfn
-        :when [(:usr::Temp (?c <- :c)) (:wat::rete::where (:usr::big? ?c))]
+        :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
         :then [(:usr::Hot :c ?c)]))))
 
 ;; ── the evaluand — reflect the rules OUT of the shipped world, fire, count ─────────────

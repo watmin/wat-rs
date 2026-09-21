@@ -11,16 +11,16 @@
 
 (:wat::rete::defrule :wafl::count-winds-above-temp
   :when
-  [(:wafl::Temp (?loc <- :loc) (?c <- :c))
-   (?n <- (:wat::rete::acc::count) :from
-     (:wafl::Wind (?loc <- :loc)
+  [(:wafl::Temp (?loc :- :loc) (?c :- :c))
+   (?n :- (:wat::rete::acc::count) :from
+     (:wafl::Wind (?loc :- :loc)
        (:wat::rete::i64::> :kph ?c)))]
   :then
   [(:wafl::Hit :loc ?loc :n ?n)])
 
 (:wat::rete::defquery :wafl::q-Hit
   :params []
-  :when [(?fact <- :wafl::Hit)])
+  :when [(?fact :- :wafl::Hit)])
 
 (:wat::core::defn :wafl::sum-n [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::foldl

@@ -15,16 +15,16 @@
 (:wat::core::defrecord :cap::Reach [n <- :wat::core::i64])
 
 (:wat::rete::defrule :cap::seed
-  :when [(:cap::Start (?n <- :n))]
+  :when [(:cap::Start (?n :- :n))]
   :then [(:cap::Reach :n ?n)])
 
 ;; The cyclic rule — Reach reads Reach — and legal, because `?y` is copied from Edge.
 (:wat::rete::defrule :cap::step
-  :when [(:cap::Reach (?x <- :n))
-         (:cap::Edge (?x <- :a) (?y <- :b))]
+  :when [(:cap::Reach (?x :- :n))
+         (:cap::Edge (?x :- :a) (?y :- :b))]
   :then [(:cap::Reach :n ?y)])
 
-(:wat::rete::defquery :cap::q :params [] :when [(?fact <- :cap::Reach)])
+(:wat::rete::defquery :cap::q :params [] :when [(?fact :- :cap::Reach)])
 
 (:wat::core::defn :cap::edges [] -> (:wat::core::PersistentVector :- [:cap::Edge])
   (:wat::core::into (:wat::core::PersistentVector)

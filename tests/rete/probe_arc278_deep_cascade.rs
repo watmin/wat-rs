@@ -42,8 +42,8 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
     for k in 1..=depth {
         let p = k - 1;
         binds.push_str(&format!(
-            "  r{k}c1 (:wat::core::quote (:casc::Stage{p} (?id <- :id)))\
-             \n  r{k}c2 (:wat::core::quote (:casc::Tag{p} (?id <- :id)))\
+            "  r{k}c1 (:wat::core::quote (:casc::Stage{p} (?id :- :id)))\
+             \n  r{k}c2 (:wat::core::quote (:casc::Tag{p} (?id :- :id)))\
              \n  r{k}t1 (:wat::core::quote (:casc::Stage{k} ?id))\
              \n  r{k}t2 (:wat::core::quote (:casc::Tag{k} ?id))\
              \n  rule{k} (:wat::rete::Rule :name \"r{k}\" :lhs (:wat::core::PersistentVector r{k}c1 r{k}c2) :rhs (:wat::core::PersistentVector r{k}t1 r{k}t2))\n"

@@ -10,7 +10,7 @@
 //!   - facts are plain typed records.
 //!   - (:wat::rete::defrule :ns::name :when [conditions] :then <pure-rhs>) — namespaced rule macro.
 //!   - condition = (:FactType <clause>...):
-//!     (?var <- :field)            bind/join  (fresh binds; bound ?var ⇒ cross-fact equality join on the field)
+//!     (?var :- :field)            bind/join  (fresh binds; bound ?var ⇒ cross-fact equality join on the field)
 //!     (:wat::rete::core::<ty>::<op> a b)  per-type constraint (operands ∈ {?var, :field, literal})
 //!   - :then = a vector of bare fact-forms, nothing else. Each `(:Type …)` declares a logical derived fact
 //!     (support = the firing token; auto-retracted if support vanishes); fact args may be pure exprs over the

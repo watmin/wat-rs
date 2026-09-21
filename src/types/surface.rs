@@ -946,12 +946,10 @@ fn collect_message_form_type_refs(form: &WatAST, out: &mut Vec<String>) {
         _ => return,
     };
     for (i, child) in children.iter().enumerate() {
-        if let WatAST::Symbol(s, _) = child {
-            if s.as_str() == "<-" {
-                if let Some(WatAST::Keyword(k, _)) = children.get(i + 1) {
-                    if let Ok(te) = super::parse_type_expr(k) {
-                        collect_user_type_paths(&te, out);
-                    }
+        if super::is_param_annotation_arrow(child) {
+            if let Some(WatAST::Keyword(k, _)) = children.get(i + 1) {
+                if let Ok(te) = super::parse_type_expr(k) {
+                    collect_user_type_paths(&te, out);
                 }
             }
         }

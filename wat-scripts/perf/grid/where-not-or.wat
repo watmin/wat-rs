@@ -13,30 +13,30 @@
 (:wat::rete::defrule :wno::not-cold-or-windy
   :when [(:wat::rete::not
            (:wat::rete::or
-             (:wno::Wind (?w <- :kph)
+             (:wno::Wind (?w :- :kph)
                (:wat::rete::i64::> ?w 30))
-             (:wno::Temp (?c <- :c)
+             (:wno::Temp (?c :- :c)
                (:wat::rete::i64::< ?c 20))))]
   :then [(:wno::Hit :k 1)])
 
 (:wat::rete::defrule :wno::station-not-either
-  :when [(:wno::Station (?loc <- :loc))
+  :when [(:wno::Station (?loc :- :loc))
          (:wat::rete::not
            (:wat::rete::or
-             (:wno::Wind (?loc <- :loc) (?w <- :kph)
+             (:wno::Wind (?loc :- :loc) (?w :- :kph)
                (:wat::rete::i64::> ?w 30))
-             (:wno::Temp (?loc <- :loc) (?c <- :c)
+             (:wno::Temp (?loc :- :loc) (?c :- :c)
                (:wat::rete::i64::< ?c 20))))]
   :then [(:wno::At :loc ?loc)])
 
 (:wat::rete::defquery :wno::q-Hit
   :params []
-  :when [(?fact <- :wno::Hit)])
+  :when [(?fact :- :wno::Hit)])
 
 
 (:wat::rete::defquery :wno::q-At
   :params []
-  :when [(?fact <- :wno::At)])
+  :when [(?fact :- :wno::At)])
 
 
 (:wat::core::defn :wno::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

@@ -3,7 +3,7 @@
 //! A fact pattern may carry an inline constraint clause beside its bindings:
 //!
 //! ```clojure
-//! (:probe::Reading (?loc <- :location) (:wat::core::> :value 10))
+//! (:probe::Reading (?loc :- :location) (:wat::core::> :value 10))
 //! ```
 //!
 //! Freeze classifies CoreGeneric as NonReteConstraint. Native `compile_condition_local` returns

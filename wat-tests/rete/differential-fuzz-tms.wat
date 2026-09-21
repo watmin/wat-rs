@@ -49,12 +49,12 @@
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r1"
       :lhs (:wat::core::PersistentVector
-             (:wat::core::quasiquote (:wat-tests::rete::tms::A (?k <- :k))))
+             (:wat::core::quasiquote (:wat-tests::rete::tms::A (?k :- :k))))
       :rhs (:wat::core::PersistentVector
              (:wat::core::quasiquote (:wat-tests::rete::tms::C ?k))))
     (:wat::rete::Rule :name "r2"
       :lhs (:wat::core::PersistentVector
-             (:wat::core::quasiquote (:wat-tests::rete::tms::C (?k <- :k)))
+             (:wat::core::quasiquote (:wat-tests::rete::tms::C (?k :- :k)))
              (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::tms::B))))
       :rhs (:wat::core::PersistentVector
              (:wat::core::quasiquote (:wat-tests::rete::tms::D ?k))))))
@@ -119,15 +119,15 @@
 ;; One per un-derivation path the rules above create, so a program that breaks only one of them
 ;; still fails a gate.
 (:wat::rete::defquery :wat-tests::rete::tms::q-C :params []
-  :when [(?fact <- :wat-tests::rete::tms::C)])
+  :when [(?fact :- :wat-tests::rete::tms::C)])
 (:wat::rete::defquery :wat-tests::rete::tms::q-D :params []
-  :when [(?fact <- :wat-tests::rete::tms::D)])
+  :when [(?fact :- :wat-tests::rete::tms::D)])
 ;; `:not` over the DERIVED class — family C's shape, now under an operation program.
 (:wat::rete::defquery :wat-tests::rete::tms::q-notC :params []
   :when [(:wat::rete::not (:wat-tests::rete::tms::C))])
 ;; An accumulate over the INSERTED class, so retraction moves the count rather than a derivation.
 (:wat::rete::defquery :wat-tests::rete::tms::q-acc :params []
-  :when [(?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::tms::A))
+  :when [(?n :- (:wat::rete::acc::count) :from (:wat-tests::rete::tms::A))
          (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
 
 (:wat::core::defn :wat-tests::rete::tms::query-of [i <- :wat::core::i64] -> :wat::rete::Query

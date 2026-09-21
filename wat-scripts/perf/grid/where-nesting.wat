@@ -115,28 +115,28 @@
 ;; ROW 1 — depth-2 chain. c2(k) = c1(k)+3, c1(k) = k mod 13. c2 > 10 <=> c1 in {8..12} -> 75 of 200.
 (:wat::rete::defrule :wnst::depth2
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c2 ?k) 10))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c2 ?k) 10))]
   :then
   [(:wnst::Hit ?k)])
 
 ;; ROW 2 — depth-3 chain. c3 > 15 <=> c1 in {10,11,12} -> 45 of 200.
 (:wat::rete::defrule :wnst::depth3
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c3 ?k) 15))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c3 ?k) 15))]
   :then
   [(:wnst::Hit ?k)])
 
 ;; ROW 3 — depth-4 chain. c4 > 15 <=> c1 in {7..12} -> 90 of 200.
 (:wat::rete::defrule :wnst::depth4
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c4 ?k) 15))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c4 ?k) 15))]
   :then
   [(:wnst::Hit ?k)])
 
 ;; ROW 4 — depth-5 chain. c5 > 20 <=> c1 in {9,10,11,12} -> 60 of 200.
 (:wat::rete::defrule :wnst::depth5
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c5 ?k) 20))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c5 ?k) 20))]
   :then
   [(:wnst::Hit ?k)])
 
@@ -144,7 +144,7 @@
 ;; c10 = c1 + 27. c10 > 32 <=> c1 in {6..12} -> 105 of 200.
 (:wat::rete::defrule :wnst::depth10
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c10 ?k) 32))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c10 ?k) 32))]
   :then
   [(:wnst::Hit ?k)])
 
@@ -154,7 +154,7 @@
 ;; `i64::/` and Clojure's `quot` agree without a sign subtlety to reason about).
 (:wat::rete::defrule :wnst::inline-tree
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where
                                 (:wat::rete::i64::>
                                   (:wat::rete::i64::*
                                     (:wat::rete::i64::+
@@ -172,7 +172,7 @@
 ;; ROW 7 — TWO bound vars, both live at test time. twoarg(?k, ?m) = (?k+?m) > 113 -> 108 of 200.
 (:wat::rete::defrule :wnst::two-arg
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::twoarg ?k ?m))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::twoarg ?k ?m))]
   :then
   [(:wnst::Hit ?k)])
 
@@ -180,7 +180,7 @@
 ;; (wrap (c2 ?k)). wrap(v) = v mod 4 == 0. c2(k) = c1(k)+3 in {4,8,12} <=> c1 in {1,5,9} -> 46 of 200.
 (:wat::rete::defrule :wnst::arg-is-call
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::wrap (:wnst::c2 ?k)))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::wrap (:wnst::c2 ?k)))]
   :then
   [(:wnst::Hit ?k)])
 
@@ -188,7 +188,7 @@
 ;; hub in {4..12} (mod 17) -> 108 of 200.
 (:wat::rete::defrule :wnst::diamond
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::f ?k))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::f ?k))]
   :then
   [(:wnst::Hit ?k)])
 
@@ -196,7 +196,7 @@
 ;; score(k) = (3k) mod 11; score > 6 -> 72 of 200.
 (:wat::rete::defrule :wnst::int-then-compare
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::score ?k) 6))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::score ?k) 6))]
   :then
   [(:wnst::Hit ?k)])
 
@@ -204,13 +204,13 @@
 ;; used bare in the where clause with no external comparison. is-good(k) = score(k) even -> 109 of 200.
 (:wat::rete::defrule :wnst::bool-direct
   :when
-  [(:wnst::Req (?k <- :k) (?m <- :m)) (:wat::rete::where (:wnst::is-good ?k))]
+  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::is-good ?k))]
   :then
   [(:wnst::Hit ?k)])
 
 (:wat::rete::defquery :wnst::q-Hit
   :params []
-  :when [(?fact <- :wnst::Hit)])
+  :when [(?fact :- :wnst::Hit)])
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.

@@ -47,9 +47,9 @@
 ;; ── the finder — two rules over wat/grep.wat's stdlib fact base ─────────────────────────
 
 (:wat::rete::defrule :rn::core-string
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's `nameable?`)
          ;; — the corpus carries real string-literal occurrences of this exact prefix
          ;; (e.g. wat-scripts/fixes/rete-where-per-type-spelling.wat:108's Tuple of two
@@ -73,9 +73,9 @@
 ;; rune:lint(rete-name-unminted) :wat::rete::core::string:: — the OLD rete-prefixed spelling this rule's :where fence searches the corpus for by prefix; a recorded codemod's search target, not a call.
 ;; rune:lint(rete-name-unminted) :wat::rete::string:: — a bare namespace-prefix fragment concatenated with a captured suffix to build the NEW spelling; not itself a complete name to resolve.
 (:wat::rete::defrule :rn::rete-core-string
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-string's comment; the same corpus file's Tuple
          ;; carries a rete-prefixed string literal too (`rete-where-per-type-spelling.wat:108`).
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
@@ -98,8 +98,8 @@
 
 (:wat::rete::defquery :rn::q-match
   :params []
-  :when [(:wat::grep::Match (?line <- :line) (?col <- :col)
-           (?end-line <- :end-line) (?end-col <- :end-col) (?captures <- :captures))])
+  :when [(:wat::grep::Match (?line :- :line) (?col :- :col)
+           (?end-line :- :end-line) (?end-col :- :end-col) (?captures :- :captures))])
 
 ;; second-capture — a typed wrapper around `second`. `PersistentMap/get`'s value type is a
 ;; fresh metavariable until something FORCES it concrete; a Tuple-constructor slot does that

@@ -9,10 +9,10 @@
 (:wat::core::defrecord :ft::F [flag <- :wat::core::bool])
 
 (:wat::rete::defrule :ft::flip
-  :when  [(:ft::F (?b <- :flag))]
+  :when  [(:ft::F (?b :- :flag))]
   :then  [(:ft::F :flag (:wat::rete::core::not ?b))])
 
-(:wat::rete::defquery :ft::q :params [] :when [(?fact <- :ft::F)])
+(:wat::rete::defquery :ft::q :params [] :when [(?fact :- :ft::F)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The

@@ -39,12 +39,12 @@ const WORLD: &str = "\
 (:wat::rete::defrule :weather::cold-and-windy\n\
   :when\n\
   [(:weather::Temperature\n\
-     (?loc <- :location)\n\
-     (?c   <- :celsius)\n\
+     (?loc :- :location)\n\
+     (?c   :- :celsius)\n\
      (:wat::rete::i64::< ?c 20))\n\
    (:weather::WindSpeed\n\
-     (?loc <- :location)\n\
-     (?k   <- :kph)\n\
+     (?loc :- :location)\n\
+     (?k   :- :kph)\n\
      (:wat::rete::i64::> ?k 30))]\n\
   :then\n\
   [(:weather::ColdAndWindy ?loc)])\n\
@@ -90,28 +90,28 @@ const ACCUM_AXIS_WORLD: &str = "\
 (:wat::core::defrecord :apx::ExistsF [g <- :wat::core::i64])\n\
 \n\
 (:wat::rete::defrule :apx::count-rule\n\
-  :when [(:apx::Group (?g <- :g))\n\
-         (?n <- (:wat::rete::acc::count) :from (:apx::Reading (?g <- :g)))]\n\
+  :when [(:apx::Group (?g :- :g))\n\
+         (?n :- (:wat::rete::acc::count) :from (:apx::Reading (?g :- :g)))]\n\
   :then [(:apx::CountF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::sum-rule\n\
-  :when [(:apx::Group (?g <- :g))\n\
-         (?n <- (:wat::rete::acc::sum ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
+  :when [(:apx::Group (?g :- :g))\n\
+         (?n :- (:wat::rete::acc::sum ?v) :from (:apx::Reading (?g :- :g) (?v :- :v)))]\n\
   :then [(:apx::SumF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::min-rule\n\
-  :when [(:apx::Group (?g <- :g))\n\
-         (?n <- (:wat::rete::acc::min ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
+  :when [(:apx::Group (?g :- :g))\n\
+         (?n :- (:wat::rete::acc::min ?v) :from (:apx::Reading (?g :- :g) (?v :- :v)))]\n\
   :then [(:apx::MinF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::max-rule\n\
-  :when [(:apx::Group (?g <- :g))\n\
-         (?n <- (:wat::rete::acc::max ?v) :from (:apx::Reading (?g <- :g) (?v <- :v)))]\n\
+  :when [(:apx::Group (?g :- :g))\n\
+         (?n :- (:wat::rete::acc::max ?v) :from (:apx::Reading (?g :- :g) (?v :- :v)))]\n\
   :then [(:apx::MaxF ?g ?n)])\n\
 \n\
 (:wat::rete::defrule :apx::exists-rule\n\
-  :when [(:apx::Group (?g <- :g))\n\
-         (:wat::rete::exists (:apx::Reading (?g <- :g)))]\n\
+  :when [(:apx::Group (?g :- :g))\n\
+         (:wat::rete::exists (:apx::Reading (?g :- :g)))]\n\
   :then [(:apx::ExistsF ?g)])\n\
 \n\
 (:wat::core::defn :apx::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64\n\
@@ -169,8 +169,8 @@ const DEPTH_SPLIT_WORLD: &str = "\
 \n\
 (:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule\n\
   (:wat::core::let [prev (:wat::i64::- k 1)\n\
-                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))\n\
-                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))\n\
+                    c1 (:wat::core::quasiquote (:cascade::Node (?id :- :id) (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))\n\
+                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id :- :id) (?m :- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))\n\
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))\n\
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]\n\
     (:wat::rete::Rule :name (:wat::i64::to-string k)\n\
@@ -378,8 +378,8 @@ const NODE_SHARE_WORLD: &str = "\
 (:wat::core::defrecord :nsh::Out [k <- :wat::core::i64])\n\
 \n\
 (:wat::core::defn :nsh::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule\n\
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k <- :k)))\n\
-                    b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))\n\
+  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k :- :k)))\n\
+                    b-c     (:wat::core::quasiquote (:nsh::B (?k :- :k)))\n\
                     where-c (:wat::core::quasiquote\n\
                               (:wat::rete::where\n\
                                 (:wat::rete::i64::= (:wat::core::unquote i)\n\
@@ -673,8 +673,8 @@ const FANOUT_CENSUS_WORLD: &str = "\
 \n\
 (:wat::rete::defrule :fan::fan-rule\n\
   :when\n\
-  [(:fan::Left  (?k <- :key) (?l <- :lid))\n\
-   (:fan::Right (?k <- :key) (?r <- :rid))]\n\
+  [(:fan::Left  (?k :- :key) (?l :- :lid))\n\
+   (:fan::Right (?k :- :key) (?r :- :rid))]\n\
   :then\n\
   [(:fan::Pair ?k ?l ?r)])\n";
 fn fanout_phase_census(keys: i64, fanout: i64) -> Vec<(&'static str, u64, u64)> {

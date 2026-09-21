@@ -15,7 +15,7 @@
   (:wat::core::if (:wat::core::record? (:wat::io::IOReader/open-file "x")) r r))
 
 (:wat::rete::defrule :tf::compute-bad
-  :when [(:tf::In (?n <- :n))]
+  :when [(:tf::In (?n :- :n))]
   :then [(:tf::make-rate-bad (:tf::Rate :count ?n))])
 
 ;; Compiling ALONE must panic (Option/expect -> panic_any) before ever inserting/firing anything —

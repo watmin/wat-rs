@@ -30,7 +30,7 @@
     (:wat::core::PersistentVector
       (:wat::rete::Rule
         :name "noop"
-        :lhs (:wat::core::PersistentVector (:wat::core::quote (:seedp::Left (?k <- :key))))
+        :lhs (:wat::core::PersistentVector (:wat::core::quote (:seedp::Left (?k :- :key))))
         :rhs (:wat::core::PersistentVector)))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 ;; PATH A — the grid's current shape: N calls to the per-fact verb, threaded through a foldl.

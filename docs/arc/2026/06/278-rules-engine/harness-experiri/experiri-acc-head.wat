@@ -4,7 +4,7 @@
 ;; The ONLY RETE_OPS row whose declared signature is exactly (PersistentVector<T>) -> i64,
 ;; used DIRECTLY as the accumulator's acc-form head.
 (:wat::rete::defrule :probe::acc
-  :when  [(?n <- (:wat::rete::vector::length ?v) :from (:probe::In (?v <- :v)))]
+  :when  [(?n :- (:wat::rete::vector::length ?v) :from (:probe::In (?v :- :v)))]
   :then  [(:probe::Out :n ?n)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

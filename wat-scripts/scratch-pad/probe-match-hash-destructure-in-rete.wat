@@ -5,7 +5,7 @@
 
 (:wat::rete::defrule :md::rule
   :when
-  [(:md::In (?k <- :k) (?p <- :p))
+  [(:md::In (?k :- :k) (?p :- :p))
    (:wat::rete::where
      (:wat::rete::i64::=
        (:wat::rete::core::match ?p
@@ -14,7 +14,7 @@
   :then
   [(:md::Out :k ?k)])
 
-(:wat::rete::defquery :md::q :params [] :when [(?fact <- :md::Out)])
+(:wat::rete::defquery :md::q :params [] :when [(?fact :- :md::Out)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

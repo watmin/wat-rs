@@ -29,37 +29,37 @@
 
 ;; Derives a SECOND C for a key round 1 already joined — one round later.
 (:wat::rete::defrule :vlx::derive-c
-  :when [(:vlx::T (?k <- :k))]
+  :when [(:vlx::T (?k :- :k))]
   :then [(:vlx::C :k ?k :v 20)])
 
 ;; THE SUBJECT: guard, then two fact conditions.
 (:wat::rete::defrule :vlx::main-where
-  :when [(:vlx::A (?k <- :k) (?g <- :g) (:wat::rete::string::= ?g "yes"))
-         (:vlx::B (?k <- :k))
-         (:vlx::C (?k <- :k) (?v <- :v))]
+  :when [(:vlx::A (?k :- :k) (?g :- :g) (:wat::rete::string::= ?g "yes"))
+         (:vlx::B (?k :- :k))
+         (:vlx::C (?k :- :k) (?v :- :v))]
   :then [(:vlx::OutW :v ?v)])
 
 ;; THE CONTROL: same three facts, no guard.
 (:wat::rete::defrule :vlx::main-plain
-  :when [(:vlx::A2 (?k <- :k))
-         (:vlx::B (?k <- :k))
-         (:vlx::C (?k <- :k) (?v <- :v))]
+  :when [(:vlx::A2 (?k :- :k))
+         (:vlx::B (?k :- :k))
+         (:vlx::C (?k :- :k) (?v :- :v))]
   :then [(:vlx::OutP :v ?v)])
 
 ;; THE SECOND SUBJECT: the filter is a `:not`, not a `:where`. Pass 3.6 walks
 ;; `filter_or_acc` = Test | Negation | Exists | Accumulate, so a `:not` followed by two
 ;; fact conditions reaches the same `keyed_join_persistent` latch.
 (:wat::rete::defrule :vlx::main-not
-  :when [(:vlx::A3 (?k <- :k))
-         (:wat::rete::not (:vlx::Neg (?k <- :k)))
-         (:vlx::B (?k <- :k))
-         (:vlx::C (?k <- :k) (?v <- :v))]
+  :when [(:vlx::A3 (?k :- :k))
+         (:wat::rete::not (:vlx::Neg (?k :- :k)))
+         (:vlx::B (?k :- :k))
+         (:vlx::C (?k :- :k) (?v :- :v))]
   :then [(:vlx::OutN :v ?v)])
 
-(:wat::rete::defquery :vlx::q-n :params [] :when [(?f <- :vlx::OutN)])
-(:wat::rete::defquery :vlx::q-w :params [] :when [(?f <- :vlx::OutW)])
-(:wat::rete::defquery :vlx::q-p :params [] :when [(?f <- :vlx::OutP)])
-(:wat::rete::defquery :vlx::q-c :params [] :when [(?f <- :vlx::C)])
+(:wat::rete::defquery :vlx::q-n :params [] :when [(?f :- :vlx::OutN)])
+(:wat::rete::defquery :vlx::q-w :params [] :when [(?f :- :vlx::OutW)])
+(:wat::rete::defquery :vlx::q-p :params [] :when [(?f :- :vlx::OutP)])
+(:wat::rete::defquery :vlx::q-c :params [] :when [(?f :- :vlx::C)])
 
 (:wat::core::defn :vlx::ins [s <- :wat::rete::Session f <- :wat::core::Record] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert s f)

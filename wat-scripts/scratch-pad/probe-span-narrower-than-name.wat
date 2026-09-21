@@ -23,10 +23,10 @@
 ;;     | ./target/release/wat --grep ./wat-scripts/scratch-pad/probe-span-narrower-than-name.wat
 
 (:wat::rete::defrule :spn::span-disagrees-with-name
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named  (?id <- :id) (?n <- :name))
-         (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named  (?id :- :id) (?n :- :name))
+         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          ;; a keyword cannot straddle a line, so a single-line span is the only comparable case
          (:wat::rete::where (:wat::rete::i64::= ?l ?el))

@@ -7,11 +7,11 @@
 
 (:wat::core::defn :user::hot-q [] -> :wat::rete::Query
   (:wat::rete::make-query "usr::Hot" (:wat::core::quote [])
-    (:wat::core::quote [(?fact <- :usr::Hot)])))
+    (:wat::core::quote [(?fact :- :usr::Hot)])))
 
 (:wat::core::defn :user::warn-q [] -> :wat::rete::Query
   (:wat::rete::make-query "usr::Warn" (:wat::core::quote [])
-    (:wat::core::quote [(?fact <- :usr::Warn)])))
+    (:wat::core::quote [(?fact :- :usr::Warn)])))
 
 (:wat::core::defn :user::run-one [session <- :wat::rete::Session encoded <- :wat::core::String]
   -> (:wat::core::PersistentVector :- [:wat::core::Value])
@@ -34,10 +34,10 @@
   (:wat::core::let
     [rules (:wat::core::PersistentVector
              (:wat::rete::make-rule "usr::hot-rule"
-               (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))])
+               (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
                (:wat::core::quote [(:usr::Hot :c ?c)]))
              (:wat::rete::make-rule "usr::warn-rule"
-               (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))])
+               (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
                (:wat::core::quote [(:usr::Warn :c ?c)])))
      queries (:wat::core::PersistentVector
                (:user::hot-q)

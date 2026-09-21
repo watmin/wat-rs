@@ -7,15 +7,15 @@
 (:wat::core::defrecord :wnwdy::Hit  [loc <- :wat::core::String])
 
 (:wat::rete::defrule :wnwdy::windy-not-cold
-  :when [(:wnwdy::Wind (?loc <- :loc) (?w <- :kph))
+  :when [(:wnwdy::Wind (?loc :- :loc) (?w :- :kph))
          (:wat::rete::where (:wat::rete::i64::> ?w 30))
-         (:wat::rete::not (:wnwdy::Temp (?c <- :c)
+         (:wat::rete::not (:wnwdy::Temp (?c :- :c)
                             (:wat::rete::i64::< ?c 20)))]
   :then [(:wnwdy::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wnwdy::q-Hit
   :params []
-  :when [(?fact <- :wnwdy::Hit)])
+  :when [(?fact :- :wnwdy::Hit)])
 
 
 (:wat::core::defn :wnwdy::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

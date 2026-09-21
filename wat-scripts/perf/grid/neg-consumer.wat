@@ -60,7 +60,7 @@
 
 (:wat::rete::defquery :nc::q-Final
   :params []
-  :when [(?fact <- :nc::Final)])
+  :when [(?fact :- :nc::Final)])
 
 
 (:wat::core::defn :nc::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
@@ -68,15 +68,15 @@
     ;; THE GATE — negates a base fact, so the stratifier lifts it correctly.
     (:wat::rete::Rule :name "ok"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quasiquote (:nc::Item (?k <- :k)))
-        (:wat::core::quasiquote (:wat::rete::not (:nc::Bad (?k <- :k)))))
+        (:wat::core::quasiquote (:nc::Item (?k :- :k)))
+        (:wat::core::quasiquote (:wat::rete::not (:nc::Bad (?k :- :k)))))
       :rhs (:wat::core::PersistentVector
         (:wat::core::quasiquote (:nc::Ok ?k))))
     ;; THE SUBJECT — consumes the gate's output POSITIVELY and negates nothing.
     (:wat::rete::Rule :name "final"
       :lhs (:wat::core::PersistentVector
-        (:wat::core::quasiquote (:nc::Ok  (?k <- :k)))
-        (:wat::core::quasiquote (:nc::Tag (?k <- :k))))
+        (:wat::core::quasiquote (:nc::Ok  (?k :- :k)))
+        (:wat::core::quasiquote (:nc::Tag (?k :- :k))))
       :rhs (:wat::core::PersistentVector
         (:wat::core::quasiquote (:nc::Final ?k))))))
 

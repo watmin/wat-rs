@@ -5,7 +5,7 @@
 (:wat::core::defrecord :nm::Src [k <- :nm::K])
 
 (:wat::rete::defrule :nm::go
-  :when [(:nm::Src (?k <- :k))]
+  :when [(:nm::Src (?k :- :k))]
   :then [(:nm::Box :label (:wat::rete::core::match ?k
            [:nm::K.Aa {} "aa"]
            [:nm::K.Bb {} "bb"]))])

@@ -13,6 +13,6 @@
 (:wat::core::defrecord :tgi::N [k <- :wat::core::i64])
 
 (:wat::rete::defrule :tgi::inline-is-typed
-  :when [(:tgi::N (?k <- :k))
-         (:tgi::N (?j <- :k) (:wat::rete::string::= ?k ?j))]
+  :when [(:tgi::N (?k :- :k))
+         (:tgi::N (?j :- :k) (:wat::rete::string::= ?k ?j))]
   :then [])

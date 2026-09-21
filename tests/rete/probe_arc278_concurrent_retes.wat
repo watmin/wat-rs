@@ -47,20 +47,20 @@
 (:wat::core::defrecord :cc::Safe [k <- :wat::core::i64])
 
 (:wat::rete::defrule :cc::mark-bad
-  :when [(:cc::Item (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
+  :when [(:cc::Item (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:cc::Bad :k ?k)])
 
 (:wat::rete::defrule :cc::mark-warn
-  :when [(:cc::Item (?k <- :k)) (:wat::rete::not (:cc::Bad (?k <- :k)))]
+  :when [(:cc::Item (?k :- :k)) (:wat::rete::not (:cc::Bad (?k :- :k)))]
   :then [(:cc::Warn :k ?k)])
 
 (:wat::rete::defrule :cc::mark-safe
-  :when [(:cc::Item (?k <- :k)) (:wat::rete::not (:cc::Warn (?k <- :k)))]
+  :when [(:cc::Item (?k :- :k)) (:wat::rete::not (:cc::Warn (?k :- :k)))]
   :then [(:cc::Safe :k ?k)])
 
-(:wat::rete::defquery :cc::q-Bad  :params [] :when [(?fact <- :cc::Bad)])
-(:wat::rete::defquery :cc::q-Warn :params [] :when [(?fact <- :cc::Warn)])
-(:wat::rete::defquery :cc::q-Safe :params [] :when [(?fact <- :cc::Safe)])
+(:wat::rete::defquery :cc::q-Bad  :params [] :when [(?fact :- :cc::Bad)])
+(:wat::rete::defquery :cc::q-Warn :params [] :when [(?fact :- :cc::Warn)])
+(:wat::rete::defquery :cc::q-Safe :params [] :when [(?fact :- :cc::Safe)])
 
 ;; ── :dd — a DIFFERENT network: 2 strata, Bad on a different key ──────────────
 
@@ -69,15 +69,15 @@
 (:wat::core::defrecord :dd::Ok   [k <- :wat::core::i64])
 
 (:wat::rete::defrule :dd::mark-bad
-  :when [(:dd::Item (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 3))]
+  :when [(:dd::Item (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 3))]
   :then [(:dd::Bad :k ?k)])
 
 (:wat::rete::defrule :dd::mark-ok
-  :when [(:dd::Item (?k <- :k)) (:wat::rete::not (:dd::Bad (?k <- :k)))]
+  :when [(:dd::Item (?k :- :k)) (:wat::rete::not (:dd::Bad (?k :- :k)))]
   :then [(:dd::Ok :k ?k)])
 
-(:wat::rete::defquery :dd::q-Bad :params [] :when [(?fact <- :dd::Bad)])
-(:wat::rete::defquery :dd::q-Ok  :params [] :when [(?fact <- :dd::Ok)])
+(:wat::rete::defquery :dd::q-Bad :params [] :when [(?fact :- :dd::Bad)])
+(:wat::rete::defquery :dd::q-Ok  :params [] :when [(?fact :- :dd::Ok)])
 
 ;; ── seeding ──────────────────────────────────────────────────────────────────
 

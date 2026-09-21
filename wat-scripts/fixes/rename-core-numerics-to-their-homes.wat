@@ -72,9 +72,9 @@
 ;; ── the finder — two rules over wat/grep.wat's stdlib fact base ─────────────────────────
 
 (:wat::rete::defrule :rn::core-i64
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY. `Written` already excludes string literals; `Named` still fires for a "string" kind (wat/grep.wat's
          ;; `nameable?`) — a string literal's span covers its surrounding quotes while its
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
@@ -93,9 +93,9 @@
                                     :undefined "")))))])
 
 (:wat::rete::defrule :rn::core-f64
-  :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
-         (:wat::grep::Written (?id <- :id) (?n <- :text) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
+         (:wat::grep::Written (?id :- :id) (?n :- :text) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-i64's comment.
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::f64::"))]
@@ -117,8 +117,8 @@
 
 (:wat::rete::defquery :rn::q-match
   :params []
-  :when [(:wat::grep::Match (?line <- :line) (?col <- :col)
-           (?end-line <- :end-line) (?end-col <- :end-col) (?captures <- :captures))])
+  :when [(:wat::grep::Match (?line :- :line) (?col :- :col)
+           (?end-line :- :end-line) (?end-col :- :end-col) (?captures :- :captures))])
 
 ;; second-capture — a typed wrapper around `second`. `PersistentMap/get`'s value type is a
 ;; fresh metavariable until something FORCES it concrete; a Tuple-constructor slot does that

@@ -35,7 +35,7 @@
           [
             (
               :probe/StepPayloadExampleTemp
-              (?c <- :celsius)
+              (?c :- :celsius)
               (:wat.rete.i64/< ?c 20)
             )
           ]

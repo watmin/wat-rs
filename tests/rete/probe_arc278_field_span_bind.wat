@@ -9,7 +9,7 @@
 (:wat::core::defrecord :fsb::Hit [k <- :wat::core::i64])
 
 (:wat::rete::defrule :fsb::r
-  :when [(:fsb::Src (?k <- :k) (?b <- :nofield))]
+  :when [(:fsb::Src (?k :- :k) (?b :- :nofield))]
   :then [(:fsb::Hit :k ?k)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

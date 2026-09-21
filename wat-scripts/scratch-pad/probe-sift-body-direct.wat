@@ -10,21 +10,21 @@
 
 (:wat::rete::defquery :usr::q-Hot
   :params []
-  :when [(?fact <- :usr::Hot)])
+  :when [(?fact :- :usr::Hot)])
 
 
 (:wat::rete::defquery :usr::q-Warn
   :params []
-  :when [(?fact <- :usr::Warn)])
+  :when [(?fact :- :usr::Warn)])
 
 
 (:wat::core::defn :usr::template [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector
       (:wat::rete::make-rule "usr::hot-rule"
-        (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))])
+        (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
         (:wat::core::quote [(:usr::Hot :c ?c)]))
       (:wat::rete::make-rule "usr::warn-rule"
-        (:wat::core::quote [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))])
+        (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
         (:wat::core::quote [(:usr::Warn :c ?c)]))) (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

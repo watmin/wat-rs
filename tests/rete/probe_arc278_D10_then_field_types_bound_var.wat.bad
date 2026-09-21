@@ -14,7 +14,7 @@
 (:wat::core::defrecord :dbv::Bad [n <- :wat::core::i64])
 
 (:wat::rete::defrule :dbv::bad
-  :when [(:dbv::Box (?k <- :k) (?s <- :s))]
+  :when [(:dbv::Box (?k :- :k) (?s :- :s))]
   :then [(:dbv::Bad :n ?s)])
 
 ;; ⛔ A REAL `main`, and it is LOAD-BEARING — not boilerplate.

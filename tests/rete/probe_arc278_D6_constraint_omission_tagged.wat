@@ -22,7 +22,7 @@
 
 (:wat::rete::defrule :d6t::hit
   :when
-  [(:d6t::Reading (?n <- :n) (?g <- :grade)
+  [(:d6t::Reading (?n :- :n) (?g :- :grade)
                   (:wat::rete::i64::> ?n 5)
                   (:wat::rete::core::enum::not= ?g :d6t::Grade.Rejected))]
   :then

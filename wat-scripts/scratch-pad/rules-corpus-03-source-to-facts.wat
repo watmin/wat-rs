@@ -19,24 +19,24 @@
 (:wat::core::defrecord :fx::IsTypePos [id <- :wat::core::i64])
 
 (:wat::rete::defrule :fx::arrow
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Symbol {})))
          (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:fx::IsArrow :id ?id)])
 
 (:wat::rete::defrule :fx::head-kw
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::string::contains? ?n "::"))]
   :then [(:fx::IsHeadKw :id ?id)])
 
 ;; the prev-sibling JOIN that replaces fix-seq's single carried boolean — over real source now
 (:wat::rete::defrule :fx::type-pos
-  :when [(:wat::grep::Node (?id <- :id)  (?p <- :parent) (?i <- :index))
-         (:wat::grep::Node (?aid <- :id) (?p <- :parent) (?ai <- :index))
-         (:fx::IsArrow (?aid <- :id))
+  :when [(:wat::grep::Node (?id :- :id)  (?p :- :parent) (?i :- :index))
+         (:wat::grep::Node (?aid :- :id) (?p :- :parent) (?ai :- :index))
+         (:fx::IsArrow (?aid :- :id))
          (:wat::rete::where
            (:wat::rete::i64::= ?i (:wat::rete::i64::+ ?ai 1 :undefined 0)))]
   :then [(:fx::IsTypePos :id ?id)])
@@ -47,30 +47,30 @@
 (:wat::core::defrecord :fx::ArrowLine [id <- :wat::core::i64  line <- :wat::core::i64])
 
 (:wat::rete::defrule :fx::arrow-line
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::grep::Span  (?id <- :id) (?l <- :line))
+  :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
+         (:wat::grep::Span  (?id :- :id) (?l :- :line))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Symbol {})))
          (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:fx::ArrowLine :id ?id :line ?l)])
 
 (:wat::rete::defquery :fx::q-ArrowLine
   :params []
-  :when [(:fx::ArrowLine (?id <- :id) (?l <- :line))])
+  :when [(:fx::ArrowLine (?id :- :id) (?l :- :line))])
 
 (:wat::rete::defquery :fx::q-IsArrow
   :params []
-  :when [(?fact <- :fx::IsArrow)])
+  :when [(?fact :- :fx::IsArrow)])
 
 
 (:wat::rete::defquery :fx::q-IsHeadKw
   :params []
-  :when [(?fact <- :fx::IsHeadKw)])
+  :when [(?fact :- :fx::IsHeadKw)])
 
 
 (:wat::rete::defquery :fx::q-IsTypePos
   :params []
-  :when [(?fact <- :fx::IsTypePos)])
+  :when [(?fact :- :fx::IsTypePos)])
 
 ;; ─── ★ THE PROVING RULE — a real :wat::grep::Match, built in one RHS ─────────
 ;; Five coordinates LHS-bound off :wat::grep::Span (line/col/end-line/end-col, plus the node's
@@ -81,12 +81,12 @@
 ;; ⚠ the vector constructor is :wat::rete::core::PersistentVector, NOT :wat::core::PersistentVector
 ;; — core's fails the rete `:then` fence with "is not total" (measured, DESIGN-STONE session).
 (:wat::rete::defrule :fx::match-arrow
-  :when [(:wat::grep::Node (?id <- :id) (?k <- :kind))
-         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+  :when [(:wat::grep::Node (?id :- :id) (?k :- :kind))
+         (:wat::grep::Span (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
          ;; the ONE Source fact per file — how a rule learns which file it is matching in.
          ;; This line used to be a hardcoded "wat/fix.wat", which was right by coincidence for
          ;; exactly one file and wrong for every other.
-         (:wat::grep::Source (?f <- :file))]
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match
            :file     ?f
            :line     ?l

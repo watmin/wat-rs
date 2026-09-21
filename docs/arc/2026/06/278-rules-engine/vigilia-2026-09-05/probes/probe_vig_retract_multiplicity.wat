@@ -9,10 +9,10 @@
 (:wat::core::defrecord :vrm::Seen [k <- :wat::core::i64])
 
 (:wat::rete::defrule :vrm::mark
-  :when [(:vrm::F (?k <- :k)) (:vrm::G (?k <- :k))]
+  :when [(:vrm::F (?k :- :k)) (:vrm::G (?k :- :k))]
   :then [(:vrm::Seen :k ?k)])
 
-(:wat::rete::defquery :vrm::q-seen :params [] :when [(?f <- :vrm::Seen)])
+(:wat::rete::defquery :vrm::q-seen :params [] :when [(?f :- :vrm::Seen)])
 
 (:wat::core::defn :vrm::base [] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :vrm)

@@ -14,6 +14,6 @@
 (:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
 (:wat::rete::defrule :alert::unattended
   :when
-  [(:weather::Temperature :celsius (?loc <- :location) :location (?c <- :celsius))]
+  [(:weather::Temperature :celsius (?loc :- :location) :location (?c :- :celsius))]
   :then
   [(:alert::Unattended :location ?loc)])

@@ -13,42 +13,42 @@
 (:wat::core::defrecord :wex::Hit  [k <- :wat::core::i64])
 
 (:wat::rete::defrule :wex::lead-wind
-  :when [(:wat::rete::exists (:wex::Wind (?loc <- :loc)))]
+  :when [(:wat::rete::exists (:wex::Wind (?loc :- :loc)))]
   :then [(:wex::At :loc ?loc)])
 
 (:wat::rete::defrule :wex::both-exist
-  :when [(:wat::rete::exists (:wex::Temp (?loc <- :loc)))
-         (:wat::rete::exists (:wex::Wind (?loc <- :loc)))]
+  :when [(:wat::rete::exists (:wex::Temp (?loc :- :loc)))
+         (:wat::rete::exists (:wex::Wind (?loc :- :loc)))]
   :then [(:wex::At :loc ?loc)])
 
 (:wat::rete::defrule :wex::or-exists
   :when [(:wat::rete::or
-           (:wat::rete::exists (:wex::Caw (?t <- :t)))
+           (:wat::rete::exists (:wex::Caw (?t :- :t)))
            (:wat::rete::exists
-             (:wex::Temp (?c <- :c)
+             (:wex::Temp (?c :- :c)
                (:wat::rete::i64::< ?c 20))))]
   :then [(:wex::Hit :k 1)])
 
 ;; Mid-chain: Loc is the left token. Exists binds nothing; two Winds → one At.
 (:wat::rete::defrule :wex::mid-wind
-  :when [(:wex::Loc (?loc <- :loc))
-         (:wat::rete::exists (:wex::Wind (?loc <- :loc)))]
+  :when [(:wex::Loc (?loc :- :loc))
+         (:wat::rete::exists (:wex::Wind (?loc :- :loc)))]
   :then [(:wex::At :loc ?loc)])
 
 (:wat::rete::defrule :wex::mid-both
-  :when [(:wex::Loc (?loc <- :loc))
-         (:wat::rete::exists (:wex::Temp (?loc <- :loc)))
-         (:wat::rete::exists (:wex::Wind (?loc <- :loc)))]
+  :when [(:wex::Loc (?loc :- :loc))
+         (:wat::rete::exists (:wex::Temp (?loc :- :loc)))
+         (:wat::rete::exists (:wex::Wind (?loc :- :loc)))]
   :then [(:wex::At :loc ?loc)])
 
 (:wat::rete::defquery :wex::q-At
   :params []
-  :when [(?fact <- :wex::At)])
+  :when [(?fact :- :wex::At)])
 
 
 (:wat::rete::defquery :wex::q-Hit
   :params []
-  :when [(?fact <- :wex::Hit)])
+  :when [(?fact :- :wex::Hit)])
 
 
 (:wat::core::defn :wex::n-at [s <- :wat::rete::Session] -> :wat::core::i64

@@ -2,6 +2,11 @@
 (wat.core/identity 1)
 ; near-miss: non-namespaced keyword is not a namespaced head
 (:keep 1)
+; rete field binding: arrow converts, field name stays
+(?k :- :k)
+(vrm/F (?k :- :k))
+; near-miss: unquoted annotation name still converts
+`[~x :- wat.type/i64]
 ; near-miss comment must stay: :wat::core::defn
 (wat.core/defn u/hit [x :- wat.type/i64] :- wat.type/nil
   (wat.core/if x

@@ -7,7 +7,7 @@
 
 (:wat::rete::defquery :weather::q-ColdAndWindy
   :params []
-  :when [(?fact <- :weather::ColdAndWindy)])
+  :when [(?fact :- :weather::ColdAndWindy)])
 
 
 ;; Wind at "Oslo" (matches Temperature's loc) vs wind at "Bergen" (does not). Harvest is
@@ -15,8 +15,8 @@
 
 (:wat::core::defn :test::compile-cw [] -> :wat::rete::Session
   (:wat::core::let
-    [c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))
-     c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))
+    [c1    (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))
+     c2    (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))
      rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
      rule  (:wat::rete::Rule :name "cw" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))]
     (:wat::core::match (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))

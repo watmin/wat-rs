@@ -52,40 +52,40 @@
 
 ;; ROW 1 — INLINE keyword constant. Refused outright until 2026-08-28.
 (:wat::rete::defrule :wik::inline-kw
-  :when [(:wik::Req (?k <- :k) (:wat::rete::core::keyword::= :tag :alpha))]
+  :when [(:wik::Req (?k :- :k) (:wat::rete::core::keyword::= :tag :alpha))]
   :then [(:wik::Hit :k ?k)])
 
 ;; ROW 2 — FENCE. This position always worked, which is how the inline refusal stayed invisible.
 (:wat::rete::defrule :wik::fence-kw
-  :when [(:wik::Req (?k <- :k) (?t <- :tag))
+  :when [(:wik::Req (?k :- :k) (?t :- :tag))
          (:wat::rete::where (:wat::rete::core::keyword::= ?t :alpha))]
   :then [(:wik::Hit :k ?k)])
 
 ;; ROW 3 — INLINE enum constant. `:wik::G::Hi` carries `::` and so could NEVER have been a field
 ;; name — there was no ambiguity here to resolve, only a question nobody asked.
 (:wat::rete::defrule :wik::inline-enum
-  :when [(:wik::Req (?k <- :k) (:wat::rete::core::enum::= :grade :wik::G.Hi))]
+  :when [(:wik::Req (?k :- :k) (:wat::rete::core::enum::= :grade :wik::G.Hi))]
   :then [(:wik::Hit :k ?k)])
 
 ;; ROW 4 — FENCE.
 (:wat::rete::defrule :wik::fence-enum
-  :when [(:wik::Req (?k <- :k) (?g <- :grade))
+  :when [(:wik::Req (?k :- :k) (?g :- :grade))
          (:wat::rete::where (:wat::rete::core::enum::= ?g :wik::G.Hi))]
   :then [(:wik::Hit :k ?k)])
 
 ;; ROW 5 — ⛔ THE FIELD STILL WINS. `:beta` names a declared field, so this compares tag AGAINST
 ;; THE FIELD `beta` — never against the constant `:beta`. Seeded so the two readings disagree.
 (:wat::rete::defrule :wik::inline-shadow
-  :when [(:wik::Req (?k <- :k) (:wat::rete::core::keyword::= :tag :beta))]
+  :when [(:wik::Req (?k :- :k) (:wat::rete::core::keyword::= :tag :beta))]
   :then [(:wik::Hit :k ?k)])
 
 ;; ROW 6 — FENCE, the same comparison written with binds.
 (:wat::rete::defrule :wik::fence-shadow
-  :when [(:wik::Req (?k <- :k) (?t <- :tag) (?b <- :beta))
+  :when [(:wik::Req (?k :- :k) (?t :- :tag) (?b :- :beta))
          (:wat::rete::where (:wat::rete::core::keyword::= ?t ?b))]
   :then [(:wik::Hit :k ?k)])
 
-(:wat::rete::defquery :wik::q-Hit :params [] :when [(?fact <- :wik::Hit)])
+(:wat::rete::defquery :wik::q-Hit :params [] :when [(?fact :- :wik::Hit)])
 
 (:wat::core::defn :wik::rule-for [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::cond

@@ -34,11 +34,11 @@
 (:wat::core::defrecord :lf2::S1 [k <- :wat::core::i64])
 (:wat::core::defrecord :lf2::S2 [k <- :wat::core::i64])
 
-(:wat::rete::defrule :lf2::r2 :when [(:lf2::S1 (?k <- :k))] :then [(:lf2::S2 :k ?k)])
+(:wat::rete::defrule :lf2::r2 :when [(:lf2::S1 (?k :- :k))] :then [(:lf2::S2 :k ?k)])
 
 ;; Two Winds, ONE distinct loc => exactly one distinct inner binding.
 (:wat::rete::defquery :lf2::q-exists :params []
-  :when [(:wat::rete::exists (:lf2::Wind (?loc <- :loc)))])
+  :when [(:wat::rete::exists (:lf2::Wind (?loc :- :loc)))])
 ;; Ghost is never asserted => the empty world matches with ONE empty token.
 (:wat::rete::defquery :lf2::q-not :params []
   :when [(:wat::rete::not (:lf2::Ghost))])
@@ -54,14 +54,14 @@
 (:wat::core::defrecord :lf6::S5 [k <- :wat::core::i64])
 (:wat::core::defrecord :lf6::S6 [k <- :wat::core::i64])
 
-(:wat::rete::defrule :lf6::r2 :when [(:lf6::S1 (?k <- :k))] :then [(:lf6::S2 :k ?k)])
-(:wat::rete::defrule :lf6::r3 :when [(:lf6::S2 (?k <- :k))] :then [(:lf6::S3 :k ?k)])
-(:wat::rete::defrule :lf6::r4 :when [(:lf6::S3 (?k <- :k))] :then [(:lf6::S4 :k ?k)])
-(:wat::rete::defrule :lf6::r5 :when [(:lf6::S4 (?k <- :k))] :then [(:lf6::S5 :k ?k)])
-(:wat::rete::defrule :lf6::r6 :when [(:lf6::S5 (?k <- :k))] :then [(:lf6::S6 :k ?k)])
+(:wat::rete::defrule :lf6::r2 :when [(:lf6::S1 (?k :- :k))] :then [(:lf6::S2 :k ?k)])
+(:wat::rete::defrule :lf6::r3 :when [(:lf6::S2 (?k :- :k))] :then [(:lf6::S3 :k ?k)])
+(:wat::rete::defrule :lf6::r4 :when [(:lf6::S3 (?k :- :k))] :then [(:lf6::S4 :k ?k)])
+(:wat::rete::defrule :lf6::r5 :when [(:lf6::S4 (?k :- :k))] :then [(:lf6::S5 :k ?k)])
+(:wat::rete::defrule :lf6::r6 :when [(:lf6::S5 (?k :- :k))] :then [(:lf6::S6 :k ?k)])
 
 (:wat::rete::defquery :lf6::q-exists :params []
-  :when [(:wat::rete::exists (:lf6::Wind (?loc <- :loc)))])
+  :when [(:wat::rete::exists (:lf6::Wind (?loc :- :loc)))])
 (:wat::rete::defquery :lf6::q-not :params []
   :when [(:wat::rete::not (:lf6::Ghost))])
 

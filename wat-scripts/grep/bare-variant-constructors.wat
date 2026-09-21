@@ -26,16 +26,16 @@
 (:wat::core::defrecord :bv::Head [id <- :wat::core::i64  name <- :wat::core::String])
 
 (:wat::rete::defrule :bv::head
-  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index))
-         (:wat::grep::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id :- :id) (?k :- :kind) (?i :- :index))
+         (:wat::grep::Named (?id :- :id) (?n :- :name))
          (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
          (:wat::rete::where (:wat::rete::i64::= ?i 0))]
   :then [(:bv::Head :id ?id :name ?n)])
 
 (:wat::rete::defrule :bv::some
-  :when [(:bv::Head (?id <- :id) (?n <- :name))
-         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:bv::Head (?id :- :id) (?n :- :name))
+         (:wat::grep::Span (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/Some"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
@@ -44,9 +44,9 @@
                        (:wat::grep::Capture :name "qualified" :value "wat.core.Option/Some")))])
 
 (:wat::rete::defrule :bv::ok
-  :when [(:bv::Head (?id <- :id) (?n <- :name))
-         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:bv::Head (?id :- :id) (?n :- :name))
+         (:wat::grep::Span (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/Ok"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
@@ -55,9 +55,9 @@
                        (:wat::grep::Capture :name "qualified" :value "wat.core.Result/Ok")))])
 
 (:wat::rete::defrule :bv::err
-  :when [(:bv::Head (?id <- :id) (?n <- :name))
-         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
+  :when [(:bv::Head (?id :- :id) (?n :- :name))
+         (:wat::grep::Span (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (:wat::grep::Source (?f :- :file))
          (:wat::rete::where (:wat::rete::string::= ?n "wat.core/Err"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"

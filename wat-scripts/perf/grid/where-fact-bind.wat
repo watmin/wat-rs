@@ -7,31 +7,31 @@
 (:wat::core::defrecord :wfb::Hit [c <- :wat::core::i64])
 
 (:wat::rete::defrule :wfb::cool
-  :when [(?t <- :wfb::Temp)
+  :when [(?t :- :wfb::Temp)
          (:wat::rete::where (:wat::rete::i64::< (:wfb::Temp/c ?t) 20))]
   :then [(:wfb::Hit :c (:wfb::Temp/c ?t))])
 
 (:wat::rete::defquery :wfb::q-bound
   :params []
-  :when [(?t <- :wfb::Temp)])
+  :when [(?t :- :wfb::Temp)])
 
 (:wat::rete::defquery :wfb::q-plain
   :params []
-  :when [(?fact <- :wfb::Temp)])
+  :when [(?fact :- :wfb::Temp)])
 
 (:wat::rete::defquery :wfb::q-both
   :params []
-  :when [(?t <- :wfb::Temp (?c <- :c))])
+  :when [(?t :- :wfb::Temp (?c :- :c))])
 
 (:wat::rete::defquery :wfb::q-Hit
   :params []
-  :when [(:wfb::Hit (?c <- :c))])
+  :when [(:wfb::Hit (?c :- :c))])
 
 ;; Accum query of two Temps at one loc — one group. Clara :from is a
 ;; fact pattern, not `[?t <- Temp]` (that form is a condition, not :from).
 (:wat::rete::defquery :wfb::q-from
   :params []
-  :when [(?n <- (:wat::rete::acc::count) :from (:wfb::Temp (?loc <- :loc)))])
+  :when [(?n :- (:wat::rete::acc::count) :from (:wfb::Temp (?loc :- :loc)))])
 
 (:wat::core::defn :wfb::has-key
   [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])

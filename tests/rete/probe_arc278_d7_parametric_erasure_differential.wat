@@ -47,11 +47,11 @@
 (:wat::core::defrecord :d7g::Pair     [k <- :wat::core::i64])
 
 (:wat::rete::defrule :d7g::r-box
-  :when  [(:d7g::Box (?k <- :k) (?v <- :v))]
+  :when  [(:d7g::Box (?k :- :k) (?v :- :v))]
   :then  [(:d7g::Hit ?k)])
 
 (:wat::rete::defrule :d7g::r-plain
-  :when  [(:d7g::Plain (?k <- :k))]
+  :when  [(:d7g::Plain (?k :- :k))]
   :then  [(:d7g::PlainHit ?k)])
 
 ;; The JOIN arm. `Box`'s alpha delta is consumed here as SLOT INDICES into
@@ -59,13 +59,13 @@
 ;; rather than merely a missing one. It also gives `d7g::Box` a SECOND leaf aid,
 ;; so the class-uniform decision is exercised across more than one node.
 (:wat::rete::defrule :d7g::r-pair
-  :when  [(:d7g::Box (?k <- :k) (?v <- :v))
-          (:d7g::Plain (?k <- :k))]
+  :when  [(:d7g::Box (?k :- :k) (?v :- :v))
+          (:d7g::Plain (?k :- :k))]
   :then  [(:d7g::Pair ?k)])
 
-(:wat::rete::defquery :d7g::q-hit   :params [] :when [(?fact <- :d7g::Hit)])
-(:wat::rete::defquery :d7g::q-plain :params [] :when [(?fact <- :d7g::PlainHit)])
-(:wat::rete::defquery :d7g::q-pair  :params [] :when [(?fact <- :d7g::Pair)])
+(:wat::rete::defquery :d7g::q-hit   :params [] :when [(?fact :- :d7g::Hit)])
+(:wat::rete::defquery :d7g::q-plain :params [] :when [(?fact :- :d7g::PlainHit)])
+(:wat::rete::defquery :d7g::q-pair  :params [] :when [(?fact :- :d7g::Pair)])
 
 ;; ── reporting ────────────────────────────────────────────────────────────────
 

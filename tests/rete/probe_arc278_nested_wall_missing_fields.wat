@@ -12,7 +12,7 @@
 (:wat::core::defrecord :nwm::Outer [k <- :wat::core::i64  inner <- :nwm::Inner])
 
 (:wat::rete::defrule :nwm::r
-  :when [(:nwm::Src (?k <- :k))]
+  :when [(:nwm::Src (?k :- :k))]
   :then [(:nwm::Outer :k ?k :inner (:nwm::Inner :x ?k))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

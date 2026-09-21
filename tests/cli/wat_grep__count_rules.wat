@@ -4,26 +4,26 @@
 ;; Match would collapse every firing of a rule into one fact and undercount.
 
 (:wat::rete::defrule :cnt::node
-  :when [(:wat::grep::Node (?id <- :id))
-         (:wat::grep::Source (?f <- :file))]
+  :when [(:wat::grep::Node (?id :- :id))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match :file ?f :line ?id :col 0 :end-line ?id :end-col 0
            :rule "cnt::node" :captures (:wat::rete::core::PersistentVector))])
 
 (:wat::rete::defrule :cnt::named
-  :when [(:wat::grep::Named (?id <- :id))
-         (:wat::grep::Source (?f <- :file))]
+  :when [(:wat::grep::Named (?id :- :id))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match :file ?f :line ?id :col 0 :end-line ?id :end-col 0
            :rule "cnt::named" :captures (:wat::rete::core::PersistentVector))])
 
 (:wat::rete::defrule :cnt::span
-  :when [(:wat::grep::Span (?id <- :id))
-         (:wat::grep::Source (?f <- :file))]
+  :when [(:wat::grep::Span (?id :- :id))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match :file ?f :line ?id :col 0 :end-line ?id :end-col 0
            :rule "cnt::span" :captures (:wat::rete::core::PersistentVector))])
 
 (:wat::rete::defrule :cnt::written
-  :when [(:wat::grep::Written (?id <- :id))
-         (:wat::grep::Source (?f <- :file))]
+  :when [(:wat::grep::Written (?id :- :id))
+         (:wat::grep::Source (?f :- :file))]
   :then [(:wat::grep::Match :file ?f :line ?id :col 0 :end-line ?id :end-col 0
            :rule "cnt::written" :captures (:wat::rete::core::PersistentVector))])
 

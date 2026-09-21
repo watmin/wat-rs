@@ -8,13 +8,13 @@
 
 (:wat::rete::defrule :wnf::not-cold
   :when [(:wat::rete::not
-           (:wnf::Temp (?c <- :c)
+           (:wnf::Temp (?c :- :c)
              (:wat::rete::i64::< ?c 20)))]
   :then [(:wnf::Hit :k 1)])
 
 (:wat::rete::defquery :wnf::q-Hit
   :params []
-  :when [(?fact <- :wnf::Hit)])
+  :when [(?fact :- :wnf::Hit)])
 
 
 (:wat::core::defn :wnf::n-hit [s <- :wat::rete::Session] -> :wat::core::i64

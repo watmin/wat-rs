@@ -3,28 +3,28 @@
 ;; The emitter inlines when indent + Width fits; this file names no budget.
 
 (:wat::rete::defrule :fmt::all-atoms
-  :when [(:wat::fmt::AlignPairs (?p <- :form))
-         (:wat::rete::not (:wat::fmt::TableRow (?p <- :form)))
+  :when [(:wat::fmt::AlignPairs (?p :- :form))
+         (:wat::rete::not (:wat::fmt::TableRow (?p :- :form)))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?k :- :kind))
              (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.List {})))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?k :- :kind))
              (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Vector {})))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?k :- :kind))
              (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Map {})))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?c <- :id) (?p <- :parent) (?k <- :kind))
+             (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?k :- :kind))
              (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Set {})))))
          (:wat::rete::not
            (:wat::rete::and
-             (:wat::grep::Node  (?h <- :id) (?p <- :parent) (?hi <- :index))
+             (:wat::grep::Node  (?h :- :id) (?p :- :parent) (?hi :- :index))
              (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-             (:wat::grep::Named (?h <- :id) (?hn <- :name))
+             (:wat::grep::Named (?h :- :id) (?hn :- :name))
              (:wat::rete::where (:wat::rete::string::= ?hn "wat.core/defenum"))))]
   :then [(:wat::fmt::AllAtoms :form ?p)])

@@ -43,7 +43,7 @@
 (:wat::core::defrecord :d11n::In1  [n <- :wat::core::i64])
 (:wat::core::defrecord :d11n::Nk1  [i <- :d11n::In1])
 (:wat::rete::defrule :d11n::nk1
-  :when [(:d11n::In (?s <- :s))]
+  :when [(:d11n::In (?s :- :s))]
   :then [(:d11n::Nk1 :i (:d11n::In1 :n (:wat::rete::core::cond
                                          ((:wat::rete::string::= ?s "seed") 11)
                                          (:else 99))))])
@@ -53,14 +53,14 @@
 (:wat::core::defrecord :d11n::In2    [p <- :d11n::Pair])
 (:wat::core::defrecord :d11n::Nk2    [i <- :d11n::In2])
 (:wat::rete::defrule :d11n::nk2
-  :when [(:d11n::Holder (?p <- :p))]
+  :when [(:d11n::Holder (?p :- :p))]
   :then [(:d11n::Nk2 :i (:d11n::In2 :p ?p))])
 
 ;; nk3 — a constructor as the value of a NESTED constructor's field (depth 2, passing side).
 (:wat::core::defrecord :d11n::In3 [p <- :d11n::Pair])
 (:wat::core::defrecord :d11n::Nk3 [i <- :d11n::In3])
 (:wat::rete::defrule :d11n::nk3
-  :when [(:d11n::In (?s <- :s))]
+  :when [(:d11n::In (?s :- :s))]
   :then [(:d11n::Nk3 :i (:d11n::In3 :p (:d11n::Pair :a ?s :b "nested")))])
 
 ;; nk4 — a two-stage derivation: nk4b's `?m` is bound from the fact nk4a derived, and it is the
@@ -69,16 +69,16 @@
 (:wat::core::defrecord :d11n::Nk4a [m <- :wat::core::i64])
 (:wat::core::defrecord :d11n::Nk4b [i <- :d11n::In4])
 (:wat::rete::defrule :d11n::nk4a
-  :when [(:d11n::In (?k <- :k))]
+  :when [(:d11n::In (?k :- :k))]
   :then [(:d11n::Nk4a :m ?k)])
 (:wat::rete::defrule :d11n::nk4b
-  :when [(:d11n::Nk4a (?m <- :m))]
+  :when [(:d11n::Nk4a (?m :- :m))]
   :then [(:d11n::Nk4b :i (:d11n::In4 :n ?m))])
 
-(:wat::rete::defquery :d11n::q1 :params [] :when [(?f <- :d11n::Nk1)])
-(:wat::rete::defquery :d11n::q2 :params [] :when [(?f <- :d11n::Nk2)])
-(:wat::rete::defquery :d11n::q3 :params [] :when [(?f <- :d11n::Nk3)])
-(:wat::rete::defquery :d11n::q4 :params [] :when [(?f <- :d11n::Nk4b)])
+(:wat::rete::defquery :d11n::q1 :params [] :when [(?f :- :d11n::Nk1)])
+(:wat::rete::defquery :d11n::q2 :params [] :when [(?f :- :d11n::Nk2)])
+(:wat::rete::defquery :d11n::q3 :params [] :when [(?f :- :d11n::Nk3)])
+(:wat::rete::defquery :d11n::q4 :params [] :when [(?f :- :d11n::Nk4b)])
 
 (:wat::core::defn :d11n::fired [] -> :wat::rete::Session
   (:wat::core::let

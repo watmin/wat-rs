@@ -9,17 +9,17 @@
   (:fhp::Hit :c c))
 
 (:wat::rete::defrule :fhp::cool
-  :when [(:fhp::Temp (?c <- :c))
+  :when [(:fhp::Temp (?c :- :c))
          (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:fhp::as-hit ?c)])
 
 (:wat::rete::defrule :fhp::seen
-  :when [(:fhp::Temp (?c <- :c))
-         (:wat::rete::exists (:fhp::Hit (?c <- :c)))]
+  :when [(:fhp::Temp (?c :- :c))
+         (:wat::rete::exists (:fhp::Hit (?c :- :c)))]
   :then [(:fhp::Seen :c ?c)])
 
-(:wat::rete::defquery :fhp::q-Hit  :params [] :when [(?f <- :fhp::Hit)])
-(:wat::rete::defquery :fhp::q-Seen :params [] :when [(?f <- :fhp::Seen)])
+(:wat::rete::defquery :fhp::q-Hit  :params [] :when [(?f :- :fhp::Hit)])
+(:wat::rete::defquery :fhp::q-Seen :params [] :when [(?f :- :fhp::Seen)])
 
 (:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::core::match (:wat::rete::compile-all

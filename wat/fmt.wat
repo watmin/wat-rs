@@ -93,39 +93,39 @@
 
 (:wat::rete::defquery :wat::fmt::q-break
   :params []
-  :when [(?b <- :wat::fmt::Break)])
+  :when [(?b :- :wat::fmt::Break)])
 
 (:wat::rete::defquery :wat::fmt::q-claim
   :params []
-  :when [(?c <- :wat::fmt::Claim)])
+  :when [(?c :- :wat::fmt::Claim)])
 
 (:wat::rete::defquery :wat::fmt::q-fallback
   :params []
-  :when [(?f <- :wat::fmt::Fallback)])
+  :when [(?f :- :wat::fmt::Fallback)])
 
 (:wat::rete::defquery :wat::fmt::q-blank
   :params []
-  :when [(?bl <- :wat::fmt::BlankBefore)])
+  :when [(?bl :- :wat::fmt::BlankBefore)])
 
 (:wat::rete::defquery :wat::fmt::q-align
   :params []
-  :when [(?ap <- :wat::fmt::AlignPairs)])
+  :when [(?ap :- :wat::fmt::AlignPairs)])
 
 (:wat::rete::defquery :wat::fmt::q-stride
   :params []
-  :when [(?st <- :wat::fmt::AlignStride)])
+  :when [(?st :- :wat::fmt::AlignStride)])
 
 (:wat::rete::defquery :wat::fmt::q-table
   :params []
-  :when [(?t <- :wat::fmt::TableRow)])
+  :when [(?t :- :wat::fmt::TableRow)])
 
 (:wat::rete::defquery :wat::fmt::q-atoms
   :params []
-  :when [(?aa <- :wat::fmt::AllAtoms)])
+  :when [(?aa :- :wat::fmt::AllAtoms)])
 
 (:wat::rete::defquery :wat::fmt::q-empty-vec
   :params []
-  :when [(?ev <- :wat::fmt::EmptyVecAfter)])
+  :when [(?ev :- :wat::fmt::EmptyVecAfter)])
 
 (:wat::core::defn :wat::fmt::spaces [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::if (:wat::i64::<= n 0)

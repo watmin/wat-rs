@@ -20,7 +20,7 @@
   (:wat::rete::i64::> n 100))
 
 ;; a MIDDLE fn that calls the leaf — this is what a lifted where-body looks like
-(:wat::rete::core::defn :usr::ok-rule$where0 [?c <- :wat::core::i64] -> :wat::core::bool
+(:wat::rete::core::defn :usr::ok-rule$where0 [?c :- :wat::core::i64] -> :wat::core::bool
   (:usr::big? ?c))
 
 ;; ── PC — everything in ordinary call position: the CEILING ──────────────────
@@ -30,7 +30,7 @@
 ;; ── BASE — the shape defrule emits today: names live only inside the quote ──
 (:wat::core::defn :usr::rule-base [] -> :wat::rete::Rule
   (:wat::rete::make-rule "usr::rule-base"
-    (:wat::core::quote [(:usr::Temp (?c <- :c))
+    (:wat::core::quote [(:usr::Temp (?c :- :c))
                         (:wat::rete::where (:usr::ok-rule$where0 ?c))])
     (:wat::core::quote [(:usr::Hot :c ?c)])))
 
@@ -38,7 +38,7 @@
 (:wat::core::defn :usr::rule-mentioned [] -> :wat::rete::Rule
   (:wat::core::let [$where0 :usr::ok-rule$where0]
     (:wat::rete::make-rule "usr::rule-mentioned"
-      (:wat::core::quote [(:usr::Temp (?c <- :c))
+      (:wat::core::quote [(:usr::Temp (?c :- :c))
                           (:wat::rete::where (:usr::ok-rule$where0 ?c))])
       (:wat::core::quote [(:usr::Hot :c ?c)]))))
 

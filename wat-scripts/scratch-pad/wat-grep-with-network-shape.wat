@@ -20,7 +20,7 @@
 (:wat::core::defrecord :g::Wind  [location <- :wat::core::String])
 (:wat::core::defrecord :g::Match [location <- :wat::core::String])
 
-(:wat::rete::defquery :g::q-match :params [] :when [(?fact <- :g::Match)])
+(:wat::rete::defquery :g::q-match :params [] :when [(?fact :- :g::Match)])
 
 ;; ── THE SHAPE UNDER EVALUATION ────────────────────────────────────────────────
 ;; with-network — hand an ARMED session to body-fn, release the lease after.
@@ -46,8 +46,8 @@
 ;; ── the network the user's query program would supply ─────────────────────────
 (:wat::core::defn :user::the-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::let
-    [c1   (:wat::core::quote (:g::Temp (?loc <- :location)))
-     c2   (:wat::core::quote (:g::Wind (?loc <- :location)))
+    [c1   (:wat::core::quote (:g::Temp (?loc :- :location)))
+     c2   (:wat::core::quote (:g::Wind (?loc :- :location)))
      rhs  (:wat::core::quote (:g::Match ?loc))
      rule (:wat::rete::Rule :name "temp-and-wind"
             :lhs (:wat::core::PersistentVector c1 c2)
