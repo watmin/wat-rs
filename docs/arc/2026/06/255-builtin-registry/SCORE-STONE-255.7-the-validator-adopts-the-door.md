@@ -113,3 +113,71 @@ Predicted **+4**. `cargo nextest list --release -p wat`: **5335** (was 5331).
 - `probe_arc255_7_the_validator_adopts_the_door` (accept + unknown-field + non-list + `<-`) — pass
 
 Floor / workspace clippy / census: orchestrator. Do not push. Do not start 8d-ii.
+
+---
+
+# ORCHESTRATOR'S WEIGH — independent re-run, 2026-09-21. **ACCEPTED.**
+
+| row | result |
+|---|---|
+| `scripts/floor.sh` | ✅ **5957/5957 passed**, exit 0 |
+| clippy `-D warnings --all-targets --workspace` | ✅ **0** |
+| `census.sh --diff` | ✅ `no STOP-8` |
+| corpus `.wat` converted | ✅ **0** |
+| ⭐ **THE DELTA — my tree, freshly re-converted** | **61 → 49.** Classification matches the SCORE row for row |
+
+⭐⭐ **`ReteCheckErrors` IS GONE — 16 → 0.** The rete class that has sat in this residue since the
+FINDING that opened the arc is closed. **Arc: 104 → 97 → 80 → 77 → 66 → 61 → 49.**
+
+## ⛔ THE CRITICAL CONTROL — "diagnosed, NOT skipped" — HOLDS
+
+The brief's sharpest row, because 255.6 had just found `check_fence_interior` **fail-opening**:
+
+```
+:then with unknown field :nope   → UnknownField        ← DIAGNOSED
+:then [42]                       → ReteCheckErrors     ← DIAGNOSED
+(?k <- :k)  retired arrow        → MalformedClause     ← still refused
+```
+
+⭐ **A widened validator that stopped checking would have passed a naive control silently.** It does
+not. **Verified on the binary.**
+
+## ⭐ THE THIRTEENTH CORRECTION — the brief's grep was wrong TWICE
+
+The brief handed over a 14-line `grep` **and said not to trust it**. It was right not to:
+
+1. ⛔ **It MISSED `typing.rs`'s rete-op list head** (`rete_op_for` on a Keyword) — outside the file
+   the orchestrator grepped.
+2. ⛔ **It MISCLASSIFIED `:135`** as "a Keyword match" when it is a **literal-name** via
+   `quote_boundary`.
+3. ⭐⭐ **And it could not see `type_env_name` AT ALL — a SECOND slash-to-`::` parser**, reconstructing
+   identity by its own door. **Replaced with `canonical_identity`.**
+
+⭐ **A grep for one node variant cannot find a helper that re-implements the door.** That is the
+eighth/ninth correction's lesson arriving a third time, and the executor derived the set instead —
+walking for **every** Keyword match **and** every rust-scheme string compare, `rete_op_for`,
+`quote_boundary` and `type_env_name` consult.
+
+## ⭐ THE CLASSIFICATION IS THE REVIEWABLE ARTIFACT
+
+Three classes, each stated with its sites — **and Class C was left UNCHANGED on purpose**:
+
+| class | action | why |
+|---|---|---|
+| **A** type extraction | → `canonical_identity` | `(weather/ColdAndWindy …)` is the same type as `:weather::ColdAndWindy` |
+| **B** literal-name compare | canonicalize **both sides** | a converted `wat.rete/make-rule` never equals the literal |
+| **C** legitimate Keyword-only | ⛔ **untouched** | kwargs field keys, field refs, the caret node — **widening would admit a Symbol where a Symbol is a VALUE, not a field name** |
+
+⭐ **Class C is the part that makes this reviewable.** Asked to classify before changing, it found a
+class that must **not** change and asserted it with a fixture (`:nope` stays `UnknownField`).
+
+## The residue (49) — and rete is no longer in it
+
+| cause | n | owner |
+|---|---|---|
+| `UnresolvedReference` | **23** | 255 — declaration names, `mem-store::start`, and ⚠ `not-a-special-form` ×3 which is a **deliberate negative-test name that stays** |
+| `TypeMismatch` | **11** | ⭐ **new class** — 4 arrived from the rete wall (`foldl` PersistentVector, `vrm/ins` expects Record). **The checker, named not forced.** |
+| `defsurface` `:messages` | 8 | |
+| `ProgramBodyEvalFailed` / other | 7 | |
+
+**VERDICT: ACCEPTED.**

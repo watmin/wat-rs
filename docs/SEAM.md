@@ -207,6 +207,28 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.7 LANDED 2026-09-21 — the validator adopts the door. ⭐ **ReteCheckErrors 16 → 0**
+
+Floor 5957/5957, clippy 0, census clean, 0 corpus `.wat` converted. **Delta 61 → 49.**
+⭐⭐ **THE RETE CLASS IS CLOSED.** Arc: **104 → 97 → 80 → 77 → 66 → 61 → 49.**
+
+⛔ **THE CRITICAL CONTROL HELD — "diagnosed, NOT skipped":** an unknown `:then` field is still
+`UnknownField`, `:then [42]` is still `ReteCheckErrors`, `(?k <- :k)` is still refused. 255.6 had
+just found `check_fence_interior` **fail-opening**, so a widened validator that stopped checking
+would have passed a naive control silently. It does not.
+
+⭐ **THIRTEENTH CORRECTION — the brief's 14-line grep was wrong three ways.** It missed `typing.rs`'s
+rete-op head (outside the grepped file), misclassified `:135` (a literal-name via `quote_boundary`,
+not a Keyword match), and ⭐⭐ **could not see `type_env_name` at all — a SECOND slash-to-`::`
+parser**, now replaced with `canonical_identity`. **A grep for one node variant cannot find a helper
+that re-implements the door.**
+
+⭐ **Class C was left UNCHANGED on purpose** — kwargs field keys, field refs, the caret node. Asked
+to classify before changing, it found a class that must NOT change and pinned it with a fixture.
+
+**Residue (49):** `UnresolvedReference` **23** · ⭐ `TypeMismatch` **11 (new — 4 arrived from the
+rete wall; the checker, named not forced)** · `defsurface` 8 · other 7.
+
 ### ✅ 255.6 LANDED 2026-09-21 — rete's `:when` adopts the door. **Delta 66 → 61**
 
 Floor 5953/5953, clippy 0, census clean, 0 corpus `.wat` converted.
