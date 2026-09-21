@@ -117,3 +117,99 @@ fn contract_12_code_point_at_negative_index_errors() {
         "a negative index must be refused by the same path; got {text}"
     );
 }
+
+/// For ASCII a byte index and a character index are the same number — which is the property a
+/// consumer restricted to ASCII relies on.
+#[test]
+fn contract_13_byte_at_matches_code_point_for_ascii() {
+    assert_eq!(eval_i64(":user::c13").expect("byte-at"), 101, "'e'");
+    assert_eq!(eval_i64(":user::c13").unwrap(), eval_i64(":user::c09").unwrap());
+}
+
+#[test]
+fn contract_14_byte_length_of_ascii_is_its_length() {
+    assert_eq!(eval_i64(":user::c14").expect("byte-length"), 5);
+}
+
+/// **And where they diverge, they diverge deliberately.** "aé" is two characters in three bytes.
+/// A verb that silently conflated the two would pass every ASCII test and be wrong here.
+#[test]
+fn contract_15_byte_length_counts_bytes_not_characters() {
+    assert_eq!(eval_i64(":user::c15").expect("byte-length"), 3, "\"aé\" is 3 bytes");
+    assert_eq!(eval_i64(":user::c16").expect("length"), 2, "\"aé\" is 2 characters");
+}
+
+/// Byte 1 of "aé" is the UTF-8 lead byte 0xC3, not a character. byte-at reports the byte.
+#[test]
+fn contract_16_byte_at_reports_a_utf8_lead_byte() {
+    assert_eq!(eval_i64(":user::c17").expect("byte-at"), 0xC3);
+}
+
+#[test]
+fn contract_17_byte_at_past_the_end_errors() {
+    let err = eval_i64(":user::c18").expect_err("index 99 of a 5-byte string must error");
+    let text = format!("{err:?}");
+    assert!(
+        text.contains("index out of range") && text.contains("byte-length=5"),
+        "the error must name the index and the length it exceeded; got {text}"
+    );
+}
+
+#[test]
+fn contract_18_byte_at_negative_index_errors() {
+    let err = eval_i64(":user::c19").expect_err("index -1 must error, not wrap");
+    assert!(format!("{err:?}").contains("index out of range"));
+}
+
+#[test]
+fn contract_19_byte_length_of_empty_is_zero() {
+    assert_eq!(eval_i64(":user::c20").expect("byte-length"), 0);
+}
+
+fn eval_str(fn_name: &str) -> Result<String, RuntimeError> {
+    match call_beside_value(file!(), fn_name)? {
+        Value::String(s) => Ok((*s).clone()),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.into(),
+                expected: "String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
+    }
+}
+
+#[test]
+fn contract_20_byte_subs_slices() {
+    assert_eq!(eval_str(":user::c21").expect("byte-subs"), "el");
+}
+
+#[test]
+fn contract_21_byte_subs_empty_range() {
+    assert_eq!(eval_str(":user::c22").expect("byte-subs"), "");
+}
+
+/// A multi-byte character survives when the range is on its boundaries.
+#[test]
+fn contract_22_byte_subs_keeps_a_whole_character() {
+    assert_eq!(eval_str(":user::c23").expect("byte-subs"), "é");
+}
+
+/// **And it REFUSES to cut one in half** rather than returning something that is not a String.
+/// `str::get` answers None off a boundary, which is the whole reason it is the right primitive.
+#[test]
+fn contract_23_byte_subs_refuses_a_split_character() {
+    let err = eval_str(":user::c24").expect_err("[1,2) splits a 2-byte character");
+    let text = format!("{err:?}");
+    assert!(
+        text.contains("not on a character boundary"),
+        "the error must say why, not just that it failed; got {text}"
+    );
+}
+
+#[test]
+fn contract_24_byte_subs_out_of_range_errors() {
+    let err = eval_str(":user::c25").expect_err("end 99 of a 5-byte string must error");
+    assert!(format!("{err:?}").contains("byte-length=5"));
+}

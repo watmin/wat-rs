@@ -38,3 +38,23 @@
   (:wat::string::code-point-at "hello" 99))
 (:wat::core::defn :user::c12 [] -> :wat::core::i64
   (:wat::string::code-point-at "hello" -1))
+
+;; byte-at / byte-length -- O(1) indexing, and where they DIVERGE from the char-indexed pair
+(:wat::core::defn :user::c13 [] -> :wat::core::i64 (:wat::string::byte-at "hello" 1))
+(:wat::core::defn :user::c14 [] -> :wat::core::i64 (:wat::string::byte-length "hello"))
+;; a two-byte character: byte-length is 3, length is 2, and byte 1 is a UTF-8 lead byte
+(:wat::core::defn :user::c15 [] -> :wat::core::i64 (:wat::string::byte-length "aé"))
+(:wat::core::defn :user::c16 [] -> :wat::core::i64 (:wat::string::length "aé"))
+(:wat::core::defn :user::c17 [] -> :wat::core::i64 (:wat::string::byte-at "aé" 1))
+;; out of range is loud, both directions
+(:wat::core::defn :user::c18 [] -> :wat::core::i64 (:wat::string::byte-at "hello" 99))
+(:wat::core::defn :user::c19 [] -> :wat::core::i64 (:wat::string::byte-at "hello" -1))
+(:wat::core::defn :user::c20 [] -> :wat::core::i64 (:wat::string::byte-length ""))
+
+;; byte-subs -- O(1) slicing, and what it refuses
+(:wat::core::defn :user::c21 [] -> :wat::core::String (:wat::string::byte-subs "hello" 1 3))
+(:wat::core::defn :user::c22 [] -> :wat::core::String (:wat::string::byte-subs "hello" 0 0))
+;; "aé" is a 1-byte 'a' then a 2-byte 'é'; [0,1) and [1,3) are boundaries, [1,2) is not
+(:wat::core::defn :user::c23 [] -> :wat::core::String (:wat::string::byte-subs "aé" 1 3))
+(:wat::core::defn :user::c24 [] -> :wat::core::String (:wat::string::byte-subs "aé" 1 2))
+(:wat::core::defn :user::c25 [] -> :wat::core::String (:wat::string::byte-subs "hello" 2 99))

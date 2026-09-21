@@ -605,6 +605,153 @@ pub(crate) fn eval_string_code_point_at(
     }
 }
 
+/// `(:wat::string::byte-at s i)` → the BYTE at index `i`, 0..=255, as an `i64`.
+///
+/// **This indexes by BYTE, and that is the whole point.** Every other string verb here counts
+/// CHARACTERS, because wat's `length`/`subs` follow clj's `count`/`subs` — and a character index
+/// into UTF-8 is a walk, so `subs`/`code-point-at` are O(i) and a scan built on them is O(n²).
+/// the-little-wat measured exactly that: its reader is a recursive-descent scanner whose
+/// character-at was `(subs src i (+ i 1))`, and `perf` put `Chars::advance_by` at 14.5% of the
+/// time spent reading, with compile time growing 4.6× faster than source size.
+///
+/// `s.as_bytes()[i]` is O(1) for every string, so this verb is honest for all of them rather
+/// than fast for some. **It is deliberately NOT an ASCII fast path inside `length`/`subs`** —
+/// `str::is_ascii` is itself O(n), so such a path would cost what it saves, and a verb that is
+/// sometimes O(1) and sometimes O(n) is one a caller cannot reason about.
+///
+/// For ASCII input a byte index and a character index are the same number, which is why a
+/// consumer that has already restricted itself to ASCII may use this and stay correct.
+///
+/// **Expand-time ground —** string ops: pure. Same group as `length`/`subs`/`code-point-at`.
+///
+/// **Totality ground — `Unreviewed`.** The index is not domain-gated: out of range raises
+/// `MalformedForm`, exactly as `subs` does for a bad span. Loud, not silent.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     s :wat::core::String the string to index
+/// @arg     i :wat::core::i64 the byte index, 0-based
+/// @ret     :wat::core::i64 the byte at `i`, 0..=255
+/// @example (:wat::string::byte-at "hello" 1) #=> 101
+#[wat_intrinsic(":wat::string::byte-at")]
+pub(crate) fn eval_string_byte_at(
+    s: &WatAST,
+    i: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::string::byte-at";
+    let s = arg_string(OP, s, env, sym)?;
+    let i = arg_i64(OP, i, env, sym)?;
+    let bytes = s.as_bytes();
+    match if i < 0 { None } else { bytes.get(i as usize) } {
+        Some(b) => Ok(Value::i64(i64::from(*b))),
+        None => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "index out of range: i={i}, byte-length={}; require 0 <= i < byte-length",
+                    bytes.len()
+                ),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `(:wat::string::byte-length s)` → how many BYTES `s` occupies, as an `i64`.
+///
+/// The companion to `byte-at`, and O(1) for the same reason: `str::len` is the byte count the
+/// string already knows. `:wat::string::length` counts CHARACTERS and is O(n) — for ASCII the
+/// two agree, and for anything else they deliberately do not.
+///
+/// **Expand-time ground —** string ops: pure.
+///
+/// **Totality ground — `Total`.** Defined on every String; no error channel.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     s :wat::core::String the string measured
+/// @ret     :wat::core::i64 its length in bytes
+/// @example (:wat::string::byte-length "hello") #=> 5
+#[wat_intrinsic(":wat::string::byte-length")]
+pub(crate) fn eval_string_byte_length(
+    s: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    _span: &Span, // rune:lint(unused-span) — the only error (TypeMismatch) locates at `s` via arg_string
+) -> Result<Value, EvalBreak> {
+    let s = arg_string(":wat::string::byte-length", s, env, sym)?;
+    Ok(Value::i64(s.len() as i64))
+}
+
+/// `(:wat::string::byte-subs s start end)` → the BYTE-indexed substring `[start, end)`.
+///
+/// The slicing companion to `byte-at`/`byte-length`, and O(1) for the same reason: it is a
+/// pointer and a length, where the char-indexed `subs` must walk to both ends.
+///
+/// **It refuses a range that is not on a character boundary**, rather than slicing a UTF-8
+/// sequence in half and handing back something that is not a String. `str::get(range)` answers
+/// `None` for that case and for out-of-range alike, so both raise `MalformedForm` — the same
+/// loudness `subs` has for a bad span. A caller scanning ASCII never meets either.
+///
+/// **Expand-time ground —** string ops: pure.
+///
+/// **Totality ground — `Unreviewed`.** The indices are not domain-gated; out of range or
+/// mid-character raises.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Unreviewed
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     s :wat::core::String the string sliced
+/// @arg     start :wat::core::i64 first byte, 0-based, inclusive
+/// @arg     end :wat::core::i64 one past the last byte
+/// @ret     :wat::core::String the bytes in `[start, end)`
+/// @example (:wat::string::byte-subs "hello" 1 3) #=> "el"
+#[wat_intrinsic(":wat::string::byte-subs")]
+pub(crate) fn eval_string_byte_subs(
+    s: &WatAST,
+    start: &WatAST,
+    end: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::string::byte-subs";
+    let s = arg_string(OP, s, env, sym)?;
+    let start = arg_i64(OP, start, env, sym)?;
+    let end = arg_i64(OP, end, env, sym)?;
+    let ok = start >= 0 && end >= start;
+    match if ok { s.get(start as usize..end as usize) } else { None } {
+        Some(sub) => Ok(Value::String(Arc::new(sub.to_string()))),
+        None => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "byte range [{start}, {end}) is out of range or not on a character \
+                     boundary: byte-length={}; require 0 <= start <= end <= byte-length",
+                    s.len()
+                ),
+            },
+        )
+        .into()),
+    }
+}
+
 /// `(:wat::string::subs s start end)` → the CHAR-indexed substring
 /// `[start, end)`.
 ///

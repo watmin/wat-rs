@@ -18647,6 +18647,34 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // the-little-wat — O(1) byte indexing, so a scanner is not O(n^2) (see byte-at's doc)
+    env.register(
+        ":wat::string::byte-at".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), i64_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::string::byte-subs".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), i64_ty(), i64_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::string::byte-length".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
     // the-little-wat F-135 — index a String without allocating one
     env.register(
         ":wat::string::code-point-at".to_string(),
