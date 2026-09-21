@@ -207,6 +207,25 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ✅ 255.2 LANDED 2026-09-21 — the arrow door. **Delta FLAT at 97. 8d still blocked.**
+
+Floor 5936/5936, clippy 0, census clean, 0 `.wat` converted, test delta +0.
+⭐ **Arrow set DERIVED, not enumerated:** one door (`types::is_return_arrow` = bare `->` **or**
+`is_binder_marker`) routed through `types/surface.rs`, `function/parse.rs`, `macros/parse.rs`,
+`declare/parse.rs`, `intrinsic/holon/atom.rs`. Config-setter head dual-reads (3b for **one**
+string-match table; others remain).
+
+⚠ **The SCORE's "97 → 101" compared UNLIKE TREES.** Re-run like-for-like: **97, unchanged.** The
+KIND moved though — `defsurface` arrow class **11 → 8**, those files landing on a later
+`UnresolvedReference` (66 → 68), which is why the total is flat.
+
+⭐⭐ **THE STONE'S BEST OUTPUT IS A MEASURED NEGATIVE.** Three derived cures for gap 3a were tried
+and **each RAISED the count** (116 · 108 · 114). The reason: *"skipping every declare-role leaf
+cannot tell a name slot from a value that must still resolve — function-as-value (`wat.core/+` as an
+argument) and a declaration name (`u/x`) are the same node kind. **A position grammar (items[1] of
+the declare form only, not every leaf) is the next peel.**"*
+⇒ **3a is a GRAMMAR problem, not a predicate problem.** That is 255.3.
+
 ### ✅ 255.1 LANDED 2026-09-21 — identity is the pair. **8d STILL BLOCKED.**
 
 Floor 5936/5936, clippy 0, census clean, no `.wat` converted. **Delta 104 → 97.**
