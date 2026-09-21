@@ -8,7 +8,7 @@
 //! Independent of Fact, BindView, FireSession, TypeEnv.
 
 use crate::ast::WatAST;
-use crate::form_match::keyword_payload;
+use crate::form_match::{identity_text, keyword_payload};
 
 /// Arc 294 item 9a (DESIGN-rete-defrule-wall.md, design call 1 — "one grammar, shared") —
 /// the rete-DSL clause/condition-wrapper shape space, recognized identically whether the
@@ -78,9 +78,10 @@ pub(crate) enum ReteClauseShape<'a> {
         acc_form: &'a WatAST,
         from: &'a WatAST,
     },
-    /// `(?p :- :ns::Type clause…)` — top-level fact bind (Clara `[?p :- Type]`).
-    /// Discriminated from [`Self::Bind`] by a `::` in the type keyword; from
-    /// [`Self::Accumulate`] by a keyword (not a list) after `<-`.
+    /// `(?p :- :ns::Type clause…)` / `(?p :- ns/Type clause…)` — top-level fact bind.
+    /// Discriminated from [`Self::Bind`] by `::` on the **canonical identity**
+    /// (so `weather/ColdAndWindy` and `:weather::ColdAndWindy` are one key);
+    /// from [`Self::Accumulate`] by a name (not a list) after `:-`.
     FactBind {
         var: &'a str,
         type_head: &'a str,
@@ -159,6 +160,11 @@ pub(crate) enum ConstraintSpelling {
 pub(crate) fn classify_constraint_head(head: &str) -> Option<(CmpKind, ConstraintSpelling)> {
     use CmpKind::{Eq, Ge, Gt, Le, Lt, NotEq};
     use ConstraintSpelling::{CoreGeneric, Rete};
+
+    // ONE DOOR — rust-scheme `:wat::rete::i64::<` and clojure `wat.rete.i64/<`
+    // are one key. Vocabulary rows are stored rust-scheme; identity first.
+    let owned = crate::edn::render::canonical_identity(head);
+    let head = owned.as_str();
 
     // The generic core spellings — recognized to be REFUSED with a teaching diagnostic.
     let core = match head {
@@ -279,8 +285,13 @@ fn expr_is_provably_boolean(ast: &WatAST) -> bool {
     match ast {
         WatAST::BoolLit(..) => true,
         WatAST::List(items, _) => {
-            let Some(WatAST::Keyword(head, _)) = items.first() else { return false };
-            match head.as_str() {
+            // Measured: converted `:where` interiors do not reach THIS function
+            // (they go to `check_fence_interior`). After the head unification
+            // below, the Predicate arm WOULD — a Keyword-only gate here is a
+            // silent `false` for `wat.rete.core/and` / `wat.string/empty?`.
+            let Some(raw) = items.first().and_then(identity_text) else { return false };
+            let id = crate::edn::render::canonical_identity(raw);
+            match id.as_str() {
                 ":wat::rete::core::and" | ":wat::rete::core::or" | ":wat::rete::core::not" => true,
                 // `(if c then else)` — both branches, or the form is not provably anything.
                 ":wat::rete::core::if" => {
@@ -332,6 +343,52 @@ fn expr_is_provably_boolean(ast: &WatAST) -> bool {
     }
 }
 
+/// Rete-var headed: bind / fact-bind / accumulate. The `?` prefix is the shape.
+fn classify_rete_var_clause<'a>(var_name: &'a str, items: &'a [WatAST]) -> ReteClauseShape<'a> {
+    // Fact-bind: (?p :- :ns::Type clause…) / (?p :- ns/Type clause…).
+    // Field-bind: (?v :- :field) — bare field KEYWORD, exactly 3 items.
+    if items.len() >= 3 {
+        let is_arrow = crate::types::is_binder_marker(&items[1]);
+        if is_arrow {
+            if let Some(raw) = identity_text(&items[2]) {
+                let id = crate::edn::render::canonical_identity(raw);
+                // Shape, not registry: this classifier is Independent of TypeEnv.
+                // After identity, a namespaced type has `::`; a field `:k` does not.
+                // (The brief asked `is_known_type`; the standing contract wins.)
+                if id.contains("::") { // rune:lint(one-variant-separator, namespace) — fact-bind vs field-bind by namespace-separator on the canonical identity; a type's own namespace, not a variant tag.
+                    return ReteClauseShape::FactBind {
+                        var: var_name,
+                        type_head: raw.trim_start_matches(':'),
+                        clauses: &items[3..],
+                    };
+                }
+                if items.len() == 3 {
+                    if let Some(kw) = keyword_payload(&items[2]) {
+                        let field = kw.strip_prefix(':').unwrap_or(kw);
+                        return ReteClauseShape::Bind { var: var_name, field, field_kw: &items[2] };
+                    }
+                }
+            }
+        }
+        if items.len() == 3 {
+            return ReteClauseShape::Unrecognized;
+        }
+    }
+    // Accumulate: (?result :- (acc-form) :from (inner)) — 5 items, `:from` at [3].
+    if items.len() == 5 {
+        let is_arrow = crate::types::is_binder_marker(&items[1]);
+        let is_from = matches!(&items[3], WatAST::Keyword(k, _) if k.as_str() == ":from");
+        if is_arrow && is_from {
+            return ReteClauseShape::Accumulate {
+                var: var_name,
+                acc_form: &items[2],
+                from: &items[4],
+            };
+        }
+    }
+    ReteClauseShape::Unrecognized
+}
+
 /// THE grammar: one clause form → one `ReteClauseShape`. The single parser every rete consumer
 /// shares.
 ///
@@ -352,91 +409,49 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
         _ => return ReteClauseShape::Unrecognized,
     };
 
-    match &items[0] {
-        // ── symbol-headed: bind or accumulate ────────────────────────────────
-        WatAST::Symbol(head_ident, _) => {
-            let var_name = head_ident.as_str();
-            if !var_name.starts_with('?') {
-                return ReteClauseShape::Unrecognized;
-            }
-            // Fact-bind: (?p :- :ns::Type clause…) — type keyword contains `::`.
-            // Field-bind: (?v :- :field) — bare field keyword, exactly 3 items.
-            if items.len() >= 3 {
-                let is_arrow = crate::types::is_binder_marker(&items[1]);
-                if is_arrow {
-                    if let Some(kw) = keyword_payload(&items[2]) {
-                        // rune:lint(one-variant-separator, namespace) — detects a fact-bind's
-                        // `:ns::Type` keyword by namespace-separator presence; a type's own
-                        // namespace, not a variant tag.
-                        if kw.contains("::") {
-                            return ReteClauseShape::FactBind {
-                                var: var_name,
-                                type_head: kw.trim_start_matches(':'),
-                                clauses: &items[3..],
-                            };
-                        }
-                        if items.len() == 3 {
-                            let field = kw.strip_prefix(':').unwrap_or(kw);
-                            return ReteClauseShape::Bind { var: var_name, field, field_kw: &items[2] };
-                        }
-                    }
-                }
-                if items.len() == 3 {
-                    return ReteClauseShape::Unrecognized;
-                }
-            }
-            // Accumulate: (?result :- (acc-form) :from (inner)) — 5 items, `:from` at [3].
-            if items.len() == 5 {
-                let is_arrow = crate::types::is_binder_marker(&items[1]);
-                let is_from = matches!(&items[3], WatAST::Keyword(k, _) if k.as_str() == ":from");
-                if is_arrow && is_from {
-                    return ReteClauseShape::Accumulate {
-                        var: var_name,
-                        acc_form: &items[2],
-                        from: &items[4],
-                    };
-                }
-            }
-            ReteClauseShape::Unrecognized
+    // Rete-var headed: bind / fact-bind / accumulate. `?` is the shape, not a spelling.
+    if let WatAST::Symbol(head_ident, _) = &items[0] {
+        let var_name = head_ident.as_str();
+        if var_name.starts_with('?') {
+            return classify_rete_var_clause(var_name, items);
         }
+    }
 
-        // ── keyword-headed clause ─────────────────────────────────────────────
-        WatAST::Keyword(head_kw, _) => match head_kw.as_str() {
-            // ── constraint: (:wat::rete::core::<ty>::<op> a b), or the core generic it replaces ──
-            // Vocabulary via the ONE DOOR (`classify_constraint_head`), never a literal list here.
-            k if classify_constraint_head(k).is_some() => {
-                if items.len() == 3 {
-                    ReteClauseShape::Constraint { op: head_kw.as_str(), lhs: &items[1], rhs: &items[2] }
-                } else {
-                    ReteClauseShape::Unrecognized
-                }
+    // ONE DOOR: Keyword or Symbol → canonical_identity, then one dispatch.
+    // Not a second match arm for symbols (255.4's two-door defect).
+    let Some(raw) = identity_text(&items[0]) else {
+        return ReteClauseShape::Unrecognized;
+    };
+    let id = crate::edn::render::canonical_identity(raw);
+    match id.as_str() {
+        // Vocabulary via the ONE DOOR (`classify_constraint_head`), never a literal list here.
+        k if classify_constraint_head(k).is_some() => {
+            if items.len() == 3 {
+                ReteClauseShape::Constraint { op: raw, lhs: &items[1], rhs: &items[2] }
+            } else {
+                ReteClauseShape::Unrecognized
             }
-            // ── combinators ──────────────────────────────────────────────────
-            ":wat::rete::and" => ReteClauseShape::And(&items[1..]),
-            ":wat::rete::or" => ReteClauseShape::Or(&items[1..]),
-            ":wat::rete::not" => {
-                if items.len() == 2 { ReteClauseShape::Not(&items[1]) } else { ReteClauseShape::Unrecognized }
-            }
-            ":wat::rete::exists" => {
-                if items.len() == 2 { ReteClauseShape::Exists(&items[1]) } else { ReteClauseShape::Unrecognized }
-            }
-            ":wat::rete::where" => {
-                if items.len() == 2 { ReteClauseShape::Where(&items[1]) } else { ReteClauseShape::Unrecognized }
-            }
-            // Any other RETE-VOCABULARY head is a PREDICATE — a boolean-valued expression,
-            // admitted here exactly as inside a `where` fence. Reached only AFTER every
-            // structural shape above has declined, so this is strictly additive: a constraint is
-            // still a Constraint, a combinator still a combinator.
-            //
-            // A head outside the vocabulary still falls to `Unrecognized`, so Law A holds: the
-            // rete query language is composed from rete primitives, and a core-spelled head is
-            // refused with the diagnostic that names its per-type twin.
-            _ if expr_is_provably_boolean(clause) => ReteClauseShape::Predicate(clause),
-            // Unknown head keyword → unrecognised clause shape.
-            _ => ReteClauseShape::Unrecognized,
-        },
-
-        // Non-symbol, non-keyword head → unrecognised clause shape.
+        }
+        ":wat::rete::and" => ReteClauseShape::And(&items[1..]),
+        ":wat::rete::or" => ReteClauseShape::Or(&items[1..]),
+        ":wat::rete::not" => {
+            if items.len() == 2 { ReteClauseShape::Not(&items[1]) } else { ReteClauseShape::Unrecognized }
+        }
+        ":wat::rete::exists" => {
+            if items.len() == 2 { ReteClauseShape::Exists(&items[1]) } else { ReteClauseShape::Unrecognized }
+        }
+        ":wat::rete::where" => {
+            if items.len() == 2 { ReteClauseShape::Where(&items[1]) } else { ReteClauseShape::Unrecognized }
+        }
+        // Any other RETE-VOCABULARY head is a PREDICATE — a boolean-valued expression,
+        // admitted here exactly as inside a `where` fence. Reached only AFTER every
+        // structural shape above has declined, so this is strictly additive: a constraint is
+        // still a Constraint, a combinator still a combinator.
+        //
+        // A head outside the vocabulary still falls to `Unrecognized`, so Law A holds: the
+        // rete query language is composed from rete primitives, and a core-spelled head is
+        // refused with the diagnostic that names its per-type twin.
+        _ if expr_is_provably_boolean(clause) => ReteClauseShape::Predicate(clause),
         _ => ReteClauseShape::Unrecognized,
     }
 }
@@ -649,6 +664,108 @@ mod constraint_head_tests {
                 "{op} must NOT classify as a constraint head"
             );
         }
+    }
+
+    /// 255.6 — clojure spelling of a constraint head is the same key.
+    #[test]
+    fn clojure_constraint_heads_are_the_same_key() {
+        for (clj, rust) in [
+            ("wat.rete.i64/<", ":wat::rete::i64::<"),
+            ("wat.rete.core.enum/=", ":wat::rete::core::enum::="),
+            ("wat.core/=", ":wat::core::="),
+        ] {
+            assert_eq!(
+                classify_constraint_head(clj).map(|(k, _)| k),
+                classify_constraint_head(rust).map(|(k, _)| k),
+                "{clj} and {rust} must classify as one constraint"
+            );
+            assert!(
+                classify_constraint_head(clj).is_some(),
+                "{clj} must classify (non-vacuity)"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod dual_spelling_tests {
+    use super::*;
+    use crate::scope::Identifier;
+
+    fn kw(s: &str) -> WatAST {
+        WatAST::Keyword(s.into(), crate::rust_caller_span!())
+    }
+    fn sym(s: &str) -> WatAST {
+        WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!())
+    }
+    fn list(items: Vec<WatAST>) -> WatAST {
+        WatAST::List(items, crate::rust_caller_span!())
+    }
+
+    #[test]
+    fn combinator_heads_accept_both_spellings() {
+        let and_sym = list(vec![sym("wat.rete/and"), kw(":dummy")]);
+        let and_kw = list(vec![kw(":wat::rete::and"), kw(":dummy")]);
+        let where_sym = list(vec![sym("wat.rete/where"), kw(":dummy")]);
+        let where_kw = list(vec![kw(":wat::rete::where"), kw(":dummy")]);
+        assert!(matches!(classify_rete_clause(&and_sym), ReteClauseShape::And(_)));
+        assert!(matches!(classify_rete_clause(&and_kw), ReteClauseShape::And(_)));
+        assert!(matches!(classify_rete_clause(&where_sym), ReteClauseShape::Where(_)));
+        assert!(matches!(classify_rete_clause(&where_kw), ReteClauseShape::Where(_)));
+    }
+
+    #[test]
+    fn fact_bind_type_accepts_both_spellings() {
+        let rust = list(vec![
+            sym("?fact"),
+            kw(":-"),
+            kw(":weather::ColdAndWindy"),
+        ]);
+        let clj = list(vec![
+            sym("?fact"),
+            kw(":-"),
+            sym("weather/ColdAndWindy"),
+        ]);
+        match classify_rete_clause(&rust) {
+            ReteClauseShape::FactBind { var, type_head, .. } => {
+                assert_eq!(var, "?fact");
+                assert_eq!(type_head, "weather::ColdAndWindy");
+            }
+            _ => panic!("rust-scheme fact-bind did not classify as FactBind"),
+        }
+        match classify_rete_clause(&clj) {
+            ReteClauseShape::FactBind { var, type_head, .. } => {
+                assert_eq!(var, "?fact");
+                assert_eq!(type_head, "weather/ColdAndWindy");
+            }
+            _ => panic!("clojure fact-bind did not classify as FactBind"),
+        }
+    }
+
+    #[test]
+    fn field_bind_stays_a_keyword_and_retired_arrow_is_malformed() {
+        let bind = list(vec![sym("?k"), kw(":-"), kw(":k")]);
+        match classify_rete_clause(&bind) {
+            ReteClauseShape::Bind { var, field, .. } => {
+                assert_eq!(var, "?k");
+                assert_eq!(field, "k");
+            }
+            _ => panic!("field bind did not classify as Bind"),
+        }
+        let retired = list(vec![sym("?k"), sym("<-"), kw(":k")]);
+        assert!(
+            matches!(classify_rete_clause(&retired), ReteClauseShape::Unrecognized),
+            "(?k <- :k) must stay Unrecognized — this stone must not re-admit the retired arrow"
+        );
+    }
+
+    #[test]
+    fn constraint_shape_from_clojure_head() {
+        let clause = list(vec![sym("wat.rete.i64/<"), sym("?c"), kw("20")]);
+        assert!(
+            matches!(classify_rete_clause(&clause), ReteClauseShape::Constraint { .. }),
+            "wat.rete.i64/< must be Constraint, not Unrecognized"
+        );
     }
 }
 

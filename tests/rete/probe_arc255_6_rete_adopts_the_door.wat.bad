@@ -1,0 +1,6 @@
+;; 255.6 negative — the retired rete bind arrow stays MalformedClause.
+;; Symbol-headed fact pattern is now legal; `(?k <- :k)` is not.
+(:wat::core::defrecord :vrm::F [k <- :wat::core::i64])
+(:wat::rete::defrule :vrm::seen
+  :when [(vrm/F (?k <- :k))]
+  :then [(:vrm::F :k ?k)])

@@ -524,12 +524,17 @@ pub(crate) fn check_fence_interior(
     errors: &mut Vec<ReteCheckError>,
 ) {
     let WatAST::List(items, _) = expr else { return };
-    let Some(WatAST::Keyword(head, _)) = items.first() else {
+    // Measured: converted `:where` interiors DO reach here (`wat.rete.core/or`,
+    // `wat.rete.string/=`). A Keyword-only gate fail-opens — skips let/match
+    // shadow checks and constraint typing. Same door as the clause head.
+    let Some(raw) = items.first().and_then(crate::form_match::identity_text) else {
         for item in items {
             check_fence_interior(item, rule_name, binds, types, errors);
         }
         return;
     };
+    let id = crate::edn::render::canonical_identity(raw);
+    let head = id.as_str();
 
     // `(let [name val …] body)` — `val`s are outer-scope; `body` may shadow, so its own
     // descent stays out of scope (doc above). What IS in scope: a `?`-prefixed BINDER is refused

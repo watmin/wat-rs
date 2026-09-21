@@ -243,6 +243,18 @@ pub fn keyword_payload(ast: &WatAST) -> Option<&str> {
     }
 }
 
+/// The written spelling of a Keyword **or** Symbol. 255.2's rule: a slot
+/// that used to demand one spelling reads both, then `canonical_identity`
+/// is the one key. A field name stays a Keyword (`keyword_payload`); this
+/// is the head/type door.
+pub(crate) fn identity_text(ast: &WatAST) -> Option<&str> {
+    match ast {
+        WatAST::Keyword(k, _) => Some(k.as_str()),
+        WatAST::Symbol(id, _) => Some(id.as_str()),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

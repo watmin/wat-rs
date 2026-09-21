@@ -252,32 +252,37 @@ pub(crate) struct AlphaPattern<'a> {
     pub clauses: &'a [WatAST],
 }
 
-/// Parse the B-form `(?p :- :ns::Type …)` or the field-only `(:Type …)`.
+/// Parse the B-form `(?p :- :ns::Type …)` / `(?p :- ns/Type …)` or the
+/// field-only `(:Type …)` / `(Type/Name …)`.
 pub(crate) fn alpha_pattern(cond: &WatAST) -> Option<AlphaPattern<'_>> {
     let items = match cond {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
         _ => return None,
     };
-    match &items[0] {
-        WatAST::Keyword(k, _) => Some(AlphaPattern {
-            fact_var: None,
-            type_head: k.trim_start_matches(':'),
-            clauses: &items[1..],
-        }),
-        WatAST::Symbol(_, _) => match crate::rete::clause::classify_rete_clause(cond) {
-            crate::rete::clause::ReteClauseShape::FactBind {
-                var,
-                type_head,
-                clauses,
-            } => Some(AlphaPattern {
-                fact_var: Some(var),
-                type_head,
-                clauses,
-            }),
-            _ => None,
-        },
-        _ => None,
+    if let WatAST::Symbol(id, _) = &items[0] {
+        if id.as_str().starts_with('?') {
+            return match crate::rete::clause::classify_rete_clause(cond) {
+                crate::rete::clause::ReteClauseShape::FactBind {
+                    var,
+                    type_head,
+                    clauses,
+                } => Some(AlphaPattern {
+                    fact_var: Some(var),
+                    type_head,
+                    clauses,
+                }),
+                _ => None,
+            };
+        }
     }
+    // ONE DOOR: Keyword or Symbol → written spelling, colon stripped. Lookup
+    // canonicalizes (`TypeEnv::get`).
+    let raw = crate::form_match::identity_text(&items[0])?;
+    Some(AlphaPattern {
+        fact_var: None,
+        type_head: raw.trim_start_matches(':'),
+        clauses: &items[1..],
+    })
 }
 
 /// Put the matched fact on `?p` when `cond` is `(?p :- :Type …)`.
