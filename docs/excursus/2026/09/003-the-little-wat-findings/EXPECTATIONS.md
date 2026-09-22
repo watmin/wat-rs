@@ -1,4 +1,4 @@
-# EXPECTATIONS — STONE 301.1
+# EXPECTATIONS — STONE 003.1
 
 Written **before** the strike, so the result cannot move the goalposts.
 Scored against my own re-run, never the executor's report.

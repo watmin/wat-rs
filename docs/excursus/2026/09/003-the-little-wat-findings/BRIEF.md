@@ -1,4 +1,4 @@
-# BRIEF — STONE 301.1: the findings board
+# BRIEF — STONE 003.1: the findings board
 
 **Drawn 2026-09-22 against `reason/little-wat-findings` @ `68e7de0d3`** (off `main` @ `600abe8c3`).
 Read `DESIGN.md` beside this first — it holds the measured table and the one contract decision.
@@ -12,11 +12,11 @@ records what is true today so that every later cure announces itself by flipping
 
 ## Read in order, and why you are being sent there
 
-1. **`tests/diagnostics/probe_arc301_silent_failure_pair.rs`** — the banked probe, committed at
+1. **`tests/diagnostics/probe_ex003_silent_failure_pair.rs`** — the banked probe, committed at
    `68e7de0d3`. **Copy its `fixture()` and `rc()` helpers verbatim.** Its module doc holds the
    driver decision and its reasoning; do not re-derive them. It also shows the shape of a failure
    message that tells the reader what to DO when the row flips.
-2. **`tests/diagnostics/probe_arc301_silent_failure_pair__f031_length_on_string.wat`** — the
+2. **`tests/diagnostics/probe_ex003_silent_failure_pair__f031_length_on_string.wat`** — the
    fixture shape: a header comment saying *why this file is a specimen and must not be "fixed"*.
    Every fixture you write carries one.
 3. **`tests/lint/every_walking_gate_declares_non_vacuity.rs:45-50`** — ⛔ **THIS GATE WILL JUDGE

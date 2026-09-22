@@ -1,4 +1,4 @@
-//! Probe (arc 301) — THE SILENT-FAILURE PAIR IS MACHINE-READABLE.
+//! Probe (excursus 003) — THE SILENT-FAILURE PAIR IS MACHINE-READABLE.
 //!
 //! The sibling repo `the-little-wat` worked 97 book chapters through wat to find where it
 //! breaks, and its `FINDINGS.md` names the class that cost its author most: a program the
@@ -43,7 +43,7 @@ use std::process::{Command, Stdio};
 fn fixture(case: &str) -> PathBuf {
     let p: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/diagnostics")
-        .join(format!("probe_arc301_silent_failure_pair__{case}.wat"));
+        .join(format!("probe_ex003_silent_failure_pair__{case}.wat"));
     assert!(p.exists(), "fixture missing: {}", p.display());
     p
 }

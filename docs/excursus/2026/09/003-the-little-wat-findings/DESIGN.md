@@ -1,4 +1,4 @@
-# DESIGN — arc 301: wat-rs answers `the-little-wat`
+# DESIGN — excursus 003: wat-rs answers `the-little-wat`
 
 **Opened 2026-09-22 on `reason/little-wat-findings`, off `main` @ `600abe8c3`.**
 Host: `reason`. ⛔ `main` is LIVE — 255.13 was drawn at 13:04 the same day — which is why this
@@ -45,7 +45,7 @@ and change every caller. Those are opposite languages. F-031 is the same questio
 An orchestrator cannot brief that. A board can be built with no rulings at all, it makes every
 later ruling measurable, and it pins F-093 so 8c cannot silently regress.
 
-## What 301.1 builds
+## What 003.1 builds
 
 A **table-driven gate** over the program-level findings. One row:
 
@@ -77,7 +77,7 @@ GROW, and a count would cap coverage downward while looking like rigour.
 
 ### Relationship to the banked probe
 
-`tests/diagnostics/probe_arc301_silent_failure_pair.rs` (`68e7de0d3`) stays. It is the **depth**
+`tests/diagnostics/probe_ex003_silent_failure_pair.rs` (`68e7de0d3`) stays. It is the **depth**
 example — it alone asserts the death happens for F-031's *own* reason (a `RuntimeError` naming
 `:wat::core::length`), because `assert_ne!(rc, 0)` is satisfied by any startup failure at all.
 The board is **breadth**. Deliberate, not duplication.
@@ -87,7 +87,7 @@ The board is **breadth**. Deliberate, not duplication.
 - **F-085** (USER-GUIDE uuid note), **F-087** (86/203 doc names), **F-089** (CLI `--help`),
   **F-096** (defrecord/defstruct read ratio). Three *other* instruments — a doc audit, a CLI
   surface probe, a benchmark. Not this gate, and not this strike.
-- **Any cure.** 301.1 changes no `src/`. A board that moves the number under its own instrument
+- **Any cure.** 003.1 changes no `src/`. A board that moves the number under its own instrument
   cannot be trusted to have measured anything.
 - **Extending `the-little-wat`'s own `tools/recheck.sh`.** That repo is being actively pushed by
   another session (8 commits on 2026-09-22). Committing there is a collision, not a strike.
