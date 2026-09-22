@@ -45,7 +45,7 @@ records what is true today so that every later cure announces itself by flipping
 | F-093 | `(wat.core/defn bad/ident [n :- wat.type/i64] :- wat.type/i64 n)` called with `"a String"` | 1 | 3 | **CURED** |
 | F-083 | `HolographicLru/new` → `put k v1` → `put k v2` → `len` | 0 | 0 | **WRONG-ANSWER**, stdout `0` |
 
-The exact programs are in `~/work/holon/the-little-wat/tools/recheck.sh` lines 33–90. ⚠ **F-083's
+The exact programs are in `~/work/holon/the-little-wat/tools/recheck.sh`, **lines 34–88** — re-derived, not eyeballed: the eight are at 34 (F-031), 41 (F-045), 46 (F-058), 52 (F-080), 59 (F-088), 65 (F-090), 72 (F-093), 78 (F-083). Line 89 onward is F-089/F-085/F-096, which this stone **rejects**. ⚠ **F-083's
 is written there in a spelling `main` RETIRED** (`HolographicLru::new` → `HolographicLru/new`);
 use the current spelling — that retirement is what turned its verdict into a `?`.
 
