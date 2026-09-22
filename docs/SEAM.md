@@ -207,6 +207,65 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ⛔ 2026-09-22 — 8d-ii STOPPED A THIRD TIME, and 255.9 IS DRAWN. ⭐ **A CONVERSION CAN FORGE A GREEN**
+
+⛔ **GROK IS OUT OF CREDITS.** Stones now run on a **fresh Opus rider** (a cold general-purpose agent
+reading the brief, **never a fork** — a fork inherits the orchestrator's context and the weigh becomes
+self-grading). ⭐ **The swap worked:** the cold rider found a defect nobody predicted, in code the
+brief never mentioned, and **stopped rather than forcing a green.**
+
+**8d-ii, third draw: STOP.** ⭐ **The brief's central gate is what caught it** — *"it starts" is not
+"it works."* The converted stdlib **converts (64/64), builds, loads, `--check`s green** — and then the
+converted codemod **converts nothing** (rc 2, 0 bytes): `(:wat::kernel::readln)` dies in stdin
+framing. **Three stones, three layers, each green one layer above the failure.**
+Cause: `wat.type/i64` vs `:wat::core::i64` compared as **raw strings** at two runtime sites
+(`edn/render.rs:2508`'s hardcoded table, `function/subsume.rs::value_matches_type_by_name`).
+255.8's `type_denotation` is wired into `is_subtype`/equatable/orderable — ⛔ **not into the two sites
+that decide whether a program RUNS**, including the one in its own file. Floor RED **739**, captured
+whole, not re-run; under two diagnostic probes **416** (B ⊂ A, 0 new). Nothing landed.
+
+### ⛔⛔ THE FINDING THAT OUTRANKS THE STOP — and it was OUT OF SCOPE
+
+`src/load/loader.rs::match_load_form` matches **Keyword heads only** (`_ => return Ok(None)`). The
+codemod writes `(:wat::load-file! …)` → `(wat/load-file! …)`. **Reproduced in the weigh:**
+
+```
+(:wat::load-file! "missing.wat")  → rc=1  "load: file not found: missing.wat"
+(wat/load-file!   "missing.wat")  → rc=0
+```
+
+⛔ **The converted load form is NEVER FLAGGED** — not malformed, not unresolved. **An honest failure
+becomes a PASS.** 26 tracked `.wat` use the six load forms, **0 in `wat/`** — ⛔ **8d-iii converts all
+26 and the corpus gets GREENER as its loads vanish.**
+⛔⛔ **THE DELTA GATE IS BLIND TO IT:** all 4 load-form files in the 179 sample are `CLEAN → CLEAN`.
+**Green before, green after, loads gone.** No count run in eight stones could have seen this.
+
+⭐ **It is a CLASS, not a form.** A crude probe finds **83** keyword-head matchers, ~14 near a silent
+fallthrough (`runtime.rs` 4, `macros/expand.rs` 4, `rete/purity.rs` 2, `rete/kernel/stratify.rs` 2,
+`load/loader.rs` 2). ⚠ **That is a LEAD, not a census** — producing the real one is 255.9's first job.
+
+### ⛔ THE DELTA SAMPLE RE-RANDOMIZES ITSELF — now FIXED
+
+"Every 12th of the census" is an **index over a GROWING list** (2145 files then, **2152** now), so one
+inserted file shifts every later pick. Two reconstructions of "the same" 179 files shared **4 entries**.
+⭐ **Three near-disjoint samples returned 18, 18, 16** — the finding is robust, **the instrument was
+not.** ✅ **The list is now committed:** `251-types-as-forms/delta-sample-179.txt` (sha `33ede76c…`).
+⛔ **USE THE FILE. NEVER REBUILD BY INDEX.**
+
+**`wat/holon/Ngram.wat` answered:** the `DuplicateMacro` is **transitional AND symmetric** — measured
+both ways. ⛔ **In 8d-iii the hazard does not vanish, it CHANGES SIDES** (every still-unconverted file
+re-declaring a stdlib macro/type shows a spurious duplicate).
+
+### ⭐ THE QUEUE, in order, and WHY this order
+
+1. **255.9 — the keyword-only head** (DRAWN, `3c32ac281`). ⛔ **First, because it is the only one that
+   CORRUPTS THE EVIDENCE rather than merely failing.** Every later measurement is untrustworthy until
+   a conversion can no longer forge a green.
+2. **`type_denotation` at the two runtime string-table sites**, each with a probe that reds without it.
+3. **The 416-test remainder** (led by `wat::rete`, 195, losing operand types under the converted stdlib).
+4. **255.8's wrong-join acceptance** — `(wat.core.Option.expect …)`, no slash at all, still resolves.
+5. **Then 8d-ii** (fourth draw), **then 8d-iii.**
+
 ### ✅ 255.8 LANDED 2026-09-21 — a namespace that is also a type. ⭐ **Delta 49 → 18**
 
 Floor **5959/5959**, clippy 0, census `no STOP-8`, **0 live `.wat` converted**.
