@@ -207,7 +207,48 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
-### ⛔ 2026-09-21 — 251.8d-ii STOPPED (again), and 255.8 IS DRAWN
+### ✅ 255.8 LANDED 2026-09-21 — a namespace that is also a type. ⭐ **Delta 49 → 18**
+
+Floor **5959/5959**, clippy 0, census `no STOP-8`, **0 live `.wat` converted**.
+Arc: **104 → 97 → 80 → 77 → 66 → 61 → 49 → 18.** ⭐ **The largest drop of the arc.**
+
+⭐ **`reconstruct_call_path` was INNOCENT** — its body is byte-identical to the base, verified. A
+type annotation never reaches it; the annotation slot rewrites through `ns_to_wat_path` (always
+`::`). ⭐ **The brief's own hint was the right one** (*"the bug may be the ROUTING, not the join"*),
+and the answer was that it does not reach the join at all. **Sixteenth correction.**
+
+⭐⭐ **THE ONE DOOR LINTS PROVED THEMSELVES.** The stone disclosed an earlier RED floor (66 failed,
+`.floor/2026-09-21T23-21-45Z/` with `ARM.txt`, captured whole, **not re-run to green**). What went
+red: `one_variant_separator` and `one_name_grammar` — **the first attempt added a second name parser
+and the gate caught it.** ⭐ **`tests/lint/` is untouched in the entire diff**: the code was fixed,
+not the gate. A negative control (`row3_defclause_still_rejects_non_type_return_slot`) also fired and
+**survives explicitly** — bare `n` is still rejected.
+
+⛔ **FINDING THAT GATES 8d-iii — the wrong join is ACCEPTED for a SYMBOL author.** Measured:
+`(:wat::core::Option::expect …)` REFUSED ✅ · `(wat.core.Option.expect …)` — **no slash at all** —
+⛔ **ACCEPTED**, because identity makes `::expect`, the new `other_join_spelling` flips it to
+`/expect`, and the registry holds that. **Contained today** (a keyword author never reaches the
+fallback). ⛔⛔ **8d-iii un-contains it**: after 2,076 files become symbols, a wrong-join call head
+**silently resolves** instead of raising `UnresolvedReference`. **Pin the registry rows that
+legitimately hold a non-canonical join to a LIST; refuse every other flip. Before 8d-iii.**
+⚠ Same function consults `other_join_spelling` **twice** (`normalize.rs:708`/`:719`) under two
+different authorities — registry-arbitrated, but two consults of one question.
+
+⚠ **THE DELTA SAMPLE IS NOT A COMMITTED LIST.** Reconstructed as *every 12th non-stdlib tracked
+`.wat`* → the right **179** files but **164** originals clean vs the SCORE's **161**; no offset
+reproduces it. The conclusion survives (my own run: **16** new against 49), but **eight stones have
+compared slightly different populations. Commit the list.**
+
+**Residue, disclosed:** `wat/holon/Ngram.wat` converts to `DuplicateMacro`. ⭐ The stdlib-copy
+artifact hypothesis was **refuted by control** — an UNCONVERTED copy at the same out-of-tree path is
+clean. 1 opened against 31 closed.
+
+⚠ `cargo fmt` ran over the touched files, so the 2,889-line diff is **~2,251 semantic**
+(`collection/eval.rs` is **58**, not 958). **Reformat in its own commit, or not at all.**
+
+**Next: 8d-ii re-runs** — its conversion was always proven; only the load failed, and it now works.
+
+### ⛔ 2026-09-21 — 251.8d-ii STOPPED (the stop that BOUGHT 255.8)
 
 **The stdlib CONVERTS and does not LOAD.** 8d-ii's redraw converted all 64 `wat/*.wat`
 (`64/64 changed`, dry-run byte-identical to the applied run, `cargo build --release` exit 0) — and
