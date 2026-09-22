@@ -19,7 +19,8 @@ instances and starts removing the requirement.
 |---|---|---|
 | `:wat::core::defrecord`, `:my::svc::Oops` | a **NAME** (carries `::`) | ⭐ symbol — `wat.core/defrecord` |
 | `:messages`, `:features`, `:nature` | a **syntax MARKER** | ⛔ stays a keyword |
-| `:Ok`, `:Bad` | **DATA** (variant tags) | ⛔ stays a keyword |
+| `:Ok`, `:Bad` — a variant tag in a **declaration** | ⭐⭐ **A NAME.** ⛔ **RULED 2026-09-22, correcting this brief.** `(wat.core/defenum u/Whatever wat.enum/Pure :- [T] Thing [t :- T] Wut [])` mints `u/Whatever.Thing` / `u/Whatever.Wut` — the tags are **bare symbols**, not keywords | ⚠ **NOT YET** — measured: the codemod leaves `:Ok` alone, while the minted name already renders `wat.core/Option.Some`. **The declaration and what it mints disagree TODAY.** Closing it needs a CODEMOD change — ⛔ **OUT OF SCOPE for this `src/` stone; assert NOTHING about variant tags in either direction.** |
+| a map key `{:value 7}` | **DATA** | ⛔ stays a keyword |
 
 ⭐ **The rule the readers must mirror:** a slot expecting a **NAME** accepts both spellings through
 the identity door; a slot expecting a **marker** or **data** is untouched. ⛔ **Both halves are
@@ -73,7 +74,7 @@ A census plus three evidenced cures beats twelve speculative ones.
 1. ⭐ A **name** slot accepts both spellings and produces the **same identity**.
 2. ⛔ `:messages` / `:features` / `:nature` are **still markers** — a surface that spells one as a
    symbol is still refused.
-3. ⛔ A **variant tag** (`:Ok`) is **still data** — not resolved, not a name.
+3. ⛔⛔ **STRUCK 2026-09-22 by the builder's correction.** This row used to read *"a variant tag (`:Ok`) is still data"*. **It is a NAME.** ⛔ **Assert NOTHING about variant tags** — not this, not its opposite. Pinning either way pins behaviour that is mid-ruling. If the census finds a site where a variant tag's spelling is load-bearing, **REPORT it under "needs a ruling".**
 4. ⭐ The `defsurface` wall still **FIRES on a genuinely undeclared type**, in **both** spellings —
    ⛔ **this stone must not turn a false red into a false green.** Use the measured probe:
    a `:messages` block whose response enum references a record absent from `:messages`.

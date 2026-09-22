@@ -221,7 +221,8 @@ DEFINITION** — not a site to patch when it bites, **a class to eliminate.**
 |---|---|---|
 | `:wat::core::defrecord`, `:my::svc::Oops` | a **NAME** (carries `::`) | ⭐ symbol — `wat.core/defrecord` |
 | `:messages`, `:features`, `:nature` | a **syntax MARKER** | ⛔ stays a keyword |
-| `:Ok`, `:Bad` | **DATA** (variant tags) | ⛔ stays a keyword |
+| `:Ok`, `:Bad` — a variant tag in a **declaration** | ⭐⭐ **A NAME.** ⛔ **RULED 2026-09-22, correcting this brief.** `(wat.core/defenum u/Whatever wat.enum/Pure :- [T] Thing [t :- T] Wut [])` mints `u/Whatever.Thing` / `u/Whatever.Wut` — the tags are **bare symbols**, not keywords | ⚠ **NOT YET** — measured: the codemod leaves `:Ok` alone, while the minted name already renders `wat.core/Option.Some`. **The declaration and what it mints disagree TODAY.** Closing it needs a CODEMOD change — ⛔ **OUT OF SCOPE for this `src/` stone; assert NOTHING about variant tags in either direction.** |
+| a map key `{:value 7}` | **DATA** | ⛔ stays a keyword |
 
 ⭐ **A slot expecting a NAME accepts both spellings through the identity door; a slot expecting a
 MARKER or DATA is untouched.** ⛔ **Both halves are load-bearing — a cure that lets `:messages` be
