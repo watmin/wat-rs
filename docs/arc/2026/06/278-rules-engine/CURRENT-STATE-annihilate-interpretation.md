@@ -4,72 +4,109 @@
 > file before touching `src/rete/` or `wat/rete.wat`. If a stone below disagrees with a dated ruling
 > here, **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-09-09 (forty-sixth — ⛔⛔ THE VIGILIA IS CLOSED AND INSCRIBED. A TYPE-SYSTEM HOLE IS OPEN AND IS THE NEXT WORK).** Supersedes every earlier stamp and every dated block below.
+**CURRENT STAMP 2026-09-21 (forty-seventh — ⛔⛔ FOUR REAL DEFECTS CURED. FOUR FALSE ONES WITHDRAWN. THE WITHDRAWALS ARE THE LESSON).** Supersedes every earlier stamp and every dated block below.
 
 > # ⛔ FIRST ACTION IF YOU ARE READING THIS COLD
 >
-> **THE NEXT WORK IS ONE FINDING, AND IT IS A SOUNDNESS HOLE.** Read
-> `docs/arc/2026/06/278-rules-engine/the-fence-says-what-the-clause-cannot/FINDING-the-fence-is-a-hole-in-the-type-system.md`
-> **before anything else.** One predicate, two positions: `string::=` on an `i64` field is **ACCEPTED
-> SILENTLY** inside a `(:wat::rete::where …)` fence and **REJECTED** when written inline. The fence's
-> interior gets **no type checking at all** — `src/rete/validate/mod.rs:282`'s
-> `ReteClauseShape::Where(_) => {}`. ⛔ **It is already in the corpus**: `wat-scripts/fixes/
-> to-faithful-clojure-net.wat`'s `g3-genuine`, in a RECORDED MIGRATION exemplar, found only because a
-> codemod hoisted it. **Nothing has ever looked at the other fence interiors** — the first run of that
-> check is a census of an uncounted population.
+> **THERE IS NO OPEN DEFECT HANDED TO YOU.** Every instrument was run at HEAD and agrees:
+> floor **5526/5526, 19 skipped, 0 FAIL** · three-way vs **Clara** (external referee) **21/21
+> axes, Clara == oracle == native** · the exhaustive native-vs-oracle differential fuzzer · and
+> `tests/lint/rete_compile_gate.rs` over all rule-declaring corpus files. Branch clean, 0 unpushed.
 >
-> **FLOOR 5490/5490, 19 skipped. Branch green, 0 unpushed.**
+> ⭐ **BUT EVERY ONE OF THOSE WAS GREEN THE MORNING OF 2026-09-10 TOO** — while the `where` fence
+> accepted `string::=` on an `i64`, `accumulate :from` accepted the same, nothing in the tree ever
+> reached rete **compile**, and two recorded migrations could not execute a single rule. **Green
+> means "no defect of a shape we ask about."** All four were found by hand, by asking a shape
+> nobody had asked.
 >
-> **THE VIGILIA IS CLOSED** — `vigilia-2026-09-07-rete/INSCRIPTION.md`. 4 targets, 61 ward casts, 138
-> rows, **27 resolved**, nine strikes. ⭐ `circumspicere` cast last returned the sharpest finding of
-> its target **4 of 4 times**.
+> ## WHAT SHIPPED (19 commits, `d8068e26a..37528f6e0`)
 >
-> ⛔⛔ **AND THE VIGILIA DID NOT FIND THE TYPE HOLE.** Twelve rows cite `validate/`; **eight wards read
-> that file**; **zero** mention `Design call 3` or `Where(_)`. `peragrare` — whose subject it is — was
-> **mustered out** (`README.md:46`, *"NO here — fires on target 3"*). The arm is not dead, contradicts
-> no spec, and carries a real justification, so every inward lens slid off it. **No ward is aimed at
-> "this was right when it was written."** That is the gap in the guard itself, and it is worth more
-> than any row the vigilia closed.
+> | # | defect | cure |
+> |---|---|---|
+> | 1 | the `where` fence interior received **no type checking at all** | `6f1d93451` — and it found **3 real type errors** in `to-faithful-clojure-net.wat`, a recorded migration |
+> | 2 | `accumulate`'s `:from` clauses likewise unchecked | `6ddccec63` |
+> | 3 | **nothing in the tree ever reached rete COMPILE** — 477 files gated on LOAD only | `2a9de244a` — the gate; 11 files could not compile, 9 deleted, 2 recorded migrations repaired and **running for the first time ever** |
+> | 4 | a fence-local `let`/`match` binder could **shadow a rete `?var` at a different type** | `37528f6e0` |
 >
-> **ALSO OPEN, and deliberately parked until the merge lands:**
-> `the-fence-says-what-the-clause-cannot/DESIGN-widen-the-clause-then-refuse-the-fence.md` — the
-> join blowup (measured in Clara: 1.04x → **2.13x** as the join grows) and the expressivity gap
-> (Clara admits a bare user fn, a nested fn, and a closure **inline**; `expr_is_provably_boolean`
-> refuses all three). ⚠ **Do not start it mid-merge.** Step 3 rewrites ~221 sites, 143 in the perf
-> grid, **invalidating all 29 recorded baselines**.
+> Plus: my own fence over-rejection guard was **false** — its "not knowable" row used `i64::+`,
+> whose row declares `ret: Ret::Is(ParamType::I64)`, so it tested nothing (`8d102ad84`).
 >
-> ⭐ **THE TEACHING HAZARD IS CURED** (`feb5fae91`): 38 of 42 join-blowup exemplars hoisted, the
-> codemod structurally gated to joins only. **This mattered — another session read our corpus, wrote
-> what it saw, and crashed the builder's SSH daemon.** `wat-scripts/grep` (the user-facing tool's own
-> rules) went from 11 dangerous to 1. Four remain in one file, reported not forced.
+> ## ⭐ THE TYPE-CHECK MATRIX — MEASURED 2026-09-10, 27 CELLS, DRIVEN AT HEAD
+>
+> **Every rete expression position and composition is type-checked**: 7 positions × wrong-comparator
+> ✅ · 5 positions × unknown-field ✅ · 8 nested compositions (`not(or(…))`, `or(accum :from …)`, …)
+> ✅ · `defquery :when` ✅ · nested `:then` ✅ · fence-in-`and`/`if` ✅ · the accumulate fold var ✅.
+>
+> ⛔ **The ONE remaining unchecked position is a `let`/`match` BODY inside a fence** — and after
+> `37528f6e0` its reason is **no longer shadowing** (that is now impossible). It is the absent
+> **local type environment**: to check `(i64::> x 100)` the walker must know `x` is an `i64`, and
+> `x` is not in the bind map, not a field, not a literal. `check_fence_interior`'s doc says this
+> honestly. Descending is separate, larger work, not a gap in a claim.
+>
+> ## ⛔⛔ THE EXPENSIVE LESSON: FOUR FALSE FINDINGS, ALL DELIBERATE DESIGN
+>
+> **stone 251.8d**'s faithful-Clojure boundary · **`reachability.rs`'s two-member `CallSite`** ·
+> **`acc::count` "miscounts"** (Clara does the identical thing — it is a GROUPING variable) ·
+> **derived-multiplicity** (`retract-multiplicity.wat:8` calls it *"the **justified** split"*, and
+> the record rules **wat right, Clara over-deriving**).
+>
+> ⭐ **And the one that WAS real — `Design call 3` on `accumulate`'s `:from` — looked IDENTICAL to
+> the other four.** They cannot be told apart by looking harder at the code. **Measuring tells you
+> WHAT a thing does; only the record says whether that is a defect or a decision.** Every one was a
+> single grep away. Memory: `[[search-the-record-before-naming-a-defect]]`.
+>
+> ## ⚠ SIX INSTRUMENT ERRORS IN ONE SESSION, EVERY ONE A PLAUSIBLE NUMBER
+>
+> A `pgrep -f` matching its own command line · a `$0`-relative path resolving to `/bin` · reading
+> `first` of a multi-row result and calling it a count · a fixture whose "not knowable" operand was
+> knowable · a grep for `rete::accumulate`, **a keyword the form does not have** · and a fence-`let`
+> count of **1** where a structural census found **7**.
+>
+> ⭐⭐ **That last one I HAD anchored — and the anchor passed.** My anchor was a ONE-LINE fence;
+> six of the seven span lines. **An anchor that shares the instrument's blind spot is a mirror, not
+> a control.** The cure was a census in wat itself (`read-string` + AST walk), which cannot miss a
+> form for spanning lines. Memory: `[[anchor-a-new-measurement-before-trusting-it]]`, amended.
+>
+> ## WHAT IS OPEN, AND IT IS NOT A DEFECT LIST
+>
+> - **`let`/`match` fence bodies** — needs a local type env (above). The honest next stone.
+> - ⛔ **The 2026-09-07 vigilia's `FINDINGS.md` reads "112 OPEN". DO NOT QUOTE THAT AS A DEFECT
+>   COUNT.** It is a count of rows in a doc, measured against code that has moved hundreds of
+>   commits; 39 are ward-reported and never re-derived. **I handed that number to the builder as an
+>   answer about the code and was rightly corrected: *"i do not give any shits about what the docs
+>   say - the docs are not evaluated at run time."*** A row saying "open" is a past act of looking.
+>   Audit against the tree or say nothing.
+> - **The parked expressivity design** (`the-fence-says-what-the-clause-cannot/DESIGN-widen-the-clause-then-refuse-the-fence.md`)
+>   — ⚠ still do not start mid-merge; step 3 rewrites ~221 sites, 143 in the perf grid.
 
 **THE FRESHNESS PROBE — two commands:**
 
 ```
-git log --oneline feb5fae91..HEAD      # every commit since the last one that touched CODE
-git diff --stat feb5fae91..HEAD --name-only
+git log --oneline 37528f6e0..HEAD      # every commit since the last one that touched CODE
+git diff --stat 37528f6e0..HEAD --name-only
 ```
 
-**PASS:** every path is under `docs/`, **or is one of these three known evidence paths** —
+**PASS:** every path is under `docs/`, **or is one of these known evidence paths** —
 
 | path | why it is not code drift |
 |---|---|
 | `wat-scripts/scratch-pad/**/*.wat` | probes and repros; the scratch-pad convention makes these durable, and two lint gates read every `.wat` there |
-| `wat-scripts/perf/grid/peragrare-census.sh` | the `peragrare` census, committed **beside the corpus it counts** because the spell requires it |
-| `tests/rete/probe_arc278_then_user_forms_userfn.wat` | comment-only strike (`ce6c1e35c`); its SCORE records *every `+`/`-` content line begins `;;`* |
-| `tests/lint/peragrare-bad-census.sh` | the SECOND `peragrare` census, for `every_wat_bad_fixture_actually_fails.rs`. ⚠ **Placed in `tests/lint/` and NOT `tests/rete/` on the ward's argument**: only 19 of its 268 members sit under `tests/rete/`, so *"beside the corpus"* has no single home, and `tests/lint/` is where this repo keeps corpus-wide walk gates. ✅ **Confirmed inert to every gate before landing**: `every_walking_gate_declares_non_vacuity` scopes to `tests/lint/*.rs`; `every_parity_script_is_invoked` walks `wat-scripts/perf/grid` for `check-*.sh` |
+| `wat-scripts/perf/grid/peragrare-census.sh` · `tests/lint/peragrare-bad-census.sh` · `tests/lint/rete-compile-census.sh` | committed census instruments, each beside the corpus it counts. ⛔ The third's anchor is **synthesized** (`3b280f7f2`) — a known-positive *found in the corpus* dies the moment the corpus is cured |
 
-**STALE:** any `src/` or `wat/` path, or any `tests/` path other than the one above — then trust the
-log and the source over every line below, and re-read before you move.
+**STALE:** any `src/` or `wat/` path, or any `tests/` path other than a census above — then trust
+the log and the source over every line below, and re-read before you move.
 
-⛔ **An ENUMERATED allowlist, not a widened glob, and that is deliberate.** The previous wording said
-*"under `docs/` or `wat-scripts/scratch-pad/`"*; two later commits of mine landed outside both — a
-census and a comment-only probe strike — and a glob loose enough to admit them would also admit a
-real engine change. **A probe that cannot distinguish expected evidence from new drift has stopped
-being a probe.** If you add a fourth evidence path, add a row; do not relax the rule.
-> ⚠ Previous wordings pinned to a COUNT and to a `curare:` PREFIX; both rotted, because the cadence
-> is `strike:` (draw, docs) → `fix:`/`lint:` (the work, src) → `score:` + `curare:` (docs). **Pin to
-> the last commit that touched code, and test the PATHS.** That survives any number of docs commits.
+⛔ **An ENUMERATED allowlist, not a widened glob, and that is deliberate.** A glob loose enough to
+admit a census would also admit a real engine change. **A probe that cannot distinguish expected
+evidence from new drift has stopped being a probe.** Add a row; do not relax the rule.
+
+> # ⛔⛔ YOU ARE NEW. YOU DID NOT LIVE ANY OF THIS.
+>
+> Everything above is a **cache written by a prior instance**, not your memory. It reads smoothly
+> and in your own voice — *that is the trap, not the reassurance.* **Run `recolligere` from the
+> signed channel and walk it against the disk BEFORE you act on a single line here.** This session
+> shipped four cures and withdrew four confident findings; **the withdrawn ones felt exactly as
+> solid as the real ones while I was writing them.** Verify, then move.
 
 ## ✅ RESOLVED — the swept commit is now WEIGHED, and the lesson stands
 
