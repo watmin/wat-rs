@@ -650,18 +650,39 @@ fn verify_post_parse(
 
 // ─── Form matching ──────────────────────────────────────────────────────
 
-/// Attempt to interpret `form` as one of the three load forms.
+/// Attempt to interpret `form` as one of the six load forms.
+///
+/// ⛔ **Arc 255 Stone 255.9 — IDENTITY IS THE PAIR, NOT THE SPELLING.** This head test used to
+/// read `Some(WatAST::Keyword(k, _)) => k.as_str(), _ => return Ok(None)` — a **Symbol** head
+/// was silently "not a load form". The corpus converter
+/// (`wat-scripts/fixes/to-faithful-clojure.wat`) rewrites every `::`-namespaced keyword to its
+/// faithful-Clojure symbol, so `(:wat::load-file! "x")` becomes `(wat/load-file! "x")`, and
+/// that form reached here and was **declined without a diagnostic** — not malformed, not
+/// unresolved, nothing. Measured on the converter's real output before this stone:
+/// `(:wat::load-file! "missing.wat")` → rc=1 `"load: file not found: missing.wat"`;
+/// `(wat/load-file! "missing.wat")` → **rc=0**. The conversion did not break the load loudly;
+/// it deleted it and made the file GREENER. `resolve_loads` is step 3 of the startup pipeline
+/// (`freeze.rs`), which is BEFORE `normalize_symbol_refs` (step 7) rewrites Symbol→Keyword —
+/// so this site, unlike everything downstream of step 7, genuinely receives the symbol.
+///
+/// [`canonical_identity_of`](crate::form_match::canonical_identity_of) is the documented
+/// identity door (255.1 / 255.6 / 255.7 routed three subsystems through it); it is
+/// `ns_to_wat_path`'s exact round-trip, so `wat/load-file!` → `:wat::load-file!`. **Not a
+/// second spelling test per arm** — the arms below stay keyed on the one identity. A head that
+/// is neither Keyword nor Symbol, and any other name, still declines exactly as before.
 fn match_load_form(form: &WatAST, form_span: Span) -> Result<Option<LoadSpec>, LoadError> {
     let items = match form {
         WatAST::List(items, _) => items,
         _ => return Ok(None),
     };
-    let head = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => return Ok(None),
+    let Some(head_node) = items.first() else {
+        return Ok(None);
+    };
+    let Some(head) = crate::form_match::canonical_identity_of(head_node) else {
+        return Ok(None);
     };
 
-    match head {
+    match head.as_str() {
         // Arc 028 slice 1 — drop the :wat::load::* interface keyword
         // and split each source shape into its own named form. One
         // form per (source-shape × integrity-shape) cell. Future
@@ -977,16 +998,30 @@ fn reject_setters_in_loaded(forms: &[WatAST], path: &str) -> Result<(), LoadErro
 
 fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
     // Walker-specific List-head logic — fire SetterInLoadedFile on a
-    // :wat::config::set-*! keyword head. Setter heads always appear in
-    // List position; this guard preserves the pre-arc-212 check.
+    // :wat::config::set-*! head. Setter heads always appear in List position;
+    // this guard preserves the pre-arc-212 check.
+    //
+    // ⛔ **Arc 255 Stone 255.9 — a SECOND forged green in this same file.** This test used to
+    // read `Some(WatAST::Keyword(k, _))`, so the faithful-Clojure SYMBOL spelling the corpus
+    // converter emits walked straight through the entry-file-discipline wall. Measured before
+    // the cure, with the setter inside a LOADED file:
+    //   `(:wat::config::set-redef! true)` → rc=1 `SetterInLoadedFile`
+    //   `(wat.config/set-redef!   true)` → **rc=0** — the wall never fired and the setter was
+    //                                      accepted in a loaded file.
+    // `set-redef!`/`set-eval-redef!` carry registry rows, so nothing downstream caught them
+    // either; the non-registry setters (`set-global-seed!` …) were merely BACKSTOPPED by an
+    // `UnresolvedReference` naming the wrong fact. Same door as `match_load_form` above —
+    // `canonical_identity_of`, not a second spelling test. `config.rs`'s `setter_head_of` (the
+    // ENTRY-file side of this same discipline) was already routed through
+    // `canonical_identity`; this loaded-file side was the half that was missed.
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(k, _)) = items.first() {
-            if k.starts_with(":wat::config::set-") && k.ends_with('!') {
+        if let Some(head) = items.first().and_then(crate::form_match::canonical_identity_of) {
+            if head.starts_with(":wat::config::set-") && head.ends_with('!') {
                 return Err(LoadError::new(
                     form.span().clone(),
                     LoadErrorKind::SetterInLoadedFile {
                         loaded_path: path.to_string(),
-                        setter_head: k.clone(),
+                        setter_head: head,
                     },
                 ));
             }
@@ -1343,6 +1378,128 @@ mod tests {
         )
         .unwrap();
         assert_eq!(forms.len(), 2);
+    }
+
+    /// ⛔ **Arc 255 Stone 255.9 — THE CURE MUST NOT OPEN THE GATE.** All three
+    /// non-vacuity rows in one test, because each one alone is satisfiable by a
+    /// defect: row 1 alone is satisfied by "every symbol-headed list is a load
+    /// form", row 3 alone by "nothing is a load form".
+    ///
+    /// Row 1 — a faithful-Clojure SYMBOL head IS the load form, and a missing
+    ///         target fails NAMING THE FILE (not merely non-zero).
+    /// Row 2 — the rust-scheme KEYWORD head is byte-for-byte UNCHANGED.
+    /// Row 3 — an unrelated symbol head is STILL NOT a load form.
+    #[test]
+    fn symbol_head_is_the_same_load_form_and_nothing_else_becomes_one() {
+        // ── Row 1: the converted spelling is a load form, and it names the file.
+        let sym_err = resolve_mem(r#"(wat/load-file! "missing.wat")"#, &[])
+            .expect_err("a SYMBOL-headed load of a missing file must FAIL, not vanish");
+        let sym_msg = sym_err.to_string();
+        match &*sym_err.kind {
+            // Exact, not `contains`: the diagnostic must NAME THE MISSING FILE, and the
+            // whole scalar is pinned so an appended or reworded message cannot pass.
+            LoadErrorKind::Fetch(fetch) => assert_eq!(
+                fetch.to_string(),
+                "load: file not found: missing.wat",
+                "the fetch diagnostic must name the missing file, byte for byte"
+            ),
+            other => panic!(
+                "symbol head must reach the FETCH, not be declined as 'not a load form'; got {other:?}"
+            ),
+        }
+
+        // ── Row 2: the keyword spelling is unchanged — same diagnostic, byte for byte.
+        let kw_err = resolve_mem(r#"(:wat::load-file! "missing.wat")"#, &[])
+            .expect_err("the keyword-headed load of a missing file still fails");
+        assert_eq!(
+            kw_err.to_string(),
+            sym_msg,
+            "the two spellings are ONE identity: the symbol form must produce the \
+             keyword form's diagnostic byte-for-byte"
+        );
+
+        // ── Row 3: an unrelated symbol head is NOT a load form. It passes through
+        //    untouched (`process_forms`' else-branch), exactly as it does today —
+        //    the cure must not make every symbol-headed list a load candidate.
+        let passthrough = resolve_mem(r#"(some.other/thing "x")"#, &[])
+            .expect("an unrelated symbol head is not a load form — no fetch, no error");
+        assert_eq!(passthrough.len(), 1, "the form is preserved in place");
+        assert!(
+            matches!(&passthrough[0], WatAST::List(items, _)
+                if matches!(items.first(), Some(WatAST::Symbol(id, _)) if id.as_str() == "some.other/thing")),
+            "the unrelated form is returned UNCHANGED (still a Symbol head); got {:?}",
+            passthrough[0]
+        );
+        // …and so is its keyword sibling, which was never a load form either.
+        let passthrough_kw = resolve_mem(r#"(:some::other::thing "x")"#, &[])
+            .expect("an unrelated keyword head is not a load form");
+        assert_eq!(passthrough_kw.len(), 1);
+    }
+
+    /// 255.9 — the OTHER five load forms take the symbol head too. `load-file!`
+    /// is the only one the corpus uses today (26 files); a gate that proved only
+    /// that one would leave five arms untested against the same conversion.
+    #[test]
+    fn every_load_form_accepts_the_symbol_head() {
+        // load-string! — inline source, no fetch: it must actually INLINE.
+        let forms = resolve_mem(
+            r#"(wat/load-string! "(:wat::holon::Atom \"inlined\")")"#,
+            &[],
+        )
+        .expect("symbol-headed load-string! inlines");
+        assert_eq!(forms.len(), 1);
+
+        // The four verified forms: the head must be RECOGNISED. Their verification
+        // markers are still keyword-only (255.9 census — a Symbol there is a LOUD
+        // MalformedLoadForm, never a silent decline), so recognition is proven by
+        // the form-level error they now raise instead of passing through untouched.
+        for src in [
+            r#"(wat/digest-load! "x" :wat::verify::digest-sha256 :wat::verify::string "deadbeef")"#,
+            r#"(wat/digest-load-string! "(:wat::holon::Atom \"x\")" :wat::verify::digest-sha256 :wat::verify::string "deadbeef")"#,
+            r#"(wat/signed-load! "x" :wat::verify::signed-ed25519 :wat::verify::string "s" :wat::verify::string "p")"#,
+            r#"(wat/signed-load-string! "(:wat::holon::Atom \"x\")" :wat::verify::signed-ed25519 :wat::verify::string "s" :wat::verify::string "p")"#,
+        ] {
+            let err = resolve_mem(src, &[]).err().unwrap_or_else(|| {
+                panic!("symbol-headed verified load must be RECOGNISED, not passed through: {src}")
+            });
+            assert!(
+                !matches!(*err.kind, LoadErrorKind::MalformedLoadForm { .. }),
+                "the head parsed; the failure must come from fetch/verification, \
+                 not from the form grammar: {src} → {:?}",
+                err.kind
+            );
+        }
+    }
+
+    /// 255.9 — the setter wall in a LOADED file reads both spellings, and still
+    /// reads nothing else. Same three-row shape as the head test above.
+    #[test]
+    fn setter_in_loaded_file_is_refused_in_either_spelling_and_nothing_else_is() {
+        let kw = resolve_mem(
+            r#"(:wat::load-file! "lib.wat")"#,
+            &[("lib.wat", r#"(:wat::config::set-redef! true)"#)],
+        )
+        .expect_err("keyword setter in a loaded file is refused");
+        let sym = resolve_mem(
+            r#"(wat/load-file! "lib.wat")"#,
+            &[("lib.wat", r#"(wat.config/set-redef! true)"#)],
+        )
+        .expect_err("SYMBOL setter in a loaded file must be refused too — it was not");
+        for e in [&kw, &sym] {
+            match &*e.kind {
+                LoadErrorKind::SetterInLoadedFile { setter_head, .. } => {
+                    assert_eq!(setter_head, ":wat::config::set-redef!")
+                }
+                other => panic!("expected SetterInLoadedFile; got {other:?}"),
+            }
+        }
+        // Not a setter: a `wat.config/`-namespaced READ, and an unrelated symbol
+        // head, both stay legal in a loaded file.
+        resolve_mem(
+            r#"(wat/load-file! "lib.wat")"#,
+            &[("lib.wat", r#"(some.other/thing "x") (wat.config/not-a-setter 1)"#)],
+        )
+        .expect("a non-setter head in a loaded file is not refused");
     }
 
     #[test]
