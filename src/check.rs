@@ -1452,7 +1452,52 @@ fn walk_for_restricted_call(
     env: &CheckEnv,
     errors: &mut Vec<CheckError>,
 ) {
-    if let WatAST::Keyword(name, name_span) = node {
+    // 255.11 — A MENTION IS A MENTION IN EITHER SPELLING. This walker used to fire on
+    // `WatAST::Keyword` alone. In a CODE position that is harmless (step 7's
+    // `normalize_symbol_refs` has already rewritten every reference symbol into a keyword
+    // before `check_program` runs), but a DATA position is NEVER normalized
+    // (`resolve/boundary.rs`) — so a restricted name mentioned inside `quote` / a `match`
+    // arm / a `make-rule` clause arrived here as a `Symbol` and the whitelist was never
+    // consulted at all. Measured at `eb860cb96`, on ONE file pair differing only in the
+    // spelling of the quoted mention: `(:wat::core::quote (:my::kernel::restricted-fn 7))`
+    // in a non-whitelisted fn → rc 1 `DefRestrictedCallerNotAllowed`;
+    // `(:wat::core::quote (my.kernel/restricted-fn 7))` → rc 0, and handing that quoted
+    // form to `(:wat::eval-ast! …)` RAN the restricted fn. The same hole covered every
+    // Rust-side `#[restricted_to(…)]` substrate fence, since `freeze/env.rs`'s inventory
+    // drain writes them into the SAME `binding_metadata` map this walker reads:
+    // `wat.kernel/spawn-process`, `wat.kernel/close` and `wat.io.IOWriter/from-fd` all
+    // passed clean where their keyword spellings were denied.
+    //
+    // Arc 198's own ruling is the reason this is the right direction: "a restriction
+    // governs MENTION, not head position" — to call a thing you must first name it. Reading
+    // only one spelling of a name is the same defect the head-position-only shape had.
+    //
+    // Both joins are consulted. `wat.io.IOWriter/from-fd` canonicalises to
+    // `:wat::io::IOWriter/from-fd` under one join and `:wat::io::IOWriter::from-fd` under
+    // the other, and which is right depends on whether `IOWriter` is a TYPE — a question
+    // this walker has no `TypeEnv` to ask. A restriction fires if EITHER rendering carries
+    // one, which is the restrictive direction (255.10 (e) is the precedent, and the reason
+    // it consults `types::other_join_spelling` rather than a hand-rolled `format!`).
+    //
+    // Restrained to `is_reference()`: a BARE symbol head is a local callable / a binder, not
+    // a namespaced name, and keeps its old pass-through.
+    let mention: Option<(String, &Span)> = match node {
+        WatAST::Keyword(name, name_span) => Some((name.clone(), name_span)),
+        WatAST::Symbol(id, name_span) if id.is_reference() => Some((
+            crate::edn::render::canonical_identity(id.as_str()),
+            name_span,
+        )),
+        _ => None,
+    };
+    if let Some((name, name_span)) = mention {
+        let name = match env.get_binding_metadata(&name) {
+            Some(_) => name,
+            None => match crate::types::other_join_spelling(&name) {
+                Some(alt) if env.get_binding_metadata(&alt).is_some() => alt,
+                _ => name,
+            },
+        };
+        let name = &name;
         if owner_type != Some(name.as_str()) {
             if let Some(meta) = env.get_binding_metadata(name) {
                 match extract_prefix_list_from_metadata(meta) {

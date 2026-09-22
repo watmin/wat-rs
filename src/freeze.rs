@@ -1891,11 +1891,32 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
     // mutation-form Keyword heads. Mutation form heads always appear
     // in List position; this guard preserves the pre-arc-212 check.
     if let WatAST::List(items, list_span) = ast {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if is_mutation_form(head) {
+        // 255.11 — the head is a NAME and this is a DEFAULT-DENY wall, so it must read the
+        // same two spellings `runtime::eval_list` will EXECUTE. Reading only the keyword
+        // meant a symbol-headed mutation form fell to the recursion below and the deny-list
+        // never ran. Measured at `eb860cb96` on the sibling wall
+        // (`runtime::refuse_mutation_forms_in`, same shape, same probe):
+        // `(:wat::eval-ast! '(wat.config/set-redef! true))` returned **ok:nil** — evaluated,
+        // not refused — where `(:wat::eval-ast! '(:wat::config::set-redef! true))` answered
+        // "eval refused mutation form". 255.9 measured this pair BYPASSED-but-BACKSTOPPED
+        // and reported "no mutation head escapes both walls"; two do
+        // (`set-redef!` / `set-eval-redef!`), because their eval arms are reachable
+        // `Ok(Value::Unit)` returns rather than `DeclarationInExpressionPosition` raisers.
+        // Restrained to `is_reference()` — a bare symbol head is a local callable.
+        // The refusal reports the CANONICAL identity, so the diagnostic is byte-identical
+        // in either spelling.
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+            Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                Some(crate::edn::render::canonical_identity(id.as_str()))
+            }
+            _ => None,
+        };
+        if let Some(head) = head {
+            if is_mutation_form(&head) {
                 return Err(RuntimeError::new(
                     list_span.clone(),
-                    RuntimeErrorKind::EvalForbidsMutationForm { head: head.clone() },
+                    RuntimeErrorKind::EvalForbidsMutationForm { head },
                 ));
             }
         }
@@ -2255,6 +2276,58 @@ mod tests {
             }
             _ => panic!("expected EvalForbidsMutationForm, got {:?}", err),
         }
+    }
+
+    /// 255.11 — THE MUTATION WALL READS BOTH SPELLINGS, AND STILL LETS PURE CODE THROUGH.
+    ///
+    /// `refuse_mutation_forms` is default-deny keyed on a NAME. Before this stone it read
+    /// `WatAST::Keyword` only, so a faithful-Clojure mutation head fell straight to the
+    /// `children()` recursion and the deny-list never ran. Measured at `eb860cb96` on the
+    /// sibling wall (`runtime::refuse_mutation_forms_in`, same shape, same door):
+    /// `(:wat::eval-ast! '(wat.config/set-redef! true))` returned **ok:nil** — the form
+    /// reached the evaluator — where the keyword spelling answered
+    /// "eval refused mutation form: :wat::config::set-redef!". 255.9 reported this pair
+    /// BYPASSED-but-BACKSTOPPED and concluded "no mutation head escapes both walls";
+    /// `set-redef!` and `set-eval-redef!` do, because their eval arms are reachable
+    /// `Ok(Value::Unit)` returns rather than `DeclarationInExpressionPosition` raisers.
+    ///
+    /// Row 1/2 — the refusal fires in EITHER spelling and names the SAME canonical head,
+    /// byte for byte (a `contains` would pass on a wall that named the other spelling).
+    /// Row 3 — ⛔ THE POSITIVE CONTROL: an ordinary symbol-spelled call is NOT a mutation
+    /// form and still evaluates, so the cure did not turn every symbol head into a refusal.
+    #[test]
+    fn a_mutation_head_is_refused_in_either_spelling_and_nothing_else_is() {
+        let world = frozen_with(r#"(:wat::config::set-capacity-mode! :error)"#);
+        let env = Environment::new();
+
+        let kw = crate::parse_one!(r#"(:wat::config::set-redef! true)"#).unwrap();
+        let kw_head = match eval_in_frozen(&kw, &world, &env).unwrap_err().kind() {
+            RuntimeErrorKind::EvalForbidsMutationForm { head, .. } => head.clone(),
+            other => panic!("keyword spelling must be refused by the wall; got {other:?}"),
+        };
+        assert_eq!(
+            kw_head, ":wat::config::set-redef!",
+            "the wall must name the canonical head"
+        );
+
+        let sym = crate::parse_one!(r#"(wat.config/set-redef! true)"#).unwrap();
+        let sym_head = match eval_in_frozen(&sym, &world, &env).unwrap_err().kind() {
+            RuntimeErrorKind::EvalForbidsMutationForm { head, .. } => head.clone(),
+            other => panic!(
+                "the symbol spelling must reach the SAME wall, not fall through to eval; got {other:?}"
+            ),
+        };
+        assert_eq!(
+            sym_head, kw_head,
+            "both spellings must be refused by the same wall with the same canonical head"
+        );
+
+        // POSITIVE CONTROL — a symbol-headed form that is NOT on the deny-list still runs.
+        let ok = crate::parse_one!(r#"(wat.i64/+ 20 22)"#).unwrap();
+        let v = eval_in_frozen(&ok, &world, &env)
+            .expect("a non-mutation symbol head must still evaluate")
+            .value_owned();
+        assert_eq!(v, crate::value::Value::i64(42));
     }
 
     #[test]

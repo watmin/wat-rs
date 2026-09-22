@@ -135,3 +135,44 @@ fn mirror_wall_quoted_template_emitting_macro_error_refused() {
             if head == ":wat::core::macro-error"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E2 — 255.11: GATE E READS BOTH SPELLINGS OF THE QUASIQUOTE HEAD.
+//
+// The wall audit (`docs/arc/2026/06/255-builtin-registry/SCORE-STONE-255.11-the-wall-audit.md`)
+// measured `quasiquote_inner` + `check_quasiquote_for_literal_binders` FAIL-OPEN: both
+// read `WatAST::Keyword` only, so a macro whose NESTED quasiquote (and its `let` head)
+// were written in the faithful-Clojure spelling was walked as ordinary program code and
+// the binder scan never ran. Measured at `eb860cb96`, one file pair differing only in
+// that spelling: keyword → rc 1 `ProgramBodyIntroducesName`, symbol → rc 0, SILENTLY.
+// `` ` ``/`~` sugar was never affected (reader-synthesized leaves survive the codemod);
+// the EXPLICIT spelling is the reachable one, and 255.10's census called it "LOUD" — it
+// is SILENT.
+//
+// ⚠ `is_quasiquote_form` — the sibling ROUTER — is deliberately still keyword-only:
+// teaching it the symbol spelling would SKIP `validate_macro_definition`, the more
+// permissive direction. Reported for the builder, not cured.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// CASE E2-a — the target: the capturing macro of case E, with its nested quasiquote and
+/// `let` head spelled as symbols, must be refused by the SAME gate with the SAME binder.
+#[test]
+fn hygiene_bound_fires_on_a_symbol_spelled_quasiquote_template() {
+    let result = startup_from_file("tests/macros/probe_arc255_11_hygiene_symbol_quasiquote.wat.bad");
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyIntroducesName { macro_name, binder },
+            ..
+        }) if macro_name == ":my::capturing" && binder == "tmp"
+    );
+}
+
+/// CASE E2-b — ⛔ THE POSITIVE CONTROL: the same symbol-spelled nested quasiquote with no
+/// literal binder still registers, expands and computes. If this goes red the cure
+/// refuses every symbol-spelled quasiquote, which is not an intact wall — do not adjust
+/// this fixture to match the wall.
+#[test]
+fn a_symbol_spelled_quasiquote_without_a_literal_binder_still_expands() {
+    let result = compute_from_file("tests/macros/probe_arc255_11_hygiene_symbol_control.wat");
+    assert_eq!(result, Value::bool(true));
+}

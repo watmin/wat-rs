@@ -1,0 +1,16 @@
+;; Arc 255 Stone 255.11 — the wall audit.
+;;
+;; The keyword-spelled sibling of this file
+;; (`probe_arc249_macro_engine_hygiene.wat.bad`) is refused by Gate E
+;; (`ProgramBodyIntroducesName`, arc 249 stone 249.2b-ii — macro name capture).
+;; Before 255.11, spelling the NESTED quasiquote and its `let` head in the
+;; faithful-Clojure form made `quasiquote_inner` / the binder scan miss the
+;; template entirely, and the SAME capturing macro loaded CLEAN.
+(:wat::core::defmacro :my::capturing
+  [x <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::if (:wat::core::= 1 1)
+    (wat.core/quasiquote (wat.core/let [tmp (wat.core/unquote x)] tmp))
+    `~x))
+(:wat::core::defn :user::probe [n <- :wat::core::i64]
+  -> :wat::core::i64 (:my::capturing n))

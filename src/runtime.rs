@@ -14439,11 +14439,28 @@ pub(crate) fn run_constrained(
 
 fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), EvalBreak> {
     if let WatAST::List(items, list_span) = ast {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if is_mutation_head(head) {
+        // 255.11 — see `freeze::refuse_mutation_forms` for the measurement. This is the
+        // `:wat::eval-ast!` / `:wat::eval-edn!` / `:wat::eval-file!` half of the same wall
+        // and carried the same keyword-only head read. Measured at `eb860cb96`:
+        // `(:wat::eval-ast! '(wat.config/set-redef! true))` → **ok:nil** (the form reached
+        // `eval_list`, which has always dispatched a reference symbol head exactly like a
+        // keyword head) vs `err:eval refused mutation form: :wat::config::set-redef!` for
+        // the keyword spelling. `set-redef!` and `set-eval-redef!` are the two of the ten
+        // deny-listed heads that escape BOTH walls; the other eight are caught downstream by
+        // `DeclarationInExpressionPosition` / `unknown function`, which destroys the
+        // diagnostic but not the refusal.
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+            Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                Some(crate::edn::render::canonical_identity(id.as_str()))
+            }
+            _ => None,
+        };
+        if let Some(head) = head {
+            if is_mutation_head(&head) {
                 return Err(RuntimeError::new(
                     list_span.clone(),
-                    RuntimeErrorKind::EvalForbidsMutationForm { head: head.clone() },
+                    RuntimeErrorKind::EvalForbidsMutationForm { head },
                 )
                 .into());
             }

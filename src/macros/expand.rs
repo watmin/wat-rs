@@ -1680,6 +1680,14 @@ pub(super) fn validate_macro_definition(
 /// path-router (`expand_template`). Keeping the head-only test shared ensures
 /// that a malformed `(:wat::core::quasiquote a b)` (wrong arity) is treated
 /// consistently at both sites instead of silently misrouting at expand time.
+///
+/// ⛔ 255.11 — DELIBERATELY still keyword-only, and NOT a wall. This is a ROUTER:
+/// `parse_defmacro_form` runs `validate_macro_definition` (hygiene + the F5
+/// default-deny purity gate) only when this returns **false**. Teaching it the
+/// symbol spelling would make a symbol-spelled quasiquote body SKIP that
+/// validation — strictly MORE PERMISSIVE, the red→false-green direction. Reported
+/// for the builder in `SCORE-STONE-255.11`, not cured here. Its partner
+/// `quasiquote_inner` WAS cured, because there the miss costs a refusal.
 pub(super) fn is_quasiquote_form(form: &WatAST) -> bool {
     matches!(
         form,
@@ -1694,12 +1702,31 @@ pub(super) fn is_quasiquote_form(form: &WatAST) -> bool {
 /// (`expand_template`) then routes to `expand_program_body`, which will fail
 /// with a meaningful `MalformedTemplate` error rather than silently
 /// misrouting. Use `is_quasiquote_form` to test the head alone.
+/// 255.11 — reads BOTH spellings of the quasiquote head. This function is the
+/// only thing that lets `check_program_body_hygiene` (Gate E, arc 249 stone
+/// 249.2b-ii — macro name capture) find the template it has to inspect, and the
+/// keyword-only read meant an explicitly-spelled symbol quasiquote NESTED in a
+/// program body was walked as ordinary code and never binder-checked. Measured at
+/// `eb860cb96`, one file pair differing only in that head's spelling:
+/// `(:wat::core::if true (:wat::core::quasiquote (:wat::core::let [y 1] y)) …)`
+/// → rc 1 `ProgramBodyIntroducesName`; the same form with
+/// `(wat.core/quasiquote (wat.core/let [y 1] y))` → rc 0, SILENTLY. 255.10's census
+/// classified this site "UNREACHABLE for the sugar; LOUD for the explicit spelling" —
+/// the sugar half is right (`` ` ``/`~` are reader-synthesized and the codemod skips
+/// them) but the explicit half is SILENT here, not loud.
+///
+/// ⚠ Its sibling `is_quasiquote_form` is deliberately NOT changed — see its doc.
 fn quasiquote_inner(items: &[WatAST]) -> Option<&WatAST> {
     if items.len() == 2 {
-        if let Some(WatAST::Keyword(k, _)) = items.first() {
-            if k == ":wat::core::quasiquote" {
-                return items.get(1);
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+            Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                Some(crate::edn::render::canonical_identity(id.as_str()))
             }
+            _ => None,
+        };
+        if head.as_deref() == Some(":wat::core::quasiquote") {
+            return items.get(1);
         }
     }
     None
@@ -1715,7 +1742,18 @@ fn check_quasiquote_for_literal_binders(
     macro_name: &str,
 ) -> Result<(), MacroError> {
     if let WatAST::List(items, _) = template {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
+        // 255.11 — the `let` / `fn` / `quasiquote` heads this wall keys on are NAMES, and
+        // reading only the keyword spelling left the binder scan blind to
+        // `(wat.core/let [y 1] y)`. Same door, same `is_reference()` restraint, as
+        // `quasiquote_inner` above (and for the same measurement).
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => Some(k.clone()),
+            Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                Some(crate::edn::render::canonical_identity(id.as_str()))
+            }
+            _ => None,
+        };
+        if let Some(head) = head.as_deref() {
             // Stop recursion at nested quasiquotes — their content is data at this level.
             if head == ":wat::core::quasiquote" {
                 return Ok(());

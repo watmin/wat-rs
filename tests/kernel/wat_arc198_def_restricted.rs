@@ -195,3 +195,38 @@ fn restricted_to_neither_keyword_nor_symbol_is_a_hard_error() {
         "expected MalformedForm on neither-keyword-nor-symbol; got {errors:?}"
     );
 }
+
+// ─── 255.11 — a MENTION is a mention in EITHER spelling ───────────────────
+//
+// The wall audit (`SCORE-STONE-255.11-the-wall-audit.md`) measured this walker
+// FAIL-OPEN for a namespaced SYMBOL mention. In a CODE position that never
+// showed, because step 7's `normalize_symbol_refs` rewrites reference symbols
+// into keywords before `check_program` runs. A DATA position is never
+// normalized (`resolve/boundary.rs`), so a restricted name quoted in the
+// faithful-Clojure spelling reached this walker as a `WatAST::Symbol` and the
+// whitelist was never consulted. Measured at `eb860cb96` on one file pair
+// differing only in that spelling: keyword → rc 1, symbol → rc 0, and
+// `(:wat::eval-ast! <that quoted form>)` RAN the restricted fn (`7 * 1000`).
+// The same hole covered every Rust-side `#[restricted_to(...)]` substrate fence
+// (`wat.kernel/spawn-process`, `wat.kernel/close`, `wat.io.IOWriter/from-fd`),
+// because `freeze/env.rs`'s inventory drain writes them into this same map.
+//
+// R59 — what has to break for this pair to go red: the walker's spelling read,
+// and nothing else. The `_ok` row is the mandatory positive control: a wall that
+// refuses everything is not intact.
+
+#[test]
+fn restricted_mention_in_data_position_is_denied_in_the_symbol_spelling() {
+    assert_restricted_call_rejected(
+        "tests/kernel/wat_arc255_11_restricted_symbol_mention_in_data_denied.wat",
+        ":my::kernel::restricted-fn",
+        ":user::app::caller",
+        &[":my::kernel::"],
+    );
+}
+
+#[test]
+fn restricted_mention_in_data_position_still_admits_a_permitted_caller() {
+    startup_from_file("tests/kernel/wat_arc255_11_restricted_symbol_mention_permitted_ok.wat")
+        .expect("a whitelisted caller must still be admitted in the symbol spelling");
+}
