@@ -207,6 +207,50 @@ not hold** — it deleted `:`/`#` quoting a spec summary that omits the sentence
 ⭐ **Ordering:** 218.7 makes the source of truth trustworthy → 251.8d retires `::` → arc 300's
 highlander (one reader) becomes possible. 8d is what makes the dual implementation *collapsible*.
 
+### ⭐⭐ RULING 2026-09-22 — THE KEYWORD REQUIREMENT IS THE DEFECT
+
+> **Builder:** *"all of the conversions you detailed are correct — we need to break off of the
+> keyword requirements onto symbols"*
+
+⛔ **THE SYMBOL SPELLING IS CORRECT WAT. A READER SLOT THAT *REQUIRES* A KEYWORD IS A DEFECT BY
+DEFINITION** — not a site to patch when it bites, **a class to eliminate.**
+
+**The discriminator, already implemented in the codemod:**
+
+| keyword | what it is | converts to |
+|---|---|---|
+| `:wat::core::defrecord`, `:my::svc::Oops` | a **NAME** (carries `::`) | ⭐ symbol — `wat.core/defrecord` |
+| `:messages`, `:features`, `:nature` | a **syntax MARKER** | ⛔ stays a keyword |
+| `:Ok`, `:Bad` | **DATA** (variant tags) | ⛔ stays a keyword |
+
+⭐ **A slot expecting a NAME accepts both spellings through the identity door; a slot expecting a
+MARKER or DATA is untouched.** ⛔ **Both halves are load-bearing — a cure that lets `:messages` be
+read as a name is worse than the defect.**
+
+### ⭐ WHAT THE RESIDUE ACTUALLY IS — 83% is ONE HABIT
+
+Measured on the committed sample: **15 of 18** failures are three user forms, and every one — plus
+both greens 255.9 found forged, plus the two tables that stopped 8d-ii — is **one slot that
+pattern-matches a spelling instead of asking identity.**
+
+| form | the slot | files |
+|---|---|---|
+| `defsurface :messages` | the message **NAME** (`surface.rs:746`) | **8** |
+| a `defn` inside a rete rule | the **head** (identity right, not extracted) | **4** |
+| a macro building a keyword from a name | `keyword-node`'s **input** | **3** |
+| *(cured 255.9)* `load-file!`, `config/set-*!` | the **head** | — |
+| *(open)* the two runtime type tables | the **type path**, `p.as_str()` vs a literal | — |
+
+⛔ **The `defsurface` one is a FALSE RED that HIDES THE REAL ONE** — measured: `surface.rs:746` reads
+`Some(WatAST::Keyword(mn,_))`, so after conversion `message_names` is **EMPTY** and every
+**correctly-declared** type is reported undeclared, while the genuinely-missing type is never reached.
+⭐ This is the arc's standing "`defsurface :messages` 8" residue, **now attributed**.
+
+**Stone: `255-builtin-registry/BRIEF-STONE-255.10-…md`** (`a51ba7dea`). ⛔ **634 `WatAST::Keyword(`
+read-sites under `src/` — DO NOT SWEEP.** 255.9's reachability method (pipeline order, step 7) took
+82 head sites to **2**; reuse it. ⭐ **Gate on every cure: EVIDENCE, not count** — no cure without a
+file or test that changes state; a site that cannot be made to fail is **REPORTED, not cured**.
+
 ### ⛔ 2026-09-22 — 8d-ii STOPPED A THIRD TIME, and 255.9 IS DRAWN. ⭐ **A CONVERSION CAN FORGE A GREEN**
 
 ⛔ **GROK IS OUT OF CREDITS.** Stones now run on a **fresh Opus rider** (a cold general-purpose agent
