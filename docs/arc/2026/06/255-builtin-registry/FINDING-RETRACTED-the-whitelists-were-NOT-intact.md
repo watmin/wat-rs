@@ -1,3 +1,35 @@
+# ⛔⛔ RETRACTED IN PART, 2026-09-22 — THE TITLE IS WRONG. THE CAPABILITY WALL WAS **OPEN**.
+
+> ⛔ **This document said `✅ :restricted-to — INTACT` and `⛔ Do not re-litigate`. That instruction,
+> had it been obeyed, would have left a LIVE CAPABILITY ESCAPE in the tree.** 255.11 ignored it
+> correctly and found one. **The four probes below are all TRUE and all in a CALL position.**
+>
+> ⭐ **THEY PASSED BECAUSE OF A BACKSTOP, NOT BECAUSE OF THE WALL.** `normalize_symbol_refs`
+> (step 7) rewrites symbol→keyword in **CODE** positions, so a symbol-spelled *call head* reached
+> `walk_for_restricted_call` already canonicalized. ⛔ **A DATA position is never normalized**
+> (`resolve/boundary.rs`), and arc 198's own ruling is that **a restriction governs MENTION, not
+> head position.** The walker matched `WatAST::Keyword` alone. Reproduced by the orchestrator on
+> two binaries built from one tree:
+>
+> ```
+> PRE-CURE  (:wat::core::quote (:my::kernel::restricted-fn 7))  → rc=1  DefRestrictedCallerNotAllowed
+> PRE-CURE  (:wat::core::quote (my.kernel/restricted-fn   7))  → rc=0  ⛔⛔ ESCAPED
+> POST-CURE both spellings                                      → rc=1, same error
+> POST-CURE a PERMITTED caller, symbol mention                  → rc=0  ✅ not over-restricted
+> ```
+>
+> ⛔⛔ **AND THE "DIFFERENT MECHANISM, UNPROBED" LINE BELOW IS WRONG IN KIND.** The Rust-side
+> `#[restricted_to(…)]` substrate fences drain into the **SAME `binding_metadata` map** read by the
+> **SAME walker**. Orchestrator-measured, pre-cure, mentioned from `:user::` code:
+> `wat.io.IOWriter/from-fd` **rc=0**, `wat.kernel/close` **rc=0** — raw-fd writes and resource close,
+> escaped. Keyword spellings were rc=1. **Cured and verified by 255.11.**
+>
+> ⭐ **THE LESSON, AND IT IS THE ORCHESTRATOR'S:** *four green probes in one position are not a
+> verdict on a wall.* A wall must be probed in **every position its own design ruling names** —
+> here, MENTION, not merely head. **Never write "do not re-litigate" over a security wall.**
+
+---
+
 # FINDING — the capability whitelists are INTACT. The macro purity gate was not.
 
 **Measured 2026-09-22 at `fd1991d01`**, prompted by the builder's question *"did we break our
